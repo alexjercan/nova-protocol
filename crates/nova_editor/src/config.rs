@@ -121,7 +121,8 @@ pub(crate) struct SceneRow(pub(crate) Entity);
 #[derive(Component)]
 pub(crate) struct PlayButton;
 
-/// The top bar's breadcrumb: where in the document the editor is, as a path.
+/// The top bar's breadcrumb: where in the document the editor is, as a path of
+/// pressable steps. Refilled by `crate::ui::sync_breadcrumb`.
 #[derive(Component)]
 pub(crate) struct ContextBreadcrumb;
 
@@ -322,6 +323,14 @@ pub(crate) struct ShipReadout;
 /// turn rate down, and the one thing that would raise it.
 #[derive(Component)]
 pub(crate) struct ShipReadoutNote;
+
+/// One pressable step of the breadcrumb, carrying the node it goes to.
+#[derive(Component)]
+pub(crate) struct CrumbStep(pub(crate) Entity);
+
+/// The breadcrumb's selection chip, carrying the node it names.
+#[derive(Component)]
+pub(crate) struct CrumbSelection(pub(crate) Entity);
 
 /// The editor's key legend, bottom-left. Its text follows the armed tool, so
 /// the keys that do nothing in the current mode are not listed and the line

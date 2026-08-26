@@ -80,7 +80,7 @@ pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
 use readout::sync_ship_readout;
 use scenario::{register_sandbox_scenario, sandbox_unregistered, setup_scenario};
 use skin::sync_editor_skin;
-use stage::{draw_node_marks, draw_object_volumes, draw_world_grid};
+use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     callout::sync_placement_callout,
     inspector::{
@@ -470,9 +470,14 @@ fn editor_plugin(app: &mut App) {
             sync_editor_skin,
             draw_link_points,
             draw_ship_heading,
-            draw_world_grid,
-            draw_object_volumes,
-            draw_node_marks,
+            // The stage's four overlays, as one group: they only draw, and
+            // the outer tuple is at Bevy's arity.
+            (
+                draw_world_grid,
+                draw_object_volumes,
+                draw_node_marks,
+                draw_axis_rose,
+            ),
         )
             .chain()
             // BEFORE the gallery's keyboard, which shares two keys with the

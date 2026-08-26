@@ -31,18 +31,21 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{key_chip, panel, panel_header, separator, themed_button, ButtonLabel, UiSkin},
     theme,
-    widget::{checkbox_colors, checkbox_glyph, Selected},
+    widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
 };
 
 use crate::{
     bundle::ask_to_save,
     config::{
-        ContextBreadcrumb, EditorKeyLegend, EditorOverlays, EditorStatus, LastClick,
-        PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow, SectionChoice,
-        SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice,
-        StyleList, StyleSwatch,
+        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorKeyLegend, EditorOverlays,
+        EditorStatus, LastClick, PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow,
+        SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
+        SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
-    frame::{ask_for, on_frame_selection, FrameRequest, FrameSelectionItem},
+    frame::{
+        ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
+        ViewPresetItem,
+    },
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     glyph::{
         category_mark, choice_mark, object_mark, section_mark, ship_mark, INSIDE, SCENARIO, SHIP_AI,
@@ -164,6 +167,19 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 menu_item_row("Frame Selection", MenuLead::None, MenuTail::Key("F"), skin),
                 observe(on_frame_selection),
             ));
+            // The axis views, under the one that frames: they answer the same
+            // question - put the camera on this - and differ only in where
+            // they answer it from. Sockets are axis-aligned, so this is how a
+            // builder checks a mate went where they meant it to.
+            for angle in ViewAngle::PRESETS {
+                items.spawn((
+                    Name::new(format!("{} View Item", angle.label())),
+                    FrameSelectionItem,
+                    ViewPresetItem(angle),
+                    menu_item_row(angle.label(), MenuLead::None, MenuTail::None, skin),
+                    observe(on_view_preset),
+                ));
+            }
         }
         MenuId::Ship => {
             // The three verbs that used to sit in the top right. They belong
@@ -574,17 +590,12 @@ pub(crate) fn setup_editor_scene(
                         .with_child((
                             Name::new("Context Breadcrumb"),
                             ContextBreadcrumb,
-                            Node::default(),
-                            Text::new(""),
-                            TextLayout {
-                                linebreak: LineBreak::NoWrap,
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                column_gap: px(4),
                                 ..default()
                             },
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(theme::PHOSPHOR),
                         ));
                 });
             });
@@ -1348,7 +1359,7 @@ pub(crate) fn on_scene_row(
         if double {
             context.to_root();
             selected.0 = None;
-            request.0 = None;
+            request.node = None;
         } else {
             // The root is the whole stage: framing it is what "show me
             // everything" means, and leaving a ship is the second click.
@@ -1359,7 +1370,7 @@ pub(crate) fn on_scene_row(
     if double && ships.contains(*node) {
         context.enter(*node);
         selected.0 = None;
-        request.0 = None;
+        request.node = None;
         return;
     }
     selected.0 = Some(*node);
@@ -1470,19 +1481,49 @@ pub(crate) fn sync_context_panels(
     }
 }
 
+/// One thing the breadcrumb draws.
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) enum Crumb {
+    /// The level word: what a click in the viewport would do here.
+    Level(String),
+    /// The separator between two steps.
+    Slash,
+    /// A step of the path, and the node it goes to.
+    Step {
+        node: Entity,
+        id: String,
+        label: String,
+    },
+    /// What is selected, in its own chip.
+    Selection { node: Entity, label: String },
+}
+
 /// Write the top bar's context readout: WHAT is being edited (the level, in
-/// capitals), the path to it in the names the tree shows, and the selection.
+/// capitals), the path to it as PRESSABLE steps, and the selection in a chip
+/// of its own.
 ///
 /// The level leads because it was the missing feedback: the bare path
 /// "scenario / ship_1" never said whether a click would select, enter or
 /// place. The same fact the tree's `@` mark shows, said as a sentence.
+///
+/// The steps are controls and not a caption: this editor's whole model is
+/// entering and leaving, and the path is the natural thing to press for it -
+/// the tree's root row was the only way back out, and nothing said so.
+///
+/// Rebuilt from a compare rather than every frame, exactly as
+/// [`sync_scene_list`] is: the row is spawned on entering the editor, and
+/// respawning it under the pointer every frame would kill its own hover.
 pub(crate) fn sync_breadcrumb(
+    mut commands: Commands,
+    skin: Res<UiSkin>,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     ids: Query<&NodeId>,
     ships: Query<&ShipNode>,
     objects: Query<&ObjectNode>,
-    mut crumbs: Query<&mut Text, With<ContextBreadcrumb>>,
+    bars: Query<Entity, With<ContextBreadcrumb>>,
+    fresh: Query<(), Added<ContextBreadcrumb>>,
+    mut shown: Local<Vec<Crumb>>,
 ) {
     let named = |node: Entity| {
         let id = ids
@@ -1494,31 +1535,164 @@ pub(crate) fn sync_breadcrumb(
             .or_else(|_| objects.get(node).map(|object| object.name.clone()))
             .unwrap_or_default();
         let (label, ordinal) = tree_text(&authored, &id);
-        if ordinal.is_empty() {
+        let label = if ordinal.is_empty() {
             label
         } else {
             format!("{label} {ordinal}")
-        }
+        };
+        (id, label)
     };
-    let path = context
-        .path
-        .iter()
-        .map(|node| named(*node))
-        .collect::<Vec<_>>()
-        .join(" / ");
     let level = match (context.scenario(), context.ship()) {
         (None, _) => "",
-        (Some(_), None) => "SCENARIO  ",
-        (Some(_), Some(_)) => "SHIP  ",
+        (Some(_), None) => "SCENARIO",
+        (Some(_), Some(_)) => "SHIP",
     };
-    let mut wanted = format!("{level}{path}");
-    if let Some(node) = selected.0 {
-        wanted.push_str(&format!("   selected {}", named(node)));
+    let mut wanted = Vec::new();
+    if !level.is_empty() {
+        wanted.push(Crumb::Level(level.to_string()));
     }
-    for mut text in &mut crumbs {
-        if text.0 != wanted {
-            text.0 = wanted.clone();
+    for (index, node) in context.path.iter().enumerate() {
+        if index > 0 {
+            wanted.push(Crumb::Slash);
         }
+        let (id, label) = named(*node);
+        wanted.push(Crumb::Step {
+            node: *node,
+            id,
+            label,
+        });
+    }
+    if let Some(node) = selected.0 {
+        wanted.push(Crumb::Selection {
+            node,
+            label: named(node).1,
+        });
+    }
+
+    // A fresh bar holds no crumbs whatever this Local remembers - the bar dies
+    // with the editor scene while a `Local` survives the state round-trip.
+    if !fresh.is_empty() {
+        shown.clear();
+    }
+    if *shown == wanted {
+        return;
+    }
+    let Ok(bar) = bars.single() else {
+        return;
+    };
+    commands.entity(bar).despawn_related::<Children>();
+    commands.entity(bar).with_children(|bar| {
+        for crumb in &wanted {
+            match crumb {
+                Crumb::Level(word) => {
+                    bar.spawn((Name::new("Crumb Level"), crumb_word(word, theme::PHOSPHOR)));
+                }
+                Crumb::Slash => {
+                    bar.spawn(crumb_word("/", theme::PHOSPHOR_DIM));
+                }
+                Crumb::Step { node, id, label } => {
+                    bar.spawn((
+                        // Named by the node's own key, drawn by its name: the
+                        // walks find a step by the id whatever it reads as.
+                        Name::new(format!("Crumb {id}")),
+                        CrumbStep(*node),
+                        crumb_chip(label, *skin),
+                        observe(on_crumb_step),
+                    ));
+                }
+                Crumb::Selection { node, label } => {
+                    bar.spawn((
+                        Name::new("Crumb Selection"),
+                        CrumbSelection(*node),
+                        crumb_chip(&format!("selected {label}"), *skin),
+                        observe(on_crumb_selection),
+                    ));
+                }
+            }
+        }
+    });
+    *shown = wanted;
+}
+
+/// One word of the crumb that is not a control: the level, and the separators.
+fn crumb_word(text: &str, colour: Color) -> impl Bundle {
+    (
+        Text::new(text.to_string()),
+        TextLayout {
+            linebreak: LineBreak::NoWrap,
+            ..default()
+        },
+        TextFont {
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(colour),
+    )
+}
+
+/// One pressable crumb.
+///
+/// A [`ListRow`], so nova_ui's own reconciler paints the hover - the same paint
+/// the tree rows wear, which is what says the two are the same kind of thing.
+fn crumb_chip(label: &str, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(false, false, skin);
+    (
+        ListRow,
+        Button,
+        Hovered::default(),
+        Node {
+            padding: UiRect::axes(px(6), px(2)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![crumb_word(label, theme::PHOSPHOR)],
+    )
+}
+
+/// Go to the step that was pressed.
+///
+/// The step the editor is already standing in FRAMES it instead: "put me back
+/// on what I am editing" is the only thing left for it to mean, and it is the
+/// same answer the tree's root row gives to its first click.
+pub(crate) fn on_crumb_step(
+    activate: On<Activate>,
+    steps: Query<&CrumbStep>,
+    scenarios: Query<(), With<ScenarioNode>>,
+    mut selected: ResMut<SelectedNode>,
+    mut context: ResMut<EditContext>,
+    mut request: ResMut<FrameRequest>,
+) {
+    let Ok(CrumbStep(node)) = steps.get(activate.entity) else {
+        return;
+    };
+    if context.current() == Some(*node) {
+        ask_for(&mut request, Some(*node));
+        return;
+    }
+    // A context change hands the camera to `crate::node::sync_camera_focus`,
+    // which frames whatever was entered - so a standing frame request steps
+    // aside rather than writing the camera a second time in the same frame.
+    if scenarios.contains(*node) {
+        context.to_root();
+    } else {
+        context.enter(*node);
+    }
+    selected.0 = None;
+    request.node = None;
+}
+
+/// The selection chip frames what it names - the pointer's answer to F.
+pub(crate) fn on_crumb_selection(
+    activate: On<Activate>,
+    chips: Query<&CrumbSelection>,
+    mut request: ResMut<FrameRequest>,
+) {
+    if let Ok(CrumbSelection(node)) = chips.get(activate.entity) {
+        ask_for(&mut request, Some(*node));
     }
 }
 
@@ -1556,6 +1730,7 @@ pub(crate) fn sync_rebind_button(
 /// Writes an explicit id rather than a list index: the build state travels out
 /// to the scenario and back, and an index into a catalog a mod can grow would
 /// not survive that trip meaning the same thing.
+///
 /// Picking a style off the greyed list also turns the skin ON. The list is
 /// visible while the skin is off so it can advertise what the toggle leads to,
 /// and an advertisement that answers a press with nothing is worse than no
@@ -2079,8 +2254,8 @@ mod tests {
 
     /// What the camera has been asked to look at, and clear the request.
     fn framed(app: &mut App) -> Option<Entity> {
-        let asked = app.world().resource::<FrameRequest>().0;
-        app.world_mut().resource_mut::<FrameRequest>().0 = None;
+        let asked = app.world().resource::<FrameRequest>().node;
+        app.world_mut().resource_mut::<FrameRequest>().node = None;
         asked
     }
 
@@ -2660,24 +2835,44 @@ mod tests {
         assert_eq!(display(&world, settings), Display::Flex);
     }
 
-    /// The readout says WHAT is being edited before it says where: the level
-    /// in capitals, the path in the names the tree shows, and the selection.
-    /// The bare path never answered "will this click select, enter or place".
-    ///
-    /// The level is a BARE word, the one treatment a kind tag gets: the
-    /// inspector's title and the tree's hint print it that way too, and the
-    /// crumb's brackets were a third way of drawing one thing.
-    #[test]
-    fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
-        use bevy::ecs::system::RunSystemOnce;
+    /// What the breadcrumb reads, crumb by crumb.
+    fn crumb_words(app: &mut App) -> Vec<String> {
+        let bar = app
+            .world_mut()
+            .query_filtered::<Entity, With<ContextBreadcrumb>>()
+            .single(app.world())
+            .expect("the crumb bar exists");
+        let mut words = Vec::new();
+        let mut stack: Vec<Entity> = app
+            .world()
+            .get::<Children>(bar)
+            .map(|kids| kids.iter().rev().collect())
+            .unwrap_or_default();
+        while let Some(entity) = stack.pop() {
+            if let Some(text) = app.world().get::<Text>(entity) {
+                words.push(text.0.clone());
+            }
+            if let Some(kids) = app.world().get::<Children>(entity) {
+                stack.extend(kids.iter().rev());
+            }
+        }
+        words
+    }
 
-        let mut world = World::new();
-        world.init_resource::<EditContext>();
-        world.init_resource::<SelectedNode>();
-        let scenario = world
+    /// A crumb bar over a scenario holding one ship, wired to the real
+    /// observers so a press goes the way a click does.
+    fn crumb_app() -> (App, Entity, Entity) {
+        let mut app = App::new();
+        app.init_resource::<EditContext>();
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<FrameRequest>();
+        app.init_resource::<UiSkin>();
+        let scenario = app
+            .world_mut()
             .spawn((ScenarioNode, NodeId("scenario".to_string())))
             .id();
-        let ship = world
+        let ship = app
+            .world_mut()
             .spawn((
                 ShipNode {
                     name: "Kestrel".to_string(),
@@ -2686,24 +2881,87 @@ mod tests {
                 NodeId("ship_1".to_string()),
             ))
             .id();
-        let crumb = world.spawn((ContextBreadcrumb, Text::new(""))).id();
-        world.resource_mut::<EditContext>().path = vec![scenario];
+        app.world_mut().spawn((ContextBreadcrumb, Node::default()));
+        app.world_mut().resource_mut::<EditContext>().path = vec![scenario];
+        app.add_systems(Update, sync_breadcrumb);
+        (app, scenario, ship)
+    }
 
-        world.run_system_once(sync_breadcrumb).unwrap();
-        assert_eq!(world.get::<Text>(crumb).unwrap().0, "SCENARIO  scenario");
+    /// The crumb named by `id`.
+    fn crumb(app: &mut App, node: Entity) -> Entity {
+        app.world_mut()
+            .query::<(Entity, &CrumbStep)>()
+            .iter(app.world())
+            .find(|(_, step)| step.0 == node)
+            .map(|(entity, _)| entity)
+            .expect("the step is on the bar")
+    }
 
-        world.resource_mut::<EditContext>().enter(ship);
-        world.run_system_once(sync_breadcrumb).unwrap();
+    /// The readout says WHAT is being edited before it says where: the level
+    /// in capitals, the path in the names the tree shows, and the selection.
+    /// The bare path never answered "will this click select, enter or place".
+    ///
+    /// The level is a BARE word, the one treatment a kind tag gets: the
+    /// inspector's title and the tree's hint print it that way too, and the
+    /// crumb's brackets were a third way of drawing one thing. The selection
+    /// gets a chip of its own rather than three spaces and a sentence.
+    #[test]
+    fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
+        let (mut app, _, ship) = crumb_app();
+        app.update();
+        assert_eq!(crumb_words(&mut app), vec!["SCENARIO", "scenario"]);
+
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.update();
         assert_eq!(
-            world.get::<Text>(crumb).unwrap().0,
-            "SHIP  scenario / Kestrel"
+            crumb_words(&mut app),
+            vec!["SHIP", "scenario", "/", "Kestrel"]
         );
 
-        world.resource_mut::<SelectedNode>().0 = Some(ship);
-        world.run_system_once(sync_breadcrumb).unwrap();
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        app.update();
         assert_eq!(
-            world.get::<Text>(crumb).unwrap().0,
-            "SHIP  scenario / Kestrel   selected Kestrel"
+            crumb_words(&mut app),
+            vec!["SHIP", "scenario", "/", "Kestrel", "selected Kestrel"]
+        );
+    }
+
+    /// The path is a CONTROL: pressing the scenario step leaves the ship, the
+    /// way the tree's root row does on its second click. This editor's whole
+    /// model is entering and leaving, and the crumb is the natural door.
+    #[test]
+    fn pressing_the_root_crumb_leaves_the_ship() {
+        let (mut app, scenario, ship) = crumb_app();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        app.update();
+
+        let root = crumb(&mut app, scenario);
+        app.world_mut().trigger(Activate { entity: root });
+        app.update();
+
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
+        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert_eq!(crumb_words(&mut app), vec!["SCENARIO", "scenario"]);
+    }
+
+    /// The step the editor is already inside has nowhere to go, so it frames
+    /// what is being edited instead - "put me back on it".
+    #[test]
+    fn pressing_the_current_crumb_frames_it() {
+        let (mut app, _, ship) = crumb_app();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.update();
+
+        let here = crumb(&mut app, ship);
+        app.world_mut().trigger(Activate { entity: here });
+        app.update();
+
+        assert_eq!(app.world().resource::<FrameRequest>().node, Some(ship));
+        assert_eq!(
+            app.world().resource::<EditContext>().ship(),
+            Some(ship),
+            "and stays where it was"
         );
     }
 

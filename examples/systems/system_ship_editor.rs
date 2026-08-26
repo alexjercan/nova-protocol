@@ -1743,6 +1743,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: framed ship_1, camera {before:?} -> {now:?}");
         })
         .add()
+        // The axis views, on the same selection: a mate is checked by looking
+        // down an axis, so the row has to actually put the camera on one.
+        .click_a_menu_item("editor: look straight down", MENU_VIEW, "Top View Item")
+        .step("editor: the camera stands on the top axis")
+        .until(the_camera_looks_down_on_the_first_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_menu_item("editor: back to the stage view", MENU_VIEW, "Iso View Item")
+        .step("editor: the camera came off the top axis")
+        .until(the_camera_frames_the_first_ship())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         // The stage figure. Taken HERE because this is the one beat where the
         // grid, the handles and a marked ship are all on screen at once, which
         // is the picture every change to the stage has to be judged against.
@@ -2910,6 +2922,34 @@ fn the_camera_frames_the_first_ship() -> Wait {
             let towards = *at - pose.translation();
             towards.length() > f32::EPSILON
                 && pose.forward().as_vec3().dot(towards.normalize()) > 0.98
+        })
+    })
+}
+
+/// Advance once the camera stands ABOVE the first ship, looking down at it -
+/// what View > Top asks for. Level against the height, so the check reads the
+/// same whatever the ship's spread backed the camera off to.
+#[cfg(feature = "debug")]
+fn the_camera_looks_down_on_the_first_ship() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let Some((_, at)) = world
+            .resource::<EditorProbe>()
+            .node_positions
+            .iter()
+            .find(|(id, _)| id == "ship_1")
+        else {
+            return false;
+        };
+        let Some(mut cameras) = world.try_query_filtered::<&GlobalTransform, With<Camera3d>>()
+        else {
+            return false;
+        };
+        cameras.iter(world).any(|pose| {
+            let over = pose.translation() - *at;
+            // Against the node's own origin, which is not the middle of the
+            // hull the view is framing - so the cone is generous and the
+            // AIM is what carries the check.
+            over.y > 1.0 && over.xz().length() < over.y * 0.35 && pose.forward().y < -0.85
         })
     })
 }

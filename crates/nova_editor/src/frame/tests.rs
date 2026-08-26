@@ -84,7 +84,7 @@ fn a_served_request_puts_the_camera_on_the_node() {
     let at = Vec3::new(40.0, 0.0, -12.0);
     let node = rock(&mut app, at, 3.0);
 
-    app.world_mut().resource_mut::<FrameRequest>().0 = Some(node);
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
     serve(&mut app);
 
     let pose = camera_pose(&app, eye);
@@ -95,7 +95,7 @@ fn a_served_request_puts_the_camera_on_the_node() {
         pose.forward()
     );
     assert_eq!(
-        app.world().resource::<FrameRequest>().0,
+        app.world().resource::<FrameRequest>().node,
         None,
         "a served request must not be served again next frame"
     );
@@ -115,7 +115,7 @@ fn a_node_with_no_bounds_is_framed_at_its_origin() {
         ))
         .id();
 
-    app.world_mut().resource_mut::<FrameRequest>().0 = Some(node);
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
     serve(&mut app);
 
     assert_eq!(
@@ -133,10 +133,10 @@ fn a_request_for_a_deleted_node_clears_itself() {
     let node = rock(&mut app, Vec3::new(9.0, 0.0, 0.0), 1.0);
     app.world_mut().entity_mut(node).despawn();
 
-    app.world_mut().resource_mut::<FrameRequest>().0 = Some(node);
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
     serve(&mut app);
 
-    assert_eq!(app.world().resource::<FrameRequest>().0, None);
+    assert_eq!(app.world().resource::<FrameRequest>().node, None);
     assert_eq!(
         camera_pose(&app, eye).translation,
         before,
@@ -148,19 +148,19 @@ fn a_request_for_a_deleted_node_clears_itself() {
 fn a_request_raised_before_the_camera_exists_is_held() {
     let mut app = frame_app();
     let node = rock(&mut app, Vec3::new(0.0, 0.0, -30.0), 2.0);
-    app.world_mut().resource_mut::<FrameRequest>().0 = Some(node);
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
 
     // The frame the editor is entered on: the camera is still a command away.
     serve(&mut app);
     assert_eq!(
-        app.world().resource::<FrameRequest>().0,
+        app.world().resource::<FrameRequest>().node,
         Some(node),
         "a request nobody could serve is held, not dropped"
     );
 
     let eye = camera(&mut app);
     serve(&mut app);
-    assert_eq!(app.world().resource::<FrameRequest>().0, None);
+    assert_eq!(app.world().resource::<FrameRequest>().node, None);
     assert!(
         camera_pose(&app, eye).translation.z < 0.0,
         "and then it lands"
@@ -173,7 +173,7 @@ fn framing_hands_the_free_fly_rig_back() {
     let eye = camera(&mut app);
     let node = rock(&mut app, Vec3::new(5.0, 0.0, 0.0), 1.0);
 
-    app.world_mut().resource_mut::<FrameRequest>().0 = Some(node);
+    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
     serve(&mut app);
 
     assert!(
@@ -204,8 +204,8 @@ fn the_key_frames_the_selection_and_falls_back_to_the_context() {
         app.world_mut()
             .run_system_once(frame_key)
             .expect("the system runs");
-        let asked = app.world().resource::<FrameRequest>().0;
-        app.world_mut().resource_mut::<FrameRequest>().0 = None;
+        let asked = app.world().resource::<FrameRequest>().node;
+        app.world_mut().resource_mut::<FrameRequest>().node = None;
         asked
     }
 
@@ -234,7 +234,7 @@ fn the_key_stays_out_of_the_way_of_an_armed_part() {
         .expect("the system runs");
 
     assert_eq!(
-        app.world().resource::<FrameRequest>().0,
+        app.world().resource::<FrameRequest>().node,
         None,
         "F cycles the armed part's socket; it must not also move the camera"
     );

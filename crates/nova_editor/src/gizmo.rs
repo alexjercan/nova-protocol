@@ -93,7 +93,7 @@ pub(crate) enum GizmoAxis {
 impl GizmoAxis {
     pub(crate) const ALL: [Self; 3] = [Self::X, Self::Y, Self::Z];
 
-    fn unit(self) -> Vec3 {
+    pub(crate) fn unit(self) -> Vec3 {
         match self {
             Self::X => Vec3::X,
             Self::Y => Vec3::Y,

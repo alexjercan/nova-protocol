@@ -1701,14 +1701,14 @@ mod tests {
             "one press marks the object"
         );
         assert_eq!(
-            app.world().resource::<FrameRequest>().0,
+            app.world().resource::<FrameRequest>().node,
             None,
             "and leaves the camera where it is"
         );
 
         press(&mut app);
         assert_eq!(
-            app.world().resource::<FrameRequest>().0,
+            app.world().resource::<FrameRequest>().node,
             Some(rock),
             "the second press asks the camera for it"
         );

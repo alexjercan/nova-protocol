@@ -26,13 +26,79 @@ use crate::{
 /// socket), so the two never both fire.
 pub(crate) const FRAME_KEY: KeyCode = KeyCode::KeyF;
 
-/// The node the camera has been asked to look at, until it has.
+/// The node the camera has been asked to look at, and from where, until it has.
 ///
 /// Held rather than acted on where it is raised: an observer on a tree row
 /// cannot see the camera, and a node placed this frame has no collider AABB
 /// until the physics step runs. The request survives until it is served.
 #[derive(Resource, Debug, Default, PartialEq, Eq)]
-pub(crate) struct FrameRequest(pub(crate) Option<Entity>);
+pub(crate) struct FrameRequest {
+    /// What to look at.
+    pub(crate) node: Option<Entity>,
+    /// Which way to come at it from.
+    pub(crate) angle: ViewAngle,
+}
+
+/// Where the camera stands to look at what it is framing.
+///
+/// Sockets are axis-aligned, so an axis-TRUE view is how a builder checks that
+/// a part mated where they meant it to - a mate that is one socket out reads as
+/// correct from every other angle.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ViewAngle {
+    /// The stock editor view: above and behind, the pose the stage spawns in.
+    #[default]
+    Stock,
+    /// Down the nose, from ahead of the ship.
+    Front,
+    /// From the ship's starboard side.
+    Side,
+    /// Straight down.
+    Top,
+    /// Off one shoulder, all three axes in view.
+    Iso,
+}
+
+impl ViewAngle {
+    /// The presets the View menu offers, in the order it lists them.
+    pub(crate) const PRESETS: [Self; 4] = [Self::Front, Self::Side, Self::Top, Self::Iso];
+
+    /// The menu row's label.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Stock => "Stage",
+            Self::Front => "Front",
+            Self::Side => "Side",
+            Self::Top => "Top",
+            Self::Iso => "Iso",
+        }
+    }
+
+    /// Which way the eye sits from the target, as a unit vector. `None` for
+    /// [`ViewAngle::Stock`], which is not a direction but the stage's own pose.
+    ///
+    /// A ship's nose points along -Z, so FRONT is out at +Z looking back down
+    /// the hull.
+    fn eye(self) -> Option<Vec3> {
+        match self {
+            Self::Stock => None,
+            Self::Front => Some(Vec3::Z),
+            Self::Side => Some(Vec3::X),
+            Self::Top => Some(Vec3::Y),
+            Self::Iso => Some(Vec3::new(1.0, 1.0, 1.0).normalize()),
+        }
+    }
+
+    /// Which way is up on screen. Straight down needs its own answer: with the
+    /// eye on +Y the world's up is the way the camera is looking, and a camera
+    /// cannot be levelled against the axis it points along.
+    fn up(self) -> Vec3 {
+        match self {
+            Self::Top => Vec3::NEG_Z,
+            _ => Vec3::Y,
+        }
+    }
+}
 
 /// F frames the selection, or the node the editor is standing in when nothing
 /// is selected - which is the answer to "I have flown away, put me back".
@@ -59,10 +125,37 @@ pub(crate) fn on_frame_selection(
     ask_for(&mut request, selected.0.or_else(|| context.current()));
 }
 
-/// Raise a request for `node`, if there is one to frame.
+/// View > Front/Side/Top/Iso: the same target, from a named direction.
+pub(crate) fn on_view_preset(
+    activate: On<Activate>,
+    presets: Query<&ViewPresetItem>,
+    selected: Res<SelectedNode>,
+    context: Res<EditContext>,
+    mut request: ResMut<FrameRequest>,
+) {
+    let Ok(preset) = presets.get(activate.entity) else {
+        return;
+    };
+    look_from(
+        &mut request,
+        selected.0.or_else(|| context.current()),
+        preset.0,
+    );
+}
+
+/// Raise a request for `node`, if there is one to frame, from the stage's own
+/// pose.
 pub(crate) fn ask_for(request: &mut FrameRequest, node: Option<Entity>) {
-    if node.is_some() && request.0 != node {
-        request.0 = node;
+    look_from(request, node, ViewAngle::Stock);
+}
+
+/// The same, from a named direction.
+pub(crate) fn look_from(request: &mut FrameRequest, node: Option<Entity>, angle: ViewAngle) {
+    // The ANGLE is half of the request: a second Front on the same node is a
+    // builder asking to be put back on the axis after flying off it.
+    if node.is_some() && (request.node != node || request.angle != angle) {
+        request.node = node;
+        request.angle = angle;
     }
 }
 
@@ -86,13 +179,13 @@ pub(crate) fn apply_frame_request(
     q_poses: Query<&Transform, Without<EditorCamera>>,
     camera: Option<Single<(Entity, &mut Transform), With<EditorCamera>>>,
 ) {
-    let Some(node) = request.0 else {
+    let Some(node) = request.node else {
         return;
     };
     let Ok(pose) = q_poses.get(node) else {
         // The node is gone (deleted while the request stood). Nothing to look
         // at, and a request nobody can serve would stand for ever.
-        request.0 = None;
+        request.node = None;
         return;
     };
     // Held, not dropped: the camera is spawned through commands on the way into
@@ -104,14 +197,37 @@ pub(crate) fn apply_frame_request(
         Some(bounds) => (bounds.center(), bounds.size().length() * 0.5),
         None => (pose.translation, 0.0),
     };
-    request.0 = None;
+    let angle = request.angle;
+    request.node = None;
     let (entity, mut transform) = camera.into_inner();
-    *transform = frame_stage(centre, spread);
+    *transform = view_stage(centre, spread, angle);
     commands
         .entity(entity)
         .remove::<WASDCameraController>()
         .insert(WASDCameraController);
 }
+
+/// The view over `target` from `angle`, at the reach the stage view uses - so
+/// an axis view is the stock view turned, and not a jump to a new distance.
+pub(crate) fn view_stage(target: Vec3, spread: f32, angle: ViewAngle) -> Transform {
+    let stock = frame_stage(target, spread);
+    match angle.eye() {
+        None => stock,
+        Some(eye) => {
+            let reach = stock.translation.distance(target);
+            Transform::from_translation(target + eye * reach).looking_at(target, angle.up())
+        }
+    }
+}
+
+/// The View menu's rows that need something to look at: Frame Selection and the
+/// four presets, greyed together by [`sync_frame_item`].
+#[derive(Component)]
+pub(crate) struct FrameSelectionItem;
+
+/// One preset row, carrying the direction it looks from.
+#[derive(Component)]
+pub(crate) struct ViewPresetItem(pub(crate) ViewAngle);
 
 /// The world-space box `node` and everything under it occupies, or `None` when
 /// nothing in the subtree has a collider.
@@ -167,10 +283,6 @@ pub(crate) fn sync_frame_item(
         }
     }
 }
-
-/// The View menu's Frame Selection row, so [`sync_frame_item`] can find it.
-#[derive(Component)]
-pub(crate) struct FrameSelectionItem;
 
 #[cfg(test)]
 mod tests;

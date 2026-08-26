@@ -28,7 +28,9 @@ use crate::{
     config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
     frame::node_bounds,
     gallery::EditorCamera,
+    gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
+    ui::inspector::PANEL_W as INSPECTOR_W,
 };
 
 /// Cells across the fine grid, and so how far it reaches: half of them each way
@@ -93,6 +95,66 @@ const SUN_DISC: f32 = 0.18;
 /// The shortest that arrow gets, so a sun the camera is sitting on still points
 /// somewhere.
 const SUN_MIN: f32 = 3.0;
+
+/// How far in front of the eye the axis rose floats, in world units, and how
+/// long an arm is as a fraction of that.
+///
+/// Pinned to the camera rather than to the world: a rose the size of the scene
+/// would be a wall inside a ship and a speck over a range. At this depth it is
+/// in front of everything the editor draws, which is what an overlay has to be.
+const ROSE_DEPTH: f32 = 2.0;
+const ROSE_ARM: f32 = 0.035;
+
+/// How far the rose sits from the bottom-right of the VIEWPORT, in logical
+/// pixels - the inspector's width taken off the right, because the corner of
+/// the window is behind that panel and a rose nobody can see says nothing. It
+/// clears the key legend along the bottom by the same margin.
+const ROSE_INSET: Vec2 = Vec2::new(56.0, 80.0);
+
+/// The dot on the far end of an arm, as a fraction of the arm. It is what says
+/// which end is POSITIVE, on a rose with no room for letters.
+const ROSE_TIP: f32 = 0.16;
+
+/// Draw the axis rose in the viewport's bottom-right corner.
+///
+/// Always on, and in both contexts. Inside a ship the grid is off by design -
+/// a part's place is decided by mating, not by a plane - which leaves a grey
+/// hull on black with nothing at all to say which way is up. Only the POSITIVE
+/// half of each axis is drawn, with a dot on its end: an arm that exists in one
+/// direction says which way as well as which axis, and drawing the negative
+/// half faint read as a cross at this size.
+///
+/// The colours are [`crate::gizmo`]'s: the arm that says where X is and the
+/// handle that drags along X are the same red.
+pub(crate) fn draw_axis_rose(
+    camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+    mut gizmos: Gizmos<EditorGizmos>,
+) {
+    let Some(camera) = camera else {
+        return;
+    };
+    let (camera, pose) = camera.into_inner();
+    let Some(viewport) = camera.logical_viewport_size() else {
+        return;
+    };
+    let corner = Vec2::new(
+        viewport.x - INSPECTOR_W - ROSE_INSET.x,
+        viewport.y - ROSE_INSET.y,
+    );
+    let Ok(ray) = camera.viewport_to_world(pose, corner) else {
+        return;
+    };
+    let origin = ray.get_point(ROSE_DEPTH);
+    let arm = ROSE_DEPTH * ROSE_ARM;
+    // The dots face the eye, so an axis pointing at the camera reads as a ring
+    // rather than as a missing arm.
+    let facing = Quat::from_rotation_arc(Vec3::Z, -Vec3::from(ray.direction));
+    for axis in GizmoAxis::ALL {
+        let tip = origin + axis.unit() * arm;
+        gizmos.line(origin, tip, axis.colour());
+        gizmos.circle(Isometry3d::new(tip, facing), arm * ROSE_TIP, axis.colour());
+    }
+}
 
 /// Draw the ground plane the range is laid out on.
 ///
