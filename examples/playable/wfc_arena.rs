@@ -2,77 +2,46 @@
 //! arena.
 //!
 //! The generator is `shared/wfc.rs`, the same collapse `wfc_ships` poses in a
-//! row - real prototype sections, turrets on the skin, drives aft, bays with
-//! cleared exit lanes, every hull passed through the game's own content lint
-//! before it spawns. Where the row NEUTERS its subjects
-//! (`SpaceshipController::None`, no allegiance), the arena flips exactly those
-//! two fields: some hulls fly the player's colors, the rest the enemy's, all
-//! under the same AI pilot the campaign's raiders use, and the combat systems
-//! do the rest.
+//! row. Where the row neuters its subjects (`SpaceshipController::None`, no
+//! allegiance), the arena flips exactly those two fields: some hulls fly the
+//! player's colors, the rest the enemy's, all under the campaign's AI pilot.
+//! This is the flyability bench for wfc ships - thrust against a collapsed
+//! hull's mass, turret arcs on a random silhouette, torpedo lanes that were
+//! only ever checked geometrically.
 //!
-//! The combatants are DRAFTED, not taken blind: the collapse arms hulls with
-//! wild variance (a roll can carry ten turrets and eight bays, or none of
-//! either), so the arena walks the seed stream from `--seed` and fields the
-//! first hulls that clear a small armament floor ([`MIN_TURRETS`],
-//! [`MIN_BAYS`]). Deterministic - one number and one roster still reproduce
-//! the matchup - and every skipped seed is logged with the armament that
-//! disqualified it.
+//! Combatants are DRAFTED: the collapse arms hulls with wild variance, so the
+//! arena walks the seed stream from `--seed` and fields the first hulls that
+//! clear an armament floor ([`MIN_TURRETS`], [`MIN_BAYS`]). Deterministic - one
+//! seed and one roster reproduce the matchup - and every skipped seed is logged
+//! with the armament that disqualified it. Half of every hull's tubes carry
+//! Lances ([`load_lances`]), which stages the owner's decoy doctrine: Serpents
+//! drain the defender's point defense and the Lance behind them arrives on a
+//! straight line into spent guns.
 //!
-//! That flip is the example's value. Nobody had FLOWN a collapsed hull before
-//! this: thrust against the mass of a solid-built hull, turret arcs on a random
-//! silhouette, torpedo lanes that were only ever checked geometrically - this
-//! is the flyability bench for wfc ships, not just a spectacle. Every ship is
-//! clad (`skin: true`), so it doubles as the skin's combat-motion showcase.
+//! # Roster
 //!
-//! ALL FOUR WEAPON FLAVOURS are on the field, because a fight with one gun and
-//! one torpedo in it is not a fight about weapons. The collapse draws both PDC
-//! mounts (the kinetic punch and the pierce rake are one housing on one socket,
-//! so the grid cannot tell them apart and does not have to), and the arena
-//! LOADS half of every hull's tubes with Lances - see [`load_lances`]. What
-//! that stages is the owner's decoy doctrine: Serpents weave in and drain the
-//! defender's point defense, and the Lance that follows arrives on a straight
-//! line into guns with nothing left to spend.
-//!
-//! The ROSTER is authored on the command line. `--ship` is repeatable and
-//! carries one hull each:
+//! `--ship` is repeatable and carries one hull each:
 //!
 //! ```text
 //! --ship TEAM[:STYLE[:SEED]][:player]
 //! ```
 //!
-//! - `TEAM` is a callsign, `amber` or `onyx` ([`TEAMS`]), and is the only
-//!   field a ship must carry.
-//! - `STYLE` is a style id out of the merged content. The lobby owns one style
-//!   per side: `--style` initializes both sides, then explicit ship styles apply
-//!   in command order, so the last explicit style for a side wins.
-//! - `SEED` pins that hull's collapse instead of drafting one off the stream.
-//!   A pin is an instruction: the hull spawns as rolled even under the
-//!   armament floor (the log says so). The lobby reroll button replaces it with
-//!   another combat-viable seed.
-//! - a trailing `player` field puts YOU in that hull (at most one slot; the
-//!   token wins over a style of the same name, which the content does not
-//!   have).
+//! - `TEAM` is `amber` or `onyx` ([`TEAMS`]), the only required field.
+//! - `STYLE` is a style id. `--style` initializes both sides; explicit ship
+//!   styles apply in command order, so the last one for a side wins.
+//! - `SEED` pins that hull's collapse. A pin is an instruction: the hull spawns
+//!   as rolled even under the armament floor, and the log says so.
+//! - `player` puts YOU in that hull (at most one slot).
 //!
-//! With no `--ship` at all the roster is one hull per team, drafted off the
-//! stream - the two-ship duel this example started as. A probe MEASUREMENT
-//! pass fields four per team instead ([`MEASURED_SHIPS_PER_TEAM`]): the 4v4
-//! brawl is this release's headline profiling case, and it is a load rather
-//! than a composition, so a photograph and a hand-run keep the duel.
+//! With no `--ship` the roster is one drafted hull per team; a probe
+//! measurement pass fields [`MEASURED_SHIPS_PER_TEAM`] instead.
 //!
-//! A `:player` slot spawns under the game's REAL player controller - the
-//! campaign's flight rig and HUD, every gun on the left mouse (the campaign's
-//! turret binding), every tube on `F` - and the example's own cameras STAND
-//! DOWN: no `Q`/`E`/`1-4` vantages, no idle orbit, the chase-camera authority
-//! owns the view. The enemies still fly the cold approach ([`ENGAGE_RANGE`]); the player fires
-//! whenever they like. REFUSED under `NOVA_AUTOPILOT`: the driven walk
-//! proves an AI-vs-AI fight, and a hull waiting on human input would stall
-//! the fight predicate into its deadline - a run that asks for both is a
-//! contradiction and fails loudly rather than quietly drafting an AI where
-//! a player was requested.
+//! A `:player` slot spawns under the game's real player controller, and the
+//! example's own cameras stand down - no `Q`/`E`/`1-4`, no idle orbit, the
+//! chase-camera authority owns the view. REFUSED under `NOVA_AUTOPILOT`: a hull
+//! waiting on human input would stall the fight predicate into its deadline, so
+//! a run that asks for both fails loudly.
 //!
-//! A hand-run opens the match configurator. Choose each side's style, edit or
-//! reroll exact ship seeds, add up to four ships per side, and choose at most
-//! one player slot. WASD and the mouse take the in-match spectator camera free:
 //! ```text
 //! cargo run --example wfc_arena --features debug
 //! cargo run --example wfc_arena --features debug -- --seed 7 --style salvage
@@ -82,90 +51,63 @@
 //! cargo run --example wfc_arena --features debug -- --ship amber:player --ship onyx
 //! ```
 //!
-//! Escape freezes a live match and opens Resume, exact Restart, Return to Lobby
-//! and Quit. A player can open NOVA OS, select a bindable section in `ship`, and
-//! press `B` to replace that section's complete keyboard/mouse binding. Conflicts
-//! with flight controls or another section are refused; accepted overrides
-//! survive match restart and a return to the lobby.
+//! # The match
 //!
-//! The fight is MEASURED, not presumed, and measured PER TEAM rather than per
-//! hull: a scoreboard counts every round and torpedo each team fires. Its rows
-//! come from projectile-carried `DamageType` variants and authored torpedo
-//! names, so a new ammunition type needs no arena edit. It also counts every
-//! point of section health the other team takes through per-team pool deltas,
-//! which see plate damage the isolated-cladding rule keeps off the roots. The
-//! log restates the live score. Losing every live flight computer freezes the
-//! fight and opens the final team, ammunition and per-ship result board. A
-//! 180-second global inactivity window resolves a deadlock by remaining team
-//! structure percentage. Ships outside the 20 km arena sphere show a 30-second
-//! warning, then lose their flight computers if they do not return.
+//! A hand-run opens the match configurator: per-side style, seed edit and
+//! reroll, up to four ships a side, at most one player slot. Escape freezes a
+//! live match for Resume, exact Restart, Return to Lobby and Quit. A player can
+//! rebind a bindable section from NOVA OS `ship` with `B`; conflicts are
+//! refused and accepted overrides survive restart.
 //!
-//! The arena reads as a place, not a void: the standard three-point rig, a
-//! ring of rocks below the fight plane for depth parallax (the editor
-//! sandbox's dressing idiom), a sparser outer ring, one distant pinned
-//! planetoid as a landmark - and JUNK: many small wreckage fragments (a few
-//! catalog sections each, some clad, some keeping a torn-off drive nozzle),
-//! scattered into loose blobs on the flanks with debris rocks around them
-//! ([`DERELICT_BLOBS`]). No controller, no allegiance, so the AI never
-//! targets one; pinned static where the seed drops them ([`freeze_junk`] -
-//! scenery holds its pose, and a controller-less hull's massless body must
-//! never touch the physics the fight reads); their seeds follow the lobby's
-//! resolved roster stream.
+//! The lines spawn ~305 u apart and fly in COLD: an arrival grace holds both
+//! teams on their center-crossing patrols, and the weapons-free gate
+//! ([`ENGAGE_RANGE`]) keeps them passive until the closing lines are inside it.
+//! From 280 u hot, one torpedo alpha strike decided the fight before a gun
+//! bore.
 //!
-//! The OPENING is an approach, not an ambush. The lines spawn ~305 u apart -
-//! well past the gun gate - and fly in COLD: an arrival grace holds both teams on
-//! their center-crossing patrols off the spawn, and the weapons-free gate
-//! ([`ENGAGE_RANGE`]) keeps them passive until the closing lines come inside
-//! it. Both knobs exist because from 280 u HOT, one torpedo alpha strike
-//! decided everything before a gun ever bore; cold until close is what makes
-//! the long spawn watchable AND keeps guns in the fight.
+//! Scoring is PER TEAM. Rows come from projectile-carried `DamageType` variants
+//! and authored torpedo names, so a new ammunition type needs no arena edit;
+//! damage is counted through per-team pool deltas, which see the plate damage
+//! the isolated-cladding rule keeps off the roots. Losing every live flight
+//! computer freezes the fight and opens the result board. A 180-second global
+//! inactivity window resolves a deadlock by remaining structure. Ships outside
+//! the 20 km sphere are warned for 30 seconds, then lose their flight
+//! computers.
 //!
-//! The camera keys pose the view, and every pose is computed off the LIVE
-//! fight each frame - midpoint, spread and per-ship transforms - so a vantage
-//! keeps its subject framed while the ships move:
+//! # Dressing and view
 //!
-//! - `Q` the auto-framing whole-fight view (the default and the capture frame),
-//! - `E` the tactical overview, high and wide enough to hold the engagement,
-//! - `1`/`2`/`3`/`4` follow one roster slot each, over the shoulder: the
-//!   camera stands behind the hull ON THE THREAT AXIS and looks across it at
-//!   the mean position of the living enemy team, so the view holds both the
-//!   subject and what it is fighting. The aim point is smoothed - a kill moves
-//!   the mean, and a snap there would be jarring. With no living enemy the
-//!   follow falls back to chasing the hull's own heading; a slot the roster
-//!   never filled, or one whose ship is dead, falls back to the frame pose
-//!   rather than freezing.
+//! A three-point rig, rock rings below the fight plane for parallax, one pinned
+//! planetoid, and JUNK: wreckage fragments scattered into flank blobs
+//! ([`DERELICT_BLOBS`]). Junk carries no controller and no allegiance so the AI
+//! never targets it, and is pinned static ([`freeze_junk`]) because a
+//! controller-less hull's massless body must never touch the physics the fight
+//! reads.
 //!
-//! `Q` and `E` sit clear of the free-fly rig, which binds WASD, the mouse and
-//! Space/Shift and nothing else, so a mode key never doubles as camera input.
+//! Every pose is computed off the live fight each frame, so a vantage keeps its
+//! subject framed:
 //!
-//! Every combatant wears a TEAM CHEVRON: the HUD allegiance-marker's
-//! border-triangle visual language, redrawn by the example and tinted PER
-//! TEAM ([`Team::tint`] - amber for AMBER, the threat family red for ONYX)
-//! rather than per relation, floated over the hull through the same
-//! screen-indicator projection the HUD uses. Redrawn, not reused, for three
-//! reasons: the stock widget's colours are semantic ally/threat and its own
-//! recolour system owns them; it marks every non-player ship including the
-//! junk, which must stay unmarked; and it is instrument-tier, so a capture's
-//! cinematic HUD would hide it - the chevrons follow the arena's visibility
-//! rule instead (grave/tilde in a hand-run, always present in a capture, where
-//! two identifiable sides are part of the evidence). The example tags the
-//! scenario camera as the indicator projector - the game only tags the
-//! player's chase camera, and this arena has no player - and retires the
-//! stock allegiance layers for every arena-spawned ship.
+//! - `Q` auto-framing whole-fight view (default, and the capture frame). Left
+//!   alone for six seconds it falls into a slow orbit around the midpoint; a
+//!   pose key or free-fly input stops it and restarts the clock.
+//! - `E` tactical overview. It holds its bearing and only re-centres.
+//! - `1`-`4` follow one roster slot over the shoulder, standing on the threat
+//!   axis and looking across it at the living enemy mean (smoothed, because a
+//!   kill moves the mean). An empty or dead slot falls back to the frame pose.
 //!
-//! The idle orbit belongs to `Q` and only `Q`: left alone there for six
-//! seconds the camera falls into a slow orbit around the fight's midpoint -
-//! `wfc_ships`' turntable bent around a moving pivot - and a pose key or
-//! free-fly input stops it and restarts the clock. Every other vantage, the
-//! free camera included, parks and STAYS parked; press `Q` to get the
-//! turntable back. `E` is the one that never turns at all: it holds its
-//! bearing over the fight and only re-centres, so it reads as a tactical plot
-//! rather than a sweep. Grave/tilde cycles the game HUD.
+//! `Q` and `E` sit clear of the free-fly rig (WASD, mouse, Space/Shift), so a
+//! mode key never doubles as camera input. Grave/tilde cycles the game HUD.
 //!
-//! Harnessed (`NOVA_AUTOPILOT=1`, plus `NOVA_CAPTURE=1` to stage the shot):
-//! wait for the arena, hold until BOTH teams have fired and BOTH have dealt
-//! damage - the step deadline makes a fight that never happens a loud failure,
-//! not a quiet pose - then shoot the brawl mid-swing.
+//! Combatants wear a TEAM CHEVRON: the HUD allegiance-marker's visual language,
+//! redrawn here and tinted per team ([`Team::tint`]). Redrawn because the stock
+//! widget's colours are semantic ally/threat, it marks every non-player ship
+//! including the junk, and it is instrument-tier, so a cinematic capture would
+//! hide it. The example tags the scenario camera as the indicator projector and
+//! retires the stock allegiance layers for arena ships.
+//!
+//! Harnessed (`NOVA_AUTOPILOT=1`, plus `NOVA_CAPTURE=1` for the shot): wait for
+//! the arena, hold until both teams have fired AND both have dealt damage, then
+//! shoot the brawl mid-swing. The step deadline makes a fight that never
+//! happens a loud failure.
 
 // Only for freezing the junk, which is a FRAMING choice - see `freeze_junk`.
 use std::collections::BTreeMap;
@@ -544,10 +486,6 @@ fn ai_cameras(roster: Res<Roster>) -> bool {
     roster.player_slot().is_none()
 }
 
-// ---------------------------------------------------------------------------
-// The roster.
-// ---------------------------------------------------------------------------
-
 /// One hull the roster asks for: which team it fights for, the look it insists
 /// on (if any), the seed it insists on (if any), and whether the viewer flies
 /// it. The `--ship` value.
@@ -723,10 +661,6 @@ impl Roster {
 /// The style id `--style` asked for, resolved to an index on the first load.
 #[derive(Resource)]
 struct StyleRequest(Option<String>);
-
-// ---------------------------------------------------------------------------
-// The draft and the loadout.
-// ---------------------------------------------------------------------------
 
 /// What a hull brings to a fight, by flavour: the collapse decides the guns
 /// and the tubes, [`load_lances`] decides what the tubes carry.
@@ -1436,10 +1370,6 @@ fn arena(
     scenario
 }
 
-// ---------------------------------------------------------------------------
-// The scoreboard: proof the fight happened.
-// ---------------------------------------------------------------------------
-
 /// What one team has actually put in the air, keyed by projectile-carried
 /// ammunition identity. A new damage variant or authored torpedo name creates a
 /// new row without changing this example.
@@ -1662,10 +1592,6 @@ fn report_score(
         range,
     );
 }
-
-// ---------------------------------------------------------------------------
-// Framing.
-// ---------------------------------------------------------------------------
 
 /// How the frame vantage stands off the fight: direction (broadside to the
 /// engagement axis and a little above), plus a floor and a rate on the ships'
@@ -2085,10 +2011,6 @@ fn orbit_idle_camera(
             .looking_at(fight.midpoint, Vec3::Y);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Team chevrons: which side a hull flies for, at a glance.
-// ---------------------------------------------------------------------------
 
 /// The chevron's geometry: the HUD allegiance-marker triangle verbatim - a
 /// zero-content `ContentBox` node whose coloured top border renders as a

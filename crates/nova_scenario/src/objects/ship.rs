@@ -114,7 +114,6 @@ pub struct ShipConfig {
 // it cannot compile here because the enum derives Reflect and bevy_reflect 0.19
 // has no Reflect impl for Box<T>. Spawn-time config data, not per-frame state -
 // the same trade `SectionSource` makes.
-#[allow(clippy::large_enum_variant)]
 pub enum ShipSource {
     /// The hull, authored inline. The right shape for a one-off - a scripted
     /// battery that is one torpedo tube, an example's two-section test rig.

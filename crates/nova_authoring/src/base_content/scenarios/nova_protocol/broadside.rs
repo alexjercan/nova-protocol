@@ -227,14 +227,13 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 /// across the shipped 150 u point-defense envelope, a Serpent costs ~370 rounds
 /// to stop and is only killed ~40 u out - barely outside its own 30 u blast
 /// radius, with nothing left over for a human's aim - while a Lance costs ~120
-/// and dies ~115 u out. The gunship still opens with twelve of them, so
-/// screening is still the fight; it is now a fight whose answer exists. The
-/// Serpent is what `final_tally` escalates to.
+/// and dies ~115 u out. The gunship opens with twelve of them, so screening is
+/// the fight - one whose answer exists. The Serpent is what `final_tally`
+/// escalates to.
 fn gunship() -> ScenarioObjectConfig {
-    // The Rust Tally is the cargob (moved into base from the craft_cargoB
-    // example mod): a 42-cube capital with two PDC turrets, two torpedo tubes
-    // and a core controller. No leash - it came here to end the fight, and it
-    // chases.
+    // The Rust Tally is the cargob: a 42-cube capital with two PDC turrets, two
+    // torpedo tubes and a core controller. No leash - it came here to end the
+    // fight, and it chases.
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_GUNSHIP.to_string(),

@@ -12,8 +12,8 @@
 //!
 //! [`GraphicsBudget::render_scale`](nova_gameplay::prelude::GraphicsBudget) is
 //! a fraction the scenario view is drawn at. At `1.0` (Medium/High) nothing
-//! here fires - the scenario camera renders straight to the window, exactly as
-//! before, so the crisp tiers pay zero cost. Below `1.0` (Low)
+//! here fires - the scenario camera renders straight to the window at full
+//! resolution, so the crisp tiers pay zero cost. Below `1.0` (Low)
 //! `reconcile_render_scale`:
 //!
 //! 1. creates an offscreen [`Image`] sized `render_scale * window_physical`,
@@ -121,7 +121,7 @@ fn reconcile_render_scale(
     };
     let physical = window.physical_size();
 
-    // NOTE: downscale only when the preset asks for it AND there is a scenario camera
+    // Downscale only when the preset asks for it AND there is a scenario camera
     // to redirect (never in the menu/editor, whose cameras are not scenario
     // cameras - they keep full resolution). A zero-axis window (minimized, or
     // not yet sized) is left untouched: recreating a zero-area target is a fatal
@@ -177,7 +177,7 @@ fn reconcile_render_scale(
     for (_entity, mut target, mut projection) in q_scenario_cam.iter_mut() {
         if !matches!(&*target, RenderTarget::Image(current) if *current == wanted) {
             *target = RenderTarget::Image(wanted.clone());
-            // NOTE: bevy's `camera_system` only re-derives a camera's target info when
+            // Bevy's `camera_system` only re-derives a camera's target info when
             // the target CONTENT changes (window resize / image asset event), the
             // camera is added, or its Projection changed - NOT when the
             // `RenderTarget` component is swapped at runtime. Without this the
@@ -255,7 +255,7 @@ fn teardown_render_scale(
         return;
     }
 
-    // NOTE: reset the target to the window and mark the projection changed so bevy's
+    // Reset the target to the window and mark the projection changed so bevy's
     // `camera_system` re-derives the camera's target info - without that the
     // camera keeps the reduced image's size after switching back to High and
     // renders the window at the stale low resolution (the "High drops a lot"

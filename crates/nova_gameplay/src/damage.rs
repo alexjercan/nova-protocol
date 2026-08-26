@@ -443,14 +443,13 @@ pub fn spend_piercing_damage(
 /// (a target ship is far heavier than a bullet, so the effective mass is within
 /// a few percent of the bullet mass across every ship).
 ///
-/// Used to AUTHOR the turret's fixed Kinetic `amount` so the typed system
-/// preserves the old feel at a representative engagement speed (which is also
+/// Authors the turret's fixed Kinetic `amount`, so the typed system reads the
+/// same at a representative engagement speed (which is also
 /// [`REFERENCE_CLOSING_SPEED`], where the Kinetic curve reads 1.0).
 ///
 /// It IS the ram formula - [`impact_damage`](crate::integrity::core::impact_damage),
-/// which nova owns - so the two can no longer drift. It used to be a hand copy
-/// of the same constants out of a third-party crate, carrying an apology for
-/// duplicating them.
+/// which nova owns - so the two cannot drift. Never a hand copy of the same
+/// constants.
 pub fn representative_kinetic_damage(mass: f32, speed: f32) -> f32 {
     crate::integrity::core::impact_damage(mass, speed)
 }

@@ -39,8 +39,8 @@ fn placed(refusal: Option<Refusal>) -> Placement {
     }
 }
 
-/// The readout used to sit in the slot an error uses, as two raw ids, so the
-/// eye had to re-read it to find out which one it was.
+/// A mate names its two sockets on a line of its own. Two raw ids in the slot
+/// an error uses make the eye re-read them to find out which is which.
 #[test]
 fn a_legal_mate_names_its_sockets_on_a_line_of_its_own() {
     let sections = GameSections(vec![part("thruster", &["mount"])]);

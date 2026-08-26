@@ -86,7 +86,7 @@ pub struct NovaMenuPlugin;
 
 impl Plugin for NovaMenuPlugin {
     fn build(&self, app: &mut App) {
-        // NOTE: HudVisibility, the settings resources and NovaOsMonitorSettings
+        // HudVisibility, the settings resources and NovaOsMonitorSettings
         // are owned by other plugins in the assembled app. init_resource is
         // idempotent, so initing them here too lets the menu plugin stand alone
         // in slim and headless-test apps.
@@ -99,7 +99,7 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<ambience::MenuCameraMemory>();
         app.init_resource::<CollapsedCampaigns>();
         app.init_resource::<UpdateRequested>();
-        // NOTE: ungated by menu state on purpose - an update started from the
+        // Ungated by menu state on purpose - an update started from the
         // menu must complete even if the player closes it mid-flight.
         app.add_systems(Update, drive_update_choreography);
         // The editor and gameplay want the same app-global UI wiring; whoever
@@ -110,7 +110,7 @@ impl Plugin for NovaMenuPlugin {
 
         app.init_resource::<MasterVolume>();
         app.init_resource::<GraphicsQuality>();
-        // NOTE: `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
+        // `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
         // so the invariant survives a future reorder.
         app.init_resource::<UiSkin>();
         app.init_resource::<NovaOsMonitorSettings>();
@@ -132,7 +132,7 @@ impl Plugin for NovaMenuPlugin {
                 hide_hud_chrome,
             ),
         );
-        // NOTE: EVERY exit from the menu unloads the backdrop, so no exit path
+        // EVERY exit from the menu unloads the backdrop, so no exit path
         // can leak a simulating scenario. OnExit runs before OnEnter(Playing),
         // so New Game's LoadScenario still lands after this unload.
         app.add_systems(
@@ -143,7 +143,7 @@ impl Plugin for NovaMenuPlugin {
             Update,
             (stage_menu_camera, sync_mod_checkboxes).run_if(in_state(GameStates::MainMenu)),
         );
-        // NOTE: chained so a default selection made while rebuilding the list is
+        // Chained so a default selection made while rebuilding the list is
         // rendered by the details refresh in the SAME frame.
         app.add_systems(
             Update,
@@ -154,7 +154,7 @@ impl Plugin for NovaMenuPlugin {
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
         );
-        // NOTE: same same-frame chain rule as the mods screen above.
+        // Same same-frame chain rule as the mods screen above.
         app.add_systems(
             Update,
             (
@@ -171,7 +171,7 @@ impl Plugin for NovaMenuPlugin {
             start_new_game_scenario.run_if(resource_equals(GameMode::NewGame)),
         );
 
-        // NOTE: Update systems keep running while paused - pausing Time<Virtual>
+        // Update systems keep running while paused - pausing Time<Virtual>
         // zeroes deltas, it does not stop schedules - which is exactly what lets
         // the overlay stay interactive.
         app.add_systems(Update, toggle_pause.run_if(in_state(GameStates::Playing)));
@@ -183,7 +183,7 @@ impl Plugin for NovaMenuPlugin {
             OnExit(PauseStates::Paused),
             (unpause_clocks, restore_cursor),
         );
-        // NOTE: the NOVA OS is a third variant on the same clock-freeze axis, but
+        // The NOVA OS is a third variant on the same clock-freeze axis, but
         // WITHOUT `setup_pause_ui` - it draws its own surface in nova_gameplay's
         // HUD. Only ever entered from / exited to `Unpaused`, so these never race
         // the `Paused` hooks.
@@ -213,7 +213,7 @@ impl Plugin for NovaMenuPlugin {
             keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
         );
 
-        // NOTE: resource_exists-gated - headless rigs without the scenario
+        // `resource_exists`-gated - headless rigs without the scenario
         // loader have no CurrentOutcome.
         app.add_systems(
             Update,
@@ -226,7 +226,7 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<CurrentOutcome>),
         );
-        // NOTE: Playing-only - the menu's backdrop draw filters broken scenarios
+        // Playing-only - the menu's backdrop draw filters broken scenarios
         // out of the pick instead of reporting them.
         app.add_systems(
             Update,
@@ -234,7 +234,7 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::Playing))
                 .run_if(resource_exists::<ScenarioStartFailure>),
         );
-        // NOTE: the loader plugin also inits this; repeated here so menu-only
+        // The loader plugin also inits this; repeated here so menu-only
         // rigs do not panic on the OnEnter clear.
         app.init_resource::<ScenarioStartFailure>();
         app.add_systems(OnEnter(GameStates::MainMenu), clear_start_failure);

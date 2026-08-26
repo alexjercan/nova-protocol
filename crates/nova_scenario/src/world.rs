@@ -16,7 +16,7 @@ pub mod prelude {
 use core::time::Duration;
 use std::collections::VecDeque;
 
-// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{
     ecs::world::CommandQueue, platform::collections::HashMap, platform::time::Instant, prelude::*,
@@ -115,11 +115,10 @@ pub struct NovaEventWorld {
 
 impl EventWorld for NovaEventWorld {
     fn world_to_state_system(_world: &mut World) {
-        // Nothing to carry from the bevy world into the event world right now.
-        // The graphics-budget carry lived here (to thin scatter on the lower
-        // tiers) but scatter is no longer a preset lever. Kept as a required
-        // `EventWorld` method so the plumbing exists if a future action needs
-        // live world state pulled in before the queue processes.
+        // Nothing to carry from the bevy world into the event world: scatter is
+        // not a preset lever, and nothing else needs live world state. Kept as a
+        // required `EventWorld` method so the plumbing exists for an action that
+        // does.
     }
 
     fn state_to_world_system(world: &mut World) {
@@ -276,7 +275,7 @@ impl EventWorld for NovaEventWorld {
                     None => false,
                 }
             };
-            // NOTE: no early return while waiting - the command-queue flush below
+            // No early return while waiting - the command-queue flush below
             // must keep running through the delay window, or every queued
             // spawn/effect starves until the cut.
             if !still_waiting {

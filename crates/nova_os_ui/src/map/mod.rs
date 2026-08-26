@@ -79,9 +79,6 @@ const MAP_HINTS: &[&str] = &[
     "ESC: BACK",
 ];
 
-// ---------------------------------------------------------------------------
-// Contact model (shared by the CLI and the app)
-// ---------------------------------------------------------------------------
 /// Registers the `map` app and drives its scene, camera, blips and GOTO.
 pub(crate) struct NovaOsMapPlugin;
 
@@ -145,7 +142,3 @@ fn map_is_active(pause: &State<PauseStates>, terminal: &NovaOsTerminal) -> bool 
     *pause.get() == PauseStates::NovaOs
         && terminal.active_mode() == TerminalMode::App { id: MAP_APP_ID }
 }
-
-// ---------------------------------------------------------------------------
-// Systems
-// ---------------------------------------------------------------------------

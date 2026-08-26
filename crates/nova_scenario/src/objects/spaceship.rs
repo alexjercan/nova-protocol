@@ -191,7 +191,10 @@ pub type SectionId = String;
 // suggestion) cannot compile here because the enum derives Reflect and
 // bevy_reflect 0.19 has no Reflect impl for Box<T>. This is spawn-time
 // config data, not per-frame state, so the size stays.
-#[allow(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "spawn-time config, and bevy_reflect 0.19 cannot box the variant"
+)]
 pub enum SectionSource {
     /// The full config, authored inline.
     Inline(SectionConfig),

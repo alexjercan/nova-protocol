@@ -202,7 +202,7 @@ impl Plugin for EdgeIndicatorsHudPlugin {
 
         app.register_type::<EdgeIndicatorKind>();
         app.add_systems(Update, sync_edge_indicators.in_set(super::NovaHudSystems));
-        // NOTE: the label mirrors the arrow's visibility, which the widget
+        // The label mirrors the arrow's visibility, which the widget
         // writes in PostUpdate (ScreenIndicatorSystems) - mirroring from
         // Update would lag it by a frame, so the driver runs right after the
         // widget, still before UI layout consumes the text.

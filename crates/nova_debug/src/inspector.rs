@@ -47,7 +47,7 @@ impl Plugin for InspectorDebugPlugin {
             inspector_ui.run_if(resource_equals(DebugEnabled(true))),
         );
 
-        // NOTE: auto-creation stays off - `keep_inspector_on_window_camera`
+        // Auto-creation stays off - `keep_inspector_on_window_camera`
         // owns primary-context placement, and both would fight over it.
         app.insert_resource(bevy_egui::EguiGlobalSettings {
             auto_create_primary_context: false,
@@ -131,7 +131,7 @@ fn keep_inspector_on_window_camera(
     for (entity, target, has_context) in &q_cameras {
         if renders_to_image(target) {
             if has_context {
-                // NOTE: shed the WHOLE egui cluster, not just the marker.
+                // Shed the WHOLE egui cluster, not just the marker.
                 // `PrimaryEguiContext` requires `EguiContext` (no cascade on
                 // removal) and its on_insert hook adds
                 // `EguiMultipassSchedule`; leaving either behind means two

@@ -17,7 +17,7 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
     "ENTER: RUN",
     "UP/DN: HISTORY",
     "PGUP/PGDN: SCROLL",
-    // NOTE: only Escape closes the computer AT THE PROMPT; Ctrl+C / Ctrl+[ is
+    // Only Escape closes the computer AT THE PROMPT; Ctrl+C / Ctrl+[ is
     // an app-exit chord (a no-op here), so it belongs on app hint sets, not this
     // one - do not advertise an unwired key on this surface.
     "ESC: CLOSE",

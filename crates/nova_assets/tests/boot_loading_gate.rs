@@ -36,7 +36,10 @@ use nova_assets::prelude::GameAssetsStates;
 #[derive(AssetCollection, Resource)]
 struct BootProbe {
     #[asset(path = "icons/fps.png")]
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the handle exists to make the collection load, not to be read"
+    )]
     icon: Handle<Image>,
 }
 
@@ -44,7 +47,10 @@ struct BootProbe {
 #[derive(AssetCollection, Resource)]
 struct MainProbe {
     #[asset(path = "icons/target.png")]
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "the handle exists to make the collection load, not to be read"
+    )]
     sprite: Handle<Image>,
 }
 

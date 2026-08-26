@@ -125,7 +125,7 @@ impl Plugin for WASDCameraPlugin {
         app.add_observer(initialize_wasd_camera);
         app.add_observer(destroy_wasd_camera);
 
-        // NOTE: PostUpdate, so every input system has already run this frame.
+        // PostUpdate, so every input system has already run this frame.
         app.add_systems(
             PostUpdate,
             (update_target, update_state, sync_transform)

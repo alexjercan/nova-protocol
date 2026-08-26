@@ -6,9 +6,9 @@ use super::*;
 /// Mark the whole torpedo as killed when any of its body sections dies.
 ///
 /// The torpedo root is collider-less: bullets kill its CHILD sections
-/// (controller/thruster, 1 HP each) through the normal health pipeline, but
-/// nothing told the root - the husk kept flying and its proximity fuze
-/// still fired. On ordnance every section is vital, so one dead section
+/// (controller/thruster, 1 HP each) through the normal health pipeline, and
+/// nothing else would tell the root, so the husk flies on with a live
+/// proximity fuze. On ordnance every section is vital, so one dead section
 /// kills the torpedo. Deliberately NO `blast_damage` on this path:
 /// defeating the warhead is the point of shooting a torpedo down - a
 /// shot-down torpedo dies quietly, only a detonation
@@ -19,9 +19,8 @@ use super::*;
 /// reaper the root is a DYNAMIC body with no mass - which avian reports as
 /// "has no mass or inertia. This can cause NaN values", once per shot-down
 /// torpedo. Static states what is already true of a body awaiting removal: it
-/// is not simulated any more. It also keeps the warning meaningful, because a
-/// dynamic massless body is then always a defect rather than an expected
-/// frame (task 20260817-091716).
+/// is not simulated. It also keeps the warning meaningful, because a dynamic
+/// massless body is then always a defect rather than an expected frame.
 pub(super) fn on_torpedo_body_destroyed(
     add: On<Add, HealthZeroMarker>,
     q_section: Query<&ChildOf>,

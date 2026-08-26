@@ -145,12 +145,12 @@ pub(crate) struct ShipRuntime {
     pub(crate) show_mates: bool,
 }
 
-// ---------------------------------------------------------------------------
-// Plugin
-// ---------------------------------------------------------------------------
 /// Build the schematic block scene + camera on ship-app open, tear it down on
 /// close.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system reading the panel, its camera and the ship it draws"
+)]
 pub(crate) fn manage_ship_scene(
     mut commands: Commands,
     pause: Res<State<PauseStates>>,
@@ -537,7 +537,10 @@ pub(crate) fn update_ship_blocks(
 
 /// Project each section through the ship camera into the viewport and keep a
 /// clickable, labelled UI blip per section in sync.
-#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system reading the panel, its camera and the ship it draws"
+)]
 pub(crate) fn project_ship_blips(
     mut commands: Commands,
     mut runtime: ResMut<ShipRuntime>,
@@ -855,10 +858,6 @@ pub(crate) fn update_ship_panel(
         background.set_if_neq(BackgroundColor(background_color));
     }
 }
-
-// ---------------------------------------------------------------------------
-// Small render helpers
-// ---------------------------------------------------------------------------
 
 pub(crate) fn mate_edges_mesh(views: &[ShipSectionView]) -> Option<Mesh> {
     let placed: Vec<_> = views

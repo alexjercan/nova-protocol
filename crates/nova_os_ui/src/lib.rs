@@ -20,6 +20,8 @@
 //! | `map` | The `map` app: a schematic 3D minimap of local space. |
 //! | `ship` | The `ship` app: a schematic 3D viewer of the player ship. |
 
+#![warn(missing_docs)]
+
 pub mod map;
 pub mod ship;
 pub mod terminal;

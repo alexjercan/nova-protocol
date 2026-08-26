@@ -207,10 +207,9 @@ fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 fn battery(sections: &GameSections) -> SpaceshipConfig {
     // A spine of unit cells along X, one per mount, with the flight computer
     // taking the middle cell; every mount stands on its own cell's top face.
-    // The mounts used to sit in a bare row with nothing under them, chained
-    // side to side through the old unit-cube turret's six sockets. The shared
-    // PDC bolts down by its base plate and by nothing else, so a row like that
-    // mates nothing - each mount needs a cell of its own to stand on.
+    // The shared PDC bolts down by its base plate and by nothing else, so a
+    // bare row of mounts chained side to side mates nothing - each needs a
+    // cell of its own to stand on.
     let cell = |i: usize| i as f32 - (TURRET_MOUNTS as f32) / 2.0;
     let computer = TURRET_MOUNTS / 2;
     let mut specs = vec![SectionSpec::new(

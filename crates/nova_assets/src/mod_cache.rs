@@ -1038,7 +1038,7 @@ mod backend {
         Some(js_sys::Uint8Array::new(&value).to_vec())
     }
 
-    /// NOTE: resolving on the request's `success` is NOT transaction commit -
+    /// Resolving on the request's `success` is NOT transaction commit -
     /// a put can still abort at commit time (e.g. quota exceeded). Fine for
     /// this cache's best-effort surface; the portal installer flow must
     /// await the TRANSACTION's `complete` event for its files-first-index-last

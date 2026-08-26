@@ -251,11 +251,8 @@ pub(crate) fn deletable(
 
 /// Delete the SELECTED node, at whatever depth the selection is.
 ///
-/// ONE gesture with one name. Deleting a part used to be a brush the pointer
-/// wore: armed from a menu row, disarmed by Escape, reported in three places,
-/// and invisible over empty space - while out at the scenario node the same
-/// word meant an immediate verb on the selection. What is marked is what goes,
-/// in both contexts.
+/// ONE gesture with one name: what is marked is what goes, at a part and at a
+/// scenario node alike.
 pub(crate) fn delete_selected_node(
     _activate: On<Activate>,
     commands: Commands,
@@ -704,7 +701,7 @@ pub(crate) fn sync_placement_ghost(
         }));
         return;
     };
-    // The verdict itself is NOT written here any more: it is said beside the
+    // The verdict itself is not written here: it is said beside the
     // ghost by `crate::ui::callout`, which is where a builder watching a part
     // snap around a hull is looking.
     status.report(None);
@@ -1320,7 +1317,7 @@ mod tests {
 
     /// The ships the BUILDER added. The stock range seeds eight of its own -
     /// five hulks and three pickets - and every one of them is a ship node, so
-    /// "how many ships are there" is no longer the question these tests ask.
+    /// "how many ships are there" is not the question these tests ask.
     fn minted_ship_nodes(app: &mut App) -> Vec<Entity> {
         app.world_mut()
             .query_filtered::<(Entity, &NodeId), With<ShipNode>>()

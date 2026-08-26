@@ -3,85 +3,66 @@
 //!
 //! The generator knows nothing about ships. It knows that a cell of the build
 //! grid holds one section at one rotation, that a socket may never press into a
-//! face that has none - two sockets meeting is exactly what
-//! `derive_link_point_graph` calls a mate - and that nothing may stand in the
-//! space a part fires, launches or exhausts into. Everything that reads as
-//! design comes back out of those two rules.
-//!
-//! What is collapsed is STRUCTURE, and only structure: hull, a bridge, drives,
-//! bays and mounts - the sections that make it a ship - on a half grid that is
-//! then mirrored.
+//! face that has none - two sockets meeting is what `derive_link_point_graph`
+//! calls a mate - and that nothing may stand in the space a part fires,
+//! launches or exhausts into. Everything that reads as design comes out of
+//! those two rules. What is collapsed is STRUCTURE only: hull, a bridge,
+//! drives, bays and mounts, on a half grid that is then mirrored.
 //!
 //! - A PDC mount carries ONE socket, on its base plate, so the collapse can
-//!   only ever bolt it down by the foot. Turrets end up on the skin, pointing
-//!   out, because there is nowhere else they fit.
+//!   only bolt it down by the foot. Turrets end up on the skin because there is
+//!   nowhere else they fit.
 //! - A drive carries one too, on the flat end it mounts by. Its other five
-//!   faces carry nothing to mate, which is not the same as being closed to the
-//!   world: two drives may sit flank to flank, and a bank of nozzles is a ship
-//!   part rather than a fault.
+//!   faces carry nothing to mate, which is not the same as being closed: two
+//!   drives may sit flank to flank, and a bank of nozzles is a ship part.
 //! - A torpedo bay's bow face is a hole, not a socket, so nothing mates across
 //!   the muzzle.
 //!
-//! Mating alone is not enough for any of those three, because a muzzle, a
-//! nozzle and a bay's mouth are all faces with nothing to mate: the rule that
-//! lets two drives sit flank to flank also let one exhaust into the other's
-//! side. CLEARANCE is the second rule, read off the part's KIND rather than
-//! guessed from an absent socket, and it says that the whole LANE in front of
-//! an exit is void - no structure, and nothing beside it demanding cladding in
-//! it, since the skin covers every face of structure that would otherwise look
-//! at vacuum. `compatible` holds the one cell a binary rule can see and
+//! Mating alone is not enough for those three, because the rule that lets two
+//! drives sit flank to flank also lets one exhaust into the other's side.
+//! CLEARANCE is the second rule, read off the part's KIND rather than guessed
+//! from an absent socket: the whole LANE in front of an exit is void - no
+//! structure, and nothing beside it demanding cladding in it, since the skin
+//! covers every face of structure that would otherwise look at vacuum.
+//! `compatible` holds the one cell a binary rule can see and
 //! `erode_blocked_exits` holds the rest of the lane; `refuse_blocked_exits`
-//! fails the run if either ever misses.
+//! fails the run if either misses. A part may not carry a socket on the face it
+//! fires through, and the example asserts it.
 //!
-//! The clearance rule ITSELF is not in this file. It is
-//! `nova_ship::sections::clearance`, which the EDITOR refuses placements with
-//! too, so a hull the collapse may not draw is a hull a player may not build
-//! either. The generator - the reading of a ship that has been collapsed onto
-//! a grid and mirrored, and the pass that takes off whatever cannot fire -
-//! lives in `shared/wfc.rs`, where `wfc_arena` reaches it too; this file owns
-//! the row, the photography and the keys.
+//! The clearance rule itself is `nova_ship::sections::clearance`, which the
+//! EDITOR refuses placements with too, so a hull the collapse may not draw is a
+//! hull a player may not build. The generator lives in `shared/wfc.rs`, where
+//! `wfc_arena` reaches it too; this file owns the row, the photography and the
+//! keys.
 //!
-//! The SKIN is not built here at all, and that is the point of the example as
-//! much as a convenience. Nothing in this file places a plate, names one or
-//! knows what one looks like: a ship asks for cladding with a single flag on
-//! its config and the GAME derives the whole of it from the structure at spawn
-//! (`nova_ship`'s `shell_skin`). A skin that closes over a hull this generator
-//! never mentioned is the proof that the derivation reads structure and nothing
-//! else - and `--bare` is the same ships with the flag off, which is what the
-//! second shot of the pair is for.
+//! The SKIN is not built here, and that is the point of the example as much as
+//! a convenience. Nothing in this file places a plate or names one: a ship asks
+//! for cladding with a single flag and the GAME derives the whole of it from
+//! the structure at spawn (`nova_ship`'s `shell_skin`). A skin that closes over
+//! a hull this generator never mentioned proves the derivation reads structure
+//! and nothing else - and `--bare` is the same ships with the flag off.
 //!
-//! Nothing here masks a part's link points any more. The example used to carry
-//! one mask, for the drive: its nozzle fires out of a face its six sockets
-//! called a perfectly good place to bolt a hull slab. The drive now carries a
-//! single socket on the flat end it mounts by, like the mount and like the bay,
-//! so every part says what it is in its own link points and the generator only
-//! reads them. What it does assert is that the two never contradict each other:
-//! a part may not carry a socket on the face it fires through.
+//! What is NOT a link-point rule, and is marked as such where it appears: the
+//! draw weights, the vacuum taper that gives the silhouette a nose, the keel
+//! the collapse starts from, the drive deck seeded at the far end of it, the
+//! one part that may only point one way, the mirror across the centreline, and
+//! the smoothing passes.
 //!
-//! What is still NOT a link-point rule, and is marked as such where it appears:
-//! the draw weights, the vacuum taper that gives the silhouette a nose, the keel
-//! the collapse starts from, the drive deck seeded at the far end of it, the one
-//! part that may only point one way, the mirror across the centreline, and the
-//! smoothing passes.
-//!
-//! The last two of those are what give a ship a BACK, and neither could be a
-//! link-point rule. Mating is BINARY - one cell and its neighbour - so it cannot
-//! hold a fact about the whole hull, and a drive carries its single socket on
-//! its forward end, which means the face it is bolted to IS the direction it
-//! exhausts. So the mating rule was as happy to bolt a nozzle to the roof as to
-//! the transom, and a ship came out with its engines pointing six ways.
-//! `Part::aim` says a drive fires AFT and nothing else, as a unary constraint on
-//! the opening domains; `seed_stern` lays the aft-facing surface for it to stand
-//! on, because a rule that says where a part may not go cannot conjure the place
+//! The last two are what give a ship a BACK, and neither could be a link-point
+//! rule. Mating is BINARY - one cell and its neighbour - so it cannot hold a
+//! fact about the whole hull, and the face a drive is bolted to IS the
+//! direction it exhausts, so mating alone bolts nozzles to the roof.
+//! `Part::aim` says a drive fires AFT as a unary constraint on the opening
+//! domains; `seed_stern` lays the aft-facing surface for it to stand on,
+//! because a rule that says where a part may not go cannot conjure the place
 //! where it may.
 //!
-//! Every ship is checked by the REAL content lint (`lint_scenario`) before it
-//! is posed. A generated ship that the game's own gate would reject is a
-//! broken subject, not something to photograph around, so the producer panics
-//! with the findings rather than shooting it.
+//! Every ship is checked by the real content lint (`lint_scenario`) before it
+//! is posed. A generated ship the game's own gate would reject is a broken
+//! subject, so the producer panics with the findings rather than shooting it.
 //!
-//! Hand-run (free-fly with WASD, `R` re-rolls the whole row, `C` strips or
-//! restores the cladding on the same seeds, `L` cycles the look the row wears):
+//! Hand-run is free-fly with WASD; `R` re-rolls the row, `C` strips or restores
+//! the cladding on the same seeds, `L` cycles the look:
 //! ```text
 //! cargo run --example wfc_ships --features debug
 //! cargo run --example wfc_ships --features debug -- --seed 7 --ships 3
@@ -90,19 +71,16 @@
 //! ```
 //!
 //! `L` - not `S`, which the free-fly camera owns - is what makes four authored
-//! looks COMPARABLE: the same three hulls at the same pose, redressed in place,
-//! instead of four checkouts and four runs.
-//!
+//! looks COMPARABLE: the same hulls at the same pose, redressed in place.
 //! Grave/tilde cycles the game HUD, and in a hand-run the seed readout follows
-//! it, so "no hud" clears the whole top of the frame. Captures are exempt: the
-//! readout is what makes a captured frame reproducible.
+//! it. Captures are exempt: the readout is what makes a frame reproducible.
 //!
 //! Two harnessed modes, the fleet's capture idiom:
 //! - `NOVA_AUTOPILOT=1`: smoke path - collapse the row, frame it, strip the
 //!   cladding, exit clean. This is the path `probe run` takes.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the row clad and then bare
-//!   (staged under `NOVA_CAPTURE_DIR`). Same ships in both frames, so the pair is
-//!   a before and after rather than two rolls.
+//!   (staged under `NOVA_CAPTURE_DIR`). Same ships in both frames, so the pair
+//!   is a before and after rather than two rolls.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -386,10 +364,6 @@ fn reroll_on_key(
     )));
 }
 
-// ---------------------------------------------------------------------------
-// The scenario.
-// ---------------------------------------------------------------------------
-
 /// Where one ship stands on the grid stand: filled row by row, each row
 /// centred on its own count so a short last row does not hang off one side.
 fn stand_position(index: usize, ships: usize) -> Vec3 {
@@ -452,10 +426,6 @@ fn wfc_row(
     refuse_broken_ships(&scenario, sections);
     scenario
 }
-
-// ---------------------------------------------------------------------------
-// Framing and readout.
-// ---------------------------------------------------------------------------
 
 /// What the camera aims at: the middle of the stand.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;

@@ -207,7 +207,7 @@ impl EventAction<NovaEventWorld> for SetSkyboxActionConfig {
                 };
 
                 if let Ok(mut entity) = world.get_entity_mut(camera) {
-                    // NOTE: do NOT insert SkyboxConfig here - the setup observer
+                    // Do NOT insert SkyboxConfig here - the setup observer
                     // would read the not-yet-loaded image and panic. Tag for the
                     // deferred applier instead.
                     entity.insert(PendingSkyboxSwap {

@@ -142,7 +142,7 @@ fn sync_trajectory_ribbon(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut assets: ResMut<HoloAssets>,
-    // NOTE: the ribbon's ship end must meet the RENDERED hull: eased root
+    // The ribbon's ship end must meet the RENDERED hull: eased root
     // Transform, not raw avian Position. The other points are plan geometry,
     // not rendered bodies.
     q_ship: Query<

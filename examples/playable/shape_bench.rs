@@ -178,10 +178,6 @@ fn style_at(styles: &GameStyles, index: usize) -> StyleId<'_> {
         .map(|style| style.id.as_str())
 }
 
-// ---------------------------------------------------------------------------
-// The roster: hand-placed structures, one deliberate case each.
-// ---------------------------------------------------------------------------
-
 /// One fitting bolted onto a subject's hull: a catalog prototype at a cell,
 /// turned so its single mounting socket lands on the hull face it bolts to.
 struct Fitting {
@@ -301,10 +297,6 @@ fn roster_subjects() -> Vec<Subject> {
         },
     ]
 }
-
-// ---------------------------------------------------------------------------
-// The scenario.
-// ---------------------------------------------------------------------------
 
 /// One subject as a ship: hull cubes and fittings, centred on its own bounding
 /// box so the stand yaw turns it about its middle, with the skin flag and the
@@ -507,10 +499,6 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// Loading, restyling and the readout.
-// ---------------------------------------------------------------------------
-
 fn load_roster(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
@@ -698,10 +686,6 @@ fn place_labels(
     }
 }
 
-// ---------------------------------------------------------------------------
-// The report: the numbers next to the picture, one run for both.
-// ---------------------------------------------------------------------------
-
 /// Print the skin report for every subject, once per spawned roster.
 ///
 /// The reading is the game's own (`read_structure` off the live sections, then
@@ -799,10 +783,6 @@ fn report_skins(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Framing.
-// ---------------------------------------------------------------------------
 
 /// What the camera aims at: the middle of the stand.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;

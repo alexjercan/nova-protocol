@@ -236,10 +236,8 @@ fn assert_nothing_committed(app: &App, guard: &CacheRootGuard, id: &str, paths: 
     );
 }
 
-// ---------------------------------------------------------------------------
 // The real wire: gen-portal.py tree + tiny_http + the production
 // EhttpTransport.
-// ---------------------------------------------------------------------------
 
 /// The synthetic portal mod the wire test installs: core tests must not depend
 /// on any REAL mod, so mods can be renamed or removed without touching CI. Same
@@ -337,10 +335,10 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
     let source_files = write_fixture_mod(source_dir.path());
     let portal_dir = tempfile::tempdir().expect("temp portal tree");
     // Drive the PRODUCTION generator (scripts/gen-portal.py) the same way the
-    // deploy job does - a subprocess with --source/--shipped/--out. The crate
-    // was retired; its gate coverage moved to tests/gen_portal_gate.rs.
-    // Absolute paths so cwd never matters; the shipped catalog stays wired in
-    // so the shipped-id collision gate is still exercised.
+    // deploy job does - a subprocess with --source/--shipped/--out. Its gate
+    // coverage lives in tests/gen_portal_gate.rs. Absolute paths so cwd never
+    // matters; the shipped catalog stays wired in so the shipped-id collision
+    // gate is still exercised.
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()
@@ -509,10 +507,6 @@ fn portal_fetch_install_enable_uninstall_over_the_wire() {
         "other enablements are untouched"
     );
 }
-
-// ---------------------------------------------------------------------------
-// Failure injection through a mock transport.
-// ---------------------------------------------------------------------------
 
 /// A canned URL -> response transport; unknown URLs 404. Delivery is
 /// synchronous (the callback runs inside `fetch`), which the channel-based

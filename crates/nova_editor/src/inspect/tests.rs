@@ -1083,9 +1083,9 @@ fn a_field_is_declared_exactly_once() {
     assert!(!seen.is_empty(), "the table is not empty");
 }
 
-/// A field a kind shows first carries its own unit and floor. It used to be
-/// possible to name a field on a first screen and forget the rule, which is
-/// what left every number on a turret in a bare box.
+/// A field a kind shows first carries its own unit and floor: a pick list and
+/// the rules are one declaration, so a first screen cannot name a field and
+/// leave its number in a bare box.
 #[test]
 fn every_field_a_kind_shows_carries_its_own_rule() {
     for spec in DECLARED.iter().copied().flatten() {

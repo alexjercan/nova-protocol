@@ -100,10 +100,6 @@ pub(crate) fn apply_map_cli_commands(
     terminal.extend_scrollback(rows);
 }
 
-// ---------------------------------------------------------------------------
-// The app + its runtime state
-// ---------------------------------------------------------------------------
-
 /// The `map` app: identity + static body shell. All interaction runs in this
 /// module's systems (the trait gives no mouse and only discrete keys).
 pub(crate) struct MapApp;
@@ -221,7 +217,3 @@ pub(crate) struct MapRuntime {
     /// only marked changed when the set changes.
     pub(crate) completion_labels: Vec<String>,
 }
-
-// ---------------------------------------------------------------------------
-// Plugin
-// ---------------------------------------------------------------------------

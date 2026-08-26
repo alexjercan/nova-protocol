@@ -7,7 +7,7 @@
 //! content gen`) and the `content_ron_parity` integration test ASSERTS them.
 //! Not part of the game's public API.
 //!
-//! NOTE: the `ScenarioConfig` serde derives are already present in this crate's
+//! The `ScenarioConfig` serde derives are already present in this crate's
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 

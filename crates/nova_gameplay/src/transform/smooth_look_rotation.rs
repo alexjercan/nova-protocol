@@ -78,7 +78,7 @@ impl Plugin for SmoothLookRotationPlugin {
 
         app.add_observer(initialize_smooth_look_system);
 
-        // NOTE: the FIXED clock, because what this rig turns is a gun mount and
+        // The FIXED clock, because what this rig turns is a gun mount and
         // the round leaves on that clock. Advancing the hinge once per FRAME
         // made the angle a staircase whose step size was the frame period, and
         // a fire gate narrower than one step then opened a number of times per

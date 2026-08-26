@@ -18,7 +18,7 @@ pub struct GravityDebugPlugin;
 
 impl Plugin for GravityDebugPlugin {
     fn build(&self, app: &mut App) {
-        // NOTE: normally initialized by NovaGravityPlugin; init here too so a
+        // Normally initialized by NovaGravityPlugin; init here too so a
         // debug-only app cannot panic on the missing resource.
         app.init_resource::<GravitySettings>();
 
@@ -56,7 +56,7 @@ fn draw_dominant_well_links(
     q_wells: Query<&Position, With<GravityWell>>,
 ) {
     for (position, dominant) in &q_affected {
-        // NOTE: the owned well can be gone for the current flush (it was just
+        // The owned well can be gone for the current flush (it was just
         // destroyed); skip rather than assume.
         let Ok(well_position) = q_wells.get(**dominant) else {
             continue;

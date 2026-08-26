@@ -517,7 +517,7 @@ fn editor_plugin(app: &mut App) {
         |mut pose: ResMut<PlacementPose>| *pose = PlacementPose::default(),
     );
 
-    // NOTE: a stale rebind must not survive a scene change, so clear it on
+    // A stale rebind must not survive a scene change, so clear it on
     // every state entry (like SectionChoice).
     app.add_systems(
         OnEnter(ExampleStates::Editor),
@@ -527,7 +527,7 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Scenario),
         |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
-    // NOTE: the capture is Bind's own system, so it answers under Bind and
+    // The capture is Bind's own system, so it answers under Bind and
     // under Normal - the click that arms it lands a frame before the mode
     // resolves. Everything more exclusive than Bind is nothing, and everything
     // less takes the keyboard off it: a gallery filter keystroke is not a
@@ -583,14 +583,14 @@ fn editor_plugin(app: &mut App) {
     );
     app.add_systems(
         Update,
-        // NOTE: F1-to-editor is demo/sandbox furniture - campaigns (NewGame)
+        // F1-to-editor is demo/sandbox furniture - campaigns (NewGame)
         // must not offer an editor escape; the pause menu is the sanctioned way
         // out.
         switch_scene_editor
             .run_if(in_state(ExampleStates::Scenario).and_then(resource_equals(GameMode::Sandbox))),
     );
 
-    // NOTE: the spaceship input/section system sets are deliberately NOT gated
+    // The spaceship input/section system sets are deliberately NOT gated
     // here - nova_scenario's ScenarioLoaderPlugin gates them on
     // scenario-liveness. The editor's build-mode preview stays inert because the
     // Editor state never has a scenario loaded: initial entry loads nothing and

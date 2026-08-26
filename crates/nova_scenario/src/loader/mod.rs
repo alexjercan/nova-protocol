@@ -423,7 +423,7 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
 
-        // NOTE: the OnUpdate pulse is live-AND-Unpaused gated, unlike the
+        // The OnUpdate pulse is live-AND-Unpaused gated, unlike the
         // state-transition trackers below. It fires UNCONDITIONALLY every frame, so under a
         // pause an OnUpdate handler whose predicate is already true would
         // re-run its action every frame via the pause-independent PostUpdate

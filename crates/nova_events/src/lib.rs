@@ -27,7 +27,7 @@ pub mod scale;
 /// well-known type-name constants, the world-scale constants, and the event
 /// engine into scope.
 pub mod prelude {
-    // NOTE: the derive expands to `impl EventKind for #name`, so the TRAIT must
+    // The derive expands to `impl EventKind for #name`, so the TRAIT must
     // be in scope wherever the derive is used. Keep the two exported together.
     pub use nova_events_macros::EventKind;
 

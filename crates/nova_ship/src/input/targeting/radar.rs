@@ -251,7 +251,7 @@ pub(super) fn lock_dwell_secs(distance: f32, modifier: f32, settings: &Targeting
     let raw = settings.lock_dwell_base
         * (1.0 + settings.lock_dwell_range_factor * reach)
         * modifier.max(0.0);
-    // NOTE: `min.max(max)` guards the inspector case where the two knobs are set
+    // `min.max(max)` guards the inspector case where the two knobs are set
     // out of order - `f32::clamp` panics if min > max.
     raw.clamp(
         settings.lock_dwell_min,

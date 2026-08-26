@@ -54,10 +54,10 @@ fn ui_skin_button_sets_resource() {
     );
 }
 
-/// The Settings panel is no longer a stub: the shared body builds the audio
-/// volume control, the graphics preset, and the read-only keybind reference.
-/// Structural (the panel is hidden until toggled, but its entities exist), so
-/// it pins that the controls are actually wired - not an empty placeholder.
+/// The Settings panel builds real controls: the audio volume, the graphics
+/// preset, and the read-only keybind reference. Structural (the panel is hidden
+/// until toggled, but its entities exist), so it pins that the controls are
+/// wired rather than placeheld.
 /// Assertions are disk-independent: the loaded preset can be any saved value,
 /// but exactly one button per group is always highlighted.
 #[test]

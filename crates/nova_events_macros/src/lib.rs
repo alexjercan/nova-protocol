@@ -23,7 +23,7 @@ pub fn derive_event_kind(input: TokenStream) -> TokenStream {
     let name_str = name.to_string().to_lowercase();
 
     let mut event_name = quote! { #name_str };
-    // NOTE: `()` is the default payload for an event with no `#[event_info(...)]`:
+    // `()` is the default payload for an event with no `#[event_info(...)]`:
     // it satisfies the `EventKind::Info` bounds (Serialize + Default + Clone + Debug)
     // and needs no import at the derive site. Do not name a concrete type here -- the
     // original default named one that neither resolved nor implemented Serialize, so

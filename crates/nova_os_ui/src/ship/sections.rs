@@ -150,9 +150,6 @@ pub(crate) fn assign_section_codes(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Live section model (shared by the CLI verbs and the viewer)
-// ---------------------------------------------------------------------------
 /// A live player-ship section resolved for the app + CLI: its code, kind, name,
 /// placement (its LOCAL transform relative to the ship root - the schematic scene
 /// is anchored at the origin, so blocks AND their projected blips both live in
@@ -363,7 +360,7 @@ impl ShipSections<'_, '_> {
     /// Resolve a typed code (case-insensitive) to its section view. The live CLI
     /// handler resolves without touching `Health`/`Ammo` (to avoid a query
     /// conflict), so this convenience is used by the tests.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn resolve(&self, code: &str) -> Option<ShipSectionView> {
         let wanted = code.to_ascii_uppercase();
         self.collect()
@@ -377,9 +374,6 @@ impl ShipSections<'_, '_> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// CLI verb rows
-// ---------------------------------------------------------------------------
 /// The `ship section <id>` detail rows for one section.
 pub(crate) fn section_detail_rows(view: &ShipSectionView) -> Vec<TerminalRow> {
     let mut rows = vec![
@@ -506,9 +500,6 @@ pub(crate) fn unknown_code_rows(code: &str, codes: &[String]) -> Vec<TerminalRow
     rows
 }
 
-// ---------------------------------------------------------------------------
-// Action seam (CLI verb + in-app key -> one handler)
-// ---------------------------------------------------------------------------
 /// A mutating action on a section. Instant/free today; the [`ShipSectionCommand`]
 /// seam is where a future queued, resource-costed job model plugs in.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -584,7 +575,3 @@ pub(crate) fn apply_action_to_section(
         },
     }
 }
-
-// ---------------------------------------------------------------------------
-// App runtime + UI markers
-// ---------------------------------------------------------------------------

@@ -555,7 +555,7 @@ pub(crate) fn thruster_impulse_system(
             continue;
         };
 
-        // NOTE: compose the burn from the ROOT's raw physics pose and the
+        // Compose the burn from the ROOT's raw physics pose and the
         // engine's local mount (sections are direct children of the root), the
         // exact math of the balancer's lever arms in flight/. In FixedUpdate,
         // `GlobalTransform` and the child collider's avian pose are at least
@@ -856,7 +856,7 @@ fn insert_thruster_shader(
 /// Named because it is the biggest material population a torpedo fight puts in
 /// the frame, and the census cannot see it through
 /// `MeshMaterial3d<StandardMaterial>` any more than it can see the crack
-/// buckets - so it is counted by type, the same way `SectionCracksMaterial` is.
+/// buckets. Counted by type, the same way `SectionCracksMaterial` is.
 pub type ThrusterPlumeMaterial = ExtendedMaterial<StandardMaterial, ThrusterExhaustMaterial>;
 
 /// Material extension driving the thruster exhaust glow shader.
@@ -931,23 +931,19 @@ mod test {
 
     #[test]
     fn spawns_thruster_with_default_config() {
-        // Arrange
         let mut app = App::new();
         let id = app
             .world_mut()
             .spawn(thruster_section(ThrusterSectionConfig::default()))
             .id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<ThrusterSectionMarker>(id).is_some());
     }
 
     #[test]
     fn spawns_thruster_with_custom_scene() {
-        // Arrange
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = ThrusterSectionConfig {
@@ -956,10 +952,8 @@ mod test {
         };
         let id = app.world_mut().spawn(thruster_section(config)).id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<ThrusterSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<ThrusterSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());

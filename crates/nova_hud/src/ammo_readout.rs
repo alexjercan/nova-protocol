@@ -586,7 +586,7 @@ impl Plugin for AmmoReadoutPlugin {
             app.init_resource::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutDebug>();
             app.register_type::<AmmoReadoutNumber>();
-            // NOTE: UNGATED on purpose - this mirrors
+            // UNGATED on purpose - this mirrors
             // nova_debug's `toggle_debug_mode`, which is also ungated, so the two
             // F11 flags stay in phase from their shared `true` default. Gating
             // this to `Playing` (the old bug) let an F11 press in the menu/editor

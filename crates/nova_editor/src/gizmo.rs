@@ -415,11 +415,6 @@ pub(crate) fn sync_gizmo(
 /// the socket it mates to, so an axis drag would break the mate the moment it
 /// moved - `on_stage_drag_start` says so to anyone who tries. With the gallery
 /// up the rig is behind a full-screen overlay anyway.
-///
-/// A third used to sit here: an armed part hid the handles too. It could only
-/// ever fire in the frame between arming a part and `disarm_outside_ship`
-/// clearing it, since a part is only armable inside a ship - so it explained
-/// nothing and hid the rig at random.
 fn shown_on(
     context: &EditContext,
     gallery: &GalleryState,

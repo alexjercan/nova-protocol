@@ -81,8 +81,8 @@ pub(crate) fn terminal_snapshot_from_world(
     }
     .with_output("log", terminal_log_rows(log))
     .with_output("objectives", terminal_objective_rows(objectives))
-    // `ship` is now an app (bare `ship` launches the schematic viewer); the status
-    // summary moved to the `ship view` CLI subcommand.
+    // Bare `ship` launches the schematic viewer app; the status summary is the
+    // `ship view` CLI subcommand.
     .with_output("ship view", terminal_ship_rows(ship_name, ship_sections))
 }
 

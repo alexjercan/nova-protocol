@@ -129,13 +129,13 @@ fn setup_skybox_camera(
         return;
     };
 
-    // NOTE: guard on the layer count -- reinterpreting an already-converted image
+    // Guard on the layer count -- reinterpreting an already-converted image
     // would corrupt it when several cameras share one cubemap handle.
     if image.texture_descriptor.array_layer_count() == 1 {
         let layers = image.height() / image.width();
         let _ = image.reinterpret_stacked_2d_as_array(layers);
 
-        // NOTE: the Cube view dimension is what makes Bevy accept the array as a
+        // The Cube view dimension is what makes Bevy accept the array as a
         // skybox; the stacked-to-array reinterpret alone is not enough.
         image.texture_view_descriptor = Some(TextureViewDescriptor {
             dimension: Some(TextureViewDimension::Cube),

@@ -70,8 +70,8 @@ impl RoundBitten {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NovaRoundSystems;
 
-/// The round's cast shape. Matches the collider a round used to carry, so the
-/// conversion changes what a round COSTS and not what it hits.
+/// The round's cast shape, matching the collider a body-backed round carries:
+/// dropping the body changes what a round COSTS, not what it hits.
 const ROUND_RADIUS: f32 = 0.05;
 
 /// How many near misses one round may look past in a single step. Separate
@@ -124,10 +124,10 @@ impl Plugin for NovaRoundPlugin {
 /// anything but the wells; as written, a new force is a new term above the
 /// sweep.
 ///
-/// GRAVITY IS NOT OPTIONAL HERE. Rounds curve under wells today
-/// ([`GravityAffected`] used to carry them into `gravity_well_system`), and a
-/// non-body cannot ride that system because it applies through `Forces`, which
-/// only a [`RigidBody`] has. The pull is therefore recomputed here from the
+/// GRAVITY IS NOT OPTIONAL HERE. Rounds curve under wells, and a non-body
+/// cannot ride `gravity_well_system` because that applies through `Forces`,
+/// which only a [`RigidBody`] has. The pull is therefore recomputed here from
+/// the
 /// same pure [`well_accel`], so the two paths cannot drift apart in the maths -
 /// only in the selection: with no `DominantWell` to carry an incumbent, a round
 /// takes the strongest well outright, where a ship gets [`dominant_well`]'s
@@ -148,9 +148,9 @@ impl Plugin for NovaRoundPlugin {
 /// than a curve (0 kills at 0.5 u, 47 at 1.0 against a baseline of 8) - a fat
 /// round collecting every near miss, not an accurate one.
 ///
-/// The rigid-body path never had the problem: avian sweeps BOTH bodies and its
+/// A rigid body does not have the problem: avian sweeps BOTH bodies and its
 /// narrow phase is a two-body continuous test. [`rest_frame_impact`] is that
-/// test, restored without the bodies.
+/// test without the bodies.
 ///
 /// Each resolved collider is excluded from the rest of the step's casts. A
 /// Pierce round restarting from the surface it just crossed would otherwise
@@ -542,8 +542,8 @@ mod tests {
     }
 
     /// A production-shaped round flying -Z from `z` at `speed`: a transform, a
-    /// velocity and an authored budget, which is now the whole of one. The
-    /// plates carry no `SectionClass`, so resistance is 1.0 everywhere and the
+    /// velocity and an authored budget, which is the whole of one. The plates
+    /// carry no `SectionClass`, so resistance is 1.0 everywhere and the
     /// arithmetic reads directly.
     fn spawn_round_at(app: &mut App, z: f32, amount: f32, kind: DamageType, speed: f32) -> Entity {
         app.world_mut()
@@ -767,14 +767,13 @@ mod tests {
 
     /// One crossing is charged ONCE.
     ///
-    /// This used to be the mirrored-event regression: avian raised a
-    /// `CollisionStart` per event-enabled collider, so a production round
-    /// against a health-bearing collider arrived TWICE with the orderings
-    /// swapped and paid its damage out twice (20 authored, 40 dealt). The sweep
-    /// cannot double-report - but it can re-hit, since a round that pierces
-    /// restarts its cast from the surface it just crossed, which is why
+    /// Two ways to get this wrong, and the sweep only has the second. A
+    /// collision event raised per event-enabled collider arrives TWICE with the
+    /// orderings swapped and pays its damage out twice (20 authored, 40 dealt);
+    /// the sweep cannot double-report, but it CAN re-hit, since a round that
+    /// pierces restarts its cast from the surface it just crossed - which is why
     /// [`advance_rounds`] excludes each resolved collider for the rest of the
-    /// step. Same number, different way to get it wrong.
+    /// step.
     #[test]
     fn a_round_deals_its_authored_damage_once_per_crossing() {
         let mut app = round_app();

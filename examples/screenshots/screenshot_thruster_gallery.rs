@@ -119,10 +119,6 @@ fn gallery_plugin(app: &mut App) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// The roster: named looks, one deliberate case each.
-// ---------------------------------------------------------------------------
-
 /// What one gallery item shows.
 enum Look {
     /// The shipped drive, rendered by the game's own observer.
@@ -410,10 +406,6 @@ fn stand_position(row: usize, rows: usize, column: usize, in_row: usize) -> Vec3
     )
 }
 
-// ---------------------------------------------------------------------------
-// The stage and the subjects.
-// ---------------------------------------------------------------------------
-
 /// The stage: the game's own sky and the repo's standard three-point rig,
 /// with NO ships - every subject is a display entity this example owns.
 fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
@@ -549,7 +541,10 @@ fn spawn_shell(
 /// A part-candidate glb, decoded off disk, recentred on its bounds and fitted
 /// to the presentation size, with the native size logged so the label's claim
 /// can be checked against the report.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system posing the whole gallery"
+)]
 fn spawn_candidate(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
@@ -715,10 +710,6 @@ fn read_candidate_glb(path: &Path) -> Vec<CandidatePrimitive> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// Labels.
-// ---------------------------------------------------------------------------
-
 /// An item's nameplate, anchored under its stand in world space.
 #[derive(Component)]
 struct SubjectLabel(Vec3);
@@ -784,10 +775,6 @@ fn place_labels(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Framing.
-// ---------------------------------------------------------------------------
 
 /// What the camera aims at: the middle of the stand.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
@@ -863,10 +850,6 @@ fn orbit_idle_camera(
         .looking_at(CAMERA_TARGET, Vec3::Y);
     }
 }
-
-// ---------------------------------------------------------------------------
-// The driven walk.
-// ---------------------------------------------------------------------------
 
 /// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
 #[cfg(feature = "debug")]

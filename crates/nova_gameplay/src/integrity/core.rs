@@ -110,7 +110,7 @@ fn on_impact_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
     q_body: Query<(&LinearVelocity, &ComputedMass), With<RigidBody>>,
-    // NOTE: excluding a blast volume keeps a blast overlap from ALSO dealing
+    // Excluding a blast volume keeps a blast overlap from ALSO dealing
     // impact damage - it is a massless static sensor, and its damage is the
     // NovaBlast observer's job.
     q_other: Query<

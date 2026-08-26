@@ -704,7 +704,7 @@ fn spawn_axes_row(
 
 /// Fill the list with one widget per row.
 ///
-/// NOTE: the widget names are stable - the driven walks find these by name and
+/// The widget names are stable - the driven walks find these by name and
 /// type into them.
 fn build_rows(
     list: &mut RelatedSpawnerCommands<ChildOf>,

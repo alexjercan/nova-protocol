@@ -1341,8 +1341,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the rock's inspector reads {rows:?}");
         })
         .add()
-        // A radius has a floor, and the box is where it is enforced. A negative
-        // one used to be taken here and found out at spawn time, with the range
+        // A radius has a floor, and the box is where it is enforced. Taken here
+        // and found out at spawn time, a negative one surfaces with the range
         // already flying.
         .click_a_widget(
             "editor: reach for the radius again",
@@ -1875,9 +1875,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             "editor: inspect the turret",
             "Scene Row pdc_kinetic_turret_section_7",
         )
-        // The Key row IS the rebind. It used to be dead text beside a verb in
-        // the top bar, which left a builder reading a binding on one surface
-        // and arming it on another.
+        // The Key row IS the rebind, not dead text beside a verb in the top
+        // bar: a builder reads a binding and arms it on the same surface.
         .click_a_widget("editor: press the turret's Key row", "Inspector Key")
         .step("editor: the turret waits for its key")
         .until(a_section_awaits_its_key())
@@ -1989,9 +1988,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // The root is a node like any other, and the panel on it used to be a
-        // titled empty box - which reads as the panel breaking every time you
-        // leave a ship.
+        // The root is a node like any other, and the panel on it says what the
+        // document holds: a titled empty box reads as the panel breaking every
+        // time you leave a ship.
         .step("editor: the root says what the document holds")
         .on_enter(|world: &mut World| {
             let ships = inspector_reading(world, "Ships");
@@ -2019,9 +2018,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // A hull the RANGE came with is a ship of this document, and the tree
         // is the door into it: two clicks on a picket's row go inside it,
-        // exactly as they do on a ship the run built. It used to be an opaque
-        // object - a double click framed it, and the panel read out its whole
-        // flattened spawn config.
+        // exactly as they do on a ship the run built - not framing an opaque
+        // object whose flattened spawn config the panel then reads out.
         .double_click_a_widget("editor: enter a seeded picket", "Scene Row picket_warden")
         .step("editor: inside the hull the range came with")
         .until(inside_the_node("picket_warden"))
@@ -2109,10 +2107,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // Scenario is what stands in for one. It reseeds the stock range, which
         // has no `ship_2` in it - so a `ship_2` after the Open can only have
         // come off disk.
-        // Neither of these two verbs acts on the row any more: a document has
-        // no undo, so the row asks and the window's own button is what goes
-        // through with it. The first press proves the ASK - the ship is still
-        // there while the question is up.
+        // Neither of these two verbs acts on the row: a document has no undo,
+        // so the row asks and the window's own button is what goes through
+        // with it. The first press proves the ASK - the ship is still there
+        // while the question is up.
         .click_a_menu_item("editor: start over", MENU_FILE, "New Scenario Item")
         .step("editor: the question is up and nothing is gone yet")
         .on_enter(|world: &mut World| {

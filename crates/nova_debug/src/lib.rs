@@ -121,7 +121,7 @@ impl Plugin for DebugPlugin {
         #[cfg(not(target_arch = "wasm32"))]
         app.add_plugins(screenshot::ScreenshotHotkeyPlugin);
 
-        // NOTE: a dev build boots with the WHOLE debug layer off, and F11
+        // A dev build boots with the WHOLE debug layer off, and F11
         // raises it as one. Three of the four F11-toggled `DebugEnabled` states
         // live here - nova's own (gravity/sections gizmos), the egui inspector
         // (UI + avian PhysicsGizmos) and the wireframe pass - and share both

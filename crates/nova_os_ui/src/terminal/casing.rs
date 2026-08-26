@@ -189,8 +189,8 @@ pub(crate) fn spawn_nova_os_casing_vents(parent: &mut ChildSpawnerCommands) {
 /// A faint phosphor halo tracing the screen edge (PoC `.rim`): a wider low-alpha
 /// glow under a thin line, two nested rounded-border nodes at the screen
 /// rounding. Drawn above the CRT overlay, below the glass. Kept deliberately
-/// faint - the crisp, tube-bowed screen edge is now the shader's barrel-warped
-/// rim; this is only the soft outer bloom, and the headless fallback's sole
+/// faint: the crisp, tube-bowed screen edge is the shader's barrel-warped rim,
+/// and this is only the soft outer bloom - and the headless fallback's sole
 /// edge cue.
 pub(crate) fn spawn_nova_os_phosphor_rim(screen: &mut ChildSpawnerCommands) {
     for (name, border_px, color) in [

@@ -11,11 +11,11 @@ use std::process::ExitCode;
 
 use bevy::{
     app::Plugins,
-    // NOTE: neither executor type is in bevy's prelude.
+    // Neither executor type is in bevy's prelude.
     ecs::schedule::{ScheduleLabel, SingleThreadedExecutor},
     log::{Level, LogPlugin},
     prelude::*,
-    // NOTE: RenderPlugin is not in bevy's prelude.
+    // RenderPlugin is not in bevy's prelude.
     render::RenderPlugin,
     window::{ExitCondition, PresentMode},
 };
@@ -186,7 +186,7 @@ impl AppBuilder {
     fn assemble(render: bool) -> Self {
         let mut app = App::new();
         single_thread_the_fixed_loop(&mut app);
-        // NOTE: the `mods://` source must be registered BEFORE AssetPlugin lands
+        // The `mods://` source must be registered BEFORE AssetPlugin lands
         // with DefaultPlugins below - bevy builds the registered sources at
         // AssetPlugin insertion, not lazily. It cannot live inside
         // `assets_plugin()`, which returns the AssetPlugin VALUE for `.set()`
@@ -265,7 +265,7 @@ impl AppBuilder {
     /// asset, editor (when no game plugins were given), menu, and debug plugins,
     /// and installs the `Loaded -> MainMenu`/`Playing` handoff.
     pub fn build(mut self) -> App {
-        // NOTE: UiWidgetsPlugins is part of Bevy's DefaultPlugins as of 0.19 (it was an
+        // UiWidgetsPlugins is part of Bevy's DefaultPlugins as of 0.19 (it was an
         // experimental, manually-added plugin group in 0.17). AppBuilder::new() already
         // adds DefaultPlugins, so adding it again here panics with "plugin was already
         // added". Do not re-add it.
@@ -327,7 +327,7 @@ impl AppBuilder {
         }
         let boot_to_menu = has_menu && startup_scenario.is_none();
 
-        // NOTE: only advance when still in Loading - a scripted run may already
+        // Only advance when still in Loading - a scripted run may already
         // have set Playing, and this hook firing seconds later must not yank the
         // app backwards into the menu.
         //
@@ -491,10 +491,10 @@ fn window_plugin(render: bool) -> WindowPlugin {
             name: std::env::var_os(PROBE_ENV).map(|_| MEASURE_WINDOW_CLASS.to_owned()),
             resolution: (1024, 768).into(),
             present_mode: PresentMode::AutoVsync,
-            // NOTE: selector of the canvas shipped in the repo-root `index.html`.
+            // Selector of the canvas shipped in the repo-root `index.html`.
             canvas: Some("#bevy".to_owned()),
             fit_canvas_to_parent: true,
-            // NOTE: true lets the canvas capture tab and other browser keys on wasm.
+            // True lets the canvas capture tab and other browser keys on wasm.
             prevent_default_event_handling: true,
             ..Default::default()
         }),
@@ -535,7 +535,7 @@ fn render_plugin(render: bool) -> RenderPlugin {
     }
     RenderPlugin {
         render_creation: wgpu.into(),
-        // NOTE: do not flip this back to bevy's async default (task
+        // Do not flip this back to bevy's async default (task
         // 20260805-111329). An async pipeline-compile task still in flight at
         // exit drops the last `Arc<Device>` from an `AsyncComputeTaskPool`
         // thread while the main thread tears the same Vulkan device down,
@@ -694,7 +694,7 @@ fn single_thread_the_fixed_loop(app: &mut App) {
 }
 
 fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
-    // NOTE: the bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
+    // The bar is deliberately NOT `HudNovaOsExempt`. While the NOVA OS
     // computer is open the whole flight status bar hides, and the one item that
     // matters there - FPS - is rehomed onto the NOVA OS terminal topbar (see
     // `drive_nova_os_topbar_fps` in nova_os_ui/src/terminal/shell.rs).

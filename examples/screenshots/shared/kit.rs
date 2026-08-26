@@ -1,9 +1,8 @@
 //! The screenshot photo kit: the pieces every screenshot scene shares.
 //!
-//! The three-point photo rig used to live here as an observer that swapped out
-//! the engine's hardcoded key light. Lighting is authored scenario content now
-//! ([`ThreePointRig`], task `20260805-111534`), so each producer spawns the
-//! same rig from its own `ScenarioConfig` and the kit keeps only geometry.
+//! Lighting is authored scenario content ([`ThreePointRig`]), so each producer
+//! spawns the same three-point rig from its own `ScenarioConfig` and the kit
+//! keeps only geometry.
 //!
 //! Included by each `examples/screenshots/*.rs` producer with
 //! `#[path = "shared/kit.rs"] mod kit;`. It lives one level down on purpose -
@@ -22,7 +21,10 @@
 
 // Each producer includes the whole kit and uses the part its scene needs; the
 // unused half is not dead code, it is another scene's tool.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
@@ -31,15 +33,14 @@ use nova_protocol::prelude::*;
 ///
 /// `hull` is the catalog ship id (`racer`, `cargoa`, `cargob`).
 ///
-/// This kit used to carry its OWN copy of every part's centre, and that copy
-/// drifted: the cargoa's two turret mounts were hand-typed at +-0.85 while the
-/// builders author them at +-0.95. A tenth of a unit is a hundred times the
-/// mate epsilon, so each mount's socket missed the nose's, the turrets joined
-/// no component, `derive_link_point_graph` rejected the WHOLE ship as
-/// `Disconnected`, and section integrity fell back to empty adjacency - under
-/// which any single section death severed the entire hull into loose wrecks.
-/// Reading the catalog is what makes that unrepresentable: there is exactly one
-/// set of coordinates, and it is the one the game ships.
+/// Read from the catalog rather than copied, because a copy drifts: hand-typing
+/// the cargoa's two turret mounts at +-0.85 where the builders author +-0.95 is
+/// a hundred times the mate epsilon, so each mount's socket misses the nose's,
+/// the turrets join no component, `derive_link_point_graph` rejects the WHOLE
+/// ship as `Disconnected`, and section integrity falls back to empty adjacency -
+/// under which any single section death severs the entire hull into loose
+/// wrecks. There is exactly one set of coordinates, and it is the one the game
+/// ships.
 pub fn kenney_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
     ships
         .get_ship(hull)

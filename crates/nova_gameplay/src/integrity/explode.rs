@@ -259,12 +259,11 @@ fn on_destroyed_entity(
 /// free of anything `nova_ship` owns.
 ///
 /// A body with NO collider cannot become one, so it leaves nothing behind and
-/// says so. That is a deliberate refusal rather than a gap: there used to be a
-/// burst of generic cubes on this branch, and the trouble with it was not that
-/// it looked bad, it was that it looked like SOMETHING - so a body that had
-/// silently failed to come apart was indistinguishable from one that had come
-/// apart badly. The `system_destruction_finale` range asserts this branch never runs on
-/// shipped content.
+/// says so. That is a deliberate refusal rather than a gap: a burst of generic
+/// cubes on this branch would look like SOMETHING, which makes a body that
+/// silently failed to come apart indistinguishable from one that came apart
+/// badly. The `system_destruction_finale` range asserts this branch never runs
+/// on shipped content.
 ///
 /// Despawns the body on every path. It is the only thing that despawns a
 /// destroyed explodable, so an early return leaves a zero-health wreck standing
@@ -618,9 +617,8 @@ mod tests {
     }
 
     /// A body with no collider cannot become a body of its own. It leaves
-    /// NOTHING and is still taken off the field: there used to be a burst of
-    /// generic cubes here, and it made a silent failure look like a working
-    /// finale.
+    /// NOTHING and is still taken off the field, because a burst of generic
+    /// cubes here would make a silent failure look like a working finale.
     #[test]
     fn a_body_with_no_collider_leaves_nothing_and_is_still_reaped() {
         let mut app = finale_app(7);

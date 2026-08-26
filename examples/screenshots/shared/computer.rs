@@ -14,7 +14,10 @@
 
 // Each producer includes the whole kit and types what its shot needs; the keys
 // it never presses are not dead code, they are another walk's beat.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 #[cfg(feature = "debug")]
 use bevy::input::{

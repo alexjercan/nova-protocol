@@ -121,7 +121,6 @@ pub(super) enum PortalMsg {
 /// by [`poll_portal_messages`] (the `Mutex` exists only to make the resource
 /// `Sync`; it is never contended).
 #[derive(Resource)]
-#[allow(missing_docs)]
 pub(super) struct PortalChannel {
     pub(super) tx: Sender<PortalMsg>,
     pub(super) rx: Mutex<Receiver<PortalMsg>>,

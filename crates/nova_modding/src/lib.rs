@@ -42,7 +42,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-// NOTE: the pure serde format types live in the engine-free `nova_mod_format`
+// The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
@@ -283,7 +283,7 @@ impl AssetLoader for BundleAssetLoader {
         reader.read_to_end(&mut bytes).await?;
         let manifest: BundleManifest = ron::de::from_bytes(&bytes)?;
 
-        // NOTE: content paths resolve against the bundle file's DIRECTORY, which
+        // Content paths resolve against the bundle file's DIRECTORY, which
         // is what makes a bundle folder self-contained and relocatable.
         let base = load_context
             .path()
@@ -294,7 +294,7 @@ impl AssetLoader for BundleAssetLoader {
             .content
             .iter()
             .map(|rel| {
-                // NOTE: the owned `to_string` is load-bearing - an
+                // The owned `to_string` is load-bearing - an
                 // `AssetPath::from(&str)` would borrow `manifest.content`, which
                 // does not outlive the resolved path.
                 let resolved = base.resolve(&AssetPath::from(rel.to_string()));
@@ -302,7 +302,7 @@ impl AssetLoader for BundleAssetLoader {
             })
             .collect();
 
-        // NOTE: `base` keeps its source scheme, so this is `mods/<id>` for a
+        // `base` keeps its source scheme, so this is `mods/<id>` for a
         // shipped bundle and `mods://<id>` for a downloaded one - exactly the
         // prefix a `self://` content ref rewrites against at merge time. Must
         // stay after the content map, which borrows `base`.
@@ -389,7 +389,7 @@ impl AssetLoader for CatalogLoader {
         reader.read_to_end(&mut bytes).await?;
         let manifest: CatalogManifest = ron::de::from_bytes(&bytes)?;
 
-        // NOTE: bundle paths are asset-root-relative (the catalog lives at the
+        // Bundle paths are asset-root-relative (the catalog lives at the
         // root), so they load as-is - no dir resolution, unlike a bundle's own
         // content paths.
         let entries = manifest

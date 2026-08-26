@@ -12,7 +12,10 @@ fn reserved_conflict(source: InputSource) -> Option<String> {
         .map(|(_, verb)| format!("flight control: {verb}"))
 }
 
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one filtered query over the rebind rows"
+)]
 pub(crate) fn apply_ship_rebind(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,

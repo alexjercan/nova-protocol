@@ -152,8 +152,6 @@ fn reach_playing(mut next: ResMut<NextState<GameStates>>) {
     next.set(GameStates::Playing);
 }
 
-// ------------------------------- catalog ------------------------------------
-
 /// One part glb the cutter emitted, with the manifest data the views need.
 struct PartEntry {
     /// Catalog id: manifest dir relative to the candidates root, plus the part
@@ -276,8 +274,6 @@ fn vec3_of(value: &serde_json::Value) -> Vec3 {
     Vec3::new(n(0), n(1), n(2))
 }
 
-// ------------------------------- state --------------------------------------
-
 /// Which view is up. `rebuild_view` respawns the scene whenever this changes,
 /// so the keyboard, the autopilot script and the capture walk all drive the
 /// viewer through the same seam.
@@ -307,8 +303,6 @@ struct ViewLabel {
 /// The focused part's turntable.
 #[derive(Component)]
 struct Spin;
-
-// ------------------------------- setup --------------------------------------
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
@@ -377,8 +371,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 /// The label font, cached so rebuilds do not re-ask the asset server.
 #[derive(Resource, Clone)]
 struct ViewerFont(Handle<Font>);
-
-// ------------------------------- input --------------------------------------
 
 fn keyboard(
     keys: Res<ButtonInput<KeyCode>>,
@@ -465,8 +457,6 @@ fn keyboard(
         *state = next;
     }
 }
-
-// ------------------------------- views --------------------------------------
 
 /// Three-quarter presentation: yaw the nose (-Z) mostly toward the camera.
 /// The camera sits slightly above the grid plane, so no per-part tilt needed.
@@ -766,7 +756,6 @@ fn draw_selection(mut gizmos: Gizmos, state: Res<ViewerState>) {
     );
 }
 
-// ------------------------------- harness ------------------------------------
 //
 // The capture walk: page through the whole gallery, focus one blocks piece,
 // then show each recipe ship assembled and exploded - shooting a PNG at every

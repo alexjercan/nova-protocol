@@ -23,8 +23,7 @@ fn section(kind: SectionKind) -> SectionNode {
     }
 }
 
-/// `o` used to be a controller AND an asteroid, `!` a torpedo AND a beacon.
-/// A mark two kinds share marks neither.
+/// A mark two kinds share marks neither, so no glyph stands for two.
 #[test]
 fn every_kind_the_editor_draws_wears_its_own_mark() {
     let mut marks = vec![

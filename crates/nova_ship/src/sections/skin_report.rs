@@ -500,11 +500,10 @@ mod tests {
     /// THE OWNER'S L, and the two things he saw on it: a bare section at the
     /// inside angle, and a hull that reads as a field of spikes.
     ///
-    /// The inside angle is CLAD, at every thickness. It used to be dropped for
-    /// having no direction left to show, which is a refusal
-    /// [`cladding_cells`] no longer makes - the plate on the roof and the plate
-    /// up the wall hug different walls of the same corner and neither is in the
-    /// other's way.
+    /// The inside angle is CLAD, at every thickness. Dropping it for having no
+    /// direction left to show is a refusal [`cladding_cells`] does not make: the
+    /// plate on the roof and the plate up the wall hug different walls of the
+    /// same corner and neither is in the other's way.
     ///
     /// The spikes are the OTHER reading, and they survive the corner being
     /// filled, which is the owner's hypothesis refuted in both directions:
@@ -555,8 +554,8 @@ mod tests {
             short.flat_area,
         );
 
-        // Three cells thick: less spiky, and the three cells that used to be
-        // dropped at the angle are the three that carry its fillet.
+        // Three cells thick: less spiky, and the three cells at the angle are
+        // the three that carry its fillet.
         let deep = self::report(&elbow(3, 3), None);
         assert!(
             deep.coplanar > 0 && deep.flat_area > report.flat_area,

@@ -355,7 +355,7 @@ fn emphasize_lock_on_weapons_hot(
 /// boundary (at zero progress the ceiling IS the full alpha and the pulse has
 /// no depth), so the cue fades in without a step.
 ///
-/// NOTE: a function of the DECAY CLOCK alone - deliberately not of session
+/// A function of the DECAY CLOCK alone - deliberately not of session
 /// time. Phase must be the INTEGRAL of a sweeping frequency: the
 /// first cut multiplied the render clock by the swept `hz`, which makes the
 /// instantaneous rate `hz + elapsed * d(hz)/dt` and so grows without bound

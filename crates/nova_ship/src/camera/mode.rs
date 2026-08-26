@@ -18,10 +18,9 @@ use crate::prelude::*;
 /// Derived each frame from the HELD state of the mode inputs (Turret while
 /// RMB/CombatInput is held, else FreeLook while Alt/FreeLookInput is held, else
 /// Normal). Memoryless by design: any press/release order in any nesting lands
-/// on the right mode, which the old four last-writer-wins observers could not
-/// guarantee (Alt-release while RMB was held used to stomp the mode back to
-/// Normal). `PartialEq` + `set_if_neq` keep `is_changed()` meaningful for the
-/// rig-sync system.
+/// on the right mode, which last-writer-wins observers cannot guarantee - an
+/// Alt-release while RMB is held stomps the mode back to Normal. `PartialEq` +
+/// `set_if_neq` keep `is_changed()` meaningful for the rig-sync system.
 #[derive(Resource, Default, Clone, Debug, PartialEq, Eq)]
 pub enum SpaceshipCameraControlMode {
     /// Default flight framing; look input steers the ship.
@@ -51,9 +50,9 @@ pub(super) fn sync_spaceship_control_mode(
     // The OUTGOING rig: the marker still sits on the rig being left this
     // frame (marker moves below are command-flushed), so its output is the
     // live look at transition time - the seed for the incoming rig. Seeding
-    // unconditionally from the NORMAL rig was a bug: raising out
-    // of FreeLook snapped the aim to wherever the normal rig last pointed
-    // instead of the flanker being looked at.
+    // unconditionally from the NORMAL rig instead snaps a raise out of
+    // FreeLook to wherever that rig last pointed rather than to the flanker
+    // being looked at.
     active_output: Query<
         &PointRotationOutput,
         (
@@ -293,8 +292,8 @@ mod tests {
             "mode switches must (re)apply the gameplay camera smoothing"
         );
 
-        // The anchor survives the switch (the bug reset it to the origin for a
-        // frame)...
+        // The anchor survives the switch, rather than resetting to the origin
+        // for a frame....
         assert_eq!(
             app.world()
                 .get::<ChaseCameraInput>(camera)
@@ -445,9 +444,9 @@ mod tests {
 
     /// The full nested-hold transition matrix: every press/release order
     /// lands on the derived mode, the marker follows, and the raised flag
-    /// mirrors the combat hold. The old four last-writer-wins observers
-    /// failed the "release Alt while RMB held" step (mode stomped to Normal
-    /// while raised - the manual-aim-on-a-frozen-ray bug).
+    /// mirrors the combat hold. Last-writer-wins observers fail the "release
+    /// Alt while RMB held" step - mode stomped to Normal while raised, which
+    /// is manual aim on a frozen ray.
     #[test]
     fn nested_holds_always_land_on_the_derived_mode() {
         let (mut app, normal, freelook, turret, ship) = mode_app();
@@ -469,8 +468,7 @@ mod tests {
         assert_eq!(active_rig(&mut app), turret);
         assert!(raised(&app, ship));
 
-        // RMB released while Alt held: FreeLook (NOT Normal - the old bug),
-        // and lowered.
+        // RMB released while Alt held: FreeLook, not Normal, and lowered.
         release_rmb(&mut app);
         app.update();
         assert!(matches!(

@@ -87,11 +87,9 @@ const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 /// assembled at this scale needs no art transform at all.
 const UNIT_TURRET_SCALE: f32 = 1.0;
 
-/// Build the shipped turret's kinematic joint tree: the exact chain the flat
-/// config used to author 1:1. base(fixed, on the mount face) -> yaw(Y, meshed)
-/// -> pitch(X, meshed, -10..90 deg) -> barrel(fixed, meshed) -> muzzle(fixed,
-/// fire point). `fire_rate` is per-muzzle now; every other numeric value is
-/// preserved from the old fields.
+/// Build the shipped turret's kinematic joint tree: base(fixed, on the mount
+/// face) -> yaw(Y, meshed) -> pitch(X, meshed, -10..90 deg) -> barrel(fixed,
+/// meshed) -> muzzle(fixed, fire point). `fire_rate` is per-muzzle.
 ///
 /// `mount` is the section's own half-height, and it is a PARAMETER because the
 /// base offset is where the turret STANDS: hardcoded at the unit cube's -0.5, a
@@ -100,8 +98,8 @@ const UNIT_TURRET_SCALE: f32 = 1.0;
 ///
 /// `scale` resizes the WHOLE assembly. It multiplies every joint offset AND
 /// rides on every joint's render-mesh transform, because those are two halves
-/// of one answer: scaling the meshes alone leaves the parts spaced for the size
-/// they used to be, and scaling the offsets alone leaves full-size art in a
+/// of one answer: scaling the meshes alone leaves the parts spaced for the
+/// unscaled size, and scaling the offsets alone leaves full-size art in a
 /// smaller arrangement. It reaches the base plate too - that plate is a default
 /// primitive a full unit across (see `insert_turret_joint_render`), so a turret
 /// mounted on anything but a unit cube wore a hull-sized dinner plate.
@@ -621,14 +619,11 @@ mod tests {
     /// rather than over that one section, because the next mount authored at
     /// its own size would repeat it.
     ///
-    /// The per-craft turret modules used to be a KNOWN deviation excluded from
-    /// this rule; they are gone, so every turret in the catalog is held to it.
-    ///
     /// No bay offers a mating surface across the face it fires through.
     ///
-    /// A torpedo section used to carry the plain hull block's full six-socket
-    /// cube, so the editor would bolt a section over the muzzle: the placement
-    /// mated, and the salvo then launched inside its own ship. The rule is the
+    /// A torpedo section carrying the plain hull block's full six-socket cube lets
+    /// the editor bolt a section over the muzzle: the placement mates, and the
+    /// salvo then launches inside its own ship. The rule is the
     /// SOCKET SET, so it is checked over every torpedo section in the catalog
     /// rather than over the one that prompted it - and the firing direction is
     /// read off each section's own `spawn_offset` rather than assumed, so a bay
@@ -737,8 +732,8 @@ mod tests {
 
     /// Scaling an assembly is TWO things at once: every joint's art and every
     /// joint's offset. Scaling the meshes alone leaves the parts spaced for the
-    /// size they used to be, which reads as a turret coming apart; scaling the
-    /// offsets alone leaves full-size art in a smaller arrangement.
+    /// unscaled size, which reads as a turret coming apart; scaling the offsets
+    /// alone leaves full-size art in a smaller arrangement.
     #[test]
     fn a_scaled_turret_tree_scales_its_offsets_and_its_art_together() {
         let mesh = |name: &str| AssetRef::<WorldAsset>::from(name.to_string());

@@ -334,7 +334,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
         // streams; any fixed value works.
         const SILHOUETTE_SALT: u64 = 0x51E0_0E77_E5EE_D000;
         let mut silhouette_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ SILHOUETTE_SALT);
-        // NOTE: always the authored count, never thinned by a graphics-quality
+        // Always the authored count, never thinned by a graphics-quality
         // tier - scatter is gameplay content (asteroid / debris fields).
         // Bounded, though: `count` is an unvalidated authored u32 driving a
         // spawn loop, so an absurd one OOMs from data that passed every gate.

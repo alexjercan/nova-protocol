@@ -342,7 +342,10 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one pass over every catalog the lint reads"
+)]
 fn check_action(
     action: &EventActionConfig,
     scenario: &str,

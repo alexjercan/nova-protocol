@@ -131,7 +131,7 @@ fn point_rotation_quat(state: PointRotationState) -> Quat {
     let right = state.right.normalize();
     let up = state.right.cross(state.forward).normalize();
 
-    // NOTE: the local basis (right, up, -forward) must stay right-handed -- `from_mat3` on an
+    // The local basis (right, up, -forward) must stay right-handed -- `from_mat3` on an
     // improper (det -1) basis returns garbage.
     let mat3 = Mat3::from_cols(right, up, -forward);
     Quat::from_mat3(&mat3)

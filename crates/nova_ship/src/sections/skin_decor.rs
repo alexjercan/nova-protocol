@@ -840,13 +840,12 @@ mod tests {
     /// sign - which is the whole difference between a fairing shrouding an edge
     /// and one leaning back over the hull behind it.
     ///
-    /// Measured ACROSS THE SURFACE, because a piece is bedded onto the plate
-    /// now: the edge of a hull drops half a cell over a cell, so a fairing on
-    /// it noses 27 degrees down the slope and its raw `+Z` is no longer the
-    /// cardinal it was turned to. The claim that survives is the one that was
-    /// always meant - which way it points along the plate it lies on - plus a
-    /// new one: it rakes DOWN, with the edge, rather than standing square out
-    /// of it.
+    /// Measured ACROSS THE SURFACE, because a piece is bedded onto the plate:
+    /// the edge of a hull drops half a cell over a cell, so a fairing on it
+    /// noses 27 degrees down the slope and its raw `+Z` is not the cardinal it
+    /// was turned to. Two claims survive that - which way it points along the
+    /// plate it lies on, and that it rakes DOWN with the edge rather than
+    /// standing square out of it.
     #[test]
     fn an_outward_piece_turns_off_the_ship() {
         let structure = slab(6);

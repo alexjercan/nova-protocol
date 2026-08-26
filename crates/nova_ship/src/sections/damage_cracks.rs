@@ -1,76 +1,44 @@
 //! CRACKS: what damage does to a section's surface.
 //!
-//! One damage effect among several, and the replacement for the oldest of them.
-//! It reads [`DamageLevel`] - the share of a section's own health that is gone -
+//! Reads [`DamageLevel`] - the share of a section's own health that is gone -
 //! and drives a fracture pattern on that section's material: an untouched
 //! section is exactly what the artist painted, a battered one is veined with
-//! dark lines, a critical one glows through them, and a dead one reads burnt.
-//!
-//! # Why the tint had to go
-//!
-//! SCORCH said "this is damaged" by reddening and darkening the whole body. That
-//! is information rather than a picture of anything: a hull at 60% looked like a
-//! hull painted red, and it fought every authored paint scheme it was laid over.
-//! It also disagreed with the geometry - a section that is visibly bitten into
-//! wants a surface that is FAILING, not one that has changed colour.
-//!
-//! Cracks say the same thing by showing the material coming apart, they say it
-//! WHERE it comes apart rather than everywhere at once, and being dark lines
-//! rather than a hue they read against any paint. The burnt endpoint the tint
-//! ended on is kept - it is what makes a dead section read as wreckage.
+//! dark lines, a critical one glows through them, a dead one reads burnt. The
+//! cracked material is also what a wreck leaves with: destruction detaches the
+//! art rather than re-drawing it.
 //!
 //! # Shared bucket materials
 //!
-//! Sections render via gltf `WorldAssetRoot` scenes, and a gltf scene's
-//! materials are shared handles across every instance of the same mesh - so
-//! writing a damage level into a material in place would crack every section
-//! that shares that mesh at once. Damage is therefore QUANTISED into
+//! A gltf scene's materials are shared handles across every instance of the
+//! same mesh, so writing a damage level into a material in place would crack
+//! every section that shares that mesh. Damage is QUANTISED into
 //! [`SECTION_CRACK_BUCKETS`] steps and a mesh SWAPS to the shared
 //! [`SectionCracksMaterial`] for its `(source material, bucket)` pair. Nothing
-//! is ever written into a built material, so no section can crack a neighbour.
+//! is ever written into a built material.
 //!
 //! Quantising is what keeps the material count off the fleet size. Draw calls
-//! bin on the material, so a continuous value per section put every section
-//! mesh in a bin of its own - 2,652 bins of one instance each on an eleven-ship
-//! gallery, and roughly half the frame rate. Buckets cap the bins at source
-//! materials times [`SECTION_CRACK_BUCKETS`] however many ships are in the
-//! scene.
+//! bin on the material, so a continuous value per section puts every section
+//! mesh in a bin of its own - 2,652 bins on an eleven-ship gallery, and roughly
+//! half the frame rate.
 //!
 //! # A pristine section is not swapped at all
 //!
-//! Bucket 0 is the pristine step, and a mesh in it KEEPS its own
-//! `MeshMaterial3d<StandardMaterial>`. The bucket-0 material is never built.
-//!
-//! This is not an optimisation of a working scheme, it is the repair of a wrong
-//! one. A pristine section used to be swapped onto a bucket-0
-//! [`SectionCracksMaterial`], on the reasoning that one shared bucket is one
-//! bin, so an undamaged fleet batches as if the effect were not there. The bin
-//! count was right and the conclusion did not follow: a bucket-0 material is an
-//! [`ExtendedMaterial`], which is a DIFFERENT PIPELINE, and its draws cannot
-//! batch with anything still drawn as a [`StandardMaterial`]. Measured by
-//! ablation, an idle scene with nothing damaged anywhere paid 10.4% of mean
-//! frame time and 12.7% of p95 for cracks it was not showing.
-//!
-//! The swap is therefore deferred to the first bucket that draws something, and
-//! reversed if a section is ever healed back to pristine. An undamaged fleet now
-//! costs what it costs without this module, and a battered one pays in
-//! proportion to how battered it is.
-//!
-//! The shader was always built for this: crack width is `damage * damage`, so
-//! bucket 0 renders EXACTLY the source material. Not swapping it is invisible.
-//!
-//! The cracked material is also what a dead section wears as it tumbles away:
-//! destruction detaches the art rather than re-drawing it, so the last bucket
-//! swapped in here is the one the wreck leaves with.
+//! Bucket 0 keeps its own `MeshMaterial3d<StandardMaterial>`, and its material
+//! is never built. A [`SectionCracksMaterial`] is an [`ExtendedMaterial`] - a
+//! different pipeline, whose draws cannot batch with anything still drawn as a
+//! [`StandardMaterial`] - so one shared bucket-0 material is one bin and still
+//! costs the whole fleet: measured by ablation, an idle scene paid 10.4% of
+//! mean frame time and 12.7% of p95 for cracks it was not showing. The swap is
+//! deferred to the first bucket that draws something and reversed on a heal.
+//! Crack width is `damage * damage`, so bucket 0 would render exactly the
+//! source material anyway.
 //!
 //! # Timing
 //!
 //! Capture keys on `Added<MeshMaterial3d<StandardMaterial>>`, which fires the
-//! frame a mesh appears - whether it is a synchronous cuboid or an
-//! asynchronously instantiated gltf node - so it does not depend on any
-//! scene-ready signal. The handle can exist before its asset does, so the swap
-//! is retried until the asset arrives rather than dropped.
-
+//! frame a mesh appears - synchronous cuboid or async gltf node alike - so it
+//! needs no scene-ready signal. The handle can exist before its asset does, so
+//! the swap is retried until the asset arrives rather than dropped.
 use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
     platform::collections::HashMap,
@@ -429,7 +397,7 @@ fn resolve_pending_cracks(
             continue;
         };
 
-        // NOTE: same despawn race as `mark_section_meshes`.
+        // Same despawn race as `mark_section_meshes`.
         commands
             .entity(entity)
             .try_insert((
@@ -473,7 +441,7 @@ fn grade_section_cracks(
         // the cracked one, so a repaired section stops paying the extended
         // pipeline the same way an untouched one never starts.
         if bucket == 0 {
-            // NOTE: same despawn race as `mark_section_meshes`.
+            // Same despawn race as `mark_section_meshes`.
             commands
                 .entity(entity)
                 .try_insert(MeshMaterial3d(cracks.source.clone()))
@@ -488,7 +456,7 @@ fn grade_section_cracks(
             continue;
         };
 
-        // NOTE: same despawn race as `mark_section_meshes`.
+        // Same despawn race as `mark_section_meshes`.
         let mut entity = commands.entity(entity);
         entity.try_insert(MeshMaterial3d(handle.clone()));
         // Leaving pristine for the first time: the source material is still on

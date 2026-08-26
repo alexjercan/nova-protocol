@@ -672,10 +672,6 @@ fn control_withholds_map_keys_because_it_is_the_exit_chord() {
     );
 }
 
-// -----------------------------------------------------------------------
-// Clicking contacts through the CRT composite
-// -----------------------------------------------------------------------
-
 /// Stand a map viewport up inside the rig's through-image content root,
 /// clipped exactly as the app body's is, and return it.
 fn rig_map_viewport(rig: &mut NovaOsPointerRig) -> Entity {
@@ -892,13 +888,12 @@ fn map_contact_label_and_dot_are_one_unbroken_target() {
         "the label has no backing fill, so there is nothing solid to aim at",
     );
 
-    // Every point across the seam - dot centre, the old dead band, label
-    // centre - selects the contact. Positions come from the live rects, and
-    // the glass position from the shader reference, never the production map.
-    // Sweep the whole band from the dot's middle, across the old dead gap,
-    // into the pill - at pixel CENTRES, since the shared edge itself is a
-    // measure-zero boundary bevy's `contains_point` excludes from both rects.
-    // Every one of these used to be dead between x=dot.max and x=dot.max+6.
+    // Every point across the seam - dot centre, the gap between dot and
+    // pill, label centre - selects the contact. Positions come from the live
+    // rects, and the glass position from the shader reference, never the
+    // production map. Swept at pixel CENTRES, since the shared edge itself is
+    // a measure-zero boundary bevy's `contains_point` excludes from both
+    // rects.
     let y = dot.center().y;
     let first = dot.center().x + 0.5;
     let last = label_box.min.x + 6.0;

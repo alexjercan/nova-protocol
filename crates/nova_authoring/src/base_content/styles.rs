@@ -162,16 +162,15 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // silhouette. `seat: Any` because a crest and a spar tip are
                 // CONES, so the seat gate would have refused every plate this
                 // rule is for. A stack standing up the tip of a spar is the
-                // picture; a stack banished to the flat deck is not this rule
-                // any more.
+                // picture; a stack banished to the flat deck is not this rule.
                 //
                 // This is also the kit's THIN-SHAPE CARRIER (task
                 // 20260816-203812): a hand-built hull one cell thick is all
                 // cones, so the one seat-free rule has to be the one that
-                // reaches it. `min_depth` was 2 and `min_height` was 1, and
-                // together they zeroed the whole thin half of the bench - a
-                // spar has one cell of ship under its tip, and a spur fills so
-                // little of its cell it MEASURES height 0. The patch floor is
+                // reaches it. `min_depth` 2 with `min_height` 1 zeroes the
+                // whole thin half of the bench - a spar has one cell of ship
+                // under its tip, and a spur fills so little of its cell it
+                // MEASURES height 0. The patch floor is
                 // what makes the reach a guarantee rather than a coin toss:
                 // one stack per block of high ground, whatever the share says.
                 scatter: ScatterRule {
@@ -1787,16 +1786,13 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // skin over a one-cell spar, where a doubler plate this size
                 // would be wider than the thing it is bolted to.
                 //
-                // This rule used to carry a relief list - `Flat`, `Bevel`,
-                // `Brink` and `Step` - and it was the predicate spelled badly:
-                // an enumeration of "the reliefs with a broad top", written
-                // before there was a way to ask. It has come off. The SEAT says
-                // what it was reaching for and says it exactly, and it says it
-                // NARROWER: 308 of 526 measured plates against the 380 the list
-                // admitted, because half the steps in it were cones and the
-                // bevels all were. `min_depth` still leaves the one-cell spars
-                // alone, and the tips and crests still go to the whip and the
-                // scab.
+                // The SEAT is the predicate, and no relief list stands in for
+                // it. A list of `Flat`, `Bevel`, `Brink` and `Step` spells "the
+                // reliefs with a broad top" badly and spells it WIDER: 380 of
+                // 526 measured plates against the seat's 308, because half the
+                // steps in it are cones and the bevels all are. `min_depth`
+                // leaves the one-cell spars alone, and the tips and crests go
+                // to the whip and the scab.
                 scatter: ScatterRule {
                     min_depth: 2,
                     min_height: 1,
@@ -1882,9 +1878,9 @@ fn salvage_style(assets: &BaseContentAssets) -> ShipStyleConfig {
 ///    could not say;
 /// 4. the blister reads the POCKET distance - beside the mouth of a fitting,
 ///    which is the "weight decoration toward link points" finding. It goes LAST
-///    because "near a fitting" is broad even now that the distance is counted in
-///    face steps: first in the order, on the ring it used to be measured over,
-///    it carpeted 45% of every ship and the other three rules never got a plate.
+///    because "near a fitting" is broad even with the distance counted in face
+///    steps: first in the order, and measured over the ring instead, it carpets
+///    45% of every ship and the other three rules never get a plate.
 fn placeholder_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     ShipStyleConfig {
         id: PLACEHOLDER_STYLE_ID.to_string(),

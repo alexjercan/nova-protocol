@@ -94,7 +94,7 @@ pub struct EventHandler<W: EventWorld> {
     pub(super) actions: Vec<Arc<dyn EventAction<W>>>,
 }
 
-// NOTE: hand-written, not derived -- a derive would add a `W: Clone` bound the
+// Hand-written, not derived -- a derive would add a `W: Clone` bound the
 // fields (a `&'static str` and `Vec`s of `Arc` trait objects) do not need, and
 // `EventHandlerIndex` requires this impl to snapshot handlers.
 impl<W: EventWorld> Clone for EventHandler<W> {
@@ -287,7 +287,7 @@ where
         app.add_observer(on_game_event::<W>);
 
         app.init_resource::<W>();
-        // NOTE: ungated and every frame, unlike the dispatch chain below, so a
+        // Ungated and every frame, unlike the dispatch chain below, so a
         // handler spawned or despawned on a quiet frame still lands before the next
         // event; `.before` pins it ahead of the dispatch that reads it.
         app.add_systems(
@@ -465,7 +465,7 @@ fn queue_system<W: EventWorld>(
 mod tests {
     use std::collections::HashMap as StdHashMap;
 
-    // NOTE: `bevy::prelude::*` (App, World, Resource, ...) arrives through this
+    // `bevy::prelude::*` (App, World, Resource, ...) arrives through this
     // glob, which re-exports the parent module's own prelude import.
     use super::*;
 
@@ -481,7 +481,7 @@ mod tests {
 
         assert_eq!(OnQuiet::name(), "onquiet");
 
-        // NOTE: this call is the real assertion -- the `Info = ()` bound fails to
+        // This call is the real assertion -- the `Info = ()` bound fails to
         // COMPILE, not to run, if the default payload type ever changes back to
         // something that does not resolve, which is the original defect.
         fn requires_unit_payload<E: EventKind<Info = ()>>() {}
@@ -633,7 +633,7 @@ mod tests {
             "alpha handlers must not re-run on beta"
         );
 
-        // NOTE: gamma has no registered handler at all -- firing it must be a
+        // Gamma has no registered handler at all -- firing it must be a
         // harmless no-op, not a panic or a stray dispatch.
         fire(&mut app, "gamma");
         assert_eq!(count(&app, "a1"), 1);
@@ -650,7 +650,7 @@ mod tests {
         assert_eq!(count(&app, "a1"), 1);
         assert_eq!(count(&app, "a2"), 1);
 
-        // NOTE: the dispatch chain is idle on this frame, so pruning can only come
+        // The dispatch chain is idle on this frame, so pruning can only come
         // from the ungated maintenance system -- that is what this step exercises.
         app.world_mut().entity_mut(a1).despawn();
         app.update();
@@ -691,7 +691,7 @@ mod tests {
         );
         assert_eq!(seen.0[1], ("onstart".to_string(), None));
 
-        // NOTE: the point of this assertion is that observing did NOT starve the
+        // The point of this assertion is that observing did NOT starve the
         // real dispatch path -- the queue observer ran too, so handlers still see both.
         let queue = app.world().resource::<GameEventQueue<Counts>>();
         assert_eq!(queue.events.len(), 2);

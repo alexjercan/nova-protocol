@@ -1,9 +1,7 @@
 //! Allegiance markers: a small filled triangle
 //! floating above every NON-player ship, tinted by the ship's
 //! [`Allegiance`] so a mixed brawl reads friend-vs-foe at a glance - green
-//! ally, red threat, grey neutral. Born from the ch5 raid playtest, where
-//! two friendly wingmen and four enemy fighters in one melee were hard to
-//! tell apart.
+//! ally, red threat, grey neutral.
 //!
 //! The marker is a [`screen_indicator`]-anchored HUD node (the same
 //! world-anchor -> UI projection every other overlay uses), one per ship,

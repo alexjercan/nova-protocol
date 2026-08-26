@@ -20,7 +20,10 @@
 
 // Each producer includes the whole set and uses the part its shot needs; the
 // unused half is not dead code, it is another shot's tool.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 #[path = "kit.rs"]
 mod kit;

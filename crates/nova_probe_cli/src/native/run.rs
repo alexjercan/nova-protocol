@@ -163,12 +163,12 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         .map_err(|e| format!("could not resolve out dir: {e}"))?;
     // Nothing stale may survive into this run's report.
     clean_out_dir(&out)?;
-    // NOTE: the child runs read their mod cache / enabled mods / settings
+    // The child runs read their mod cache / enabled mods / settings
     // from this run's own empty profile, never the operator's. The env
     // itself rides in clean_pass_env and trace_pass_env; this creates the
     // dirs and reports any variable the operator kept for themselves.
     profile_sandbox::prepare(&out);
-    // NOTE: a bad baseline path must fail BEFORE minutes of build+run, and
+    // A bad baseline path must fail BEFORE minutes of build+run, and
     // it must actually parse.
     if let Some(baseline) = &opts.baseline {
         let csv = baseline.join("frametime.csv");

@@ -75,7 +75,7 @@ pub(crate) struct NovaOsCrtUniform {
     /// `shader-uniform-field-order-must-match-wgsl`).
     pub(crate) degauss: f32,
     /// Overscan pull applied AFTER the barrel warp, from [`NOVA_OS_CRT_OVERSCAN`].
-    /// NOTE: lives in the uniform rather than as a WGSL constant
+    /// Lives in the uniform rather than as a WGSL constant
     /// so the shader and [`nova_os_crt_screen_to_image_uv`] share one definition.
     /// Appended last so the field order still matches the WGSL struct.
     pub(crate) overscan: f32,
@@ -112,7 +112,6 @@ impl UiMaterial for NovaOsCrtMaterial {
         "shaders/nova_os_crt.wgsl".into()
     }
 }
-// ---------------------------------------------------------------------------
 // Render-to-texture CRT pipeline.
 //
 // The terminal-content subtree renders to an offscreen image via a dedicated UI
@@ -122,7 +121,6 @@ impl UiMaterial for NovaOsCrtMaterial {
 // (bevy 0.19 `ui_picking` matches pointers to cameras by render target), plus a
 // hover-mirror system because `bevy_picking::update_is_hovered` only tracks the
 // mouse pointer.
-// ---------------------------------------------------------------------------
 
 /// The dedicated UI camera + content subtree live on this render layer so the
 /// image camera draws ONLY the terminal UI, never stray world 2D sprites (the

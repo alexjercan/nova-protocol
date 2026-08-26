@@ -222,7 +222,7 @@ impl GraphicsBudget {
             },
             GraphicsQuality::Low => Self {
                 particles: false,
-                // NOTE: 0.7 draws ~49% of the pixels (0.7^2). Measured: on the
+                // 0.7 draws ~49% of the pixels (0.7^2). Measured: on the
                 // RTX 3060 Ti web/WebGPU rig the win at 0.7 is ~neutral - that
                 // GPU is overhead-bound, not fill-bound, so the upscale pass
                 // roughly cancels the fill saved. Kept at 0.7 as a

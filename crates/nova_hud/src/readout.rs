@@ -205,7 +205,7 @@ fn sync_readout_rows(
                 },
                 Text::new(text),
                 TextFont::from_font_size(READOUT_FONT_SIZE_PX),
-                // NOTE: each row is a member of the HUD chip family - a
+                // Each row is a member of the HUD chip family - a
                 // scenario clock reads as an instrument readout, not as text
                 // floating over the starfield.
                 chip_node(),

@@ -58,10 +58,9 @@ pub(crate) struct EditorNode;
 /// A node's stable id.
 ///
 /// Minted once when the node is created and never re-derived, because it is what
-/// a saved file and its input mapping are keyed by. Ids used to BE the live
-/// entity id stringified, which made a saved file impossible: entity ids do not
-/// survive a process restart, and they did not even survive leaving the editor
-/// and coming back.
+/// a saved file and its input mapping are keyed by. Never the live entity id:
+/// those do not survive a process restart, or even leaving the editor and
+/// coming back.
 ///
 /// Unique within the PARENT, which is exactly the scope both consumers need -
 /// `input_mapping` keys are per hull, and `BaseScenarioObjectConfig::id` is per
@@ -1203,9 +1202,9 @@ pub(crate) fn rebuild_node_views(
 ///
 /// An id is the document's own key: it is what a save writes, what a load reads
 /// back, and what the tree shows. Two rows with identical text are two rows
-/// nothing can tell apart - and the only sign used to be one `error!` line at
-/// the moment a counter was missing, which said nothing about the row that came
-/// out of it. Said once per clash, and cleared when the clash goes.
+/// nothing can tell apart, and an `error!` line at the moment a counter goes
+/// missing says nothing about the row that came out of it. Said once per clash,
+/// and cleared when the clash goes.
 pub(crate) fn report_duplicate_ids(
     parents: Query<&Children>,
     ids: Query<&NodeId>,

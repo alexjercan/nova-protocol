@@ -119,13 +119,12 @@ pub(crate) fn menu_dropdown_node() -> Node {
 
 /// What a row's right-hand column carries.
 ///
-/// One column, three things it could be, and until now no way to tell them
-/// apart: a key looked exactly like a toggle's state. A KEY is drawn as the
-/// chip every other surface in the game draws a key as; a WORD is the row's
-/// own availability, in the muted tone a label wears.
+/// One column, three things it could be, and they have to be told apart. A KEY
+/// is drawn as the chip every other surface in the game draws a key as; a WORD
+/// is the row's own availability, in the muted tone a label wears.
 ///
-/// A toggle's state is NOT here any more - it moved to the lead column, where
-/// it is drawn with the checkbox's own glyph (see [`MenuLead::Toggle`]).
+/// A toggle's state is NOT here: it sits in the lead column, drawn with the
+/// checkbox's own glyph (see [`MenuLead::Toggle`]).
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) enum MenuTail<'a> {
     /// Nothing to say.
@@ -449,9 +448,9 @@ pub(crate) fn toggle_ids(_activate: On<Activate>, mut overlays: ResMut<EditorOve
 /// Tick the View toggles, so the menu says what is ON rather than only what
 /// can be turned on.
 ///
-/// The CHECKBOX's own glyph, in the lead column: the state used to be the word
-/// `on` in the column that also holds keys, which made three vocabularies of
-/// one column and left the editor with two drawings of a tick.
+/// The CHECKBOX's own glyph, in the lead column. The word `on` in the column
+/// that also holds keys would make three vocabularies of one column, and the
+/// editor two drawings of a tick.
 pub(crate) fn sync_view_menu_marks(
     overlays: Res<EditorOverlays>,
     marks: Query<(&ViewToggle, &Children)>,

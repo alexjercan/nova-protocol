@@ -7,8 +7,7 @@
 //! can I do here" (breadcrumb + per-context actions), the rail answers "what
 //! does the document hold" (the tree, and the edited ship's settings), and the
 //! `inspector` on the right answers "what is THIS one". Parts are picked in the
-//! `gallery`, which replaced the component drawer that used to sit beside this
-//! rail.
+//! `gallery`.
 
 pub(crate) mod callout;
 pub(crate) mod inspector;
@@ -207,9 +206,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             }
         }
         MenuId::Ship => {
-            // The three verbs that used to sit in the top right. They belong
-            // to the ship you are inside, not to the screen, so they moved to
-            // the one menu that says so.
+            // These three verbs belong to the ship you are inside, not to the
+            // screen, so they hang under the one menu that says so.
             items.spawn((
                 Name::new("Parts Item"),
                 ShipMenuItem,
@@ -371,9 +369,9 @@ pub(crate) fn setup_editor_scene(
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
     let listed = listed_styles(&styles);
     // Key + rim, the same bearings the parts viewer lights its turntable with.
-    // The editor used to carry one light shining straight down, which put every
-    // vertical face of every part in flat shadow - fine for a ship seen from
-    // above, wrong for the gallery, where the part IS the tile.
+    // One light shining straight down puts every vertical face of every part in
+    // flat shadow - fine for a ship seen from above, wrong for the gallery, where
+    // the part IS the tile.
     commands.spawn((
         DespawnOnExit(ExampleStates::Editor),
         Name::new("Editor Key Light"),
@@ -415,7 +413,7 @@ pub(crate) fn setup_editor_scene(
             brightness: 220.0,
             affects_lightmapped_meshes: true,
         },
-        // NOTE: direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
+        // Direct SkyboxConfig insert (no PendingSkyboxSwap) is safe
         // because `game_assets.cubemap` already has its Cube view.
         // `prepare_cubemap_view` (nova_assets) sets it at startup, before any
         // camera spawns, so the SkyboxPlugin observer - which only sets the
@@ -498,9 +496,9 @@ pub(crate) fn setup_editor_scene(
                         },
                         TextColor(theme::SCREEN_TEXT),
                     ));
-                    // The menu bar. Every entry drops a real list - the greyed
-                    // File/Edit/View placeholders that used to sit here said
-                    // the editor had menus while answering no press at all.
+                    // The menu bar. Every entry drops a real list: a greyed
+                    // placeholder says the editor has menus while answering no
+                    // press at all.
                     left.spawn((
                         Name::new("Editor Menu Bar"),
                         Node {
@@ -565,14 +563,11 @@ pub(crate) fn setup_editor_scene(
                         observe(continue_to_simulation),
                     ));
                 });
-                // The right column carries the context readout. The buttons
-                // that used to sit here - Parts, Delete, Rebind - are verbs of
-                // the ship you are inside and now hang under the Ship menu,
-                // beside the other menus, where the pointer already goes for
-                // File and Add. The crumb took their place rather than leaving
-                // half the bar blank, and it reads better for it: on the left
-                // it had to share a column with five menu buttons and was cut
-                // to "[SHIP] scenar".
+                // The right column carries the context readout. Parts, Delete
+                // and Rebind are verbs of the ship you are inside, so they hang
+                // under the Ship menu where the pointer already goes for File
+                // and Add, and the crumb has the column to itself: sharing the
+                // left one with five menu buttons cut it to "[SHIP] scenar".
                 bar.spawn((
                     Name::new("Top Bar Right"),
                     Node {
@@ -594,9 +589,9 @@ pub(crate) fn setup_editor_scene(
                     // caption.
                     // A WRAPPER carries the clip and the text hangs inside it.
                     // `Overflow::clip` bounds a node's CHILDREN, and a text
-                    // node draws its own glyphs - so the clip that used to sit
-                    // on the text bounded nothing, and a long crumb ran on
-                    // under the Play button.
+                    // node draws its own glyphs, so a clip on the text itself
+                    // bounds nothing and a long crumb runs on under the Play
+                    // button.
                     //
                     // On the wrapper and not on the column: the column is a
                     // flex parent of exactly this, and a clip that high would
@@ -2063,10 +2058,10 @@ fn escape_rung(rebinding: bool, menu_open: bool, armed: bool, inside_ship: bool)
 /// scenario node there are no parts to arm and Escape falls through to pause,
 /// while inside a ship Tab browses parts and Escape backs out one rung.
 ///
-/// WHAT IS LEFT HERE is what no other surface can carry: the pointer gestures
-/// and the free-fly rig, which belong to no row and no menu, plus the rung the
-/// next Escape takes. Every verb a menu row can name now lives on that row
-/// with its key beside it.
+/// WHAT IS HERE is what no other surface can carry: the pointer gestures and
+/// the free-fly rig, which belong to no row and no menu, plus the rung the next
+/// Escape takes. Every verb a menu row can name lives on that row with its key
+/// beside it.
 ///
 /// Compared before writing rather than gated on a change: the legend is
 /// spawned on entering the editor, which is not necessarily a frame the tool

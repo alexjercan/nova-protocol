@@ -48,7 +48,7 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn range_plugin(app: &mut App) {
-    // NOTE: `ShipIntegrityPlugin` is NOT added here. `NovaShipPlugin` brings it
+    // `ShipIntegrityPlugin` is NOT added here. `NovaShipPlugin` brings it
     // (`sections/mod.rs`), and bevy panics on a duplicate. The hand-assembled
     // app this range used to build did not, which is exactly the class of thing
     // `AppBuilder` exists to stop a range from having to know.

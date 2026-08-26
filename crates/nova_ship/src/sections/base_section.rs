@@ -148,8 +148,8 @@ fn unit_scale() -> Vec3 {
 /// `scale` resizes the ART, and only the art. A whole ASSEMBLY - a turret's
 /// joint tree - is resized by scaling every joint's mesh AND every joint offset
 /// by the same factor; scaling the meshes alone leaves the parts spaced for the
-/// size they used to be. See `turret_joint_tree` in `nova_authoring` for the
-/// shipped example.
+/// unscaled size. See `turret_joint_tree` in `nova_authoring` for the shipped
+/// example.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RenderMeshTransform {
@@ -313,7 +313,6 @@ pub struct ImpactDestroySounds {
 /// plugin) to introduce a new section kind.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[allow(clippy::large_enum_variant)]
 pub enum SectionKind {
     /// Passive structural block; see [`HullSectionConfig`].
     Hull(HullSectionConfig),

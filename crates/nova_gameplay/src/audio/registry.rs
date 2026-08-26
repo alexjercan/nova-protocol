@@ -203,7 +203,7 @@ mod tests {
     fn a_bank_with_pending_handles_is_not_loaded() {
         let app = asset_app();
         let assets = app.world().resource::<AssetServer>();
-        // NOTE: a freshly requested handle is pending whether or not the file exists, which is
+        // A freshly requested handle is pending whether or not the file exists, which is
         // what makes a missing path a usable stand-in for a slow load here.
         let bank = SoundBank::load(assets, [(Sfx::Click, "does_not_exist")]);
         assert!(!bank.all_loaded(assets));

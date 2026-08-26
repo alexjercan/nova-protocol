@@ -209,8 +209,8 @@ fn the_panel_lists_the_fields_of_the_node_it_is_on() {
     );
 }
 
-/// An event's filter names the node it fires on by ID, and the id used to be
-/// something only a hover over the right tree row would say.
+/// An event's filter names the node it fires on by ID, so the panel says that
+/// id rather than leaving it to a hover over the right tree row.
 #[test]
 fn the_panel_says_the_id_an_event_would_name_it_by() {
     let mut app = inspector_app();
@@ -1034,13 +1034,10 @@ fn scrub(app: &mut App, label: &str, pixels: f32) {
     app.world_mut().trigger(Pointer::new(
         PointerId::Mouse,
         Location {
-            target: NormalizedRenderTarget::Image(
-                bevy::camera::ImageRenderTarget {
-                    handle: Handle::default(),
-                    scale_factor: 1.0,
-                }
-                .into(),
-            ),
+            target: NormalizedRenderTarget::Image(bevy::camera::ImageRenderTarget {
+                handle: Handle::default(),
+                scale_factor: 1.0,
+            }),
             position: Vec2::ZERO,
         },
         Drag {

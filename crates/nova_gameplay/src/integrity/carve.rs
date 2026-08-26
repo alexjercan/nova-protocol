@@ -64,12 +64,12 @@ pub mod prelude {
 /// Hit points a hit has to spend to take one cubic unit of material off.
 ///
 /// The price of the stuff bodies are made of, and the whole coupling between
-/// what a weapon costs and what it looks like it did. It used to be the
-/// toughness a ship's CLADDING is built at - a plate one cell thick - charged
-/// against rocks of 140 to 34,000 cubic units: three hundred real PDC rounds
-/// moved a radius-3 rock from 6,160 triangles to 6,164, and a torpedo took
-/// exactly nothing off any rock in the game. Ten times softer is the rate at
-/// which a rock wears down under the guns that are actually pointed at it.
+/// what a weapon costs and what it looks like it did. NOT the toughness a
+/// ship's CLADDING is built at - a plate one cell thick, charged against rocks
+/// of 140 to 34,000 cubic units, leaves three hundred real PDC rounds moving a
+/// radius-3 rock from 6,160 triangles to 6,164 and a torpedo taking nothing off
+/// any rock in the game. Ten times softer is the rate at which a rock wears
+/// down under the guns that are actually pointed at it.
 ///
 /// Absolute, never relative to what was hit. The same round makes the same size
 /// hole in a pebble and in a planetoid, because the hole is what the round's
@@ -597,10 +597,10 @@ mod tests {
         assert!(marks.0.iter().all(|mark| mark.radius < 1.0));
     }
 
-    /// The reported defect: a crater that has been fired into for long enough
-    /// must not swallow a hit somewhere else on the rock. Capture used to BE
-    /// the accumulated hole, so every merge widened the area that captured the
-    /// next one and one crater ate the whole body.
+    /// A crater that has been fired into for long enough must not swallow a hit
+    /// somewhere else on the rock. Capture against the accumulated hole widens
+    /// the area that captures the next one on every merge, and one crater ends
+    /// up eating the whole body.
     #[test]
     fn a_grown_crater_does_not_swallow_a_hit_somewhere_else() {
         // The shipped kinetic PDC round.

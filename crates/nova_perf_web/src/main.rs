@@ -5,10 +5,8 @@
 //! trunk-builds that page (always `--release`), serves it, drives headless
 //! Chromium at it, and scrapes the capture summary from the console
 //! (`nova perf: label=...` - the browser has no filesystem to write a CSV).
-//! DELETING THIS BIN DELETES THE WEB CAPTURE; it has twice been mistaken
-//! for a retired CLI (it is neither retired nor a CLI - the retired
-//! `run_report`/`perf_report`/`perf_trace` bins and the `sweep|web|profile`
-//! aliases were).
+//! DELETING THIS BIN DELETES THE WEB CAPTURE. It is neither retired nor a
+//! CLI, whatever its name in `[[bin]]` suggests.
 //!
 //! It boots the real game app, loads a named shipped scenario and hands the
 //! running app to the frame-time capture. Its config comes

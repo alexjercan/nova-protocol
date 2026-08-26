@@ -6,10 +6,10 @@
 //!
 //! # Why a bullet chips and a blast does not
 //!
-//! A crater is a hole where solid used to be, and solid does not vanish. For a
-//! BULLET nothing else says so: the geometry changes between one frame and the
-//! next, which reads as a rendering glitch rather than as a hit, and the chips
-//! are what make the change legible - something came off, and it went that way.
+//! A crater is a hole where solid was, and solid does not vanish. For a BULLET
+//! nothing else says so: the geometry changes between one frame and the next,
+//! which reads as a rendering glitch rather than as a hit, and the chips are
+//! what make the change legible - something came off, and it went that way.
 //!
 //! A warhead is not short of that cue. Its own fireball covers the frames in
 //! which the geometry changes, and the crater it opens is permanent evidence

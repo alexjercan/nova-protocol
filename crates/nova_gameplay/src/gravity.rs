@@ -141,7 +141,7 @@ pub struct GravitySettings {
     /// (every planetoid a player orbits authors its own mass). At 4 000 those
     /// run 1.7-8.2 u/s^2 at their geometric surface and a ~126u SOI, near the
     /// 6 u/s^2 / 8-radii well they used to get.
-    /// NOTE: a much larger default would be clamped straight to
+    /// A much larger default would be clamped straight to
     /// [`Self::max_surface_gravity`] on every one of them - a fixed mass on a
     /// small body is a strong body. A body big enough for 4 000 to feel thin
     /// is a body worth authoring.
@@ -635,8 +635,7 @@ mod tests {
         assert_eq!(dominant_well(Some(a), &[(b, 0.01)], 1.1), Some(b));
     }
 
-    /// The AI arm of this opt-in is tested beside its observer in `input::ai`,
-    /// which is where it now lives.
+    /// The AI arm of this opt-in is tested beside its observer, in `input::ai`.
     #[test]
     fn the_player_ship_and_torpedoes_opt_into_gravity() {
         let mut app = App::new();
@@ -783,12 +782,11 @@ mod tests {
         // This A/Bs the opt-in - delete the marker (or its observer) and the
         // two trajectories coincide, failing the test.
         //
-        // This covers SHIPS AND TORPEDOES ONLY. It used to be named for turret
-        // rounds and never tested one: the fixture builds its own
-        // `RigidBody::Dynamic`, so it would keep passing unchanged after rounds
-        // stopped being bodies and stopped curving at all. The round's own
-        // curve is proved on a PRODUCTION round by the
-        // `system_round_gravity_curve` range.
+        // This covers SHIPS AND TORPEDOES ONLY, and is named so. The fixture
+        // builds its own `RigidBody::Dynamic`, so a turret round named here
+        // would keep passing after rounds stopped being bodies and stopped
+        // curving at all. The round's own curve is proved on a PRODUCTION
+        // round by the `system_round_gravity_curve` range.
         //
         // Geometry: well at origin (mu 1200, SOI 160, unfaded core out to
         // 0.85*160 = 136u), body starts at x = b = 40u (deep in the core) on

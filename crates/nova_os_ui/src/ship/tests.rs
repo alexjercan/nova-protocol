@@ -1217,10 +1217,6 @@ fn update_ship_panel_reflects_selection() {
     );
 }
 
-// -----------------------------------------------------------------------
-// Clicking sections through the CRT composite
-// -----------------------------------------------------------------------
-
 /// The ship viewport, standing in the rig's through-image content root.
 fn rig_ship_viewport(rig: &mut NovaOsPointerRig) -> Entity {
     let viewport = rig

@@ -71,7 +71,7 @@ pub fn transitive_deps(graph: &DepGraph, id: &str) -> Result<Vec<String>, DepErr
         Ok(())
     }
     let mut seen = HashSet::new();
-    // NOTE: seeding with `id` is what makes a self-edge (or a cycle back to the
+    // Seeding with `id` is what makes a self-edge (or a cycle back to the
     // root) ignored and keeps the root out of its own list.
     seen.insert(id.to_string());
     let mut out = Vec::new();
@@ -130,7 +130,7 @@ pub fn topological_order(ids: &[String], graph: &DepGraph) -> TopoOrder {
 
     let mut order: Vec<String> = Vec::with_capacity(ids.len());
     let mut emitted: HashSet<&str> = HashSet::new();
-    // NOTE: re-scanning `ids` in input order each round is what preserves the
+    // Re-scanning `ids` in input order each round is what preserves the
     // stable tiebreak without a priority queue (mod counts are tiny).
     loop {
         let mut progressed = false;
@@ -203,7 +203,7 @@ mod tests {
             ("e", &["a"]),
         ]);
         assert_eq!(transitive_deps(&g, "c").unwrap(), vec!["a", "b"]);
-        // NOTE: post-order, each dep once - b's subtree (a, b) then e's (e, with
+        // Post-order, each dep once - b's subtree (a, b) then e's (e, with
         // a already seen).
         assert_eq!(transitive_deps(&g, "d").unwrap(), vec!["a", "b", "e"]);
         assert_eq!(transitive_deps(&g, "a").unwrap(), Vec::<String>::new());
@@ -212,7 +212,7 @@ mod tests {
     #[test]
     fn transitive_deps_tolerates_a_cycle() {
         let g = graph(&[("a", &["b"]), ("b", &["a"])]);
-        // NOTE: b only - the `b -> a` edge back to the root is ignored.
+        // B only - the `b -> a` edge back to the root is ignored.
         assert_eq!(transitive_deps(&g, "a").unwrap(), vec!["b"]);
     }
 
@@ -228,7 +228,7 @@ mod tests {
             "dep before dependent: {:?}",
             topo.order
         );
-        // NOTE: with b blocked in round one, c may land before or after it
+        // With b blocked in round one, c may land before or after it
         // depending on relaxation, so only the hard constraint is asserted.
         assert_eq!(topo.order.len(), 3);
     }
@@ -306,7 +306,7 @@ mod tests {
             vec!["d".to_string()]
         );
         assert!(dependents("d", enabled.iter().copied(), &g).is_empty());
-        // NOTE: a DISABLED dependent does not count - only `enabled` is scanned.
+        // A DISABLED dependent does not count - only `enabled` is scanned.
         assert!(dependents("a", ["a", "d"].iter().copied(), &g).is_empty());
     }
 }

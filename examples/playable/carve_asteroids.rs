@@ -121,11 +121,10 @@ const TORPEDO_BLAST_RADIUS: f32 = 30.0;
 /// How far off the rock's skin the torpedo column detonates, in world units.
 ///
 /// The torpedo's own contact fuze (`torpedo_section::projectile::CONTACT_FUZE`),
-/// which is what a real one arrives at. It used to be half a blast radius off
-/// the rock's CENTRE, which on a rock this size is fifteen units inside a
-/// surface that starts at twelve - so the column photographed a crater cut in
-/// solid rock nobody could see, and then only because it never spawned a blast
-/// at all.
+/// which is what a real one arrives at. Off the SKIN, never half a blast radius
+/// off the rock's CENTRE: on a rock this size that is fifteen units inside a
+/// surface which starts at twelve, and the column photographs a crater cut in
+/// solid rock nobody can see.
 #[cfg(feature = "debug")]
 const TORPEDO_STANDOFF: f32 = 1.0;
 
@@ -190,10 +189,9 @@ const TWO_SPOT_SEPARATION: f32 = 3.5;
 ///
 /// Sized so the first burst outgrows [`TWO_SPOT_SEPARATION`] by a comfortable
 /// margin - 4.92u against 3.5u - because there has to be a hole big enough to
-/// swallow the second burst before "it did not" is worth photographing. A tenth
-/// of what this used to be: rock is now ten times softer, and the old counts
-/// would take a bowl two thirds of the way through the rock instead of a pit in
-/// its face.
+/// swallow the second burst before "it did not" is worth photographing. Priced
+/// against the rock's own softness: ten times these counts takes a bowl two
+/// thirds of the way through the rock instead of a pit in its face.
 #[cfg(feature = "debug")]
 const TWO_SPOT_BURSTS: [usize; 2] = [500, 250];
 

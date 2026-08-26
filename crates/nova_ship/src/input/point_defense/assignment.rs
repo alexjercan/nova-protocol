@@ -257,8 +257,7 @@ pub(crate) fn update_turret_point_defense(
         let hold = threats
             .get(ship)
             .and_then(|threats| threats.iter().find(|threat| threat.entity == current))
-            // Dead, out of range, or no longer hostile: the pick simply is not
-            // a threat any more.
+            // Dead, out of range or no longer hostile: the pick is not a threat.
             .filter(|threat| bears_on(transform, arc, threat.position, 0.0))
             .is_some_and(|held| {
                 // ...unless something far more urgent has turned up that this
@@ -609,9 +608,9 @@ mod tests {
 
     #[test]
     fn every_piloted_hull_gets_a_defense_slot_and_a_drifting_one_does_not() {
-        // The player half is the change: the slot used to be AI-only, which is
-        // what made point defence a behaviour of the AI CONTROLLER instead of
-        // a capability of a flight computer.
+        // The player half matters: an AI-only slot makes point defence a
+        // behaviour of the AI CONTROLLER rather than a capability of a flight
+        // computer.
         let mut world = World::new();
         let ai = world
             .spawn((AISpaceshipMarker, SpaceshipRootMarker, Transform::default()))

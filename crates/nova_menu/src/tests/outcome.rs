@@ -523,9 +523,9 @@ fn start_failure_shows_the_overlay_and_menu_entry_clears_it() {
     assert_eq!(overlays, 0, "the modal died with the Playing state");
 }
 
-/// A player ship spawning mid-flight (a Retry reloads the
-/// scenario without a state transition) re-grabs the cursor - now in debug builds too,
-/// since the observer's grab used to be compiled out under `feature = "debug"`.
+/// A player ship spawning mid-flight (a Retry reloads the scenario without a
+/// state transition) re-grabs the cursor, in debug builds too: the observer's
+/// grab must not be compiled out under `feature = "debug"`.
 #[test]
 fn player_spawn_hides_cursor_while_flying() {
     let mut app = app();

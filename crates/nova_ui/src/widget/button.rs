@@ -346,7 +346,10 @@ type CursorText<'w, 's> =
 /// Apply a computed [`Paint`] to one button: its own fill/border/radius +
 /// gradient/shadow (inserted or removed to switch skins) + its label/cursor
 /// spans' colours.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one reconciler over every part of a button"
+)]
 fn apply_paint(
     paint: Paint,
     commands: &mut Commands,
@@ -362,7 +365,7 @@ fn apply_paint(
     border.set_all(paint.border);
     node.border_radius = BorderRadius::all(px(paint.radius));
 
-    // NOTE: try_insert / try_remove, not insert / remove: a button can be despawned
+    // `try_insert` / `try_remove`, not `insert` / `remove`: a button can be despawned
     // the SAME frame the reconciler paints it (a menu/state teardown despawns
     // its buttons while this deferred command is still queued). The plain forms
     // error via the fallback handler ("Entity despawned") - which the smoke
@@ -690,7 +693,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     ..default()
                 },
                 TextColor(idle.text),
-                // NOTE: no TextShadow. Bevy's `TextShadow` is a hard drop
+                // No TextShadow. Bevy's `TextShadow` is a hard drop
                 // shadow (no blur), so its default 4px black offset ghosts the
                 // label on a bright/inverted fill instead of glowing. Crisp CLI
                 // text needs no shadow.
@@ -904,7 +907,7 @@ mod tests {
         }
     }
 
-    // NOTE: `Resource` is component-backed in Bevy 0.19, so it also provides the
+    // `Resource` is component-backed in Bevy 0.19, so it also provides the
     // `Component` impl `button_on_setting` needs - deriving `Component` too would
     // conflict. This mirrors the editor's `SectionChoice` (Resource-only).
     #[derive(Resource, Clone, PartialEq, Eq, Debug, Default)]

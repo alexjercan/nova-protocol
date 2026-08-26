@@ -227,7 +227,10 @@ fn queue_depleted_section_sever(
 }
 
 /// Split a structure whose destroyed section disconnected its graph.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one filtered query over the integrity tree"
+)]
 fn sever_disconnected_structures(
     mut commands: Commands,
     mut pending: ResMut<PendingSeverRoots>,
@@ -415,7 +418,10 @@ fn recompute_pending_sever_mass(
 
 /// Restore each new body's rigid point velocity after Avian computes its new
 /// centre of mass, then add a momentum-neutral fracture kick.
-#[allow(clippy::type_complexity)]
+#[expect(
+    clippy::type_complexity,
+    reason = "one filtered query over the integrity tree"
+)]
 fn apply_pending_sever_motion(
     mut pending: ResMut<PendingSeverMotion>,
     mut bodies: ParamSet<(

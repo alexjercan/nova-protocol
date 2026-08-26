@@ -33,10 +33,6 @@ pub fn style_at(styles: &GameStyles, index: usize) -> StyleId<'_> {
         .map(|style| style.id.as_str())
 }
 
-// ---------------------------------------------------------------------------
-// The tile set: catalog prototypes read as grid tiles.
-// ---------------------------------------------------------------------------
-
 /// The six cardinal faces of a grid cell, in the order the tile face arrays
 /// use. The layout is what makes `face ^ 1` the OPPOSITE face, which is the
 /// only index arithmetic the adjacency rule needs.
@@ -159,11 +155,11 @@ const PARTS: [Part; 6] = [
         // cell it occupies, which is why the two mounts TOGETHER are priced
         // above the bay.
         //
-        // The 1.6 a single mount used to carry is now SHARED with the pierce
-        // mount below, because the two are one housing on one socket wearing
-        // two guns: pricing each at the old figure would have doubled how much
-        // battery a hull grows, which is a different ship rather than the same
-        // ship with two flavours of gun. Kinetic keeps the larger share as the
+        // The 1.6 a single mount carries is SHARED with the pierce mount
+        // below, because the two are one housing on one socket wearing two
+        // guns: pricing each at the full figure doubles how much battery a
+        // hull grows, which is a different ship rather than the same ship with
+        // two flavours of gun. Kinetic keeps the larger share as the
         // general-purpose round.
         //
         // Free for the bay's reason and one better: a turret TRAVERSES, so the
@@ -412,10 +408,6 @@ fn mirrored(rotation: Quat) -> Quat {
     Quat::from_xyzw(rotation.x, -rotation.y, -rotation.z, rotation.w)
 }
 
-// ---------------------------------------------------------------------------
-// The grid.
-// ---------------------------------------------------------------------------
-
 /// A rectangular block of cells with a place in ship space.
 #[derive(Clone, Copy)]
 struct Grid {
@@ -500,11 +492,10 @@ const HULL_GRID: Grid = Grid {
 /// one guarantee - a seeded keel is one connected structure to grow on, so a
 /// ship is never a cloud of islands.
 ///
-/// The drive used to be seeded here too, at the stern, and it cannot be any
-/// more: a drive carries one socket on its forward end, so it has no -x face to
-/// meet its own reflection with, and the centreline is the one place on this
-/// grid it may not stand. It is left to the roll instead, and lands on the
-/// transom because that is the only place its one socket fits.
+/// The drive is NOT seeded here: it carries one socket on its forward end, so
+/// it has no -x face to meet its own reflection with, and the centreline is the
+/// one place on this grid it may not stand. It is left to the roll, and lands
+/// on the transom because that is the only place its one socket fits.
 ///
 /// The keel is mirrored like everything else, so a ship carries a symmetric
 /// PAIR of the computer. One would do (it is the ship's heart, not a resource)
@@ -553,10 +544,6 @@ fn hull_vacuum_weight(cell: usize) -> f32 {
     let stern = if z == LENGTH - 1 { VACUUM_STERN } else { 0.0 };
     VACUUM_BASE * (1.0 + VACUUM_TAPER * off_keel + VACUUM_BOW_TAPER * toward_bow + stern)
 }
-
-// ---------------------------------------------------------------------------
-// The collapse.
-// ---------------------------------------------------------------------------
 
 /// THE RULE. A socket may never press into a face that has none, and nothing
 /// may stand in front of an exit.
@@ -1012,10 +999,6 @@ fn keel_component(tiles: &[Tile], chosen: &[usize], standing: &[bool]) -> Vec<bo
     }
     kept
 }
-
-// ---------------------------------------------------------------------------
-// Exit clearance.
-// ---------------------------------------------------------------------------
 
 /// One placed part of the WHOLE ship - both halves, in cells - as the skin
 /// reads it.

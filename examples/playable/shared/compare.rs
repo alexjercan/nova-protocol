@@ -13,7 +13,10 @@
 //! `screenshots/shared/kit.rs`).
 
 // Each producer includes the whole kit; what one leaves unused the other needs.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 use bevy::{
     asset::RenderAssetUsages,

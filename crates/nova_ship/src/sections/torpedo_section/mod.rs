@@ -684,7 +684,7 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(on_torpedo_launch_effect);
         }
 
-        // NOTE: a torpedo whose body is shot dead must die as a whole -
+        // A torpedo whose body is shot dead must die as a whole -
         // without this the collider-less root keeps flying, armed, and still
         // detonates.
         app.register_type::<TorpedoShotDownMarker>();
@@ -692,7 +692,7 @@ impl Plugin for TorpedoSectionPlugin {
         app.register_type::<TorpedoWeave>();
         app.add_observer(on_torpedo_body_destroyed);
 
-        // NOTE: the launch chain runs on the FIXED clock - the spawn writes
+        // The launch chain runs on the FIXED clock - the spawn writes
         // physics state (a new body with position + velocity), so its pose
         // sampling and its fire timing must tick with physics. Guidance,
         // steering sync and thrust levels stay on the render clock deliberately:

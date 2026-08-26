@@ -19,7 +19,10 @@
 
 // Each producer includes the whole module and uses the part its scene needs;
 // the unused half is not dead code, it is another scene's tool.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 #[path = "kit.rs"]
 mod kit;

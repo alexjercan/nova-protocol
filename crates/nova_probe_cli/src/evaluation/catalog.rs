@@ -9,10 +9,10 @@
 //! calls the same parser so the two consumers can never disagree about
 //! the format.
 //!
-//! The catalog answers WHAT the examples are. What probe DOES with one is
-//! no longer a table here: the example declares its own capabilities at
-//! runtime (see `nova_probe::contract`), and the only remaining launch-side
-//! opinion lives with the spec resolver that needs it.
+//! The catalog answers WHAT the examples are, and only that. What probe DOES
+//! with one is the example's own runtime capability declaration (see
+//! `nova_probe::contract`); the one launch-side opinion left lives with the
+//! spec resolver that needs it.
 
 /// Glob-import surface for the example catalog.
 pub mod prelude {

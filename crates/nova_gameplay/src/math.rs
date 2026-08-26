@@ -74,7 +74,7 @@ fn snap_tolerance(magnitude: f32) -> f32 {
 
 impl LerpSnap for f32 {
     fn lerp_and_snap(&self, to: Self, smoothness: f32, dt: f32) -> Self {
-        // NOTE: powi(7) turns the 0..1 `smoothness` dial into a per-second retention
+        // Powi(7) turns the 0..1 `smoothness` dial into a per-second retention
         // factor; `powf(dt)` then makes the result frame-rate independent.
         let t = smoothness.powi(7);
         let mut new_value = self.lerp(to, 1.0 - t.powf(dt));

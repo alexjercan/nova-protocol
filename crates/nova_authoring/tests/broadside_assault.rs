@@ -254,8 +254,7 @@ fn breaking_both_corvettes_declares_the_chapter_checkpoint() {
 
 #[test]
 fn killing_the_gunship_declares_victory_and_chains_into_lifeline() {
-    // Chapter two's end is no longer a dead end: both fate variants chain
-    // (lingering) into chapter three.
+    // Both of chapter two's fate variants chain (lingering) into chapter three.
     for hauler_dies in [false, true] {
         let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
         let mut app = slice_app();

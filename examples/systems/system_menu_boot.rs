@@ -11,10 +11,9 @@
 //! `story/` examples. An assertion here that grew into scenario content would
 //! mean this run had drifted (task 20260804-094021).
 //!
-//! The `NOVA_MENU_PATH=editorplay` branch this example used to carry is GONE:
-//! `examples/ui/editor.rs` now owns the create-a-ship-and-Play sequence end to
-//! end, and two runs covering one transition is the duplication the roster
-//! spike (`20260804-003244`) existed to cut.
+//! No `NOVA_MENU_PATH=editorplay` branch: `examples/ui/editor.rs` owns the
+//! create-a-ship-and-Play sequence end to end, and two runs covering one
+//! transition is duplication.
 //!
 //! Under `NOVA_AUTOPILOT` the ECS fallback error handler is swapped to panic,
 //! so an UNHANDLED command error (e.g. a plain `insert` on an entity the

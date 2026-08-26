@@ -457,7 +457,10 @@ fn sync_camera_shake_config(settings: Res<JuiceSettings>, mut q_shake: Query<&mu
 /// throttle. Called by both observers so impact and destruction share one code
 /// path. The shake-input query is scoped to [`SfxListenerMarker`] so trauma lands
 /// only on the listener camera, never on some other `CameraShakeInput` holder.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system fed by every cue the juice reads"
+)]
 fn emit_juice(
     pos: Vec3,
     kind: JuiceEventKind,

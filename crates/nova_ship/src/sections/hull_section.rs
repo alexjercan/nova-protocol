@@ -134,23 +134,19 @@ mod test {
 
     #[test]
     fn spawns_hull_with_default_config() {
-        // Arrange
         let mut app = App::new();
         let id = app
             .world_mut()
             .spawn(hull_section(HullSectionConfig::default()))
             .id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<HullSectionMarker>(id).is_some());
     }
 
     #[test]
     fn spawns_hull_with_custom_scene() {
-        // Arrange
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = HullSectionConfig {
@@ -159,10 +155,8 @@ mod test {
         };
         let id = app.world_mut().spawn(hull_section(config)).id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<HullSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<HullSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());

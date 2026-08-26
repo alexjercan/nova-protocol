@@ -15,11 +15,11 @@
 //! with the same seed and gets the same grid back. So a hit changes the CRATER
 //! and nothing else.
 //!
-//! It used to be two shapes: a subdivided octahedron displaced by the noise for
-//! the shipped mesh, and this field for the carved one. They agreed to within a
-//! cell, which is not the same as agreeing - the first hit on a rock moved its
-//! silhouette and changed the size of every facet on it, and that pop was
-//! visible on a rock the shot had barely scratched.
+//! ONE shape, not two. A subdivided octahedron displaced by the noise for the
+//! shipped mesh and this field for the carved one agree to within a cell, which
+//! is not the same as agreeing: the first hit moves the silhouette and changes
+//! the size of every facet on it, and that pop shows on a rock the shot had
+//! barely scratched.
 //!
 //! # Kept only while it is needed
 //!
@@ -37,8 +37,8 @@
 //! one lands. What the main thread pays is the sphere subtraction the mark
 //! itself reaches and the swap when the job comes back. A rock is therefore a
 //! frame or two behind the shot that hit it, which is the same staleness the
-//! volume throttle below already allows and is the whole reason a held burst
-//! no longer costs the frame rate.
+//! volume throttle below allows and is what keeps a held burst off the frame
+//! rate.
 //!
 //! The swap is PLACEMENT and nothing else. Everything a carve produces -
 //! including the pieces it cut free - arrives built, because the only thing
@@ -66,7 +66,7 @@
 //! there now.
 
 use avian3d::prelude::{AngularVelocity, Collider, ColliderDensity, LinearVelocity};
-// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{
     platform::time::Instant,

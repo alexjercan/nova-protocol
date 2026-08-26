@@ -6,9 +6,9 @@
 //! was the worst frame, what does that come to in FPS, and is it under 60",
 //! and stops.
 //!
-//! There used to be a table of per-example millisecond budgets here that
-//! FAILED a run. It baked example names into library code and turned a reading
-//! into a verdict; a number a script asserts is a number nobody looks at.
+//! No table of per-example millisecond budgets, and nothing here fails a run:
+//! that bakes example names into library code and turns a reading into a
+//! verdict, and a number a script asserts is a number nobody looks at.
 
 use nova_probe::prelude::*;
 
@@ -163,10 +163,6 @@ pub fn fixed_steps_json(log: Option<&String>) -> serde_json::Value {
         })).collect::<Vec<_>>(),
     })
 }
-
-// ---------------------------------------------------------------------------
-// The REPEAT GATE.
-// ---------------------------------------------------------------------------
 
 /// Separator between a repeat set's base label and its index (`wfc_arena#3`).
 /// A capture label is free-form, so the character has to be one nothing else

@@ -33,8 +33,8 @@ fn nova_os_screen_samples_offscreen_image() {
 
     // The chrome (header + main + footer) renders through the image camera,
     // i.e. under the content root, not directly under the screen node. The
-    // main region is a direct child of the content root; the terminal content
-    // now lives inside main.
+    // main region is a direct child of the content root, and the terminal
+    // content lives inside main.
     let (main_entity, main_parent) = app
         .world_mut()
         .query_filtered::<(Entity, &ChildOf), With<NovaOsMainMarker>>()

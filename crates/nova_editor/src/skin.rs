@@ -25,7 +25,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{platform::time::Instant, prelude::*};
 use nova_ship::prelude::*;

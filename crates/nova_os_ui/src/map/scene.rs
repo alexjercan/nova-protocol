@@ -593,10 +593,6 @@ pub(crate) fn update_map_readout(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Small render helpers
-// ---------------------------------------------------------------------------
-
 pub(crate) fn new_map_image(size: UVec2) -> Image {
     Image::new_target_texture(
         size.x.max(1),

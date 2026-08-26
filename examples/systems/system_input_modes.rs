@@ -1,11 +1,11 @@
 //! system_input_modes: the editor's keyboard has ONE owner at a time, proved by
-//! pressing the keys that used to reach two.
+//! pressing the keys two owners would otherwise both answer.
 //!
-//! Every keyboard system used to carry its own list of the things it must not
-//! fire under, so a new mode suppressed nothing until somebody hit the
-//! collision and added a line. `nova_ui::input_mode` replaced the lists with an
-//! arbiter: a verb answers in `Normal` alone, a mode's own systems answer in
-//! their mode and in `Normal`, and the enum's order settles a contested frame.
+//! `nova_ui::input_mode` is the arbiter, in place of a per-system list of the
+//! things that system must not fire under - which suppresses a new mode only
+//! once somebody hits the collision and adds a line. A verb answers in `Normal`
+//! alone, a mode's own systems answer in their mode and in `Normal`, and the
+//! enum's order settles a contested frame.
 //!
 //! The run presses one key per mode - the key that, without the arbiter, two
 //! owners would both answer:
@@ -15,9 +15,9 @@
 //! 2. NORMAL. The same Delete once the field is let go. The object goes.
 //! 3. BROWSE. Escape, with the parts gallery up. The gallery closes and the
 //!    editor stays inside the ship - one rung, not two.
-//! 4. BIND. Delete, with a rebind waiting for a key. This is the defect the
-//!    modes were built for: the capture read the press and so did the tree, so
-//!    binding Delete to a part deleted the part on the way in.
+//! 4. BIND. Delete, with a rebind waiting for a key. The sharpest case: if the
+//!    capture reads the press and so does the tree, binding Delete to a part
+//!    deletes the part on the way in.
 //!
 //! Each verdict is a NEGATIVE - the thing that must not have happened - so each
 //! is read after a bounded settle rather than on an ack. There is no event for

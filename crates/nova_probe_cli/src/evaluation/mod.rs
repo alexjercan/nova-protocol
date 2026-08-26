@@ -16,7 +16,7 @@
 //! so an agent never parses HTML), and the report ends with the reviewer
 //! checklist: the FINAL call is a human's or an agent's, not the tool's.
 //!
-//! NOTE: honesty rules the reviews settled on, and every check still holds
+//! Honesty rules the reviews settled on, and every check still holds
 //! to them: invariant violations are counted PER NAME (a stuck entity
 //! violates every frame); FPS regressions are WARN, not FAIL (noisy shared
 //! hosts); profile shares are for RANKING and never summed into a pie

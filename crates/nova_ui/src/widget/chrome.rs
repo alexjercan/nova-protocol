@@ -39,7 +39,7 @@ pub fn separator() -> impl Bundle {
     )
 }
 
-// NOTE: the rest of the demo-1 widget set reads the CURRENT skin at spawn - only
+// The rest of the demo-1 widget set reads the CURRENT skin at spawn - only
 // the button family is live-reactive. A widget here needs its own marker +
 // reconciler before it can restyle in place.
 

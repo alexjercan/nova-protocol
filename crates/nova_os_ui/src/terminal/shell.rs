@@ -61,7 +61,7 @@ pub(crate) fn on_nova_os_scan_knob(
 
 /// SND button click: toggle the monitor speaker flag (default ON). The NOVA OS
 /// sound task consumes the flag to mute/unmute the bed + cues; the on-screen
-/// state reads off the bulb flipping (the label is now a fixed "SND" legend).
+/// state reads off the bulb flipping, since the label is a fixed "SND" legend.
 pub(crate) fn on_nova_os_sound_button(
     _activate: On<Activate>,
     mut settings: ResMut<NovaOsMonitorSettings>,

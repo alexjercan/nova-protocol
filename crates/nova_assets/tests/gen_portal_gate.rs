@@ -80,10 +80,6 @@ fn run_gen(source: &Path, shipped: Option<&Path>, out: &Path) -> std::process::O
     cmd.output().expect("gen-portal.py runs")
 }
 
-// ---------------------------------------------------------------------------
-// Fixture builders (mirror generate.rs's synthetic_mod / synthetic_source).
-// ---------------------------------------------------------------------------
-
 const VALID_CONTENT: &str = "[]";
 
 fn valid_bundle(version: &str) -> String {
@@ -126,11 +122,9 @@ fn synthetic_mod(
 const ART_BUNDLE: &str = r#"(content: ["mod.content.ron"], resources: ["textures/sky.png"], meta: (name: "Art", version: "0.1.0"))"#;
 const ART_FILES: &[(&str, &str)] = &[("mod.content.ron", "[]"), ("textures/sky.png", "bytes")];
 
-// ---------------------------------------------------------------------------
 // Rejection cases, table-driven. Each builds a source and asserts a NON-ZERO
 // exit. A `shipped` flag decides whether the real shipped catalog is passed
 // (only the id-collision and dep://base cases need it).
-// ---------------------------------------------------------------------------
 
 /// How a rejection fixture is built. Boxed builder so each row can differ.
 struct Reject {
@@ -357,10 +351,6 @@ fn rejection_gates_all_fail_nonzero() {
         );
     }
 }
-
-// ---------------------------------------------------------------------------
-// Positives.
-// ---------------------------------------------------------------------------
 
 /// A MULTI-mod source publishes every mod in it: exit 0, and catalog.json names
 /// each id. Run against the real shipped catalog so the id-collision gate stays

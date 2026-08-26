@@ -449,7 +449,7 @@ fn rebuild_lobby(
     spawn_lobby(commands, model, styles, skin);
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments, reason = "one system over the whole lobby")]
 fn on_lobby_action(
     activate: On<Activate>,
     mut commands: Commands,

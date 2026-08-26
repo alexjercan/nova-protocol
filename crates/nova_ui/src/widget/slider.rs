@@ -581,7 +581,7 @@ mod tests {
         }
 
         let mut app = skin_app(UiSkin::Phosphor);
-        // NOTE: the handler the game installs under `NOVA_AUTOPILOT`, which is how
+        // The handler the game installs under `NOVA_AUTOPILOT`, which is how
         // every scripted run works - the configuration this failure mode bites in.
         app.insert_resource(FallbackErrorHandler(panic));
         app.edit_schedule(Update, |schedule| {

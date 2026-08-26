@@ -180,7 +180,7 @@ const BELT_KNOTS: [BeltKnot; 5] = [
         seed: 20260805_003,
         count: 12,
     },
-    // NOTE: 170 on x, not the sketched 200: at 200 this knot's box runs into
+    // 170 on x, not the sketched 200: at 200 this knot's box runs into
     // the planetoid's widest orbit ring.
     BeltKnot {
         id_prefix: "belt_k4_",
@@ -684,7 +684,7 @@ pub(crate) fn shakedown_run(
     for (i, position) in CRATE_POSITIONS.iter().enumerate() {
         start_spawns.push(crate_object(i + 1, *position));
     }
-    // The run lights itself: there is no engine light any more.
+    // The run lights itself: there is no engine light.
     start_spawns.extend(ThreePointRig::around("shakedown", Vec3::ZERO, 10.0).objects());
 
     let mut events = vec![
@@ -1260,9 +1260,8 @@ pub(crate) fn shakedown_run(
             ),
         },
         // Player death: the Defeat overlay offers Retry (the lingering restart)
-        // and Main Menu - the win/lose frame's first dogfood. Before it, death
-        // silently queued the restart and the player had to know to press
-        // Enter.
+        // and Main Menu, so a death never silently queues a restart the player
+        // has to know to press Enter for.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_BEAT, BEAT_OUTRO)],

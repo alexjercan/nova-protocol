@@ -204,10 +204,6 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
 }
 
-// ---------------------------------------------------------------------------
-// Advance conditions
-// ---------------------------------------------------------------------------
-
 /// Advance once the CRT's raster has finished blooming open.
 #[cfg(feature = "debug")]
 fn raster_settled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
@@ -232,10 +228,6 @@ fn app_owns_the_screen(
 fn shell_is_at_the_prompt() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     resource_where::<NovaOsTerminal>(|terminal| terminal.active_mode() == TerminalMode::Prompt)
 }
-
-// ---------------------------------------------------------------------------
-// Gestures
-// ---------------------------------------------------------------------------
 
 /// Submit the current command line.
 ///
@@ -276,10 +268,6 @@ fn aim_through_the_glass(world: &mut World) {
     move_cursor(window_px)(world);
     info!("nova_os: aiming at image px {image_px:?} via window px {window_px:?}");
 }
-
-// ---------------------------------------------------------------------------
-// Claims
-// ---------------------------------------------------------------------------
 
 /// Tab reached the shared freeze axis AND the tube finished opening.
 #[cfg(feature = "debug")]
@@ -475,10 +463,6 @@ fn assert_one_screen(world: &mut World) {
     info!("nova_os: the ship -> map switch left one of every screen node");
 }
 
-// ---------------------------------------------------------------------------
-// Live-tree helpers
-// ---------------------------------------------------------------------------
-
 /// Every entity called `name`, laid out or not, visible or not.
 ///
 /// Deliberately NOT [`ui_node_rect`]: a ghost left behind by a teardown is
@@ -506,10 +490,6 @@ fn app_roots(world: &mut World) -> Vec<String> {
     roots.sort();
     roots
 }
-
-// ---------------------------------------------------------------------------
-// The fixture
-// ---------------------------------------------------------------------------
 
 fn setup_range(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
     commands.trigger(LoadScenario(nova_os_range(&game_assets, &sections)));

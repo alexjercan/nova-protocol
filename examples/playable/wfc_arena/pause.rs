@@ -144,7 +144,10 @@ fn spawn_pause(mut commands: Commands, skin: Res<UiSkin>) {
         });
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system over the whole pause screen"
+)]
 fn on_pause_action(
     activate: On<Activate>,
     mut commands: Commands,

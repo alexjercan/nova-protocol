@@ -36,9 +36,7 @@ pub(crate) fn editor_gizmo_config() -> GizmoConfig {
 /// The active placement tool: what the next click on the ship does. Set by the
 /// gallery when a part is armed.
 ///
-/// TWO states, because there is one tool. Deleting used to be a third - a
-/// brush the pointer wore, which had to be armed, disarmed, named and reported
-/// everywhere the placement tool was. Delete acts on the SELECTION now, so it
+/// TWO states, because there is one tool. Delete acts on the SELECTION, so it
 /// is a verb rather than a mode and needs nothing in this enum.
 #[derive(Resource, Default, Debug, PartialEq, Eq, Clone, Reflect)]
 pub(crate) enum SectionChoice {

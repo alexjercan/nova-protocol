@@ -36,7 +36,6 @@ fn mod_toggle_flips_enabled_state() {
         .id();
     app.update();
 
-    // Enable.
     app.world_mut().trigger(Activate { entity: toggle });
     app.update();
     assert!(
@@ -44,7 +43,6 @@ fn mod_toggle_flips_enabled_state() {
         "clicking an off toggle enables the mod"
     );
 
-    // Disable.
     app.world_mut().trigger(Activate { entity: toggle });
     app.update();
     assert!(

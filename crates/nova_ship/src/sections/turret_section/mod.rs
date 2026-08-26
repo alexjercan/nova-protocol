@@ -280,7 +280,7 @@ impl Plugin for TurretSectionPlugin {
             apply_turret_config_to_children.in_set(super::SpaceshipSectionSystems),
         );
 
-        // NOTE: the WHOLE gun runs on the physics clock - the target track, the
+        // The WHOLE gun runs on the physics clock - the target track, the
         // intercept solve, the hinge demand, the controller that eases onto it,
         // the joint pose it writes, and the round that leaves along that pose.
         // The fire timer

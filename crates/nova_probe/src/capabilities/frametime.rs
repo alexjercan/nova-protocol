@@ -681,12 +681,12 @@ impl Plugin for FrameTimePlugin {
         apply_capture_window(app, &config);
         app.insert_resource(config);
         // Continuous updates so an unfocused/headless window still runs flat
-        // out. NOT `WinitSettings::game()`, which this used to be and which
-        // does the opposite: its `unfocused_mode` is `reactive_low_power` at
-        // 60 Hz, so a capture whose window lost focus - moved to another
-        // workspace, covered, or simply never given focus - was paced by bevy
-        // at exactly 60 FPS and reported it as the scene's cost. Measured on
-        // the empty gallery: 3.37 ms focused, 16.67 ms and mean_fps=60.0 not.
+        // out. NOT `WinitSettings::game()`, which does the opposite: its
+        // `unfocused_mode` is `reactive_low_power` at 60 Hz, so a capture whose
+        // window lost focus - moved to another workspace, covered, or simply
+        // never given focus - is paced by bevy at exactly 60 FPS and reports it
+        // as the scene's cost. Measured on the empty gallery: 3.37 ms focused,
+        // 16.67 ms and mean_fps=60.0 not.
         app.insert_resource(WinitSettings::continuous());
         // Isolation knob: pin render_scale to the override every frame (it wins
         // over the tier's apply, which only runs on a quality change).

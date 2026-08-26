@@ -15,6 +15,8 @@
 //! `nova_modding` re-exports the RON types, so game code keeps importing them
 //! from there; the asset LOADERS (which need bevy) stay in `nova_modding`.
 
+#![warn(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 
 /// Pure mod-dependency resolution (topological order, transitive closure,

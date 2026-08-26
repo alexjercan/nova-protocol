@@ -732,9 +732,8 @@ fn spawn_ship_skin(
         }
 
         // The root already remembers where the ship was hit - `DamageMarks` is
-        // a requirement of `SpaceshipRootMarker`. It used to be inserted HERE,
-        // on the theory that an unclad ship has no shape to carve, and that
-        // stopped being true the moment hull sections started carving too.
+        // a requirement of `SpaceshipRootMarker`. Not inserted here: hull
+        // sections carve too, so an unclad ship has a shape to carve after all.
         let style = q_clad
             .get(root)
             .ok()

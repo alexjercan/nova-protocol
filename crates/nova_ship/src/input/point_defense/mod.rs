@@ -97,7 +97,7 @@ impl Plugin for SpaceshipPointDefensePlugin {
         app.register_type::<PointDefenseMount>();
         app.register_type::<MountAuthority>();
 
-        // NOTE: the chain order IS the precedence. Ownership resolves first so
+        // The chain order IS the precedence. Ownership resolves first so
         // a mount the player just took is out of the pool the same tick;
         // assignment then works only what is left; the aim and trigger act on
         // what the assignment produced. Reading the ship's locks means the

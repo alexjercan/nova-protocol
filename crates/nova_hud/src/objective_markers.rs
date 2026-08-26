@@ -151,8 +151,8 @@ fn objective_marker_label() -> impl Bundle {
 /// (the same UiTransform trick as the chevron strokes), riding INSIDE the pill
 /// as the first in-flow flex item - `chip_node`'s `column_gap` spaces it from
 /// the label and its `align_items: Center` centres it, so the same fill and
-/// border back the mark as back the text. It used to be an absolute glyph at
-/// `left: -14 px`, which read as "attached" only because the pill was a
+/// border back the mark as back the text. In flow rather than absolute at
+/// `left: -14 px`, which only reads as "attached" while the pill is a
 /// collapsed slab at the same origin.
 fn objective_marker_diamond() -> impl Bundle {
     (
@@ -543,9 +543,9 @@ mod tests {
         assert_child_sits_in_the_pill(&app, chip, diamond, "objective marker chip");
     }
 
-    /// The chevron parks centred over the pill. It used to be offset from a
-    /// collapsed 20x10 slab's origin; over a full-width pill that would hang it
-    /// off the left edge, so its `left` is a percentage of the real chip width.
+    /// The chevron parks centred over the pill. Its `left` is a percentage of the
+    /// real chip width: an offset from a collapsed 20x10 slab's origin hangs it
+    /// off the left edge of a full-width pill.
     #[test]
     fn the_objective_chips_chevron_centres_over_the_pill() {
         let (mut app, layer, chip, _text) = laid_out_objective_chip("BEACON 1");

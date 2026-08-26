@@ -88,7 +88,7 @@ impl Plugin for TurretLeadPlugin {
     fn build(&self, app: &mut App) {
         trace!("TurretLeadPlugin: build");
 
-        // NOTE: the pips read the intercept the aim chain last published, then
+        // The pips read the intercept the aim chain last published, then
         // the projection places the nodes in the same PostUpdate. The aim chain
         // is on the FIXED clock, because the gun it steers fires there, so
         // above 64 Hz the pip can be one tick old - bounded at 15.6 ms, where

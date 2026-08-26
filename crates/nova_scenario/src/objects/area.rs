@@ -82,11 +82,11 @@ fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<A
 /// Arm a fresh area for collision reporting and bind its two handlers TO THAT
 /// AREA.
 ///
-/// The handlers used to be global `add_observer`s, so every collision anywhere
-/// in the world dispatched into this crate: 23,363 invocations in four seconds
-/// of a headless duel that contains no areas at all, declined on the first
-/// query. An entity observer costs nothing in a scenario with no areas and
-/// scales with the areas, not with the world.
+/// Bound to the area, never a global `add_observer`: a global one dispatches
+/// every collision anywhere in the world into this crate - 23,363 invocations
+/// in four seconds of a headless duel that contains no areas at all, declined
+/// on the first query. An entity observer costs nothing in a scenario with no
+/// areas and scales with the areas, not with the world.
 ///
 /// Scoping is also what makes `collider1` meaningful below. avian fires the
 /// event once per side that has [`CollisionEventsEnabled`], with that side as

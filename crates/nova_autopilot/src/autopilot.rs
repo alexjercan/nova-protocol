@@ -384,7 +384,7 @@ impl<S: States + FreelyMutableState> Plugin for AutopilotPlugin<S> {
         app.init_resource::<AutopilotClock>();
         app.add_message::<AutopilotLoop>();
         completion::register(app, completion::AUTOPILOT);
-        // NOTE: must run after `InputSystems`, which clears `just_pressed`
+        // Must run after `InputSystems`, which clears `just_pressed`
         // every frame - only then does a synthesized press survive into the
         // game's Update systems.
         app.add_systems(PreUpdate, autopilot_drive::<S>.after(InputSystems));
@@ -406,19 +406,19 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
         .remove_resource::<AutopilotState<S>>()
         .expect("AutopilotState is inserted by AutopilotPlugin::build");
 
-    // NOTE: stay inert once finished - do NOT index past the end of the script
+    // Stay inert once finished - do NOT index past the end of the script
     // while the completion watcher waits on other collectors.
     if st.done {
         world.insert_resource(st);
         return;
     }
 
-    // NOTE: entry gets its own frame, so the state transition has applied (and
+    // Entry gets its own frame, so the state transition has applied (and
     // the entry action's effects are visible) before any predicate is polled.
     if !st.entered {
         let step = st.steps[st.index].clone();
         if let Some(state) = &step.enter {
-            // NOTE: skip the set when already in that state, or the step opens
+            // Skip the set when already in that state, or the step opens
             // with a spurious OnExit/OnEnter of it.
             if *world.resource::<State<S>>().get() != *state {
                 world.resource_mut::<NextState<S>>().set(state.clone());
@@ -450,7 +450,7 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
         each(world, step_elapsed);
     }
 
-    // NOTE: while looping, finish the moment other collectors are done rather
+    // While looping, finish the moment other collectors are done rather
     // than at the cycle's end - a slow cycle otherwise wastes up to its full
     // length and can straddle the deadline into a false laggard.
     if st.loops > 0
@@ -476,7 +476,7 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
             .is_some_and(|deadline| step_elapsed >= deadline)
         {
             let state = world.resource::<State<S>>().get().clone();
-            // NOTE: an expired step is an ABORT, not a completion - error exits
+            // An expired step is an ABORT, not a completion - error exits
             // do not negotiate with the other collectors, and the driver must
             // never report done for a script that stalled.
             error!(

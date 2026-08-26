@@ -45,8 +45,8 @@ const PLAYER_ID: &str = "player_spaceship";
 
 /// The planetoid: far enough that it reads as a destination.
 ///
-/// It used to sit 314u from the spawn, which put the player INSIDE it in every
-/// sense that matters: an asteroid's real surface is `radius *` 3.5-6.0 (the
+/// At 314u from the spawn the player is INSIDE it in every sense that matters:
+/// an asteroid's real surface is `radius *` 3.5-6.0 (the
 /// noise mesh displaces outward - see `ASTEROID_GEOMETRIC_FACTOR_MAX`), so a
 /// 55u planetoid was a ~250u ball of rock, and its well reached
 /// `sqrt(mu / soi_cutoff_accel)` ~ 1095u. You spawned ~60u off its surface and

@@ -10,7 +10,7 @@
 //!   panel's whole child set on every change and would despawn a ghost
 //!   mid-fade - so ghosts stack in their own absolute node beside it.
 //!
-//! NOTE: GameObjectives is write-on-diff (nova_scenario's state_to_world), so
+//! GameObjectives is write-on-diff (nova_scenario's state_to_world), so
 //! `resource_changed` here means a REAL change, not the per-frame pulse.
 
 use bevy::prelude::*;

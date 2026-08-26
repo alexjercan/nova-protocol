@@ -21,7 +21,10 @@
 
 // Each producer includes the whole showcase and frames the sections its page
 // needs; the ones it skips are not dead code, they are another producer's shot.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 use bevy::prelude::*;
 use nova_protocol::prelude::*;

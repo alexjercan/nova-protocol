@@ -96,11 +96,11 @@ fn nova_os_spawns_single_nova_os_monitor() {
             .is_some(),
         "monitor has an inset phosphor screen"
     );
-    // The CRT treatment is now the render-to-texture sampling shader, not the
-    // old overlay nodes. Headless (no image/material
-    // assets) this rig falls back to the terminal directly on the screen with
-    // no sampling surface; the sampling surface is asserted by
-    // `nova_os_screen_samples_offscreen_image` under the with-CRT harness.
+    // The CRT treatment is the render-to-texture sampling shader, not an
+    // overlay node. Headless (no image/material assets) this rig falls back to
+    // the terminal directly on the screen with no sampling surface; the
+    // sampling surface is asserted by `nova_os_screen_samples_offscreen_image`
+    // under the with-CRT harness.
     assert!(
         app.world_mut()
             .query_filtered::<(), With<NovaOsTerminalContentMarker>>()

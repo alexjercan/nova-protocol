@@ -38,7 +38,7 @@ fn assert_app_config_loads_as_six_layer_array(path: &str) {
     app.add_plugins((
         MinimalPlugins,
         AssetPlugin {
-            // NOTE: tests run with the crate root as cwd; the asset folder
+            // Tests run with the crate root as cwd; the asset folder
             // lives at the workspace root.
             file_path: "../../assets".to_string(),
             ..nova_core::assets_plugin()
@@ -50,7 +50,7 @@ fn assert_app_config_loads_as_six_layer_array(path: &str) {
     let asset_server = app.world().resource::<AssetServer>().clone();
     let handle: Handle<Image> = asset_server.load(path.to_string());
 
-    // NOTE: the PNG decode of a 4096x24576 image takes a few seconds in dev
+    // The PNG decode of a 4096x24576 image takes a few seconds in dev
     // builds; the deadline only bounds a hang, it is not a perf assertion.
     let deadline = Instant::now() + Duration::from_secs(120);
     loop {

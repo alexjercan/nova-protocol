@@ -28,7 +28,10 @@
 
 // Each walk includes the whole kit and uses the part its script needs; the
 // unused half is not dead code, it is another walk's tool.
-#![allow(dead_code)]
+#![allow(
+    dead_code,
+    reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
+)]
 
 use std::sync::Arc;
 

@@ -367,8 +367,8 @@ mod tests {
     }
 
     /// Delivery guard for the test above: the LIVE bundles still carry the state
-    /// the split moved out of the preview half, so those assertions are proving
-    /// the split rather than a component that no longer exists.
+    /// the split moved out of the preview half, so those assertions prove the
+    /// split rather than a component nothing carries.
     #[test]
     fn live_sections_still_carry_the_state_the_preview_half_drops() {
         let mut world = World::new();

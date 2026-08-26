@@ -444,7 +444,7 @@ fn assert_scenario_loaded_payload(
         loaded.scenario_id, loaded.handler_count, loaded.object_count
     );
 
-    // NOTE: the smoke contract covers the FIRST load only - the app must boot
+    // The smoke contract covers the FIRST load only - the app must boot
     // into the expected scenario with real content. LATER loads are
     // legitimate gameplay (completing an objective advances to the next
     // scenario, which may be an object-less epilogue) - an assertion that
@@ -536,7 +536,7 @@ pub fn force_capture_resolution(mut windows: Query<&mut Window, With<PrimaryWind
 /// check, so a normal run keeps its physics.
 pub fn freeze_bodies(mut commands: Commands, bodies: Query<(Entity, &RigidBody)>) {
     for (entity, body) in &bodies {
-        // NOTE: RigidBody is an immutable component, so swap it via a command
+        // RigidBody is an immutable component, so swap it via a command
         // insert.
         if matches!(body, RigidBody::Dynamic) {
             commands.entity(entity).insert(RigidBody::Static);

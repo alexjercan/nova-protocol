@@ -766,10 +766,10 @@ mod tests {
 
     #[test]
     fn a_pause_freezes_the_live_lock_but_the_search_still_closes() {
-        // Live-lock pause semantics: what was acquired BEFORE the pause was
-        // a completed acquisition and sticks (there is no pending commit to
-        // drop any more); while paused the gated search neither latches nor
-        // retargets; a release during the pause still tears the search down.
+        // Live-lock pause semantics: what was acquired BEFORE the pause is a
+        // completed acquisition and sticks, with no pending commit to drop;
+        // while paused the gated search neither latches nor retargets; a
+        // release during the pause still tears the search down.
         let (mut app, ship) = gesture_app();
         let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
         let left = spawn_ship(&mut app, Vec3::new(-100.0, 0.0, 0.0));

@@ -9,11 +9,11 @@
 //! camera enum.
 //!
 //! Nova owns the rigs the controller is built on, too: [`chase`], [`skybox`],
-//! [`post`], [`wasd`] and [`wasd_controller`]. The trauma shake rig they compose
-//! with is [`nova_gameplay::shake`] - it is fed by combat juice, not by the camera, so
-//! it sits outside this module, and the private `authority` submodule is what orders it against
-//! these. They used to live in an engine crate, which made the `authority`
-//! ordering contract a cross-crate promise. It is a module-local one now.
+//! [`post`], [`wasd`] and [`wasd_controller`]. The trauma shake rig they
+//! compose with is [`nova_gameplay::shake`] - it is fed by combat juice, not by
+//! the camera, so it sits outside this module. The private `authority` submodule
+//! orders it against these, and holding the rigs here keeps that ordering
+//! contract module-local rather than a cross-crate promise.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;

@@ -107,7 +107,6 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::juice::NovaJuicePlugin);
         app.add_plugins(crate::settings::NovaSettingsPlugin);
 
-        // Diagnostics
         if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {
             app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         }

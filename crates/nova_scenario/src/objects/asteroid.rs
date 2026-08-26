@@ -7,7 +7,7 @@
 //! Touch this module when changing what an authored asteroid spawns as.
 
 use avian3d::prelude::*;
-// NOTE: bevy's platform Instant, not std's - `std::time::Instant::now` panics
+// Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{platform::time::Instant, prelude::*};
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
@@ -95,9 +95,9 @@ pub struct AsteroidConfig {
     /// and with it the derived geometric `BodyRadius` - so content that
     /// authors clearances around this rock (patrol lanes, orbit gates) holds
     /// on every load. `None` derives one from the object's own id
-    /// ([`asteroid_seed_from_id`]): still a different silhouette per rock, but
-    /// the SAME one on every load, where it used to be a fresh draw from the
-    /// global RNG per spawn. `ScatterObjects` fills this deterministically
+    /// ([`asteroid_seed_from_id`]): a different silhouette per rock, and the SAME
+    /// one on every load, which a draw from the global RNG per spawn cannot
+    /// promise. `ScatterObjects` fills this deterministically
     /// from its own seed, so scattered fields are stable without authoring
     /// per-rock seeds.
     #[cfg_attr(
@@ -286,7 +286,7 @@ impl Plugin for AsteroidPlugin {
     fn build(&self, app: &mut App) {
         trace!("AsteroidPlugin: build");
 
-        // NOTE: the gravity layer normally initializes this (NovaGravityPlugin);
+        // The gravity layer normally initializes this (NovaGravityPlugin);
         // init here too so the asteroid observer works in scenario-only apps.
         app.init_resource::<GravitySettings>();
 

@@ -36,7 +36,7 @@ pub(crate) fn configure_scenario_gating(app: &mut App) {
         FixedPostUpdate,
         SpaceshipSectionSystems.run_if(scenario_is_live),
     );
-    // NOTE: deliberately NOT gated: the PostUpdate instance of
+    // Deliberately NOT gated: the PostUpdate instance of
     // SpaceshipSectionSystems (the turret aim chain). It was never gated by
     // the old editor-state gate either (parity), and it is read-only pose
     // math feeding cosmetics/HUD - gating it is a separate decision.
@@ -400,7 +400,7 @@ pub(super) fn on_next_input(
     outcome: Option<Res<CurrentOutcome>>,
     mut game_state: Option<ResMut<NextState<GameStates>>>,
 ) {
-    // NOTE: observers bypass system-set gating; freeze intent changes while the pause
+    // Observers bypass system-set gating; freeze intent changes while the pause
     // overlay is up. Releases stay ungated so held keys clear cleanly during a
     // pause.
     let paused = pause.get().is_frozen();
@@ -412,7 +412,7 @@ pub(super) fn on_next_input(
             world.release_lingering_next();
         }
         AdvanceDecision::ExitToMenu => {
-            // NOTE: optional - headless rigs without the states plugin have no
+            // Optional - headless rigs without the states plugin have no
             // NextState resource, and the input must not panic there.
             if let Some(state) = game_state.as_deref_mut() {
                 state.set(GameStates::MainMenu);
@@ -454,7 +454,7 @@ pub(super) fn on_player_spaceship_destroyed(
 
     let camera = camera.into_inner();
 
-    // NOTE: plain remove/insert are safe here even during the unload sweep: this
+    // Plain remove/insert are safe here even during the unload sweep: this
     // observer's commands apply BEFORE the queue's remaining despawns (pinned by
     // `a_player_ships_despawn_does_not_race_the_cameras`), and the `Single` only
     // resolves a live camera; when the camera's despawn applied first, the

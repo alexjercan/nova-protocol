@@ -1,11 +1,10 @@
 //! Who owns the camera `Transform` this frame, and in what order.
 //!
-//! The camera Transform has four independent writers - chase sync, WASD
-//! sync, camera shake (`Restore`/`Apply`) and
-//! `enforce_scripted_camera_pose` - and until this module existed the lattice
-//! between them was PARTIAL. The missing edges were filled in by executor
-//! readiness, i.e. a per-frame coin flip, which is what made the scripted pose
-//! in the capture scripts flicker: some frames the chase camera wrote last.
+//! The camera Transform has four independent writers - chase sync, WASD sync,
+//! camera shake (`Restore`/`Apply`) and `enforce_scripted_camera_pose`. A
+//! PARTIAL lattice between them leaves the missing edges to executor readiness,
+//! i.e. a per-frame coin flip: the scripted pose in the capture scripts
+//! flickers because some frames the chase camera writes last.
 //!
 //! Shake sits BEFORE the scripted pose on purpose: a posed shot (photo mode,
 //! the capture scripts, the cinematic framings) must be steady even when combat
@@ -126,13 +125,12 @@ mod tests {
         *,
     };
 
-    /// The shake used to pin itself around `ChaseCameraSystems::Sync` from
-    /// inside `shake.rs`. That edge is gone - the shake is a generic rig that
-    /// names no driver - so THIS plugin is the only thing left holding
-    /// `Restore -> chase base -> Apply`. Delete either `configure_sets` call
-    /// above and this fails; `cargo check` cannot see it, and bevy's
-    /// topological tie-break can silently supply the right order anyway, which
-    /// is the accidental-correctness trap the whole module exists to close.
+    /// The shake is a generic rig that names no driver, so THIS plugin is the
+    /// only thing holding `Restore -> chase base -> Apply`. Delete either
+    /// `configure_sets` call above and this fails; `cargo check` cannot see it,
+    /// and bevy's topological tie-break can silently supply the right order
+    /// anyway, which is the accidental-correctness trap the module exists to
+    /// close.
     #[test]
     fn the_shake_brackets_the_chase_base_writer() {
         #[derive(Resource, Default)]

@@ -431,7 +431,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
 
 /// The chip's text/mark colour at `factor` of full opacity.
 ///
-/// NOTE: ONE convention for both the read-fade and the breath - a
+/// ONE convention for both the read-fade and the breath - a
 /// FRACTION of whatever the tone renders at rest, never an absolute alpha. The
 /// two paths agreed only because the amber tone happens to be fully opaque
 /// today - give it a sub-1.0 alpha and an absolute fade would render a read
@@ -815,11 +815,9 @@ mod tests {
     /// The POP is the chip's arrival: it appears on the posting frame already
     /// growing, reaches its peak, and settles back on its own.
     ///
-    /// This is the test whose absence let a DEAD pop ship: the pop used to be
-    /// written straight onto the chip
-    /// entity, which `sync_objective_chips` rebuilds every frame, so it was
-    /// overwritten before it could play. Assert the rendered SCALE, not the
-    /// intent.
+    /// Asserts the rendered SCALE, not the intent: a pop written straight onto the
+    /// chip entity, which `sync_objective_chips` rebuilds every frame, is
+    /// overwritten before it can play, and only the rendered scale says so.
     #[test]
     fn the_chip_pops_on_the_posting_and_settles_back() {
         let mut app = stack_app();
@@ -929,10 +927,10 @@ mod tests {
         );
     }
 
-    /// A RE-WORDED objective shows its chip on the same frame too. It used to
-    /// be the awkward case - `objective_feedback` spawned it no reveal card (it
-    /// is not an "addition"), so it waited out a timed fallback before showing
-    /// at all. Every posting is now the same posting.
+    /// A RE-WORDED objective shows its chip on the same frame too. It is the
+    /// awkward case - `objective_feedback` spawns it no reveal card, since it is
+    /// not an "addition" - so a timed fallback would leave it waiting. Every
+    /// posting is the same posting.
     #[test]
     fn a_re_worded_objective_shows_its_chip_on_the_same_frame() {
         let mut app = stack_app();

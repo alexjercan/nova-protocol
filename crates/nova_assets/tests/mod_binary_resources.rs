@@ -497,7 +497,7 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
             "consumer_scenario".to_string(),
             "Consumer".to_string(),
             nova_gameplay::prelude::AssetRef::from("dep://base/textures/cubemap.png".to_string()),
-        ) // NOTE: no dependencies: ["base"] - base is implicit
+        ) // No dependencies: ["base"] - base is implicit
     };
     let content = app
         .world_mut()

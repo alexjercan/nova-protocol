@@ -88,7 +88,7 @@ pub struct UiText;
 
 /// Wire the button colour observers, the skin reconcilers and the font router.
 pub(crate) fn build(app: &mut App) {
-    // NOTE: `init_resource` is idempotent, so owning the skin here keeps the
+    // `init_resource` is idempotent, so owning the skin here keeps the
     // widget layer self-contained for tests and slim apps even though settings
     // is what persists it.
     app.init_resource::<UiSkin>();
@@ -120,7 +120,7 @@ pub(crate) fn build(app: &mut App) {
             reconcile_list_row_skins,
             reconcile_panel_skins,
             reconcile_segmented_skins,
-            // NOTE: the rebuild first, then the value onto its new children. The
+            // The rebuild first, then the value onto its new children. The
             // explicit edge auto-inserts an `ApplyDeferred`
             // (`ScheduleBuildSettings::auto_insert_apply_deferred`, default
             // true), so the respawned children are VISIBLE to the value system
@@ -141,7 +141,7 @@ pub(crate) fn build(app: &mut App) {
                 .in_set(TextFieldSystems),
         ),
     );
-    // NOTE: route the font BEFORE UI text is measured/laid out (PostUpdate,
+    // Route the font BEFORE UI text is measured/laid out (PostUpdate,
     // before `UiSystems::Content`), not in Update - a `UiText` spawned this
     // frame would otherwise render one frame in the larger default face before
     // Iosevka applies (the "text gets bigger for a split second" flash on any

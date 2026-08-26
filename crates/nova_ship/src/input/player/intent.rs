@@ -52,7 +52,7 @@ pub(super) fn update_controller_target_rotation_torque(
 ) {
     let point_rotation = point_rotation.into_inner();
     let spaceship = spaceship.into_inner();
-    // NOTE: slew the command toward the camera instead of jumping - a mouse 180 fed
+    // Slew the command toward the camera instead of jumping - a mouse 180 fed
     // to the PD in one step drives it into saturation where its damping is
     // swamped and the hull limit-cycles. The camera stays instant; the hull's
     // commanded target ramps at the computer's acceleration-derived turn rate,

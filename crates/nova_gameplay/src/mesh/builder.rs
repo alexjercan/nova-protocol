@@ -232,7 +232,7 @@ impl TriangleMeshBuilder {
             let b = t.vertices[1];
             let c = t.vertices[2];
 
-            // NOTE: `normalize_or_zero`, not `normalize` - slicing readily produces
+            // `normalize_or_zero`, not `normalize` - slicing readily produces
             // degenerate triangles whose zero-length edges would yield NaN UVs.
             let u_axis = (b - a).normalize_or_zero();
             let v_axis = t

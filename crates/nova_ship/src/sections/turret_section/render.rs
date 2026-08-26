@@ -352,7 +352,7 @@ const MUZZLE_FLASH_CAPACITY: u32 = 2048;
 /// A clad warship carries a lot of barrels.
 fn build_default_muzzle_effect() -> EffectAsset {
     let spawner = SpawnerSettings::once(100.0.into())
-        // NOTE: do not emit on instantiation - the muzzle flash only
+        // Do not emit on instantiation - the muzzle flash only
         // fires when the shot calls reset().
         .with_emit_on_start(false);
 

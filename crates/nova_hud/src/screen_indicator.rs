@@ -223,7 +223,7 @@ impl Plugin for ScreenIndicatorPlugin {
     fn build(&self, app: &mut App) {
         trace!("ScreenIndicatorPlugin: build");
 
-        // NOTE: projection must sample the SAME camera pose the frame renders
+        // Projection must sample the SAME camera pose the frame renders
         // with. In Update the chase camera has not moved yet (the rig moves it
         // in PostUpdate), so indicators lagged the world by one frame of
         // camera motion - a visible HUD twitch. The slot is: after the chase
@@ -389,7 +389,10 @@ pub(crate) fn target_world_aabb(
 /// entities without NON-SENSOR collider AABBs (the frame they spawned, or
 /// a sensor-only body like a locked beacon), and when the anchor itself
 /// did not project.
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one projection reading camera, anchor and node"
+)]
 fn indicator_size(
     computed: &ComputedNode,
     size_mode: ScreenIndicatorSize,

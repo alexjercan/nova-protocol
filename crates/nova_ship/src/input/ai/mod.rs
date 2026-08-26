@@ -31,8 +31,8 @@ use passive::update_passive_flight;
 use threat::on_damage_track_threat;
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
-// The point-defence envelope moved OUT of the AI module with the allocator that
-// reads it, but the number itself stays here with the engagement-range chain it
+// The allocator that reads the point-defence envelope sits outside the AI
+// module; the number itself stays here with the engagement-range chain it
 // belongs to.
 pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
 pub use self::{
@@ -114,7 +114,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIPointDefenseRange>();
         app.register_type::<AIWaypointSlack>();
 
-        // NOTE: threat sensing is an observer, not a system: HealthApplyDamage is
+        // Threat sensing is an observer, not a system: HealthApplyDamage is
         // an entity event that propagates to the ship root, and reacting at
         // trigger time is what lets the source entity (the projectile) be
         // resolved before its despawn command applies.
@@ -122,7 +122,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.add_observer(on_neutralized_stand_down);
         app.add_observer(insert_gravity_affected_on_ai_ship);
 
-        // NOTE: the burst cadence is the one AI clock that must not move with
+        // The burst cadence is the one AI clock that must not move with
         // the framerate: its expiry writes the trigger that
         // `shoot_spawn_projectile` consumes in FixedUpdate, so ticked in Update
         // a burst window closes on a render-frame boundary. It reads no pose,
@@ -133,7 +133,7 @@ impl Plugin for SpaceshipAIInputPlugin {
             update_fire_cadence.in_set(super::SpaceshipInputSystems),
         );
 
-        // NOTE: the rest of the chain stays on the render clock because every
+        // The rest of the chain stays on the render clock because every
         // system in it reads an eased pose - `&Transform` on ship roots, the
         // muzzle and thruster `&GlobalTransform`, and the collider trees
         // `ai_line_of_fire_blocked` raycasts. A FixedUpdate system MUST read
@@ -152,7 +152,7 @@ impl Plugin for SpaceshipAIInputPlugin {
                 on_thruster_input,
                 update_turret_target_input,
                 on_projectile_input,
-                // NOTE: commit-on-launch runs before the trigger write: the frame
+                // Commit-on-launch runs before the trigger write: the frame
                 // after a launch then sees the freshly reset bay cooldown
                 // and drops the trigger, instead of holding it one frame
                 // on the stale elapsed one.

@@ -128,10 +128,6 @@ fn catalog_plugin(app: &mut App) {
     );
 }
 
-// ---------------------------------------------------------------------------
-// The catalog: resolved from the merged styles, never hand-listed.
-// ---------------------------------------------------------------------------
-
 /// One fixture as the wall shows it: the authored data the labels, the report
 /// and the focus view all read from.
 struct CatalogPiece {
@@ -197,10 +193,6 @@ fn rule_summary(rule: &ScatterRule) -> String {
         rule.seat, rule.align, rule.chance, rule.stride, rule.patch,
     )
 }
-
-// ---------------------------------------------------------------------------
-// The stage and the wall.
-// ---------------------------------------------------------------------------
 
 /// The stage: the game's own sky and the repo's standard three-point rig, with
 /// NO ships - every subject is a display entity this example owns.
@@ -347,10 +339,6 @@ fn spawn_stand(
         });
 }
 
-// ---------------------------------------------------------------------------
-// Modes, selection and the keys.
-// ---------------------------------------------------------------------------
-
 /// Which view is up: the wall of rows, or one piece large on the turntable.
 #[derive(Resource, Clone, Copy, PartialEq, Eq)]
 enum CatalogMode {
@@ -470,10 +458,6 @@ fn sync_pedestals(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Focus: one piece large on a turntable, the parts_viewer idiom.
-// ---------------------------------------------------------------------------
-
 /// Where the focused piece stands: well above the wall, so the turntable shot
 /// reads against sky rather than against the rows.
 const FOCUS_STAND: Vec3 = Vec3::new(0.0, 30.0, 0.0);
@@ -564,10 +548,6 @@ fn spin_focused(time: Res<Time>, mut spinners: Query<&mut Transform, With<FocusS
     }
 }
 
-// ---------------------------------------------------------------------------
-// Gizmos: the selection ring and the unit-cell frames.
-// ---------------------------------------------------------------------------
-
 /// A flat gold frame around the selected stand. Hand-run chrome only: a
 /// capture composes clean frames.
 fn draw_selection(
@@ -627,10 +607,6 @@ fn draw_cell_frames(
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Labels and the readout.
-// ---------------------------------------------------------------------------
 
 /// A nameplate anchored to a world position.
 #[derive(Component)]
@@ -770,10 +746,6 @@ fn update_readout(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Framing.
-// ---------------------------------------------------------------------------
-
 /// What the wall camera aims at: the middle of the stand.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
@@ -905,10 +877,6 @@ fn aim_camera(
     }
 }
 
-// ---------------------------------------------------------------------------
-// The idle orbit, shape_bench's implementation: phase-continuous resume.
-// ---------------------------------------------------------------------------
-
 /// Radians per second the idle orbit turns at.
 const ORBIT_RATE: f32 = 0.25;
 
@@ -1025,10 +993,6 @@ fn orbit_idle_camera(
         .looking_at(CAMERA_TARGET, Vec3::Y);
     }
 }
-
-// ---------------------------------------------------------------------------
-// The driven walk: the wall shot, then one shot per resolved style row.
-// ---------------------------------------------------------------------------
 
 /// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
 #[cfg(feature = "debug")]

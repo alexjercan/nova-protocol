@@ -278,13 +278,12 @@ fn fleet_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 /// count can say that here: these hulls spawn inside each other's colliders,
 /// come apart as the shell resolves, and are mutually hostile besides. The
 /// spawn and the attrition OVERLAP, and once they do there is no instant at
-/// which a thousand sections are all alive at once - so even the high-water
-/// mark of the live count (which this used to be) is a number the fleet may
-/// never reach. CI proved it: a two-core llvmpipe runner spread the assembly
-/// over long enough that the first sections were already breaking up before the
-/// last ones existed, and `spawn the fleet` waited out its whole deadline for a
-/// count that was never coming. A faster box assembles the fleet with fifty
-/// milliseconds to spare and sees the thousand.
+/// which a thousand sections are all alive at once - so even the high-water mark
+/// of the live count is a number the fleet may never reach. A two-core llvmpipe
+/// CI runner spreads the assembly over long enough that the first sections are
+/// already breaking up before the last ones exist, and `spawn the fleet` waits
+/// out its whole deadline for a count that is never coming; a faster box
+/// assembles with fifty milliseconds to spare and sees the thousand.
 ///
 /// Counting ARRIVALS has no such instant to miss. Nothing here is spawned
 /// twice: wreckage carries `DetachedPieceMarker` and a severed hull

@@ -150,14 +150,14 @@ pub(crate) fn sync_section_keybind_labels(
                 TextShadow::default(),
                 Node {
                     position_type: PositionType::Absolute,
-                    // NOTE: pill padding + rounded corners so the background
+                    // Pill padding + rounded corners so the background
                     // reads as a chip (BorderRadius is a Node field, not a
                     // component).
                     padding: UiRect::axes(px(6), px(2)),
                     border_radius: BorderRadius::all(px(4)),
                     ..default()
                 },
-                // NOTE: dark semi-transparent pill so the amber text stays
+                // Dark semi-transparent pill so the amber text stays
                 // legible over the 3D scene.
                 BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.75)),
                 // Hidden until the positioner projects it this frame.
@@ -298,11 +298,10 @@ pub(crate) fn hide_section_keybind_labels(
 /// The top bar's Rebind action: arm a keybind capture for the SELECTED
 /// section.
 ///
-/// This used to be what a click on a section meant, which left "look at this"
-/// with no gesture at all. Now the click selects and the intent to rebind is
-/// its own button, so the capture can never be armed by accident. The guards
-/// mirror `apply_section_rebind`'s validity check: a selection that is not a
-/// bindable section of the edited ship arms nothing.
+/// A click selects and the intent to rebind is its own button, so the capture
+/// can never be armed by accident. The guards mirror `apply_section_rebind`'s
+/// validity check: a selection that is not a bindable section of the edited
+/// ship arms nothing.
 pub(crate) fn on_rebind_action(
     _activate: On<Activate>,
     catalog: Option<Res<GameSections>>,

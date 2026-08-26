@@ -537,9 +537,9 @@ fn as_number(value: &dyn PartialReflect) -> Option<f64> {
 
 /// Refuse a number under its field's floor, in the words the box will show.
 ///
-/// Checked HERE rather than where a negative radius used to be found out - the
-/// spawn, at run time. The builder who typed it is the one who can fix it, and
-/// by then they are flying the range.
+/// Checked HERE rather than at the spawn, where a negative radius is found out
+/// at run time. The builder who typed it is the one who can fix it, and by then
+/// they are flying the range.
 ///
 /// The reason is the RULE, in three characters, because it is shown where the
 /// unit stands: a sentence there would squeeze the box holding the number it

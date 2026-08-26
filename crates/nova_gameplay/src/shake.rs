@@ -203,7 +203,7 @@ impl Plugin for CameraShakePlugin {
             .register_type::<CameraShakeSuppressed>()
             .register_type::<CameraShakeState>();
 
-        // NOTE: pin Restore before Apply explicitly. This is the ONE edge this
+        // Pin Restore before Apply explicitly. This is the ONE edge this
         // module owns; everything else - where the base writers sit between them -
         // is `CameraAuthorityPlugin`'s. Without this pin the two `Transform`
         // writers are unordered and the drift this module exists to prevent comes
@@ -286,7 +286,7 @@ fn camera_shake_apply_system(
     {
         trace!("camera_shake_apply_system: trauma {}", state.trauma);
 
-        // NOTE: reset is a floor, not a veto -- it clears trauma first, so a
+        // Reset is a floor, not a veto -- it clears trauma first, so a
         // same-frame `add_trauma` still lands and a game can reset and re-kick at once.
         if input.reset {
             state.trauma = 0.0;
@@ -365,7 +365,7 @@ mod tests {
     /// while a zeroed axis stays zero regardless of the sample.
     #[test]
     fn offset_scales_with_amount_and_max_offset() {
-        // NOTE: 0.6 is the peak `shake_app` configures below, so the pure-math
+        // 0.6 is the peak `shake_app` configures below, so the pure-math
         // and through-the-plugin tests state the same bound; 0.5 amount halves
         // it to 0.3, which is what makes the scaling readable off the numbers.
         let offset = shake_offset(0.5, Vec3::new(0.6, 0.6, 0.0), Vec3::splat(1.0));
@@ -418,7 +418,7 @@ mod tests {
             .unwrap()
             .add_trauma = 1.0;
 
-        // NOTE: 0.6 must stay in step with `shake_app`'s `max_offset`, or this
+        // 0.6 must stay in step with `shake_app`'s `max_offset`, or this
         // bound stops describing the camera under test; 1e-4 only absorbs the
         // f32 error in the diagonal.
         let bound = Vec3::splat(0.6).length() + 1e-4;
@@ -496,7 +496,7 @@ mod tests {
                 .get_mut::<CameraShakeInput>(cam)
                 .unwrap()
                 .add_trauma = 1.0;
-            // NOTE: 60 frames at 16 ms is well past the full decay time
+            // 60 frames at 16 ms is well past the full decay time
             // (1.0 / 1.8 ~= 0.56 s), so trauma is guaranteed to have settled.
             for _ in 0..60 {
                 step(&mut app, 16);

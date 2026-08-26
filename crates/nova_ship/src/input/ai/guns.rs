@@ -276,9 +276,9 @@ pub(super) fn on_projectile_input(
     q_collider_of: Query<&ColliderOf>,
 ) {
     // Turret-first, like the aim system: the gun target, and therefore whether
-    // the burst cadence and the line-of-fire gate apply at all, is now a
-    // per-MOUNT answer. One turret on a hull can be defending while its
-    // neighbour keeps working the primary target.
+    // the burst cadence and the line-of-fire gate apply at all, is a per-MOUNT
+    // answer. One turret on a hull can be defending while its neighbour keeps
+    // working the primary target.
     for (muzzle, aim_point, config, mut input, turret_defense, ChildOf(ship)) in &mut q_turret {
         let Ok((state, target, ship_defense, cadence)) = q_spaceship.get(*ship) else {
             continue;
@@ -331,7 +331,7 @@ pub(super) fn on_projectile_input(
         // fire pays for the ray. Point defense is exempt: inbound
         // ordnance is hunting THIS ship, so its line is short, closing,
         // and the one case where a wasted round beats a held trigger.
-        // NOTE: target_anchor came through ai_target_anchor, so gun_target is
+        // `target_anchor` came through `ai_target_anchor`, so gun_target is
         // Some here; the else arm is unreachable belt-and-braces.
         let Some(gun_target) = gun_target else {
             **input = false;

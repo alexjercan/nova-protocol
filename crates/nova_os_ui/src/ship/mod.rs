@@ -93,9 +93,6 @@ const SHIP_HINTS: &[&str] = &[
     "ESC: BACK",
 ];
 
-// ---------------------------------------------------------------------------
-// Section codes
-// ---------------------------------------------------------------------------
 /// Registers the `ship` app + CLI verbs and drives the schematic scene, blips and
 /// section actions.
 pub(crate) struct NovaOsShipPlugin;
@@ -177,7 +174,3 @@ fn ship_is_active(pause: &State<PauseStates>, terminal: &NovaOsTerminal) -> bool
     *pause.get() == PauseStates::NovaOs
         && terminal.active_mode() == TerminalMode::App { id: SHIP_APP_ID }
 }
-
-// ---------------------------------------------------------------------------
-// CLI + action systems
-// ---------------------------------------------------------------------------

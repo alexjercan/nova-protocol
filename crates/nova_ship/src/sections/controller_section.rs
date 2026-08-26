@@ -570,7 +570,7 @@ impl Plugin for ControllerSectionPlugin {
             update_controller_stack_tuning.in_set(ControllerSectionSystems::SyncStack),
         );
 
-        // NOTE: the command copy into the bcs PDControllerInput runs on the
+        // The command copy into the bcs PDControllerInput runs on the
         // FIXED clock, between the command writers and the PD: its producer
         // (the autopilot) and consumer (PDControllerSystems::Sync) both tick in
         // FixedUpdate, and the old Update-schedule copy handed the PD a command
@@ -1194,23 +1194,19 @@ mod tests {
 
     #[test]
     fn spawns_controller_with_default_config() {
-        // Arrange
         let mut app = App::new();
         let id = app
             .world_mut()
             .spawn(controller_section(ControllerSectionConfig::default()))
             .id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<ControllerSectionMarker>(id).is_some());
     }
 
     #[test]
     fn spawns_controller_with_custom_scene() {
-        // Arrange
         let mut app = App::new();
         let custom_scene = Handle::<WorldAsset>::default();
         let config = ControllerSectionConfig {
@@ -1219,10 +1215,8 @@ mod tests {
         };
         let id = app.world_mut().spawn(controller_section(config)).id();
 
-        // Act
         app.update();
 
-        // Assert
         assert!(app.world().get::<ControllerSectionMarker>(id).is_some());
         let render_mesh = app.world().get::<ControllerSectionRenderMesh>(id).unwrap();
         assert!(render_mesh.0.is_some());
@@ -1286,7 +1280,7 @@ mod tests {
         use bevy::time::TimeUpdateStrategy;
 
         let mut app = App::new();
-        // NOTE: AssetPlugin + MeshPlugin are required even for primitive
+        // AssetPlugin + MeshPlugin are required even for primitive
         // colliders - avian's collider cache reads `AssetEvent<Mesh>`.
         app.add_plugins((
             MinimalPlugins,

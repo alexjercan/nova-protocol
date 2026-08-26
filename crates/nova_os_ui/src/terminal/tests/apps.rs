@@ -773,7 +773,6 @@ fn nova_os_objective_flip_announces_in_open_terminal() {
     );
 }
 
-// -----------------------------------------------------------------------
 // CRT screen->image mapping
 //
 // The math rig. `forward_nova_os_pointer` has to place the forwarded pointer
@@ -781,4 +780,3 @@ fn nova_os_objective_flip_announces_in_open_terminal() {
 // reference it is measured against is a hand transcription of the WGSL
 // fragment's own sample-UV chain, living in `nova_os_pointer_rig` so the
 // live-tree click tests measure against the same independent definition.
-// -----------------------------------------------------------------------

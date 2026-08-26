@@ -1,9 +1,8 @@
 //! The placement callout: what the solver says, said where the part is.
 //!
-//! Screen-space, positioned from the ghost's own pose every frame. The verdict
-//! used to be a chip at the foot of the screen, 200px from the part it was
-//! about, which asked a builder watching a ghost snap around a hull to read
-//! the answer somewhere else.
+//! Screen-space, positioned from the ghost's own pose every frame. Beside the
+//! part rather than at the foot of the screen, so a builder watching a ghost
+//! snap around a hull reads the answer where they are already looking.
 
 use bevy::{picking::Pickable, prelude::*, ui::widget::TextShadow};
 use nova_ship::prelude::{GameSections, SectionConfig};

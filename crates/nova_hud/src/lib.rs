@@ -22,6 +22,8 @@
 //! never samples lighting anyway, and the velocity widget's shading is
 //! deliberate.
 
+#![warn(missing_docs)]
+
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
@@ -269,7 +271,7 @@ impl Plugin for NovaHudPlugin {
         app.register_type::<HudContextGate>();
         app.register_type::<HudNovaOsExempt>();
 
-        // NOTE: the contextual layer is bounded on both sides of the widget
+        // The contextual layer is bounded on both sides of the widget
         // drivers: the situations are sensed BEFORE
         // [`NovaHudSystems`], so every driver in that set reads this frame's
         // truth, and the shared emphasis is applied in PostUpdate, so a
@@ -294,7 +296,7 @@ impl Plugin for NovaHudPlugin {
             Update,
             cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
         );
-        // NOTE: visibility enforcement runs AFTER the screen-indicator
+        // Visibility enforcement runs AFTER the screen-indicator
         // projection: the widget writes Visibility::Visible on its nodes in
         // PostUpdate (ignoring hidden ancestors), so a tier-hidden node must
         // be overwritten downstream of that producer, not from Update.
@@ -585,7 +587,7 @@ fn remove_screen_indicator_camera(
     mut commands: Commands,
 ) {
     trace!("remove_screen_indicator_camera: entity {:?}", remove.entity);
-    // NOTE: try_remove, not remove: get_entity only proves the entity exists
+    // `try_remove`, not `remove`: get_entity only proves the entity exists
     // at QUEUE time - a scenario teardown despawns the camera in the same
     // command flush, and the plain remove then warns "entity despawned".
     if let Ok(mut camera) = commands.get_entity(remove.entity) {
@@ -623,7 +625,7 @@ fn setup_hud_velocity(
     // the velocity sphere so the two shells never z-fight.
     commands.spawn((
         HudTier::Instrument,
-        // NOTE: hides itself in flat space; the level-change restore must not
+        // Hides itself in flat space; the level-change restore must not
         // overrule that.
         HudSelfDrivenVisibility,
         velocity_hud(VelocityHudConfig {

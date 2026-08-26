@@ -143,7 +143,7 @@ impl Plugin for ChaseCameraPlugin {
         app.add_observer(initialize_chase_camera);
         app.add_observer(destroy_chase_camera);
 
-        // NOTE: PostUpdate, so camera motion is computed after game logic and input
+        // PostUpdate, so camera motion is computed after game logic and input
         // systems -- in Update it would lag them by a frame and jitter.
         app.add_systems(
             PostUpdate,
@@ -186,7 +186,7 @@ fn destroy_chase_camera(remove: On<Remove, ChaseCamera>, mut commands: Commands)
     let entity = remove.entity;
     trace!("destroy_chase_camera: entity {:?}", entity);
 
-    // NOTE: `try_remove`, since the entity may already be despawned.
+    // `try_remove`, since the entity may already be despawned.
     commands
         .entity(entity)
         .try_remove::<(ChaseCameraInput, ChaseCameraState)>();

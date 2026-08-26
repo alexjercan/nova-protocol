@@ -246,7 +246,7 @@ pub(crate) fn on_component_cycle_next(
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
 ) {
-    // NOTE: observers bypass system-set gating; freeze intent changes while the
+    // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys clear cleanly
     // during a pause.
     if pause.get().is_frozen() {
@@ -282,7 +282,7 @@ pub(super) fn on_component_cycle_prev(
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
 ) {
-    // NOTE: observers bypass system-set gating; freeze intent changes while the
+    // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys clear cleanly
     // during a pause.
     if pause.get().is_frozen() {

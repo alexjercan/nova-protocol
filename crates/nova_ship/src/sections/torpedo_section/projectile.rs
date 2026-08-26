@@ -942,7 +942,10 @@ mod tests {
     /// headroom (mirroring `torpedo_thrust_system`). Starting conditions mirror
     /// the real launch: slow, sideways. Returns the closest approach to the
     /// target over the run.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one system steering the whole projectile"
+    )]
     fn simulate_thrust_intercept(
         mut pos: Vec3,
         mut vel: Vec3,

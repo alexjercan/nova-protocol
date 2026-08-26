@@ -138,8 +138,6 @@ fn reach_playing(mut next: ResMut<NextState<GameStates>>) {
     next.set(GameStates::Playing);
 }
 
-// ------------------------------- state --------------------------------------
-
 /// The demo "HUD level" the middle segmented control drives (a stand-in for a
 /// real `ButtonValue<T>` settings row).
 #[derive(Resource, Clone, Copy, PartialEq, Eq, Default)]
@@ -172,8 +170,6 @@ struct ZooBody;
 /// A clickable check/toggle carrying its index into [`ZooChecks`].
 #[derive(Component)]
 struct CheckId(usize);
-
-// ------------------------------- setup --------------------------------------
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2d);
@@ -269,8 +265,6 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
             });
     });
 }
-
-// ------------------------------- body ---------------------------------------
 
 /// (Re)build the panel grid for the current skin + interactive state. One path
 /// serves the first spawn and every reskin/flip.
@@ -483,8 +477,6 @@ fn list_row_entry(
     });
 }
 
-// ------------------------------- interactivity ------------------------------
-
 /// Wrap a visual widget (checkbox/toggle) so it receives clicks: add `Button` +
 /// `Hovered` + its `CheckId` + the flip observer.
 fn clickable(widget: impl Bundle, id: usize) -> impl Bundle {
@@ -522,8 +514,6 @@ fn toggle_skin_key(keys: Res<ButtonInput<KeyCode>>, mut skin: ResMut<UiSkin>) {
         };
     }
 }
-
-// ------------------------------- small helpers ------------------------------
 
 /// A section sub-header inside a panel body (demo `h3.sub`).
 fn sub_header(c: &mut ChildSpawnerCommands, text: &str) {
@@ -568,8 +558,6 @@ fn flow_row() -> Node {
 
 // The segmented container + option come from nova_ui (`segmented_container` /
 // `segmented_option`) - the same helpers the game's settings rows use.
-
-// ------------------------------- capture ------------------------------------
 
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
@@ -644,7 +632,6 @@ fn shoot(name: &str, commands: &mut Commands) {
     });
 }
 
-// ------------------------------- harness ------------------------------------
 //
 // The zoo DRIVES its own widgets with synthesized pointer input and checks the
 // live tree afterwards (task 20260804-094021). Every beat is a real gesture at

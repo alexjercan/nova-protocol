@@ -2,12 +2,11 @@
 //! hands one straight back the moment the player locks something.
 //!
 //! The claim is an OWNERSHIP one, and it is about a PLAYER hull. Per-turret
-//! point defence used to be a behaviour of the AI controller: an AI ship
-//! answered a salvo by itself and a player answered it by swinging every mount
-//! onto every torpedo by hand. The same allocator now claims the player's IDLE
-//! mounts, under a new controller capability
-//! ([`FlightVerb::PointDefense`](nova_protocol::prelude::FlightVerb)), and lets
-//! go of one the instant the player wants it.
+//! point defence is a controller CAPABILITY
+//! ([`FlightVerb::PointDefense`](nova_protocol::prelude::FlightVerb)), not a
+//! behaviour of the AI controller: one allocator claims a player's IDLE mounts
+//! the same way it claims an AI ship's, and lets go of one the instant the
+//! player wants it.
 //!
 //! The range is built so nothing else can explain what it shows:
 //!

@@ -196,7 +196,10 @@ fn structure_advantage(roster: &Roster, starting: &[f32], remaining: &[f32]) -> 
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system over the whole result board"
+)]
 fn detect_and_show_result(
     mut commands: Commands,
     real_time: Res<Time<Real>>,
@@ -466,7 +469,10 @@ fn result_button(label: &str, action: ResultAction, primary: bool) -> impl Bundl
     (button(spec), action)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system over the whole result board"
+)]
 fn spawn_result(
     commands: &mut Commands,
     ending: MatchEnd,
@@ -624,7 +630,10 @@ fn unpause(virtual_time: &mut Time<Virtual>, physics_time: &mut Time<Physics>) {
     physics_time.unpause();
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one system over the whole result board"
+)]
 fn on_result_action(
     activate: On<Activate>,
     mut commands: Commands,

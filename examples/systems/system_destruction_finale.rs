@@ -4,15 +4,13 @@
 //! hull, a thruster and a turret - plus an asteroid off the beam. The script
 //! kills them one at a time and reads what each death actually left behind.
 //!
-//! The bug this range was built for: destruction used to be gated on a `Mesh3d`
-//! sitting on the destroyed entity itself. No ship section has ever had one -
+//! A dead section DETACHES, keeping the art and the collider it already had -
+//! it is neither sliced nor replaced by generic cubes. Nothing may gate that on
+//! a `Mesh3d` sitting on the destroyed entity: no ship section has one, because
 //! a section holds its health, collider and markers on a gameplay root while
 //! its art hangs off `SectionRenderOf` descendants under a gltf
-//! `WorldAssetRoot` - so every section in the game fell through to a burst of
-//! eight generic gray cubes, whatever art it was wearing. The cubes are gone,
-//! and so is the slicer that replaced them: a dead section DETACHES, keeping
-//! the art and the collider it already had. A death that leaves nothing at all
-//! is silent, which is why this range is the thing that has to catch one.
+//! `WorldAssetRoot`. A death that leaves nothing at all is silent, which is why
+//! this range is the thing that has to catch one.
 //!
 //! SEVEN named invariants:
 //!
@@ -26,15 +24,15 @@
 //! | 6 | `outcome: one death leaves one body` | a section does not fragment |
 //! | 7 | `outcome: no death came apart into nothing` | every shipped body detaches as something |
 //!
-//! Invariant 7 is the whole-run claim. There is no fallback any more: a body
-//! that cannot become a body of its own leaves NOTHING and logs it. That makes
-//! this range the only thing standing between a silent failure and a shipped
-//! build, so a single silent death anywhere in the run is a failure.
+//! Invariant 7 is the whole-run claim. There is no fallback: a body that cannot
+//! become a body of its own leaves NOTHING and logs it. That makes this range
+//! the only thing standing between a silent failure and a shipped build, so a
+//! single silent death anywhere in the run is a failure.
 //!
 //! Invariant 6 is what "sections do not fragment" means as a number. A turret
 //! draws with three joint meshes and a hull with one; both have to leave
 //! exactly one body, because the whole point of detaching is that the piece
-//! count no longer follows the art.
+//! count does not follow the art.
 //!
 //! The turret goes first on purpose. It is the only section here whose art is
 //! several levels below the gameplay entity, so it is the one that proves the

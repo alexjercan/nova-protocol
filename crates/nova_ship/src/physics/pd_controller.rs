@@ -128,7 +128,7 @@ fn compute_pd_torque(
 
     let raw = axis * (kp * angle) - angular_velocity * kd;
 
-    // NOTE: clamp acceleration before inertia scaling. An absolute torque cap
+    // Clamp acceleration before inertia scaling. An absolute torque cap
     // makes the same computer weaker as hull inertia grows. Principal-axis
     // limits produce the authored acceleration on every hull while still
     // applying the exact torque each axis requires.
@@ -314,7 +314,7 @@ mod tests {
         assert!(torque.length() > 0.0);
     }
 
-    // NOTE: the tests below are the avian integration repro - a released, fast-spinning body
+    // The tests below are the avian integration repro - a released, fast-spinning body
     // must despin. They wire the controller the way a game does: PD input written before
     // `PDControllerSystems::Sync`, output applied via `Forces::apply_torque` after it, physics
     // stepping in FixedUpdate. The body is a symmetric top released with a roll about its long
@@ -349,7 +349,7 @@ mod tests {
 
     fn physics_app() -> App {
         let mut app = App::new();
-        // NOTE: AssetPlugin + MeshPlugin are required even for primitive colliders - avian's
+        // AssetPlugin + MeshPlugin are required even for primitive colliders - avian's
         // collider cache reads `AssetEvent<Mesh>`.
         app.add_plugins((
             MinimalPlugins,
@@ -368,7 +368,7 @@ mod tests {
             FixedUpdate,
             apply_pd_output.after(PDControllerSystems::Sync),
         );
-        // NOTE: do not drop - avian initializes its diagnostics resources in `Plugin::finish`.
+        // Do not drop - avian initializes its diagnostics resources in `Plugin::finish`.
         app.finish();
         app
     }
@@ -419,7 +419,7 @@ mod tests {
                 Transform::default(),
             ))
             .id();
-        // NOTE: mass is computed over the first few steps, so the spin must not be imposed
+        // Mass is computed over the first few steps, so the spin must not be imposed
         // until avian has linked colliders and finalized mass properties.
         for _ in 0..4 {
             app.update();
@@ -500,7 +500,7 @@ mod tests {
     /// damping-only. A fast roll about the long axis must despin.
     #[test]
     fn fast_roll_despins_when_command_tracks_attitude() {
-        // NOTE: 1.5 rad/s is past what one tick of acceleration authority can
+        // 1.5 rad/s is past what one tick of acceleration authority can
         // cancel, so the damper must converge over many ticks.
         let mut app = physics_app();
         let (body, controller) = spawn_spinning_ship(&mut app, Vec3::new(0.0, 0.0, 1.5));
@@ -520,7 +520,7 @@ mod tests {
     /// corkscrewing forever.
     #[test]
     fn fast_roll_despins_with_frozen_command() {
-        // NOTE: same 1.5 rad/s "fast" roll as
+        // Same 1.5 rad/s "fast" roll as
         // `fast_roll_despins_when_command_tracks_attitude`; the two differ only
         // in whether the command tracks, so the rate must stay in step.
         let mut app = physics_app();
@@ -614,7 +614,7 @@ mod tests {
     /// under a frozen command today.
     #[test]
     fn moderate_spin_despins_with_frozen_command() {
-        // NOTE: 0.7 rad/s is the moderate-spin control case below the fast-roll
+        // 0.7 rad/s is the moderate-spin control case below the fast-roll
         // saturation regime.
         let mut app = physics_app();
         let (body, _) = spawn_spinning_ship(&mut app, Vec3::new(0.0, 0.0, 0.7));

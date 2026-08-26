@@ -107,7 +107,7 @@ impl Plugin for SpaceshipTargetingPlugin {
         app.add_message::<CombatLockDropped>();
         app.register_type::<CombatLockDrop>();
 
-        // NOTE: the state bundle rides the player marker wherever ships spawn
+        // The state bundle rides the player marker wherever ships spawn
         // (observer-over-spawn-site).
         app.add_observer(insert_targeting_state);
 

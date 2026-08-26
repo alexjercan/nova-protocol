@@ -429,9 +429,9 @@ fn size_decides_the_turn_and_stacking_only_helps_a_torque_bound_hull() {
     }
 }
 
-/// The complaint that opened the attitude work: a minimal hull used to turn at
-/// exactly the rate a barge turned at. It must not any more, and the reason has
-/// to be the hull rather than the computer - all three carry the same one.
+/// A minimal hull must not turn at exactly the rate a barge turns at, and the
+/// reason has to be the hull rather than the computer - all three carry the
+/// same one.
 ///
 /// Measured on TRAVERSE, how long the turn takes, rather than on peak rate: a
 /// torque-starved hull lags its own slewed command and then catches up faster
