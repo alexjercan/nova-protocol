@@ -100,11 +100,11 @@ pub(crate) struct ShipNode {
     /// flown scenario all read. Empty where nothing named it, and every
     /// surface falls back to the node's minted id.
     pub(crate) name: String,
-    /// Whether the ship wears its derived cladding - shown live in the build
+    /// Whether the ship wears its derived skin - shown live in the build
     /// view (see [`crate::skin`]) and carried through to the flown ship, so what
     /// the builder sees is what they fly.
     pub(crate) skin: bool,
-    /// The style id the cladding wears, or `None` for the first style the
+    /// The style id the skin wears, or `None` for the first style the
     /// content merge loaded.
     pub(crate) style: Option<String>,
     /// Who drives it once the scenario runs.
@@ -868,7 +868,7 @@ pub(crate) fn sync_object_views(
 ///
 /// SECTIONS are deliberately not here. What an editable section field changes
 /// (thrust, health) is not what its mesh is built from, and rebuilding a
-/// section view would drop the cladding derivation and the placement solve
+/// section view would drop the skin derivation and the placement solve
 /// that read it in the same frame.
 pub(crate) fn drop_edited_views(
     mut commands: Commands,

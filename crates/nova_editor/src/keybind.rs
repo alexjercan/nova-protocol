@@ -65,7 +65,7 @@ const CHIP_CLEARANCE_PX: Vec2 = Vec2::new(52.0, 22.0);
 /// a section's binds belong to its node, and the view they are drawn over is
 /// despawned and rebuilt on every visit to the editor.
 ///
-/// Scoped to the edit context for the same reason the solver and the cladding
+/// Scoped to the edit context for the same reason the solver and the skin
 /// are: a ship standing beside the one you are inside is not what these chips
 /// label, and only the player-driven ship's binds reach the hand-off at all.
 fn bindable_sections(

@@ -14,7 +14,7 @@
 //! - `keybind`   - section keybind chips + click-to-rebind
 //! - `gallery`   - the full-screen parts browser that arms the placement tool
 //! - `snap`      - where the armed prototype would land, and why not
-//! - `skin`      - the derived cladding, re-derived live while a part is dragged
+//! - `skin`      - the derived surface, re-derived live while a part is dragged
 //! - `stage`     - the ground plane the range is laid out on
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
@@ -463,7 +463,7 @@ fn editor_plugin(app: &mut App) {
             // The ghost, then the verdict said where the part is: one solve,
             // drawn once as a box and once as words.
             (sync_placement_ghost, sync_placement_callout).chain(),
-            // AFTER the ghost: the cladding counts the part under the pointer
+            // AFTER the ghost: the skin counts the part under the pointer
             // as structure, so it has to be derived from the same solve the
             // ghost on screen is showing.
             sync_editor_skin,

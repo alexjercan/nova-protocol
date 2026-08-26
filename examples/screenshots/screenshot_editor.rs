@@ -126,6 +126,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_build_camera_is_posed())
         .deadline(STEP_DEADLINE_SECS)
         .add()
+        // Through the top bar, because that is where Add lives now: the row
+        // does not exist until its menu is open.
+        .click("open the Add menu", "Add Menu Button")
         .click("create the ship", "Add Ship Button")
         .step("the blank ship is entered")
         .until(the_editor_is_inside_a_ship())
@@ -230,20 +233,20 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             .step("let the skin close")
             .until(elapsed(0.8))
             .add()
-            .click("select the civilian look", "Look: Civilian")
-            .step("hold the civilian look")
+            .click("select the civilian style", "Style: Civilian")
+            .step("hold the civilian style")
             .until(elapsed(0.8))
             .add()
-            .click("select the armoured look", "Look: Armoured")
-            .step("hold the armoured look")
+            .click("select the armoured style", "Style: Armoured")
+            .step("hold the armoured style")
             .until(elapsed(0.8))
             .add()
-            .click("select the salvage look", "Look: Salvage")
-            .step("hold the salvage look")
+            .click("select the salvage style", "Style: Salvage")
+            .step("hold the salvage style")
             .until(elapsed(0.8))
             .add()
-            .click("restore the industrial look", "Look: Industrial")
-            .step("hold the industrial look")
+            .click("restore the industrial style", "Style: Industrial")
+            .step("hold the industrial style")
             .until(elapsed(0.8))
             .add()
             .step("close the editor skin loop")
@@ -279,8 +282,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world| set_colliders(world, false))
         .add()
         // Play compiles the document from the scenario node, so the walk
-        // steps out of the ship through the tree's root row first.
-        .click("leave the ship for the hand-off", "Scene Row scenario")
+        // steps out of the ship through the tree's root row first - and
+        // leaving a ship is the SECOND click on that row, one click only
+        // frames it.
+        .double_click("leave the ship for the hand-off", "Scene Row scenario")
         .step("Play is reachable")
         .until(the_editor_can_play())
         .deadline(STEP_DEADLINE_SECS)

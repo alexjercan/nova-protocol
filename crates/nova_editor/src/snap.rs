@@ -264,7 +264,7 @@ fn refuse(
     // And the rule the GENERATOR is held to, from the other side. A muzzle, a
     // nozzle and a bay's mouth all need the space in front of them, and a part
     // takes that space two ways: by standing in the lane, or by standing beside
-    // it and demanding the cladding that would close it over. The rule itself is
+    // it and demanding the skin that would close it over. The rule itself is
     // `nova_ship`'s, so a hull the collapse may not draw is one a builder may
     // not build either.
     let firing: Vec<PlacedPart<'_>> = ship.iter().map(clearing).collect();
@@ -401,7 +401,7 @@ mod tests {
     /// editor may not build a hull the collapse would refuse to draw. Both
     /// clauses are checked, and the second is the subtle half - a part
     /// DIAGONALLY off a muzzle is not in the lane at all, it demands the
-    /// cladding that would close the lane over.
+    /// skin that would close the lane over.
     #[test]
     fn a_part_in_front_of_a_muzzle_is_refused() {
         // A cube with a bay bolted to its roof, firing +Y, and a tower of hull

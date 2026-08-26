@@ -1,4 +1,4 @@
-//! The build view's live cladding: the skin the ship being built would wear,
+//! The build view's live skin: the surface the ship being built would wear,
 //! re-derived whenever the structure under it moves.
 //!
 //! The skin is a PURE FUNCTION of structure (`nova_ship`'s `derive_skin`), which
@@ -10,7 +10,7 @@
 //!
 //! The part UNDER THE POINTER counts as structure while its placement is legal.
 //! That is the whole feature the owner asked for - a hull is dragged about
-//! UNDER the skin and the cladding reflows around it - and it is why a refused
+//! UNDER the skin and the skin reflows around it - and it is why a refused
 //! ghost contributes nothing: a placement that cannot be built must not be clad
 //! as though it had been.
 //!
@@ -59,17 +59,17 @@ pub(crate) struct ShownSkin {
     plates: usize,
 }
 
-/// Re-derive the build view's cladding when the structure under it changes.
+/// Re-derive the build view's skin when the structure under it changes.
 ///
 /// Chained after `sync_placement_ghost` so the skin is derived from the SAME
-/// solve the ghost on screen is showing - a frame late would put the cladding
+/// solve the ghost on screen is showing - a frame late would put the skin
 /// where the part used to be.
 ///
 /// `Res`, never `ResMut`: writing the build state here would mark it changed
 /// every frame and this would re-derive for ever.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the cladding is derived from the document, the ghost and the style catalog"
+    reason = "the skin is derived from the document, the ghost and the style catalog"
 )]
 pub(crate) fn sync_editor_skin(
     mut commands: Commands,
@@ -148,7 +148,7 @@ pub(crate) fn sync_editor_skin(
             commands
                 .spawn((
                     // The ship node OUTLIVES the editor state, so a plate has to
-                    // carry its own teardown: without this the cladding would
+                    // carry its own teardown: without this the skin would
                     // still be hanging on the ship when Play spawns the real one.
                     DespawnOnExit(ExampleStates::Editor),
                     Name::new("Editor Skin Plate"),
@@ -214,7 +214,7 @@ pub(crate) fn sync_editor_skin(
     );
 }
 
-/// The style the build view dresses its cladding in.
+/// The style the build view dresses its skin in.
 ///
 /// The ship's own choice when it has made one. There is no picker yet, so a
 /// ship that has not falls back to the FIRST authored style rather than to a
@@ -240,7 +240,7 @@ fn strip(commands: &mut Commands, q_plates: &Query<Entity, With<EditorSkinPlate>
 /// nothing is armed or the placement is refused.
 ///
 /// A REFUSED ghost is left out on purpose. The bounds box already says the
-/// click will build nothing, and cladding it anyway would draw a ship that
+/// click will build nothing, and skinning it anyway would draw a ship that
 /// cannot exist.
 fn ghost_section<'a>(
     preview: &PlacementPreview,
@@ -509,7 +509,7 @@ mod tests {
     }
 
     /// A REFUSED ghost is not structure. The click will build nothing, so
-    /// cladding it would draw a ship that cannot exist.
+    /// skinning it would draw a ship that cannot exist.
     #[test]
     fn a_refused_ghost_is_not_clad() {
         let mut app = app(true);

@@ -160,7 +160,7 @@ impl Default for EditorOverlays {
     }
 }
 
-/// The rail's ship settings block (skin, look, attitude). Shown only inside a
+/// The rail's ship settings block (skin, style, attitude). Shown only inside a
 /// ship: they are properties of the ship being edited, and there is none at
 /// the scenario node.
 #[derive(Component)]
@@ -324,17 +324,17 @@ pub(crate) struct AttitudeReadout;
 #[derive(Component)]
 pub(crate) struct EditorKeyLegend;
 
-/// The box of the cladding toggle in the Tools block, repainted in place when
+/// The box of the skin toggle in the Tools block, repainted in place when
 /// the edited ship's [`ShipNode::skin`](crate::node::ShipNode::skin) changes.
 #[derive(Component)]
 pub(crate) struct SkinToggleCheckbox;
 
-/// The list of looks under the cladding toggle. Shown only while the ship is
-/// clad, because a look is a property of a skin that is on.
+/// The list of styles under the skin toggle. Shown only while the ship wears
+/// one, because a style is a property of a skin that is on.
 #[derive(Component)]
 pub(crate) struct StyleList;
 
 /// One row of that list, carrying the style id it picks - the same shape the
-/// tool rows use, so the shared `Selected` highlight marks the active look.
+/// tool rows use, so the shared `Selected` highlight marks the active style.
 #[derive(Component)]
 pub(crate) struct StyleChoice(pub(crate) String);

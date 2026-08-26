@@ -393,7 +393,7 @@ pub(crate) fn lower_fleet(
 }
 
 /// One lowered ship as the scenario wants it: a flat section list, the input
-/// mapping keyed by those sections' STABLE ids, the cladding choice and where
+/// mapping keyed by those sections' STABLE ids, the skin choice and where
 /// on the range it spawns.
 #[derive(Default)]
 pub(crate) struct LoweredShip {
@@ -744,7 +744,7 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
             }),
             // What the builder saw is what they fly. The editor shows the same
             // derived skin over the same structure, so the flown ship must not
-            // come up bare (or clad) against it.
+            // come up bare (or skinned) against it.
             hull: hull_of(player, form),
             ..default()
         }),
@@ -1690,14 +1690,14 @@ mod tests {
         );
     }
 
-    /// What you see in the editor is what you fly: the cladding toggle rides
-    /// the hand-off, so a ship built clad does not come up bare.
+    /// What you see in the editor is what you fly: the skin toggle rides
+    /// the hand-off, so a ship built with a skin does not come up bare.
     #[test]
-    fn the_cladding_toggle_reaches_the_flown_ship() {
-        for clad in [false, true] {
+    fn the_skin_toggle_reaches_the_flown_ship() {
+        for skinned in [false, true] {
             let lowered = LoweredFleet {
                 player: LoweredShip {
-                    skin: clad,
+                    skin: skinned,
                     ..default()
                 },
                 ..default()
@@ -1713,8 +1713,8 @@ mod tests {
                 panic!("the editor hands off an inline hull");
             };
             assert_eq!(
-                hull.skin, clad,
-                "the editor's toggle decides whether the flown ship is clad"
+                hull.skin, skinned,
+                "the editor's toggle decides whether the flown ship wears a skin"
             );
         }
     }

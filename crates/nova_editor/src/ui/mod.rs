@@ -215,7 +215,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             items.spawn((
                 Name::new("Rebind Key Item"),
                 RebindButton,
-                menu_item_row("Rebind Key", MenuLead::None, MenuTail::None, skin),
+                menu_item_row("Rebind Key...", MenuLead::None, MenuTail::None, skin),
                 observe(on_rebind_action),
             ));
         }
@@ -236,7 +236,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 // The OUTLINE ship: the row adds a design beside the one already
                 // there. The first ship of an empty document becomes the
                 // player's and the tree fills its mark in.
-                menu_item_row("Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
+                menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
                 observe(create_blank_ship),
             ));
             items.spawn(separator());
@@ -316,9 +316,9 @@ pub(crate) fn setup_editor_scene(
 ) {
     let skin = *skin;
     // The rail is built for the ship the editor opens on. With none entered the
-    // checkbox starts unclad, which is what a fresh ship is.
-    let clad = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
-    let looks: Vec<(String, String)> = styles
+    // checkbox starts bare, which is what a fresh ship is.
+    let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
+    let listed: Vec<(String, String)> = styles
         .iter()
         .map(|style| (style.id.clone(), style.name.clone()))
         .collect();
@@ -627,7 +627,7 @@ pub(crate) fn setup_editor_scene(
                         // The document, as a tree. The rows are built by
                         // `sync_scene_list`, because what is expanded depends
                         // on which node the editor is inside.
-                        rail.spawn(panel_header("Scene"));
+                        rail.spawn(panel_header("Scenario"));
                         rail.spawn((Name::new("Scene List"), SceneList, rail_list_node()));
 
                         // Ship settings: properties of the ship being edited,
@@ -645,7 +645,7 @@ pub(crate) fn setup_editor_scene(
                         ))
                         .with_children(|settings| {
                             settings.spawn(separator());
-                            settings.spawn(panel_header("Ship"));
+                            settings.spawn(panel_header("Ship Settings"));
                             // The attitude readout: a property of the hull
                             // being built, and it moves with every part placed.
                             // Without it a hull that is too big to turn reads
@@ -670,11 +670,11 @@ pub(crate) fn setup_editor_scene(
                             // and what it looks like when it flies.
                             settings.spawn((
                                 Name::new("Ship Skin Toggle"),
-                                skin_toggle_row(clad, skin),
+                                skin_toggle_row(skinned, skin),
                                 observe(on_skin_toggle),
                             ));
                             // The sentence that used to hide in the key legend.
-                            // It is a fact about THIS setting - the cladding
+                            // It is a fact about THIS setting - the skin
                             // reflows around the part in hand - so it belongs
                             // under the row it is about, not in a line of keys
                             // View can switch off.
@@ -694,16 +694,16 @@ pub(crate) fn setup_editor_scene(
                             // Under the toggle, and shown only while it is on,
                             // because it answers the question the toggle
                             // raises: the skin is on, and this is which of the
-                            // shipped looks it wears. One row per style out of
-                            // the MERGED content, so a mod's look is listed
+                            // shipped styles it wears. One row per style out of
+                            // the MERGED content, so a mod's style is listed
                             // beside the base ones without the editor knowing
                             // any id.
                             settings
-                                .spawn((Name::new("Ship Look List"), StyleList, rail_list_node()))
+                                .spawn((Name::new("Ship Style List"), StyleList, rail_list_node()))
                                 .with_children(|list| {
-                                    for (index, (id, name)) in looks.iter().enumerate() {
+                                    for (index, (id, name)) in listed.iter().enumerate() {
                                         list.spawn((
-                                            Name::new(format!("Look: {name}")),
+                                            Name::new(format!("Style: {name}")),
                                             // The first is what an unset style
                                             // wears, so it starts marked.
                                             style_row(id, name, index == 0, skin),
@@ -824,7 +824,7 @@ pub(crate) fn setup_editor_scene(
         });
 }
 
-/// Flip the cladding on or off.
+/// Flip the skin on or off.
 ///
 /// One bool on the build state and nothing else: the build view watches it (see
 /// [`crate::skin`]) and Play reads it, so the ship on the stage and the ship
@@ -842,7 +842,7 @@ pub(crate) fn on_skin_toggle(
     }
 }
 
-/// The look list's own column, so the rows read as one group under the toggle
+/// The style list's own column, so the rows read as one group under the toggle
 /// rather than as four more tools.
 fn rail_list_node() -> Node {
     Node {
@@ -1455,8 +1455,8 @@ pub(crate) fn sync_breadcrumb(
         .join(" / ");
     let level = match (context.scenario(), context.ship()) {
         (None, _) => "",
-        (Some(_), None) => "[SCENARIO] ",
-        (Some(_), Some(_)) => "[SHIP] ",
+        (Some(_), None) => "SCENARIO  ",
+        (Some(_), Some(_)) => "SHIP  ",
     };
     let mut wanted = format!("{level}{path}");
     if let Some(node) = selected.0 {
@@ -1498,7 +1498,7 @@ pub(crate) fn sync_rebind_button(
     }
 }
 
-/// Pick the look this row names.
+/// Pick the style this row names.
 ///
 /// Writes an explicit id rather than a list index: the build state travels out
 /// to the scenario and back, and an index into a catalog a mod can grow would
@@ -1517,8 +1517,8 @@ pub(crate) fn on_style_choice(
     }
 }
 
-/// Show the look list only while the ship is clad, and mark the row the build
-/// view is actually dressing plates in.
+/// Show the style list only while the ship wears a skin, and mark the row the
+/// build view is actually dressing plates in.
 ///
 /// The FALLBACK is spelled here as well as in `crate::skin`, because the rail
 /// has to mark what is on screen: a ship that has picked no style wears the
@@ -1565,7 +1565,7 @@ pub(crate) fn sync_style_list(
     }
 }
 
-/// Repaint the cladding checkbox for the state it reports, IN PLACE.
+/// Repaint the skin checkbox for the state it reports, IN PLACE.
 ///
 /// Painted from nova_ui's `checkbox_colors`/`checkbox_glyph` rather than by
 /// respawning the widget, so it cannot drift from the `checkbox()` factory the
@@ -2583,6 +2583,10 @@ mod tests {
     /// The readout says WHAT is being edited before it says where: the level
     /// in capitals, the path in the names the tree shows, and the selection.
     /// The bare path never answered "will this click select, enter or place".
+    ///
+    /// The level is a BARE word, the one treatment a kind tag gets: the
+    /// inspector's title and the tree's hint print it that way too, and the
+    /// crumb's brackets were a third way of drawing one thing.
     #[test]
     fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
         use bevy::ecs::system::RunSystemOnce;
@@ -2606,20 +2610,20 @@ mod tests {
         world.resource_mut::<EditContext>().path = vec![scenario];
 
         world.run_system_once(sync_breadcrumb).unwrap();
-        assert_eq!(world.get::<Text>(crumb).unwrap().0, "[SCENARIO] scenario");
+        assert_eq!(world.get::<Text>(crumb).unwrap().0, "SCENARIO  scenario");
 
         world.resource_mut::<EditContext>().enter(ship);
         world.run_system_once(sync_breadcrumb).unwrap();
         assert_eq!(
             world.get::<Text>(crumb).unwrap().0,
-            "[SHIP] scenario / Kestrel"
+            "SHIP  scenario / Kestrel"
         );
 
         world.resource_mut::<SelectedNode>().0 = Some(ship);
         world.run_system_once(sync_breadcrumb).unwrap();
         assert_eq!(
             world.get::<Text>(crumb).unwrap().0,
-            "[SHIP] scenario / Kestrel   selected Kestrel"
+            "SHIP  scenario / Kestrel   selected Kestrel"
         );
     }
 
@@ -2750,17 +2754,17 @@ mod tests {
 
     /// A ship that has picked no style wears the FIRST one, so that is the row
     /// the rail marks. Marking nothing would say the build view is showing no
-    /// look, which is not what it is showing.
+    /// style, which is not what it is showing.
     #[test]
-    fn an_unset_style_marks_the_first_look() {
+    fn an_unset_style_marks_the_first_style() {
         let mut app = app(true);
         app.update();
         assert_eq!(marked(&mut app), vec!["first".to_string()]);
     }
 
-    /// Pressing a row picks that look, and the mark follows it.
+    /// Pressing a row picks that style, and the mark follows it.
     #[test]
-    fn picking_a_look_moves_the_mark_to_it() {
+    fn picking_a_style_moves_the_mark_to_it() {
         let mut app = app(true);
         app.update();
         let second = row(&mut app, "second");
@@ -2771,10 +2775,10 @@ mod tests {
         assert_eq!(marked(&mut app), vec!["second".to_string()]);
     }
 
-    /// A look is a property of a skin that is on. With the cladding off the
+    /// A style is a property of a skin that is on. With the skin off the
     /// list is not a control the builder can act on, so it is not on screen.
     #[test]
-    fn the_look_list_is_hidden_while_the_ship_is_bare() {
+    fn the_style_list_is_hidden_while_the_ship_is_bare() {
         let mut app = app(false);
         app.update();
         let display = |app: &mut App| {

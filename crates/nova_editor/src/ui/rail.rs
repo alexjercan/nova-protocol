@@ -11,7 +11,7 @@ use nova_ui::{
 
 use crate::config::{SceneRow, SkinToggleCheckbox, StyleChoice};
 
-/// The cladding toggle: a tool row that is a SETTING rather than a mode, so it
+/// The skin toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
 ///
 /// The row is the button and the box is a picture. `ui_widgets::Button` on the
@@ -51,7 +51,7 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
     )
 }
 
-/// One look in the list under the cladding toggle.
+/// One style in the list under the skin toggle.
 ///
 /// A `ListRow` and not a `themed_button`: the rows are a SELECTION over the
 /// merged style catalog, which is what a list row paints, and the shared

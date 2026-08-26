@@ -300,7 +300,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_DEADLINE_SECS)
         .add()
-        .click_a_menu_item("editor: click Add > Ship", MENU_ADD, "Add Ship Button")
+        .click_a_menu_item("editor: click Add > New Ship", MENU_ADD, "Add Ship Button")
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1031,7 +1031,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             assert!(
                 widget_is_disabled(world, "Add Ship Button"),
-                "Add > Ship inside a ship used to move the builder to a \
+                "Add > New Ship inside a ship used to move the builder to a \
                  different ship without saying so"
             );
             assert!(
@@ -1110,15 +1110,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             world.resource_mut::<EditorWalk>().ids = ids;
         })
         .add()
-        // Add > Ship is a scenario-context action, so the run steps out through
-        // the tree's root row first - the same door a builder uses.
+        // Add > New Ship is a scenario-context action, so the run steps out
+        // through the tree's root row first - the same door a builder uses.
         .double_click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
         .step("editor: back at the scenario node to add a ship")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .click_a_menu_item(
-            "editor: click Add > Ship again",
+            "editor: click Add > New Ship again",
             MENU_ADD,
             "Add Ship Button",
         )
