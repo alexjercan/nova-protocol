@@ -221,11 +221,13 @@ const MENU_EDIT: &str = "Edit Menu Button";
 #[cfg(feature = "debug")]
 const MENU_SHIP: &str = "Ship Menu Button";
 
-/// A viewport point (logical px) with neither the ship nor a rail panel under
-/// it, on the 1024x768 window the app opens. Pointing here is how a beat puts
-/// the ghost away without disarming the part it is holding.
+/// A viewport point (logical px) with neither the ship nor a docked panel
+/// under it, on the 1024x768 window the app opens: low on the screen, and
+/// inside the 210..724 band the rail and the Inspector leave the stage.
+/// Pointing here is how a beat puts the ghost away without disarming the part
+/// it is holding.
 #[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(760.0, 640.0);
+const EMPTY_SPACE: Vec2 = Vec2::new(560.0, 640.0);
 
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.

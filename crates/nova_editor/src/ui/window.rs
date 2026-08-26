@@ -36,8 +36,9 @@ use crate::{
 };
 
 /// Window width. The inspector's own width, so a picker reads as the row it
-/// came from rather than as a second panel with its own ideas.
-const WINDOW_W: f32 = 240.0;
+/// came from rather than as a second panel with its own ideas - and follows it
+/// when the panel is widened.
+const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
 /// How far off the right edge a fresh window stands, clear of the Inspector.
 const RIGHT_MARGIN: f32 = 264.0;
 /// Where a fresh window's top edge sits, under the top bar.

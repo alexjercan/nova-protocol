@@ -21,9 +21,10 @@ use bevy::{
 use nova_ship::prelude::{GameSections, WASDCameraController};
 use nova_ui::{
     prelude::{
-        panel, panel_header, scroll_column, scroll_viewport, segmented_container, segmented_option,
-        text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin,
+        panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
+        segmented_container, segmented_option, text_field, ButtonLabel, ButtonVariant, Selected,
+        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue,
+        ThemedButton, UiSkin,
     },
     theme,
     widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
@@ -44,10 +45,10 @@ use crate::{
     ui::window::on_open_colour_window,
 };
 
-/// Panel width. Wider than the 150px rail because every row is a name AND a
-/// value side by side; still narrow enough to leave the stage its centre,
-/// which is where the placement raycast goes.
-pub(crate) const PANEL_W: f32 = 240.0;
+/// Panel width. Wider than the rail because every row is a name AND a value
+/// side by side; still narrow enough to leave the stage its centre, which is
+/// where the placement raycast goes.
+pub(crate) const PANEL_W: f32 = 300.0;
 /// The name column. Fixed rather than proportional so the value boxes of every
 /// row line up, which is what makes a column of numbers readable.
 const LABEL_W: f32 = 92.0;
@@ -302,16 +303,23 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
             ),
             // SCROLLS. A turret's joint tree is thirty rows deep, and a panel
             // that simply ran off the bottom of the screen put its muzzle's
-            // fire rate somewhere no pointer could reach.
+            // fire rate somewhere no pointer could reach. The bar beside it
+            // says HOW deep, which a wheel alone never did.
             (
-                Name::new("Inspector List"),
-                InspectorList,
-                Node {
-                    width: percent(100),
-                    align_items: AlignItems::Stretch,
-                    ..scroll_column()
-                },
-                scroll_viewport(),
+                Name::new("Inspector Scroll"),
+                scroll_row(),
+                children![
+                    (
+                        Name::new("Inspector List"),
+                        InspectorList,
+                        Node {
+                            align_items: AlignItems::Stretch,
+                            ..scroll_column()
+                        },
+                        scroll_viewport(),
+                    ),
+                    (Name::new("Inspector Scrollbar"), scroll_bar(skin)),
+                ],
             ),
         ],
     )

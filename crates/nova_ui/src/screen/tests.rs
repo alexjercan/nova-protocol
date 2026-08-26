@@ -10,6 +10,7 @@ use bevy::{
 };
 
 use super::*;
+use crate::prelude::UiSkin;
 
 /// A viewport 300 physical px tall holding 500 physical px of content, at
 /// `scale` device pixels per logical pixel.
@@ -183,5 +184,123 @@ fn hovered_viewport_takes_the_whole_wheel() {
             .y,
         0.0,
         "the unhovered viewport stays put while a sibling is hovered"
+    );
+}
+
+/// The bar is spawned beside the pane it drives, in one `children!` that
+/// cannot name either entity. The wiring pass is what makes that legal.
+#[test]
+fn a_scroll_bar_takes_the_pane_beside_it() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    let row = app
+        .world_mut()
+        .spawn(scroll_row())
+        .with_children(|row| {
+            row.spawn((scroll_column(), scroll_viewport()));
+            row.spawn(scroll_bar(UiSkin::default()));
+        })
+        .id();
+    app.world_mut().run_system_once(wire_scroll_bars).unwrap();
+
+    let children: Vec<Entity> = app.world().entity(row).get::<Children>().unwrap().to_vec();
+    let (pane, bar) = (children[0], children[1]);
+    assert_eq!(
+        app.world()
+            .entity(bar)
+            .get::<bevy::ui_widgets::Scrollbar>()
+            .map(|bar| bar.target),
+        Some(pane),
+        "the bar drives the viewport it stands next to"
+    );
+}
+
+/// A bar left pointing at a despawned pane drives nothing, so the pass has to
+/// look again rather than trusting the component it already wrote.
+#[test]
+fn a_rebuilt_pane_is_picked_up_again() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    let row = app
+        .world_mut()
+        .spawn(scroll_row())
+        .with_children(|row| {
+            row.spawn((scroll_column(), scroll_viewport()));
+            row.spawn(scroll_bar(UiSkin::default()));
+        })
+        .id();
+    app.world_mut().run_system_once(wire_scroll_bars).unwrap();
+
+    let children: Vec<Entity> = app.world().entity(row).get::<Children>().unwrap().to_vec();
+    app.world_mut().entity_mut(children[0]).despawn();
+    let fresh = app
+        .world_mut()
+        .spawn((scroll_column(), scroll_viewport(), ChildOf(row)))
+        .id();
+    app.world_mut().run_system_once(wire_scroll_bars).unwrap();
+
+    assert_eq!(
+        app.world()
+            .entity(children[1])
+            .get::<bevy::ui_widgets::Scrollbar>()
+            .map(|bar| bar.target),
+        Some(fresh),
+        "the bar follows the pane that replaced the one it had"
+    );
+}
+
+/// A bar over a pane with nothing to scroll is a bright line saying nothing.
+/// It keeps its slot in the row - the pane must not change width when the bar
+/// comes and goes - and stops being painted.
+#[test]
+fn a_bar_is_painted_only_while_its_pane_can_move() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    let short = app
+        .world_mut()
+        .spawn((
+            scroll_column(),
+            scroll_viewport(),
+            ComputedNode {
+                size: Vec2::new(200.0, 300.0),
+                content_size: Vec2::new(200.0, 120.0),
+                inverse_scale_factor: 1.0,
+                ..ComputedNode::DEFAULT
+            },
+        ))
+        .id();
+    let bar = app
+        .world_mut()
+        .spawn((
+            scroll_bar(UiSkin::default()),
+            bevy::ui_widgets::Scrollbar::new(
+                short,
+                bevy::ui_widgets::ControlOrientation::Vertical,
+                24.0,
+            ),
+        ))
+        .id();
+    app.world_mut()
+        .run_system_once(hide_idle_scroll_bars)
+        .unwrap();
+    assert_eq!(
+        app.world().entity(bar).get::<Visibility>(),
+        Some(&Visibility::Hidden),
+        "nothing overflows, so nothing is painted"
+    );
+
+    app.world_mut().entity_mut(short).insert(ComputedNode {
+        size: Vec2::new(200.0, 300.0),
+        content_size: Vec2::new(200.0, 900.0),
+        inverse_scale_factor: 1.0,
+        ..ComputedNode::DEFAULT
+    });
+    app.world_mut()
+        .run_system_once(hide_idle_scroll_bars)
+        .unwrap();
+    assert_eq!(
+        app.world().entity(bar).get::<Visibility>(),
+        Some(&Visibility::Inherited),
+        "the content outgrew the pane, so the bar says how far"
     );
 }

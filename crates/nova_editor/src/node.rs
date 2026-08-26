@@ -628,11 +628,22 @@ pub(crate) fn sync_camera_focus(
         .insert(WASDCameraController);
 }
 
+/// How much further back the frame stands than the spread alone asks for.
+///
+/// The docked panels take about half the window at the 1024-wide size the
+/// editor is built for, so content framed to fill the WINDOW puts its outer
+/// ships under the rail - visible, and unclickable, because the panel eats the
+/// pick. Framing to the band between the panels is what this buys: at a spread
+/// of 12 (two ships 24 apart) the outer hull lands a comfortable 45px inside
+/// the rail edge rather than 7px outside it.
+const CHROME_ROOM: f32 = 1.6;
+
 /// The stock editor view over `target`: the spawn pose slid onto it, backed
-/// off by `spread` so a stage of several ships fits the frame. Zero spread IS
-/// the spawn pose, which is what keeps the driven walks' fixed screen points
-/// meaning what they measured.
+/// off by `spread` (and the room the chrome takes) so a stage of several ships
+/// fits BETWEEN the panels. Zero spread IS the spawn pose, which is what keeps
+/// the driven walks' fixed screen points meaning what they measured.
 pub(crate) fn frame_stage(target: Vec3, spread: f32) -> Transform {
+    let spread = spread * CHROME_ROOM;
     Transform::from_translation(target + Vec3::new(0.0, 5.0 + 0.75 * spread, 10.0 + 1.5 * spread))
         .looking_at(target, Vec3::Y)
 }

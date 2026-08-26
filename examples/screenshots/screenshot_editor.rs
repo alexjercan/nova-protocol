@@ -203,7 +203,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // when the ghost is away - with nothing under the pointer there is no
         // placement to solve.
         .step("park the pointer clear of the ship")
-        .on_enter(|world: &mut World| move_cursor(Vec2::new(1720.0, 960.0))(world))
+        .on_enter(|world: &mut World| move_cursor(Vec2::new(1400.0, 960.0))(world))
         .until(editor_placement_clear())
         .deadline(STEP_DEADLINE_SECS)
         .add();

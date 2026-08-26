@@ -31,7 +31,10 @@ use bevy::{
 use nova_assets::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    prelude::{key_chip, panel, panel_header, separator, themed_button, ButtonLabel, UiSkin},
+    prelude::{
+        key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
+        separator, themed_button, ButtonLabel, UiSkin,
+    },
     theme,
     widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
 };
@@ -308,12 +311,12 @@ fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option
 const PLAY_LABEL: &str = "Play";
 const PLAY_BLOCKED: &str = "Play (leave the ship)";
 
-/// Left rail width (px). Kept narrow so the rail stays clear of screen centre
-/// on the 1024-wide window, where the editor preview ship projects - a UI panel
-/// over that point would block the placement raycast. A wider rail buys the
-/// tree a few characters and costs the walk its aim at the ship: the rows buy
-/// their width back from the type and the indent instead (see [`scene_row`]).
-const RAIL_W: f32 = 150.0;
+/// Left rail width (px). Bounded by screen centre on the 1024-wide window,
+/// where the editor preview ship projects: a UI panel over that point would
+/// block the placement raycast. 210 here and 300 of Inspector leave the stage
+/// a 514px band with the centre inside it, which is the whole constraint - the
+/// rows spend the rest on the type and the indent (see [`scene_row`]).
+const RAIL_W: f32 = 210.0;
 
 /// How much of its own colour a style row keeps while the skin is off. Enough
 /// to read as the same list, not enough to be mistaken for the live one.
@@ -321,7 +324,7 @@ const GREYED_STYLE_ALPHA: f32 = 0.3;
 
 /// Readout type size (px). The block lines its values up on a monospace column,
 /// so it must not WRAP: at 11px the longest line (`Turn   5.23 rad/s2`) is
-/// 119px inside a 130px rail, and a point more would fold it in half.
+/// 119px, which fit even the old 130px rail and has room to spare in this one.
 const READOUT_TEXT: f32 = 11.0;
 
 /// Register the UI's observers (button colours, selection). The per-state
@@ -650,113 +653,151 @@ pub(crate) fn setup_editor_scene(
                         },
                         panel(skin),
                     ))
-                    .with_children(|rail| {
-                        // The document, as a tree. The rows are built by
-                        // `sync_scene_list`, because what is expanded depends
-                        // on which node the editor is inside.
-                        rail.spawn(panel_header("Scenario"));
-                        rail.spawn((Name::new("Scene List"), SceneList, rail_list_node()));
+                    .with_children(|column| {
+                        // The rail SCROLLS as one column, bar and all: the tree
+                        // grows with the document and the settings sit under
+                        // it, so a scenario holding twenty objects used to push
+                        // the style list off the bottom edge with no way back
+                        // to it.
+                        column
+                            .spawn((Name::new("Editor Rail Scroll"), scroll_row()))
+                            .with_children(|row| {
+                                row.spawn((
+                                    Name::new("Editor Rail Column"),
+                                    Node {
+                                        align_items: AlignItems::Stretch,
+                                        ..scroll_column()
+                                    },
+                                    scroll_viewport(),
+                                ))
+                                .with_children(|rail| {
+                                    // The document, as a tree. The rows are built by
+                                    // `sync_scene_list`, because what is expanded depends
+                                    // on which node the editor is inside.
+                                    rail.spawn(panel_header("Scenario"));
+                                    rail.spawn((
+                                        Name::new("Scene List"),
+                                        SceneList,
+                                        rail_list_node(),
+                                    ));
 
-                        // Ship settings: properties of the ship being edited,
-                        // so the whole block is hidden at the scenario node by
-                        // `sync_context_panels`.
-                        rail.spawn((
-                            Name::new("Ship Settings"),
-                            ShipSettings,
-                            Node {
-                                width: percent(100),
-                                flex_direction: FlexDirection::Column,
-                                align_items: AlignItems::Stretch,
-                                ..default()
-                            },
-                        ))
-                        .with_children(|settings| {
-                            settings.spawn(separator());
-                            settings.spawn(panel_header("Ship Settings"));
-                            // The engineer readout: properties of the hull
-                            // being built, and they move with every part
-                            // placed. Without them a hull that is too big to
-                            // turn reads as the game being broken rather than
-                            // as a hull that wants another computer.
-                            settings.spawn((
-                                Name::new("Ship Readout"),
-                                ShipReadout,
-                                Text::new(""),
-                                TextFont {
-                                    font_size: FontSize::Px(READOUT_TEXT),
-                                    ..default()
-                                },
-                                TextColor(theme::PHOSPHOR),
-                                Node {
-                                    margin: UiRect::top(px(4)),
-                                    ..default()
-                                },
-                            ));
-                            // The remedy, under the numbers it is about. Muted
-                            // and a size down, because it is the sentence a
-                            // builder reads ONCE per surprise and the block
-                            // above is the one they watch.
-                            settings.spawn((
-                                Name::new("Ship Readout Note"),
-                                ShipReadoutNote,
-                                Text::new(""),
-                                TextFont {
-                                    font_size: FontSize::Px(11.0),
-                                    ..default()
-                                },
-                                TextColor(theme::PHOSPHOR_MUTED),
-                                Node {
-                                    margin: UiRect::bottom(px(4)),
-                                    ..default()
-                                },
-                            ));
-                            // A SETTING rather than a tool: it arms nothing, it
-                            // changes what the ship on the stage looks like -
-                            // and what it looks like when it flies.
-                            settings.spawn((
-                                Name::new("Ship Skin Toggle"),
-                                skin_toggle_row(skinned, skin),
-                                observe(on_skin_toggle),
-                            ));
-                            // The sentence that used to hide in the key legend.
-                            // It is a fact about THIS setting - the skin
-                            // reflows around the part in hand - so it belongs
-                            // under the row it is about, not in a line of keys
-                            // View can switch off.
-                            settings.spawn((
-                                Name::new("Ship Skin Note"),
-                                Text::new("reflows around the part in hand"),
-                                TextFont {
-                                    font_size: FontSize::Px(11.0),
-                                    ..default()
-                                },
-                                TextColor(theme::PHOSPHOR_MUTED),
-                                Node {
-                                    margin: UiRect::bottom(px(4)),
-                                    ..default()
-                                },
-                            ));
-                            // Under the toggle, and shown only while it is on,
-                            // because it answers the question the toggle
-                            // raises: the skin is on, and this is which of the
-                            // shipped styles it wears. One row per style out of
-                            // the MERGED content, so a mod's style is listed
-                            // beside the base ones without the editor knowing
-                            // any id.
-                            settings
-                                .spawn((Name::new("Ship Style List"), StyleList, rail_list_node()))
-                                .with_children(|list| {
-                                    for (index, (id, name, colour)) in listed.iter().enumerate() {
-                                        list.spawn((
-                                            Name::new(format!("Style: {name}")),
-                                            // The first is what an unset style
-                                            // wears, so it starts marked.
-                                            style_row(id, name, *colour, index == 0, skin),
-                                            observe(on_style_choice),
-                                        ));
-                                    }
+                                    // Ship settings: properties of the ship being edited,
+                                    // so the whole block is hidden at the scenario node by
+                                    // `sync_context_panels`.
+                                    rail.spawn((
+                                        Name::new("Ship Settings"),
+                                        ShipSettings,
+                                        Node {
+                                            width: percent(100),
+                                            flex_direction: FlexDirection::Column,
+                                            align_items: AlignItems::Stretch,
+                                            ..default()
+                                        },
+                                    ))
+                                    .with_children(
+                                        |settings| {
+                                            settings.spawn(separator());
+                                            settings.spawn(panel_header("Ship Settings"));
+                                            // The engineer readout: properties of the hull
+                                            // being built, and they move with every part
+                                            // placed. Without them a hull that is too big to
+                                            // turn reads as the game being broken rather than
+                                            // as a hull that wants another computer.
+                                            settings.spawn((
+                                                Name::new("Ship Readout"),
+                                                ShipReadout,
+                                                Text::new(""),
+                                                TextFont {
+                                                    font_size: FontSize::Px(READOUT_TEXT),
+                                                    ..default()
+                                                },
+                                                TextColor(theme::PHOSPHOR),
+                                                Node {
+                                                    margin: UiRect::top(px(4)),
+                                                    ..default()
+                                                },
+                                            ));
+                                            // The remedy, under the numbers it is about. Muted
+                                            // and a size down, because it is the sentence a
+                                            // builder reads ONCE per surprise and the block
+                                            // above is the one they watch.
+                                            settings.spawn((
+                                                Name::new("Ship Readout Note"),
+                                                ShipReadoutNote,
+                                                Text::new(""),
+                                                TextFont {
+                                                    font_size: FontSize::Px(11.0),
+                                                    ..default()
+                                                },
+                                                TextColor(theme::PHOSPHOR_MUTED),
+                                                Node {
+                                                    margin: UiRect::bottom(px(4)),
+                                                    ..default()
+                                                },
+                                            ));
+                                            // A SETTING rather than a tool: it arms nothing, it
+                                            // changes what the ship on the stage looks like -
+                                            // and what it looks like when it flies.
+                                            settings.spawn((
+                                                Name::new("Ship Skin Toggle"),
+                                                skin_toggle_row(skinned, skin),
+                                                observe(on_skin_toggle),
+                                            ));
+                                            // The sentence that used to hide in the key legend.
+                                            // It is a fact about THIS setting - the skin
+                                            // reflows around the part in hand - so it belongs
+                                            // under the row it is about, not in a line of keys
+                                            // View can switch off.
+                                            settings.spawn((
+                                                Name::new("Ship Skin Note"),
+                                                Text::new("reflows around the part in hand"),
+                                                TextFont {
+                                                    font_size: FontSize::Px(11.0),
+                                                    ..default()
+                                                },
+                                                TextColor(theme::PHOSPHOR_MUTED),
+                                                Node {
+                                                    margin: UiRect::bottom(px(4)),
+                                                    ..default()
+                                                },
+                                            ));
+                                            // Under the toggle, and shown only while it is on,
+                                            // because it answers the question the toggle
+                                            // raises: the skin is on, and this is which of the
+                                            // shipped styles it wears. One row per style out of
+                                            // the MERGED content, so a mod's style is listed
+                                            // beside the base ones without the editor knowing
+                                            // any id.
+                                            settings
+                                                .spawn((
+                                                    Name::new("Ship Style List"),
+                                                    StyleList,
+                                                    rail_list_node(),
+                                                ))
+                                                .with_children(|list| {
+                                                    for (index, (id, name, colour)) in
+                                                        listed.iter().enumerate()
+                                                    {
+                                                        list.spawn((
+                                                            Name::new(format!("Style: {name}")),
+                                                            // The first is what an unset style
+                                                            // wears, so it starts marked.
+                                                            style_row(
+                                                                id,
+                                                                name,
+                                                                *colour,
+                                                                index == 0,
+                                                                skin,
+                                                            ),
+                                                            observe(on_style_choice),
+                                                        ));
+                                                    }
+                                                });
+                                        },
+                                    );
                                 });
-                        });
+                                row.spawn((Name::new("Rail Scrollbar"), scroll_bar(skin)));
+                            });
                     });
                 // The Inspector, on the OTHER side of the stage from the tree:
                 // the rail says what the document holds and this says what one
@@ -987,7 +1028,7 @@ const ELLIPSIS: &str = "\u{2026}";
 /// indent takes a step out of the budget at every depth.
 fn label_budget(depth: usize) -> usize {
     /// What a root row fits beside its mark and its trail.
-    const AT_ROOT: usize = 15;
+    const AT_ROOT: usize = 22;
     /// What one step of indent costs, rounded to the character it eats.
     const PER_STEP: usize = 1;
 
@@ -2135,6 +2176,27 @@ mod tests {
         glyph::SHIP_PLAYER,
         node::{NextChildOrdinal, ShipDriver},
     };
+
+    /// The narrowest window the editor is built for. The driven walks run at
+    /// this size, and the placement raycast they aim with goes at its centre.
+    const NARROW: f32 = 1024.0;
+
+    /// Both docked panels are free to grow, but not through the middle of the
+    /// screen: a panel over the centre eats the placement ray and the walk
+    /// stops being able to put a part on the hull.
+    #[test]
+    fn the_docked_panels_leave_the_stage_its_centre() {
+        let centre = NARROW / 2.0;
+        assert!(
+            RAIL_W < centre,
+            "the rail reaches {RAIL_W}px, past the centre at {centre}px"
+        );
+        assert!(
+            NARROW - INSPECTOR_W > centre,
+            "the Inspector starts at {}px, before the centre at {centre}px",
+            NARROW - INSPECTOR_W
+        );
+    }
 
     /// A rail with the Scene tree on it and the reconciler running, over an
     /// empty document. The tests below fill the document in.
