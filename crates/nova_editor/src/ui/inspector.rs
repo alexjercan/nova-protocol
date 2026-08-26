@@ -13,7 +13,7 @@
 //! frame would despawn the box under the caret.
 
 use bevy::{
-    ecs::{relationship::RelatedSpawnerCommands, system::SystemParam},
+    ecs::{component::Mutable, relationship::RelatedSpawnerCommands, system::SystemParam},
     picking::hover::Hovered,
     prelude::*,
     ui_widgets::{observe, Activate, Button},
@@ -41,12 +41,14 @@ use crate::{
         editable_config, inspected, nudge_field, object_config_mut, object_rows, parse_colour,
         rotation_degrees, rotation_from_degrees, scenario_rows, section_config_mut, section_rows,
         ship_rows, toggle_field, write_field, DragRule, FieldRoot, InspectTarget, InspectorRow,
-        NodeKinds, PathStep, RowValue,
+        NodeKinds, PathStep, RowValue, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
-        default_allegiance, EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode,
+        default_allegiance, EditContext, NodeId, ObjectBodyStale, ObjectNode, SectionNode,
+        ShipDriver, ShipNode,
     },
+    preview::body_is_drawn_from,
     ui::window::on_open_colour_window,
 };
 
@@ -1279,6 +1281,25 @@ pub(crate) struct EditTargets<'w, 's> {
     sections: Query<'w, 's, &'static mut SectionNode>,
     objects: Query<'w, 's, &'static mut ObjectNode>,
     poses: Query<'w, 's, &'static mut Transform>,
+    stale: MessageWriter<'w, ObjectBodyStale>,
+}
+
+/// Run `edit` against a component's innards WITHOUT marking it changed, and
+/// mark it only where the edit took.
+///
+/// A refusal that marks the component anyway is a frame of work for everything
+/// watching it - a transform propagation, a body rebuilt from a config that did
+/// not move - and a held scrub can refuse once a frame for as long as it is
+/// held.
+fn if_it_took<T: Component<Mutability = Mutable>, R>(
+    held: &mut Mut<T>,
+    edit: impl FnOnce(&mut T) -> Result<R, String>,
+) -> Result<R, String> {
+    let took = edit(held.bypass_change_detection());
+    if took.is_ok() {
+        held.set_changed();
+    }
+    took
 }
 
 impl EditTargets<'_, '_> {
@@ -1295,51 +1316,70 @@ impl EditTargets<'_, '_> {
         match field.root {
             FieldRoot::Label => {
                 if let Ok(mut ship) = self.ships.get_mut(field.node) {
-                    return edit(&mut ship.name, &field.path, field.optional);
+                    return if_it_took(&mut ship, |ship| {
+                        edit(&mut ship.name, &field.path, field.optional)
+                    });
                 }
                 let mut object = self
                     .objects
                     .get_mut(field.node)
-                    .map_err(|_| "gone".to_string())?;
-                edit(&mut object.name, &field.path, field.optional)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                if_it_took(&mut object, |object| {
+                    edit(&mut object.name, &field.path, field.optional)
+                })
             }
             FieldRoot::Pose => {
                 let mut pose = self
                     .poses
                     .get_mut(field.node)
-                    .map_err(|_| "gone".to_string())?;
-                edit(&mut pose.translation, &field.path, field.optional)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                if_it_took(&mut pose, |pose| {
+                    edit(&mut pose.translation, &field.path, field.optional)
+                })
             }
             FieldRoot::Rotation => {
                 let mut pose = self
                     .poses
                     .get_mut(field.node)
-                    .map_err(|_| "gone".to_string())?;
+                    .map_err(|_| GRIP_GONE.to_string())?;
                 // Degrees on the way out, degrees on the way back: the edit
                 // never sees the quat. A refusal leaves the pose alone, which
                 // is why the rotation is only rebuilt once the edit took.
-                let mut degrees = rotation_degrees(&pose);
-                edit(&mut degrees, &field.path, field.optional)?;
-                pose.rotation = rotation_from_degrees(degrees);
-                Ok(())
+                if_it_took(&mut pose, |pose| {
+                    let mut degrees = rotation_degrees(pose);
+                    edit(&mut degrees, &field.path, field.optional)?;
+                    pose.rotation = rotation_from_degrees(degrees);
+                    Ok(())
+                })
             }
             FieldRoot::Config => {
                 if let Ok(mut section) = self.sections.get_mut(field.node) {
-                    let config = editable_config(&mut section, self.catalog.as_deref())
-                        .ok_or_else(|| "no catalog entry".to_string())?;
-                    return edit(
-                        section_config_mut(&mut config.kind),
-                        &field.path,
-                        field.optional,
-                    );
+                    return if_it_took(&mut section, |section| {
+                        let config = editable_config(section, self.catalog.as_deref())
+                            .ok_or_else(|| "no catalog entry".to_string())?;
+                        edit(
+                            section_config_mut(&mut config.kind),
+                            &field.path,
+                            field.optional,
+                        )
+                    });
                 }
                 let mut object = self
                     .objects
                     .get_mut(field.node)
-                    .map_err(|_| "gone".to_string())?;
-                let config = object_config_mut(&mut object.kind)
-                    .ok_or_else(|| "not authored here".to_string())?;
-                edit(config, &field.path, field.optional)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                let took = if_it_took(&mut object, |object| {
+                    let config = object_config_mut(&mut object.kind)
+                        .ok_or_else(|| "not authored here".to_string())?;
+                    edit(config, &field.path, field.optional)
+                });
+                // Only a config edit that TOOK, on a field the body is drawn
+                // from, makes it stale. A name, a pose, a refusal and a rock's
+                // seed all leave the mesh exactly as it was.
+                if took.is_ok() && body_is_drawn_from(&object.kind, &field.path) {
+                    self.stale.write(ObjectBodyStale(field.node));
+                }
+                took
             }
         }
     }
@@ -1406,8 +1446,10 @@ pub(crate) fn on_inspector_drag_start(
 /// name, and a name has nowhere to wear an error.
 pub(crate) fn on_inspector_drag(
     drag: On<Pointer<Drag>>,
+    mut commands: Commands,
     mut grips: Query<(&InspectorField, &mut InspectorDrag)>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    refused: Query<(Entity, &InspectorField), With<TextFieldError>>,
     mut targets: EditTargets,
     mut says: EditorSays,
 ) {
@@ -1433,6 +1475,13 @@ pub(crate) fn on_inspector_drag(
     });
     if let Err(reason) = moved {
         says.refuse(reason);
+        return;
+    }
+    // A box left in the refused state is held out of the repaint, so the number
+    // it is showing would stand while the scrub moved the document underneath
+    // it. The scrub is the correction; the refusal it corrects goes with it.
+    for (box_entity, _) in refused.iter().filter(|(_, held)| *held == field) {
+        commands.entity(box_entity).remove::<TextFieldError>();
     }
 }
 

@@ -27,7 +27,7 @@ use nova_gameplay::markers::prelude::SectionMarker;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::node::ObjectNode;
+use crate::{inspect::PathStep, node::ObjectNode};
 
 /// The smallest a placed object's body is drawn at, so an anchor with a hairline
 /// radius and a light (which has no body at all) are still things you can see
@@ -225,6 +225,37 @@ fn sphere_body(
 fn light_colour(light: &LightConfig) -> Color {
     match light {
         LightConfig::Directional { color, .. } | LightConfig::Point { color, .. } => *color,
+    }
+}
+
+/// Whether `path` names something the object's BODY is drawn from.
+///
+/// An object's config holds plenty the body does not draw - a rock's mass and
+/// seed, a beacon's dwell, a ship's allegiance - and dropping the body is a
+/// fresh mesh, a fresh material and a fresh collider. A held scrub asks once a
+/// frame, so the answer has to be no wherever it can be.
+pub(crate) fn body_is_drawn_from(kind: &ScenarioObjectKind, path: &[PathStep]) -> bool {
+    match path.first() {
+        // The whole config was written: a light that became a point light.
+        None => true,
+        Some(PathStep::Field(name)) => drawn_fields(kind).contains(&name.as_str()),
+        Some(PathStep::Slot(_) | PathStep::Item(_)) => true,
+    }
+}
+
+/// The config fields [`insert_preview_object`] reads, per kind.
+///
+/// Here rather than anywhere else because the two have to agree: a field the
+/// builder starts reading and this does not name is a body that stops following
+/// its config.
+fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
+    match kind {
+        ScenarioObjectKind::Anchor(_) => &["body_radius"],
+        ScenarioObjectKind::Asteroid(_) => &["radius", "texture"],
+        ScenarioObjectKind::Beacon(_) => &["radius", "color"],
+        ScenarioObjectKind::SalvageCrate(_) => &["size"],
+        ScenarioObjectKind::Light(_) => &["color"],
+        ScenarioObjectKind::Spaceship(_) => &["hull"],
     }
 }
 

@@ -69,6 +69,7 @@ use keybind::{
 use node::{
     drop_edited_views, ensure_document, rebuild_node_views, report_duplicate_ids,
     sync_camera_focus, sync_object_views, sync_ship_focus, teardown_document, EditContext,
+    ObjectBodyStale,
 };
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
@@ -316,6 +317,7 @@ fn editor_plugin(app: &mut App) {
     // `sync_object_views`). Gated on those stores existing so a headless rig
     // with no pbr plugin is skipped rather than panicked, and NOT gated on the
     // gallery, so an object placed in one frame is on the stage in that frame.
+    app.add_message::<ObjectBodyStale>();
     app.add_systems(
         Update,
         (drop_edited_views, sync_object_views)

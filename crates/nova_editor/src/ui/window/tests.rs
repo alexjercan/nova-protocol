@@ -14,7 +14,10 @@ use nova_ui::prelude::TextFieldSubmitted;
 use super::*;
 use crate::{
     config::SelectedNode,
-    node::{EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectNode, ScenarioNode},
+    node::{
+        EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
+        ScenarioNode,
+    },
     ui::inspector::{
         apply_inspector_edits, inspector_panel, sync_inspector, InspectorField, InspectorPanel,
     },
@@ -31,6 +34,9 @@ fn window_app() -> App {
     app.init_resource::<crate::config::EditorOverlays>();
     app.init_resource::<Time>();
     app.add_message::<TextFieldSubmitted>();
+    // The write-back announces a stale object body rather than leaning on
+    // `Changed<ObjectNode>`, so the rig carries that message too.
+    app.add_message::<ObjectBodyStale>();
     // A window entity, because a floating window is placed and clamped against
     // the screen it stands on.
     app.world_mut().spawn(Window::default());

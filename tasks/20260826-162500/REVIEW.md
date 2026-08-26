@@ -113,7 +113,7 @@ see it.
   `screen/tests.rs::float` covers an anchor NEAR an edge and a node bigger than
   the screen, never an anchor outside the viewport.
 
-- [ ] R2.5 (MAJOR) crates/nova_editor/src/ui/inspector.rs:997 - a box left in
+- [x] R2.5 (MAJOR) crates/nova_editor/src/ui/inspector.rs:997 - a box left in
   the refused state is excluded from the repaint forever, so a scrub changes the
   document while the panel keeps showing the refused number. `TextFieldError` is
   inserted and removed in one place only, `apply_inspector_edits` (`:1329`,
@@ -126,7 +126,7 @@ see it.
   or selecting another node. The panel is lying about what the document holds.
   Change: clear `TextFieldError` on the row a successful scrub writes.
 
-- [ ] R2.6 (MAJOR) crates/nova_editor/src/ui/inspector.rs:1296 - every frame of
+- [x] R2.6 (MAJOR) crates/nova_editor/src/ui/inspector.rs:1296 - every frame of
   a scrub on an object's config row despawns and rebuilds that object's whole
   preview body. `EditTargets::edit`'s `FieldRoot::Config` arm takes
   `objects.get_mut(field.node)`, which marks `ObjectNode` changed
@@ -476,4 +476,38 @@ Proof:
   `Position X`, the row whose step had nowhere to be looked up from. Live under
   Xvfb, `X went -45.625 -> -43.6 on a 40px pull`, cycle complete.
 - `system_ship_editor` re-run live, cycle complete.
+
+### The write path only writes what took - R2.5, R2.6
+
+`EditTargets::edit` marked its component changed on the way IN, before the edit
+had a chance to be refused. Every arm now edits through the component's
+`bypass_change_detection` and marks it only where the edit took, so a refusal
+costs nothing downstream - no transform propagation, no rebuilt body.
+
+The body refresh stopped reading `Changed<ObjectNode>` and is announced instead
+(`ObjectBodyStale`). The node is marked for its NAME and its pose as well, and
+only its config decides the mesh. The announcement is also filtered by what the
+body is actually drawn from - `preview::body_is_drawn_from`, beside the builder
+that reads those fields - so scrubbing a rock's seed or a ship's allegiance
+leaves the mesh, the material and the collider alone.
+
+A successful scrub now clears the `TextFieldError` on the box it wrote to. A
+refused box is held out of the repaint, so a scrub past a refusal used to leave
+a red `-5` standing over a rock that had grown on the stage (R2.5).
+
+Proof:
+
+- `cargo test -p nova_editor --lib` - 328 pass, four new: a scrub clearing the
+  refusal it corrected, the stale announcement firing only for a config edit
+  that took on a drawn field, and `drop_edited_views` dropping a body only for
+  an object that was announced.
+- `cargo check --all-targets --features debug` clean.
+- `system_field_controls` re-run live: the rock still grows on the stage,
+  3 -> 5, cycle complete.
+
+Not closed by this: an edit to a drawn field still drops and rebuilds the body
+on every frame the value moves, which for a live radius scrub is every frame of
+the gesture. That is the honest cost of a preview that follows the number; the
+finding's measured 120 rebuilds over two seconds becomes 120 rebuilds only
+while the radius is really changing.
 

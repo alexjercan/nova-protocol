@@ -31,6 +31,9 @@ fn inspector_app() -> App {
     // is on, which is the state a fresh editor opens in.
     app.init_resource::<EditorOverlays>();
     app.add_message::<TextFieldSubmitted>();
+    // The write-back announces a stale object body rather than leaning on
+    // `Changed<ObjectNode>`, so the rig carries that message too.
+    app.add_message::<ObjectBodyStale>();
     // A row that can REFUSE says why on the status line, so the rig carries
     // the line and the clock that expires it.
     app.init_resource::<crate::config::EditorStatus>();
@@ -1141,6 +1144,80 @@ fn a_scrub_easing_off_an_edge_stays_where_it_is() {
         None,
         "nothing was warped, so nothing was ever set"
     );
+}
+
+/// A scrub past a refusal takes the refusal with it.
+///
+/// A refused box is HELD OUT of the repaint, so the number it shows survives
+/// the document moving underneath it. The scrub is the correction, so the panel
+/// would otherwise show a red `-5` over a rock that had grown on the stage.
+#[test]
+fn a_scrub_clears_the_refusal_the_box_was_showing() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+    let field = submit(&mut app, "Radius", "-5");
+    assert!(
+        app.world().get::<TextFieldError>(field).is_some(),
+        "the typed number was refused first"
+    );
+
+    scrub(&mut app, "Radius", 20.0);
+
+    assert!(
+        (radius_of(&app, rock) - 4.0).abs() < 1e-4,
+        "the scrub moved the document (got {})",
+        radius_of(&app, rock)
+    );
+    assert!(
+        app.world().get::<TextFieldError>(field).is_none(),
+        "and the box it wrote to is showing the document again"
+    );
+}
+
+/// Only a CONFIG edit that took makes an object's body stale.
+///
+/// The body is a fresh mesh, a fresh material and a fresh collider each time it
+/// is dropped, and a held scrub asks once a frame. A refusal and a name are
+/// both changes to the node that the mesh is not built from.
+#[test]
+fn only_a_config_edit_that_took_makes_the_body_stale() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    submit(&mut app, "Radius", "big");
+    assert_eq!(
+        stale_bodies(&mut app),
+        0,
+        "a refused radius rebuilds nothing"
+    );
+
+    submit(&mut app, "Name", "boulder");
+    assert_eq!(stale_bodies(&mut app), 0, "and neither does a name");
+
+    submit(&mut app, "Seed", "9");
+    assert_eq!(
+        stale_bodies(&mut app),
+        0,
+        "the preview draws a plain ball, so a seed is not what it is built from"
+    );
+
+    submit(&mut app, "Radius", "12");
+    assert_eq!(stale_bodies(&mut app), 1, "a radius that took does");
+}
+
+/// How many stale bodies the message buffer is holding.
+fn stale_bodies(app: &mut App) -> usize {
+    let mut cursor = app
+        .world_mut()
+        .resource_mut::<Messages<ObjectBodyStale>>()
+        .get_cursor();
+    cursor
+        .read(app.world().resource::<Messages<ObjectBodyStale>>())
+        .count()
 }
 
 /// Where the object sits, which is what a pose row writes to.

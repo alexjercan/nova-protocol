@@ -944,6 +944,15 @@ pub(crate) fn sync_object_views(
     }
 }
 
+/// An object's CONFIG took an edit, so the body built from it is stale.
+///
+/// Announced by the writer rather than read off `Changed<ObjectNode>`, because
+/// the node is marked for its name and its pose as well, and a REFUSED edit
+/// marked it for nothing at all. A rebuild is a fresh mesh, a fresh material
+/// and a fresh collider, and a held scrub asks once a frame.
+#[derive(Message)]
+pub(crate) struct ObjectBodyStale(pub(crate) Entity);
+
 /// Take the body off an object whose config just changed, so the pair above
 /// builds it again from what the config now says.
 ///
@@ -960,10 +969,14 @@ pub(crate) fn sync_object_views(
 /// that read it in the same frame.
 pub(crate) fn drop_edited_views(
     mut commands: Commands,
-    edited: Query<&Children, Changed<ObjectNode>>,
+    mut stale: MessageReader<ObjectBodyStale>,
+    nodes: Query<&Children>,
     views: Query<(), With<NodeView>>,
 ) {
-    for children in &edited {
+    for ObjectBodyStale(node) in stale.read() {
+        let Ok(children) = nodes.get(*node) else {
+            continue;
+        };
         for view in children.iter().filter(|child| views.contains(*child)) {
             commands.entity(view).despawn();
         }
@@ -1236,6 +1249,70 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    /// The announcement is what drops a body, so the pair has to be tested
+    /// together: nothing else marks a view stale any more.
+    #[test]
+    fn an_announced_object_takes_its_body_off() {
+        let mut world = World::new();
+        world.init_resource::<Messages<ObjectBodyStale>>();
+        let object = world
+            .spawn(ObjectNode {
+                name: "rock".to_string(),
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    radius: 3.0,
+                    texture: default(),
+                    impact_sound: None,
+                    destroy_sound: None,
+                    mass: None,
+                    invulnerable: false,
+                    seed: None,
+                    lock_signature: None,
+                }),
+            })
+            .id();
+        let view = world.spawn((NodeView, ChildOf(object))).id();
+
+        world.write_message(ObjectBodyStale(object));
+        world
+            .run_system_once(drop_edited_views)
+            .expect("the drop runs");
+
+        assert!(
+            world.get_entity(view).is_err(),
+            "the body came off, so the reconciler builds it again"
+        );
+    }
+
+    /// And an object nobody announced keeps the body it has, however much else
+    /// about the node changed.
+    #[test]
+    fn an_unannounced_object_keeps_its_body() {
+        let mut world = World::new();
+        world.init_resource::<Messages<ObjectBodyStale>>();
+        let object = world
+            .spawn(ObjectNode {
+                name: "rock".to_string(),
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    radius: 3.0,
+                    texture: default(),
+                    impact_sound: None,
+                    destroy_sound: None,
+                    mass: None,
+                    invulnerable: false,
+                    seed: None,
+                    lock_signature: None,
+                }),
+            })
+            .id();
+        let view = world.spawn((NodeView, ChildOf(object))).id();
+
+        world
+            .run_system_once(drop_edited_views)
+            .expect("the drop runs");
+
+        assert!(world.get_entity(view).is_ok(), "nothing was rebuilt");
+    }
 
     fn hull(id: &str) -> SectionConfig {
         SectionConfig {
