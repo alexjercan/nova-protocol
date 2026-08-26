@@ -1,6 +1,6 @@
 # Review fixes: green the gates, make the document round-trip
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 96
 - TAGS: v0.12.0, review, editor, scenario, assets
 
