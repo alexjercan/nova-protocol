@@ -3,7 +3,10 @@
 //! `crate::inspect`; these tests are about the reconciler around it.
 
 use bevy::ecs::system::RunSystemOnce;
-use nova_scenario::prelude::{AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource};
+use nova_scenario::prelude::{
+    AIControllerConfig, AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource,
+    SpaceshipConfig, SpaceshipController,
+};
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
     TurretJoint, TurretSectionConfig, WASDCameraController,
@@ -194,6 +197,51 @@ fn the_panel_lists_the_fields_of_the_node_it_is_on() {
     assert!(
         title.contains("OBJECT") && title.contains("asteroid_1"),
         "{title}"
+    );
+}
+
+/// A seeded hull is filed with the rocks only because of how a scenario stores
+/// it. The panel is the one place the reader is asked what they are looking at,
+/// so it says SHIP - and it opens on which hull and who flies it, not on the
+/// object machinery underneath.
+#[test]
+fn a_seeded_hull_is_inspected_as_a_ship() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let picket = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ObjectNode {
+                name: "Picket Warden".to_string(),
+                kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig::default()),
+                    ..default()
+                }),
+            },
+            NodeId("spaceship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+
+    select(&mut app, picket);
+
+    let title = app
+        .world_mut()
+        .query_filtered::<&Text, With<InspectorTitle>>()
+        .single(app.world())
+        .expect("one title")
+        .0
+        .clone();
+    assert!(
+        title.contains("SHIP") && title.contains("Picket Warden"),
+        "{title}"
+    );
+    let names = row_names(&mut app);
+    assert!(
+        names.contains(&"Hull".to_string()),
+        "which hull is the whole point of a seeded ship: {names:?}"
     );
 }
 

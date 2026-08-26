@@ -29,6 +29,7 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_assets::prelude::*;
+use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
@@ -1200,7 +1201,16 @@ fn wanted_rows(
     } else {
         Vec::new()
     };
-    for (object, id, node, _) in world {
+    // HULLS FIRST, with the built ships they stand beside. A seeded spacecraft
+    // is a ship that a scenario stores as an object, and filing it between the
+    // rocks and the beacons made the range read as scenery. Each half keeps its
+    // id order.
+    let hulled = |node: &ObjectNode| matches!(node.kind, ScenarioObjectKind::Spaceship(_));
+    let world = world
+        .iter()
+        .filter(|(_, _, node, _)| hulled(node))
+        .chain(world.iter().filter(|(_, _, node, _)| !hulled(node)));
+    for &(object, id, node, _) in world {
         let (label, trail) = tree_text(&node.name, &id.0);
         let (glyph, kind) = object_mark(node);
         rows.push(WantedRow {
@@ -2178,13 +2188,15 @@ fn write_legend_cell(
 mod tests {
     use std::time::Duration;
 
-    use nova_scenario::prelude::SectionSource;
+    use nova_scenario::prelude::{
+        AIControllerConfig, SectionSource, SpaceshipConfig, SpaceshipController,
+    };
     use nova_ship::prelude::ShipStyleConfig;
 
     use super::*;
     use crate::{
-        glyph::SHIP_PLAYER,
-        node::{NextChildOrdinal, ShipDriver},
+        glyph::{SHIP_AI, SHIP_PLAYER},
+        node::{NextChildOrdinal, ObjectChoice, ShipDriver},
     };
 
     /// The narrowest window the editor is built for. The driven walks run at
@@ -2471,6 +2483,82 @@ mod tests {
             vec![SCENARIO, SHIP_PLAYER, hull_mark(&mut app, first)],
             "entering keeps the driver mark and the hull section shows its kind"
         );
+    }
+
+    /// One world object, owned by the scenario.
+    fn spawn_object(app: &mut App, scenario: Entity, id: &str, kind: ScenarioObjectKind) -> Entity {
+        app.world_mut()
+            .spawn((
+                ObjectNode {
+                    name: String::new(),
+                    kind,
+                },
+                NodeId(id.to_string()),
+                Transform::default(),
+                ChildOf(scenario),
+            ))
+            .id()
+    }
+
+    /// A picket is a ship a scenario happens to store as an object. Filed
+    /// between the rocks and the beacons, wearing a generic object mark, the
+    /// range read as scenery next to the thing being built.
+    #[test]
+    fn a_seeded_hull_stands_with_the_ships_and_not_with_the_rocks() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        spawn_object(
+            &mut app,
+            scenario,
+            "asteroid_1",
+            ObjectChoice::Asteroid.stock().kind,
+        );
+        spawn_object(
+            &mut app,
+            scenario,
+            "spaceship_1",
+            ScenarioObjectKind::Spaceship(SpaceshipConfig {
+                controller: SpaceshipController::AI(AIControllerConfig::default()),
+                ..default()
+            }),
+        );
+
+        app.update();
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "spaceship_1", "asteroid_1"],
+            "the picket belongs above the rock, whatever id order says"
+        );
+        assert_eq!(
+            row_leads(&mut app),
+            vec![
+                SCENARIO,
+                SHIP_PLAYER,
+                SHIP_AI,
+                object_mark_of(&mut app, "asteroid_1")
+            ],
+            "a picket wears the AI ship's mark, not an object's"
+        );
+        assert!(
+            row_hints(&mut app).contains(&"SHIP - AI".to_string()),
+            "and the hover says ship too: {:?}",
+            row_hints(&mut app)
+        );
+    }
+
+    /// The mark the object with `id` is drawn with, read from the function the
+    /// row is built by rather than restated as a literal.
+    fn object_mark_of(app: &mut App, id: &str) -> &'static str {
+        let node = app
+            .world_mut()
+            .query::<(&NodeId, &ObjectNode)>()
+            .iter(app.world())
+            .find(|(node_id, _)| node_id.0 == id)
+            .expect("that object")
+            .1
+            .clone();
+        object_mark(&node).0
     }
 
     /// The mark the hull section under `ship` is drawn with, read from the same

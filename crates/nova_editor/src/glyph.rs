@@ -10,7 +10,7 @@
 //! marks neither. Every codepoint below is in the shipped Iosevka Term face,
 //! written as an escape so this file stays ASCII.
 
-use nova_scenario::prelude::ScenarioObjectKind;
+use nova_scenario::prelude::{ScenarioObjectKind, SpaceshipController};
 use nova_ship::prelude::{GameSections, SectionKind};
 
 use crate::{
@@ -26,6 +26,10 @@ pub(crate) const SHIP_PLAYER: &str = "\u{25b6}";
 /// A design standing beside it. WHITE RIGHT-POINTING TRIANGLE - the same craft,
 /// not flown by you.
 pub(crate) const SHIP_AI: &str = "\u{25b7}";
+/// A hull nobody is at the controls of. WHITE RIGHT-POINTING SMALL TRIANGLE -
+/// the AI's mark, gone quiet: a craft that is there and is going nowhere.
+pub(crate) const SHIP_ADRIFT: &str = "\u{25b9}";
+
 /// The mark on the ship the editor is INSIDE.
 ///
 /// The row's TRAILING column, not its lead: which ship you are in and who flies
@@ -66,17 +70,22 @@ pub(crate) fn section_mark(
 
 /// The mark a world object wears, and its kind.
 ///
-/// Distinct from every section mark as well as from the ship marks. The two
-/// sets rarely share a tree - entering a ship takes the world out of the rail -
-/// but a mark that means two things is a mark a builder cannot trust anywhere.
+/// Distinct from every section mark, and from every other object's - a mark
+/// that means two things is a mark a builder cannot trust anywhere. The one
+/// deliberate overlap is the SHIP marks, which a seeded hull shares with a
+/// built one because it is the same kind of thing.
 pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
-    match object.kind {
+    match &object.kind {
         // BULLSEYE - a well with a centre and no body.
         ScenarioObjectKind::Anchor(_) => ("\u{25ce}", "ANCHOR"),
         // BLACK CIRCLE - a rock.
         ScenarioObjectKind::Asteroid(_) => ("\u{25cf}", "ASTEROID"),
-        // BLACK DOWN-POINTING TRIANGLE - a craft the editor does not design.
-        ScenarioObjectKind::Spaceship(_) => ("\u{25bc}", "SPACESHIP"),
+        // A HULL, and the tree says so. A picket filed under a generic object
+        // mark read as scenery next to the ship being built, when it is the
+        // same kind of thing seeded rather than minted - so it wears the ship
+        // marks, told apart by who is at the controls exactly as a built ship
+        // is.
+        ScenarioObjectKind::Spaceship(config) => spaceship_mark(&config.controller),
         // BLACK FLAG - a waypoint.
         ScenarioObjectKind::Beacon(_) => ("\u{2691}", "BEACON"),
         // WHITE SQUARE CONTAINING BLACK SMALL SQUARE - a crate with something
@@ -84,6 +93,18 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
         ScenarioObjectKind::SalvageCrate(_) => ("\u{25a3}", "SALVAGE"),
         // BLACK SUN WITH RAYS.
         ScenarioObjectKind::Light(_) => ("\u{2600}", "LIGHT"),
+    }
+}
+
+/// The mark a seeded hull wears, and what it means.
+///
+/// The third state is the one a built ship cannot be in: a hull with no
+/// controller station-keeps, which is what every derelict in a scenario is.
+fn spaceship_mark(controller: &SpaceshipController) -> (&'static str, &'static str) {
+    match controller {
+        SpaceshipController::Player(_) => (SHIP_PLAYER, "SHIP - PLAYER"),
+        SpaceshipController::AI(_) => (SHIP_AI, "SHIP - AI"),
+        SpaceshipController::None => (SHIP_ADRIFT, "SHIP - ADRIFT"),
     }
 }
 

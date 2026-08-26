@@ -871,9 +871,10 @@ pub(crate) fn toggle_field(root: &mut dyn PartialReflect, path: &[PathStep]) -> 
 
 /// The kind config an object node carries, for reading.
 ///
-/// `Spaceship` is absent because a ship in this editor is a [`ShipNode`] built
-/// out of sections; the variant is only reachable through a document the
-/// editor did not author, and it has no inspector until it does.
+/// `Spaceship` is here too, and it is the only variant the editor cannot MINT:
+/// a picket is seeded rather than built, but WHICH hull it flies and WHO flies
+/// it are the two questions a reader has about it, and both are fields of the
+/// config like any rock's radius.
 pub(crate) fn object_config(kind: &ScenarioObjectKind) -> Option<&dyn PartialReflect> {
     match kind {
         ScenarioObjectKind::Anchor(config) => Some(config),
@@ -881,7 +882,7 @@ pub(crate) fn object_config(kind: &ScenarioObjectKind) -> Option<&dyn PartialRef
         ScenarioObjectKind::Beacon(config) => Some(config),
         ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
-        ScenarioObjectKind::Spaceship(_) => None,
+        ScenarioObjectKind::Spaceship(config) => Some(config),
     }
 }
 
@@ -893,7 +894,7 @@ pub(crate) fn object_config_mut(kind: &mut ScenarioObjectKind) -> Option<&mut dy
         ScenarioObjectKind::Beacon(config) => Some(config),
         ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
-        ScenarioObjectKind::Spaceship(_) => None,
+        ScenarioObjectKind::Spaceship(config) => Some(config),
     }
 }
 

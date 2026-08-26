@@ -245,7 +245,7 @@ pub struct SpaceshipModifications(pub Vec<ShipSectionModification>);
 /// [`ShipHull`](crate::objects::ship::prelude::ShipHull) this names, so eleven
 /// scenarios spawning the corvette reference one ship instead of carrying
 /// eleven copies of its section list.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SpaceshipConfig {
     /// The hull: a catalog ship by id, or one authored inline.

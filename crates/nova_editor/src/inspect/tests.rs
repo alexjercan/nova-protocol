@@ -5,7 +5,8 @@
 
 use bevy::ecs::system::RunSystemOnce;
 use nova_scenario::prelude::{
-    AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig, ScenarioObjectKind, SectionSource,
+    AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig,
+    ScenarioObjectKind, SectionSource, ShipSource, SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, ThrusterExhaust,
@@ -582,6 +583,36 @@ fn a_rock_opens_on_its_size_and_not_its_texture() {
     assert!(
         labels.contains(&"Name".to_string()) && labels.contains(&"Position".to_string()),
         "the node's own rows are never a config field, so they always stay: {labels:?}"
+    );
+}
+
+/// A picket is a ship a scenario stores as an object, and the two questions a
+/// reader has about it are WHICH hull and WHO flies it. Before this it had no
+/// config at all: the panel said Name, Position, Rotation and stopped.
+#[test]
+fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
+    let picket = ObjectNode {
+        name: "Picket Warden".to_string(),
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            hull: ShipSource::Prototype("cargoa".to_string()),
+            controller: SpaceshipController::AI(AIControllerConfig::default()),
+            ..default()
+        }),
+    };
+
+    let rows = curated_object_rows(&picket, &Transform::default());
+    let said: Vec<(String, String)> = rows
+        .iter()
+        .map(|row| (row.label.clone(), row.value.reading()))
+        .collect();
+
+    assert!(
+        said.contains(&("Hull".to_string(), "cargoa".to_string())),
+        "the hull it flies, by catalog id: {said:?}"
+    );
+    assert!(
+        said.contains(&("Controller".to_string(), "AI".to_string())),
+        "and who is at the controls: {said:?}"
     );
 }
 

@@ -18,6 +18,7 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate, Button},
 };
+use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::{GameSections, WASDCameraController};
 use nova_ui::{
     prelude::{
@@ -261,8 +262,22 @@ impl Document<'_, '_> {
     /// The node wears the same name its tree row does, so the panel and the row
     /// that opened it read alike - and so a minted section id fits the line
     /// instead of wrapping mid-word.
+    ///
+    /// A seeded HULL says SHIP rather than OBJECT: it is filed with the rocks
+    /// only because of how a scenario stores it, and the panel is the one place
+    /// the reader is asked what they are looking at.
     fn title(&self, target: InspectTarget) -> String {
-        format!("{}  {}", target.tag(), self.name_of(target.node()))
+        let tag = match target {
+            InspectTarget::Object(object)
+                if self.objects.get(object).is_ok_and(|(node, _)| {
+                    matches!(node.kind, ScenarioObjectKind::Spaceship(_))
+                }) =>
+            {
+                "SHIP"
+            }
+            target => target.tag(),
+        };
+        format!("{tag}  {}", self.name_of(target.node()))
     }
 }
 
