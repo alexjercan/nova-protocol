@@ -13,24 +13,6 @@ pub struct Hang {
     pub gap: Vec2,
 }
 
-impl Hang {
-    /// Centred on the anchor and `gap` above it.
-    pub fn above(gap: f32) -> Self {
-        Self {
-            align: Vec2::new(0.5, 1.0),
-            gap: Vec2::new(0.0, -gap),
-        }
-    }
-
-    /// Centred on the anchor and `gap` below it.
-    pub fn below(gap: f32) -> Self {
-        Self {
-            align: Vec2::new(0.5, 0.0),
-            gap: Vec2::new(0.0, gap),
-        }
-    }
-}
-
 /// The top-left corner a node hanging off `anchor` is written at, in the units
 /// [`Node`] is written in.
 ///

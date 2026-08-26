@@ -372,6 +372,25 @@ mod float {
         }
     }
 
+    /// Centred on the anchor and `gap` above it - the hang the editor's plates
+    /// and chips use. A test fixture rather than a constructor on [`Hang`]:
+    /// every real caller states its own alignment, and the sweeps below need
+    /// both directions from one line.
+    fn above(gap: f32) -> Hang {
+        Hang {
+            align: Vec2::new(0.5, 1.0),
+            gap: Vec2::new(0.0, -gap),
+        }
+    }
+
+    /// Centred on the anchor and `gap` below it.
+    fn below(gap: f32) -> Hang {
+        Hang {
+            align: Vec2::new(0.5, 0.0),
+            gap: Vec2::new(0.0, gap),
+        }
+    }
+
     /// The defect the helper exists for: a label is offset by its own LOGICAL
     /// size, whatever the screen measures it in.
     #[test]
@@ -380,13 +399,13 @@ mod float {
         let viewport = Vec2::new(1024.0, 768.0);
         let at_1x = hang_at(
             anchor,
-            Hang::above(4.0),
+            above(4.0),
             &measured(Vec2::new(80.0, 20.0), 1.0),
             viewport,
         );
         let at_2x = hang_at(
             anchor,
-            Hang::above(4.0),
+            above(4.0),
             &measured(Vec2::new(80.0, 20.0), 2.0),
             viewport,
         );
@@ -403,7 +422,7 @@ mod float {
     fn below_hangs_under_the_anchor() {
         let at = hang_at(
             Vec2::new(400.0, 300.0),
-            Hang::below(6.0),
+            below(6.0),
             &measured(Vec2::new(80.0, 20.0), 1.0),
             Vec2::new(1024.0, 768.0),
         );
@@ -417,14 +436,14 @@ mod float {
         let viewport = Vec2::new(1024.0, 768.0);
         let node = measured(Vec2::new(200.0, 40.0), 1.0);
 
-        let right = hang_at(Vec2::new(1020.0, 400.0), Hang::below(0.0), &node, viewport)
+        let right = hang_at(Vec2::new(1020.0, 400.0), below(0.0), &node, viewport)
             .expect("an anchor on the edge is still on screen");
         assert_eq!(
             right.x, 824.0,
             "pulled in by the width that would have hung over"
         );
 
-        let top = hang_at(Vec2::new(400.0, 10.0), Hang::above(0.0), &node, viewport)
+        let top = hang_at(Vec2::new(400.0, 10.0), above(0.0), &node, viewport)
             .expect("an anchor near the top is still on screen");
         assert_eq!(top.y, 0.0, "and pushed down off the top edge");
     }
@@ -435,7 +454,7 @@ mod float {
     fn a_label_too_big_for_the_screen_pins_to_the_corner() {
         let at = hang_at(
             Vec2::new(100.0, 100.0),
-            Hang::above(0.0),
+            above(0.0),
             &measured(Vec2::new(900.0, 300.0), 1.0),
             Vec2::new(320.0, 200.0),
         );
@@ -459,7 +478,7 @@ mod float {
             Vec2::new(400.0, 900.0),
         ] {
             assert_eq!(
-                hang_at(anchor, Hang::above(4.0), &node, viewport),
+                hang_at(anchor, above(4.0), &node, viewport),
                 None,
                 "{anchor:?} is outside {viewport:?}"
             );

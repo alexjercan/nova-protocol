@@ -340,12 +340,12 @@ see it.
   sweeps every `SectionMarker`; it is correct only because `sync_ship_focus`
   hides the other ships, and only the `system_input_modes` copy says so.
 
-- [ ] R2.24 (MINOR) crates/nova_ui/src/screen/float.rs:18 - `Hang::above` and
+- [x] R2.24 (MINOR) crates/nova_ui/src/screen/float.rs:18 - `Hang::above` and
   `Hang::below` each abstract exactly one caller, and the third caller
   (`keybind.rs:58`) builds the struct literal because neither fits. Fold to the
   literal, or to one constructor taking the alignment.
 
-- [ ] R2.25 (MINOR) crates/nova_editor/src/lib.rs:655 - `escape_backs_out`'s
+- [x] R2.25 (MINOR) crates/nova_editor/src/lib.rs:655 - `escape_backs_out`'s
   docstring is welded to `backspace_steps_out` and this range rewrote it in
   place without noticing. Lines 655-662 document Escape's ladder; line 663
   starts "Backspace steps OUT one level" and the item they sit on is
@@ -746,3 +746,34 @@ Proof:
 No CHANGELOG entry: every behaviour these documents now describe already has
 one under `[Unreleased]`, and the defects this round fixed were introduced
 inside the same release cycle.
+
+### Craft leftovers - R2.24, R2.25
+
+`Hang` is the struct and nothing else. `above` and `below` each wrapped one
+caller in a shape the third could not use, so the alignment - the whole thing
+`Hang` exists to carry - was readable at one call site out of three. Each caller
+now states its own: `PLATE_HANG` above, `CALLOUT_HANG` below, `CHIP_HANG` off
+the bottom-left corner, each a `const` next to the comment explaining the
+placement. `LIFT` and `DROP` fold into them; they had no other reader. The two
+constructors move into the float tests, which is where a sweep over both
+directions genuinely wants them.
+
+`escape_backs_out` has its own docstring, and `backspace_steps_out` keeps only
+the paragraphs that were ever about it. The Escape ladder had been written
+above `backspace_steps_out` with the Backspace text welded onto its end, so
+`escape_backs_out` documented nothing and rustdoc filed Escape's ladder under
+Backspace. The Escape text also gains the menu rung, which the system opens
+with and the sentence did not mention.
+
+Proof:
+
+- `cargo test -p nova_ui --lib` (53) and `-p nova_editor --lib` (330) pass.
+- `cargo check -p nova_ui -p nova_editor --all-targets --features debug` clean;
+  `cargo fmt --all --check` clean.
+- Live under Xvfb, both cycle complete: `system_ui_scale` (chip 24 over the
+  part at 1x, 2x, 1280x600 and 760x600; legend 56 tall; 9 nameplates, none over
+  another) and `system_ship_editor`, which is the range that drives the
+  placement callout.
+
+Both are moves with no behaviour in them: the literals are the same numbers the
+constructors built, and a docstring is not compiled into anything.

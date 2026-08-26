@@ -18,11 +18,14 @@ use crate::{
     ui::layer,
 };
 
-/// How far under the ghost's own point the callout hangs.
+/// The callout hangs centred 28 logical pixels UNDER the ghost's own point.
 ///
-/// UNDER, not over: the part is being mated onto something above it as often
+/// Under, not over: the part is being mated onto something above it as often
 /// as not, and a callout over the mate hides the thing the builder is aiming.
-const DROP: f32 = 28.0;
+const CALLOUT_HANG: Hang = Hang {
+    align: Vec2::new(0.5, 0.0),
+    gap: Vec2::new(0.0, 28.0),
+};
 
 /// The panel that follows the ghost.
 #[derive(Component)]
@@ -150,7 +153,7 @@ pub(crate) fn sync_placement_callout(
         // frame's, which is one frame stale on the frame the text changes and
         // exact on every other - a callout that jumped a few pixels once per
         // wording change is cheaper than a layout pass to place a label.
-        let Some(corner) = hang_at(spot, Hang::below(DROP), computed, viewport) else {
+        let Some(corner) = hang_at(spot, CALLOUT_HANG, computed, viewport) else {
             // The ghost is beside the frame, not behind the eye: still a
             // projection, still nowhere to put a label.
             if *visibility != Visibility::Hidden {

@@ -662,20 +662,12 @@ fn declare_editor_keyboard_owner(
     }
 }
 
-/// Escape backs out one step: it puts the armed part down, and with nothing in
-/// hand it leaves the ship you are inside.
-///
-/// ONE RUNG PER PRESS. The full ladder is: an open top-bar menu, then the
-/// gallery, then a pending rebind, then the armed part, then the edit context,
-/// then the pause menu. This system owns the middle of that ladder and nothing
-/// else: the rungs above it belong to modes, and a mode holding the keyboard is
-/// a mode this never runs under.
 /// Backspace steps OUT one level, from anywhere.
 ///
-/// Escape already ends at the same rung, but it is the key that also closes a
-/// menu, drops the part in hand and cancels a rebind - so "get me out of this
-/// ship" is a press whose effect depends on what else is open. This one does
-/// the one thing, always.
+/// Escape ends at the same rung, but it is also the key that closes a menu,
+/// drops the part in hand and cancels a rebind - so "get me out of this ship"
+/// is a press whose effect depends on what else is open. This one does the one
+/// thing, always.
 ///
 /// Not while a field has the keyboard: there, Backspace is a character.
 fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<EditContext>) {
@@ -684,6 +676,14 @@ fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<Edit
     }
 }
 
+/// Escape backs out one step: it closes an open menu, then puts the armed part
+/// down, and with nothing in hand it leaves the ship you are inside.
+///
+/// ONE RUNG PER PRESS. The full ladder is: an open top-bar menu, then the
+/// gallery, then a pending rebind, then the armed part, then the edit context,
+/// then the pause menu. This system owns the middle of that ladder and nothing
+/// else: the rungs above it belong to modes, and a mode holding the keyboard is
+/// a mode this never runs under.
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
     mut menu: ResMut<OpenMenu>,

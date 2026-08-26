@@ -29,8 +29,11 @@ use crate::{
     ui::{layer, tree_text},
 };
 
-/// How far over the node's own top the plate floats, in logical pixels.
-const LIFT: f32 = 14.0;
+/// The plate stands centred over the node's own top, 14 logical pixels clear.
+const PLATE_HANG: Hang = Hang {
+    align: Vec2::new(0.5, 1.0),
+    gap: Vec2::new(0.0, -14.0),
+};
 
 /// How much room a plate keeps to itself when it is pushed clear of another,
 /// on top of its own size.
@@ -264,7 +267,7 @@ pub(crate) fn sync_nameplates(
         // pixels once per rename is cheaper than a layout pass to place a label.
         let size = computed.size() * computed.inverse_scale_factor();
         let spot = clear_of(spot, size + CROWD_GAP, viewport, &mut standing);
-        let Some(corner) = hang_at(spot, Hang::above(LIFT), computed, viewport) else {
+        let Some(corner) = hang_at(spot, PLATE_HANG, computed, viewport) else {
             // Beside the frame rather than behind the eye: in front of the
             // camera and off to one side still projects, and it projects to a
             // point that is not on screen.
