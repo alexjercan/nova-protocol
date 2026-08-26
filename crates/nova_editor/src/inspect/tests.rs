@@ -1130,15 +1130,53 @@ fn a_scrub_of_a_whole_number_stays_whole() {
     };
     let path = vec![PathStep::Field("seed".to_string())];
 
-    nudge_field(&mut config, &path, true, 2.4).expect("a seed scrubs");
+    let rule = DragRule {
+        step: 1.0,
+        limit: Limit::Free,
+    };
+    nudge_field(&mut config, &path, true, rule, 2.4).expect("a seed scrubs");
 
     assert_eq!(config.seed, Some(9), "two and a bit pixels is two seeds on");
 }
 
-/// An OPTIONAL field holding nothing has no number to move, and says so rather
-/// than inventing one.
+/// An UNSIGNED whole number stops at zero, and the floor is its TYPE's rather
+/// than a declaration's: `seed` is `Limit::Free` because a seed is a name for a
+/// shape and not a quantity, and there is still no `u32` below zero to walk
+/// into. Without the type's own floor the scrub walked 3, 2, 1, 0 and then said
+/// `not a u32` on every further pixel.
 #[test]
-fn a_scrub_of_an_empty_optional_says_it_is_empty() {
+fn a_scrub_of_an_unsigned_number_stops_at_zero() {
+    let mut config = AsteroidConfig {
+        radius: 3.0,
+        texture: default(),
+        impact_sound: None,
+        destroy_sound: None,
+        mass: None,
+        invulnerable: false,
+        seed: Some(3),
+        lock_signature: None,
+    };
+    let path = vec![PathStep::Field("seed".to_string())];
+    let rule = DragRule {
+        step: 1.0,
+        limit: Limit::Free,
+    };
+
+    nudge_field(&mut config, &path, true, rule, -3.0).expect("a seed scrubs down");
+    assert_eq!(
+        config.seed,
+        Some(0),
+        "three pixels down is three seeds back"
+    );
+
+    nudge_field(&mut config, &path, true, rule, -1.0).expect("and the next pixel is not a refusal");
+    assert_eq!(config.seed, Some(0), "it arrived at the end of its type");
+}
+
+/// An OPTIONAL field holding nothing has no number to move, and says the way
+/// out rather than inventing one - or naming the Rust word for the hole.
+#[test]
+fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
         radius: 3.0,
         texture: default(),
@@ -1151,7 +1189,11 @@ fn a_scrub_of_an_empty_optional_says_it_is_empty() {
     };
     let path = vec![PathStep::Field("mass".to_string())];
 
-    let refused = nudge_field(&mut config, &path, true, 5.0);
+    let rule = DragRule {
+        step: 0.5,
+        limit: Limit::AtLeast(0.0),
+    };
+    let refused = nudge_field(&mut config, &path, true, rule, 5.0);
 
-    assert_eq!(refused, Err("empty".to_string()));
+    assert_eq!(refused, Err(GRIP_EMPTY.to_string()));
 }

@@ -18,6 +18,10 @@
 //!    A typed negative radius is a mistake; a drag that keeps going is a
 //!    builder asking for the smallest value there is.
 //! 4. A row that is not a number has no grip: a flag is ticked, not scrubbed.
+//! 5. The grip on ONE AXIS of a vector moves by the ROW's step. The step used
+//!    to be resolved a second time from the axis path, where `x` matches no
+//!    declaration: the drag was scaled by 0.05 and the result snapped onto the
+//!    0.1 fallback grid, so a pose scrub stood still at most coordinates.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -76,6 +80,13 @@ const RADIUS_GRIP: &str = "Inspector Grip Radius";
 /// The row that must NOT have one.
 #[cfg(feature = "debug")]
 const FLAG_GRIP: &str = "Inspector Grip Invulnerable";
+
+/// The grip on one axis of a VECTOR row, and the step that row declares. The
+/// axis letter is the grip, because the panel is 240px wide.
+#[cfg(feature = "debug")]
+const POSE_GRIP: &str = "Inspector Grip Position X";
+#[cfg(feature = "debug")]
+const POSE_STEP: f32 = 0.05;
 
 /// The unit `radius` is declared with, and the step it is dragged by.
 #[cfg(feature = "debug")]
@@ -144,6 +155,42 @@ fn the_radius_moved() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pred
         };
         (radius_now(world) - before.0).abs() > f32::EPSILON
     })
+}
+
+/// Where the selected node sits, off the same snapshot a drag beat reads.
+#[cfg(feature = "debug")]
+fn position_of(world: &World) -> Option<Vec3> {
+    let probe = world.get_resource::<EditorProbe>()?;
+    let id = probe.selected_node.clone()?;
+    probe
+        .node_positions
+        .iter()
+        .find(|(node, _)| *node == id)
+        .map(|(_, at)| *at)
+}
+
+/// Advance once the rock has left the place the last stamp took.
+#[cfg(feature = "debug")]
+fn the_pose_moved() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(before) = world.get_resource::<PoseBefore>() else {
+            return false;
+        };
+        position_of(world).is_some_and(|at| (at.x - before.0.x).abs() > f32::EPSILON)
+    })
+}
+
+/// Where the rock sat before the drag that must move it.
+#[cfg(feature = "debug")]
+#[derive(Resource, Debug, Clone, Copy)]
+struct PoseBefore(Vec3);
+
+/// Stamp the pose the next verdict is read against.
+#[cfg(feature = "debug")]
+fn stamp_the_pose(world: &mut World) {
+    let at = position_of(world).expect("the placed rock is selected and has a pose");
+    world.insert_resource(PoseBefore(at));
+    info!("fields: the rock sits at {at}");
 }
 
 /// What the radius read before the drag that must change it.
@@ -274,6 +321,37 @@ fn field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .step("fields: the scrub arrived at the floor")
         .on_enter(read_the_scrub_stopped_at_the_floor)
         .add()
+        // And the same gesture on ONE AXIS of a vector, which is the row whose
+        // step had nowhere to be looked up from.
+        .step("fields: stamp the pose")
+        .on_enter(stamp_the_pose)
+        .add()
+        .step("fields: aim at the X grip")
+        .on_enter(hover_named(POSE_GRIP))
+        .until(the_pointer_is_on(POSE_GRIP))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("fields: take the X grip")
+        .on_enter(press_mouse(MouseButton::Left))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("fields: pull X along")
+        .on_enter(|world: &mut World| {
+            let at = ui_node_centre(world, POSE_GRIP).expect("the X grip is on screen");
+            move_cursor(at + Vec2::new(PULL_PX, 0.0))(world);
+        })
+        .until(the_pose_moved())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("fields: let the X grip go")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("fields: the axis moved by the row's own step")
+        .on_enter(read_the_axis_scrub_moved_by_its_step)
+        .add()
 }
 
 /// The unit beside the radius, and the grip a flag must not have.
@@ -325,6 +403,27 @@ fn read_the_scrub_moved_by_its_step(world: &mut World) {
         serde_json::json!({ "before": before, "after": now, "step": RADIUS_STEP }),
     );
     info!("fields: the radius went {before} -> {now} on a {PULL_PX}px pull");
+}
+
+#[cfg(feature = "debug")]
+fn read_the_axis_scrub_moved_by_its_step(world: &mut World) {
+    let before = world.resource::<PoseBefore>().0;
+    let now = position_of(world).expect("the rock still has a pose");
+    let wanted = before.x + PULL_PX * POSE_STEP;
+    assert!(
+        (now.x - wanted).abs() < POSE_STEP,
+        "a grip on one axis moves by the ROW's step: {PULL_PX} px at {POSE_STEP} is {wanted}, and          the rock sits at {}. A stall here means the step is being resolved a second time from          the axis path, where no declaration matches it",
+        now.x
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a vector axis is scrubbed by its row's step",
+        serde_json::json!({ "before": before.x, "after": now.x, "step": POSE_STEP }),
+    );
+    info!(
+        "fields: X went {} -> {} on a {PULL_PX}px pull",
+        before.x, now.x
+    );
 }
 
 #[cfg(feature = "debug")]

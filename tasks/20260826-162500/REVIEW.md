@@ -26,7 +26,7 @@ see it.
 
 ### Findings
 
-- [ ] R2.1 (BLOCKER) crates/nova_editor/src/inspect.rs:1187 - the scrub's
+- [x] R2.1 (BLOCKER) crates/nova_editor/src/inspect.rs:1187 - the scrub's
   travel and its snap grid come from two different lookups, so a slow drag
   either moves at twice the declared rate or stops moving. `on_inspector_drag`
   multiplies the frame's pixels by the ROW's declared step, which
@@ -176,7 +176,7 @@ see it.
   Change: let `save_key` run under Browse - a save is not a keyboard-ownership
   question - or have the gallery answer Ctrl+S itself.
 
-- [ ] R2.9 (MAJOR) crates/nova_editor/src/inspect.rs:791 - an empty or unsigned
+- [x] R2.9 (MAJOR) crates/nova_editor/src/inspect.rs:791 - an empty or unsigned
   optional number wears a grip that can only refuse, once per drag event, in
   words that name a Rust type. `walk_option` builds `RowValue::Number` off the
   payload TYPE, so a field holding `None` still gets a step and a grip.
@@ -259,7 +259,7 @@ see it.
   Change: key the reach on the measured `ColliderAabb`, or invalidate on
   `Changed<ObjectNode>`.
 
-- [ ] R2.15 (MINOR) crates/nova_editor/src/inspect.rs:1188 - `nudge_field`
+- [x] R2.15 (MINOR) crates/nova_editor/src/inspect.rs:1188 - `nudge_field`
   writes unconditionally, so a nudge that lands on the value it started from
   still writes - and still triggers R2.6's rebuild. `on_inspector_drag` guards
   only `by == 0.0`, not "the snapped result equals what is held". Under R2.1
@@ -437,3 +437,43 @@ Four of the six lanes found R2.1 independently and rated it MAJOR twice,
 BLOCKER once. It is raised to BLOCKER here because the HiDPI reach - which only
 one lane had - takes it from a wrong step size on pose rows to a control that
 stops working across the whole panel.
+
+## Fixes
+
+One commit per group, each ticking its own findings above.
+
+### One step drives both travel and snap - R2.1, R2.9, R2.15
+
+The row now carries its `Limit` beside its step, and both reach the grip as one
+`DragRule`. `nudge_field` takes that rule plus a COUNT of steps, so nothing is
+resolved a second time from an axis path where `x` matches no declaration.
+
+- The grip accumulates pixels that do not reach a whole step, which is what a
+  HiDPI screen hands it: one physical pixel is half a logical one at 2x, and
+  the old truncation threw every frame of the drag away there.
+- A whole UNSIGNED field takes the floor its TYPE carries, so a seed walks
+  3, 2, 1, 0 and stops instead of saying `not a u32` on every further pixel
+  (R2.9).
+- A move that lands on the value it started from writes nothing (R2.15).
+- The two refusals a scrub can reach are phrased as the way out rather than as
+  the Rust word for the hole: `type a number here first`, `that field is gone -
+  pick the node again` (R2.9).
+
+A drag that reaches the window edge now WRAPS the pointer to the other side, so
+a 0.05 step is not bounded by one screen of travel. `bevy_picking` measures its
+delta from the last cursor position it saw, so the warp arrives as a move of its
+own and the grip takes exactly that much back on the next frame.
+
+Proof:
+
+- `cargo test -p nova_editor --lib` - 324 pass, five new: an axis scrub moving
+  by its row's step, a half-pixel scrub that steps on the second half, the wrap,
+  a scrub easing off an edge that does NOT wrap, and an unsigned scrub arriving
+  at zero.
+- Mutation check: snapping on `FREE_STEP` instead of `rule.step` takes the axis
+  test down with `one pixel is one step of 0.05 (got 3)` - the stall itself.
+- `system_field_controls` gained the beat the old proof was missing: a pull on
+  `Position X`, the row whose step had nowhere to be looked up from. Live under
+  Xvfb, `X went -45.625 -> -43.6 on a 40px pull`, cycle complete.
+- `system_ship_editor` re-run live, cycle complete.
+

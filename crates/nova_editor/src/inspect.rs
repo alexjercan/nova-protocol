@@ -251,6 +251,10 @@ pub(crate) struct InspectorRow {
     /// How far one pixel of a drag moves this row's number. Zero for a row
     /// holding something that is not a number, which has nothing to scrub.
     pub(crate) nudge: f32,
+    /// What the field takes. Carried on the ROW because the grip is handed the
+    /// path of one vector component, and `x` is not a name any declaration can
+    /// match - resolving the rule a second time from there finds nothing.
+    pub(crate) limit: Limit,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
 }
@@ -265,6 +269,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
+        limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
     }
 }
@@ -275,13 +280,14 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     let (group, label) = heading_and_label(&path);
     // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
     // one drawn beside it would be a label for the wrong thing.
-    let (unit, nudge) = match value {
+    let (unit, nudge, limit) = match value {
         // A vector's three numbers share one unit, and the row's own line is
         // where it goes - the same place the pose's Position row wears its.
-        RowValue::Number(_) | RowValue::Axes(_) => {
-            field_spec(&path).map_or(("", FREE_STEP), |spec| (spec.unit, spec.step))
-        }
-        _ => ("", 0.0),
+        RowValue::Number(_) | RowValue::Axes(_) => field_spec(&path)
+            .map_or(("", FREE_STEP, Limit::Free), |spec| {
+                (spec.unit, spec.step, spec.limit)
+            }),
+        _ => ("", 0.0, Limit::Free),
     };
     InspectorRow {
         root,
@@ -291,6 +297,7 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         label,
         unit,
         nudge,
+        limit,
         value,
     }
 }
@@ -1119,6 +1126,10 @@ pub(crate) fn parse_colour(text: &str) -> Option<Color> {
 struct Held {
     value: f64,
     whole: bool,
+    /// The floor the field's own TYPE carries, where it has one. An unsigned
+    /// field has nowhere below zero to go, and saying so here is what stops a
+    /// scrub walking off the end of it into a parse error.
+    floor: Option<f64>,
 }
 
 /// What `value` holds, if it holds one number.
@@ -1137,16 +1148,25 @@ fn number_at(value: &dyn PartialReflect) -> Option<Held> {
         return Some(Held {
             value: number,
             whole: false,
+            floor: None,
         });
     }
     macro_rules! whole {
         ($($kind:ty),*) => {
             $(if let Some(number) = value.try_downcast_ref::<$kind>() {
-                return Some(Held { value: *number as f64, whole: true });
+                return Some(Held { value: *number as f64, whole: true, floor: None });
             })*
         };
     }
-    whole!(i32, i64, u8, u16, u32, u64, usize);
+    macro_rules! unsigned {
+        ($($kind:ty),*) => {
+            $(if let Some(number) = value.try_downcast_ref::<$kind>() {
+                return Some(Held { value: *number as f64, whole: true, floor: Some(0.0) });
+            })*
+        };
+    }
+    whole!(i32, i64);
+    unsigned!(u8, u16, u32, u64, usize);
     None
 }
 
@@ -1163,7 +1183,19 @@ fn snapped(value: f64, step: f32, whole: bool) -> f64 {
     (value / step).round() * step
 }
 
-/// Move the number at `path` by `by`, in the units the field is typed in.
+/// Move the number at `path` by `steps` of the row's own step.
+///
+/// The step is the ROW's, passed in, not looked up again here. A grip on a
+/// vector is handed the path of one component, and `x` is not a name any
+/// declaration matches - a second lookup finds nothing and falls back to a
+/// different step from the one the drag is being scaled by. Travel and snap
+/// then disagree, and a scrub either doubles or stops dead depending on where
+/// the number happens to sit.
+///
+/// `steps` is a count, so a value already on the step grid stays on it and the
+/// snap can never round a move away. Sub-pixel movement is the caller's to
+/// accumulate: at scale factor 2 one physical pixel is half a logical one, and
+/// a control that discards half-pixels does not move at all there.
 ///
 /// The result goes back through [`write_field`], so a scrub answers to the same
 /// floor a typed number does - except that it STOPS at it instead of being
@@ -1177,19 +1209,55 @@ pub(crate) fn nudge_field(
     root: &mut dyn PartialReflect,
     path: &[PathStep],
     optional: bool,
-    by: f32,
+    rule: DragRule,
+    steps: f64,
 ) -> Result<(), String> {
     let held = {
-        let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
-        number_at(target).ok_or_else(|| "empty".to_string())?
+        let target = resolve(root, path).ok_or_else(|| GRIP_GONE.to_string())?;
+        number_at(target).ok_or_else(|| GRIP_EMPTY.to_string())?
     };
-    let spec = field_spec(path);
-    let step = spec.map_or(FREE_STEP, |spec| spec.step);
-    let mut moved = snapped(held.value + f64::from(by), step, held.whole);
-    if let Some(Limit::AtLeast(floor)) = spec.map(|spec| spec.limit) {
-        moved = moved.max(f64::from(floor));
+    let floors = [
+        held.floor,
+        match rule.limit {
+            Limit::AtLeast(floor) => Some(f64::from(floor)),
+            Limit::Free => None,
+        },
+    ];
+    let floor = floors.into_iter().flatten().reduce(f64::max);
+    let mut moved = snapped(
+        held.value + steps * f64::from(rule.step),
+        rule.step,
+        held.whole,
+    );
+    if let Some(floor) = floor {
+        moved = moved.max(floor);
+    }
+    if moved == held.value {
+        return Ok(());
     }
     write_field(root, path, optional, &number_text(moved))
+}
+
+/// What a scrub says when the row it was on is not there any more, which a
+/// delete under a live drag can do.
+pub(crate) const GRIP_GONE: &str = "that field is gone - pick the node again";
+
+/// What a scrub says on an OPTIONAL field holding nothing.
+///
+/// A number's field wears its unit and its grip whether or not it holds a
+/// number yet, because the alternative is a row that changes shape under the
+/// pointer. There is still nothing to add a delta to, so the refusal is the way
+/// out rather than the Rust word for the hole.
+pub(crate) const GRIP_EMPTY: &str = "type a number here first";
+
+/// What a grip needs to move a number: how far one pixel takes it, and where it
+/// stops. Both are the ROW's, resolved once where the declaration can be found.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct DragRule {
+    /// How far one pixel of a drag moves the number.
+    pub(crate) step: f32,
+    /// What the field takes.
+    pub(crate) limit: Limit,
 }
 
 /// Flip the `bool` at `path`, and say what it became.
@@ -1377,6 +1445,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             label: "Driver".to_string(),
             unit: "",
             nudge: 0.0,
+            limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
         },
         fixed(
@@ -1434,6 +1503,7 @@ pub(crate) fn section_rows(
             label: "Key".to_string(),
             unit: "",
             nudge: 0.0,
+            limit: Limit::Free,
             value: RowValue::Key(if binding.is_empty() {
                 UNBOUND.to_string()
             } else {
@@ -1477,6 +1547,7 @@ fn name_row(name: String) -> InspectorRow {
         label: "Name".to_string(),
         unit: "",
         nudge: 0.0,
+        limit: Limit::Free,
         value: RowValue::Text(name),
     }
 }
@@ -1505,6 +1576,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             "Position",
             "u",
             POSE_STEP,
+            Limit::Free,
             pose.translation,
         ),
         // ROTATION, not heading: it is the node's rotation, and rotation is
@@ -1515,6 +1587,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             "Rotation",
             "deg, yaw/pitch/roll",
             TURN_STEP,
+            Limit::Free,
             rotation_degrees(pose),
         ),
     ]
@@ -1538,6 +1611,7 @@ fn axes_row(
     label: &str,
     unit: &'static str,
     nudge: f32,
+    limit: Limit,
     value: Vec3,
 ) -> InspectorRow {
     InspectorRow {
@@ -1548,6 +1622,7 @@ fn axes_row(
         label: label.to_string(),
         unit,
         nudge,
+        limit,
         value: axes_of(value),
     }
 }

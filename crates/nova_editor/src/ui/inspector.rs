@@ -17,6 +17,7 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
     ui_widgets::{observe, Activate, Button},
+    window::PrimaryWindow,
 };
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::{GameSections, WASDCameraController};
@@ -39,8 +40,8 @@ use crate::{
         axis_step, choose_field, curated_object_rows, curated_section_rows, driver_label,
         editable_config, inspected, nudge_field, object_config_mut, object_rows, parse_colour,
         rotation_degrees, rotation_from_degrees, scenario_rows, section_config_mut, section_rows,
-        ship_rows, toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds,
-        PathStep, RowValue,
+        ship_rows, toggle_field, write_field, DragRule, FieldRoot, InspectTarget, InspectorRow,
+        NodeKinds, PathStep, RowValue,
     },
     keybind::on_rebind_action,
     node::{
@@ -108,14 +109,45 @@ pub(crate) struct InspectorField {
 #[derive(Component)]
 pub(crate) struct InspectorUnit(&'static str);
 
-/// A number's name, which is also the grip that scrubs it: how far one pixel of
-/// a drag moves the value.
+/// A number's name, which is also the grip that scrubs it: the rule the drag
+/// moves the value by, and what a live drag has to remember between frames.
 ///
 /// The NAME rather than a control of its own, because the panel is 240px wide
 /// and a row that spends pixels on a grip spends them on the box holding the
 /// number. It rides beside an [`InspectorField`], which says what it writes to.
 #[derive(Component, Clone, Copy)]
-pub(crate) struct InspectorDrag(f32);
+pub(crate) struct InspectorDrag {
+    /// How far one pixel takes the number, and where it stops.
+    rule: DragRule,
+    /// Pixels this drag has travelled that did not add up to a whole step yet.
+    ///
+    /// Kept rather than dropped, because one physical pixel is HALF a logical
+    /// one at 2x scale: a grip that truncated each frame on its own would
+    /// refuse to move on exactly the displays this range exists to support.
+    residual: f32,
+    /// How far the last wrap teleported the pointer.
+    ///
+    /// `bevy_picking` measures its delta from the last cursor position it SAW,
+    /// so the warp reaches the next frame as a move like any other. Only the
+    /// grip that asked for it knows to take it back.
+    warped: f32,
+}
+
+impl InspectorDrag {
+    /// A grip that has not been dragged yet.
+    fn new(rule: DragRule) -> Self {
+        Self {
+            rule,
+            residual: 0.0,
+            warped: 0.0,
+        }
+    }
+}
+
+/// How close to a window edge a scrub gets before the pointer wraps to the
+/// other side. The test is `at or past`, so a drag fast enough to leap the band
+/// in one frame still lands inside it.
+const WRAP_EDGE: f32 = 24.0;
 
 /// A checkbox standing for a `bool` field.
 #[derive(Component)]
@@ -605,7 +637,10 @@ fn spawn_axes_row(
 ) {
     let leads = axis_leads(row.root);
     let unit = row.unit;
-    let nudge = row.nudge;
+    let rule = DragRule {
+        step: row.nudge,
+        limit: row.limit,
+    };
     let label = row.label.clone();
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
@@ -674,8 +709,9 @@ fn spawn_axes_row(
                         // The axis letter is this box's name, so it is this
                         // box's grip: dragging Y slides the node along Y.
                         Name::new(format!("Inspector Grip {label} {lead}")),
-                        InspectorDrag(nudge),
+                        InspectorDrag::new(rule),
                         axis_field.clone(),
+                        observe(on_inspector_drag_start),
                         observe(on_inspector_drag),
                     ));
                     line.spawn(Node {
@@ -793,8 +829,12 @@ fn build_rows(
             if row.nudge > 0.0 {
                 label.insert((
                     Name::new(format!("Inspector Grip {}", row.label)),
-                    InspectorDrag(row.nudge),
+                    InspectorDrag::new(DragRule {
+                        step: row.nudge,
+                        limit: row.limit,
+                    }),
                     field.clone(),
+                    observe(on_inspector_drag_start),
                     observe(on_inspector_drag),
                 ));
             }
@@ -1335,36 +1375,90 @@ pub(crate) fn apply_inspector_edits(
     }
 }
 
+/// Begin a scrub from a clean slate.
+///
+/// The pixels a previous drag left over, and a warp whose echo its release beat
+/// out, both belong to that drag. Either one carried into this drag moves the
+/// number before the pointer has.
+pub(crate) fn on_inspector_drag_start(
+    drag: On<Pointer<DragStart>>,
+    mut grips: Query<&mut InspectorDrag>,
+) {
+    let Ok(mut grip) = grips.get_mut(drag.entity) else {
+        return;
+    };
+    grip.residual = 0.0;
+    grip.warped = 0.0;
+}
+
 /// Scrub a number by dragging its name.
 ///
 /// Continuous: every frame of the drag moves the value by that frame's pixels,
 /// so the number under the pointer is the number the document holds - there is
 /// no committed-on-release state to lose.
 ///
+/// One pixel is one step of the ROW's rule, and the same rule then says where
+/// the step lands. Reading the rule twice is what stalled this grip: the second
+/// read only had the path of one vector component to go on, and `x` matches no
+/// declaration, so a 0.05 field snapped to a 0.1 grid and came straight back.
+///
 /// A refusal is SAID rather than written onto a box: the grip is the row's
 /// name, and a name has nowhere to wear an error.
 pub(crate) fn on_inspector_drag(
     drag: On<Pointer<Drag>>,
-    grips: Query<(&InspectorField, &InspectorDrag)>,
+    mut grips: Query<(&InspectorField, &mut InspectorDrag)>,
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
     mut targets: EditTargets,
     mut says: EditorSays,
 ) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    let Ok((field, grip)) = grips.get(drag.entity) else {
+    let Ok((field, mut grip)) = grips.get_mut(drag.entity) else {
         return;
     };
-    let by = drag.delta.x * grip.0;
-    if by == 0.0 {
+    let travel = grip.residual + drag.delta.x - grip.warped;
+    grip.residual = travel.fract();
+    grip.warped = match windows.single_mut() {
+        Ok(mut window) => wrapped(&mut window, drag.pointer_location.position, drag.delta.x),
+        Err(_) => 0.0,
+    };
+    let steps = f64::from(travel.trunc());
+    if steps == 0.0 {
         return;
     }
+    let rule = grip.rule;
     let moved = targets.edit(field, |root, path, optional| {
-        nudge_field(root, path, optional, by)
+        nudge_field(root, path, optional, rule, steps)
     });
     if let Err(reason) = moved {
         says.refuse(reason);
     }
+}
+
+/// Put the pointer back on the far side of the window when a scrub reaches an
+/// edge, and answer how far that moved it.
+///
+/// A drag that runs out of screen is a drag that stops, and a step of 0.05 runs
+/// out of screen long before an ordinary coordinate is where it should be.
+///
+/// Only a drag travelling INTO the edge wraps. Sitting on the edge and easing
+/// back the other way is the gesture that corrects an overshoot, and teleporting
+/// it across the window would be the last thing it wants.
+fn wrapped(window: &mut Window, at: Vec2, travel: f32) -> f32 {
+    let width = window.width();
+    if width < WRAP_EDGE * 4.0 {
+        return 0.0;
+    }
+    let landing = if at.x <= WRAP_EDGE && travel < 0.0 {
+        width - WRAP_EDGE * 2.0
+    } else if at.x >= width - WRAP_EDGE && travel > 0.0 {
+        WRAP_EDGE * 2.0
+    } else {
+        return 0.0;
+    };
+    window.set_cursor_position(Some(Vec2::new(landing, at.y)));
+    landing - at.x
 }
 
 /// Flip a `bool` field.

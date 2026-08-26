@@ -6,6 +6,7 @@ use bevy::{
     camera::NormalizedRenderTarget,
     ecs::system::RunSystemOnce,
     picking::pointer::{Location, PointerId},
+    window::WindowResolution,
 };
 use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
@@ -1016,6 +1017,140 @@ fn a_row_that_is_not_a_number_has_no_grip() {
     );
 }
 
+/// A grip on ONE AXIS of a vector moves by the row's OWN step.
+///
+/// The step used to be resolved a second time from the axis path, where `x`
+/// matches no declaration: a pose row scaled its travel by 0.05 and then
+/// snapped the result onto the 0.1 fallback grid, which put every step of an
+/// ordinary drag straight back where it started.
+#[test]
+fn a_scrub_of_one_axis_moves_by_the_rows_own_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    app.world_mut()
+        .entity_mut(rock)
+        .insert(Transform::from_xyz(3.0, 0.0, 0.0));
+    select(&mut app, rock);
+
+    scrub(&mut app, "Position X", 1.0);
+
+    let moved = position_of(&app, rock).x;
+    assert!(
+        (moved - 3.05).abs() < 1e-4,
+        "one pixel is one step of 0.05 (got {moved})"
+    );
+}
+
+/// Pixels that do not reach a whole step are KEPT.
+///
+/// Half a logical pixel is what one physical pixel is worth at 2x scale. A grip
+/// that dropped the half moved on no HiDPI screen at all, whatever the row.
+#[test]
+fn a_scrub_keeps_the_pixels_that_do_not_reach_a_whole_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    scrub(&mut app, "Radius", 0.5);
+    assert!(
+        (radius_of(&app, rock) - 3.0).abs() < 1e-4,
+        "half a pixel is not a step yet (got {})",
+        radius_of(&app, rock)
+    );
+
+    scrub(&mut app, "Radius", 0.5);
+    assert!(
+        (radius_of(&app, rock) - 3.05).abs() < 1e-4,
+        "the two halves made the step between them (got {})",
+        radius_of(&app, rock)
+    );
+}
+
+/// A scrub that reaches the edge of the window comes back on the other side, so
+/// the drag can keep going. At 0.05 a unit, a radius worth changing is further
+/// than one screen of pointer travel.
+#[test]
+fn a_scrub_that_reaches_the_edge_wraps_the_pointer() {
+    let mut app = inspector_app();
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                resolution: WindowResolution::new(1024, 768),
+                ..default()
+            },
+            PrimaryWindow,
+        ))
+        .id();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    scrub_from(&mut app, "Radius", Vec2::new(1020.0, 400.0), 4.0);
+
+    let put = app
+        .world()
+        .get::<Window>(window)
+        .expect("the window")
+        .cursor_position();
+    assert_eq!(
+        put,
+        Some(Vec2::new(48.0, 400.0)),
+        "the pointer came back on the left"
+    );
+
+    // The warp lands in the same stream the drag reads, as a move of its own.
+    // Taking it back is what stops one wrap counting as a screen of travel.
+    let before = radius_of(&app, rock);
+    scrub_from(&mut app, "Radius", Vec2::new(48.0, 400.0), -972.0);
+    assert!(
+        (radius_of(&app, rock) - before).abs() < 1e-4,
+        "the echo of the warp moved nothing (got {})",
+        radius_of(&app, rock)
+    );
+}
+
+/// A scrub easing BACK off an edge is correcting an overshoot, and wrapping it
+/// across the window would be the last thing it wants.
+#[test]
+fn a_scrub_easing_off_an_edge_stays_where_it_is() {
+    let mut app = inspector_app();
+    let window = app
+        .world_mut()
+        .spawn((
+            Window {
+                resolution: WindowResolution::new(1024, 768),
+                ..default()
+            },
+            PrimaryWindow,
+        ))
+        .id();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    scrub_from(&mut app, "Radius", Vec2::new(1020.0, 400.0), -4.0);
+
+    assert_eq!(
+        app.world()
+            .get::<Window>(window)
+            .expect("the window")
+            .cursor_position(),
+        None,
+        "nothing was warped, so nothing was ever set"
+    );
+}
+
+/// Where the object sits, which is what a pose row writes to.
+fn position_of(app: &App, object: Entity) -> Vec3 {
+    app.world()
+        .get::<Transform>(object)
+        .expect("a transform")
+        .translation
+}
+
 /// The grip of the row called `label`, if that row has one.
 fn grip_of(app: &mut App, label: &str) -> Option<Entity> {
     let wanted = format!("Inspector Grip {label}");
@@ -1029,6 +1164,12 @@ fn grip_of(app: &mut App, label: &str) -> Option<Entity> {
 /// Slide the name of the row called `label` by `pixels`, the way a pointer
 /// does.
 fn scrub(app: &mut App, label: &str, pixels: f32) {
+    scrub_from(app, label, Vec2::ZERO, pixels);
+}
+
+/// The same slide, from a stated place in the window - which is what decides
+/// whether the pointer wraps.
+fn scrub_from(app: &mut App, label: &str, at: Vec2, pixels: f32) {
     let grip = grip_of(app, label).unwrap_or_else(|| panic!("no grip {label:?}"));
     let delta = Vec2::new(pixels, 0.0);
     app.world_mut().trigger(Pointer::new(
@@ -1038,7 +1179,7 @@ fn scrub(app: &mut App, label: &str, pixels: f32) {
                 handle: Handle::default(),
                 scale_factor: 1.0,
             }),
-            position: Vec2::ZERO,
+            position: at,
         },
         Drag {
             button: PointerButton::Primary,
