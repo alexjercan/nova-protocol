@@ -262,6 +262,42 @@ fn the_rig_is_sized_from_where_the_camera_is_now() {
     );
 }
 
+/// The other half of the measure-once rule. A turn must not resize the rig; a
+/// RESIZE must. The Inspector's Scale field is typed with the rig still up, and
+/// a measurement keyed on the node alone leaves it wearing the size it had.
+#[test]
+fn resizing_a_node_resizes_its_rig() {
+    let mut app = gizmo_app();
+    // Close in, so the node's own extent decides the arm rather than the
+    // camera-distance floor.
+    let at = Vec3::new(0.0, 5.0, 28.0);
+    let node = ship(&mut app, at);
+    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    place(&mut app);
+    let before = rig(&app).0.scale.x;
+
+    let view = {
+        let mut query = app
+            .world()
+            .try_query_filtered::<Entity, With<NodeView>>()
+            .expect("the view is queryable");
+        query.single(app.world()).expect("one view")
+    };
+    app.world_mut()
+        .entity_mut(node)
+        .insert(Transform::from_translation(at).with_scale(Vec3::splat(0.25)));
+    app.world_mut()
+        .entity_mut(view)
+        .insert(Collider::cuboid(1.0, 0.5, 2.0).aabb(at, Quat::IDENTITY));
+    place(&mut app);
+
+    let after = rig(&app).0.scale.x;
+    assert!(
+        after < before * 0.75,
+        "a quarter-size hull wears a smaller rig; it went {before} -> {after}"
+    );
+}
+
 #[test]
 fn turning_a_node_does_not_resize_its_rig() {
     let mut app = gizmo_app();

@@ -299,21 +299,25 @@ pub(crate) fn setup_gizmo(
 /// the handles swell and shrink under their own turn ring, which reads as the
 /// rig fighting the gesture.
 ///
-/// The reach of a node cannot change while its rig is up: sections are only
-/// added from INSIDE a ship, and the rig is hidden in there. So the first
-/// measurement stands until the selection moves.
+/// Sections are only added from INSIDE a ship and the rig is hidden in there,
+/// so the measurement stands until the selection moves - or until the node is
+/// RESIZED, which the Inspector's Scale field does with the rig still up.
 #[derive(Resource, Default, Debug)]
 pub(crate) struct GizmoReach {
     /// The node the standing measurement belongs to.
     node: Option<Entity>,
+    /// The scale the standing measurement was taken at. Part of the key, not
+    /// of the answer: a node typed down to a tenth of its size otherwise wears
+    /// the rig of the size it had.
+    scale: Vec3,
     /// Half the node's diagonal with clearance, or `None` while nothing under
     /// the node has a collider to measure yet.
     reach: Option<f32>,
 }
 
 impl GizmoReach {
-    /// The reach for `node`, measuring it if this is a node we have not
-    /// measured yet.
+    /// The reach for `node` at `scale`, measuring it if that is a pair we have
+    /// not measured yet.
     ///
     /// A node placed THIS frame has no collider until the physics step runs,
     /// and that measures as `None` rather than as zero - so the rig takes its
@@ -322,11 +326,13 @@ impl GizmoReach {
     fn measure(
         &mut self,
         node: Entity,
+        scale: Vec3,
         q_children: &Query<&Children>,
         q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
     ) -> f32 {
-        if self.node != Some(node) {
+        if self.node != Some(node) || self.scale != scale {
             self.node = Some(node);
+            self.scale = scale;
             self.reach = None;
         }
         if self.reach.is_none() {
@@ -369,13 +375,12 @@ pub(crate) fn sync_gizmo(
         return;
     };
 
-    let at = q_staged
-        .get(node)
-        .map(|transform| transform.translation)
-        .unwrap_or_default();
+    let staged = q_staged.get(node).ok();
+    let at = staged.map_or_else(Vec3::default, |transform| transform.translation);
     // The node's own extent, so the arms clear a corvette's hull, floored by a
     // fraction of the viewing distance so a lone beacon is not a speck.
-    let reach = reach.measure(node, &q_children, &q_bounds);
+    let scale = staged.map_or(Vec3::ONE, |transform| transform.scale);
+    let reach = reach.measure(node, scale, &q_children, &q_bounds);
     let watched = camera.translation.distance(at);
     let arm = reach.max(watched * SCREEN_SPAN);
     let wanted = Transform::from_translation(at).with_scale(Vec3::splat(arm));

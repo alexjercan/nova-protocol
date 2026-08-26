@@ -188,6 +188,35 @@ pub fn pointer_released() -> Arc<Predicate> {
     Arc::new(|world: &World| mouse_holds_primary(world, false))
 }
 
+/// How close the reported pointer must be to count as arrived, in logical
+/// pixels. A pointer that reports the position it was sent to reports it
+/// exactly; the tolerance is there for the rounding a scale factor introduces.
+const POINTER_TOLERANCE: f32 = 1.0;
+
+/// Advance once the WINDOW MOUSE pointer REPORTS `position` (logical pixels).
+///
+/// The ack of a [`move_cursor`](crate::input::move_cursor) beat.
+/// [`move_cursor`](crate::input::move_cursor) writes the window event; the
+/// picking backend turns it into a pointer location one `PreUpdate` later, and
+/// a click fired before that lands where the pointer USED to be - on the panel
+/// the walk just left rather than on the empty space it aimed at.
+pub fn pointer_at(position: Vec2) -> Arc<Predicate> {
+    Arc::new(move |world: &World| {
+        use bevy::picking::pointer::{PointerId, PointerLocation};
+
+        world
+            .try_query::<(&PointerId, &PointerLocation)>()
+            .is_some_and(|mut query| {
+                query.iter(world).any(|(id, at)| {
+                    id.is_mouse()
+                        && at.location.as_ref().is_some_and(|location| {
+                            location.position.distance(position) <= POINTER_TOLERANCE
+                        })
+                })
+            })
+    })
+}
+
 /// Whether [`PointerId::Mouse`]'s primary button is in `held`.
 ///
 /// [`PointerId::Mouse`] specifically, not "any pointer": the gestures synthesize
@@ -526,13 +555,57 @@ mod tests {
         assert!(pointer_released()(&world));
         assert!(!pointer_pressed()(&world));
     }
+
+    /// The position ack answers for where the picking backend BELIEVES the
+    /// mouse is, not for where the gesture aimed it. A beat that clicks before
+    /// this holds clicks at the pointer's old position.
+    #[test]
+    fn the_position_ack_reads_the_pointer_the_backend_moved() {
+        use bevy::{
+            camera::NormalizedRenderTarget,
+            picking::pointer::{Location, PointerId, PointerLocation},
+            window::WindowRef,
+        };
+
+        let target = Vec2::new(760.0, 640.0);
+        let mut world = World::new();
+        assert!(
+            !pointer_at(target)(&world),
+            "no picking pointer is not an arrival"
+        );
+
+        let window = world.spawn_empty().id();
+        let at = |position: Vec2| {
+            PointerLocation::new(Location {
+                target: NormalizedRenderTarget::Window(
+                    WindowRef::Entity(window)
+                        .normalize(None)
+                        .expect("the window is named outright"),
+                ),
+                position,
+            })
+        };
+        let pointer = world
+            .spawn((PointerId::Mouse, at(Vec2::new(10.0, 10.0))))
+            .id();
+        assert!(
+            !pointer_at(target)(&world),
+            "the pointer still stands where it was"
+        );
+
+        *world
+            .entity_mut(pointer)
+            .get_mut::<PointerLocation>()
+            .expect("the pointer holds a location") = at(target);
+        assert!(pointer_at(target)(&world));
+    }
 }
 
 /// The `Predicate` type and its combinators: time, frames, state, resource,
 /// entity, pointer, UI-node, screenshot and loop conditions plus `and`/`or`/`not`.
 pub mod prelude {
     pub use super::{
-        and, any_entity, elapsed, frames, loop_written, not, or, pointer_pressed, pointer_released,
-        resource_where, shot_written, state_is, ui_node_present, Predicate,
+        and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_pressed,
+        pointer_released, resource_where, shot_written, state_is, ui_node_present, Predicate,
     };
 }

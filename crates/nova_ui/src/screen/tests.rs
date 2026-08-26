@@ -304,3 +304,55 @@ fn a_bar_is_painted_only_while_its_pane_can_move() {
         "the content outgrew the pane, so the bar says how far"
     );
 }
+
+/// A bar outlives the pane it drives for as long as the frame that despawns
+/// one takes to despawn the other. Unknown is not "scrolls forever": an
+/// unmeasured or missing pane leaves a full-track bar standing over nothing.
+#[test]
+fn a_bar_over_a_pane_that_is_gone_is_not_painted() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    let pane = app
+        .world_mut()
+        .spawn((
+            scroll_column(),
+            scroll_viewport(),
+            ComputedNode {
+                size: Vec2::new(200.0, 300.0),
+                content_size: Vec2::new(200.0, 900.0),
+                inverse_scale_factor: 1.0,
+                ..ComputedNode::DEFAULT
+            },
+        ))
+        .id();
+    let bar = app
+        .world_mut()
+        .spawn((
+            scroll_bar(UiSkin::default()),
+            bevy::ui_widgets::Scrollbar::new(
+                pane,
+                bevy::ui_widgets::ControlOrientation::Vertical,
+                24.0,
+            ),
+        ))
+        .id();
+    app.world_mut()
+        .run_system_once(hide_idle_scroll_bars)
+        .unwrap();
+    assert_eq!(
+        app.world().entity(bar).get::<Visibility>(),
+        Some(&Visibility::Inherited),
+        "the pane overflows while it is there"
+    );
+
+    app.world_mut().entity_mut(pane).despawn();
+    app.world_mut()
+        .run_system_once(hide_idle_scroll_bars)
+        .unwrap();
+
+    assert_eq!(
+        app.world().entity(bar).get::<Visibility>(),
+        Some(&Visibility::Hidden),
+        "and the bar goes with it"
+    );
+}

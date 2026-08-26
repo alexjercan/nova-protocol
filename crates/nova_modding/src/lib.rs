@@ -208,7 +208,7 @@ pub fn pretty_config() -> ron::ser::PrettyConfig {
 /// content files too, and two writers with two formatters would produce two
 /// dialects of one format.
 pub fn serialize_content(content: &[Content]) -> Result<String, ron::Error> {
-    let body = ron::ser::to_string_pretty(&content.to_vec(), pretty_config())?;
+    let body = ron::ser::to_string_pretty(&content, pretty_config())?;
     Ok(format!("{body}\n"))
 }
 

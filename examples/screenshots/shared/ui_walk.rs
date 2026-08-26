@@ -108,33 +108,40 @@ pub fn release_editor_camera_pose(world: &mut World) {
 /// Fail the capture walk if the gallery did not move the editor camera away
 /// from the build area.
 pub fn assert_gallery_camera_is_parked(world: &mut World) {
-    let camera = world
+    let heights: Vec<f32> = world
         .query_filtered::<&Transform, With<Camera3d>>()
         .iter(world)
-        .next()
-        .expect("the open gallery retains the editor camera");
+        .map(|camera| camera.translation.y)
+        .collect();
     assert!(
-        camera.translation.y > GALLERY_PARK_HEIGHT,
-        "the open gallery must park its camera away from the preview ship; got {:?}",
-        camera.translation
+        a_camera_is_parked(world),
+        "the open gallery must park its camera away from the preview ship; \
+         the cameras stood at {heights:?}"
     );
 }
 
 /// How high the gallery parks the editor camera above the build area.
 const GALLERY_PARK_HEIGHT: f32 = 1_000.0;
 
+/// Whether a 3D camera stands off the build area.
+///
+/// One rule, read by the predicate that ADVANCES the beat and by the assert
+/// that then states it. Reading the first camera in one and any camera in the
+/// other let the walk advance on one camera and fail on a different one.
+fn a_camera_is_parked(world: &World) -> bool {
+    world
+        .try_query_filtered::<&Transform, With<Camera3d>>()
+        .is_some_and(|mut cameras| {
+            cameras
+                .iter(world)
+                .any(|camera| camera.translation.y > GALLERY_PARK_HEIGHT)
+        })
+}
+
 /// Advance once the gallery has parked the editor camera off the build area -
 /// what [`assert_gallery_camera_is_parked`] then states as a claim.
 pub fn the_gallery_camera_is_parked() -> Arc<Predicate> {
-    Arc::new(|world: &World| {
-        world
-            .try_query_filtered::<&Transform, With<Camera3d>>()
-            .is_some_and(|mut cameras| {
-                cameras
-                    .iter(world)
-                    .any(|camera| camera.translation.y > GALLERY_PARK_HEIGHT)
-            })
-    })
+    Arc::new(a_camera_is_parked)
 }
 
 /// Advance once the editor camera has REACHED the scripted build pose.
@@ -155,18 +162,23 @@ pub fn the_build_camera_is_posed() -> Arc<Predicate> {
     })
 }
 
-/// Count the preview ship's sections.
+/// Count the sections on the ship being EDITED.
+///
+/// The probe's own list, scoped to the edit context, NOT a sweep of every
+/// `SectionMarker` in the world: a new document opens seeded with the stock
+/// range (`node.rs`), so a sweep counts ten other hulls along with the one the
+/// walk built. Zero before the editor is up.
 ///
 /// `&World`, so one counter serves both the beats that read it and the
 /// predicates that wait on it.
 pub fn count_sections(world: &World) -> usize {
     world
-        .try_query_filtered::<(), With<SectionMarker>>()
-        .map_or(0, |mut sections| sections.iter(world).count())
+        .get_resource::<EditorProbe>()
+        .map_or(0, |probe| probe.ship.len())
 }
 
-/// Advance once a preview ship exists at all - what founding a blank ship
-/// leaves behind.
+/// Advance once the ship being edited HAS a section - what founding a blank
+/// ship leaves behind.
 pub fn the_ship_is_up() -> Arc<Predicate> {
     Arc::new(|world: &World| count_sections(world) > 0)
 }

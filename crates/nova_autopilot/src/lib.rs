@@ -117,19 +117,22 @@ pub mod prelude {
         capture::{
             capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
         },
-        completion::{register, HarnessCompletion, AUTOPILOT, DEADLINE_ENV, DEFAULT_DEADLINE_SECS},
+        completion::{
+            register, AutopilotCompletionSystems, HarnessCompletion, AUTOPILOT, DEADLINE_ENV,
+            DEFAULT_DEADLINE_SECS,
+        },
         input::{
             assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
             press_key, press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels,
             type_text, ui_node_centre, ui_node_rect,
         },
         loops::{
-            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LOOP_CAPTURE, LOOP_CRF,
-            LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopRecorder, LOOP_CAPTURE,
+            LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
         },
         predicate::{
-            and, any_entity, elapsed, frames, loop_written, not, resource_where, shot_written,
-            state_is, Predicate,
+            and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_pressed,
+            pointer_released, resource_where, shot_written, state_is, ui_node_present, Predicate,
         },
     };
 }

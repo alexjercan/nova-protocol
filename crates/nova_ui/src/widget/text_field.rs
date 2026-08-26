@@ -38,12 +38,13 @@ pub struct TextFieldFocused {
 }
 
 impl TextFieldFocused {
-    /// Focus a field holding `value`, caret at the end - what a screen that
-    /// opens with its field ready inserts, and what Escape restores to.
+    /// Focus a field holding `value`, caret at the end - the way to open a
+    /// screen with its field already ready, without a pointer press.
     ///
-    /// The fields stay private because the caret is a BYTE index into the
-    /// value: one set from outside to a position that is not a character
-    /// boundary would panic the next edit.
+    /// Inserting it displaces whatever else held the focus, which commits
+    /// (the widget keeps exactly one). The fields stay private because
+    /// the caret is a BYTE index into the value: one set from outside to a
+    /// position that is not a character boundary would panic the next edit.
     pub fn at_end(value: &str) -> Self {
         Self {
             original: value.to_string(),
@@ -266,6 +267,34 @@ pub(super) fn text_field_on_pointer(
     });
 }
 
+/// Keep the focus on ONE field.
+///
+/// [`text_field_on_pointer`] already drops the field it leaves, but focus is a
+/// component and anything can insert it ([`TextFieldFocused::at_end`]). Two
+/// focused fields is not a key landing in the wrong box - it is
+/// [`text_field_keyboard`] reading no field at all, so every key in the app
+/// goes nowhere until one of them is dropped. The newest focus wins, and the
+/// one it displaces commits like any other field left behind.
+pub(super) fn one_field_holds_the_focus(
+    mut commands: Commands,
+    arrived: Query<Entity, Added<TextFieldFocused>>,
+    focused: Query<(Entity, &TextFieldValue), With<TextFieldFocused>>,
+    mut submitted: MessageWriter<TextFieldSubmitted>,
+) {
+    let Some(keeps) = arrived.iter().next() else {
+        return;
+    };
+    for (entity, value) in &focused {
+        if entity != keeps {
+            commands.entity(entity).remove::<TextFieldFocused>();
+            submitted.write(TextFieldSubmitted {
+                entity,
+                value: value.0.clone(),
+            });
+        }
+    }
+}
+
 pub(super) fn text_field_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     mut commands: Commands,
@@ -455,6 +484,47 @@ mod tests {
         press(&mut app, KeyCode::Digit2, Key::Character("2".into()));
 
         assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "123");
+    }
+
+    /// A second focus is a state the widget cannot type in: `single_mut` reads
+    /// NO field, so every key in the app goes nowhere. It resolves the way a
+    /// click into another field resolves - the older one commits and lets go.
+    #[test]
+    fn a_second_focus_takes_the_field_over_instead_of_killing_the_keyboard() {
+        let mut app = skin_app(UiSkin::Phosphor);
+        app.add_message::<KeyboardInput>();
+        let first = app
+            .world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new("13")),
+                TextFieldFocused::at_end("13"),
+            ))
+            .id();
+        let second = app
+            .world_mut()
+            .spawn(text_field(TextFieldSpec::new("40")))
+            .id();
+        app.update();
+
+        app.world_mut()
+            .entity_mut(second)
+            .insert(TextFieldFocused::at_end("40"));
+        press(&mut app, KeyCode::Digit2, Key::Character("2".into()));
+
+        assert!(
+            app.world().get::<TextFieldFocused>(first).is_none(),
+            "the field that was left lets go"
+        );
+        assert_eq!(
+            app.world().get::<TextFieldValue>(second).unwrap().0,
+            "402",
+            "and the key lands in the field that took over"
+        );
+        assert_eq!(
+            app.world().get::<TextFieldValue>(first).unwrap().0,
+            "13",
+            "the one that was left keeps what it held"
+        );
     }
 
     #[test]

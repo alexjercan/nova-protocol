@@ -67,7 +67,9 @@ use self::{
     panel::reconcile_panel_skins,
     segmented::reconcile_segmented_skins,
     slider::{reconcile_slider_track_skins, sync_slider_tracks},
-    text_field::{paint_text_fields, text_field_keyboard, text_field_on_pointer},
+    text_field::{
+        one_field_holds_the_focus, paint_text_fields, text_field_keyboard, text_field_on_pointer,
+    },
 };
 use crate::{font::UiFont, skin::UiSkin};
 
@@ -121,7 +123,12 @@ pub(crate) fn build(app: &mut App) {
             // this same frame.
             reconcile_slider_track_skins,
             sync_slider_tracks.after(reconcile_slider_track_skins),
-            (text_field_keyboard, paint_text_fields).in_set(TextFieldSystems),
+            (
+                one_field_holds_the_focus.before(text_field_keyboard),
+                text_field_keyboard,
+                paint_text_fields,
+            )
+                .in_set(TextFieldSystems),
         ),
     );
     // NOTE: route the font BEFORE UI text is measured/laid out (PostUpdate,

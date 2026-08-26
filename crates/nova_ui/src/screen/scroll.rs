@@ -214,10 +214,13 @@ pub fn hide_idle_scroll_bars(
     panes: Query<&ComputedNode, With<ScrollViewport>>,
 ) {
     for (bar, mut visibility) in &mut bars {
-        let wanted = if max_scroll_y(panes.get(bar.target).ok()) > 0.5 {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
+        // Not `max_scroll_y`'s unbounded default. That answers "how far may
+        // this pane scroll", where an unmeasured node must not clamp; the
+        // question here is whether to PAINT, and a pane that is gone or not yet
+        // measured is a full-track bar over nothing.
+        let wanted = match panes.get(bar.target) {
+            Ok(pane) if max_scroll_y(Some(pane)) > 0.5 => Visibility::Inherited,
+            _ => Visibility::Hidden,
         };
         if *visibility != wanted {
             *visibility = wanted;

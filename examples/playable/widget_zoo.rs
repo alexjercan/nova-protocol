@@ -34,8 +34,7 @@ use bevy::{
     picking::hover::Hovered,
     prelude::*,
     ui_widgets::{
-        observe, slider_self_update, Activate, Slider, SliderRange, SliderStep, SliderValue,
-        TrackClick, ValueChange,
+        observe, Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
     },
 };
 use clap::Parser;
@@ -87,7 +86,6 @@ fn main() -> AppExit {
     // the same `button_on_setting` path the game's Settings use.
     app.add_observer(button_on_setting::<UiSkin>);
     app.add_observer(button_on_setting::<DemoLevel>);
-    app.add_observer(slider_self_update);
     app.init_resource::<DemoLevel>();
     app.init_resource::<ZooChecks>();
     app.insert_resource(ZooSliderValue(0.66));

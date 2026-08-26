@@ -193,6 +193,73 @@ the UI pass are separate tasks and run after this one, in that order.
    -p nova_editor --all-targets` and `cargo fmt --check` exit 0. Workspace
    Clippy skipped locally per the standing instruction; CI runs it.
 
+6. Loose ends, one commit, each with a test that fails without it.
+
+   - `hide_idle_scroll_bars` asks the pane itself instead of taking
+     `max_scroll_y`'s unbounded default. That default answers "how far may this
+     pane scroll", where an unmeasured node must not clamp; the bar was reading
+     it as "scrolls forever" and standing full-track over a despawned pane.
+   - One field holds the focus. `text_field_keyboard` reads `single_mut`, so a
+     second `TextFieldFocused` - which `TextFieldFocused::at_end` lets anything
+     insert - killed EVERY key in the app, not just that field's. The newest
+     focus now wins and the one it displaces commits, exactly as a click into
+     another field already did.
+   - `ui_walk`'s parked-camera predicate and its assert read one rule. The
+     predicate advanced on ANY camera and the assert then read the FIRST, so a
+     walk could advance on one camera and fail on another.
+   - `bug_sandbox_soak` acks its founding gesture. The move to empty space had
+     no `until`, so the click could land where the pointer used to be - on the
+     gallery it had just closed. New predicate `pointer_at` in `nova_autopilot`
+     for that ack. Its two `EditorProbe` predicates also read the resource
+     outright, which panics the run before the editor is up; both stall now.
+   - `serialize_content` stopped cloning the whole document to serialize it
+     (`&content.to_vec()`). The existing round-trip test proves the bytes are
+     unchanged.
+   - The `nova_autopilot` prelude gained the six names it was missing - `or`,
+     `ui_node_present`, `pointer_pressed`, `pointer_released`,
+     `AutopilotCompletionSystems`, `LoopRecorder` - plus `pointer_at`.
+     `nova_debug` was reaching past the prelude into `predicate::` for four of
+     them.
+   - `widget_zoo` stopped adding `slider_self_update` a second time.
+     `NovaUiPlugin` brings it, which the line above it already said.
+   - `GizmoReach` keys its measurement on the node AND its scale. Measuring
+     once is deliberate - a world-axis box grows as a hull turns - but the
+     Inspector's Scale field resizes a node with the rig still up, and the rig
+     kept the size the node used to be.
+
+   Proof: `a_bar_over_a_pane_that_is_gone_is_not_painted`,
+   `a_second_focus_takes_the_field_over_instead_of_killing_the_keyboard`,
+   `the_position_ack_reads_the_pointer_the_backend_moved`,
+   `resizing_a_node_resizes_its_rig`. The focus and gizmo tests were
+   mutation-checked against the old behaviour and failed.
+
+   Three stale walks found by RUNNING them, all older than this task and all
+   fixed here rather than filed:
+
+   - `bug_sandbox_soak` waited on `ui_node_present("Add Ship Button")` while
+     that row lives inside the Add menu, which spawns its items when it opens
+     (`5198d3de`). It had been stalling at that beat ever since.
+   - `count_sections` in `ui_walk` and the soak's `the_ship_is_up` swept every
+     `SectionMarker` in the WORLD. A document now opens seeded with the stock
+     range (`0244191e`), whose hulks and pickets are hulls with sections, so
+     `screenshot_editor` counted 45 sections against an expected 5 and the
+     soak's founding ack was true before the click. Both read the probe's
+     `ship` list now, which is scoped to the edit context and says so in its
+     own docstring.
+   - The soak's founding click at (760, 640) lands ON the inspector at 1024
+     wide (rail 210 + inspector 300). Moved to (460, 660) and given the same
+     `editor_placement_clear()` ack `ui_walk::found` already had.
+
+   Live runs, all exit 0 under Xvfb on a profile sandbox
+   (`XDG_CONFIG_HOME`/`XDG_DATA_HOME`/`NOVA_MODDING_CACHE_ROOT` in the
+   scratchpad, so the operator's enabled-mod set is not read or written):
+   `bug_sandbox_soak` (46.9s, founds a real ship and soaks it),
+   `screenshot_editor` (5 sections on the preview ship, gallery camera parked
+   and verified), `system_ship_editor` (11.4s), `system_menu_boot` (2.4s).
+   `cargo check --workspace --all-targets --features debug`, `cargo fmt
+   --check` and `catalog_drift` exit 0. Workspace Clippy skipped locally per
+   the standing instruction; CI runs it.
+
 ## Proof
 
 Both gates run locally. A test that a saved document reopens as itself, and one

@@ -57,8 +57,8 @@ pub mod prelude {
             type_text, ui_node_centre, ui_node_rect,
         },
         predicate::{
-            and, any_entity, elapsed, frames, loop_written, or, pointer_pressed, pointer_released,
-            resource_where, shot_written, state_is, ui_node_present,
+            and, any_entity, elapsed, frames, loop_written, or, pointer_at, pointer_pressed,
+            pointer_released, resource_where, shot_written, state_is, ui_node_present,
         },
         // The logical key `press_edit_key` takes. Bevy's prelude carries
         // `KeyCode` - the PHYSICAL key - but not this one.

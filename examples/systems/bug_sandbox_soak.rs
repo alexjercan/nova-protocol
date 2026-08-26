@@ -100,27 +100,49 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 const BEAT_DEADLINE_SECS: f32 = 20.0;
 
-/// Advance once the editor's preview ship exists.
+/// Advance once the ship being EDITED has a section on it.
+///
+/// The probe's list, scoped to the edit context. A sweep of every
+/// `SectionMarker` in the world is already true before the founding click: a
+/// new document opens seeded with the stock range (`node.rs`), whose hulks and
+/// pickets are hulls with sections.
 #[cfg(feature = "debug")]
 fn the_ship_is_up() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
         world
-            .try_query_filtered::<(), With<SectionMarker>>()
-            .is_some_and(|mut sections| sections.iter(world).next().is_some())
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| !probe.ship.is_empty())
     })
 }
 
 /// Advance once the editor is inside a ship - what Add Ship does.
+///
+/// False while there is no [`EditorProbe`] at all. The probe arrives with the
+/// editor and this walk starts in the menu, so a beat that READS the resource
+/// takes the whole run down on the way in rather than waiting for it.
 #[cfg(feature = "debug")]
 fn inside_a_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().inside.is_some())
+    std::sync::Arc::new(|world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.inside.is_some())
+    })
 }
 
 /// Advance once Play would hand off - the walk is back at the scenario node.
+/// False without a probe, for the reason [`inside_a_ship`] gives.
 #[cfg(feature = "debug")]
 fn play_is_reachable() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().can_play)
+    std::sync::Arc::new(|world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.can_play)
+    })
 }
+
+/// The top-bar menu that carries the Add Ship row.
+#[cfg(feature = "debug")]
+const ADD_MENU: &str = "Add Menu Button";
 
 /// The part the walk founds the blank ship with.
 #[cfg(feature = "debug")]
@@ -128,8 +150,12 @@ const FOUNDING_PART: &str = "basic_controller_section";
 
 /// A viewport point (logical px) with nothing under it on the 1024x768 window
 /// the app opens - where the founding click lands.
+///
+/// Below the stage's own middle and clear of all three panels: the rail takes
+/// the left 210, the inspector the right 300 (`ui/mod.rs`, `ui/inspector.rs`),
+/// so a click out at 760 lands ON the inspector and never reaches the stage.
 #[cfg(feature = "debug")]
-const EMPTY_SPACE: Vec2 = Vec2::new(760.0, 640.0);
+const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 660.0);
 
 /// How long the run sits still. Long enough that a curve which is going to
 /// slide has slid: the collapse this range pins was complete within six
@@ -167,6 +193,19 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .deadline(90.0)
         .add()
         .step("soak: let the editor lay out")
+        .until(ui_node_present(ADD_MENU))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Add Ship lives IN the Add menu (`ui/mod.rs`), which spawns its items
+        // when it opens, so the walk drops the menu before it can click the
+        // row. A beat that waited on the row itself waited forever.
+        .step("soak: drop the Add menu")
+        .on_enter(click_named(ADD_MENU))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release the Add menu")
+        .on_enter(release_mouse(MouseButton::Left))
         .until(ui_node_present("Add Ship Button"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
@@ -223,8 +262,13 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("soak: release Enter again")
         .on_enter(release_key(KeyCode::Enter))
         .add()
+        // Two acks, because two things have to be true before the press: the
+        // backend has to have MOVED the pointer, and the editor has to report
+        // nothing under it - "no placement to solve" is its own founding test.
         .step("soak: point at empty space")
         .on_enter(move_cursor(EMPTY_SPACE))
+        .until(and(pointer_at(EMPTY_SPACE), editor_placement_clear()))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: found the ship")
         .on_enter(press_mouse(MouseButton::Left))
