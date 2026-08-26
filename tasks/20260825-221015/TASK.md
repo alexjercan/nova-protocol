@@ -168,6 +168,22 @@ steps; each number is one commit, as above.
     the same walk, flat. View > All Fields brings the raw walk back for the
     author who needs it. (7). M-L
 
+28. **A picket is a ship, and the tree should say so.** The seeded spacecraft
+    are `ObjectNode`s carrying `ScenarioObjectKind::Spaceship`, so the rail
+    files them with the rocks and the beacons: a generic object glyph, an
+    object's kind tag, an object's inspector. They are hulls. Give them the
+    ship's mark and the ship's reading, without making them editable ships -
+    they are seeded, not built. (8). S-M
+29. **Ids you can read off the screen.** Events and filters name nodes by id,
+    and the id is currently something the tree hides behind a hover. Put it
+    where it can be read and copied while wiring an event up. (9). S
+30. **F5 reloads, and so does leaving the editor.** A scenario saved in the
+    editor does not appear in the sandbox's Scenarios list until the game is
+    restarted, because content is merged once at startup. Two halves, the way
+    Wesnoth does it: `F5` reloads everything from disk on demand, and leaving
+    the editor or the mod portal reloads on the way out, so what you just
+    saved is there when you go looking for it. (10). M-L
+
 ## Resolution
 
 REOPENED 2026-08-26 for the follow-up plan above; the 21 steps below stand.
