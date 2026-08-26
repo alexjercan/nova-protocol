@@ -1,6 +1,6 @@
 # Editor polish: make the node editor feel finished
 
-- STATUS: IN_PROGRESS
+- STATUS: CLOSED
 - PRIORITY: 75
 - TAGS: v0.12.0, editor, ui, polish
 
