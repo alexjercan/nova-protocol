@@ -1,0 +1,1286 @@
+<title>Nova Review Findings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root {
+  --paper: #E9EBF1;
+  --surface: #FFFFFF;
+  --surface-2: #F2F3F8;
+  --rule: #C9CDDA;
+  --rule-soft: #DDE0EA;
+  --ink: #141821;
+  --ink-2: #3E4557;
+  --ink-dim: #6B7288;
+  --accent: #3B49C4;
+  --accent-soft: #E4E6FA;
+  --blocker: #C1352A;
+  --blocker-soft: #F7E3E0;
+  --major: #8F5B00;
+  --major-soft: #F7EDDB;
+  --minor: #5C6479;
+  --minor-soft: #E7E9F0;
+  --ok: #1B6A48;
+  --ok-soft: #DFEFE7;
+
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1218;
+    --surface: #171C26;
+    --surface-2: #1E2431;
+    --rule: #333B4D;
+    --rule-soft: #262D3B;
+    --ink: #E7E9EF;
+    --ink-2: #B9C0D0;
+    --ink-dim: #8A93A8;
+    --accent: #8F9CFF;
+    --accent-soft: #232A44;
+    --blocker: #FF6F60;
+    --blocker-soft: #2E1D1C;
+    --major: #E2A24C;
+    --major-soft: #2A2216;
+    --minor: #99A1B5;
+    --minor-soft: #222835;
+    --ok: #5FCB99;
+    --ok-soft: #16281F;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0F1218;
+  --surface: #171C26;
+  --surface-2: #1E2431;
+  --rule: #333B4D;
+  --rule-soft: #262D3B;
+  --ink: #E7E9EF;
+  --ink-2: #B9C0D0;
+  --ink-dim: #8A93A8;
+  --accent: #8F9CFF;
+  --accent-soft: #232A44;
+  --blocker: #FF6F60;
+  --blocker-soft: #2E1D1C;
+  --major: #E2A24C;
+  --major-soft: #2A2216;
+  --minor: #99A1B5;
+  --minor-soft: #222835;
+  --ok: #5FCB99;
+  --ok-soft: #16281F;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 3rem) 6rem; }
+
+/* ---------- masthead ---------- */
+
+.masthead { padding: clamp(2.5rem, 6vw, 4.5rem) 0 0; }
+
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+}
+.eyebrow .sep { color: var(--rule); }
+
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.3rem, 6vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  margin: 1.1rem 0 0;
+}
+
+.standfirst {
+  font-size: clamp(1.05rem, 2.2vw, 1.28rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin: 1.1rem 0 0;
+}
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+.range-line {
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-top: 1.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.6rem;
+}
+.range-line b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- tally ---------- */
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0 0;
+}
+.tally-cell { background: var(--surface); padding: 1.05rem 1.15rem; }
+.tally-num {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 1.85rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.tally-cell.is-blocker .tally-num { color: var(--blocker); }
+.tally-cell.is-major .tally-num { color: var(--major); }
+.tally-cell.is-minor .tally-num { color: var(--minor); }
+.tally-cell.is-ok .tally-num { color: var(--ok); }
+.tally-label {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 0.5rem;
+}
+
+/* ---------- gate board ---------- */
+
+.board { margin: 3.5rem 0 0; }
+
+.section-head {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule); border-top: none; }
+.gate { background: var(--surface); padding: 1.4rem 1.35rem; }
+.gate-status {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--blocker);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.gate-status::before { content: ""; width: 9px; height: 9px; background: var(--blocker); flex: none; }
+.gate-name {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+  margin: 0.55rem 0 0.7rem;
+}
+.gate p { margin: 0.7rem 0 0; font-size: 15px; color: var(--ink-2); }
+
+/* ---------- layout ---------- */
+
+.doc {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  margin-top: 4.5rem;
+  align-items: start;
+}
+@media (max-width: 920px) { .doc { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+.rail { position: sticky; top: 1.5rem; }
+@media (max-width: 920px) { .rail { position: static; } }
+
+.rail-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--rule);
+}
+.rail ol { list-style: none; margin: 0; padding: 0; }
+.rail li { border-bottom: 1px solid var(--rule-soft); }
+.rail a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.6rem 0;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-family: var(--f-display);
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+.rail a:hover, .rail a:focus-visible { color: var(--accent); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.rail .sev {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--minor);
+  white-space: nowrap;
+}
+.rail a[data-sev="blocker"] .sev { color: var(--blocker); }
+.rail a[data-sev="major"] .sev { color: var(--major); }
+.rail a[data-sev="held"] .sev { color: var(--ink-dim); }
+
+/* ---------- clusters ---------- */
+
+.cluster { padding-top: 2.6rem; margin-top: 2.6rem; border-top: 1px solid var(--rule); }
+.cluster:first-of-type { padding-top: 0; margin-top: 0; border-top: none; }
+.cluster h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(1.45rem, 3.2vw, 1.95rem);
+  line-height: 1.14;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+  margin: 0.85rem 0 0;
+}
+.cluster p { margin: 1rem 0 0; max-width: 68ch; }
+.cluster p.lede { font-size: 1.06rem; color: var(--ink-2); }
+
+.meta {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.9rem;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-weight: 700;
+  padding: 0.16rem 0.5rem;
+  border: 1px solid currentColor;
+}
+.chip::before { content: ""; width: 7px; height: 7px; background: currentColor; flex: none; }
+.chip.blocker { color: var(--blocker); background: var(--blocker-soft); }
+.chip.major { color: var(--major); background: var(--major-soft); }
+.chip.minor { color: var(--minor); background: var(--minor-soft); }
+.chip.held { color: var(--ink-dim); background: var(--surface-2); }
+
+.stamp { font-weight: 700; letter-spacing: 0.12em; }
+.stamp.run { color: var(--ok); }
+.stamp.read { color: var(--ink-dim); }
+
+/* ---------- root cause / decision ---------- */
+
+.root {
+  margin: 1.5rem 0 0;
+  padding: 0.95rem 1.15rem;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+}
+.root .root-label {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.root p { margin: 0.35rem 0 0; font-size: 15.5px; color: var(--ink); max-width: 66ch; }
+
+.decided {
+  margin: 1.5rem 0 0;
+  padding: 0.95rem 1.15rem;
+  background: var(--ok-soft);
+  border-left: 3px solid var(--ok);
+}
+.decided .root-label {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ok);
+  font-weight: 700;
+}
+.decided p { margin: 0.35rem 0 0; font-size: 15.5px; color: var(--ink); max-width: 66ch; }
+.decided q {
+  display: block;
+  font-style: italic;
+  color: var(--ink-2);
+  margin-top: 0.4rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--rule);
+  quotes: none;
+}
+.decided .shift {
+  margin-top: 0.65rem;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  text-transform: none;
+}
+.decided .shift b { color: var(--ok); font-weight: 700; }
+
+/* ---------- code ---------- */
+
+.snip { margin: 1.5rem 0 0; border: 1px solid var(--rule); background: var(--surface); }
+.snip-head {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--surface-2);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.snip-head .tag { letter-spacing: 0.1em; text-transform: uppercase; }
+.snip pre { margin: 0; padding: 0.9rem 0.85rem; overflow-x: auto; }
+.snip code {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  white-space: pre;
+}
+.snip .c { color: var(--ink-dim); font-style: italic; }
+.snip .bad { color: var(--blocker); font-weight: 500; }
+.snip .good { color: var(--ok); font-weight: 500; }
+
+/* ---------- inline ---------- */
+
+code.path {
+  font-family: var(--f-mono);
+  font-size: 0.86em;
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  padding: 0.06em 0.34em;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+/* ---------- flow diagram ---------- */
+
+.flow-wrap { margin: 1.75rem 0 0; border: 1px solid var(--rule); background: var(--surface); }
+.flow-scroll { overflow-x: auto; padding: 1.5rem 1.25rem; }
+.flow { display: flex; align-items: stretch; gap: 0; min-width: 640px; }
+.fnode {
+  flex: 1 1 0;
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  padding: 0.7rem 0.8rem;
+  min-width: 108px;
+}
+.fnode .fname { font-family: var(--f-display); font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; }
+.fnode .fref { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 0.3rem; word-break: break-all; }
+.fnode.file { background: var(--accent-soft); border-color: var(--accent); }
+.farrow { flex: 0 0 34px; display: flex; align-items: center; justify-content: center; color: var(--rule); font-family: var(--f-mono); font-size: 15px; }
+.flow-legend { border-top: 1px solid var(--rule-soft); }
+.flow-legend div {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 0.7rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.flow-legend div:last-child { border-bottom: none; }
+.flow-legend .op { font-family: var(--f-mono); font-weight: 700; text-align: center; }
+.flow-legend .op.add { color: var(--blocker); }
+.flow-legend .op.drop { color: var(--major); }
+
+/* ---------- finding list ---------- */
+
+.findings { margin: 1.6rem 0 0; border-top: 1px solid var(--rule-soft); }
+.finding {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+  align-items: start;
+}
+@media (max-width: 620px) { .finding { grid-template-columns: 1fr; gap: 0.35rem; } }
+.finding .f-sev {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding-top: 0.32rem;
+  color: var(--minor);
+}
+.finding[data-sev="blocker"] .f-sev { color: var(--blocker); }
+.finding[data-sev="major"] .f-sev { color: var(--major); }
+.finding[data-sev="held"] .f-sev { color: var(--ink-dim); }
+.finding .f-body { font-size: 15.5px; color: var(--ink-2); }
+.finding .f-body b { color: var(--ink); font-weight: 600; }
+.finding .f-body .verdict {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ok);
+}
+.finding .f-body .verdict.held { color: var(--ink-dim); }
+
+/* ---------- table ---------- */
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); margin-top: 1.5rem; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; }
+th, td { text-align: left; padding: 0.72rem 0.9rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+td { font-size: 15px; color: var(--ink-2); }
+td.name { font-family: var(--f-display); font-weight: 600; color: var(--ink); font-size: 14.5px; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+tbody tr:last-child td { border-bottom: none; }
+td .disp { font-family: var(--f-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+td .disp.fix { color: var(--ok); }
+td .disp.build { color: var(--accent); }
+td .disp.hold { color: var(--ink-dim); }
+
+/* ---------- questions ---------- */
+
+.q { border: 1px solid var(--rule); background: var(--surface); margin-top: 1.5rem; }
+.q > div { padding: 1.05rem 1.2rem; border-bottom: 1px solid var(--rule-soft); }
+.q > div:last-child { border-bottom: none; }
+.q .qq { font-family: var(--f-display); font-weight: 600; font-size: 1.02rem; color: var(--ink); letter-spacing: -0.01em; }
+.q .qa { margin-top: 0.4rem; font-size: 15px; color: var(--ink-2); max-width: 66ch; }
+.q .qa b { color: var(--ink); font-weight: 600; }
+
+/* ---------- closing ---------- */
+
+.closing { margin-top: 4.5rem; padding-top: 2.2rem; border-top: 2px solid var(--ink); }
+.closing h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.closing ul { margin: 1.1rem 0 0; padding-left: 1.15rem; max-width: 68ch; }
+.closing li { margin-bottom: 0.5rem; color: var(--ink-2); font-size: 15.5px; }
+.closing li b { color: var(--ink); font-weight: 600; }
+
+.footnote {
+  margin-top: 3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+  max-width: 74ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* --- Round 2 additions --- */
+.arc { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 0; align-items: stretch;
+  margin: 1.6rem 0 2.2rem; border: 1px solid var(--rule); background: var(--surface); }
+.arc-step { padding: 1.1rem 1.2rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.arc-step .k { font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.11em;
+  text-transform: uppercase; color: var(--ink-dim); }
+.arc-step .v { font-family: var(--f-display); font-size: 1.5rem; font-weight: 700; line-height: 1; }
+.arc-step .d { font-size: 0.86rem; color: var(--ink-2); line-height: 1.45; }
+.arc-step.is-now { background: var(--surface-2); }
+.arc-step.is-now .v { color: var(--blocker); }
+.arc-arrow { display: flex; align-items: center; padding: 0 0.5rem; color: var(--ink-dim);
+  font-family: var(--f-mono); font-size: 1rem; border-left: 1px solid var(--rule-soft);
+  border-right: 1px solid var(--rule-soft); }
+@media (max-width: 760px) {
+  .arc { grid-template-columns: 1fr; }
+  .arc-arrow { display: none; }
+  .arc-step + .arc-step { border-top: 1px solid var(--rule-soft); }
+}
+
+.built { display: flex; flex-direction: column; gap: 1.1rem; margin: 1.4rem 0 0.4rem; }
+.tcard { border: 1px solid var(--rule); background: var(--surface); }
+.tcard-head { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: baseline;
+  padding: 0.85rem 1.15rem; border-bottom: 1px solid var(--rule-soft); background: var(--surface-2); }
+.tcard-head .tid { font-family: var(--f-mono); font-size: 0.7rem; color: var(--ink-dim); }
+.tcard-head .tname { font-family: var(--f-display); font-weight: 700; font-size: 1.02rem; }
+.tcard-head .tsha { font-family: var(--f-mono); font-size: 0.7rem; color: var(--accent);
+  margin-left: auto; }
+.tcard-body { padding: 1rem 1.15rem 1.15rem; }
+.tcard-body > p { margin: 0 0 0.7rem; }
+.did { list-style: none; padding: 0; margin: 0.5rem 0 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.did li { display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; align-items: start;
+  font-size: 0.9rem; line-height: 1.5; }
+.did .op { font-family: var(--f-mono); font-size: 0.64rem; letter-spacing: 0.08em; font-weight: 700;
+  text-transform: uppercase; padding: 0.16rem 0.4rem; white-space: nowrap; margin-top: 0.12rem; }
+.op.add { color: var(--ok); background: var(--ok-soft); }
+.op.cut { color: var(--blocker); background: var(--blocker-soft); }
+.op.chg { color: var(--major); background: var(--major-soft); }
+.proofline { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px dotted var(--rule);
+  font-size: 0.82rem; color: var(--ink-dim); font-family: var(--f-mono); line-height: 1.6; }
+
+table.data { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+table.data th, table.data td { text-align: left; padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+table.data th { font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--ink-dim); border-bottom: 1px solid var(--rule); }
+table.data td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.data tr.is-bad td { background: var(--blocker-soft); }
+table.data tr.is-ok td { background: var(--ok-soft); }
+.scroll-x { overflow-x: auto; }
+
+.lanegrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1px;
+  background: var(--rule); border: 1px solid var(--rule); margin: 1.2rem 0; }
+.lane { background: var(--surface); padding: 0.9rem 1rem; }
+.lane .ln { font-family: var(--f-display); font-weight: 700; font-size: 0.95rem; }
+.lane .lc { font-family: var(--f-mono); font-size: 0.7rem; color: var(--ink-dim); margin-top: 0.15rem; }
+.lane .lf { font-size: 0.84rem; color: var(--ink-2); margin-top: 0.5rem; line-height: 1.45; }
+
+.callout { border-left: 3px solid var(--accent); background: var(--surface-2);
+  padding: 0.9rem 1.1rem; margin: 1.2rem 0; font-size: 0.92rem; line-height: 1.6; }
+.callout.warn { border-left-color: var(--blocker); }
+.callout b.lbl { display: block; font-family: var(--f-mono); font-size: 0.66rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 0.3rem; }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>Nova Protocol</span><span class="sep">/</span>
+      <span>Code review</span><span class="sep">/</span>
+      <span>Round 2 &middot; open</span>
+    </div>
+    <h1>The fixes landed. The systems they added brought their own edges.</h1>
+    <p class="standfirst">
+      Round 1 produced three tasks. All three are closed and on <strong>master</strong>: the red gates
+      are green, save and open are inverses, reload is a restart, and the editor keyboard has one owner
+      at a time. Round 2 reviews what those tasks built &mdash; and finds the headline control of the
+      last one broken in a way its own proof could not see.
+    </p>
+    <div class="range-line">
+      <span>range <b>1028ac3c..53597374</b></span>
+      <span>commits <b>5</b></span>
+      <span>files <b>41</b></span>
+      <span>insertions <b>3,371</b></span>
+      <span>lanes <b>6</b> (--play)</span>
+      <span>verdict <b>request changes</b></span>
+    </div>
+  </header>
+
+  <div class="tally">
+    <div class="tally-cell is-blocker"><div class="tally-num">1</div><div class="tally-label">Blocker</div></div>
+    <div class="tally-cell is-major"><div class="tally-num">9</div><div class="tally-label">Major</div></div>
+    <div class="tally-cell is-minor"><div class="tally-num">15</div><div class="tally-label">Minor</div></div>
+    <div class="tally-cell is-ok"><div class="tally-num">30</div><div class="tally-label">Round 1 findings closed</div></div>
+    <div class="tally-cell"><div class="tally-num">4</div><div class="tally-label">Lanes found the blocker</div></div>
+    <div class="tally-cell"><div class="tally-num">1</div><div class="tally-label">Lane rendered frames</div></div>
+  </div>
+
+  <div class="arc">
+    <div class="arc-step">
+      <div class="k">Round 1</div>
+      <div class="v">30</div>
+      <div class="d">findings over <code class="path">v0.11.0..HEAD</code>, clustered into eight root
+        causes. Two CI gates red; the editor could not reopen what it saved.</div>
+    </div>
+    <div class="arc-arrow">&rarr;</div>
+    <div class="arc-step">
+      <div class="k">The work</div>
+      <div class="v">3 tasks</div>
+      <div class="d">Review fixes, then modal input, then the UI pass. Plus a whole-tree comment sweep
+        with no task of its own.</div>
+    </div>
+    <div class="arc-arrow">&rarr;</div>
+    <div class="arc-step is-now">
+      <div class="k">Round 2</div>
+      <div class="v">25</div>
+      <div class="d">findings over what those tasks landed. One blocker, in the field-rule system the
+        UI task was written to add.</div>
+    </div>
+  </div>
+
+  <section class="board">
+    <div class="section-head"><span>What we built</span><span>three tasks, all closed</span></div>
+
+    <p class="lede">
+      Round 1 settled twelve decisions before any code moved, and four of its clusters turned from
+      defect fixes into design work. That is what these three tasks are. Each one is on master; each
+      one is listed here with what it added, what it deleted, and what proved it.
+    </p>
+
+    <div class="built">
+
+      <article class="tcard">
+        <div class="tcard-head">
+          <span class="tid">20260826-162500</span>
+          <span class="tname">Everything that was not a new subsystem</span>
+          <span class="tsha">dcef15df &middot; 0b617f5a &middot; e3c6fb0a</span>
+        </div>
+        <div class="tcard-body">
+          <p>
+            The seven clusters that needed a fix rather than a design. The gate count was wrong in
+            round 1's own report &mdash; 15 clippy errors, not 11; the lower number came from a wasm
+            invocation without <code class="path">--all-targets</code>, which never reached the test
+            targets.
+          </p>
+          <ul class="did">
+            <li><span class="op chg">gates</span><span><code class="path">catalog_drift</code> roster set to 45 slugs, <code class="path">SYSTEMS_INVARIANTS</code> 145 &rarr; 173. Workspace clippy, wasm clippy and <code class="path">fmt --check</code> all exit 0.</span></li>
+            <li><span class="op add">lint</span><span><code class="path">on_load_scenario</code> lints the config it is handed and refuses on any Error, whether or not the merge ever saw the scenario.</span></li>
+            <li><span class="op chg">round-trip</span><span><code class="path">Range</code> gained <code class="path">flight</code> &mdash; the one thing Play and a save disagree about. A save spawns the document and nothing else; Play adds the hull an unfinished document has nothing to fly. <code class="path">sandbox_events</code> now derives its wakes and sky swaps from the objects actually spawned, so a deleted picket takes its handlers with it.</span></li>
+            <li><span class="op cut">reload</span><span>Reload became a restart. <code class="path">ContentReload</code>, <code class="path">ReloadPhase</code>, <code class="path">raise_reload_cover</code>, <code class="path">settle_reload</code>, three <code class="path">COVER_*</code> constants, <code class="path">sync_reload_screen</code> and a 0.6&nbsp;s wall-clock sleep in the tests are all gone. A file that never comes back is now the boot path's problem, which already names it.</span></li>
+            <li><span class="op add">finite</span><span><code class="path">write_field</code> refuses a non-finite value before it refuses one under a floor, so <code class="path">nan</code> and <code class="path">inf</code> bounce with <code class="path">finite</code> instead of writing a pose no transform can hold. <code class="path">aim</code> came off the Light picks: node rotation already aims the light.</span></li>
+            <li><span class="op add">stop-gap</span><span><code class="path">rebind_armed</code> held Delete off an armed rebind &mdash; and said in its own comment that the input-mode task would delete it. It did.</span></li>
+            <li><span class="op chg">loose ends</span><span>Eight, each with a test that fails without it: the idle scroll bar over a despawned pane, one field holding the focus, <code class="path">ui_walk</code>'s parked-camera predicate, the soak's founding ack (new predicate <code class="path">pointer_at</code>), a document clone in <code class="path">serialize_content</code>, six names missing from the <code class="path">nova_autopilot</code> prelude, a double plugin add in <code class="path">widget_zoo</code>, and <code class="path">GizmoReach</code>'s cache key.</span></li>
+          </ul>
+          <div class="proofline">
+            Three stale walks were found by RUNNING them, not reading them: the soak had been stalling
+            on a button that moved inside a menu; two walks swept every <code class="path">SectionMarker</code>
+            in the world after the document started opening seeded; the soak's founding click at
+            (760,&nbsp;640) landed on the inspector. All three fixed here rather than filed.
+          </div>
+        </div>
+      </article>
+
+      <article class="tcard">
+        <div class="tcard-head">
+          <span class="tid">20260826-162503</span>
+          <span class="tname">One owner for the keyboard</span>
+          <span class="tsha">502fe14a</span>
+        </div>
+        <div class="tcard-body">
+          <p>
+            Every key system used to guard itself with a hand-kept denial list, and the lists had
+            drifted apart. <code class="path">nova_ui::input_mode</code> replaces them with an arbiter
+            and two rules.
+          </p>
+          <ul class="did">
+            <li><span class="op add">rule</span><span>A VERB runs in <code class="path">InputMode::Normal</code> alone. A MODE'S OWN system runs with <code class="path">owns_or_enters(mode)</code> &mdash; its mode and Normal, because the key that opens a mode is pressed before the mode exists.</span></li>
+            <li><span class="op add">order</span><span>The enum's declaration order IS the exclusivity order: <code class="path">Normal &lt; Browse &lt; Insert &lt; Bind</code>. Who wins a contested frame is one enum away rather than a rule per pair.</span></li>
+            <li><span class="op add">claim</span><span>Modes are claimed, not set. Whoever holds the state writes a <code class="path">ClaimKeyboard</code> each frame; <code class="path">InputModeSystems</code> keeps the greatest; a mode ends by going quiet. No release to forget.</span></li>
+            <li><span class="op cut">deleted</span><span><code class="path">rebind_armed</code>; <code class="path">typing_into_a_field</code> and all nine call sites; <code class="path">escape_backs_out</code>'s own <code class="path">rebind.target.is_some()</code> check and its two <code class="path">.before()</code> edges.</span></li>
+          </ul>
+          <div class="proofline">
+            New range <code class="path">system_input_modes</code> presses, per mode, the one key two
+            owners would both answer, and reads the NEGATIVE after a bounded settle &mdash; there is no
+            event for a key that went nowhere. Four invariants on the roster. Mutation-checked live:
+            dropping the Normal gate from <code class="path">delete_key</code> fails the Insert beat, exit 101.
+          </div>
+        </div>
+      </article>
+
+      <article class="tcard">
+        <div class="tcard-head">
+          <span class="tid">20260826-162506</span>
+          <span class="tname">Any landscape resolution, and controls that match their type</span>
+          <span class="tsha">53597374</span>
+        </div>
+        <div class="tcard-body">
+          <p>
+            Two halves. The world-anchor loop &mdash; project a point, measure the element, keep it in
+            the viewport &mdash; was written out longhand four times, and only one copy knew that
+            <code class="path">ComputedNode::size()</code> is physical while <code class="path">Node</code>
+            is logical. Separately, every leaf rendered as a text box, so a type's constraints had
+            nowhere to live.
+          </p>
+          <ul class="did">
+            <li><span class="op add">once</span><span><code class="path">nova_ui::screen::hang_at</code> is the loop, once. It takes the projected point, the label's own <code class="path">ComputedNode</code>, the hang it wants and the viewport, and answers where the corner goes. Four call sites, plus both NOVA OS scene panels, which had the same defect two lines each.</span></li>
+            <li><span class="op add">declare</span><span>One <code class="path">FieldSpec</code> per authored field, carrying its unit, its floor and the step a drag lands on. The per-kind screens are lists of declarations rather than lists of names, so a field a kind shows cannot lack the rule it is shown with.</span></li>
+            <li><span class="op add">grip</span><span>Numbers left the <code class="path">Text</code> arm. <code class="path">RowValue::Number</code> is its own variant, it wears the unit, and the row's NAME is the grip that scrubs it &mdash; the panel is 240&nbsp;px wide, and a row that spends pixels on a grip of its own spends them on the box holding the number.</span></li>
+            <li><span class="op chg">decided</span><span>No slider and no ceiling: no field in the content has a real one, and a track invented for it would either refuse an edit the runtime accepts or lie about where the value ends. A scrub ARRIVES at a floor; a typed number is refused by it &mdash; typing <code class="path">-3</code> into a radius is a mistake, dragging past zero is asking for the smallest value there is.</span></li>
+          </ul>
+          <div class="proofline">
+            Two new ranges. <code class="path">system_ui_scale</code> stamps where a chip hangs at
+            1024x768, then reads it again at 2x, 1280x600 and 760x600 &mdash; gap 24 and lead 5 at every
+            one, mutation-checked by putting <code class="path">keybind.rs</code> back on
+            <code class="path">computed.size()</code> (exit 101).
+            <code class="path">system_field_controls</code> drives the rock's Radius.
+            <b>Round 2 finding R2.1 lives inside exactly this proof.</b>
+          </div>
+        </div>
+      </article>
+
+      <article class="tcard">
+        <div class="tcard-head">
+          <span class="tid">no task</span>
+          <span class="tname">The comment sweep</span>
+          <span class="tsha">e9c94019 &middot; outside this range</span>
+        </div>
+        <div class="tcard-body">
+          <p>
+            Round 1's last cluster was comments that restate the code, and the fix was a convention in
+            <code class="path">AGENTS.md</code> plus one pass over the whole Rust tree. It landed after
+            the range under review here, so round 2 does not cover it.
+          </p>
+          <ul class="did">
+            <li><span class="op cut">removed</span><span>201 banner lines, 18 Arrange/Act/Assert markers, 161 <code class="path">NOTE:</code> preambles. Three essay module headers halved.</span></li>
+            <li><span class="op chg">rewritten</span><span>About 100 history-narration comments put into the present tense &mdash; keeping the constraint a sentence names, dropping the story of how it got there.</span></li>
+            <li><span class="op chg">lints</span><span>31 bare <code class="path">#[allow]</code> to 0. The turnover to <code class="path">#[expect]</code> found three dead suppressions and one that could never fire.</span></li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="board">
+    <div class="section-head"><span>Round 2</span><span>six lanes, --play</span></div>
+  </section>
+
+  <div class="doc">
+
+    <nav class="rail" aria-label="Findings">
+      <div class="rail-title">Findings</div>
+      <ol>
+        <li><a href="#scrub" data-sev="blocker"><span>The scrub's two grids</span><span class="sev">B</span></a></li>
+        <li><a href="#compound" data-sev="blocker"><span>What the two compound into</span><span class="sev">B</span></a></li>
+        <li><a href="#reach" data-sev="major"><span>What the new systems did not reach</span><span class="sev">M</span></a></li>
+        <li><a href="#panel" data-sev="major"><span>The panel tells the truth late</span><span class="sev">M</span></a></li>
+        <li><a href="#narrow" data-sev="major"><span>The width the task nominated</span><span class="sev">M</span></a></li>
+        <li><a href="#minors" data-sev="held"><span>Fifteen minors</span><span class="sev">m</span></a></li>
+        <li><a href="#verified" data-sev="held"><span>Verified, and skipped</span><span class="sev">&middot;</span></a></li>
+        <li><a href="#lanes" data-sev="held"><span>How the lanes ran</span><span class="sev">&middot;</span></a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <section id="scrub" class="cluster">
+        <div class="root">
+          <span class="num">R2.1</span>
+          <span class="name">The scrub's travel and its snap grid come from two different lookups</span>
+          <span class="chip blocker">Blocker</span>
+        </div>
+
+        <p class="lede">
+          The row's name is the grip. Drag it and the number moves. That is the control the UI task was
+          written to add, and it is the answer the task gives to <code class="path">NaN</code> &mdash; a
+          number reached by dragging is the old number plus a delta, so it cannot be one. The gesture
+          works. The arithmetic under it does not.
+        </p>
+
+        <p>
+          <code class="path">on_inspector_drag</code> multiplies the frame's pixels by the step the ROW
+          declared, handed to each grip as <code class="path">InspectorDrag(row.nudge)</code>. For a pose
+          row that is <code class="path">POSE_STEP</code>, 0.05. Then
+          <code class="path">nudge_field</code> re-derives a step of its own &mdash; from the WRITE path,
+          which for an axis box ends at <code class="path">PathStep::Field("x")</code>. No
+          <code class="path">FieldSpec</code> is named <code class="path">"x"</code> or covers it, so the
+          lookup misses and the grid falls back to <code class="path">FREE_STEP</code>, 0.1.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_editor/src/inspect.rs:1186</span><span class="tag">two lookups, one gesture</span></div>
+<pre><code>let by = drag.delta.x * grip.0;        <span class="c">// the ROW's step: 0.05</span>
+...
+let spec = field_spec(path);           <span class="c">// path ends at Field("x") -&gt; None</span>
+let step = spec.map_or(FREE_STEP, |spec| spec.step);   <span class="c">// 0.1</span>
+let mut moved = snapped(held.value + f64::from(by), step, held.whole);</code></pre>
+        </div>
+
+        <p>
+          <code class="path">0.05f32 / 0.1f32</code> is exactly 0.5, so every step lands precisely on a
+          half-grid point, and <code class="path">f64::round</code> is half-away-from-zero. The value is
+          then written back as TEXT and parsed again as an <code class="path">f32</code>, which is what
+          makes the result depend on where the node happens to sit. Reproduced over the exact chain, one
+          logical pixel per event:
+        </p>
+
+        <div class="scroll-x">
+        <table class="data">
+          <thead><tr><th>Start x</th><th>1 px/event, dragged right</th><th>What the builder sees</th></tr></thead>
+          <tbody>
+            <tr class="is-bad"><td class="n">0.0, 0.05, 0.1</td><td class="n">0.1 &rarr; 0.2 &rarr; 0.3 &rarr; 0.4</td><td>moves at <b>double</b> the declared step</td></tr>
+            <tr class="is-bad"><td class="n">0.6, 1.0, 2.5, 3.0</td><td class="n">0.7 &rarr; 0.7 &rarr; 0.7</td><td><b>stalls</b> after one step, or never moves</td></tr>
+            <tr class="is-bad"><td class="n">3.14159, 12.75</td><td class="n">3.2 &rarr; 3.3 &rarr; 3.3</td><td>one or two steps, then <b>stalls</b></td></tr>
+            <tr class="is-ok"><td class="n">any, at 0.05 grid</td><td class="n">3.05 &rarr; 3.10 &rarr; 3.15</td><td>what the declaration promises</td></tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="callout warn">
+          <b class="lbl">Why this is a blocker and not a major</b>
+          It is not confined to the axis rows. <code class="path">CursorMoved.position</code> is
+          documented in LOGICAL pixels and <code class="path">bevy_picking</code> derives
+          <code class="path">Drag::delta</code> from it, so at scale factor 2 a one-physical-pixel mouse
+          move is a 0.5 delta &mdash; half the grid for <em>every</em> row, scalars included.
+          <code class="path">Radius</code> at 0.5&nbsp;px/event does not move over 200 events. The panel's
+          numbers stop scrubbing on exactly the display class the other half of this same range was
+          written to support.
+        </div>
+
+        <p>
+          The same split reaches <code class="path">check_floor</code>, which also looks up the axis
+          path &mdash; so a <code class="path">Limit::AtLeast</code> declared on a vector field never
+          reaches its components. Nothing depends on that today; it is a trap set for the first bounded
+          <code class="path">Vec3</code>.
+        </p>
+
+        <div class="callout">
+          <b class="lbl">Why the proof could not see it</b>
+          <code class="path">system_field_controls</code> scrubs <code class="path">radius</code> &mdash;
+          a scalar, the one row where both lookups resolve to the same
+          <code class="path">FieldSpec</code> and the defect cannot appear. It also teleports the cursor
+          40&nbsp;px in a single <code class="path">move_cursor</code>, which is one drag event: the one
+          cadence that works. The two unit tests do the same. A control whose failure is a slow gesture
+          needs a proof that moves slowly.
+        </div>
+
+        <p>
+          Four of the six lanes found this independently. Two rated it major on the pose rows alone; the
+          lane that carried the HiDPI reach rated it blocker. That is the rating here, because with the
+          scale factor included it stops being a wrong step size on one row and becomes a control that
+          does not work across the panel.
+        </p>
+      </section>
+
+      <section id="compound" class="cluster">
+        <div class="root">
+          <span class="num">R2.6</span>
+          <span class="name">Every scrub frame rebuilds the object it is editing</span>
+          <span class="chip major">Major</span>
+        </div>
+
+        <p class="lede">
+          Two findings from two lanes that only mean something together.
+        </p>
+
+        <p>
+          <code class="path">EditTargets::edit</code> takes <code class="path">objects.get_mut(..)</code>,
+          which marks <code class="path">ObjectNode</code> changed whether or not the value moved &mdash;
+          and whether or not the edit was refused. <code class="path">drop_edited_views</code> watches
+          <code class="path">Changed&lt;ObjectNode&gt;</code> and despawns the body;
+          <code class="path">sync_object_views</code> respawns it the same frame, minting a fresh mesh
+          asset, a fresh material and a fresh collider. Nothing is cached. Drag an asteroid's Radius for
+          two seconds and that is about 120 of each, with their uploads. On a spaceship node it is the
+          whole multi-section hull, per frame.
+        </p>
+
+        <p>
+          <code class="path">drop_edited_views</code> predates this range, and its docstring names the
+          assumption that broke:
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_editor/src/node.rs:950</span><span class="tag">the assumption</span></div>
+<pre><code>A node's view is built ONCE ... because until the inspector
+existed nothing could change a config that already had a body.</code></pre>
+        </div>
+
+        <p>
+          The scrub turned one commit per typed edit into one per frame. On its own that is a frame cost
+          in the editor. Put it next to R2.1 and it is worse than that: at one pixel per event the value
+          does not move, and the hull is rebuilt every frame of a gesture that changes nothing. The
+          slower and more careful the drag, the more work it does and the less it achieves.
+        </p>
+
+        <p>
+          Unmeasured, and honestly so. No probe range drives a held drag, so no capture would have shown
+          it &mdash; the same gap that hid R2.1.
+        </p>
+      </section>
+
+      <section id="reach" class="cluster">
+        <div class="root">
+          <span class="num">R2.2 &middot; R2.4 &middot; R2.7 &middot; R2.8</span>
+          <span class="name">What the new systems did not reach</span>
+          <span class="chip major">Major</span>
+        </div>
+
+        <p class="lede">
+          The arbiter and the anchor loop both do what they were built to do. Each was adopted by the
+          code that could adopt it, and each has a consumer that could not be.
+        </p>
+
+        <div class="findings">
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.2</div>
+            <div class="f-body">
+              <b>Bind mode does not take WASD off the editor camera.</b> The free-fly rig is
+              <code class="path">bevy_enhanced_input</code>'s, so no run condition reaches it; it is
+              removed by three systems keyed on their own state, none of which reads
+              <code class="path">EditorRebind</code> or <code class="path">InputMode</code>. Arm a rebind
+              on a thruster and press <code class="path">W</code> &mdash; the most natural thruster
+              binding there is &mdash; and <code class="path">W</code> binds while the camera flies
+              forward, so the part the chip points at slides off screen mid-gesture. Insert and Browse
+              are both parked. Bind, the most exclusive mode there is, is not. The task body and the
+              arbiter's own docstring both say otherwise.
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.7</div>
+            <div class="f-body">
+              <b>The key legend advertises keys Bind has taken.</b>
+              <code class="path">sync_key_legend</code> keys its hints on the tool and whether you are
+              inside a ship, so a rebind changes only the last cell. The legend still reads
+              <code class="path">Bksp leave</code> while <code class="path">backspace_steps_out</code> is
+              gated off and <code class="path">apply_section_rebind</code> captures every key but Escape.
+              Press it and Backspace becomes the thruster's fire key. <code class="path">config.rs:348</code>
+              states the contract this breaks: "the keys that do nothing in the current mode are not listed".
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.8</div>
+            <div class="f-body">
+              <b>Ctrl+S goes quiet under the parts gallery, and nothing can say so.</b> Browse swallowing
+              everything but its own exit is the shape the task chose, and the decision is recorded. What
+              is not recorded is that the gallery is full-screen at <code class="path">GALLERY_Z&nbsp;=&nbsp;20</code>
+              and the status line sits at <code class="path">FOOT_Z&nbsp;=&nbsp;15</code>, so the one
+              surface the editor speaks through is covered. A refusal could not be shown even if one were
+              written, and there is no unsaved-changes guard anywhere.
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.4</div>
+            <div class="f-body">
+              <b><code class="path">hang_at</code> clamps an anchor that is outside the viewport into it.</b>
+              None of the three sites it replaced clamped.
+              <code class="path">Camera::world_to_viewport</code> errors only past the near and far
+              planes &mdash; there is no x/y range check &mdash; so a node beside the viewport returns
+              <code class="path">Ok</code> with out-of-range coordinates and the callers hide only on
+              <code class="path">Err</code>. A nameplate for a ship framed out of view now stands on the
+              rail, labelling a ship that is not on screen. And in <code class="path">keybind.rs</code>,
+              <code class="path">clear_of</code> lifts colliding chips and records the UNCLAMPED spot, so
+              a pile keeps walking above the viewport and every chip clamps to
+              <code class="path">y&nbsp;=&nbsp;0</code> &mdash; landing on one pixel row, the single
+              outcome <code class="path">clear_of</code> exists to prevent. The leaders still start from
+              the unclamped point, so they no longer meet their chips.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel" class="cluster">
+        <div class="root">
+          <span class="num">R2.5 &middot; R2.9 &middot; R2.10</span>
+          <span class="name">The panel tells the truth late, or not at all</span>
+          <span class="chip major">Major</span>
+        </div>
+
+        <div class="findings">
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.5</div>
+            <div class="f-body">
+              <b>A refused box is excluded from the repaint forever.</b>
+              <code class="path">TextFieldError</code> is inserted and removed in one place, on a typed
+              submit; <code class="path">sync_inspector</code> repaints
+              <code class="path">Without&lt;TextFieldError&gt;</code>; the scrub neither writes through it
+              nor clears it. Type <code class="path">-5</code> into a radius and get refused, then drag
+              that row's name: the radius moves 3 &rarr; 5, the rock grows on the stage, and the box
+              still reads <code class="path">-5</code> in red with <code class="path">min 0</code> beside
+              it. The only exits are a successful typed submit into that same box, or selecting another
+              node.
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.9</div>
+            <div class="f-body">
+              <b>Empty and unsigned optionals wear grips that can only refuse.</b>
+              <code class="path">walk_option</code> builds the row off the payload TYPE, so a field
+              holding <code class="path">None</code> still gets a step and a grip. On the stock rock's
+              first screen, <code class="path">Mass</code> reads <code class="path">none</code> and says
+              <code class="path">"empty"</code> on every drag event; <code class="path">Seed</code> is an
+              <code class="path">Option&lt;u32&gt;</code> declared <code class="path">Limit::Free</code>,
+              so it walks 3, 2, 1, 0 and then says <code class="path">"not a u32"</code>. Both contradict
+              this range's own decision that a scrub arrives at a floor, and both show a Rust type name
+              to a builder where <code class="path">EditorSays::refuse</code> asks for the way out.
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">R2.10</div>
+            <div class="f-body">
+              <b>The player wiki still describes the pre-v0.12.0 editor.</b> It sends the reader to a rail
+              row named Parts that does not exist and a Tools block that does not exist, and lists none of
+              <code class="path">Del</code>, <code class="path">Ctrl+S</code>, <code class="path">F</code>,
+              <code class="path">Backspace</code> or <code class="path">F5</code>. This range then made
+              two of those inert under the gallery. Neither the wiki nor the creator docs mention the
+              Inspector at all, so the scrub gesture and its units are documented nowhere. Most of the rot
+              landed earlier in the cycle; this is the last range before release.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="narrow" class="cluster">
+        <div class="root">
+          <span class="num">R2.3</span>
+          <span class="name">The width the task nominated is the width that breaks</span>
+          <span class="chip major">Major</span>
+        </div>
+
+        <p class="lede">
+          The UI task's Done-when names a wide and a narrow landscape size, and picks 760x600 as the
+          narrow bound. <code class="path">system_ui_scale</code> runs it. At that size the Ship menu
+          button is drawn on top of the Play button.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>rendered at 760x600</span><span class="tag">top bar</span></div>
+<pre><code>File  Edit  View  Add  <span class="bad">Pla</span><span class="bad">Ship</span><span class="bad">leave the ship)</span></code></pre>
+        </div>
+
+        <p>
+          <code class="path">Top Bar Left</code> is <code class="path">flex_basis: px(0)</code>,
+          <code class="path">flex_grow: 1.0</code>, <code class="path">min_width: px(0)</code>, with no
+          <code class="path">flex_shrink</code> and no clip, so it squeezes below the natural width of
+          <code class="path">EDITOR</code> plus five menu buttons and its children overflow. The
+          breadcrumb wrapper on the other side got <code class="path">Overflow::clip()</code> for exactly
+          this reason. The left column never did.
+        </p>
+
+        <div class="callout">
+          <b class="lbl">The gap this exposes</b>
+          The range ran 760x600 and asserted a number there &mdash; the chip's gap and lead, both correct.
+          Nobody looked at the frame. A range that measures one element at a size can pass while the rest
+          of the screen at that size is broken, which is why the feel lane is the only one that found
+          this and why it needed a rendered run to do it.
+        </div>
+      </section>
+
+      <section id="minors" class="cluster">
+        <div class="root">
+          <span class="num">R2.11&ndash;25</span>
+          <span class="name">Fifteen minors</span>
+          <span class="chip minor">Minor</span>
+        </div>
+
+        <p class="lede">
+          Three of these are worth reading on their own. The rest are in
+          <code class="path">tasks/20260826-162500/REVIEW.md</code>.
+        </p>
+
+        <div class="findings">
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">R2.11</div>
+            <div class="f-body">
+              <b>The NOVA OS blip cull inverted.</b> Before layout,
+              <code class="path">inverse_scale_factor()</code> is 0 &mdash; this repo documents that
+              itself &mdash; so the new unit conversion collapses the panel size to zero AND every
+              projected point to <code class="path">Vec2::ZERO</code>, which then PASSES
+              <code class="path">p.x &gt;= 0.0 &amp;&amp; p.x &lt;= size.x</code>. Previously the
+              projection kept physical coordinates and the same filter rejected them. "Cull every blip"
+              became "stack every blip in the corner, visible", for one frame each time the map opens.
+            </div>
+          </div>
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">R2.13</div>
+            <div class="f-body">
+              <b>A beat in the new range cannot reach the field it credits.</b>
+              <code class="path">press_key</code> writes <code class="path">ButtonInput&lt;KeyCode&gt;</code>
+              alone, while <code class="path">text_field_keyboard</code> reads
+              <code class="path">MessageReader&lt;KeyboardInput&gt;</code> &mdash; which is why the Escape
+              beat presses both halves. So the Insert beat's Delete never arrives: it proves no verb
+              answered, and its log line "the field took Delete" describes something that did not happen.
+              Gate the field on a mode it can never hold and the beat, its assert and its
+              <code class="path">outcome:</code> marker all stay green.
+            </div>
+          </div>
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">R2.12</div>
+            <div class="f-body">
+              <b>The mode resolves one frame after the state that defines it.</b>
+              <code class="path">declare_editor_keyboard_owner</code> runs in
+              <code class="path">PreUpdate</code> off state that <code class="path">Update</code> writes,
+              so on the frame a rebind is armed the mode is still Normal &mdash; and the ordering edge
+              that used to cover this was deleted as part of the same task. Both
+              <code class="path">escape_backs_out</code> and <code class="path">apply_section_rebind</code>
+              run in that frame, so one Escape can spend two rungs. It needs a click-release and an
+              Escape inside the same ~16&nbsp;ms, which is why it is a minor and not more.
+            </div>
+          </div>
+        </div>
+
+        <p>
+          The remaining twelve: a gizmo cache keyed on a scale nothing can change; a nudge that writes
+          when the value did not move; a per-row allocation in <code class="path">curate</code> whose
+          obvious fix would change behaviour; a dead guard left on one verb; a comment that states the
+          arbiter's resolution rule backwards; nameplates that pile where chips do not; the colour picker
+          overlapping the rail at 760&nbsp;px; the key legend wrapping to five rows over a narrow stage;
+          three documentation chapters the range invalidated; duplicated helpers across the two new
+          ranges; two single-caller constructors; and a docstring welded to the wrong item.
+        </p>
+      </section>
+
+      <section id="verified" class="cluster">
+        <div class="root">
+          <span class="num">&mdash;</span>
+          <span class="name">Verified, and skipped</span>
+          <span class="chip held">Record</span>
+        </div>
+
+        <p class="lede">
+          The two hard parts of this range are right, and that is worth stating as plainly as the
+          findings.
+        </p>
+
+        <ul class="did">
+          <li><span class="op add">held</span><span><code class="path">hang_at</code>'s two opposite conversions are both correct. <code class="path">world_to_viewport</code> answers logical, <code class="path">ComputedNode::size()</code> is physical, and the NOVA OS scene camera draws into an image sized from <code class="path">computed.size()</code>, so the projection really is physical there. Cross-read against <code class="path">bevy_camera-0.19.1</code>.</span></li>
+          <li><span class="op add">held</span><span>The arbiter replaces the denial lists it set out to replace. Every keyboard consumer in <code class="path">nova_editor</code> was enumerated and gated, except the external rig in R2.2.</span></li>
+          <li><span class="op add">held</span><span>A scrub past a declared floor ARRIVES at it while a typed value below is refused &mdash; the two gestures do differ as designed. <code class="path">nan</code> and <code class="path">inf</code> cannot reach a pose field by any route.</span></li>
+          <li><span class="op add">held</span><span>The Escape ladder, rung by rung: each is owned by one mode, and <code class="path">just_pressed</code> clearing in <code class="path">PreUpdate</code> stops a rung being answered twice &mdash; except on the arming frame (R2.12).</span></li>
+          <li><span class="op add">held</span><span>No format, no runtime string id, no generated file changed. Wasm and default-features checks clean. Changelog correct against <code class="path">v0.11.0</code>. Three ranges green, <code class="path">catalog_drift</code> 2/2, <code class="path">nova_ui</code> 48 and <code class="path">nova_editor</code> 319 lib tests pass.</span></li>
+        </ul>
+
+        <div class="callout warn">
+          <b class="lbl">Skipped &mdash; each of these is unchecked, not passed</b>
+          The workspace suite and Clippy (CI owns both). <code class="path">content lint</code>, which had
+          no input in this range. A real HiDPI display &mdash; R2.1's scale-factor half is derived from
+          documented units, not observed. Bind mode was never driven live, so R2.2 and R2.7 are
+          code-grounded. R2.6 is unmeasured; no probe range drives a held drag. R2.11 was read, not
+          rendered. Widths between 760 and 1024 were not swept. Four long walks were not re-run.
+        </div>
+
+        <div class="callout">
+          <b class="lbl">For anyone re-running these</b>
+          The <code class="path">system_ui_scale</code>, <code class="path">system_field_controls</code>
+          and <code class="path">system_input_modes</code> binaries sitting in
+          <code class="path">target/debug/examples/</code> are pre-commit builds, and the first is the
+          task's deliberately MUTATED build &mdash; it fails the 2x beat with
+          <code class="path">the chip hangs 47.5 over its part instead of 24</code>. Rebuild from the
+          tree before trusting any of them.
+        </div>
+      </section>
+
+      <section id="lanes" class="cluster">
+        <div class="root">
+          <span class="num">&mdash;</span>
+          <span class="name">How the lanes ran</span>
+          <span class="chip held">Method</span>
+        </div>
+
+        <p class="lede">
+          Six lanes over one bundle, dispatched together. One measurement slot, passed hand to hand,
+          because a shared GPU turns a 93&nbsp;ms frame into 291&nbsp;ms.
+        </p>
+
+        <div class="lanegrid">
+          <div class="lane">
+            <div class="ln">Craft</div>
+            <div class="lc">read only</div>
+            <div class="lf">Found R2.1 and R2.2. Reproduced the snap arithmetic by hand, and got the
+              direction right with the wrong numbers &mdash; it omitted the text round-trip.</div>
+          </div>
+          <div class="lane">
+            <div class="ln">Performance</div>
+            <div class="lc">held the slot first</div>
+            <div class="lf">Released the slot without measuring, on the honest ground that no range
+              drives a held drag so no capture would show R2.6.</div>
+          </div>
+          <div class="lane">
+            <div class="ln">Correctness</div>
+            <div class="lc">ran three ranges</div>
+            <div class="lf">Took the slot second. Found R2.11 and R2.13 &mdash; the two defects that sit
+              inside the range's own proof.</div>
+          </div>
+          <div class="lane">
+            <div class="ln">Contracts</div>
+            <div class="lc">read only</div>
+            <div class="lf">Found R2.10 and the three stale doc chapters. Confirmed the changelog against
+              the release tag rather than the base commit.</div>
+          </div>
+          <div class="lane">
+            <div class="ln">Red team</div>
+            <div class="lc">--play, code-first</div>
+            <div class="lf">Rated R2.1 a blocker, alone, because it alone carried the scale-factor reach.
+              Found R2.5. Listed what held, which is what made the rest credible.</div>
+          </div>
+          <div class="lane">
+            <div class="ln">Feel</div>
+            <div class="lc">--play, rendered</div>
+            <div class="lf">The only lane that looked at frames, and the only one that found R2.3 &mdash;
+              which four code-reading lanes could not have.</div>
+          </div>
+        </div>
+
+        <p>
+          The lanes disagreed usefully. Two rated the scrub a major; one a blocker. Their arithmetic
+          disagreed too, and both were partly wrong, because each omitted the
+          <code class="path">number_text</code> round-trip that makes the behaviour depend on the value.
+          Re-deriving it in adjudication is what produced the table above &mdash; and one observation of
+          my own, about accumulated float drift, was dropped there for the same reason: the round-trip
+          erases it before it reaches the screen.
+        </p>
+      </section>
+
+      <section class="cluster">
+        <div class="root">
+          <span class="num">&mdash;</span>
+          <span class="name">Where it stands</span>
+          <span class="chip blocker">Request changes</span>
+        </div>
+
+        <p class="lede">
+          Request changes on R2.1 alone.
+        </p>
+
+        <p>
+          It is the control the UI task exists to add, it fails silently, its failure depends on where
+          the node happens to sit, and it gets worse on exactly the displays the other half of the same
+          range was written for. The fix is small &mdash; pass the step the grip already carries into
+          <code class="path">nudge_field</code>, so one number drives both the travel and the snap, and
+          accumulate sub-step deltas rather than discarding a move that rounded away.
+        </p>
+
+        <p>
+          R2.2 and R2.7 are one gap seen twice: the arbiter covers the systems it can gate, and the two
+          things it cannot &mdash; an external input rig, and a legend that reads state directly &mdash;
+          were not brought along. R2.3 is the responsiveness half missing its own Done-when at the width
+          that task nominated, because the range asserted a number at that size without looking at the
+          frame.
+        </p>
+
+        <p>
+          Nothing has been changed in response to this round. The findings are recorded at
+          <code class="path">tasks/20260826-162500/REVIEW.md</code>, numbered R2.1 to R2.25, and fixing
+          is a separate step.
+        </p>
+      </section>
+
+    </main>
+  </div>
+</div>
