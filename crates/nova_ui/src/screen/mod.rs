@@ -5,8 +5,10 @@
 //! [`ComputedNode`](bevy::prelude::ComputedNode)'s physical pixels and
 //! [`ScrollPosition`](bevy::prelude::ScrollPosition)'s logical ones has exactly
 //! one correct spelling; two crates each carrying their own copy is how they
-//! drifted apart.
+//! drifted apart. The float half is the same conversion on the other side of
+//! the screen: a label the world says the position of.
 
+mod float;
 mod list;
 pub mod prelude;
 mod scroll;
@@ -15,6 +17,7 @@ mod scroll;
 mod tests;
 
 use bevy::prelude::*;
+pub use float::*;
 pub use list::*;
 pub use scroll::*;
 

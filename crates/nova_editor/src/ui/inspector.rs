@@ -37,10 +37,10 @@ use crate::{
     gizmo::GizmoAxis,
     inspect::{
         axis_step, choose_field, curated_object_rows, curated_section_rows, driver_label,
-        editable_config, inspected, object_config_mut, object_rows, parse_colour, rotation_degrees,
-        rotation_from_degrees, scenario_rows, section_config_mut, section_rows, ship_rows,
-        toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds, PathStep,
-        RowValue,
+        editable_config, inspected, nudge_field, object_config_mut, object_rows, parse_colour,
+        rotation_degrees, rotation_from_degrees, scenario_rows, section_config_mut, section_rows,
+        ship_rows, toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds,
+        PathStep, RowValue,
     },
     keybind::on_rebind_action,
     node::{
@@ -107,6 +107,15 @@ pub(crate) struct InspectorField {
 /// own to put a reason on, and the only other free space is the next row's.
 #[derive(Component)]
 pub(crate) struct InspectorUnit(&'static str);
+
+/// A number's name, which is also the grip that scrubs it: how far one pixel of
+/// a drag moves the value.
+///
+/// The NAME rather than a control of its own, because the panel is 240px wide
+/// and a row that spends pixels on a grip spends them on the box holding the
+/// number. It rides beside an [`InspectorField`], which says what it writes to.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct InspectorDrag(f32);
 
 /// A checkbox standing for a `bool` field.
 #[derive(Component)]
@@ -596,6 +605,7 @@ fn spawn_axes_row(
 ) {
     let leads = axis_leads(row.root);
     let unit = row.unit;
+    let nudge = row.nudge;
     let label = row.label.clone();
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
@@ -661,6 +671,12 @@ fn spawn_axes_row(
                             flex_shrink: 0.0,
                             ..default()
                         },
+                        // The axis letter is this box's name, so it is this
+                        // box's grip: dragging Y slides the node along Y.
+                        Name::new(format!("Inspector Grip {label} {lead}")),
+                        InspectorDrag(nudge),
+                        axis_field.clone(),
+                        observe(on_inspector_drag),
                     ));
                     line.spawn(Node {
                         flex_grow: 1.0,
@@ -773,11 +789,22 @@ fn build_rows(
             },
         ))
         .with_children(|shell| {
-            shell.spawn(row_label(&row.label, step));
+            let mut label = shell.spawn(row_label(&row.label, step));
+            if row.nudge > 0.0 {
+                label.insert((
+                    Name::new(format!("Inspector Grip {}", row.label)),
+                    InspectorDrag(row.nudge),
+                    field.clone(),
+                    observe(on_inspector_drag),
+                ));
+            }
             shell
                 .spawn(value_column())
                 .with_children(|value| match &row.value {
-                    RowValue::Text(text) => {
+                    // One arm: a number is TYPED the way a name is, and the
+                    // scrub it also answers to rides on the row's name, not in
+                    // this column.
+                    RowValue::Text(text) | RowValue::Number(text) => {
                         // The placeholder is the OPTIONAL row's whole affordance:
                         // an empty box that says "none" is what tells a builder
                         // that emptying it is allowed.
@@ -1063,7 +1090,10 @@ pub(crate) fn sync_inspector(
     // in.
     for (slot, axis, mut value) in &mut fields {
         let text = match (rows.get(slot.0).map(|row| &row.value), axis) {
-            (Some(RowValue::Text(text) | RowValue::Colour(text)), None) => text,
+            (
+                Some(RowValue::Text(text) | RowValue::Number(text) | RowValue::Colour(text)),
+                None,
+            ) => text,
             // One row, three boxes: the box says which of the three numbers it
             // is holding.
             (Some(RowValue::Axes(axes)), Some(axis)) => {
@@ -1302,6 +1332,38 @@ pub(crate) fn apply_inspector_edits(
                 commands.entity(*entity).insert(TextFieldError(reason));
             }
         }
+    }
+}
+
+/// Scrub a number by dragging its name.
+///
+/// Continuous: every frame of the drag moves the value by that frame's pixels,
+/// so the number under the pointer is the number the document holds - there is
+/// no committed-on-release state to lose.
+///
+/// A refusal is SAID rather than written onto a box: the grip is the row's
+/// name, and a name has nowhere to wear an error.
+pub(crate) fn on_inspector_drag(
+    drag: On<Pointer<Drag>>,
+    grips: Query<(&InspectorField, &InspectorDrag)>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    let Ok((field, grip)) = grips.get(drag.entity) else {
+        return;
+    };
+    let by = drag.delta.x * grip.0;
+    if by == 0.0 {
+        return;
+    }
+    let moved = targets.edit(field, |root, path, optional| {
+        nudge_field(root, path, optional, by)
+    });
+    if let Err(reason) = moved {
+        says.refuse(reason);
     }
 }
 

@@ -36,7 +36,7 @@ fn row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
 /// it answers here too.
 fn text_of(rows: &[InspectorRow], label: &str) -> String {
     match &row(rows, label).value {
-        RowValue::Text(text) | RowValue::Colour(text) => text.clone(),
+        RowValue::Text(text) | RowValue::Number(text) | RowValue::Colour(text) => text.clone(),
         // A vector row reads as one line however many boxes it is typed in.
         RowValue::Axes(axes) => axes.join(", "),
         other => panic!("row {label:?} is {other:?}, not text"),
@@ -503,7 +503,7 @@ fn a_turrets_fire_rate_is_reachable_through_its_joint_tree() {
         .iter()
         .find(|row| row.label == "Fire Rate")
         .expect("the muzzle's fire rate has a row of its own");
-    assert_eq!(rate.value, RowValue::Text("4".to_string()));
+    assert_eq!(rate.value, RowValue::Number("4".to_string()));
     assert!(
         rate.path.contains(&PathStep::Item(0)),
         "and it is reached by stepping INTO the joint list: {:?}",
@@ -1058,4 +1058,100 @@ fn the_inspector_falls_back_to_the_node_you_are_standing_in() {
         Some(InspectTarget::Section(section)),
         "a selection wins over the context"
     );
+}
+
+/// One declaration per field. The lookup answers with the SAME declaration a
+/// kind's first screen was built from, so a field cannot end up shown with one
+/// rule and written with another.
+#[test]
+fn a_field_is_declared_exactly_once() {
+    let mut seen: Vec<FieldSpec> = Vec::new();
+    for spec in DECLARED.iter().copied().flatten() {
+        // A name may appear in two lists - a fire rate is shown by a turret and
+        // by a torpedo - but only as the SAME declaration referenced twice.
+        if let Some(other) = seen.iter().find(|other| other.name == spec.name) {
+            assert_eq!(
+                other, spec,
+                "{:?} is declared twice with different rules; a field is declared \
+                 once and referenced from every list that shows it",
+                spec.name
+            );
+            continue;
+        }
+        seen.push(*spec);
+    }
+    assert!(!seen.is_empty(), "the table is not empty");
+}
+
+/// A field a kind shows first carries its own unit and floor. It used to be
+/// possible to name a field on a first screen and forget the rule, which is
+/// what left every number on a turret in a bare box.
+#[test]
+fn every_field_a_kind_shows_carries_its_own_rule() {
+    for spec in DECLARED.iter().copied().flatten() {
+        // A family is not a field, so there is no name to look it up by. What
+        // it covers is `a_named_field_beats_the_family_it_belongs_to`.
+        if spec.name.starts_with('*') {
+            continue;
+        }
+        let path = vec![PathStep::Field(spec.name.to_string())];
+        assert_eq!(
+            field_spec(&path),
+            Some(*spec),
+            "the lookup for {:?} answers with its own declaration",
+            spec.name
+        );
+    }
+}
+
+/// A name declared in full beats a family, so a length that one day needs
+/// saying something else can say it.
+#[test]
+fn a_named_field_beats_the_family_it_belongs_to() {
+    let named = field_spec(&[PathStep::Field("blast_radius".to_string())]);
+    assert_eq!(named, Some(BLAST_RADIUS));
+    let family = field_spec(&[PathStep::Field("exhaust_radius".to_string())]);
+    assert_eq!(family, Some(ANY_RADIUS));
+}
+
+/// A scrub of a WHOLE number stays whole: a seed is a name for a shape, and
+/// there is no shape halfway between two of them.
+#[test]
+fn a_scrub_of_a_whole_number_stays_whole() {
+    let mut config = AsteroidConfig {
+        radius: 3.0,
+        texture: default(),
+        impact_sound: None,
+        destroy_sound: None,
+        mass: None,
+        invulnerable: false,
+        seed: Some(7),
+        lock_signature: None,
+    };
+    let path = vec![PathStep::Field("seed".to_string())];
+
+    nudge_field(&mut config, &path, true, 2.4).expect("a seed scrubs");
+
+    assert_eq!(config.seed, Some(9), "two and a bit pixels is two seeds on");
+}
+
+/// An OPTIONAL field holding nothing has no number to move, and says so rather
+/// than inventing one.
+#[test]
+fn a_scrub_of_an_empty_optional_says_it_is_empty() {
+    let mut config = AsteroidConfig {
+        radius: 3.0,
+        texture: default(),
+        impact_sound: None,
+        destroy_sound: None,
+        mass: None,
+        invulnerable: false,
+        seed: None,
+        lock_signature: None,
+    };
+    let path = vec![PathStep::Field("mass".to_string())];
+
+    let refused = nudge_field(&mut config, &path, true, 5.0);
+
+    assert_eq!(refused, Err("empty".to_string()));
 }

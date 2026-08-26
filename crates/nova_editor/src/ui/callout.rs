@@ -8,7 +8,7 @@
 use bevy::{picking::Pickable, prelude::*, ui::widget::TextShadow};
 use nova_ship::prelude::{GameSections, SectionConfig};
 use nova_ui::{
-    prelude::{panel, UiSkin, UiText},
+    prelude::{hang_at, panel, Hang, UiSkin, UiText},
     theme,
 };
 
@@ -126,7 +126,7 @@ pub(crate) fn sync_placement_callout(
         ),
     >,
 ) {
-    let spot = preview
+    let aimed = preview
         .placement
         .as_ref()
         .zip(context.ship())
@@ -136,11 +136,12 @@ pub(crate) fn sync_placement_callout(
                 .mul_transform(placement.solve.transform)
                 .translation();
             let (camera, camera_pose) = cameras.iter().next()?;
-            camera.world_to_viewport(camera_pose, world).ok()
+            let spot = camera.world_to_viewport(camera_pose, world).ok()?;
+            Some((spot, camera.logical_viewport_size()?))
         });
 
     for (mut node, mut visibility, computed) in callouts {
-        let Some((placement, spot)) = preview.placement.as_ref().zip(spot) else {
+        let Some((placement, (spot, viewport))) = preview.placement.as_ref().zip(aimed) else {
             if *visibility != Visibility::Hidden {
                 *visibility = Visibility::Hidden;
             }
@@ -153,9 +154,9 @@ pub(crate) fn sync_placement_callout(
         // frame's, which is one frame stale on the frame the text changes and
         // exact on every other - a callout that jumped a few pixels once per
         // wording change is cheaper than a layout pass to place a label.
-        let size = computed.size();
-        let left = px(spot.x - size.x / 2.0);
-        let top = px(spot.y + DROP);
+        let corner = hang_at(spot, Hang::below(DROP), computed, viewport);
+        let left = px(corner.x);
+        let top = px(corner.y);
         if node.left != left {
             node.left = left;
         }

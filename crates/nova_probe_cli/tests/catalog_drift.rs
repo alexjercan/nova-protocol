@@ -318,6 +318,18 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_ui_scale",
+        &["a world-anchored label keeps its logical place"],
+    ),
+    (
+        "system_field_controls",
+        &[
+            "a declared field wears its own unit",
+            "a number is scrubbed by its own name",
+            "a scrub arrives at the floor",
+        ],
+    ),
+    (
         "system_input_modes",
         &[
             "insert mode keeps delete off the tree",
@@ -432,7 +444,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 178;
+const SYSTEMS_INVARIANTS: usize = 182;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

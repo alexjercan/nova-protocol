@@ -112,8 +112,9 @@ does NOT get an entry - and it is the only place they are written down.
   to Main Menu both put the question up first.
 - The selected node wears a phosphor outline in every context, and resting on
   a tree row lights the thing on the stage - and the other way round.
-- A field knows what it holds: the unit beside the number, and a floor on the
-  ones that have one, so a negative radius is refused where it is typed.
+- A field knows what it holds: one declaration gives it a unit, a floor and the
+  step it drags by, so a number is scrubbed by pulling its row's name and a
+  negative radius is refused where typed.
 - A ship carries a name of its own, and the tree shows it with the minted id
   on hover. The Key row is the button that arms the rebind.
 - The scenario node reports what the document holds: how many ships, how many
@@ -134,6 +135,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Hulls carry their name on the stage, and anything else takes one while it is
   selected or under the pointer, so five derelicts stop being five identical
   grey shapes.
+- Labels pinned to something in the world - a keybind chip, a NOVA OS blip -
+  sat a label's height off target on a HiDPI screen. They point where they mean
+  at any scale and landscape size.
 
 ### Ships & Sections
 

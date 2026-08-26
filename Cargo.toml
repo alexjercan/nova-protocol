@@ -210,6 +210,14 @@ name = "system_ship_editor"
 path = "examples/systems/system_ship_editor.rs"
 
 [[example]]
+name = "system_ui_scale"
+path = "examples/systems/system_ui_scale.rs"
+
+[[example]]
+name = "system_field_controls"
+path = "examples/systems/system_field_controls.rs"
+
+[[example]]
 name = "system_input_modes"
 path = "examples/systems/system_input_modes.rs"
 

@@ -16,7 +16,7 @@
 use bevy::{color::Mix, picking::Pickable, prelude::*, ui::widget::TextShadow};
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
-    prelude::{UiSkin, UiText},
+    prelude::{hang_at, Hang, UiSkin, UiText},
     theme,
     widget::list_row_colors,
 };
@@ -227,6 +227,9 @@ pub(crate) fn sync_nameplates(
     let Some((camera, camera_pose)) = cameras.iter().next() else {
         return;
     };
+    let Some(viewport) = camera.logical_viewport_size() else {
+        return;
+    };
     for (plate, mut node, mut visibility, computed) in plates {
         // Over the TOP of the node, not its middle: a label in the middle of a
         // hull is a label on the hull.
@@ -254,9 +257,9 @@ pub(crate) fn sync_nameplates(
         }
         // Last frame's size, as the callout does: a plate that jumped a few
         // pixels once per rename is cheaper than a layout pass to place a label.
-        let size = computed.size();
-        let left = px(spot.x - size.x / 2.0);
-        let top = px(spot.y - size.y - LIFT);
+        let corner = hang_at(spot, Hang::above(LIFT), computed, viewport);
+        let left = px(corner.x);
+        let top = px(corner.y);
         if node.left != left {
             node.left = left;
         }

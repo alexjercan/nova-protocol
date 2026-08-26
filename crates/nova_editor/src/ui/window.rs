@@ -39,8 +39,12 @@ use crate::{
 /// came from rather than as a second panel with its own ideas - and follows it
 /// when the panel is widened.
 const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
-/// How far off the right edge a fresh window stands, clear of the Inspector.
-const RIGHT_MARGIN: f32 = 264.0;
+/// The gutter a fresh window keeps between itself and the Inspector.
+const INSPECTOR_GUTTER: f32 = 12.0;
+/// How far off the right edge a fresh window stands. Derived from the panel it
+/// belongs to, so widening the Inspector moves the window instead of parking it
+/// underneath.
+const RIGHT_MARGIN: f32 = crate::ui::inspector::PANEL_W + INSPECTOR_GUTTER;
 /// Where a fresh window's top edge sits, under the top bar.
 const TOP_MARGIN: f32 = 96.0;
 /// How much of a window must stay on screen when it is dragged: enough to

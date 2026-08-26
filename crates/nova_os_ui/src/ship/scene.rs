@@ -560,7 +560,11 @@ pub(crate) fn project_ship_blips(
     else {
         return;
     };
-    let size = computed.size();
+    // The scene camera draws into an image whose pixels ARE the viewport
+    // node's physical pixels, so it answers in physical pixels while `Node`
+    // asks for logical ones. Do the conversion once, here.
+    let to_logical = computed.inverse_scale_factor();
+    let size = computed.size() * to_logical;
     let list = sections.collect();
     let font = nova_os_font(ui_font.as_deref());
 
@@ -574,6 +578,7 @@ pub(crate) fn project_ship_blips(
         let projected = camera
             .world_to_viewport(cam_gt, view.local.translation)
             .ok()
+            .map(|p| p * to_logical)
             .filter(|p| p.x >= 0.0 && p.y >= 0.0 && p.x <= size.x && p.y <= size.y);
         let selected = runtime.selected == Some(view.entity);
         let color = view.status_color();

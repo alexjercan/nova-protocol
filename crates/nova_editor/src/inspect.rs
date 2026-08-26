@@ -152,6 +152,10 @@ pub(crate) enum PathStep {
 pub(crate) enum RowValue {
     /// Editable as text. The string is the value in its canonical form.
     Text(String),
+    /// ONE number. Typed like text, and dragged by its name, which is what
+    /// makes `nan` a thing the control cannot express rather than a thing the
+    /// parser has to refuse. The string is the value as it reads.
+    Number(String),
     /// A colour, as `#rrggbb`. Editable as text like any other leaf, but the
     /// panel paints the colour beside the field - a builder picking a beacon's
     /// light should not have to read hex to know what they picked.
@@ -194,9 +198,11 @@ impl RowValue {
     /// word they stand for.
     pub(crate) fn reading(&self) -> String {
         match self {
-            Self::Text(text) | Self::Colour(text) | Self::Fixed(text) | Self::Key(text) => {
-                text.clone()
-            }
+            Self::Text(text)
+            | Self::Number(text)
+            | Self::Colour(text)
+            | Self::Fixed(text)
+            | Self::Key(text) => text.clone(),
             // One line, the way the value reads on paper: three boxes are how
             // it is TYPED, not what it is.
             Self::Axes(axes) => axes.join(", "),
@@ -242,6 +248,9 @@ pub(crate) struct InspectorRow {
     /// What the number IS, where its name does not say it: the unit it is
     /// typed in, or the empty string for a value that has none.
     pub(crate) unit: &'static str,
+    /// How far one pixel of a drag moves this row's number. Zero for a row
+    /// holding something that is not a number, which has nothing to scrub.
+    pub(crate) nudge: f32,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
 }
@@ -255,6 +264,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         group: Vec::new(),
         label: label.to_string(),
         unit: "",
+        nudge: 0.0,
         value: RowValue::Fixed(text.into()),
     }
 }
@@ -265,11 +275,13 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     let (group, label) = heading_and_label(&path);
     // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
     // one drawn beside it would be a label for the wrong thing.
-    let unit = match value {
+    let (unit, nudge) = match value {
         // A vector's three numbers share one unit, and the row's own line is
         // where it goes - the same place the pose's Position row wears its.
-        RowValue::Text(_) | RowValue::Axes(_) => number_rule(&path).map_or("", |rule| rule.unit),
-        _ => "",
+        RowValue::Number(_) | RowValue::Axes(_) => {
+            field_spec(&path).map_or(("", FREE_STEP), |spec| (spec.unit, spec.step))
+        }
+        _ => ("", 0.0),
     };
     InspectorRow {
         root,
@@ -278,48 +290,241 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         group,
         label,
         unit,
+        nudge,
         value,
     }
 }
 
-/// What a number is measured in, and the floor below which it is not that
-/// number at all.
+/// The values a field takes, and so what any control may put in it.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NumberRule {
-    /// The unit shown beside the box, or the empty string where the value has
-    /// no unit but still has a floor.
-    pub(crate) unit: &'static str,
-    /// The smallest value the field takes.
-    pub(crate) floor: f32,
+pub(crate) enum Limit {
+    /// Any finite number. Most fields: a floor invented for a number nobody
+    /// checked would refuse an edit the runtime accepts.
+    Free,
+    /// No less than this. Negative mass and a negative radius are not values,
+    /// they are typos.
+    AtLeast(f32),
 }
 
-/// The rule for the field `path` ends at, if that field has one.
+/// Everything the editor knows about one authored field, declared ONCE.
 ///
-/// Keyed on the config's OWN field names, and by suffix where a name is a
-/// family - every `*_radius` is a radius, whatever it hangs off. A field that
-/// is not listed is unlabelled and unbounded on purpose: a floor invented for a
-/// number nobody checked would refuse an edit the runtime accepts.
+/// A field is named here to put it on a kind's first screen, to give it a unit,
+/// to give it a floor, or to say how fast it drags - usually several at once.
+/// The single declaration is the point: the first screen and the rule used to
+/// be two lists keyed on the same names, and a name could sit in one and not
+/// the other, which is how every number a turret shows got a bare box.
 ///
 /// Lengths are `u` - the authored world unit. The HUD converts to metres for
 /// the player; content does not, and this box is content.
-fn number_rule(path: &[PathStep]) -> Option<NumberRule> {
-    let name = path.iter().rev().find_map(|step| match step {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FieldSpec {
+    /// The config's OWN field name, matched at ANY depth: a turret's fire rate
+    /// lives on a muzzle inside a joint inside a list, and exactly where
+    /// depends on the tree the content declares - a fixed path could not name
+    /// it.
+    ///
+    /// A leading `*` makes it a FAMILY: any name ending in the rest is that
+    /// thing, whatever it hangs off. A name declared in full always wins.
+    name: &'static str,
+    /// The unit shown beside the box, or the empty string for a value that has
+    /// none - which includes every field that is not a number.
+    unit: &'static str,
+    /// What the field takes.
+    limit: Limit,
+    /// How far one pixel of a drag moves the number, and so the precision a
+    /// drag lands on: a field stepped by `0.05` never comes out of one reading
+    /// `0.30000001`.
+    step: f32,
+}
+
+impl FieldSpec {
+    /// Whether this declaration is for the field called `name`, by full name.
+    fn is_named(&self, name: &str) -> bool {
+        self.name == name
+    }
+
+    /// Whether this declaration covers the field called `name`, by full name or
+    /// as a family.
+    fn covers(&self, name: &str) -> bool {
+        match self.name.strip_prefix('*') {
+            Some(family) => name.ends_with(family),
+            None => self.is_named(name),
+        }
+    }
+}
+
+/// A number that is never negative, dragged `step` per pixel.
+const fn floored(name: &'static str, unit: &'static str, step: f32) -> FieldSpec {
+    FieldSpec {
+        name,
+        unit,
+        limit: Limit::AtLeast(0.0),
+        step,
+    }
+}
+
+/// How far one pixel of a drag moves a number nothing is declared about.
+const FREE_STEP: f32 = 0.1;
+
+/// A field with nothing to say about its values: a name, a flag, a colour, a
+/// choice, or a number nobody has checked.
+const fn plain(name: &'static str) -> FieldSpec {
+    FieldSpec {
+        name,
+        unit: "",
+        limit: Limit::Free,
+        step: FREE_STEP,
+    }
+}
+
+const MAGNITUDE: FieldSpec = floored("magnitude", "", 1.0);
+const STEERING_LAG: FieldSpec = floored("steering_lag", "s", 0.005);
+const MAX_TORQUE: FieldSpec = floored("max_torque", "", 1.0);
+const FIRE_RATE: FieldSpec = floored("fire_rate", "/s", 0.05);
+const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "u/s", 0.5);
+const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
+const BULLET_KIND: FieldSpec = plain("bullet_kind");
+const PROJECTILE_LIFETIME: FieldSpec = floored("projectile_lifetime", "s", 0.05);
+const SPAWNER_SPEED: FieldSpec = floored("spawner_speed", "u/s", 0.5);
+const BLAST_DAMAGE: FieldSpec = floored("blast_damage", "hp", 0.5);
+const BLAST_RADIUS: FieldSpec = floored("blast_radius", "u", 0.05);
+const ARM_TIME: FieldSpec = floored("arm_time", "s", 0.02);
+const ARM_DISTANCE: FieldSpec = floored("arm_distance", "u", 0.1);
+const NAV_CONSTANT: FieldSpec = floored("nav_constant", "", 0.02);
+const BODY_RADIUS: FieldSpec = floored("body_radius", "u", 0.05);
+const MASS: FieldSpec = floored("mass", "", 0.5);
+const RADIUS: FieldSpec = floored("radius", "u", 0.05);
+const AREA_RADIUS: FieldSpec = floored("area_radius", "u", 0.1);
+const INVULNERABLE: FieldSpec = plain("invulnerable");
+const SEED: FieldSpec = FieldSpec {
+    name: "seed",
+    unit: "",
+    // A seed is a NAME for a shape, not a quantity: one whole number per pixel
+    // walks the shapes, and a tenth of one is the shape it already had.
+    limit: Limit::Free,
+    step: 1.0,
+};
+const HULL: FieldSpec = plain("hull");
+const CONTROLLER: FieldSpec = plain("controller");
+const ALLEGIANCE: FieldSpec = plain("allegiance");
+const LABEL: FieldSpec = plain("label");
+const COLOR: FieldSpec = plain("color");
+const SIZE: FieldSpec = floored("size", "u", 0.05);
+const ILLUMINANCE: FieldSpec = floored("illuminance", "lx", 50.0);
+const INTENSITY: FieldSpec = floored("intensity", "lm", 50.0);
+const RANGE: FieldSpec = floored("range", "u", 0.1);
+const SHADOWS: FieldSpec = plain("shadows");
+const HEALTH: FieldSpec = floored("health", "hp", 1.0);
+const WIDTH: FieldSpec = floored("width", "u", 0.05);
+const DELAY: FieldSpec = floored("delay", "s", 0.02);
+const LIFETIME: FieldSpec = floored("lifetime", "s", 0.05);
+const COOLDOWN: FieldSpec = floored("cooldown", "s", 0.02);
+/// Every remaining length, whatever it hangs off.
+const ANY_RADIUS: FieldSpec = floored("*radius", "u", 0.05);
+/// The same, for the other half of a box.
+const ANY_HEIGHT: FieldSpec = floored("*height", "u", 0.05);
+
+/// What a SCENARIO builder authors on each kind, and so what the panel shows
+/// before it is asked for the rest.
+///
+/// The editor is not a section editor. A turret's config is a joint tree with a
+/// render mesh transform on every joint, and none of that is a question anyone
+/// building a scenario asks - they ask how fast it fires and how hard it hits.
+/// These lists say which fields those are, per kind, because the editor KNOWS
+/// what it is looking at.
+///
+/// Nothing is lost. View > All Fields puts the whole walk back, which is what
+/// makes this a first screen rather than a censor.
+const THRUSTER_PICKS: &[FieldSpec] = &[MAGNITUDE];
+/// A hull is a block. Its config is a mesh and a flag saying whether to draw
+/// it, and neither is a decision made in a scenario.
+const HULL_PICKS: &[FieldSpec] = &[];
+const CONTROLLER_PICKS: &[FieldSpec] = &[STEERING_LAG, MAX_TORQUE];
+const TURRET_PICKS: &[FieldSpec] = &[
+    FIRE_RATE,
+    MUZZLE_SPEED,
+    BULLET_DAMAGE,
+    BULLET_KIND,
+    PROJECTILE_LIFETIME,
+];
+const TORPEDO_PICKS: &[FieldSpec] = &[
+    FIRE_RATE,
+    SPAWNER_SPEED,
+    BLAST_DAMAGE,
+    BLAST_RADIUS,
+    ARM_TIME,
+    ARM_DISTANCE,
+    NAV_CONSTANT,
+    PROJECTILE_LIFETIME,
+];
+const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
+const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MASS, INVULNERABLE, SEED];
+/// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
+/// pick takes the field with everything under it - so the hull's source and the
+/// controller's own fields come along.
+const SPACESHIP_PICKS: &[FieldSpec] = &[HULL, CONTROLLER, ALLEGIANCE];
+const BEACON_PICKS: &[FieldSpec] = &[LABEL, RADIUS, COLOR, AREA_RADIUS];
+const SALVAGE_PICKS: &[FieldSpec] = &[SIZE, AREA_RADIUS];
+/// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
+/// on one output is a builder turning the gizmo and watching nothing happen.
+const LIGHT_PICKS: &[FieldSpec] = &[ILLUMINANCE, INTENSITY, COLOR, RANGE, RADIUS, SHADOWS];
+/// The fields no kind shows first, which still carry a unit and a floor once
+/// View > All Fields puts them back.
+const UNPICKED: &[FieldSpec] = &[
+    HEALTH, WIDTH, DELAY, LIFETIME, COOLDOWN, ANY_RADIUS, ANY_HEIGHT,
+];
+
+/// Every declaration there is: each kind's first screen, then the rest.
+///
+/// The lookup walks THIS, so a field a kind shows cannot end up without the
+/// unit, the floor and the step that screen shows it with.
+const DECLARED: &[&[FieldSpec]] = &[
+    THRUSTER_PICKS,
+    HULL_PICKS,
+    CONTROLLER_PICKS,
+    TURRET_PICKS,
+    TORPEDO_PICKS,
+    ANCHOR_PICKS,
+    ASTEROID_PICKS,
+    SPACESHIP_PICKS,
+    BEACON_PICKS,
+    SALVAGE_PICKS,
+    LIGHT_PICKS,
+    UNPICKED,
+];
+
+/// The field name a path ends at, ignoring the list indices and tuple slots it
+/// passes through.
+fn leaf_name(path: &[PathStep]) -> Option<&str> {
+    path.iter().rev().find_map(|step| match step {
         PathStep::Field(name) => Some(name.as_str()),
-        _ => None,
-    })?;
-    let (unit, floor) = match name {
-        "illuminance" => ("lx", 0.0),
-        "health" => ("hp", 0.0),
-        "fire_rate" => ("/s", 0.0),
-        "size" | "width" | "range" => ("u", 0.0),
-        "steering_lag" | "delay" | "lifetime" | "cooldown" => ("s", 0.0),
-        // No unit anyone would recognise, but a floor all the same: negative
-        // mass and negative thrust are not values, they are typos.
-        "mass" | "magnitude" | "max_torque" => ("", 0.0),
-        name if name.ends_with("radius") || name.ends_with("height") => ("u", 0.0),
-        _ => return None,
-    };
-    Some(NumberRule { unit, floor })
+        PathStep::Item(_) | PathStep::Slot(_) => None,
+    })
+}
+
+/// What the editor knows about the field `path` ends at, if anything.
+///
+/// A name declared in full beats a family, so `body_radius` can one day say
+/// something `*radius` does not.
+fn field_spec(path: &[PathStep]) -> Option<FieldSpec> {
+    let name = leaf_name(path)?;
+    let declared = || DECLARED.iter().copied().flatten();
+    declared()
+        .find(|spec| spec.is_named(name))
+        .or_else(|| declared().find(|spec| spec.covers(name)))
+        .copied()
+}
+
+/// Whether the leaf holds ONE number, and so gets the control a number gets.
+///
+/// A `Quat` and a `Vec3` read as numbers and are not: one is three degrees in a
+/// box and the other has a row shape of its own.
+fn is_number(value: &dyn PartialReflect) -> bool {
+    macro_rules! any {
+        ($($kind:ty),*) => { $(if value.try_downcast_ref::<$kind>().is_some() { return true; })* };
+    }
+    any!(f32, f64, i32, i64, u8, u16, u32, u64, usize);
+    false
 }
 
 /// The float `value` holds, whichever width it was authored at.
@@ -340,16 +545,16 @@ fn as_number(value: &dyn PartialReflect) -> Option<f64> {
 /// unit stands: a sentence there would squeeze the box holding the number it
 /// is about down to four characters.
 fn check_floor(path: &[PathStep], value: &dyn PartialReflect) -> Result<(), String> {
-    let Some(rule) = number_rule(path) else {
+    let Some(Limit::AtLeast(floor)) = field_spec(path).map(|spec| spec.limit) else {
         return Ok(());
     };
     let Some(number) = as_number(value) else {
         return Ok(());
     };
-    if number >= f64::from(rule.floor) {
+    if number >= f64::from(floor) {
         return Ok(());
     }
-    Err(format!("min {}", number_text(f64::from(rule.floor))))
+    Err(format!("min {}", number_text(f64::from(floor))))
 }
 
 /// Refuse a number that is not FINITE.
@@ -479,7 +684,12 @@ fn walk(
         return;
     }
     if let Some(text) = leaf_text(value) {
-        out.push(walked(root, path, false, RowValue::Text(text)));
+        let leaf = if is_number(value) {
+            RowValue::Number(text)
+        } else {
+            RowValue::Text(text)
+        };
+        out.push(walked(root, path, false, leaf));
         return;
     }
     if is_option(value) {
@@ -575,7 +785,15 @@ fn walk_option(
             ReflectRef::Enum(chosen) => chosen.field_at(0).and_then(leaf_text).unwrap_or_default(),
             _ => String::new(),
         };
-        out.push(walked(root, path, true, RowValue::Text(text)));
+        // Off the PAYLOAD TYPE, not the value: a field holding `None` is still
+        // a number's field, so it wears its unit and its name is still the grip
+        // that scrubs it once it holds one.
+        let leaf = if payload.as_deref().is_some_and(number_type) {
+            RowValue::Number(text)
+        } else {
+            RowValue::Text(text)
+        };
+        out.push(walked(root, path, true, leaf));
         return;
     }
     if !present {
@@ -624,6 +842,15 @@ fn step(path: &[PathStep], next: PathStep) -> Vec<PathStep> {
 /// A value's debug text, for the rows the inspector can only show.
 fn debug_of(value: &dyn PartialReflect) -> String {
     format!("{value:?}")
+}
+
+/// Whether the type is ONE number, asked of a type path rather than a value -
+/// which is the only way to ask it of a field currently holding `None`.
+fn number_type(type_path: &str) -> bool {
+    matches!(
+        type_path,
+        "f32" | "f64" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
+    )
 }
 
 /// Whether the parser has a leaf for this type, which is what decides between
@@ -885,6 +1112,86 @@ pub(crate) fn parse_colour(text: &str) -> Option<Color> {
     Srgba::hex(text.trim()).ok().map(Color::from)
 }
 
+/// The number a leaf holds, through an `Option` if it is one, and whether the
+/// field is a WHOLE number - which decides both how far a scrub may land from
+/// where it started and how the result is written back.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Held {
+    value: f64,
+    whole: bool,
+}
+
+/// What `value` holds, if it holds one number.
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a config integer past 2^53 is not a number a builder typed"
+)]
+fn number_at(value: &dyn PartialReflect) -> Option<Held> {
+    if is_option(value) {
+        let ReflectRef::Enum(chosen) = value.reflect_ref() else {
+            return None;
+        };
+        return chosen.field_at(0).and_then(number_at);
+    }
+    if let Some(number) = as_number(value) {
+        return Some(Held {
+            value: number,
+            whole: false,
+        });
+    }
+    macro_rules! whole {
+        ($($kind:ty),*) => {
+            $(if let Some(number) = value.try_downcast_ref::<$kind>() {
+                return Some(Held { value: *number as f64, whole: true });
+            })*
+        };
+    }
+    whole!(i32, i64, u8, u16, u32, u64, usize);
+    None
+}
+
+/// `value` snapped to the precision `step` implies, so a scrub leaves a number
+/// a builder can read: `0.35`, not `0.3500001`.
+fn snapped(value: f64, step: f32, whole: bool) -> f64 {
+    if whole {
+        return value.round();
+    }
+    let step = f64::from(step);
+    if step <= 0.0 {
+        return value;
+    }
+    (value / step).round() * step
+}
+
+/// Move the number at `path` by `by`, in the units the field is typed in.
+///
+/// The result goes back through [`write_field`], so a scrub answers to the same
+/// floor a typed number does - except that it STOPS at it instead of being
+/// refused: a drag that walks into a floor has not made a mistake, it has
+/// arrived.
+///
+/// This is also why `nan` is not a case here. A scrubbed number is the old
+/// number plus a delta, and neither can be `nan`, so the one value the typed
+/// box has to refuse is a value this control cannot express.
+pub(crate) fn nudge_field(
+    root: &mut dyn PartialReflect,
+    path: &[PathStep],
+    optional: bool,
+    by: f32,
+) -> Result<(), String> {
+    let held = {
+        let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
+        number_at(target).ok_or_else(|| "empty".to_string())?
+    };
+    let spec = field_spec(path);
+    let step = spec.map_or(FREE_STEP, |spec| spec.step);
+    let mut moved = snapped(held.value + f64::from(by), step, held.whole);
+    if let Some(Limit::AtLeast(floor)) = spec.map(|spec| spec.limit) {
+        moved = moved.max(f64::from(floor));
+    }
+    write_field(root, path, optional, &number_text(moved))
+}
+
 /// Flip the `bool` at `path`, and say what it became.
 ///
 /// Its own entry point rather than a `write_field` of `"true"`, because a
@@ -967,100 +1274,67 @@ pub(crate) fn editable_config<'a>(
     }
 }
 
-/// What a SCENARIO builder authors on each kind, and so what the panel shows
-/// before it is asked for the rest.
-///
-/// The editor is not a section editor. A turret's config is a joint tree with a
-/// render mesh transform on every joint, and none of that is a question anyone
-/// building a scenario asks - they ask how fast it fires and how hard it hits.
-/// The pick lists say which fields those are, per kind, because the editor
-/// KNOWS what it is looking at.
-///
-/// Matched on the field's own name at ANY depth, and a match takes the field
-/// and everything under it: a turret's fire rate lives on a muzzle inside a
-/// joint inside a list, and exactly where depends on the tree the content
-/// declares - a fixed path could not name it.
-///
-/// Nothing is lost. View > All Fields puts the whole walk back, which is what
-/// makes this a first screen rather than a censor.
-fn section_picks(kind: &SectionKind) -> &'static [&'static str] {
+/// The fields `kind` shows before it is asked for the rest.
+fn section_picks(kind: &SectionKind) -> &'static [FieldSpec] {
     match kind {
-        // A hull is a block. Its config is a mesh and a flag saying whether to
-        // draw it, and neither is a decision made in a scenario.
-        SectionKind::Hull(_) => &[],
-        SectionKind::Thruster(_) => &["magnitude"],
-        SectionKind::Controller(_) => &["steering_lag", "max_torque"],
-        SectionKind::Turret(_) => &[
-            "fire_rate",
-            "muzzle_speed",
-            "bullet_damage",
-            "bullet_kind",
-            "projectile_lifetime",
-        ],
-        SectionKind::Torpedo(_) => &[
-            "fire_rate",
-            "spawner_speed",
-            "blast_damage",
-            "blast_radius",
-            "arm_time",
-            "arm_distance",
-            "nav_constant",
-            "projectile_lifetime",
-        ],
+        SectionKind::Hull(_) => HULL_PICKS,
+        SectionKind::Thruster(_) => THRUSTER_PICKS,
+        SectionKind::Controller(_) => CONTROLLER_PICKS,
+        SectionKind::Turret(_) => TURRET_PICKS,
+        SectionKind::Torpedo(_) => TORPEDO_PICKS,
     }
 }
 
 /// The same, for the things a scenario holds beside its ships.
-fn object_picks(kind: &ScenarioObjectKind) -> &'static [&'static str] {
+fn object_picks(kind: &ScenarioObjectKind) -> &'static [FieldSpec] {
     match kind {
-        ScenarioObjectKind::Anchor(_) => &["body_radius", "mass"],
-        ScenarioObjectKind::Asteroid(_) => &["radius", "mass", "invulnerable", "seed"],
-        // The whole point of a spaceship object is WHICH ship and WHO flies
-        // it, and a pick takes the field with everything under it - so the
-        // hull's source and the controller's own fields come along.
-        ScenarioObjectKind::Spaceship(_) => &["hull", "controller", "allegiance"],
-        ScenarioObjectKind::Beacon(_) => &["label", "radius", "color", "area_radius"],
-        ScenarioObjectKind::SalvageCrate(_) => &["size", "area_radius"],
-        // No `aim`. The node's ROTATION aims the light (`node.rs`), and two
-        // controls on one output is a builder turning the gizmo and watching
-        // nothing happen.
-        ScenarioObjectKind::Light(_) => &[
-            "illuminance",
-            "intensity",
-            "color",
-            "range",
-            "radius",
-            "shadows",
-        ],
+        ScenarioObjectKind::Anchor(_) => ANCHOR_PICKS,
+        ScenarioObjectKind::Asteroid(_) => ASTEROID_PICKS,
+        ScenarioObjectKind::Spaceship(_) => SPACESHIP_PICKS,
+        ScenarioObjectKind::Beacon(_) => BEACON_PICKS,
+        ScenarioObjectKind::SalvageCrate(_) => SALVAGE_PICKS,
+        ScenarioObjectKind::Light(_) => LIGHT_PICKS,
     }
 }
 
 /// `rows` cut down to the ones `picks` names.
 ///
-/// A row with an EMPTY path is the node's own - its name, its pose, the part it
-/// was built from, the key it fires on - and is never a config field, so it is
-/// always kept. Everything else has to be picked, by any field name along its
-/// path.
-fn curate(rows: Vec<InspectorRow>, picks: &[&str]) -> Vec<InspectorRow> {
-    let headings: Vec<String> = picks.iter().map(|pick| pretty(pick)).collect();
+/// A pick is matched by field name at ANY depth, and takes the field with
+/// everything under it. A row with an EMPTY path is the node's own - its name,
+/// its pose, the part it was built from, the key it fires on - and is never a
+/// config field, so it is always kept.
+fn curate(rows: Vec<InspectorRow>, picks: &[FieldSpec]) -> Vec<InspectorRow> {
+    let picked = |name: &str| picks.iter().any(|spec| spec.covers(name));
     rows.into_iter()
-        .filter(|row| {
-            row.path.is_empty()
-                || row.path.iter().any(|step| match step {
-                    PathStep::Field(name) => picks.contains(&name.as_str()),
-                    PathStep::Slot(_) | PathStep::Item(_) => false,
-                })
-        })
+        .filter(|row| row.path.is_empty() || row.path.iter().any(|step| named(step, &picked)))
         .map(|mut row| {
             // The headings of the levels that were NOT picked go with them. A
             // fire rate under `Root > Children 1 > Children 1 > Muzzle` is five
             // lines of tree over one number, and the tree is exactly what this
             // view was written to put away. A picked level keeps its heading:
             // a spaceship's Hull is a thing a builder chose to see.
-            row.group.retain(|segment| headings.contains(segment));
+            let kept: Vec<String> = row
+                .path
+                .iter()
+                .filter(|step| named(step, &picked))
+                .filter_map(|step| match step {
+                    PathStep::Field(name) => Some(pretty(name)),
+                    PathStep::Item(_) | PathStep::Slot(_) => None,
+                })
+                .collect();
+            row.group.retain(|segment| kept.contains(segment));
             row
         })
         .collect()
+}
+
+/// Whether a step names a field the test accepts. A list index and a tuple slot
+/// name nothing, so they never do.
+fn named(step: &PathStep, test: &impl Fn(&str) -> bool) -> bool {
+    match step {
+        PathStep::Field(name) => test(name),
+        PathStep::Item(_) | PathStep::Slot(_) => false,
+    }
 }
 
 /// A section's rows, cut to what the kind is worth showing.
@@ -1102,6 +1376,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             group: Vec::new(),
             label: "Driver".to_string(),
             unit: "",
+            nudge: 0.0,
             value: RowValue::Driver(ship.driver),
         },
         fixed(
@@ -1158,6 +1433,7 @@ pub(crate) fn section_rows(
             group: Vec::new(),
             label: "Key".to_string(),
             unit: "",
+            nudge: 0.0,
             value: RowValue::Key(if binding.is_empty() {
                 UNBOUND.to_string()
             } else {
@@ -1200,6 +1476,7 @@ fn name_row(name: String) -> InspectorRow {
         group: Vec::new(),
         label: "Name".to_string(),
         unit: "",
+        nudge: 0.0,
         value: RowValue::Text(name),
     }
 }
@@ -1223,7 +1500,13 @@ pub(crate) const TRANSFORM: &str = "Transform";
 /// mating snap, and a typed one would put a part where no socket is.
 fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     vec![
-        axes_row(FieldRoot::Pose, "Position", "u", pose.translation),
+        axes_row(
+            FieldRoot::Pose,
+            "Position",
+            "u",
+            POSE_STEP,
+            pose.translation,
+        ),
         // ROTATION, not heading: it is the node's rotation, and rotation is
         // what every other editor calls that. Both facts it used to keep in a
         // doc comment - degrees, and which turn is which - are on screen.
@@ -1231,10 +1514,18 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             FieldRoot::Rotation,
             "Rotation",
             "deg, yaw/pitch/roll",
+            TURN_STEP,
             rotation_degrees(pose),
         ),
     ]
 }
+
+/// How far one pixel of a drag slides a node: fine enough to seat a beacon by
+/// eye, coarse enough to cross the stage in one pull.
+const POSE_STEP: f32 = 0.05;
+/// The same for a turn. A degree per pixel: a full turn is one drag across the
+/// panel.
+const TURN_STEP: f32 = 1.0;
 
 /// A vector as three typed numbers, each in the form every other number wears.
 fn axes_of(value: Vec3) -> RowValue {
@@ -1242,7 +1533,13 @@ fn axes_of(value: Vec3) -> RowValue {
 }
 
 /// One vector row: three numbers, each in the form every other number wears.
-fn axes_row(root: FieldRoot, label: &str, unit: &'static str, value: Vec3) -> InspectorRow {
+fn axes_row(
+    root: FieldRoot,
+    label: &str,
+    unit: &'static str,
+    nudge: f32,
+    value: Vec3,
+) -> InspectorRow {
     InspectorRow {
         root,
         path: Vec::new(),
@@ -1250,6 +1547,7 @@ fn axes_row(root: FieldRoot, label: &str, unit: &'static str, value: Vec3) -> In
         group: vec![TRANSFORM.to_string()],
         label: label.to_string(),
         unit,
+        nudge,
         value: axes_of(value),
     }
 }

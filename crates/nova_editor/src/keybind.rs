@@ -6,6 +6,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
+use nova_ui::prelude::{hang_at, Hang};
 
 use crate::{
     config::{EditorSays, SelectedNode},
@@ -53,6 +54,12 @@ const LEADER_PX: f32 = 24.0;
 /// How far to the right of the leader the chip stands, so the line meets the
 /// chip's corner rather than running up through its middle.
 const CHIP_OFFSET_PX: f32 = 5.0;
+/// The chip stands on its part: its bottom-left corner sits a leader's length
+/// above the part and a hair to the right.
+const CHIP_HANG: Hang = Hang {
+    align: Vec2::new(0.0, 1.0),
+    gap: Vec2::new(CHIP_OFFSET_PX, -LEADER_PX),
+};
 /// How close two chips may come before one is pushed clear of the other.
 ///
 /// Several bound parts a hand's width apart on the hull project to the same
@@ -191,6 +198,9 @@ pub(crate) fn position_section_keybind_labels(
     >,
 ) {
     let (cam, cam_transform) = *camera;
+    let Some(viewport) = cam.logical_viewport_size() else {
+        return;
+    };
     // Where each part IS on screen, and where its chip ended up: the second is
     // the first pushed clear of the chips already placed.
     let mut standing: Vec<Vec2> = Vec::new();
@@ -221,8 +231,9 @@ pub(crate) fn position_section_keybind_labels(
         // ABOVE the part, and where its top edge goes depends on how tall it
         // is. One frame stale is exact for a still camera and a pixel off
         // while one moves.
-        node.left = Val::Px(spot.x + CHIP_OFFSET_PX);
-        node.top = Val::Px(spot.y - LEADER_PX - computed.size().y);
+        let corner = hang_at(spot, CHIP_HANG, computed, viewport);
+        node.left = Val::Px(corner.x);
+        node.top = Val::Px(corner.y);
         *visibility = Visibility::Visible;
 
         // The leader runs from the chip's foot down to the part itself, so a

@@ -2,7 +2,11 @@
 //! submitted field does to the document. The row model itself is tested in
 //! `crate::inspect`; these tests are about the reconciler around it.
 
-use bevy::ecs::system::RunSystemOnce;
+use bevy::{
+    camera::NormalizedRenderTarget,
+    ecs::system::RunSystemOnce,
+    picking::pointer::{Location, PointerId},
+};
 use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource,
@@ -933,4 +937,118 @@ fn the_camera_gives_up_its_keys_while_a_field_is_being_typed_into() {
         "the rig comes back with the keyboard"
     );
     assert!(app.world().get::<TypingHold>(camera).is_none());
+}
+
+/// Drag the row's NAME and the number under it moves. The one control the
+/// panel lacked: every other type already had one that could only express what
+/// the type takes, and a number had a box that could express `nan`.
+#[test]
+fn dragging_a_rows_name_writes_the_number_into_the_document() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    scrub(&mut app, "Radius", 20.0);
+
+    // `radius` is declared at 0.05 per pixel, so twenty pixels is one unit.
+    assert!(
+        (radius_of(&app, rock) - 4.0).abs() < 1e-4,
+        "the radius followed the pointer (got {})",
+        radius_of(&app, rock)
+    );
+}
+
+/// A drag walking into a floor ARRIVES at it. A typed number below the floor is
+/// a mistake and is refused; a drag that keeps going is a builder asking for
+/// the smallest value there is.
+#[test]
+fn a_scrub_stops_at_the_floor_instead_of_being_refused() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 1.0);
+    select(&mut app, rock);
+
+    scrub(&mut app, "Radius", -400.0);
+
+    assert!(
+        radius_of(&app, rock).abs() < 1e-4,
+        "the radius stopped at zero (got {})",
+        radius_of(&app, rock)
+    );
+}
+
+/// The step a field is declared with is also the precision it lands on, so a
+/// scrubbed number is one a builder can read back.
+#[test]
+fn a_scrub_lands_on_the_step_the_field_was_declared_with() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    scrub(&mut app, "Radius", 7.3);
+
+    let radius = radius_of(&app, rock);
+    assert!(
+        ((radius / 0.05).round() * 0.05 - radius).abs() < 1e-4,
+        "the radius landed on a multiple of its step (got {radius})"
+    );
+}
+
+/// A row holding something that is not a number has no grip: there is nothing
+/// a pointer could slide a name into.
+#[test]
+fn a_row_that_is_not_a_number_has_no_grip() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    select(&mut app, rock);
+
+    assert!(grip_of(&mut app, "Radius").is_some());
+    assert!(
+        grip_of(&mut app, "Invulnerable").is_none(),
+        "a flag is ticked, not scrubbed"
+    );
+    assert!(
+        grip_of(&mut app, "Name").is_none(),
+        "and a name is typed, not scrubbed"
+    );
+}
+
+/// The grip of the row called `label`, if that row has one.
+fn grip_of(app: &mut App, label: &str) -> Option<Entity> {
+    let wanted = format!("Inspector Grip {label}");
+    app.world_mut()
+        .query::<(Entity, &Name, &InspectorDrag)>()
+        .iter(app.world())
+        .find(|(_, name, _)| name.as_str() == wanted)
+        .map(|(entity, ..)| entity)
+}
+
+/// Slide the name of the row called `label` by `pixels`, the way a pointer
+/// does.
+fn scrub(app: &mut App, label: &str, pixels: f32) {
+    let grip = grip_of(app, label).unwrap_or_else(|| panic!("no grip {label:?}"));
+    let delta = Vec2::new(pixels, 0.0);
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        Location {
+            target: NormalizedRenderTarget::Image(
+                bevy::camera::ImageRenderTarget {
+                    handle: Handle::default(),
+                    scale_factor: 1.0,
+                }
+                .into(),
+            ),
+            position: Vec2::ZERO,
+        },
+        Drag {
+            button: PointerButton::Primary,
+            distance: delta,
+            delta,
+        },
+        grip,
+    ));
+    app.update();
 }

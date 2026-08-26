@@ -356,3 +356,88 @@ fn a_bar_over_a_pane_that_is_gone_is_not_painted() {
         "and the bar goes with it"
     );
 }
+
+mod float {
+    use bevy::prelude::*;
+
+    use crate::screen::{hang_at, Hang};
+
+    /// A node measured at some scale factor, sized in PHYSICAL pixels the way
+    /// layout reports it.
+    fn measured(logical: Vec2, scale: f32) -> ComputedNode {
+        ComputedNode {
+            size: logical * scale,
+            inverse_scale_factor: 1.0 / scale,
+            ..default()
+        }
+    }
+
+    /// The defect the helper exists for: a label is offset by its own LOGICAL
+    /// size, whatever the screen measures it in.
+    #[test]
+    fn a_label_hangs_by_its_logical_size_at_any_scale_factor() {
+        let anchor = Vec2::new(400.0, 300.0);
+        let viewport = Vec2::new(1024.0, 768.0);
+        let at_1x = hang_at(
+            anchor,
+            Hang::above(4.0),
+            &measured(Vec2::new(80.0, 20.0), 1.0),
+            viewport,
+        );
+        let at_2x = hang_at(
+            anchor,
+            Hang::above(4.0),
+            &measured(Vec2::new(80.0, 20.0), 2.0),
+            viewport,
+        );
+
+        assert_eq!(at_1x, Vec2::new(360.0, 276.0));
+        assert_eq!(
+            at_2x, at_1x,
+            "the same label on a HiDPI screen went half its physical size out of place"
+        );
+    }
+
+    /// Below is the same alignment the other way up.
+    #[test]
+    fn below_hangs_under_the_anchor() {
+        let at = hang_at(
+            Vec2::new(400.0, 300.0),
+            Hang::below(6.0),
+            &measured(Vec2::new(80.0, 20.0), 1.0),
+            Vec2::new(1024.0, 768.0),
+        );
+
+        assert_eq!(at, Vec2::new(360.0, 306.0));
+    }
+
+    /// A label anchored at the edge slides along it instead of hanging off it.
+    #[test]
+    fn a_label_at_the_edge_stays_on_screen() {
+        let viewport = Vec2::new(1024.0, 768.0);
+        let node = measured(Vec2::new(200.0, 40.0), 1.0);
+
+        let right = hang_at(Vec2::new(1020.0, 400.0), Hang::below(0.0), &node, viewport);
+        assert_eq!(
+            right.x, 824.0,
+            "pulled in by the width that would have hung over"
+        );
+
+        let top = hang_at(Vec2::new(400.0, 10.0), Hang::above(0.0), &node, viewport);
+        assert_eq!(top.y, 0.0, "and pushed down off the top edge");
+    }
+
+    /// A node wider than the screen shows its START rather than its middle,
+    /// and never lands at a negative offset.
+    #[test]
+    fn a_label_too_big_for_the_screen_pins_to_the_corner() {
+        let at = hang_at(
+            Vec2::new(100.0, 100.0),
+            Hang::above(0.0),
+            &measured(Vec2::new(900.0, 300.0), 1.0),
+            Vec2::new(320.0, 200.0),
+        );
+
+        assert_eq!(at, Vec2::ZERO);
+    }
+}
