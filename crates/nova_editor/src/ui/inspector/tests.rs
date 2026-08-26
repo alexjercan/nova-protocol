@@ -18,6 +18,9 @@ fn inspector_app() -> App {
     let mut app = App::new();
     app.insert_resource(UiSkin::default());
     app.init_resource::<SelectedNode>();
+    // The panel reads the View menu's own toggles: CURATED unless All Fields
+    // is on, which is the state a fresh editor opens in.
+    app.init_resource::<EditorOverlays>();
     app.add_message::<TextFieldSubmitted>();
     app.world_mut().spawn(inspector_panel(UiSkin::default()));
     app.add_systems(Update, sync_inspector);
@@ -649,6 +652,9 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
         ))
         .id();
     app.world_mut().resource_mut::<EditContext>().enter(ship);
+    // The GROUP TREE is what this is about, and the curated view is written to
+    // put a turret's joint tree away - so the panel is asked for every field.
+    app.world_mut().resource_mut::<EditorOverlays>().all_fields = true;
     select(&mut app, section);
 
     let headings: Vec<String> = app

@@ -509,6 +509,82 @@ fn a_turrets_fire_rate_is_reachable_through_its_joint_tree() {
     );
 }
 
+/// The editor is not a section editor. A turret's config is a joint tree with
+/// a render mesh transform on every joint, and a scenario builder asks how fast
+/// it fires - so that is what the panel opens on.
+#[test]
+fn a_turret_opens_on_what_it_does_not_on_its_joint_tree() {
+    let node = turret_with_muzzle(4.0);
+    let labels: Vec<String> = curated_section_rows(&node, None)
+        .into_iter()
+        .map(|row| row.label)
+        .collect();
+
+    assert!(
+        labels.contains(&"Fire Rate".to_string()),
+        "the one number a turret is authored by is there: {labels:?}"
+    );
+    for buried in ["Offset", "Render Mesh Transform", "Speed", "Axis"] {
+        assert!(
+            !labels.contains(&buried.to_string()),
+            "{buried:?} is joint plumbing and is not on the first screen: {labels:?}"
+        );
+    }
+}
+
+/// And the tree over it goes with it: a fire rate under five levels of joint
+/// heading is five lines of the thing this view puts away.
+#[test]
+fn a_curated_row_drops_the_headings_it_was_buried_under() {
+    let node = turret_with_muzzle(4.0);
+    let rows = curated_section_rows(&node, None);
+
+    assert!(
+        row(&rows, "Fire Rate").group.is_empty(),
+        "the fire rate stands with the rest, not under Root > Children > Muzzle: {:?}",
+        row(&rows, "Fire Rate").group
+    );
+}
+
+/// And nothing is lost: the full walk still holds every field, which is what
+/// View > All Fields hands back.
+#[test]
+fn the_full_walk_still_holds_what_the_first_screen_drops() {
+    let node = turret_with_muzzle(4.0);
+    let labels: Vec<String> = section_rows(&node, None)
+        .into_iter()
+        .map(|row| row.label)
+        .collect();
+
+    assert!(
+        labels.contains(&"Offset".to_string()),
+        "the joint tree is one menu item away, not gone: {labels:?}"
+    );
+}
+
+/// The same rule on the things a scenario holds beside its ships.
+#[test]
+fn a_rock_opens_on_its_size_and_not_its_texture() {
+    let rock = asteroid(stock_asteroid());
+    let labels: Vec<String> = curated_object_rows(&rock, &Transform::default())
+        .into_iter()
+        .map(|row| row.label)
+        .collect();
+
+    assert!(
+        labels.contains(&"Radius".to_string()),
+        "a rock is authored by how big it is: {labels:?}"
+    );
+    assert!(
+        !labels.contains(&"Texture".to_string()),
+        "and not by which image it wears: {labels:?}"
+    );
+    assert!(
+        labels.contains(&"Name".to_string()) && labels.contains(&"Position".to_string()),
+        "the node's own rows are never a config field, so they always stay: {labels:?}"
+    );
+}
+
 /// A vector inside a config is the pose's shape, not a comma-separated line:
 /// the row a builder edits an offset in has one box per axis.
 #[test]

@@ -27,6 +27,8 @@ fn window_app() -> App {
     app.init_resource::<SelectedNode>();
     // A slider that cannot write says so on the status line.
     app.init_resource::<crate::config::EditorStatus>();
+    // And the panel behind the window reads the View menu's toggles.
+    app.init_resource::<crate::config::EditorOverlays>();
     app.init_resource::<Time>();
     app.add_message::<TextFieldSubmitted>();
     // A window entity, because a floating window is placed and clamped against

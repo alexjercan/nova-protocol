@@ -69,9 +69,9 @@ use crate::{
         inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
-            on_menu_scrim, toggle_key_legend, toggle_link_points, toggle_object_volumes,
-            toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuLead,
-            MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            on_menu_scrim, toggle_all_fields, toggle_key_legend, toggle_link_points,
+            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
+            MenuId, MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         plate::plate_layer,
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
@@ -165,6 +165,16 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 ViewToggle::ObjectVolumes,
                 menu_item_row("Object Volumes", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_object_volumes),
+            ));
+            // The inspector's own view, in the menu that holds the stage's:
+            // both answer "what am I being shown", and the panel had no other
+            // place to say that it is showing a selection rather than
+            // everything.
+            items.spawn((
+                Name::new("All Fields Item"),
+                ViewToggle::AllFields,
+                menu_item_row("All Fields", MenuLead::Toggle, MenuTail::None, skin),
+                observe(toggle_all_fields),
             ));
             items.spawn(separator());
             items.spawn((

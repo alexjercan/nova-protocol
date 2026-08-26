@@ -435,6 +435,12 @@ pub(crate) fn toggle_object_volumes(_activate: On<Activate>, mut overlays: ResMu
     overlays.object_volumes = !overlays.object_volumes;
 }
 
+/// View > All Fields: show every field a config declares, instead of the ones
+/// the kind is authored through.
+pub(crate) fn toggle_all_fields(_activate: On<Activate>, mut overlays: ResMut<EditorOverlays>) {
+    overlays.all_fields = !overlays.all_fields;
+}
+
 /// Tick the View toggles, so the menu says what is ON rather than only what
 /// can be turned on.
 ///
@@ -452,6 +458,7 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::LinkPoints => overlays.link_points,
             ViewToggle::WorldGrid => overlays.world_grid,
             ViewToggle::ObjectVolumes => overlays.object_volumes,
+            ViewToggle::AllFields => overlays.all_fields,
         };
         let Some(lead) = children.iter().next() else {
             continue;
@@ -477,6 +484,9 @@ pub(crate) enum ViewToggle {
     WorldGrid,
     /// The volumes and aims an object has no body to show.
     ObjectVolumes,
+    /// Every field of a config, instead of the ones its kind is authored
+    /// through.
+    AllFields,
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the

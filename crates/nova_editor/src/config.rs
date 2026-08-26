@@ -144,6 +144,10 @@ pub(crate) struct EditorOverlays {
     /// The volumes and aims an object carries but has no body to show: a
     /// trigger sphere, a lamp's reach, a sun's direction.
     pub(crate) object_volumes: bool,
+    /// Every field a node's config declares, instead of the ones its kind is
+    /// authored through. Off: the inspector is a first screen, and this is the
+    /// way past it.
+    pub(crate) all_fields: bool,
 }
 
 impl Default for EditorOverlays {
@@ -157,6 +161,10 @@ impl Default for EditorOverlays {
             link_points: true,
             world_grid: true,
             object_volumes: true,
+            // The exception: the curated inspector IS the editor's answer to
+            // "what does this thing do", and opening on the raw walk would
+            // bury it under the joint tree it was written to hide.
+            all_fields: false,
         }
     }
 }

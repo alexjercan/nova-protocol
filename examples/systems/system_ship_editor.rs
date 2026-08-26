@@ -1881,6 +1881,35 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the turret's Key row armed the capture and took J");
         })
         .add()
+        // The turret's FIRST screen is what it does, not what it declares: the
+        // joint tree, the render mesh transforms and the per-joint offsets are
+        // not questions a scenario asks.
+        .step("editor: the turret opens on what it does")
+        .on_enter(|world: &mut World| {
+            let labels = inspector_labels(world);
+            assert!(
+                labels.iter().any(|label| label == "Fire Rate"),
+                "the curated turret keeps the number it is authored by: {labels:?}"
+            );
+            assert!(
+                !labels.iter().any(|label| label == "Offset"),
+                "and drops the joint plumbing: {labels:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the inspector opens on the fields the kind is authored through",
+                serde_json::json!({}),
+            );
+            info!("editor: the turret's first screen is {} rows", labels.len());
+        })
+        .add()
+        // And the way past it. Everything the walk can reach is one View menu
+        // item away, which is also what makes the panel deep enough to scroll.
+        .click_a_menu_item("editor: ask for every field", MENU_VIEW, "All Fields Item")
+        .step("editor: the whole config is back")
+        .until(the_inspector_has_a_row("Offset"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .step("editor: aim at the inspector")
         .on_enter(hover_named("Inspector List"))
         .until(the_inspector_overflows())
@@ -2841,6 +2870,23 @@ fn the_inspector_overflows() -> Wait {
 #[cfg(feature = "debug")]
 fn the_inspector_scrolled() -> Wait {
     std::sync::Arc::new(|world: &World| inspector_scroll(world) > 1.0)
+}
+
+/// The labels the inspector is showing, in the order it draws them.
+#[cfg(feature = "debug")]
+fn inspector_labels(world: &World) -> Vec<String> {
+    world
+        .resource::<EditorProbe>()
+        .inspector
+        .iter()
+        .map(|(label, _)| label.clone())
+        .collect()
+}
+
+/// Advance once the inspector is showing a row called `label`.
+#[cfg(feature = "debug")]
+fn the_inspector_has_a_row(label: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| inspector_labels(world).iter().any(|row| row == label))
 }
 
 /// How far down the inspector stands.

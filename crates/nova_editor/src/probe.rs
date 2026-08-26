@@ -360,7 +360,10 @@ mod tests {
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind};
 
     use super::*;
-    use crate::{config::Placement, snap};
+    use crate::{
+        config::{EditorOverlays, Placement},
+        snap,
+    };
 
     fn catalog(ids: &[&str]) -> GameSections {
         GameSections(
@@ -414,6 +417,7 @@ mod tests {
         // The line the snapshot reports. A fixture that never said anything
         // still has to have one for the sync to read.
         world.init_resource::<EditorStatus>();
+        world.init_resource::<EditorOverlays>();
         world.init_resource::<OpenMenu>();
         world
             .run_system_once(sync_editor_probe)
@@ -809,6 +813,7 @@ mod tests {
         app.init_resource::<SelectedNode>();
         app.init_resource::<HoveredNode>();
         app.init_resource::<EditorStatus>();
+        app.init_resource::<EditorOverlays>();
         app.init_resource::<OpenMenu>();
         app.init_resource::<EditorProbe>();
         app.add_systems(

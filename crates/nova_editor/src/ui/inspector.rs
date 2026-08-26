@@ -31,14 +31,15 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{EditorSays, SelectedNode},
+    config::{EditorOverlays, EditorSays, SelectedNode},
     gallery::EditorCamera,
     gizmo::GizmoAxis,
     inspect::{
-        axis_step, choose_field, driver_label, editable_config, inspected, object_config_mut,
-        object_rows, parse_colour, rotation_degrees, rotation_from_degrees, scenario_rows,
-        section_config_mut, section_rows, ship_rows, toggle_field, write_field, FieldRoot,
-        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue,
+        axis_step, choose_field, curated_object_rows, curated_section_rows, driver_label,
+        editable_config, inspected, object_config_mut, object_rows, parse_colour, rotation_degrees,
+        rotation_from_degrees, scenario_rows, section_config_mut, section_rows, ship_rows,
+        toggle_field, write_field, FieldRoot, InspectTarget, InspectorRow, NodeKinds, PathStep,
+        RowValue,
     },
     keybind::on_rebind_action,
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipDriver, ShipNode},
@@ -50,8 +51,10 @@ use crate::{
 /// where the placement raycast goes.
 pub(crate) const PANEL_W: f32 = 300.0;
 /// The name column. Fixed rather than proportional so the value boxes of every
-/// row line up, which is what makes a column of numbers readable.
-const LABEL_W: f32 = 92.0;
+/// row line up, which is what makes a column of numbers readable. Wide enough
+/// for the longest name the curated rows carry (`Projectile Lifetime`), which
+/// is what the panel's own widening bought.
+const LABEL_W: f32 = 118.0;
 
 /// The right-hand panel's root, hidden when there is nothing to inspect.
 #[derive(Component)]
@@ -152,6 +155,7 @@ pub(crate) struct TypingHold;
 pub(crate) struct Document<'w, 's> {
     catalog: Option<Res<'w, GameSections>>,
     context: Res<'w, EditContext>,
+    overlays: Res<'w, EditorOverlays>,
     selected: Res<'w, SelectedNode>,
     kinds: NodeKinds<'w, 's>,
     ids: Query<'w, 's, &'static NodeId>,
@@ -175,12 +179,25 @@ impl Document<'_, '_> {
                 let (node, pose) = self.ships.get(ship).ok()?;
                 ship_rows(node, pose)
             }
+            // CURATED unless the View menu says otherwise: a turret's whole
+            // config is a joint tree nobody authors from a scenario, and the
+            // panel's job is to answer what the thing does before it answers
+            // what it declares.
             InspectTarget::Section(section) => {
-                section_rows(self.sections.get(section).ok()?, self.catalog.as_deref())
+                let node = self.sections.get(section).ok()?;
+                if self.overlays.all_fields {
+                    section_rows(node, self.catalog.as_deref())
+                } else {
+                    curated_section_rows(node, self.catalog.as_deref())
+                }
             }
             InspectTarget::Object(object) => {
                 let (node, pose) = self.objects.get(object).ok()?;
-                object_rows(node, pose)
+                if self.overlays.all_fields {
+                    object_rows(node, pose)
+                } else {
+                    curated_object_rows(node, pose)
+                }
             }
         };
         Some((target, rows))
@@ -381,6 +398,97 @@ fn value_column() -> Node {
         overflow: Overflow::clip(),
         ..default()
     }
+}
+
+/// The segmented control of a choice row: one option per variant, the current
+/// one marked.
+fn spawn_choice_options(
+    parent: &mut RelatedSpawnerCommands<ChildOf>,
+    label: &str,
+    field: &InspectorField,
+    slot: usize,
+    options: &[String],
+    chosen: usize,
+    skin: UiSkin,
+) {
+    // A ROW SLOT around the control, because a segmented container sizes to
+    // its content: as a flex item of a row it shrinks to the width it is given
+    // and its options share it, and without one a three-option control simply
+    // runs off the panel edge.
+    parent
+        .spawn(Node {
+            width: percent(100),
+            min_width: px(0),
+            flex_direction: FlexDirection::Row,
+            ..default()
+        })
+        .with_children(|line| {
+            line.spawn((
+                Name::new(format!("Inspector Choice {label}")),
+                segmented_container(skin),
+            ))
+            .with_children(|segments| {
+                for (index, option) in options.iter().enumerate() {
+                    let mut entity = segments.spawn((
+                        Name::new(format!("Inspector Choice {label} {option}")),
+                        InspectorSlot(slot),
+                        InspectorChoice {
+                            variant: option.clone(),
+                        },
+                        field.clone(),
+                        segmented_option(option),
+                        observe(on_inspector_choice),
+                    ));
+                    if index == chosen {
+                        entity.insert(Selected);
+                    }
+                }
+            });
+        });
+}
+
+/// A wide choice: the name on its own line and the options under it, across
+/// the panel rather than squeezed into the value column.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the row says what to draw, the field says where it writes"
+)]
+fn spawn_choice_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+    options: &[String],
+    chosen: usize,
+    skin: UiSkin,
+    step: f32,
+) {
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block.spawn((
+            Text::new(row.label.clone()),
+            TextLayout {
+                linebreak: LineBreak::NoWrap,
+                ..default()
+            },
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_MUTED),
+        ));
+        spawn_choice_options(block, &row.label, field, slot, options, chosen, skin);
+    });
 }
 
 /// The lead letter and colour of each box of a vector row.
@@ -601,6 +709,16 @@ fn build_rows(
             spawn_axes_row(list, row, &field, slot, axes, step);
             continue;
         }
+        // A choice of THREE or more gets the same block shape. Three damage
+        // types are wider than the value column, and a control that wrapped
+        // inside it stacked one option per line with the row's own name
+        // floating halfway down the stack.
+        if let RowValue::Choice { options, chosen } = &row.value {
+            if options.len() > 2 {
+                spawn_choice_row(list, row, &field, slot, options, *chosen, skin, step);
+                continue;
+            }
+        }
         list.spawn((
             Name::new(format!("Inspector Row {}", row.label)),
             Node {
@@ -669,31 +787,9 @@ fn build_rows(
                         ));
                     }
                     RowValue::Choice { options, chosen } => {
-                        value
-                            .spawn((
-                                Name::new(format!("Inspector Choice {}", row.label)),
-                                segmented_container(skin),
-                            ))
-                            .with_children(|segments| {
-                                for (index, option) in options.iter().enumerate() {
-                                    let mut entity = segments.spawn((
-                                        Name::new(format!(
-                                            "Inspector Choice {} {option}",
-                                            row.label
-                                        )),
-                                        InspectorSlot(slot),
-                                        InspectorChoice {
-                                            variant: option.clone(),
-                                        },
-                                        field.clone(),
-                                        segmented_option(option),
-                                        observe(on_inspector_choice),
-                                    ));
-                                    if index == *chosen {
-                                        entity.insert(Selected);
-                                    }
-                                }
-                            });
+                        spawn_choice_options(
+                            value, &row.label, &field, slot, options, *chosen, skin,
+                        );
                     }
                     RowValue::Flag(on) => {
                         value.spawn((

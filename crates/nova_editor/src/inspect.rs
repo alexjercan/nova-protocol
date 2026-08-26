@@ -939,6 +939,118 @@ pub(crate) fn editable_config<'a>(
     }
 }
 
+/// What a SCENARIO builder authors on each kind, and so what the panel shows
+/// before it is asked for the rest.
+///
+/// The editor is not a section editor. A turret's config is a joint tree with a
+/// render mesh transform on every joint, and none of that is a question anyone
+/// building a scenario asks - they ask how fast it fires and how hard it hits.
+/// The pick lists say which fields those are, per kind, because the editor
+/// KNOWS what it is looking at.
+///
+/// Matched on the field's own name at ANY depth, and a match takes the field
+/// and everything under it: a turret's fire rate lives on a muzzle inside a
+/// joint inside a list, and exactly where depends on the tree the content
+/// declares - a fixed path could not name it.
+///
+/// Nothing is lost. View > All Fields puts the whole walk back, which is what
+/// makes this a first screen rather than a censor.
+fn section_picks(kind: &SectionKind) -> &'static [&'static str] {
+    match kind {
+        // A hull is a block. Its config is a mesh and a flag saying whether to
+        // draw it, and neither is a decision made in a scenario.
+        SectionKind::Hull(_) => &[],
+        SectionKind::Thruster(_) => &["magnitude"],
+        SectionKind::Controller(_) => &["steering_lag", "max_torque"],
+        SectionKind::Turret(_) => &[
+            "fire_rate",
+            "muzzle_speed",
+            "bullet_damage",
+            "bullet_kind",
+            "projectile_lifetime",
+        ],
+        SectionKind::Torpedo(_) => &[
+            "fire_rate",
+            "spawner_speed",
+            "blast_damage",
+            "blast_radius",
+            "arm_time",
+            "arm_distance",
+            "nav_constant",
+            "projectile_lifetime",
+        ],
+    }
+}
+
+/// The same, for the things a scenario holds beside its ships.
+fn object_picks(kind: &ScenarioObjectKind) -> &'static [&'static str] {
+    match kind {
+        ScenarioObjectKind::Anchor(_) => &["body_radius", "mass"],
+        ScenarioObjectKind::Asteroid(_) => &["radius", "mass", "invulnerable", "seed"],
+        // The whole point of a spaceship object is WHICH ship and WHO flies
+        // it, and a pick takes the field with everything under it - so the
+        // hull's source and the controller's own fields come along.
+        ScenarioObjectKind::Spaceship(_) => &["hull", "controller", "allegiance"],
+        ScenarioObjectKind::Beacon(_) => &["label", "radius", "color", "area_radius"],
+        ScenarioObjectKind::SalvageCrate(_) => &["size", "area_radius"],
+        ScenarioObjectKind::Light(_) => &[
+            "illuminance",
+            "intensity",
+            "color",
+            "range",
+            "radius",
+            "shadows",
+            "aim",
+        ],
+    }
+}
+
+/// `rows` cut down to the ones `picks` names.
+///
+/// A row with an EMPTY path is the node's own - its name, its pose, the part it
+/// was built from, the key it fires on - and is never a config field, so it is
+/// always kept. Everything else has to be picked, by any field name along its
+/// path.
+fn curate(rows: Vec<InspectorRow>, picks: &[&str]) -> Vec<InspectorRow> {
+    let headings: Vec<String> = picks.iter().map(|pick| pretty(pick)).collect();
+    rows.into_iter()
+        .filter(|row| {
+            row.path.is_empty()
+                || row.path.iter().any(|step| match step {
+                    PathStep::Field(name) => picks.contains(&name.as_str()),
+                    PathStep::Slot(_) | PathStep::Item(_) => false,
+                })
+        })
+        .map(|mut row| {
+            // The headings of the levels that were NOT picked go with them. A
+            // fire rate under `Root > Children 1 > Children 1 > Muzzle` is five
+            // lines of tree over one number, and the tree is exactly what this
+            // view was written to put away. A picked level keeps its heading:
+            // a spaceship's Hull is a thing a builder chose to see.
+            row.group.retain(|segment| headings.contains(segment));
+            row
+        })
+        .collect()
+}
+
+/// A section's rows, cut to what the kind is worth showing.
+pub(crate) fn curated_section_rows(
+    node: &SectionNode,
+    catalog: Option<&GameSections>,
+) -> Vec<InspectorRow> {
+    let rows = section_rows(node, catalog);
+    let Some(config) = node.resolve(catalog) else {
+        return rows;
+    };
+    let picks = section_picks(&config.kind);
+    curate(rows, picks)
+}
+
+/// An object's rows, cut to what the kind is worth showing.
+pub(crate) fn curated_object_rows(object: &ObjectNode, pose: &Transform) -> Vec<InspectorRow> {
+    curate(object_rows(object, pose), object_picks(&object.kind))
+}
+
 /// The rows a ship shows: who flies it, and where it sits.
 pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> {
     let mut rows = vec![
