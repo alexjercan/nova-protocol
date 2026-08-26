@@ -10,6 +10,7 @@ pub mod prelude {
 
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
+use nova_gameplay::prelude::GameStates;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::mod_set::load_downloaded_mods;
@@ -26,8 +27,7 @@ use crate::{
     },
     portal,
     reload::{
-        raise_reload_cover, reload_content, remerge_on_replaced_content, request_reload_on_key,
-        settle_reload, ReloadContent,
+        remerge_on_replaced_content, request_reload_on_key, restart_for_content, ReloadContent,
     },
 };
 #[cfg(target_arch = "wasm32")]
@@ -188,26 +188,24 @@ impl Plugin for GameAssetsPlugin {
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
 
-        // The reload, the way Wesnoth does it: one key, anywhere, and the
-        // content is read off disk again. Chained so a press raises the cover
-        // in the frame it happened - the read itself deliberately waits for the
-        // frame after, with the panel already on screen.
+        // The reload, the way Wesnoth does it: one key and the content is read
+        // off disk again - but as a RESTART, so everything downstream comes up
+        // on one version of it. The key is offered in the main menu only; every
+        // other way in is a screen being left.
         app.add_message::<ReloadContent>();
         app.add_systems(
             Update,
-            (
-                request_reload_on_key,
-                raise_reload_cover,
-                reload_content,
-                settle_reload,
-            )
-                .chain()
+            request_reload_on_key.run_if(in_state(GameStates::MainMenu)),
+        );
+        app.add_systems(
+            Update,
+            restart_for_content
                 .run_if(resource_exists::<GameAssets>)
                 .run_if(not(in_state(GameAssetsStates::Loading))),
         );
-        // The reload's late half: a file that comes back CHANGED rebuilds the
-        // registries. Ungated by the installed set, which a re-saved mod does
-        // not change.
+        // The restart's late half: a MOD's content file is not in the collection
+        // the boot load waits on, so one that lands after the merge rebuilds the
+        // registries on its own.
         app.add_systems(
             Update,
             remerge_on_replaced_content

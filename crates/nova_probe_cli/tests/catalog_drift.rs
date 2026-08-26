@@ -105,11 +105,11 @@ fn catalog_matches_disk() {
 /// comes up on death`): the hook is unreachable unless the predicate held, so
 /// the marker still cannot be emitted by a run that failed the claim.
 ///
-/// Four of `system_ship_editor`'s slugs are read the same way - `a floating
+/// Three of `system_ship_editor`'s slugs are read the same way - `a floating
 /// picker edits the colour of a scenario object`, `the Key row arms the rebind
-/// and takes the key`, `the tree can be read as the ids an event names` and `a
-/// saved range is playable without restarting`. Each sits in an `on_enter` hook
-/// that reports and logs, one beat after the `until` that established it.
+/// and takes the key` and `the tree can be read as the ids an event names`.
+/// Each sits in an `on_enter` hook that reports and logs, one beat after the
+/// `until` that established it.
 ///
 /// Three slugs are RECORDED OBSERVATIONS rather than claims - `the idle contact
 /// cost is recorded` and `the settled step cost is recorded` (bug_sandbox_soak)
@@ -309,7 +309,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "section ids survive exit and re-entry",
             "the scenario node reports the document",
             "a seeded hull is entered and inspected as a ship",
-            "a saved range is playable without restarting",
+            "a saved range is switched on for the way out",
             "a destructive verb asks first",
             "the document survives a save and an open",
             "ids minted after a load do not collide",
@@ -345,7 +345,11 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     ),
     (
         "system_menu_boot",
-        &["new game reaches gameplay", "the menu tore down"],
+        &[
+            "F5 restarts the game onto the content on disk",
+            "new game reaches gameplay",
+            "the menu tore down",
+        ],
     ),
     (
         "bug_menu_picker",
@@ -419,7 +423,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 173;
+const SYSTEMS_INVARIANTS: usize = 174;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -29,7 +29,7 @@ use bevy::{
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
-use nova_assets::prelude::{GameAssets, GameAssetsStates, ReloadContent};
+use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -271,18 +271,6 @@ fn editor_plugin(app: &mut App) {
             },
             teardown_document,
         ),
-    );
-
-    // Leaving the editor reads the content back off disk, whichever way out is
-    // taken: F1 to the range, or the pause menu to the main menu. A save writes
-    // a mod the merge has no reason to notice, so a range saved here would not
-    // be in the Scenarios list until the next launch - and the way out is the
-    // moment the builder goes looking for it.
-    app.add_systems(
-        OnExit(ExampleStates::Editor),
-        |mut reload: MessageWriter<ReloadContent>| {
-            reload.write(ReloadContent);
-        },
     );
 
     app.add_systems(

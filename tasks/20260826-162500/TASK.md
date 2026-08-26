@@ -125,6 +125,49 @@ the UI pass are separate tasks and run after this one, in that order.
    panic - the saved document still reopens as 10 ships and 6 objects, which is
    the unchanged path for a document that HAS a player ship.
 
+4. Reload becomes a restart. `ReloadContent` now means "come back up on the
+   content that is on disk": `restart_for_content` re-reads the mod index and
+   every bundle and content file, then sets `GameAssetsStates::Loading` and
+   `GameStates::Loading` - the boot path, with the boot loading screen over it,
+   ending in the main menu. `ContentReload`, `ReloadPhase`, `raise_reload_cover`,
+   `settle_reload`, the three `COVER_*` constants, `nova_core`'s
+   `sync_reload_screen` / `ReloadScreenMarker` and the 0.6s wall-clock sleep in
+   `reload/tests.rs` are gone. A file that never comes back is now the boot
+   path's problem, which already names it: `GameAssetsStates::Failed`.
+
+   The ways in are exactly the four the review settled on: F5 gated on
+   `GameStates::MainMenu`, `on_mods_back` (unchanged), and `OnExit(Playing)` in
+   `NovaMenuPlugin`, which covers leaving a scenario AND leaving the editor for
+   the menu. F1 out of the editor to the range does NOT restart - it never
+   leaves `Playing`.
+
+   Consequence, and it reverses a v0.11 behaviour: the editor's save no longer
+   asks for a reload. Restarting a builder mid-build to publish their own save
+   is worse than the wait, and the Scenarios picker is behind the way out
+   anyway - so the save switches its own mod on and the restart on the way out
+   reads it. `system_ship_editor`'s `a saved range is playable without
+   restarting` beat is replaced by `a saved range is switched on for the way
+   out`, and its four F5-cover beats are deleted.
+
+   Known soft edge, recorded rather than hidden: `bevy_asset_loader` does not
+   wait on the re-read, so `OnEnter(Processing)` can merge before a MOD's
+   content file has landed (the shipped collection is fine - it is what the
+   loading state waits on). `remerge_on_replaced_content` is kept for exactly
+   that: a late file rebuilds the registries a few frames after the loading
+   screen goes down. The old code's answer to this was the per-file counting
+   the review flagged.
+
+   Proof: 5 reload tests, including `a_reload_puts_the_game_back_through_the_boot_load`
+   and `an_unasked_frame_leaves_the_game_where_it_is`. New live beats in
+   `system_menu_boot`: F5 takes the menu down, the restart puts it back
+   (`outcome: F5 restarts the game onto the content on disk`). Run under Xvfb:
+   28 files re-read, `GameAssetsStates::Loading` entered and done, the menu
+   backdrop scenario reloaded, back in the menu in 470ms, exit 0.
+   `system_ship_editor` run under Xvfb: exit 0, no panic. Workspace clippy,
+   wasm clippy, `catalog_drift` (174 invariants) and `cargo fmt --check` all
+   exit 0. nova_assets 73, nova_core 9, nova_editor 306, nova_menu 80 lib tests
+   pass.
+
 ## Proof
 
 Both gates run locally. A test that a saved document reopens as itself, and one

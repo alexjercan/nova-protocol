@@ -133,6 +133,37 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
             .deadline(BEAT_DEADLINE_SECS)
             .add(),
     )
+    // F5 in the menu is a RESTART: the content is read off disk again and the
+    // game comes back up on it. The menu going away and coming back is the
+    // whole of what a player sees, and it is what tells a live reload apart
+    // from this - a live reload would have left the menu standing.
+    .step("menu_boot: press F5 in the menu")
+    .on_enter(press_key(RELOAD_KEY))
+    .until(the_menu_tore_down())
+    .deadline(BEAT_DEADLINE_SECS)
+    .add()
+    .step("menu_boot: let F5 go")
+    .on_enter(release_key(RELOAD_KEY))
+    .add()
+    .step("menu_boot: the game comes back up on the menu")
+    .until(ui_node_present(NEW_GAME_BUTTON))
+    .deadline(BOOT_SECS)
+    .add()
+    .step("menu_boot: the restart landed back in the menu")
+    .on_enter(|world: &mut World| {
+        assert_eq!(
+            *world.resource::<State<GameStates>>().get(),
+            GameStates::MainMenu,
+            "a content restart must hand the player back to the menu it took"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: F5 restarts the game onto the content on disk",
+            serde_json::json!({}),
+        );
+        info!("menu_boot: F5 took the menu down and the restart put it back");
+    })
+    .add()
     .step("menu_boot: click New Game")
     .on_enter(click_named(NEW_GAME_BUTTON))
     .until(pointer_pressed())

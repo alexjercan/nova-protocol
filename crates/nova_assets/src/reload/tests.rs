@@ -1,19 +1,21 @@
-//! The reload's wiring, not its filesystem: what a press asks for, and what a
-//! replaced file wakes.
+//! The restart's wiring, not its filesystem: what a press asks for, what the
+//! answer does to the two states, and what a replaced file wakes.
 
 use bevy::{asset::AssetPlugin, ecs::system::RunSystemOnce, state::app::StatesPlugin};
 use nova_modding::prelude::{ContentAsset, NovaModdingPlugin};
 
 use super::*;
 
-/// An app with the asset server, the content asset type and the installed set -
-/// the three things the reload reads.
+/// An app with the asset server, the content asset type, the installed set and
+/// the two states the restart drives.
 fn app() -> App {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default(), StatesPlugin));
     app.add_plugins(NovaModdingPlugin);
     app.init_resource::<DownloadedMods>();
     app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_state::<GameAssetsStates>();
+    app.init_state::<GameStates>();
     app.add_message::<ReloadContent>();
     app
 }
@@ -53,6 +55,58 @@ fn no_press_asks_for_nothing() {
     assert_eq!(asked, 0);
 }
 
+/// The reload is a RESTART: both states go back to loading, which is the boot
+/// path - the loading screen at `OnEnter(Loading)`, the whole merge again at
+/// `OnEnter(Processing)`, and the main menu at the end of it.
+#[test]
+fn a_reload_puts_the_game_back_through_the_boot_load() {
+    let mut app = app();
+    app.insert_state(GameAssetsStates::Loaded);
+    app.insert_state(GameStates::MainMenu);
+    app.add_systems(Update, restart_for_content);
+    app.update();
+    app.world_mut()
+        .resource_mut::<Messages<ReloadContent>>()
+        .write(ReloadContent);
+
+    // One update to run the system, one for the transitions it queued.
+    app.update();
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<State<GameAssetsStates>>().get(),
+        GameAssetsStates::Loading,
+        "the content is read again behind the boot loading screen"
+    );
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::Loading,
+        "and the game is back where the boot hook can hand it to the menu"
+    );
+}
+
+/// Nothing asked, nothing moves. The system runs every frame in the main menu,
+/// and a menu that reloaded itself on its own would never stay up.
+#[test]
+fn an_unasked_frame_leaves_the_game_where_it_is() {
+    let mut app = app();
+    app.insert_state(GameAssetsStates::Loaded);
+    app.insert_state(GameStates::MainMenu);
+    app.add_systems(Update, restart_for_content);
+
+    app.update();
+    app.update();
+
+    assert_eq!(
+        *app.world().resource::<State<GameAssetsStates>>().get(),
+        GameAssetsStates::Loaded
+    );
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::MainMenu
+    );
+}
+
 /// The merge is gated on the INSTALLED SET, and re-saving a mod the index
 /// already names changes nothing about the set. The replaced file is the only
 /// signal there is.
@@ -79,148 +133,5 @@ fn a_replaced_content_file_wakes_the_merge() {
     assert!(
         app.world().resource_ref::<DownloadedMods>().is_changed(),
         "a file that came back changed rebuilds the registries"
-    );
-}
-
-/// The whole point of the cover: the read must not happen in the frame the
-/// panel is spawned, or the freeze it hides lands before it is on screen.
-#[test]
-fn the_cover_goes_up_a_frame_before_the_read() {
-    let mut app = app();
-    app.add_systems(
-        Update,
-        (raise_reload_cover, reload_content, settle_reload).chain(),
-    );
-    app.world_mut()
-        .resource_mut::<Messages<ReloadContent>>()
-        .write(ReloadContent);
-
-    app.update();
-    assert_eq!(
-        app.world().resource::<ContentReload>().phase,
-        ReloadPhase::Covering,
-        "the press raises the cover and reads nothing"
-    );
-
-    app.update();
-    assert_ne!(
-        app.world().resource::<ContentReload>().phase,
-        ReloadPhase::Covering,
-        "the frame after, the read goes out behind it"
-    );
-}
-
-/// F5 twice is one reload. A second press must not restart the hold, or a
-/// builder leaning on the key would hold the panel up for as long as they lean.
-#[test]
-fn a_second_press_under_the_cover_is_the_same_reload() {
-    let mut app = app();
-    app.add_systems(
-        Update,
-        (raise_reload_cover, reload_content, settle_reload).chain(),
-    );
-    app.world_mut()
-        .resource_mut::<Messages<ReloadContent>>()
-        .write(ReloadContent);
-    app.update();
-    let started = app.world().resource::<ContentReload>().started;
-
-    app.world_mut()
-        .resource_mut::<Messages<ReloadContent>>()
-        .write(ReloadContent);
-    app.update();
-
-    assert_eq!(
-        app.world().resource::<ContentReload>().started,
-        started,
-        "the reload in flight keeps its own start"
-    );
-}
-
-/// The cover holds for the minimum dwell and comes down on a settled frame -
-/// the frame after the merge, which is the long one it is there to hide.
-#[test]
-fn the_cover_holds_then_comes_down_on_a_settled_frame() {
-    let mut app = app();
-    app.add_systems(
-        Update,
-        (raise_reload_cover, reload_content, settle_reload).chain(),
-    );
-    app.world_mut()
-        .resource_mut::<Messages<ReloadContent>>()
-        .write(ReloadContent);
-    app.update();
-    app.update();
-    assert!(
-        app.world().get_resource::<ContentReload>().is_some(),
-        "the cover must not flash away inside the minimum dwell"
-    );
-
-    std::thread::sleep(std::time::Duration::from_secs_f32(COVER_MIN_DWELL));
-    // One update to pay the sleep as a long, unsettled frame, then a short one
-    // that settles.
-    app.update();
-    app.update();
-
-    assert!(
-        app.world().get_resource::<ContentReload>().is_none(),
-        "past the dwell, a settled frame takes the cover down"
-    );
-}
-
-/// A file still out holds the cover past the dwell: the merge has not run yet,
-/// and taking the panel down before it would show the freeze it exists to hide.
-#[test]
-fn a_file_still_out_holds_the_cover_past_the_dwell() {
-    let mut app = app();
-    // Started in the past, so only the pending file is holding the panel.
-    app.insert_resource(ContentReload {
-        started: -COVER_MIN_DWELL,
-        phase: ReloadPhase::Reading,
-        pending: 1,
-    });
-    app.add_systems(Update, settle_reload);
-
-    app.update();
-    assert!(
-        app.world().get_resource::<ContentReload>().is_some(),
-        "the dwell is spent, but the file is not back"
-    );
-
-    let id = app
-        .world_mut()
-        .resource_mut::<Assets<ContentAsset>>()
-        .add(ContentAsset(Vec::new()))
-        .id();
-    app.world_mut()
-        .resource_mut::<Messages<AssetEvent<ContentAsset>>>()
-        .write(AssetEvent::Modified { id });
-    app.update();
-
-    assert!(
-        app.world().get_resource::<ContentReload>().is_none(),
-        "the last file back takes the cover down"
-    );
-}
-
-/// A file that never comes back must not take the game with it. Unlike the
-/// scenario screen's spawn gate - where a slow scene is WORKING - a read that
-/// has not landed by the cap is a loader that failed, and there is nothing to
-/// wait for.
-#[test]
-fn a_file_that_never_comes_back_still_gives_the_game_back() {
-    let mut app = app();
-    app.insert_resource(ContentReload {
-        started: -COVER_MAX_DWELL,
-        phase: ReloadPhase::Reading,
-        pending: 1,
-    });
-    app.add_systems(Update, settle_reload);
-
-    app.update();
-
-    assert!(
-        app.world().get_resource::<ContentReload>().is_none(),
-        "the cap comes off even with a file still out"
     );
 }

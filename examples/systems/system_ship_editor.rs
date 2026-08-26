@@ -2079,44 +2079,31 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // The complaint this answers: a range saved here did not appear in the
         // Scenarios list until the game was quit and started again, because
-        // content is merged once at boot. The save asks for the reload itself,
-        // so nothing is pressed here - the beat waits for the registry to hold
-        // what was just written.
-        .step("editor: the saved range is in the game's scenarios")
-        .until(the_scenarios_hold(SAVED_RANGE_ID))
-        .deadline(RELOAD_DEADLINE_SECS)
-        .add()
-        .step("editor: a save reaches the game without a restart")
+        // content is merged once at boot. The save no longer reloads - a
+        // content reload is a RESTART now, and restarting a builder mid-build
+        // is worse than the wait - so what it does instead is switch its own
+        // mod ON. Leaving the editor for the main menu restarts onto it, which
+        // is the first moment the Scenarios picker is reachable at all.
+        //
+        // Only the enabled set is asserted here. Whether the registry holds the
+        // id yet depends on the machine: a mod cache that already names
+        // `editor_save` merges the PREVIOUS bytes the moment it is switched on,
+        // and a cache that has never seen it has nothing to merge.
+        .step("editor: the save switched its own mod on")
         .on_enter(|world: &mut World| {
+            let enabled = world.resource::<EnabledMods>();
+            assert!(
+                enabled.0.contains(SAVED_RANGE_ID),
+                "a builder must not have to go and enable their own save; the set held {:?}",
+                enabled.0
+            );
             nova_probe::probe_marker(
                 world,
-                "outcome: a saved range is playable without restarting",
+                "outcome: a saved range is switched on for the way out",
                 serde_json::json!({}),
             );
-            info!("editor: the reload put '{SAVED_RANGE_ID}' in the scenarios list");
+            info!("editor: the save enabled mod '{SAVED_RANGE_ID}'");
         })
-        .add()
-        // The save asked for a reload of its own, and F5 under a reload in
-        // flight is the same reload asked for twice - so wait that cover out
-        // before pressing for one this beat can claim.
-        .step("editor: wait out the save's own reload")
-        .until(a_named_entity(RELOAD_PANEL, false))
-        .deadline(RELOAD_DEADLINE_SECS)
-        .add()
-        // The cover. A reload re-reads every content file and rebuilds the
-        // registries, which costs more than one frame - so the panel goes up
-        // first and the freeze happens behind something.
-        .step("editor: ask for a reload with the key")
-        .on_enter(press_key(RELOAD_KEY))
-        .until(a_named_entity(RELOAD_PANEL, true))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("editor: let the reload key go")
-        .on_enter(release_key(RELOAD_KEY))
-        .add()
-        .step("editor: the cover comes down when the content is back")
-        .until(a_named_entity(RELOAD_PANEL, false))
-        .deadline(RELOAD_DEADLINE_SECS)
         .add()
         // Thrown away on purpose: a walk cannot restart the process, so New
         // Scenario is what stands in for one. It reseeds the stock range, which
@@ -3019,41 +3006,6 @@ fn inspector_labels(world: &World) -> Vec<String> {
 /// The scenario id the editor's save writes its range under.
 #[cfg(feature = "debug")]
 const SAVED_RANGE_ID: &str = "editor_save";
-
-/// How long a reload gets: it re-reads every content file off disk and the
-/// merge runs after they land, so it is several frames rather than one.
-#[cfg(feature = "debug")]
-const RELOAD_DEADLINE_SECS: f32 = 10.0;
-
-/// The name `nova_core` spawns the reload cover under.
-#[cfg(feature = "debug")]
-const RELOAD_PANEL: &str = "Reload Loading Screen";
-
-/// Advance once an entity named `name` is in the world - or, with `present`
-/// false, once it is not.
-///
-/// By NAME rather than by marker: the panel's marker component is private to
-/// the crate that draws it, and what is being claimed here is what a player
-/// sees rather than how it is built.
-#[cfg(feature = "debug")]
-fn a_named_entity(name: &'static str, present: bool) -> Wait {
-    std::sync::Arc::new(move |world: &World| {
-        world.try_query::<&Name>().is_some_and(|mut names| {
-            names.iter(world).any(|named| named.as_str() == name) == present
-        })
-    })
-}
-
-/// Advance once the game's own scenario registry holds `id` - the list the
-/// Scenarios picker is drawn from.
-#[cfg(feature = "debug")]
-fn the_scenarios_hold(id: &'static str) -> Wait {
-    std::sync::Arc::new(move |world: &World| {
-        world
-            .get_resource::<GameScenarios>()
-            .is_some_and(|scenarios| scenarios.contains_key(id))
-    })
-}
 
 /// What the Scene rows READ as, in draw order - the label column only.
 #[cfg(feature = "debug")]

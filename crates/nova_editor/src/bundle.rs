@@ -22,7 +22,7 @@ use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
-use nova_assets::prelude::{EnabledMods, ReloadContent};
+use nova_assets::prelude::EnabledMods;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_modding::prelude::Content;
 #[cfg(not(target_arch = "wasm32"))]
@@ -433,7 +433,6 @@ pub(crate) fn apply_file_request(
     // Optional: a headless fixture drives this worker without the content
     // pipeline behind it, and a save that cannot be published is still a save.
     mut enabled: Option<ResMut<EnabledMods>>,
-    mut reload: MessageWriter<ReloadContent>,
     mut context: ResMut<EditContext>,
     mut selected: ResMut<SelectedNode>,
     mut status: ResMut<EditorStatus>,
@@ -458,10 +457,14 @@ pub(crate) fn apply_file_request(
                     // switch it on in the Mods panel before their own range
                     // appears in Scenarios is the friction the save was meant to
                     // remove. Still theirs to turn off there.
+                    //
+                    // The range reaches the Scenarios list on the way OUT: the
+                    // content restart runs when the editor is left for the main
+                    // menu, which is the first moment the picker is reachable
+                    // anyway.
                     if let Some(enabled) = enabled.as_mut() {
                         enabled.0.insert(SAVE_MOD_ID.to_string());
                     }
-                    reload.write(ReloadContent);
                     info!("editor: saved the document as mod '{SAVE_MOD_ID}'");
                     status.say("saved", theme::PHOSPHOR, now);
                 }

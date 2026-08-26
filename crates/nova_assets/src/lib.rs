@@ -54,8 +54,8 @@ pub mod prelude {
             PortalConfig, PortalFetchTimeout, RemoteCatalog, RemoteCatalogState,
             UninstallPortalMod,
         },
-        ContentReload, DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin,
-        GameAssetsStates, ModCatalog, ModInfo, ReloadContent, RELOAD_KEY,
+        DownloadedMod, DownloadedMods, EnabledMods, GameAssets, GameAssetsPlugin, GameAssetsStates,
+        ModCatalog, ModInfo, ReloadContent, RELOAD_KEY,
     };
 }
 

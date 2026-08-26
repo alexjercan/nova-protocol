@@ -17,6 +17,7 @@
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
+use nova_assets::prelude::ReloadContent;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
@@ -192,6 +193,21 @@ impl Plugin for NovaMenuPlugin {
             (unpause_clocks, restore_cursor),
         );
         app.add_systems(OnExit(GameStates::Playing), force_unpause);
+        // The message this plugin writes below. `nova_assets` owns it and adds
+        // it too, which is a no-op the second time - declared here so a rig
+        // that stands the menu up without the content pipeline still runs.
+        app.add_message::<ReloadContent>();
+        // Coming back to the menu is where the game catches up with what is on
+        // disk. A scenario just played, or a document just built and saved, may
+        // have written content the merge has no reason to notice - and the menu
+        // is where a player goes looking for it. The restart is what makes the
+        // Scenarios picker, the campaign list and the ship catalog agree.
+        app.add_systems(
+            OnExit(GameStates::Playing),
+            |mut reload: MessageWriter<ReloadContent>| {
+                reload.write(ReloadContent);
+            },
+        );
         app.add_systems(
             PostUpdate,
             keep_frozen_cursor_released.run_if(in_state(GameStates::Playing)),
