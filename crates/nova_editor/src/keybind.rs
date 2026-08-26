@@ -315,16 +315,17 @@ pub(crate) fn on_rebind_action(
     rebind.awaiting_release = true;
 }
 
-/// Why `binding` cannot be given to a section, or `None` when it is free.
-/// Applies the one rule the content lint's input-overlap check applies to
-/// authored ships ([`flight_rig_reserved_sources`]) - an editor-built ship is
-/// assembled at runtime and never linted, so this is the only place that
-/// catches it.
+/// What else `binding` already drives, or `None` when nothing does.
 ///
-/// Two SECTIONS may share a source. Every section action runs with
-/// `consume_input: false`, so both fire, and firing two turrets (or two
-/// thrusters) on one trigger is a loadout choice. The lint does not compare
-/// sections to each other either, so an editor export stays authorable.
+/// A WARNING, not a veto. The flight rig holds Space for the main burn, and
+/// the editor used to refuse it - which meant a builder who wanted Space to
+/// fire their thrusters could not have it, on the editor's say-so. Every
+/// section action runs with `consume_input: false`, so a shared key fires both
+/// things, and whether that is what you meant is yours to decide.
+///
+/// Two SECTIONS may share a source for the same reason: firing two turrets on
+/// one trigger is a loadout choice, and the content lint does not compare
+/// sections to each other either.
 fn binding_conflict(binding: &Binding) -> Option<String> {
     let source = binding_source(binding)?;
     flight_rig_reserved_sources()
@@ -386,14 +387,13 @@ pub(crate) fn apply_section_rebind(
         return;
     };
 
-    // A conflicting key stays armed rather than being accepted: the chip keeps
-    // prompting, so the player just presses another key.
+    // A key the flight rig also drives is TAKEN, and said out loud: both things
+    // fire on it, which is a choice a builder is allowed to make.
     if let Some(taken_by) = binding_conflict(&new_binding) {
-        says.refuse(format!(
-            "{} already drives {taken_by} - pick another key",
+        says.note(format!(
+            "{} also drives {taken_by}",
             binding_label(std::slice::from_ref(&new_binding))
         ));
-        return;
     }
 
     // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
@@ -652,17 +652,17 @@ mod tests {
         );
     }
 
-    /// F32: rebinding onto a source the flight rig already drives is refused -
-    /// the same rule the content lint enforces on authored ships. The section
-    /// stays armed so the next key can be tried.
+    /// A key the flight rig drives is BOUND, and the line says what else it
+    /// does. The editor knows what Space is for; it does not get to decide
+    /// that a builder may not fire their thrusters with it.
     #[test]
-    fn rebind_refuses_a_key_the_flight_rig_drives() {
+    fn rebind_takes_a_key_the_flight_rig_drives_and_says_so() {
         let mut world = World::new();
         let section = turret(&mut world, vec![Binding::from(MouseButton::Left)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
-        // "autopilot goto" - see `flight_rig_reserved_sources`.
-        input.press(KeyCode::KeyG);
+        // "flight burn" - see `flight_rig_reserved_sources`.
+        input.press(KeyCode::Space);
         world.insert_resource(input);
         world.init_resource::<ButtonInput<MouseButton>>();
 
@@ -670,22 +670,22 @@ mod tests {
 
         assert_eq!(
             binds_of(&world, section),
-            vec![Binding::from(MouseButton::Left)],
-            "the conflicting key is not bound"
+            vec![Binding::from(KeyCode::Space)],
+            "the key is bound"
         );
         assert_eq!(
             world.resource::<EditorRebind>().target,
-            Some(section),
-            "the section stays armed for another try"
+            None,
+            "the rebind is finished, not left prompting"
         );
         let (line, _) = world
             .resource::<crate::config::EditorStatus>()
             .line()
-            .expect("a refused key is answered on the line");
+            .expect("a shared key is reported on the line");
         assert!(
-            line.contains('G') && line.contains("goto"),
-            "the chip prompts on forever unless the line names the KEY and \
-             what already holds it; it read {line:?}"
+            line.contains("Space") && line.contains("burn"),
+            "a builder pressing a key the rig holds is owed the other thing it \
+             does; the line read {line:?}"
         );
     }
 
