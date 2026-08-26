@@ -112,6 +112,7 @@ pub(crate) fn sync_section_keybind_labels(
                 DespawnOnExit(ExampleStates::Editor),
                 SectionKeybindLeader { section },
                 Name::new("Section Keybind Leader"),
+                GlobalZIndex(crate::ui::layer::STAGE_LABEL_Z),
                 Pickable::IGNORE,
                 Node {
                     position_type: PositionType::Absolute,
@@ -126,6 +127,9 @@ pub(crate) fn sync_section_keybind_labels(
                 DespawnOnExit(ExampleStates::Editor),
                 SectionKeybindLabel { section },
                 Name::new("Section Keybind Label"),
+                // Under the panels, like every other name the stage hangs on a
+                // node: see `crate::ui::layer`.
+                GlobalZIndex(crate::ui::layer::STAGE_LABEL_Z),
                 // A chip sits over the section it labels, so without this it
                 // blocks the picking ray to that section and clicking it does
                 // nothing (`ui::card` and `ui::tooltip` do the same).

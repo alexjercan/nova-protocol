@@ -26,7 +26,10 @@ use nova_ui::{
     widget::{checkbox_glyph, key_chip, list_row_colors, ListRow, UiText},
 };
 
-use crate::config::{EditorOverlays, SelectedNode};
+use crate::{
+    config::{EditorOverlays, SelectedNode},
+    ui::layer,
+};
 
 /// Which menu a bar button opens and a dropdown belongs to.
 ///
@@ -85,13 +88,6 @@ pub(crate) struct MenuItem;
 /// menu does not also land on the stage behind it and move something.
 #[derive(Component)]
 pub(crate) struct MenuScrim;
-
-/// A dropdown draws over the stage and over the rail; the scrim sits under the
-/// dropdowns and over everything else. Explicit because UI stacking follows the
-/// tree, and the menu bar is one of the first things in it.
-const SCRIM_Z: i32 = 20;
-/// The dropdowns' layer, above [`SCRIM_Z`].
-const MENU_Z: i32 = 21;
 
 /// One bar button. Wrapped in a slot by the caller for the same reason Play is:
 /// `themed_button` is `percent(100)` wide.
@@ -399,7 +395,7 @@ pub(crate) fn menu_scrim() -> impl Bundle {
         MenuScrim,
         Button,
         Hovered::default(),
-        GlobalZIndex(SCRIM_Z),
+        GlobalZIndex(layer::SCRIM_Z),
         Node {
             display: Display::None,
             position_type: PositionType::Absolute,
@@ -414,7 +410,7 @@ pub(crate) fn menu_scrim() -> impl Bundle {
 
 /// The z-layer a dropdown draws on.
 pub(crate) fn menu_z() -> GlobalZIndex {
-    GlobalZIndex(MENU_Z)
+    GlobalZIndex(layer::MENU_Z)
 }
 
 /// View > Key Legend: show or hide the footer's key line.

@@ -26,12 +26,8 @@ use crate::{
     frame::node_bounds,
     gallery::EditorCamera,
     node::{id_order, EditContext, NodeId, ObjectNode, ShipNode},
-    ui::tree_text,
+    ui::{layer, tree_text},
 };
-
-/// The plates' own layer: over the stage, under the placement callout - a
-/// verdict about the part in hand outranks a label on a rock behind it.
-const PLATE_Z: i32 = 15;
 
 /// How far over the node's own top the plate floats, in logical pixels.
 const LIFT: f32 = 14.0;
@@ -55,7 +51,7 @@ pub(crate) fn plate_layer() -> impl Bundle {
     (
         Name::new("Name Plates"),
         PlateLayer,
-        GlobalZIndex(PLATE_Z),
+        GlobalZIndex(layer::STAGE_LABEL_Z),
         Pickable::IGNORE,
         Node {
             position_type: PositionType::Absolute,

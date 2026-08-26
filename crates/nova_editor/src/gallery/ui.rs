@@ -24,6 +24,7 @@ use crate::{
         scene::{spawn_tile, GalleryItem},
         GalleryState, COLS, PAGE, ROWS,
     },
+    ui::layer,
     ExampleStates,
 };
 
@@ -156,9 +157,7 @@ pub(crate) fn rebuild_gallery(
             GalleryRoot,
             DespawnOnExit(ExampleStates::Editor),
             Name::new("Parts Gallery"),
-            // Over the rail and the drawer, and over the build area: while the
-            // gallery is up nothing behind it may be clicked.
-            GlobalZIndex(20),
+            GlobalZIndex(layer::GALLERY_Z),
             Node {
                 position_type: PositionType::Absolute,
                 left: px(0),

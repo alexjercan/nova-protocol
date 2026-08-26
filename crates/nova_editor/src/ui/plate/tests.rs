@@ -64,6 +64,24 @@ fn plates(app: &mut App) -> Vec<String> {
         .collect()
 }
 
+/// The stage's own labels go UNDER the rail and the Inspector: a plate that
+/// crossed a panel drew phosphor text over a phosphor list and neither could
+/// be read. The rung is positive because a UI node below the camera's own rung
+/// does not draw at all - the first cut of this used -20 and the plates
+/// vanished.
+#[test]
+fn a_plate_hangs_under_the_panels() {
+    let mut app = App::new();
+    let hung = app.world_mut().spawn(plate_layer()).id();
+    let rung = app
+        .world()
+        .get::<GlobalZIndex>(hung)
+        .expect("the layer claims a rung")
+        .0;
+    assert!(rung < layer::CHROME_Z, "a plate is under the panels");
+    assert!(rung > 0, "a plate still draws");
+}
+
 /// Every ship is named because there are a handful of them and which hull is
 /// which is a question the stage could not otherwise answer. A rock sitting
 /// there is not asking anything.

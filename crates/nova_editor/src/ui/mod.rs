@@ -12,6 +12,7 @@
 
 pub(crate) mod callout;
 pub(crate) mod inspector;
+pub(crate) mod layer;
 pub(crate) mod menu;
 pub(crate) mod plate;
 pub(crate) mod rail;
@@ -433,6 +434,7 @@ pub(crate) fn setup_editor_scene(
             // the tree grew two rows.
             root.spawn((
                 Name::new("Editor Top Bar"),
+                GlobalZIndex(layer::CHROME_Z),
                 Node {
                     width: percent(100),
                     flex_direction: FlexDirection::Row,
@@ -615,6 +617,11 @@ pub(crate) fn setup_editor_scene(
                     should_block_lower: false,
                     is_hoverable: false,
                 },
+                // The panels claim their rung rather than inheriting one from
+                // where they happen to sit in the tree: what the stage hangs
+                // on a node is spawned from four other modules, and the rail
+                // has to cover all of it. See `crate::ui::layer`.
+                GlobalZIndex(layer::CHROME_Z),
                 Node {
                     width: percent(100),
                     flex_grow: 1.0,
@@ -794,7 +801,7 @@ pub(crate) fn setup_editor_scene(
                     row_gap: px(6),
                     ..default()
                 },
-                GlobalZIndex(10),
+                GlobalZIndex(layer::FOOT_Z),
                 children![
                     // A full-width row rather than an offset chip: the chip's
                     // width follows its text, so centring is the row's job.

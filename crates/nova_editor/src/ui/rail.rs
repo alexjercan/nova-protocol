@@ -9,7 +9,10 @@ use nova_ui::{
     widget::{checkbox, list_row_colors, ListRow},
 };
 
-use crate::config::{SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch};
+use crate::{
+    config::{SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch},
+    ui::layer,
+};
 
 /// The skin toggle: a tool row that is a SETTING rather than a mode, so it
 /// carries the shared `checkbox` widget instead of a `ButtonValue`.
@@ -289,9 +292,6 @@ pub(crate) struct SceneRowHint {
 #[derive(Component)]
 pub(crate) struct SceneRowTooltip;
 
-/// The hint's own layer. Above the floating windows (30), because a hint is
-/// the frontmost thing on screen for as long as the pointer rests.
-const TOOLTIP_Z: i32 = 40;
 /// Gap between the rail's right edge and the hint.
 const TOOLTIP_GAP: f32 = 8.0;
 
@@ -305,7 +305,7 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
     (
         Name::new("Scene Row Hint"),
         SceneRowTooltip,
-        GlobalZIndex(TOOLTIP_Z),
+        GlobalZIndex(layer::TOOLTIP_Z),
         Pickable::IGNORE,
         Node {
             display: Display::None,

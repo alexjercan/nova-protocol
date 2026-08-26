@@ -16,11 +16,8 @@ use crate::{
     config::{Placement, PlacementPreview},
     gallery::EditorCamera,
     node::{EditContext, SectionNode, ShipNode},
+    ui::layer,
 };
-
-/// The callout's own layer: above the stage, below the floating windows, and
-/// never in the way of the ray that positions the ghost.
-const CALLOUT_Z: i32 = 20;
 
 /// How far under the ghost's own point the callout hangs.
 ///
@@ -47,7 +44,7 @@ pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
     (
         Name::new("Placement Callout"),
         PlacementCallout,
-        GlobalZIndex(CALLOUT_Z),
+        GlobalZIndex(layer::STAGE_VERDICT_Z),
         Visibility::Hidden,
         Pickable::IGNORE,
         Node {

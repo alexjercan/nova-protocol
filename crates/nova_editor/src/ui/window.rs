@@ -30,6 +30,7 @@ use crate::{
     node::reset_document,
     ui::{
         inspector::{EditTargets, InspectorField, InspectorSwatch},
+        layer,
         menu::back_to_main_menu,
     },
 };
@@ -167,9 +168,7 @@ pub(crate) fn window_layer() -> impl Bundle {
             height: percent(100),
             ..default()
         },
-        // Above the rail and the inspector: a window a panel could hide would
-        // be a window nobody opened.
-        GlobalZIndex(30),
+        GlobalZIndex(layer::WINDOW_Z),
     )
 }
 
