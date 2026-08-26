@@ -59,7 +59,9 @@ use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
     PlacementPose, PlacementPreview, SectionChoice, SelectedNode,
 };
-use frame::{apply_frame_request, frame_key, sync_frame_item, FrameRequest};
+use frame::{
+    apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, FrameRequest,
+};
 use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
@@ -85,10 +87,7 @@ use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     callout::sync_placement_callout,
-    inspector::{
-        apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, paint_swatch_hover,
-        sync_inspector,
-    },
+    inspector::{apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector},
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
         sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_ship_menu, sync_view_menu_marks,
@@ -509,9 +508,12 @@ fn editor_plugin(app: &mut App) {
         Update,
         wheel_placement_pose
             .before(update_placement_preview)
+            // Normal is the whole guard. An open gallery is `Browse`, which is
+            // not Normal, so a second hand-written test for it is the shape the
+            // arbiter exists to delete.
             .run_if(in_input_mode(InputMode::Normal))
             .run_if(resource_exists::<Messages<MouseWheel>>)
-            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+            .run_if(in_state(ExampleStates::Editor)),
     );
     // A fresh visit starts with the part's first socket, unrolled.
     app.add_systems(
@@ -529,11 +531,10 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Scenario),
         |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
-    // The capture is Bind's own system, so it answers under Bind and
-    // under Normal - the click that arms it lands a frame before the mode
-    // resolves. Everything more exclusive than Bind is nothing, and everything
-    // less takes the keyboard off it: a gallery filter keystroke is not a
-    // section binding.
+    // The capture is Bind's own system, so it answers under Bind and under
+    // Normal - the click that arms it takes the mode in its own frame, and
+    // Normal is what the frame before that was. Nothing is more exclusive than
+    // Bind, so nothing takes the keyboard off it.
     app.add_systems(
         Update,
         (
@@ -572,7 +573,7 @@ fn editor_plugin(app: &mut App) {
             apply_inspector_edits
                 .after(nova_ui::prelude::TextFieldSystems)
                 .before(sync_inspector),
-            hold_camera_while_typing,
+            hold_camera_above_normal,
         )
             .run_if(in_state(ExampleStates::Editor)),
     );

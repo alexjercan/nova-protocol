@@ -31,7 +31,10 @@ use crate::widget::TextFieldFocused;
 /// Glob-import surface: the mode, the claim, the arbiter's ordering handle and
 /// the two run conditions consumers gate on.
 pub mod prelude {
-    pub use super::{in_input_mode, owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems};
+    pub use super::{
+        in_input_mode, owns_or_enters, take_keyboard_now, ClaimKeyboard, InputMode,
+        InputModeSystems,
+    };
 }
 
 /// Who the keyboard belongs to this frame.
@@ -85,6 +88,25 @@ pub fn in_input_mode(wanted: InputMode) -> impl Fn(Option<Res<InputMode>>) -> bo
 pub fn owns_or_enters(mode: InputMode) -> impl Fn(Option<Res<InputMode>>) -> bool + Clone {
     move |current: Option<Res<InputMode>>| {
         current.is_none_or(|current| *current == mode || *current == InputMode::Normal)
+    }
+}
+
+/// Take `mode` for the REST OF THIS FRAME, ahead of the next resolve.
+///
+/// A mode entered by a CLICK cannot wait for the arbiter. The click lands in
+/// `Update`, the claimant that reads the state it wrote runs in the next
+/// `PreUpdate`, and every verb gated on `Normal` still runs in between - so one
+/// Escape could cancel the capture the click had just armed AND take the rung
+/// below it, in the same press.
+///
+/// The claim still has to be written every frame from the state, the way every
+/// other claim is. This only closes the gap on the frame that opens the mode.
+///
+/// RAISES, never lowers: a frame already in a more exclusive mode keeps it, and
+/// a mode ENDS by no longer being claimed.
+pub fn take_keyboard_now(current: &mut InputMode, mode: InputMode) {
+    if mode > *current {
+        *current = mode;
     }
 }
 

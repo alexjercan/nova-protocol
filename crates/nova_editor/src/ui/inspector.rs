@@ -20,7 +20,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use nova_scenario::prelude::ScenarioObjectKind;
-use nova_ship::prelude::{GameSections, WASDCameraController};
+use nova_ship::prelude::GameSections;
 use nova_ui::{
     prelude::{
         panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
@@ -34,7 +34,6 @@ use nova_ui::{
 
 use crate::{
     config::{EditorOverlays, EditorSays, SelectedNode},
-    gallery::EditorCamera,
     gizmo::GizmoAxis,
     inspect::{
         axis_step, choose_field, curated_object_rows, curated_section_rows, driver_label,
@@ -198,11 +197,6 @@ pub(crate) struct InspectorSwatch {
 pub(crate) struct InspectorChoice {
     variant: String,
 }
-
-/// Marks the camera whose free-fly rig this module took away, so putting it
-/// back is not a guess. The same shape the gallery parks with.
-#[derive(Component)]
-pub(crate) struct TypingHold;
 
 /// Everything the panel reads to decide what it is showing.
 #[derive(SystemParam)]
@@ -1585,39 +1579,6 @@ pub(crate) fn on_inspector_driver(
     if ship.driver != option.driver {
         ship.driver = option.driver;
         ship.allegiance = default_allegiance(option.driver);
-    }
-}
-
-/// Take the free-fly rig off the camera while a field is being typed into, and
-/// give it back afterwards.
-///
-/// The rig is `bevy_enhanced_input`'s and answers WASD wherever the keystrokes
-/// came from, so a run condition on the editor's own systems is not enough:
-/// typing "wasp" into a beacon label would fly the camera four ways. The
-/// marker says the hold is OURS, so the gallery's park - which removes the
-/// same component for its own reasons - cannot be undone by this.
-pub(crate) fn hold_camera_while_typing(
-    mut commands: Commands,
-    fields: Query<(), With<TextFieldFocused>>,
-    camera: Option<
-        Single<(Entity, Has<WASDCameraController>, Has<TypingHold>), With<EditorCamera>>,
-    >,
-) {
-    let Some(camera) = camera else {
-        return;
-    };
-    let (entity, driving, held) = *camera;
-    let typing = !fields.is_empty();
-    if typing && driving {
-        commands
-            .entity(entity)
-            .insert(TypingHold)
-            .remove::<WASDCameraController>();
-    } else if !typing && held {
-        commands
-            .entity(entity)
-            .remove::<TypingHold>()
-            .insert(WASDCameraController);
     }
 }
 

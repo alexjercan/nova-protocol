@@ -64,7 +64,7 @@ see it.
   cursor 40 px in a single `move_cursor`, which is one Drag event - the one
   cadence that works.
 
-- [ ] R2.2 (MAJOR) crates/nova_editor/src/ui/inspector.rs:1456 - Bind mode does
+- [x] R2.2 (MAJOR) crates/nova_editor/src/ui/inspector.rs:1456 - Bind mode does
   not take WASD off the editor camera, which the task body and the arbiter's
   own docstring both say it does. `WASDCameraController` is
   `bevy_enhanced_input`'s and no run condition reaches it. Three things remove
@@ -149,7 +149,7 @@ see it.
   the body is built from.
   Unmeasured. No probe range drives a held drag, so no capture would show it.
 
-- [ ] R2.7 (MAJOR) crates/nova_editor/src/ui/mod.rs:2114 - the key legend
+- [x] R2.7 (MAJOR) crates/nova_editor/src/ui/mod.rs:2114 - the key legend
   advertises keys that Bind mode has taken, and Backspace binds itself instead
   of leaving the ship. `sync_key_legend` keys its hints on
   `(SectionChoice, inside)` alone; a rebind changes only the last cell. With a
@@ -220,7 +220,7 @@ see it.
   Change: treat `inverse_scale_factor() <= 0.0` as "not measured yet" and
   return early.
 
-- [ ] R2.12 (MINOR) crates/nova_editor/src/lib.rs:226 - the mode resolves one
+- [x] R2.12 (MINOR) crates/nova_editor/src/lib.rs:226 - the mode resolves one
   frame after the state that defines it, and the ordering edge that used to
   cover the gap was deleted. `declare_editor_keyboard_owner` runs in `PreUpdate`
   off `EditorRebind`, which `on_rebind_action` writes in `Update`, so on the
@@ -276,7 +276,7 @@ see it.
   survive. Compare `row.group` segments against the specs directly instead and
   drop the intermediate `Vec` entirely.
 
-- [ ] R2.17 (MINOR) crates/nova_editor/src/lib.rs:512 - `wheel_placement_pose`
+- [x] R2.17 (MINOR) crates/nova_editor/src/lib.rs:512 - `wheel_placement_pose`
   keeps a dead `not(gallery_open)` guard on top of its mode gate.
   `in_input_mode(InputMode::Normal)` is already false whenever the gallery is
   open, because `declare_editor_keyboard_owner` claims `Browse` for exactly
@@ -284,7 +284,7 @@ see it.
   the shape the input task set out to delete. The chain-level guard at `:502`
   is legitimate; it gates the draw half.
 
-- [ ] R2.18 (MINOR) crates/nova_editor/src/lib.rs:530 - the comment states the
+- [x] R2.18 (MINOR) crates/nova_editor/src/lib.rs:530 - the comment states the
   opposite of the arbiter's resolution rule. It says "everything less takes the
   keyboard off it"; `resolve_input_mode` keeps the GREATEST claim and
   `Browse < Bind`, so it is Bind that takes the keyboard off Browse. No
@@ -510,4 +510,43 @@ on every frame the value moves, which for a live radius scrub is every frame of
 the gesture. That is the honest cost of a preview that follows the number; the
 finding's measured 120 rebuilds over two seconds becomes 120 rebuilds only
 while the radius is really changing.
+
+### A mode reaches the rig, the legend and its own frame - R2.2, R2.7, R2.12, R2.17, R2.18
+
+The camera hold left the inspector and became `frame::hold_camera_above_normal`,
+which reads `InputMode` and holds for every mode above Normal rather than for a
+focused field alone. `frame.rs` is where it belongs: that module already owns
+taking the rig off and putting it back, and says why a second place that got it
+wrong would be a camera that snaps back a frame later. `TypingHold` is
+`ModeHold`.
+
+The gallery's park stopped touching `WASDCameraController` - the mode covers it
+now - and keeps the pose and the skybox, which are its own. `frame.rs:206` was
+NOT deleted: it removes and re-inserts the rig in one batch to re-seed it after
+a teleport, which is a reset rather than a park, and deleting it would leave the
+camera snapping back.
+
+Bind is claimed where the arming happens (`take_keyboard_now`, new in
+`nova_ui::input_mode`). The claimant that reads `rebind.target` runs in the next
+`PreUpdate`, and the verbs gated on Normal run in between, so one Escape inside
+that window cancelled the capture AND put the armed part down (R2.12). The
+helper raises and never lowers, and the per-frame claim still comes from the
+state.
+
+`sync_key_legend` gained its Bind arm: `REBINDING`, `any key / bind it`, and the
+Escape cell that every mode has (R2.7). `wheel_placement_pose` lost its dead
+`not(gallery_open)` guard - an open gallery is Browse, which is not Normal
+(R2.17) - and the comment that had the resolution rule backwards now says
+nothing takes the keyboard off Bind (R2.18).
+
+Proof:
+
+- `cargo test -p nova_editor --lib` - 329 pass. The camera test moved to
+  `frame/tests.rs` and now walks all three modes above Normal; the rebind test
+  asserts the mode is Bind in the ARMING frame; a new legend test proves
+  `Bksp leave` is gone while a rebind is armed.
+- `cargo test -p nova_ui --lib` - 48 pass.
+- `cargo check --all-targets --features debug` clean.
+- `system_input_modes` and `system_ship_editor` re-run live, both cycle
+  complete.
 

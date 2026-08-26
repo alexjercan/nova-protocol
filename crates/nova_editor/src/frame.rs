@@ -14,6 +14,7 @@
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_ship::prelude::WASDCameraController;
+use nova_ui::prelude::InputMode;
 
 use crate::{
     config::{SectionChoice, SelectedNode},
@@ -205,6 +206,48 @@ pub(crate) fn apply_frame_request(
         .entity(entity)
         .remove::<WASDCameraController>()
         .insert(WASDCameraController);
+}
+
+/// Marks the camera whose free-fly rig the mode hold took away, so putting it
+/// back is not a guess. The same shape the gallery parks with.
+#[derive(Component)]
+pub(crate) struct ModeHold;
+
+/// Take the free-fly rig off the camera whenever the keyboard is not in
+/// [`InputMode::Normal`], and give it back when it is.
+///
+/// The rig is `bevy_enhanced_input`'s and answers WASD wherever the keystrokes
+/// came from, so a run condition on the editor's own systems does not reach it.
+/// Typing "wasp" into a beacon label flew the camera four ways; binding `W` to
+/// a thruster - the most natural thruster binding there is - flew it forward
+/// for as long as the key was held, so the part the chip points at slid off
+/// screen mid-gesture.
+///
+/// Every mode above Normal, not a list of them: a mode holds the keyboard by
+/// definition, and a rig that answers keys is a keyboard consumer like any
+/// other. The marker says the hold is OURS, so the gallery's park - which stows
+/// the pose and the skybox for its own reasons - cannot be undone by this.
+pub(crate) fn hold_camera_above_normal(
+    mut commands: Commands,
+    mode: Res<InputMode>,
+    camera: Option<Single<(Entity, Has<WASDCameraController>, Has<ModeHold>), With<EditorCamera>>>,
+) {
+    let Some(camera) = camera else {
+        return;
+    };
+    let (entity, driving, held) = *camera;
+    let taken = *mode != InputMode::Normal;
+    if taken && driving {
+        commands
+            .entity(entity)
+            .insert(ModeHold)
+            .remove::<WASDCameraController>();
+    } else if !taken && held {
+        commands
+            .entity(entity)
+            .remove::<ModeHold>()
+            .insert(WASDCameraController);
+    }
 }
 
 /// The view over `target` from `angle`, at the reach the stage view uses - so

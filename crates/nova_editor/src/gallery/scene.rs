@@ -210,7 +210,6 @@ pub(crate) fn park_camera_for_gallery(
                     transform: *transform,
                     skybox: skybox.cloned(),
                 })
-                .remove::<WASDCameraController>()
                 .remove::<Skybox>();
         }
         *transform = Transform::from_translation(STAGE_ORIGIN + Vec3::Z * STAGE_DISTANCE)
@@ -219,7 +218,7 @@ pub(crate) fn park_camera_for_gallery(
         *transform = parked.transform;
         let sky = parked.skybox.clone();
         let mut camera = commands.entity(entity);
-        camera.remove::<ParkedPose>().insert(WASDCameraController);
+        camera.remove::<ParkedPose>();
         if let Some(sky) = sky {
             camera.insert(sky);
         }

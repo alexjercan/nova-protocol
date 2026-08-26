@@ -6,7 +6,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
 use nova_ship::prelude::*;
-use nova_ui::prelude::{hang_at, Hang};
+use nova_ui::prelude::{hang_at, take_keyboard_now, Hang, InputMode};
 
 use crate::{
     config::{EditorSays, SelectedNode},
@@ -309,6 +309,7 @@ pub(crate) fn on_rebind_action(
     selected: Res<SelectedNode>,
     q_sections: Query<(&SectionNode, &ChildOf)>,
     mut rebind: ResMut<EditorRebind>,
+    mut mode: ResMut<InputMode>,
 ) {
     let Some(section) = selected.0 else {
         return;
@@ -323,6 +324,11 @@ pub(crate) fn on_rebind_action(
     // The press that armed this is a mouse click on the button: wait for it to
     // release, so the arming LMB is not captured as the new binding.
     rebind.awaiting_release = true;
+    // And the mode with it, in THIS frame. The claimant that reads
+    // `rebind.target` runs in the next `PreUpdate`, and the verbs gated on
+    // Normal run in between: one Escape inside that window cancelled the
+    // capture and put the armed part down as well.
+    take_keyboard_now(&mut mode, InputMode::Bind);
 }
 
 /// What else `binding` already drives, or `None` when nothing does.
@@ -747,6 +753,9 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<EditorRebind>();
         app.init_resource::<SelectedNode>();
+        // Arming takes the keyboard in the same frame, so the rig carries the
+        // mode the arbiter would otherwise write a frame later.
+        app.init_resource::<InputMode>();
         app.add_observer(on_rebind_action);
         let turret = turret(app.world_mut(), vec![Binding::from(MouseButton::Left)]);
         let hull = section_node(app.world_mut(), SectionKind::Hull(default()), vec![]);
@@ -769,6 +778,11 @@ mod tests {
         assert!(
             rebind.awaiting_release,
             "the arming click must not be captured as the binding"
+        );
+        assert_eq!(
+            *app.world().resource::<InputMode>(),
+            InputMode::Bind,
+            "and the mode is Bind in the arming frame, not the one after it"
         );
     }
 

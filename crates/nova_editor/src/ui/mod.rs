@@ -2093,43 +2093,51 @@ pub(crate) fn sync_key_legend(
     // The pointer and the rig, then the one key that changes meaning with the
     // rung it is on. Ordered so the gestures a builder is about to make come
     // first and the way out comes last.
-    let (mode, hints): (&str, &[Hint]) = match (&*selection, inside) {
-        (SectionChoice::None, false) => (
-            "SELECT",
-            &[
-                ("LMB", "select"),
-                ("LMB x2", "enter"),
-                ("drag", "move it"),
-                ("RMB+drag", "look"),
-                ("WASD", "fly"),
-                ("Space/Shift", "up and down"),
-            ],
-        ),
-        (SectionChoice::None, true) => (
-            "IN A SHIP",
-            &[
-                ("LMB", "select"),
-                // The key, not the gesture: leaving is a single click on the
-                // scenario row now, which the tree shows and does not need a
-                // legend for. What the legend owes is the key that does it
-                // without the rail - see `backspace_steps_out`.
-                ("Bksp", "leave"),
-                ("Q", "pick a part"),
-                ("RMB+drag", "look"),
-                ("WASD", "fly"),
-                ("Space/Shift", "up and down"),
-            ],
-        ),
-        (SectionChoice::Section(_), _) => (
-            "PART IN HAND",
-            &[
-                ("LMB", "place it"),
-                ("Q", "pick a part"),
-                ("RMB+drag", "look"),
-                ("WASD", "fly"),
-                ("Space/Shift", "up and down"),
-            ],
-        ),
+    //
+    // Bind FIRST, because it is a mode and the rest are tools. It takes every
+    // key except Escape, so a legend that still read `Bksp leave` would be
+    // advertising a verb that now binds itself to a thruster.
+    let (mode, hints): (&str, &[Hint]) = if rebind.target.is_some() {
+        ("REBINDING", &[("any key", "bind it")])
+    } else {
+        match (&*selection, inside) {
+            (SectionChoice::None, false) => (
+                "SELECT",
+                &[
+                    ("LMB", "select"),
+                    ("LMB x2", "enter"),
+                    ("drag", "move it"),
+                    ("RMB+drag", "look"),
+                    ("WASD", "fly"),
+                    ("Space/Shift", "up and down"),
+                ],
+            ),
+            (SectionChoice::None, true) => (
+                "IN A SHIP",
+                &[
+                    ("LMB", "select"),
+                    // The key, not the gesture: leaving is a single click on the
+                    // scenario row now, which the tree shows and does not need a
+                    // legend for. What the legend owes is the key that does it
+                    // without the rail - see `backspace_steps_out`.
+                    ("Bksp", "leave"),
+                    ("Q", "pick a part"),
+                    ("RMB+drag", "look"),
+                    ("WASD", "fly"),
+                    ("Space/Shift", "up and down"),
+                ],
+            ),
+            (SectionChoice::Section(_), _) => (
+                "PART IN HAND",
+                &[
+                    ("LMB", "place it"),
+                    ("Q", "pick a part"),
+                    ("RMB+drag", "look"),
+                    ("WASD", "fly"),
+                    ("Space/Shift", "up and down"),
+                ],
+            ),
+        }
     };
     for mut text in &mut modes {
         if text.0 != mode {
@@ -3590,6 +3598,35 @@ mod tests {
         *app.world_mut().resource_mut::<SectionChoice>() = SectionChoice::Section("hull".into());
         app.update();
         assert_eq!(legend_mode(&mut app), "PART IN HAND");
+    }
+
+    /// Bind mode takes every key except Escape, so the legend stops advertising
+    /// the ones it took. `Bksp leave` was the worst of them: pressing it bound
+    /// Backspace to the thruster instead of leaving the ship, with nothing on
+    /// screen saying either thing had happened.
+    #[test]
+    fn the_legend_stops_advertising_keys_a_rebind_has_taken() {
+        let mut app = legend_app();
+        enter_ship(app.world_mut(), true);
+        app.update();
+        assert!(
+            shown_hints(&mut app).iter().any(|(key, _)| key == "Bksp"),
+            "the ship legend offers Backspace to begin with"
+        );
+
+        let section = app.world_mut().spawn_empty().id();
+        app.world_mut().resource_mut::<EditorRebind>().target = Some(section);
+        app.update();
+
+        assert_eq!(legend_mode(&mut app), "REBINDING");
+        assert_eq!(
+            shown_hints(&mut app),
+            vec![
+                ("any key".to_string(), "bind it".to_string()),
+                ("Esc".to_string(), "cancel the rebind".to_string()),
+            ],
+            "only the two keys that still mean what they say"
+        );
     }
 
     /// A legend with the cells up and the sync running.

@@ -15,7 +15,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
-    TurretJoint, TurretSectionConfig, WASDCameraController,
+    TurretJoint, TurretSectionConfig,
 };
 
 use super::*;
@@ -708,6 +708,7 @@ fn a_ship_takes_the_name_you_type_into_it() {
 fn pressing_the_key_row_arms_the_rebind() {
     let mut app = inspector_app();
     app.init_resource::<crate::keybind::EditorRebind>();
+    app.init_resource::<nova_ui::prelude::InputMode>();
     app.add_observer(on_rebind_action);
     let scenario = document(&mut app);
     let ship = app
@@ -904,43 +905,6 @@ fn a_catalog_section_is_copied_inline_before_the_first_edit_lands() {
         panic!("still a thruster");
     };
     assert!((tuned.magnitude - 77.0).abs() < f32::EPSILON);
-}
-
-#[test]
-fn the_camera_gives_up_its_keys_while_a_field_is_being_typed_into() {
-    let mut app = inspector_app();
-    let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
-    select(&mut app, rock);
-    let camera = app
-        .world_mut()
-        .spawn((EditorCamera, WASDCameraController))
-        .id();
-
-    let field = field_of(&mut app, "Radius");
-    app.world_mut()
-        .entity_mut(field)
-        .insert(TextFieldFocused::at_end("3"));
-    app.world_mut()
-        .run_system_once(hold_camera_while_typing)
-        .expect("the hold runs");
-    assert!(
-        app.world().get::<WASDCameraController>(camera).is_none(),
-        "typing 'wasp' into a name must not fly the camera four ways"
-    );
-    assert!(app.world().get::<TypingHold>(camera).is_some());
-
-    app.world_mut()
-        .entity_mut(field)
-        .remove::<TextFieldFocused>();
-    app.world_mut()
-        .run_system_once(hold_camera_while_typing)
-        .expect("the hold runs");
-    assert!(
-        app.world().get::<WASDCameraController>(camera).is_some(),
-        "the rig comes back with the keyboard"
-    );
-    assert!(app.world().get::<TypingHold>(camera).is_none());
 }
 
 /// Drag the row's NAME and the number under it moves. The one control the

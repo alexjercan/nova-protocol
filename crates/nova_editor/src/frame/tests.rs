@@ -313,3 +313,41 @@ fn a_sensor_volume_is_not_part_of_a_nodes_size() {
         bounds.size()
     );
 }
+
+/// The free-fly rig is a keyboard consumer like any other, and a mode that has
+/// the keyboard has it. Binding `W` to a thruster used to fly the camera
+/// forward while the key was held, so the part the chip points at slid off
+/// screen mid-gesture.
+#[test]
+fn the_camera_gives_up_its_keys_to_every_mode_above_normal() {
+    for mode in [InputMode::Browse, InputMode::Insert, InputMode::Bind] {
+        let mut app = frame_app();
+        app.insert_resource(InputMode::Normal);
+        let camera = app
+            .world_mut()
+            .spawn((EditorCamera, WASDCameraController))
+            .id();
+
+        *app.world_mut().resource_mut::<InputMode>() = mode;
+        app.world_mut()
+            .run_system_once(hold_camera_above_normal)
+            .expect("the hold runs");
+
+        assert!(
+            app.world().get::<WASDCameraController>(camera).is_none(),
+            "{mode:?} has the keyboard, so it has the rig"
+        );
+        assert!(app.world().get::<ModeHold>(camera).is_some());
+
+        *app.world_mut().resource_mut::<InputMode>() = InputMode::Normal;
+        app.world_mut()
+            .run_system_once(hold_camera_above_normal)
+            .expect("the hold runs");
+
+        assert!(
+            app.world().get::<WASDCameraController>(camera).is_some(),
+            "the rig comes back with the keyboard"
+        );
+        assert!(app.world().get::<ModeHold>(camera).is_none());
+    }
+}
