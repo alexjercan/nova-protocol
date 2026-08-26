@@ -92,6 +92,7 @@ use ui::{
         sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_ship_menu, sync_view_menu_marks,
         OpenMenu,
     },
+    plate::sync_nameplates,
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
     sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
@@ -461,6 +462,9 @@ fn editor_plugin(app: &mut App) {
             // with an empty edited ship there is nothing to solve against, and
             // a click on clear space drops the first part at the ship origin.
             found_empty_ship,
+            // AFTER the framing above: a plate is placed from the camera, so a
+            // frame this frame would leave every plate one frame behind.
+            sync_nameplates,
             // The ghost, then the verdict said where the part is: one solve,
             // drawn once as a box and once as words.
             (sync_placement_ghost, sync_placement_callout).chain(),

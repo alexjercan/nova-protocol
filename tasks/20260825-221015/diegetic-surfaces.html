@@ -1,0 +1,589 @@
+<title>Diegetic surfaces in the node editor</title>
+
+<style>
+/* ------------------------------------------------------------------ *
+ * TOKENS
+ * Drafting sheet, as the other explainers in this repo use: cool grey
+ * board, white plates, graphite ink. Two series hues - anchored (the
+ * verdict "this belongs on the stage") and docked (the verdict "this
+ * stays on the panel") - separated for CVD on both surfaces.
+ * ------------------------------------------------------------------ */
+:root {
+  --sheet:        #E4E6E8;
+  --panel:        #EFF1F2;
+  --panel-2:      #E9ECED;
+  --ink:          #14171A;
+  --ink-2:        #414951;
+  --ink-3:        #6B747C;
+  --rule:         #C6CBCF;
+  --rule-2:       #A6ADB3;
+  --anchored:     #00789A;
+  --docked:       #B26A00;
+  --oxide:        #A8342A;
+  --tint-anchored: rgba(0,120,154,0.10);
+  --tint-docked:   rgba(178,106,0,0.10);
+  --tint-oxide:    rgba(168,52,42,0.09);
+  --screen:       #0B1410;
+  --phosphor:     #35D07F;
+
+  --ff-display: "IBM Plex Sans Condensed", "Roboto Condensed", "Archivo Narrow", "Liberation Sans Narrow", "Helvetica Neue", Arial, sans-serif;
+  --ff-body: "Source Sans 3", "Source Sans Pro", "Noto Sans", "Segoe UI", system-ui, "DejaVu Sans", sans-serif;
+  --ff-mono: "JetBrains Mono", "IBM Plex Mono", "DejaVu Sans Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sheet:        #101315;
+    --panel:        #171B1E;
+    --panel-2:      #1C2124;
+    --ink:          #E3E7EA;
+    --ink-2:        #A3ADB4;
+    --ink-3:        #737E86;
+    --rule:         #2B3237;
+    --rule-2:       #414A50;
+    --anchored:     #1E93B0;
+    --docked:       #C68420;
+    --oxide:        #D9614C;
+    --tint-anchored: rgba(30,147,176,0.13);
+    --tint-docked:   rgba(198,132,32,0.14);
+    --tint-oxide:    rgba(217,97,76,0.13);
+  }
+}
+
+:root[data-theme="dark"] {
+  --sheet:        #101315;
+  --panel:        #171B1E;
+  --panel-2:      #1C2124;
+  --ink:          #E3E7EA;
+  --ink-2:        #A3ADB4;
+  --ink-3:        #737E86;
+  --rule:         #2B3237;
+  --rule-2:       #414A50;
+  --anchored:     #1E93B0;
+  --docked:       #C68420;
+  --oxide:        #D9614C;
+  --tint-anchored: rgba(30,147,176,0.13);
+  --tint-docked:   rgba(198,132,32,0.14);
+  --tint-oxide:    rgba(217,97,76,0.13);
+}
+
+/* ------------------------------------------------------------------ *
+ * BASE
+ * ------------------------------------------------------------------ */
+html { -webkit-text-size-adjust: 100%; }
+
+.page {
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--ff-body);
+  font-size: 16px;
+  line-height: 1.62;
+  padding: clamp(1rem, 3vw, 2.75rem) clamp(0.9rem, 3vw, 2.5rem) 5rem;
+  overflow-x: hidden;
+}
+
+.doc {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.25rem, 4.5vw, 3.5rem);
+}
+
+.col { max-width: 68ch; }
+
+h1 {
+  font-family: var(--ff-display);
+  font-size: clamp(2rem, 5.2vw, 3.1rem);
+  line-height: 1.06;
+  letter-spacing: -0.015em;
+  margin: 0.35rem 0 0;
+  text-wrap: balance;
+}
+
+h2 {
+  font-family: var(--ff-display);
+  font-size: clamp(1.25rem, 2.6vw, 1.65rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 1rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+h2 .n {
+  font-family: var(--ff-mono);
+  font-size: 0.72em;
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+h3 {
+  font-family: var(--ff-display);
+  font-size: 1.05rem;
+  margin: 0 0 0.35rem;
+  letter-spacing: -0.005em;
+}
+
+p { margin: 0 0 0.9rem; }
+p:last-child { margin-bottom: 0; }
+
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.lede {
+  font-size: clamp(1.05rem, 2vw, 1.22rem);
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin-top: 1rem;
+}
+
+.meta {
+  font-family: var(--ff-mono);
+  font-size: 0.76rem;
+  color: var(--ink-3);
+  border-top: 1px solid var(--rule);
+  padding-top: 0.7rem;
+  margin-top: 1.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.6rem;
+}
+
+strong { font-weight: 650; }
+.dim { color: var(--ink-3); }
+code, .mono { font-family: var(--ff-mono); font-size: 0.88em; }
+
+/* ------------------------------------------------------------------ *
+ * THE RULE
+ * ------------------------------------------------------------------ */
+.rule-card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--anchored);
+  border-radius: 3px;
+  padding: 1.25rem clamp(1rem, 2.5vw, 1.6rem);
+}
+
+.rule-card h3 { color: var(--anchored); }
+
+.tests {
+  list-style: none;
+  counter-reset: test;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.tests li {
+  counter-increment: test;
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.55rem;
+  align-items: baseline;
+}
+
+.tests li::before {
+  content: counter(test);
+  font-family: var(--ff-mono);
+  font-size: 0.8rem;
+  color: var(--anchored);
+  border: 1px solid var(--rule-2);
+  border-radius: 2px;
+  text-align: center;
+  padding: 0.05rem 0;
+}
+
+.tests b { font-weight: 650; }
+
+/* ------------------------------------------------------------------ *
+ * VERDICT TABLE
+ * ------------------------------------------------------------------ */
+.scroll { overflow-x: auto; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 660px;
+  font-size: 0.92rem;
+}
+
+thead th {
+  font-family: var(--ff-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: left;
+  font-weight: 600;
+  padding: 0 0.7rem 0.5rem;
+  border-bottom: 1px solid var(--rule-2);
+  white-space: nowrap;
+}
+
+tbody td {
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+
+tbody tr.anchored { background: var(--tint-anchored); }
+td.surface { font-weight: 600; white-space: nowrap; }
+td.tests-cell { font-family: var(--ff-mono); font-size: 0.8rem; color: var(--ink-2); white-space: nowrap; }
+td.why { color: var(--ink-2); }
+
+.chip {
+  display: inline-block;
+  font-family: var(--ff-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.45rem;
+  border-radius: 2px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.chip.on { color: var(--anchored); background: var(--tint-anchored); }
+.chip.off { color: var(--docked); background: var(--tint-docked); }
+.chip.was { color: var(--oxide); background: var(--tint-oxide); }
+
+/* ------------------------------------------------------------------ *
+ * SCREEN MOCK
+ * ------------------------------------------------------------------ */
+.screen {
+  background: var(--screen);
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+  padding: 1.6rem 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.6rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.plate {
+  font-family: var(--ff-mono);
+  font-size: 0.8rem;
+  color: var(--phosphor);
+  background: rgba(11,20,16,0.72);
+  border: 1px solid rgba(53,208,127,0.16);
+  border-radius: 2px;
+  padding: 0.12rem 0.4rem;
+  text-shadow: 0 1px 2px #000;
+}
+
+.plate.marked { border-color: var(--phosphor); background: rgba(53,208,127,0.14); }
+
+.shot {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--rule-2);
+  border-radius: 3px;
+}
+
+figcaption {
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  margin-top: 0.55rem;
+  max-width: 68ch;
+}
+
+figure { margin: 0; }
+
+/* ------------------------------------------------------------------ *
+ * CARDS
+ * ------------------------------------------------------------------ */
+.cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 1rem 1.1rem;
+}
+
+.card .verdict { margin-bottom: 0.5rem; }
+.card p { font-size: 0.93rem; color: var(--ink-2); }
+
+.callout {
+  background: var(--panel-2);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--docked);
+  border-radius: 3px;
+  padding: 1rem 1.2rem;
+}
+
+.stack { display: flex; flex-direction: column; gap: 1.1rem; }
+</style>
+
+<div class="page">
+<div class="doc">
+
+<header>
+  <div class="eyebrow">Nova Protocol / task 20260825-221015 / editor polish, step 21</div>
+  <h1>What earns a place on the stage</h1>
+  <p class="lede">The editor's chrome is docked panels on a CRT. Three candidates wanted to
+  be things in the room instead. One of them already was, one of them earns it, and the
+  rest are panels for a reason. No window system was built.</p>
+  <div class="meta">
+    <span>Spike</span>
+    <span>Shipped: ship nameplates</span>
+    <span>Dropped: floating readout, gallery card</span>
+  </div>
+</header>
+
+<section>
+  <h2><span class="n">01</span> The question</h2>
+  <div class="col stack">
+    <p>Every readout in the node editor lives in a rail or a panel: the scene tree and the
+    engineer block on the left, the inspector on the right, the menu bar and the breadcrumb
+    across the top, the key legend along the bottom. It is a console, and a console is a good
+    answer for most of it.</p>
+    <p>But some readouts are <em>about one thing in the room</em>, and reading them means
+    looking away from that thing, finding the panel, and then looking back. The step asked
+    which of those earn an anchor on the stage, before any floating-window machinery gets
+    written to give them one.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">02</span> The rule</h2>
+  <div class="rule-card">
+    <h3>A surface earns a stage anchor when all three hold</h3>
+    <ol class="tests">
+      <li><b>One thing.</b> It answers a question about a single object in the room, not about
+      the document, the tool, or where the editor is.</li>
+      <li><b>Eyes on it.</b> The reader has to be looking at that object while they read - the
+      answer is useless without the thing in view.</li>
+      <li><b>Read, not operated.</b> Nothing on it is typed into, dragged, or scrolled. A field
+      that moves with the camera is a field you cannot finish typing into.</li>
+    </ol>
+  </div>
+  <p class="col" style="margin-top:1rem">Failing any one of the three means docked chrome. The
+  three tests are cheap to apply and they settled every surface in the editor on the first
+  pass, including the two the step named as maybes.</p>
+</section>
+
+<section>
+  <h2><span class="n">03</span> The three candidates the step named</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="verdict"><span class="chip on">already anchored</span></div>
+      <h3>A placement refusal beside the ghost</h3>
+      <p>Built before this pass. The placement callout follows the ghost and says why the part
+      will not go there. It passes all three: one socket, eyes on the ghost, nothing to operate.
+      It is the precedent the plates copy - a screen-space node placed from
+      <code>world_to_viewport</code> every frame, no interaction, no chrome.</p>
+    </div>
+    <div class="card">
+      <div class="verdict"><span class="chip off">stays docked</span></div>
+      <h3>A floating readout that belongs to its ship</h3>
+      <p>Fails test 2. Turn, mass, thrust and part count are read <em>while placing a part</em>,
+      to watch a number move - the eyes are on the socket, not on the hull as a whole. Fails
+      test 1 too: inside a ship there is exactly one ship, so "which one is this about" was
+      never a question. It reads better in the rail, where it holds still and does not cross
+      the thing it describes.</p>
+    </div>
+    <div class="card">
+      <div class="verdict"><span class="chip off">stays docked</span></div>
+      <h3>A gallery card that opens where the part is</h3>
+      <p>Fails test 1 and test 3. The gallery is a list being browsed: the reader is choosing
+      between parts that are not in the room yet, and the card is scrolled and clicked. An
+      anchor would need a thing to anchor to, and at browse time there is none.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">04</span> Every editor surface, graded</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Surface</th>
+          <th>Verdict</th>
+          <th>Fails</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="anchored">
+          <td class="surface">Hull names on the stage</td>
+          <td><span class="chip on">anchored</span></td>
+          <td class="tests-cell">-</td>
+          <td class="why">Five derelicts are five identical grey shapes. The name is the answer, and
+          the answer is only useful with the shape in view. Built in this step.</td>
+        </tr>
+        <tr class="anchored">
+          <td class="surface">Placement callout</td>
+          <td><span class="chip on">anchored</span></td>
+          <td class="tests-cell">-</td>
+          <td class="why">A verdict about one socket, read with the eyes on the ghost. Already shipped.</td>
+        </tr>
+        <tr class="anchored">
+          <td class="surface">Link points, node marks, object volumes</td>
+          <td><span class="chip on">in world</span></td>
+          <td class="tests-cell">-</td>
+          <td class="why">Gizmos, not text. Already drawn where the thing is; nothing to move.</td>
+        </tr>
+        <tr>
+          <td class="surface">Axis rose</td>
+          <td><span class="chip on">in world</span></td>
+          <td class="tests-cell">-</td>
+          <td class="why">A stage instrument, drawn in the world at a fixed corner. It is about the
+          camera, which is the one part of "the room" that has no body.</td>
+        </tr>
+        <tr>
+          <td class="surface">Engineer readout <span class="dim">(turn, mass, thrust, HP, parts)</span></td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1, 2</td>
+          <td class="why">Read while the eyes are on a socket, and there is only ever one edited ship
+          to be about.</td>
+        </tr>
+        <tr>
+          <td class="surface">Inspector panel</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">3</td>
+          <td class="why">Typed into. A field that reprojects every frame is a field that moves out
+          from under the caret.</td>
+        </tr>
+        <tr>
+          <td class="surface">Colour picker window</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">3</td>
+          <td class="why">Sliders are dragged. It already floats over the inspector, which is as far
+          as a dragged surface should travel.</td>
+        </tr>
+        <tr>
+          <td class="surface">Scene tree</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1, 3</td>
+          <td class="why">A list of the whole document, scrolled and clicked. The plates are its
+          counterpart on the stage, not a replacement for it.</td>
+        </tr>
+        <tr>
+          <td class="surface">Style list and skin toggle</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1, 3</td>
+          <td class="why">A choice among things that are not in the room, applied by clicking.</td>
+        </tr>
+        <tr>
+          <td class="surface">Breadcrumb</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1</td>
+          <td class="why">It answers "where am I", not "what is that". Its steps are clicked, too.</td>
+        </tr>
+        <tr>
+          <td class="surface">Menu bar and dropdowns</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1, 3</td>
+          <td class="why">The tool, not the room.</td>
+        </tr>
+        <tr>
+          <td class="surface">Confirm windows</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1, 3</td>
+          <td class="why">A question about the document, answered with a button. It must not be
+          possible to lose it behind a camera move.</td>
+        </tr>
+        <tr>
+          <td class="surface">Key legend and status line</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">1</td>
+          <td class="why">About the mode the hands are in. Anchoring it to anything would be a joke
+          at the reader's expense.</td>
+        </tr>
+        <tr>
+          <td class="surface">Scene-row tooltip</td>
+          <td><span class="chip off">docked</span></td>
+          <td class="tests-cell">2</td>
+          <td class="why">Shown while the pointer is on the rail. The eyes are already on the row it
+          hangs off.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">05</span> The one screen: hull nameplates</h2>
+  <div class="col stack">
+    <p>The rail names every node and the stage named none. At the scenario node the default
+    world holds a built ship, five derelict hulks and three pickets, and the only way to find
+    out which grey shape is Derelict Hulk 3 was to click each in turn and read the rail. That
+    is the failure the rule was written to catch.</p>
+  </div>
+
+  <figure style="margin-top:1.2rem">
+    <div class="screen">
+      <span class="plate">Ship 1</span>
+      <span class="plate">Derelict Hulk 1</span>
+      <span class="plate marked">Derelict Hulk 4</span>
+      <span class="plate">asteroid 3</span>
+    </div>
+    <figcaption>A plate is a chip of screen laid over the scene: the tree row's own paint mixed
+    over the console background at 72% so a label survives whatever the camera is pointed at. A
+    marked plate wears the tree's selected paint, so the row and the plate say "this one" the
+    same way.</figcaption>
+  </figure>
+
+  <div class="stack" style="margin-top:1.4rem">
+    <div class="callout">
+      <h3>What is plated, and when</h3>
+      <p style="margin-top:0.4rem"><strong>Hulls always.</strong> The edited ship and the seeded
+      spacecraft alike - there is a handful of them, they are the document's citizens, and
+      telling them apart is the whole problem.</p>
+      <p><strong>Everything else only while marked or under the pointer.</strong> A range of
+      fifteen rocks wearing fifteen labels is a rail, not a stage. A rock takes a plate for
+      exactly as long as its name is the answer to a question being asked, then gives it back.</p>
+      <p style="margin-bottom:0"><strong>Scenario node only,</strong> like the grid. Inside a ship
+      the stage holds one hull and the breadcrumb already names it.</p>
+    </div>
+  </div>
+
+  <div class="col stack" style="margin-top:1.2rem">
+    <p>Plates hang in their own layer under the placement callout: a verdict about the part in
+    hand outranks a label on a rock behind it. Each one is placed from its node's own collider
+    bounds - over the <em>top</em> of the hull, never its middle, because a label in the middle
+    of a hull is a label <em>on</em> the hull. A node that is behind the eye hides rather than
+    pinning itself to a corner, and the set is rebuilt only when it changes, in the rail's own
+    id order so two runs of one document put the same plates in the same place.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="n">06</span> Why no window system</h2>
+  <div class="col stack">
+    <p>Both anchored surfaces the editor now has - the callout and the plates - are one-way,
+    non-interactive, and about sixty lines each. Neither needs dragging, focus, z-order between
+    siblings, occlusion against geometry, or a title bar. A window system would have bought all
+    of that machinery for two labels that never asked for it.</p>
+    <p>The grading table is the reason to expect that to hold: every surface that failed the
+    rule failed it on test 1 or test 3, and test 3 is precisely the test a window system exists
+    to serve. Nothing in the editor is both about one thing in the room <em>and</em> operated.</p>
+    <div class="callout">
+      <p style="margin:0"><strong>Revisit when</strong> a third anchored surface appears that has
+      to be operated - a per-node handle that is dragged rather than read, say. Until then the
+      pattern is the layer, not the window: a screen-space node, positioned from the node's own
+      bounds every frame, <code>Pickable::IGNORE</code>, and no chrome.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+</div>

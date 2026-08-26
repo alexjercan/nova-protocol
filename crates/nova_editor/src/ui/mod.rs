@@ -13,6 +13,7 @@
 pub(crate) mod callout;
 pub(crate) mod inspector;
 pub(crate) mod menu;
+pub(crate) mod plate;
 pub(crate) mod rail;
 pub(crate) mod window;
 
@@ -68,6 +69,7 @@ use crate::{
             toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuLead,
             MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
+        plate::plate_layer,
         rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
         window::{window_layer, DestructiveVerb},
     },
@@ -764,6 +766,7 @@ pub(crate) fn setup_editor_scene(
             // and the hint stands above the windows.
             root.spawn(scene_tooltip(skin));
             root.spawn(placement_callout(skin));
+            root.spawn(plate_layer());
             root.spawn(window_layer());
 
             // The foot of the screen: the placement verdict, then the key
