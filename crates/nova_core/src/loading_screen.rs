@@ -1,7 +1,8 @@
-//! The loading screens: the boot panel shown while the game's assets load, and
-//! the scenario panel shown over a gameplay scenario swap.
+//! The loading screens: the boot panel shown while the game's assets load, the
+//! scenario panel shown over a gameplay scenario swap, and the reload panel
+//! shown while the content is read back off disk.
 //!
-//! Both wear the same phosphor CRT face and share one animation, driven by
+//! All three wear the same phosphor CRT face and share one animation, driven by
 //! [`Time<Real>`] rather than the virtual clock: a scenario swap can be
 //! requested from a PAUSED outcome frame, where the virtual clock is stopped and
 //! a virtual-clock animation would sit frozen on the exact screen that exists to
@@ -17,7 +18,7 @@
 //! [`SCENARIO_SETTLED_DELTA`] as the "the machine is smooth again" test.
 
 use bevy::prelude::*;
-use nova_assets::prelude::GameAssetsStates;
+use nova_assets::prelude::{ContentReload, GameAssetsStates};
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::GameStates;
 use nova_scenario::prelude::{LoadScenario, NovaEventWorld, ScenarioPreload};
@@ -87,6 +88,11 @@ struct ScenarioLoadScreenMarker {
     started: f32,
 }
 
+/// The full-screen RELOAD panel root. It has no hold of its own: it is up for
+/// exactly as long as `nova_assets` says a reload is in flight.
+#[derive(Component)]
+struct ReloadScreenMarker;
+
 /// The blinking block cursor text.
 #[derive(Component)]
 struct LoadingCursorMarker;
@@ -99,7 +105,7 @@ struct LoadingDotsMarker;
 #[derive(Component)]
 struct LoadingSweepMarker;
 
-/// Spawns/animates/tears down both [loading screens](self).
+/// Spawns/animates/tears down the [loading screens](self).
 pub struct LoadingScreenPlugin;
 
 impl Plugin for LoadingScreenPlugin {
@@ -107,13 +113,18 @@ impl Plugin for LoadingScreenPlugin {
         app.add_systems(OnEnter(GameAssetsStates::Loading), spawn_loading_screen);
         app.add_systems(OnEnter(GameAssetsStates::Loaded), despawn_loading_screen);
         app.add_observer(spawn_scenario_load_screen);
-        // Deliberately ungated: one animation drives BOTH screens, which live in
+        // Deliberately ungated: one animation drives EVERY screen, and they live in
         // different states, and the gate that matters is simply whether a panel
         // exists - which is what the (empty) queries already answer. Chained so a
         // panel is never taken down on a frame it was not first animated for.
         app.add_systems(
             Update,
-            (animate_loading_screen, dismiss_scenario_load_screen).chain(),
+            (
+                animate_loading_screen,
+                dismiss_scenario_load_screen,
+                sync_reload_screen,
+            )
+                .chain(),
         );
     }
 }
@@ -135,9 +146,8 @@ fn loading_text(text: &str, size: f32, color: Color, font: &Handle<Font>) -> imp
 /// column - the `mark`, the LOADING line (label + marching dots + cursor), and
 /// the sweep track.
 ///
-/// One builder rather than two, so the boot screen and the scenario screen
-/// cannot drift apart; the only difference between them is the mark and who
-/// despawns them.
+/// One builder rather than three, so the screens cannot drift apart; the only
+/// difference between them is the mark and who despawns them.
 fn loading_panel(mark: &str, font: Handle<Font>) -> impl Bundle {
     (
         Node {
@@ -261,6 +271,40 @@ fn spawn_scenario_load_screen(
         Pickable::IGNORE,
         loading_panel("LOADING SCENARIO", ui_font_handle(ui_font)),
     ));
+}
+
+/// Put the reload panel up for as long as a content reload is in flight, and
+/// take it down when it is not.
+///
+/// No hold and no dwell here: `nova_assets` owns both, because it is the half
+/// that knows when the files are back. Mirroring one resource makes the panel
+/// impossible to strand - there is no way to raise it and forget it.
+///
+/// No camera of its own either. F5 works anywhere, and everywhere it works
+/// there is already something rendering: the menu, the editor, gameplay.
+fn sync_reload_screen(
+    mut commands: Commands,
+    reload: Option<Res<ContentReload>>,
+    ui_font: Option<Res<UiFont>>,
+    q_screen: Query<Entity, With<ReloadScreenMarker>>,
+) {
+    match (reload.is_some(), q_screen.iter().next()) {
+        (true, None) => {
+            commands.spawn((
+                Name::new("Reload Loading Screen"),
+                ReloadScreenMarker,
+                // Over everything, the pause overlay and the editor's panels
+                // included: a reload is the whole game standing still.
+                GlobalZIndex(100),
+                // Same bargain as the scenario panel: a click that falls
+                // through in this window is better than a swallowed one.
+                Pickable::IGNORE,
+                loading_panel("RELOADING", ui_font_handle(ui_font)),
+            ));
+        }
+        (false, Some(entity)) => commands.entity(entity).despawn(),
+        _ => {}
+    }
 }
 
 /// Take the scenario screen down once the swap is done: never while the
@@ -578,6 +622,45 @@ mod tests {
             count::<ScenarioLoadScreenMarker>(&mut app),
             0,
             "a spawned-out scenario lets the screen come down"
+        );
+    }
+
+    /// Live-tree test: the reload panel is a mirror of the resource. It goes up
+    /// while a reload is in flight and comes down when it is over, with no hold
+    /// of its own to get stuck on.
+    #[test]
+    fn the_reload_panel_mirrors_the_reload_in_flight() {
+        let mut app = screen_app();
+
+        app.update();
+        assert_eq!(
+            count::<ReloadScreenMarker>(&mut app),
+            0,
+            "no reload, no panel"
+        );
+
+        app.world_mut().init_resource::<ContentReload>();
+        app.update();
+        assert_eq!(
+            count::<ReloadScreenMarker>(&mut app),
+            1,
+            "a reload in flight raises the panel"
+        );
+
+        // A second frame under the same reload must not stack a second panel.
+        app.update();
+        assert_eq!(
+            count::<ReloadScreenMarker>(&mut app),
+            1,
+            "one panel, not two"
+        );
+
+        app.world_mut().remove_resource::<ContentReload>();
+        app.update();
+        assert_eq!(
+            count::<ReloadScreenMarker>(&mut app),
+            0,
+            "the reload ending takes the panel down"
         );
     }
 

@@ -25,7 +25,10 @@ use crate::{
         EnabledMods, ModCatalog,
     },
     portal,
-    reload::{reload_content, remerge_on_replaced_content, request_reload_on_key, ReloadContent},
+    reload::{
+        raise_reload_cover, reload_content, remerge_on_replaced_content, request_reload_on_key,
+        settle_reload, ReloadContent,
+    },
 };
 #[cfg(target_arch = "wasm32")]
 use crate::{
@@ -186,13 +189,18 @@ impl Plugin for GameAssetsPlugin {
         );
 
         // The reload, the way Wesnoth does it: one key, anywhere, and the
-        // content is read off disk again. Chained so a press and its answer
-        // land in the same frame - a reload that took two frames to start
-        // would be a reload the builder pressed twice.
+        // content is read off disk again. Chained so a press raises the cover
+        // in the frame it happened - the read itself deliberately waits for the
+        // frame after, with the panel already on screen.
         app.add_message::<ReloadContent>();
         app.add_systems(
             Update,
-            (request_reload_on_key, reload_content)
+            (
+                request_reload_on_key,
+                raise_reload_cover,
+                reload_content,
+                settle_reload,
+            )
                 .chain()
                 .run_if(resource_exists::<GameAssets>)
                 .run_if(not(in_state(GameAssetsStates::Loading))),

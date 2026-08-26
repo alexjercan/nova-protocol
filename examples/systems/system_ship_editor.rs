@@ -2096,6 +2096,28 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the reload put '{SAVED_RANGE_ID}' in the scenarios list");
         })
         .add()
+        // The save asked for a reload of its own, and F5 under a reload in
+        // flight is the same reload asked for twice - so wait that cover out
+        // before pressing for one this beat can claim.
+        .step("editor: wait out the save's own reload")
+        .until(a_named_entity(RELOAD_PANEL, false))
+        .deadline(RELOAD_DEADLINE_SECS)
+        .add()
+        // The cover. A reload re-reads every content file and rebuilds the
+        // registries, which costs more than one frame - so the panel goes up
+        // first and the freeze happens behind something.
+        .step("editor: ask for a reload with the key")
+        .on_enter(press_key(RELOAD_KEY))
+        .until(a_named_entity(RELOAD_PANEL, true))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: let the reload key go")
+        .on_enter(release_key(RELOAD_KEY))
+        .add()
+        .step("editor: the cover comes down when the content is back")
+        .until(a_named_entity(RELOAD_PANEL, false))
+        .deadline(RELOAD_DEADLINE_SECS)
+        .add()
         // Thrown away on purpose: a walk cannot restart the process, so New
         // Scenario is what stands in for one. It reseeds the stock range, which
         // has no `ship_2` in it - so a `ship_2` after the Open can only have
@@ -3003,6 +3025,25 @@ const SAVED_RANGE_ID: &str = "editor_save";
 /// merge runs after they land, so it is several frames rather than one.
 #[cfg(feature = "debug")]
 const RELOAD_DEADLINE_SECS: f32 = 10.0;
+
+/// The name `nova_core` spawns the reload cover under.
+#[cfg(feature = "debug")]
+const RELOAD_PANEL: &str = "Reload Loading Screen";
+
+/// Advance once an entity named `name` is in the world - or, with `present`
+/// false, once it is not.
+///
+/// By NAME rather than by marker: the panel's marker component is private to
+/// the crate that draws it, and what is being claimed here is what a player
+/// sees rather than how it is built.
+#[cfg(feature = "debug")]
+fn a_named_entity(name: &'static str, present: bool) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world.try_query::<&Name>().is_some_and(|mut names| {
+            names.iter(world).any(|named| named.as_str() == name) == present
+        })
+    })
+}
 
 /// Advance once the game's own scenario registry holds `id` - the list the
 /// Scenarios picker is drawn from.
