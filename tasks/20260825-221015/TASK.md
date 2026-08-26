@@ -1,6 +1,6 @@
 # Editor polish: make the node editor feel finished
 
-- STATUS: CLOSED
+- STATUS: IN_PROGRESS
 - PRIORITY: 75
 - TAGS: v0.12.0, editor, ui, polish
 
@@ -135,7 +135,42 @@ The eight worst-per-effort items are gone, the numbered steps above are either
 committed or consciously dropped with a line saying why, and a walk through the
 editor with fresh eyes finds nothing on this list still standing.
 
+## The follow-up plan, in order
+
+Reopened 2026-08-26 on a walk through the built editor. Seven findings, six
+steps; each number is one commit, as above.
+
+22. **The stage's own text goes under the chrome.** The nameplates, the section
+    keybind chips and their leaders all draw OVER the rail and the Inspector,
+    because the panels sit at the default z and every stage-anchored layer
+    claimed a positive one. One z ladder for the editor, written down once:
+    stage-anchored surfaces below the docked panels, menus and windows above
+    them. (1), (5). S
+23. **Any key can be bound.** A section rebind refuses every key the flight rig
+    drives, so Space cannot fire a thruster. The rig's claim becomes a WARNING
+    on the status line, not a veto: the binding is taken and the line says what
+    else that key does. Escape stays the cancel gesture. (2). S
+24. **One click up the tree, and a key for it.** A single click on an ANCESTOR
+    row leaves to it, instead of framing the thing you are already inside;
+    Backspace steps out one level from anywhere. The double-click keeps its
+    meaning going IN. (4). S
+25. **Panels wide enough, with a scrollbar and a wheel that moves.** Both rails
+    widen, each scrolling pane grows a real dragged scrollbar, and the wheel
+    step stops being 20 px a notch. (6). S-M
+26. **A vector is three boxes wherever it appears.** `RowValue::Axes` is used by
+    the pose rows only; a `Vec3` inside a config - every offset, normal and
+    extent - is still one text box holding `x, y, z`. Walk them as axes. (3). M
+27. **An inspector that knows what it is looking at.** This is not a section
+    editor: a turret's joint offsets, its render meshes and its sounds are not
+    the builder's business, and burying the two numbers that are under eight
+    headings of them is the reason the panel reads badly. Each kind gets a
+    CURATED list - what to show, in what order, called what - filtered out of
+    the same walk, flat. View > All Fields brings the raw walk back for the
+    author who needs it. (7). M-L
+
 ## Resolution
+
+REOPENED 2026-08-26 for the follow-up plan above; the 21 steps below stand.
 
 CLOSED 2026-08-26. All 21 steps landed, one commit each, on master:
 
