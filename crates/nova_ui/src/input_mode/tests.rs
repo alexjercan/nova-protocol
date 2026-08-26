@@ -88,6 +88,25 @@ fn a_verb_answers_in_normal_alone() {
     ));
 }
 
+/// R2.8: a save is not a key the gallery reads, and a gallery that covers the
+/// whole screen also covers the line a refusal would be written on - so gating
+/// Ctrl+S on Normal alone spent it in silence.
+#[test]
+fn a_verb_no_mode_reads_answers_under_the_quieter_ones() {
+    for mode in [InputMode::Normal, InputMode::Browse] {
+        assert!(
+            ran(Some(mode), in_input_mode_at_most(InputMode::Browse)),
+            "{mode:?} takes no key this verb wants"
+        );
+    }
+    for mode in [InputMode::Insert, InputMode::Bind] {
+        assert!(
+            !ran(Some(mode), in_input_mode_at_most(InputMode::Browse)),
+            "{mode:?} is typing or capturing, and both are entitled to the chord"
+        );
+    }
+}
+
 #[test]
 fn an_owner_answers_in_its_own_mode_and_in_normal() {
     assert!(

@@ -162,7 +162,7 @@ see it.
   Change: give `sync_key_legend` a Bind arm, the way it already has one per
   tool.
 
-- [ ] R2.8 (MAJOR) crates/nova_editor/src/lib.rs:169 - Ctrl+S goes quiet under
+- [x] R2.8 (MAJOR) crates/nova_editor/src/lib.rs:169 - Ctrl+S goes quiet under
   the parts gallery and nothing on screen can say so. `save_key` moved from
   `not(typing_into_a_field)` to `in_input_mode(InputMode::Normal)`, and
   `declare_editor_keyboard_owner` claims `Browse` whenever the gallery is open.
@@ -611,3 +611,28 @@ Proof:
 
 Not closed by this: the widths between 760 and 1024 are still unswept, and
 portrait is out of scope by the task's own bound.
+
+### Ctrl+S answers under the gallery - R2.8
+
+A mode is a claim on the keys it READS, not a claim on every key. The gallery
+takes Browse so the arrows and the letters reach its grid, and a save is
+neither - so `save_key` is gated on `in_input_mode_at_most(InputMode::Browse)`
+now, new beside the other two mode conditions. Insert and Bind still take it:
+`S` is a letter being typed, and the whole chord is one a rebind may capture.
+
+Proof:
+
+- `cargo test -p nova_ui --lib` - 53 pass, one new: the verb answers under
+  Normal and Browse and is refused under Insert and Bind.
+- `cargo check --all-targets --features debug` clean.
+- `system_ship_editor` gained three beats where the walk already has the gallery
+  open: Ctrl+S, the status reading `saved`, and the gallery still standing over
+  it. Live under Xvfb, cycle complete.
+- Mutation check: putting the gate back to `in_input_mode(InputMode::Normal)`
+  stalls that beat for its whole 20s deadline - the silence itself - exit 1.
+
+Not closed by this: the save's own confirmation is still written to a line the
+gallery covers, so a builder who leaves the gallery up for more than the four
+seconds `EditorStatus` holds sees nothing. What changed is that the document is
+written. Giving the gallery a surface of its own to say it on is a second
+question, and a bigger one than this finding.

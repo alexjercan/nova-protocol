@@ -32,7 +32,10 @@ use bevy::{
 use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ui::prelude::{in_input_mode, owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems};
+use nova_ui::prelude::{
+    in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, InputMode,
+    InputModeSystems,
+};
 
 mod bundle;
 mod config;
@@ -163,10 +166,14 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            // Ctrl+S is a verb, and every verb in this file answers in Normal
-            // alone: the S is a letter a builder types into a field, and the
-            // whole chord is a key a rebind is entitled to capture.
-            save_key.run_if(in_input_mode(InputMode::Normal)),
+            // Ctrl+S answers under the parts gallery as well. Browse is the
+            // gallery's claim on the ARROWS and the letters that reach its
+            // grid, and a save is neither - while a gallery covering the whole
+            // screen also covers the one line the editor could refuse on, so a
+            // builder pressing Ctrl+S out of habit there got no file and no
+            // word about it. Insert and Bind still take it: `S` is a letter
+            // being typed, and the chord is one a rebind may capture.
+            save_key.run_if(in_input_mode_at_most(InputMode::Browse)),
             apply_file_request,
         )
             .chain()

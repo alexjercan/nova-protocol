@@ -32,8 +32,8 @@ use crate::widget::TextFieldFocused;
 /// the two run conditions consumers gate on.
 pub mod prelude {
     pub use super::{
-        in_input_mode, owns_or_enters, take_keyboard_now, ClaimKeyboard, InputMode,
-        InputModeSystems,
+        in_input_mode, in_input_mode_at_most, owns_or_enters, take_keyboard_now, ClaimKeyboard,
+        InputMode, InputModeSystems,
     };
 }
 
@@ -77,6 +77,17 @@ pub struct InputModeSystems;
 /// test of one verb does not have to stand a mode machine up to prove the verb.
 pub fn in_input_mode(wanted: InputMode) -> impl Fn(Option<Res<InputMode>>) -> bool + Clone {
     move |mode: Option<Res<InputMode>>| mode.is_none_or(|mode| *mode == wanted)
+}
+
+/// Whether the keyboard is in `mode` or in a QUIETER one.
+///
+/// For a verb no mode up to `mode` takes the key away from. A mode is a claim
+/// on the keys it reads, not a claim on every key: the parts gallery takes
+/// Browse so the arrows and the letters reach its grid, and Ctrl+S is neither.
+/// Insert and Bind are different in kind - `S` is a letter a builder is typing,
+/// and the whole chord is a key a rebind is entitled to capture.
+pub fn in_input_mode_at_most(mode: InputMode) -> impl Fn(Option<Res<InputMode>>) -> bool + Clone {
+    move |current: Option<Res<InputMode>>| current.is_none_or(|current| *current <= mode)
 }
 
 /// Whether `mode`'s own systems may act: the keyboard is in `mode`, or it is

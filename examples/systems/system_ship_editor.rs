@@ -1099,6 +1099,39 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             "editor: widen the gallery back to All",
             "Gallery Category All",
         )
+        // Ctrl+S from UNDER the gallery. Browse is the gallery's claim on the
+        // arrows and the letters its grid reads, and a save is neither - and
+        // the gallery covers the whole screen, so a refusal could not have been
+        // shown even if one had been written. This used to write no file and
+        // say nothing.
+        .step("editor: save from under the gallery")
+        .on_enter(|world: &mut World| {
+            press_key(KeyCode::ControlLeft)(world);
+            press_key(KeyCode::KeyS)(world);
+        })
+        .until(the_status_reads("saved"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: let the save chord go")
+        .on_enter(|world: &mut World| {
+            release_key(KeyCode::KeyS)(world);
+            release_key(KeyCode::ControlLeft)(world);
+        })
+        .add()
+        .step("editor: the gallery is still up over the save")
+        .on_enter(|world: &mut World| {
+            assert!(
+                editor_gallery_open()(world),
+                "the save must not have closed the surface it was pressed under"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: Ctrl+S answers under the parts gallery",
+                serde_json::json!({}),
+            );
+            info!("editor: Ctrl+S under the gallery wrote the document");
+        })
+        .add()
         .step("editor: close the gallery")
         .on_enter(press_key(KeyCode::Escape))
         .until(editor_gallery_closed())
