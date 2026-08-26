@@ -123,6 +123,54 @@ pub(super) fn unload_scenario(
     **current_scenario = None;
 }
 
+/// The Error-level findings against a scenario about to start: what the merge
+/// filed under this id, and a lint of the config in hand.
+///
+/// Two sources because they cover different callers. The merge's table is the
+/// only place a finding about a SHIP or a campaign is filed, and it is filled
+/// once for everything on disk. The lint of the config is the only thing that
+/// sees a scenario which never went through the merge - the editor builds one
+/// and triggers `LoadScenario` with it, so a table lookup alone passes content
+/// the same bytes would be refused for after a save.
+fn start_errors(
+    scenario: &ScenarioConfig,
+    issues: Option<&ContentIssues>,
+    sections: Option<&GameSections>,
+    ships: Option<&GameShips>,
+    scenarios: Option<&GameScenarios>,
+) -> Vec<String> {
+    let mut messages: Vec<String> = issues
+        .map(|issues| {
+            issues
+                .errors(&scenario.id)
+                .iter()
+                .map(|issue| issue.message.clone())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let known_sections =
+        KnownSections::from_configs(sections.map_or(&[][..], |registry| &registry.0));
+    let known_ships = KnownShips::from_configs(ships.map_or(&[][..], |registry| &registry.0));
+    let mut known_scenarios: std::collections::HashSet<String> = scenarios
+        .map(|registry| registry.0.keys().cloned().collect())
+        .unwrap_or_default();
+    // A scenario always resolves its own id: the retry a range queues names
+    // itself, and the editor's sandbox is absent from the registry on a rig
+    // that never merged content.
+    known_scenarios.insert(scenario.id.clone());
+
+    messages.extend(
+        lint_scenario(scenario, &known_sections, &known_ships, &known_scenarios)
+            .into_iter()
+            .filter(|issue| issue.severity == LintSeverity::Error)
+            .map(|issue| issue.message),
+    );
+    let mut seen = std::collections::HashSet::new();
+    messages.retain(|message| seen.insert(message.clone()));
+    messages
+}
+
 pub(super) fn on_load_scenario(
     load: On<LoadScenario>,
     mut commands: Commands,
@@ -135,6 +183,9 @@ pub(super) fn on_load_scenario(
     mut story_feed: Option<ResMut<StoryFeed>>,
     asset_server: Res<AssetServer>,
     issues: Option<Res<ContentIssues>>,
+    sections: Option<Res<GameSections>>,
+    ships: Option<Res<GameShips>>,
+    scenarios: Option<Res<GameScenarios>>,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
@@ -142,30 +193,32 @@ pub(super) fn on_load_scenario(
     // Checked BEFORE teardown so whatever was on screen stays; the stale
     // outcome overlay is cleared so the FAILED TO START modal does not stack
     // under it.
-    if let Some(issues) = issues.as_ref() {
-        let errors = issues.errors(&load.0.id);
-        if !errors.is_empty() {
-            error!(
-                "on_load_scenario: refusing to start '{}' ({} content error(s)):",
-                load.0.id,
-                errors.len()
-            );
-            let mut messages = Vec::new();
-            for issue in errors {
-                error!("  {}", issue.message);
-                messages.push(issue.message.clone());
-            }
-            if let Some(outcome) = outcome.as_deref_mut() {
-                outcome.0 = None;
-            }
-            if let Some(failure) = failure.as_deref_mut() {
-                failure.0 = Some(ScenarioStartFailureReport {
-                    scenario_name: load.0.name.clone(),
-                    messages,
-                });
-            }
-            return;
+    let messages = start_errors(
+        &load.0,
+        issues.as_deref(),
+        sections.as_deref(),
+        ships.as_deref(),
+        scenarios.as_deref(),
+    );
+    if !messages.is_empty() {
+        error!(
+            "on_load_scenario: refusing to start '{}' ({} content error(s)):",
+            load.0.id,
+            messages.len()
+        );
+        for message in &messages {
+            error!("  {message}");
         }
+        if let Some(outcome) = outcome.as_deref_mut() {
+            outcome.0 = None;
+        }
+        if let Some(failure) = failure.as_deref_mut() {
+            failure.0 = Some(ScenarioStartFailureReport {
+                scenario_name: load.0.name.clone(),
+                messages,
+            });
+        }
+        return;
     }
 
     teardown_scenario_entities(
@@ -514,6 +567,106 @@ mod tests {
         assert!(
             app.world().resource::<CurrentScenario>().is_none(),
             "the refused scenario never becomes current"
+        );
+    }
+
+    /// The other half of the gate, and the one the editor needs. A scenario the
+    /// merge never saw has no entry in `ContentIssues`, so the table lookup
+    /// alone passes it - the editor builds a config and triggers `LoadScenario`
+    /// with it directly. Linting the config in hand is what refuses a handler
+    /// naming an object the document does not spawn, which is the same content
+    /// the game refuses after a save.
+    #[test]
+    fn a_scenario_the_merge_never_saw_is_linted_on_load() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ScenarioStartFailure>();
+        // Deliberately no ContentIssues: nothing has filed a finding under this
+        // id, which is exactly the editor's position.
+        app.add_observer(on_load_scenario);
+
+        let scenario = ScenarioConfig {
+            description: "a range whose picket was deleted".to_string(),
+            events: vec![ScenarioEventConfig {
+                name: EventConfig::OnDestroyed,
+                filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                    id: Some("ghost_picket".to_string()),
+                    ..default()
+                })],
+                actions: vec![],
+            }],
+            ..ScenarioConfig::new(
+                "saved_range".to_string(),
+                "Saved Range".to_string(),
+                AssetRef::from("textures/x.png".to_string()),
+            )
+        };
+
+        app.world_mut().trigger(LoadScenario(scenario));
+        app.update();
+
+        let spawned = app
+            .world_mut()
+            .query_filtered::<(), With<ScenarioScopedMarker>>()
+            .iter(app.world())
+            .count();
+        assert_eq!(spawned, 0, "a refused start must spawn nothing");
+        let failure = app.world().resource::<ScenarioStartFailure>();
+        let report = failure.0.as_ref().expect("the refusal sets the report");
+        assert!(
+            report
+                .messages
+                .iter()
+                .any(|message| message.contains("ghost_picket")),
+            "the refusal names the id nothing spawns: {:?}",
+            report.messages
+        );
+    }
+
+    /// A scenario naming ITSELF in a retry loads: the id it chains to is the
+    /// one id that is certainly loadable, and the editor's sandbox is absent
+    /// from `GameScenarios` on a rig that never merged content.
+    #[test]
+    fn a_scenario_that_chains_to_itself_still_starts() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.init_asset::<Image>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ScenarioStartFailure>();
+        app.add_observer(on_load_scenario);
+
+        let scenario = ScenarioConfig {
+            description: "the sandbox offers itself again".to_string(),
+            events: vec![ScenarioEventConfig {
+                name: EventConfig::OnDestroyed,
+                filters: vec![],
+                actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
+                    scenario_id: "sandbox".to_string(),
+                    linger: true,
+                    delay: None,
+                })],
+            }],
+            ..ScenarioConfig::new(
+                "sandbox".to_string(),
+                "Sandbox".to_string(),
+                AssetRef::from("textures/x.png".to_string()),
+            )
+        };
+
+        app.world_mut().trigger(LoadScenario(scenario));
+        app.update();
+
+        assert!(
+            app.world().resource::<ScenarioStartFailure>().0.is_none(),
+            "a self-chaining retry is not a dangling target"
         );
     }
 
