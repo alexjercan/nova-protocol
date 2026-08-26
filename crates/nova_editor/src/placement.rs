@@ -1266,7 +1266,10 @@ mod tests {
     use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
 
     use super::*;
-    use crate::node::{ensure_document, NodeId, ScenarioNode};
+    use crate::{
+        keybind::rebind_armed,
+        node::{ensure_document, NodeId, ScenarioNode},
+    };
 
     fn hull_config(id: &str) -> SectionConfig {
         SectionConfig {
@@ -1886,6 +1889,63 @@ mod tests {
         assert!(
             app.world().get_entity(ship).is_ok(),
             "and takes nothing else with it"
+        );
+    }
+
+    /// The same key while a REBIND is armed belongs to the CAPTURE.
+    ///
+    /// Binding Delete to a part deleted the part on the way in: the capture
+    /// read the press and so did the tree. Nothing here undoes a delete, so
+    /// the verb stands down until the capture has its key.
+    #[test]
+    fn del_does_not_delete_while_a_rebind_waits_for_its_key() {
+        let mut app = document_only(vec![]);
+        app.init_resource::<SelectedNode>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<EditorRebind>();
+        app.add_systems(Update, delete_key.run_if(not(rebind_armed)));
+        let scenario = app
+            .world()
+            .resource::<EditContext>()
+            .scenario()
+            .expect("the document exists");
+        let ship = app
+            .world_mut()
+            .spawn((
+                ShipNode::default(),
+                NodeId("ship_1".to_string()),
+                ChildOf(scenario),
+            ))
+            .id();
+        let section = app
+            .world_mut()
+            .spawn((
+                SectionNode {
+                    source: SectionSource::Prototype("hull".to_string()),
+                    modifications: Vec::new(),
+                    binds: Vec::new(),
+                },
+                NodeId("part_1".to_string()),
+                ChildOf(ship),
+            ))
+            .id();
+        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
+        app.world_mut().resource_mut::<EditorRebind>().target = Some(section);
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(DELETE_KEY);
+        app.update();
+
+        assert!(
+            section_nodes(&mut app).contains(&section),
+            "the part being bound survives the key it is being bound to"
+        );
+        assert_eq!(
+            app.world().resource::<SelectedNode>().0,
+            Some(section),
+            "and it is still the marked node the capture is aimed at"
         );
     }
 

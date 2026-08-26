@@ -735,6 +735,47 @@ fn a_number_carries_the_unit_it_is_typed_in() {
     assert_eq!(row(&rows, "Rotation").unit, "deg, yaw/pitch/roll");
 }
 
+/// `nan` and `inf` parse as numbers and every writer downstream takes them, so
+/// the box is where they have to stop. A position with a NaN in it is a node
+/// that has left the world and cannot be edited back.
+#[test]
+fn a_number_that_is_not_finite_is_refused_wherever_it_is_typed() {
+    // A pose axis, which has no floor rule at all - the case the floor check
+    // cannot cover.
+    let mut position = Vec3::new(1.0, 2.0, 3.0);
+    let refusal = write_field(
+        &mut position,
+        &[PathStep::Field("x".to_string())],
+        false,
+        "nan",
+    )
+    .expect_err("a NaN is not a coordinate");
+    assert_eq!(refusal, "finite");
+    assert_eq!(position, Vec3::new(1.0, 2.0, 3.0), "the pose is left alone");
+
+    write_field(
+        &mut position,
+        &[PathStep::Field("x".to_string())],
+        false,
+        "-40",
+    )
+    .expect("a finite coordinate still writes, including a negative one");
+    assert!((position.x + 40.0).abs() < f32::EPSILON);
+
+    // And on a field that DOES have a floor: an infinity is above every floor
+    // there is, so the floor check would wave it through.
+    let mut config = stock_asteroid();
+    let refusal = write_field(
+        &mut config,
+        &[PathStep::Field("radius".to_string())],
+        false,
+        "inf",
+    )
+    .expect_err("an infinite radius is not a radius");
+    assert_eq!(refusal, "finite");
+    assert!((config.radius - stock_asteroid().radius).abs() < f32::EPSILON);
+}
+
 /// The floor is refused at the box, and it is refused for an `Option` too - a
 /// mass that is authored-or-absent is still not authored NEGATIVE.
 #[test]

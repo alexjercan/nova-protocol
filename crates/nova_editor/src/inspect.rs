@@ -322,6 +322,14 @@ fn number_rule(path: &[PathStep]) -> Option<NumberRule> {
     Some(NumberRule { unit, floor })
 }
 
+/// The float `value` holds, whichever width it was authored at.
+fn as_number(value: &dyn PartialReflect) -> Option<f64> {
+    value
+        .try_downcast_ref::<f32>()
+        .map(|number| f64::from(*number))
+        .or_else(|| value.try_downcast_ref::<f64>().copied())
+}
+
 /// Refuse a number under its field's floor, in the words the box will show.
 ///
 /// Checked HERE rather than where a negative radius used to be found out - the
@@ -335,17 +343,29 @@ fn check_floor(path: &[PathStep], value: &dyn PartialReflect) -> Result<(), Stri
     let Some(rule) = number_rule(path) else {
         return Ok(());
     };
-    let number = value
-        .try_downcast_ref::<f32>()
-        .map(|number| f64::from(*number))
-        .or_else(|| value.try_downcast_ref::<f64>().copied());
-    let Some(number) = number else {
+    let Some(number) = as_number(value) else {
         return Ok(());
     };
     if number >= f64::from(rule.floor) {
         return Ok(());
     }
     Err(format!("min {}", number_text(f64::from(rule.floor))))
+}
+
+/// Refuse a number that is not FINITE.
+///
+/// `nan` and `inf` parse as floats and every writer downstream takes them. A
+/// position with a NaN in it is a node that has left the world: nothing draws
+/// it, the gizmo cannot reach it, and no later edit brings it back, because
+/// every arithmetic that would move it stays NaN.
+///
+/// Unlike a floor, this holds for EVERY float field and needs no rule - there
+/// is no number a config authors for which a NaN is the intended value.
+fn check_finite(value: &dyn PartialReflect) -> Result<(), String> {
+    match as_number(value) {
+        Some(number) if !number.is_finite() => Err("finite".to_string()),
+        _ => Ok(()),
+    }
 }
 
 /// A path as the levels a builder reads it in: one segment per named step,
@@ -816,6 +836,7 @@ pub(crate) fn write_field(
             DynamicEnum::new("None", DynamicVariant::Unit)
         } else {
             let value = parse_leaf(&payload, text)?;
+            check_finite(value.as_ref())?;
             check_floor(path, value.as_ref())?;
             let mut fields = DynamicTuple::default();
             fields.insert_boxed(value);
@@ -831,6 +852,7 @@ pub(crate) fn write_field(
         .type_path()
         .to_string();
     let value = parse_leaf(&type_path, text)?;
+    check_finite(value.as_ref())?;
     check_floor(path, value.as_ref())?;
     target
         .try_apply(value.as_ref())
@@ -999,6 +1021,9 @@ fn object_picks(kind: &ScenarioObjectKind) -> &'static [&'static str] {
         ScenarioObjectKind::Spaceship(_) => &["hull", "controller", "allegiance"],
         ScenarioObjectKind::Beacon(_) => &["label", "radius", "color", "area_radius"],
         ScenarioObjectKind::SalvageCrate(_) => &["size", "area_radius"],
+        // No `aim`. The node's ROTATION aims the light (`node.rs`), and two
+        // controls on one output is a builder turning the gizmo and watching
+        // nothing happen.
         ScenarioObjectKind::Light(_) => &[
             "illuminance",
             "intensity",
@@ -1006,7 +1031,6 @@ fn object_picks(kind: &ScenarioObjectKind) -> &'static [&'static str] {
             "range",
             "radius",
             "shadows",
-            "aim",
         ],
     }
 }

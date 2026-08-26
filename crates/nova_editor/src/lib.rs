@@ -63,7 +63,7 @@ use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
-    sync_section_keybind_labels, EditorRebind,
+    rebind_armed, sync_section_keybind_labels, EditorRebind,
 };
 use node::{
     drop_edited_views, ensure_document, rebuild_node_views, report_duplicate_ids,
@@ -164,18 +164,22 @@ fn editor_plugin(app: &mut App) {
         (
             // Ctrl+S is a modifier and a letter, and the letter is one a
             // builder types into an inspector field. See `typing_into_a_field`.
-            save_key.run_if(not(typing_into_a_field)),
+            save_key
+                .run_if(not(typing_into_a_field))
+                .run_if(not(rebind_armed)),
             apply_file_request,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
     );
-    // Del removes what is marked, at any depth. Same guard as Ctrl+S: a name
-    // being typed into an Inspector field takes Delete with it.
+    // Del removes what is marked, at any depth. Same guards as Ctrl+S: a name
+    // being typed into an Inspector field takes Delete with it, and an armed
+    // rebind owns the whole keyboard until it has its key.
     app.add_systems(
         Update,
         delete_key
             .run_if(not(typing_into_a_field))
+            .run_if(not(rebind_armed))
             .run_if(in_state(ExampleStates::Editor)),
     );
     // The top bar's menus. Closed on entering the editor because the bar they

@@ -168,6 +168,31 @@ the UI pass are separate tasks and run after this one, in that order.
    exit 0. nova_assets 73, nova_core 9, nova_editor 306, nova_menu 80 lib tests
    pass.
 
+5. Numbers that are not numbers, and one control too many. `write_field` now
+   refuses a value that is not FINITE before it refuses one under a floor, so
+   `nan` and `inf` typed into Position/Rotation/Scale bounce with `finite`
+   instead of writing a pose no transform can hold. `check_floor` and the new
+   `check_finite` share one `as_number` helper. Separately, `aim` is off the
+   Light picks: the node ROTATION already aims the light (`node.rs`), and the
+   defect there was two controls on one output, not a missing rule.
+
+   Proof: `a_number_that_is_not_finite_is_refused_wherever_it_is_typed` covers
+   the pose axis and the asteroid radius, and asserts the pose is unchanged
+   after the refusal and that a legal `-40` still writes.
+
+7. Delete stands down while a rebind is armed. `rebind_armed` in `keybind.rs`
+   is a run condition on both `delete_key` and `save_key`, next to the existing
+   `typing_into_a_field`. Binding Delete to a part used to delete the part on
+   the way in - the capture read the press and so did the tree, with nothing to
+   undo it. The guard is a stop-gap and says so: the input-mode task
+   (`20260826-162503`) gives the keyboard one owner at a time and deletes it.
+
+   Proof: `del_does_not_delete_while_a_rebind_waits_for_its_key`,
+   mutation-checked - with `rebind_armed` forced to `false` the part is deleted
+   and the test fails. 308 `nova_editor` lib tests pass, `cargo check
+   -p nova_editor --all-targets` and `cargo fmt --check` exit 0. Workspace
+   Clippy skipped locally per the standing instruction; CI runs it.
+
 ## Proof
 
 Both gates run locally. A test that a saved document reopens as itself, and one
