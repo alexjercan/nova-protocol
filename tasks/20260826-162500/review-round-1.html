@@ -1,0 +1,1478 @@
+<title>Nova Review Findings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+
+<style>
+:root {
+  --paper: #E9EBF1;
+  --surface: #FFFFFF;
+  --surface-2: #F2F3F8;
+  --rule: #C9CDDA;
+  --rule-soft: #DDE0EA;
+  --ink: #141821;
+  --ink-2: #3E4557;
+  --ink-dim: #6B7288;
+  --accent: #3B49C4;
+  --accent-soft: #E4E6FA;
+  --blocker: #C1352A;
+  --blocker-soft: #F7E3E0;
+  --major: #8F5B00;
+  --major-soft: #F7EDDB;
+  --minor: #5C6479;
+  --minor-soft: #E7E9F0;
+  --ok: #1B6A48;
+  --ok-soft: #DFEFE7;
+
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0F1218;
+    --surface: #171C26;
+    --surface-2: #1E2431;
+    --rule: #333B4D;
+    --rule-soft: #262D3B;
+    --ink: #E7E9EF;
+    --ink-2: #B9C0D0;
+    --ink-dim: #8A93A8;
+    --accent: #8F9CFF;
+    --accent-soft: #232A44;
+    --blocker: #FF6F60;
+    --blocker-soft: #2E1D1C;
+    --major: #E2A24C;
+    --major-soft: #2A2216;
+    --minor: #99A1B5;
+    --minor-soft: #222835;
+    --ok: #5FCB99;
+    --ok-soft: #16281F;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper: #0F1218;
+  --surface: #171C26;
+  --surface-2: #1E2431;
+  --rule: #333B4D;
+  --rule-soft: #262D3B;
+  --ink: #E7E9EF;
+  --ink-2: #B9C0D0;
+  --ink-dim: #8A93A8;
+  --accent: #8F9CFF;
+  --accent-soft: #232A44;
+  --blocker: #FF6F60;
+  --blocker-soft: #2E1D1C;
+  --major: #E2A24C;
+  --major-soft: #2A2216;
+  --minor: #99A1B5;
+  --minor-soft: #222835;
+  --ok: #5FCB99;
+  --ok-soft: #16281F;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.shell { max-width: 1200px; margin: 0 auto; padding: 0 clamp(1.1rem, 4vw, 3rem) 6rem; }
+
+/* ---------- masthead ---------- */
+
+.masthead { padding: clamp(2.5rem, 6vw, 4.5rem) 0 0; }
+
+.eyebrow {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+}
+.eyebrow .sep { color: var(--rule); }
+
+h1 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(2.3rem, 6vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  margin: 1.1rem 0 0;
+}
+
+.standfirst {
+  font-size: clamp(1.05rem, 2.2vw, 1.28rem);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 62ch;
+  margin: 1.1rem 0 0;
+}
+.standfirst strong { color: var(--ink); font-weight: 600; }
+
+.range-line {
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  margin-top: 1.5rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.6rem;
+}
+.range-line b { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- tally ---------- */
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  background: var(--rule-soft);
+  border: 1px solid var(--rule);
+  margin: 2.5rem 0 0;
+}
+.tally-cell { background: var(--surface); padding: 1.05rem 1.15rem; }
+.tally-num {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 1.85rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.tally-cell.is-blocker .tally-num { color: var(--blocker); }
+.tally-cell.is-major .tally-num { color: var(--major); }
+.tally-cell.is-minor .tally-num { color: var(--minor); }
+.tally-cell.is-ok .tally-num { color: var(--ok); }
+.tally-label {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 0.5rem;
+}
+
+/* ---------- gate board ---------- */
+
+.board { margin: 3.5rem 0 0; }
+
+.section-head {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule); border-top: none; }
+.gate { background: var(--surface); padding: 1.4rem 1.35rem; }
+.gate-status {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--blocker);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.gate-status::before { content: ""; width: 9px; height: 9px; background: var(--blocker); flex: none; }
+.gate-name {
+  font-family: var(--f-display);
+  font-weight: 600;
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+  margin: 0.55rem 0 0.7rem;
+}
+.gate p { margin: 0.7rem 0 0; font-size: 15px; color: var(--ink-2); }
+
+/* ---------- layout ---------- */
+
+.doc {
+  display: grid;
+  grid-template-columns: 218px minmax(0, 1fr);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  margin-top: 4.5rem;
+  align-items: start;
+}
+@media (max-width: 920px) { .doc { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+.rail { position: sticky; top: 1.5rem; }
+@media (max-width: 920px) { .rail { position: static; } }
+
+.rail-title {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--rule);
+}
+.rail ol { list-style: none; margin: 0; padding: 0; }
+.rail li { border-bottom: 1px solid var(--rule-soft); }
+.rail a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.6rem 0;
+  color: var(--ink-2);
+  text-decoration: none;
+  font-family: var(--f-display);
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+.rail a:hover, .rail a:focus-visible { color: var(--accent); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.rail .sev {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--minor);
+  white-space: nowrap;
+}
+.rail a[data-sev="blocker"] .sev { color: var(--blocker); }
+.rail a[data-sev="major"] .sev { color: var(--major); }
+.rail a[data-sev="held"] .sev { color: var(--ink-dim); }
+
+/* ---------- clusters ---------- */
+
+.cluster { padding-top: 2.6rem; margin-top: 2.6rem; border-top: 1px solid var(--rule); }
+.cluster:first-of-type { padding-top: 0; margin-top: 0; border-top: none; }
+.cluster h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(1.45rem, 3.2vw, 1.95rem);
+  line-height: 1.14;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+  margin: 0.85rem 0 0;
+}
+.cluster p { margin: 1rem 0 0; max-width: 68ch; }
+.cluster p.lede { font-size: 1.06rem; color: var(--ink-2); }
+
+.meta {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.9rem;
+  align-items: center;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  font-weight: 700;
+  padding: 0.16rem 0.5rem;
+  border: 1px solid currentColor;
+}
+.chip::before { content: ""; width: 7px; height: 7px; background: currentColor; flex: none; }
+.chip.blocker { color: var(--blocker); background: var(--blocker-soft); }
+.chip.major { color: var(--major); background: var(--major-soft); }
+.chip.minor { color: var(--minor); background: var(--minor-soft); }
+.chip.held { color: var(--ink-dim); background: var(--surface-2); }
+
+.stamp { font-weight: 700; letter-spacing: 0.12em; }
+.stamp.run { color: var(--ok); }
+.stamp.read { color: var(--ink-dim); }
+
+/* ---------- root cause / decision ---------- */
+
+.root {
+  margin: 1.5rem 0 0;
+  padding: 0.95rem 1.15rem;
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+}
+.root .root-label {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+.root p { margin: 0.35rem 0 0; font-size: 15.5px; color: var(--ink); max-width: 66ch; }
+
+.decided {
+  margin: 1.5rem 0 0;
+  padding: 0.95rem 1.15rem;
+  background: var(--ok-soft);
+  border-left: 3px solid var(--ok);
+}
+.decided .root-label {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ok);
+  font-weight: 700;
+}
+.decided p { margin: 0.35rem 0 0; font-size: 15.5px; color: var(--ink); max-width: 66ch; }
+.decided q {
+  display: block;
+  font-style: italic;
+  color: var(--ink-2);
+  margin-top: 0.4rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--rule);
+  quotes: none;
+}
+.decided .shift {
+  margin-top: 0.65rem;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  text-transform: none;
+}
+.decided .shift b { color: var(--ok); font-weight: 700; }
+
+/* ---------- code ---------- */
+
+.snip { margin: 1.5rem 0 0; border: 1px solid var(--rule); background: var(--surface); }
+.snip-head {
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--surface-2);
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.snip-head .tag { letter-spacing: 0.1em; text-transform: uppercase; }
+.snip pre { margin: 0; padding: 0.9rem 0.85rem; overflow-x: auto; }
+.snip code {
+  font-family: var(--f-mono);
+  font-size: 13px;
+  line-height: 1.62;
+  color: var(--ink-2);
+  white-space: pre;
+}
+.snip .c { color: var(--ink-dim); font-style: italic; }
+.snip .bad { color: var(--blocker); font-weight: 500; }
+.snip .good { color: var(--ok); font-weight: 500; }
+
+/* ---------- inline ---------- */
+
+code.path {
+  font-family: var(--f-mono);
+  font-size: 0.86em;
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  padding: 0.06em 0.34em;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+/* ---------- flow diagram ---------- */
+
+.flow-wrap { margin: 1.75rem 0 0; border: 1px solid var(--rule); background: var(--surface); }
+.flow-scroll { overflow-x: auto; padding: 1.5rem 1.25rem; }
+.flow { display: flex; align-items: stretch; gap: 0; min-width: 640px; }
+.fnode {
+  flex: 1 1 0;
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  padding: 0.7rem 0.8rem;
+  min-width: 108px;
+}
+.fnode .fname { font-family: var(--f-display); font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; }
+.fnode .fref { font-family: var(--f-mono); font-size: 10.5px; color: var(--ink-dim); margin-top: 0.3rem; word-break: break-all; }
+.fnode.file { background: var(--accent-soft); border-color: var(--accent); }
+.farrow { flex: 0 0 34px; display: flex; align-items: center; justify-content: center; color: var(--rule); font-family: var(--f-mono); font-size: 15px; }
+.flow-legend { border-top: 1px solid var(--rule-soft); }
+.flow-legend div {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 0.7rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.flow-legend div:last-child { border-bottom: none; }
+.flow-legend .op { font-family: var(--f-mono); font-weight: 700; text-align: center; }
+.flow-legend .op.add { color: var(--blocker); }
+.flow-legend .op.drop { color: var(--major); }
+
+/* ---------- finding list ---------- */
+
+.findings { margin: 1.6rem 0 0; border-top: 1px solid var(--rule-soft); }
+.finding {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule-soft);
+  align-items: start;
+}
+@media (max-width: 620px) { .finding { grid-template-columns: 1fr; gap: 0.35rem; } }
+.finding .f-sev {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding-top: 0.32rem;
+  color: var(--minor);
+}
+.finding[data-sev="blocker"] .f-sev { color: var(--blocker); }
+.finding[data-sev="major"] .f-sev { color: var(--major); }
+.finding[data-sev="held"] .f-sev { color: var(--ink-dim); }
+.finding .f-body { font-size: 15.5px; color: var(--ink-2); }
+.finding .f-body b { color: var(--ink); font-weight: 600; }
+.finding .f-body .verdict {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ok);
+}
+.finding .f-body .verdict.held { color: var(--ink-dim); }
+
+/* ---------- table ---------- */
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); margin-top: 1.5rem; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; }
+th, td { text-align: left; padding: 0.72rem 0.9rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+th {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+td { font-size: 15px; color: var(--ink-2); }
+td.name { font-family: var(--f-display); font-weight: 600; color: var(--ink); font-size: 14.5px; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+tbody tr:last-child td { border-bottom: none; }
+td .disp { font-family: var(--f-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+td .disp.fix { color: var(--ok); }
+td .disp.build { color: var(--accent); }
+td .disp.hold { color: var(--ink-dim); }
+
+/* ---------- questions ---------- */
+
+.q { border: 1px solid var(--rule); background: var(--surface); margin-top: 1.5rem; }
+.q > div { padding: 1.05rem 1.2rem; border-bottom: 1px solid var(--rule-soft); }
+.q > div:last-child { border-bottom: none; }
+.q .qq { font-family: var(--f-display); font-weight: 600; font-size: 1.02rem; color: var(--ink); letter-spacing: -0.01em; }
+.q .qa { margin-top: 0.4rem; font-size: 15px; color: var(--ink-2); max-width: 66ch; }
+.q .qa b { color: var(--ink); font-weight: 600; }
+
+/* ---------- closing ---------- */
+
+.closing { margin-top: 4.5rem; padding-top: 2.2rem; border-top: 2px solid var(--ink); }
+.closing h2 {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.closing ul { margin: 1.1rem 0 0; padding-left: 1.15rem; max-width: 68ch; }
+.closing li { margin-bottom: 0.5rem; color: var(--ink-2); font-size: 15.5px; }
+.closing li b { color: var(--ink); font-weight: 600; }
+
+.footnote {
+  margin-top: 3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  line-height: 1.7;
+  max-width: 74ch;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="eyebrow">
+      <span>Nova Protocol</span><span class="sep">/</span>
+      <span>Code review</span><span class="sep">/</span>
+      <span>Round 1 &middot; decided</span>
+    </div>
+    <h1>Thirty findings, eight root causes</h1>
+    <p class="standfirst">
+      The first full pass over <strong>master</strong> since v0.11.0. Two CI gates are red at HEAD
+      right now, and the editor cannot reliably reopen a document it just saved. Everything else
+      clusters behind those two facts &mdash; and twelve review decisions have now reshaped four of the
+      clusters from defect fixes into design work.
+    </p>
+    <div class="range-line">
+      <span>range <b>v0.11.0..HEAD</b></span>
+      <span>commits <b>88</b></span>
+      <span>insertions <b>35,100</b></span>
+      <span>lanes <b>13</b> across 4 shards</span>
+      <span>verdict <b>request changes</b></span>
+      <span>plan <b>1 parent task, 9 sub-tasks</b></span>
+    </div>
+  </header>
+
+  <div class="tally">
+    <div class="tally-cell is-blocker"><div class="tally-num">5</div><div class="tally-label">Blocker</div></div>
+    <div class="tally-cell is-major"><div class="tally-num">15</div><div class="tally-label">Major</div></div>
+    <div class="tally-cell is-minor"><div class="tally-num">10</div><div class="tally-label">Minor</div></div>
+    <div class="tally-cell is-ok"><div class="tally-num">12</div><div class="tally-label">Decisions logged</div></div>
+    <div class="tally-cell"><div class="tally-num">2</div><div class="tally-label">Proven by running</div></div>
+    <div class="tally-cell"><div class="tally-num">0</div><div class="tally-label">Frames measured</div></div>
+  </div>
+
+  <section class="board">
+    <div class="section-head"><span>Gate status at HEAD</span><span>both reproduced locally</span></div>
+    <div class="gates">
+      <div class="gate">
+        <div class="gate-status">Failing</div>
+        <div class="gate-name">check / clippy</div>
+        <div class="snip" style="margin-top:0.6rem">
+          <pre><code>cargo clippy --workspace --all-targets \
+  --features debug -- -D warnings
+<span class="bad">exit 101 &middot; 11 errors</span></code></pre>
+        </div>
+        <p>
+          Three in <code class="path">nova_assets</code>, eight in <code class="path">nova_editor</code>.
+          Five of the eight are target independent, so the native job and the wasm job both stop here.
+        </p>
+      </div>
+      <div class="gate">
+        <div class="gate-status">Failing</div>
+        <div class="gate-name">check / test</div>
+        <div class="snip" style="margin-top:0.6rem">
+          <pre><code>cargo test -p nova_probe_cli \
+  --test catalog_drift
+<span class="bad">FAILED &middot; 45 markers vs 17 roster</span></code></pre>
+        </div>
+        <p>
+          The ship-editor range grew 28 net invariants across this window and the roster that declares
+          them was never updated. The count assert still passes, which is why it went unnoticed.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="doc">
+
+    <nav class="rail" aria-label="Root causes">
+      <div class="rail-title">Root causes</div>
+      <ol>
+        <li><a href="#gates" data-sev="blocker"><span>The gates went red unobserved</span><span class="sev">B</span></a></li>
+        <li><a href="#roundtrip" data-sev="blocker"><span>Save and open are not inverses</span><span class="sev">B</span></a></li>
+        <li><a href="#lint" data-sev="blocker"><span>Play skips the gate the game runs</span><span class="sev">B</span></a></li>
+        <li><a href="#input" data-sev="blocker"><span>Every key system guards itself</span><span class="sev">B</span></a></li>
+        <li><a href="#pixels" data-sev="major"><span>Two pixel spaces, one comparison</span><span class="sev">M</span></a></li>
+        <li><a href="#reload" data-sev="major"><span>The reload counts what it cannot name</span><span class="sev">M</span></a></li>
+        <li><a href="#frame" data-sev="held"><span>Rebuilt every frame, changed rarely</span><span class="sev">HELD</span></a></li>
+        <li><a href="#inspector" data-sev="major"><span>The inspector writes the unholdable</span><span class="sev">M</span></a></li>
+        <li><a href="#comments" data-sev="major"><span>Comments that restate the code</span><span class="sev">NEW</span></a></li>
+        <li><a href="#loose"><span>Loose ends</span><span class="sev">m</span></a></li>
+        <li><a href="#plan"><span>The work, in order</span><span class="sev">&rarr;</span></a></li>
+        <li><a href="#open"><span>Still open</span><span class="sev">?</span></a></li>
+      </ol>
+    </nav>
+
+    <main>
+
+      <!-- 1 -->
+      <section class="cluster" id="gates">
+        <div class="meta">
+          <span class="chip blocker">Blocker</span>
+          <span class="stamp run">Run</span>
+          <span>2 findings</span>
+          <span>11 errors + 1 failing test</span>
+        </div>
+        <h2>The gates went red unobserved</h2>
+        <p class="lede">
+          Master does not build green, and has not for some part of this window. Both failures are
+          mechanical. Neither needs a design decision. Both block every other finding here, because
+          nothing downstream can be verified against a tree that will not compile under the lint.
+        </p>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            The working rule is to skip local Clippy and the full test suite, because the suite OOMs
+            this box. That rule saved a lot of wall clock and it also removed the only local signal
+            that either gate had moved. Nothing replaced it.
+          </p>
+        </div>
+
+        <p>
+          The Clippy failure is a documentation lint, not a code lint. A continuation line in the
+          reload module's header turns the three lines below it into unindented list items:
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_assets/src/reload.rs:20&ndash;25</span><span class="tag">3 errors</span></div>
+<pre><code>//! What IS driven here is the cover. Sixteen files re-read and a registry
+//! rebuilt cost more than a frame, and paid in the open they read as a freeze
+<span class="bad">//! - so [`ContentReload`] runs the reload as a small machine: the panel goes up</span>
+<span class="bad">//! on the press, the read waits until it has been rendered, and the resource</span>
+<span class="bad">//! lives until the files have landed and the frame after the merge came back</span>
+<span class="bad">//! smooth. `nova_core` draws the panel for as long as the resource exists.</span>
+<span class="c">// clippy::doc_lazy_continuation -- the dash at line 22 opens a list item,
+// so 23-25 must indent to continue it, or the dash must go.</span></code></pre>
+        </div>
+
+        <p>
+          Because <code class="path">nova_assets</code> is a dependency, it fails first and the wasm job
+          never reaches <code class="path">nova_editor</code>. Suppressing just that lint to see past it
+          exposes eight more:
+        </p>
+
+        <div class="findings">
+          <div class="finding" data-sev="blocker">
+            <div class="f-sev">WASM ONLY</div>
+            <div class="f-body">
+              <b>bundle.rs:56, :58, :102</b> &mdash; <code class="path">SAVE_BUNDLE_FILE</code>,
+              <code class="path">SAVE_CONTENT_FILE</code> and <code class="path">save_manifest</code> are
+              reachable only from inside <code class="path">#[cfg(not(target_arch = "wasm32"))]</code>,
+              and <code class="path">mod bundle</code> is private, so on wasm they are dead.
+            </div>
+          </div>
+          <div class="finding" data-sev="blocker">
+            <div class="f-sev">BOTH</div>
+            <div class="f-body">
+              <b>node.rs:398</b> wrong self convention &middot; <b>placement.rs:222</b> redundant closure &middot;
+              <b>stage.rs:267</b> useless conversion on a <code class="path">Vec3</code> &middot;
+              <b>ui/callout.rs:185</b> needless lifetime &middot; <b>ui/mod.rs:1118</b> an
+              <code class="path">#[expect(clippy::too_many_arguments)]</code> that no longer applies.
+            </div>
+          </div>
+        </div>
+
+        <p>
+          The test failure is a bookkeeping drift. <code class="path">catalog_drift</code> compares the
+          <code class="path">"outcome: &lt;slug&gt;"</code> markers a systems range emits against a
+          hand-kept roster. The editor range now emits 45; the roster still lists the 17 it had at
+          v0.11.0, and three of those were renamed out from under it:
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_probe_cli/tests/catalog_drift.rs:439</span><span class="tag">assertion</span></div>
+<pre><code>system_ship_editor does not emit exactly its roster of invariant markers
+
+  <span class="bad">orphaned in roster</span>   "new ship carries its controller"
+                       "select mode places nothing"
+                       "delete removes the section clicked"
+
+  <span class="bad">undeclared markers</span>  31 more, incl. "a saved range is playable
+                       without restarting", "ids minted after a load
+                       do not collide", "the tree can be read as the
+                       ids an event names"
+
+<span class="c">SYSTEMS_INVARIANTS = 145 still matches the sum, so the count assert
+passes and only the per-example assert fires. After the fix: 173.</span></code></pre>
+        </div>
+
+        <p>
+          Four of the undeclared markers sit in <code class="path">on_enter</code> hooks with no assert
+          of their own, covered only by the preceding step's deadline. Worth naming in the roster
+          docstring's existing "rides a step predicate rather than an assert" list rather than
+          pretending they are the same kind of proof.
+        </p>
+      </section>
+
+      <!-- 2 -->
+      <section class="cluster" id="roundtrip">
+        <div class="meta">
+          <span class="chip blocker">Blocker</span>
+          <span class="chip major">Major</span>
+          <span class="stamp read">Read</span>
+          <span>5 findings</span>
+          <span>3 decided</span>
+        </div>
+        <h2>Save and open are not inverses</h2>
+        <p class="lede">
+          The editor lowers a document into a scenario file and lifts it back. Those two operations
+          disagree about what belongs in the file. Lowering composes the scenario from the document
+          <em>plus</em> module constants and unconditional injections; lifting reads only the file. So
+          the document you reopen is not the document you saved.
+        </p>
+
+        <div class="flow-wrap">
+          <div class="flow-scroll">
+            <div class="flow">
+              <div class="fnode"><div class="fname">Document</div><div class="fref">ShipNode / ObjectNode</div></div>
+              <div class="farrow" aria-hidden="true">&rarr;</div>
+              <div class="fnode"><div class="fname">lower_fleet</div><div class="fref">scenario.rs:381</div></div>
+              <div class="farrow" aria-hidden="true">&rarr;</div>
+              <div class="fnode"><div class="fname">sandbox_objects</div><div class="fref">scenario.rs:549</div></div>
+              <div class="farrow" aria-hidden="true">&rarr;</div>
+              <div class="fnode file"><div class="fname">saved file</div><div class="fref">*.content.ron</div></div>
+              <div class="farrow" aria-hidden="true">&rarr;</div>
+              <div class="fnode"><div class="fname">lift_ship</div><div class="fref">bundle.rs:219</div></div>
+              <div class="farrow" aria-hidden="true">&rarr;</div>
+              <div class="fnode"><div class="fname">Document&#39;</div><div class="fref">not the same document</div></div>
+            </div>
+          </div>
+          <div class="flow-legend">
+            <div><span class="op add">+</span><span><b>A player ship that was never authored.</b> <code class="path">sandbox_objects</code> pushes <code class="path">player_ship(&amp;fleet.player, form)</code> unconditionally, so a document with no player ship still writes a <code class="path">player_spaceship</code> object &mdash; which lifts back as an empty ship node.</span></div>
+            <div><span class="op drop">&minus;</span><span><b>A standing ship that was.</b> The same function filters standing ships on <code class="path">!ship.sections.is_empty()</code>. An empty ship the builder placed deliberately does not survive the reload.</span></div>
+            <div><span class="op add">+</span><span><b>Handlers for objects that are gone.</b> <code class="path">sandbox_events</code> chains <code class="path">PICKETS</code> and <code class="path">SKY_BEACONS</code> from module constants regardless of document contents.</span></div>
+          </div>
+        </div>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            <code class="path">sandbox_objects</code> and <code class="path">sandbox_events</code> serve two
+            masters. They build the thing you fly, where injecting a player ship and the stock pickets
+            is right, and they also build the thing you save, where it is wrong. One function, two
+            contracts.
+          </p>
+        </div>
+
+        <p>
+          The third injection is the sharpest, because it produces a file the game refuses to load.
+          Delete a seeded picket, save, and the file still carries handlers naming it:
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_editor/src/scenario.rs:1038&ndash;1039</span><span class="tag">unconditional</span></div>
+<pre><code>events.extend(PICKETS.iter().flat_map(wake_picket));
+events.extend(SKY_BEACONS.iter().map(beacon_swaps_the_sky));
+
+<span class="c">// wake_picket emits, per picket:
+//   EventFilterConfig::Entity { id: picket.id }      (OnCombatLockStart)
+//   EventActionConfig::SetAllegiance { id: picket.id }
+// but the object carrying that id came from the DOCUMENT, which no
+// longer has it.</span></code></pre>
+        </div>
+
+        <p>
+          The runtime content gate then does exactly its job. <code class="path">lint/scenario.rs:168</code>
+          builds <code class="path">satisfiable</code> from spawn ids only;
+          <code class="path">check_filter</code> and <code class="path">check_target</code> raise
+          <code class="path">LintSeverity::Error</code>; <code class="path">merge.rs:313</code> files them
+          into <code class="path">ContentIssues</code>; and
+          <code class="path">loader/lifecycle.rs:126</code> refuses the load with a FAILED TO START modal.
+          The saved range is dead from the Scenarios menu.
+        </p>
+
+        <div class="findings">
+          <div class="finding" data-sev="major">
+            <div class="f-sev">DECIDED</div>
+            <div class="f-body">
+              <b>A second Player ship silently drops the first.</b>
+              <code class="path">scenario.rs:381</code> lowers with
+              <code class="path">ShipDriver::Player =&gt; fleet.player = lowered</code>, so the last one
+              wins and the earlier is gone with no warning.
+              <span class="verdict">Decided: the builder refuses a second Player ship, so lowering never
+              has to pick a winner. The silent-loss path stops existing rather than getting a warning.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="held">
+            <div class="f-sev">HELD</div>
+            <div class="f-body">
+              <b>A prototype section forks to inline on focus-out alone.</b>
+              <code class="path">inspect.rs:934</code> rewrites <code class="path">node.source</code> to
+              <code class="path">Inline</code> before it attempts any write, and
+              <code class="path">text_field.rs:246</code> submits when a field loses focus.
+              <span class="verdict held">Held: no prototypes exist yet and none are planned for v0.12.0,
+              so the rewrite is inert. Revisit when prototypes land &mdash; this is the trap waiting for them.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="major">
+            <div class="f-sev">MAJOR</div>
+            <div class="f-body">
+              <b>A docstring states the opposite of the code.</b>
+              <code class="path">bundle.rs:134</code> says the pilot is carried "so flipping a ship to AI
+              and back does not lose them". <code class="path">bundle.rs:219</code> substitutes
+              <code class="path">AIControllerConfig::default()</code> for both the Player and the
+              <code class="path">None</code> arms. True in memory, false across the file.
+            </div>
+          </div>
+        </div>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>let's not allow multiple player ships in editor builder</q>
+          <div class="shift"><b>Shift:</b> a lowering fix becomes a builder constraint &mdash; smaller, and it
+          removes the failure mode instead of handling it.</div>
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section class="cluster" id="lint">
+        <div class="meta">
+          <span class="chip blocker">Blocker</span>
+          <span class="stamp read">Read</span>
+          <span>1 finding</span>
+          <span>decided</span>
+        </div>
+        <h2>Play skips the gate the game runs</h2>
+        <p class="lede">
+          This is why the cluster above could ship. The editor's Play button and the Scenarios menu
+          reach the same runtime by different roads, and only one of them passes the content lint.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_editor/src/scenario.rs:206&ndash;232</span><span class="tag">setup_scenario</span></div>
+<pre><code>let scenario = sandbox_scenario(&amp;game_assets, world_objects(..), &amp;lower_fleet(..));
+
+if let Some(mut scenarios) = scenarios {
+    scenarios.insert(scenario.id.clone(), scenario.clone());   <span class="c">// no lint</span>
+}
+<span class="bad">commands.trigger(LoadScenario(scenario));</span>
+<span class="c">// ContentIssues is written by the merge (merge.rs:313), which this path
+// never enters -- so on_load_scenario finds no errors for this id and
+// starts a scenario the same content, loaded from disk, would refuse.</span></code></pre>
+        </div>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            The lint lives in the merge, not in the scenario. Anything that reaches
+            <code class="path">LoadScenario</code> without passing through
+            <code class="path">register_bundles</code> is unchecked by construction. The editor is the
+            only such caller, and it is precisely the tool whose output most needs checking.
+          </p>
+        </div>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>content lint on load &hellip; it's the same way Wesnoth does it, it lints the scenario when
+          you load it; but at the same time it also does a check at startup/F5, so we should do the
+          lint in both cases</q>
+          <p>
+            So the lint moves to where the load happens and stays where the merge happens. Two gates,
+            one lint: <code class="path">on_load_scenario</code> lints the config it was handed instead of
+            consulting a table someone else filled in, and the merge keeps its bulk pass so a broken
+            mod is reported at startup rather than at the moment you click it.
+          </p>
+          <div class="shift"><b>Shift:</b> this is the cheapest fix on the page relative to what it buys.
+          It converts the whole round-trip class from "a player finds it, later" to "the editor refuses
+          it, now" &mdash; and it is the proof harness the round-trip work is verified against.</div>
+        </div>
+      </section>
+
+      <!-- 4 -->
+      <section class="cluster" id="input">
+        <div class="meta">
+          <span class="chip blocker">Blocker</span>
+          <span class="stamp read">Read</span>
+          <span>1 finding</span>
+          <span>decided &middot; scope grew</span>
+        </div>
+        <h2>Every key system guards itself</h2>
+        <p class="lede">
+          There is no arbiter deciding which keyboard consumer owns a keystroke. Each system carries
+          its own hand-written guard list, and a mode nobody thought to add to a list is a mode that
+          does not suppress anything.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>keybind.rs:381 &middot; placement.rs:276 &middot; lib.rs:175</span><span class="tag">the collision</span></div>
+<pre><code><span class="c">// keybind.rs -- an armed rebind takes any key except Escape</span>
+keys.get_just_pressed().find(|k| **k != KeyCode::Escape)
+
+<span class="c">// lib.rs -- delete_key is guarded by exactly two conditions</span>
+delete_key.run_if(not(typing_into_a_field).and(in_state(Editor)))
+
+<span class="bad">// An armed rebind is neither typing_into_a_field nor a state.
+// Pressing Delete to BIND Delete also runs delete_key.</span></code></pre>
+        </div>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            <code class="path">typing_into_a_field</code> is a guard for one specific modal consumer.
+            The rebind is a second one, added without a corresponding predicate. A third will have the
+            same problem: the guard list grows by hand, so the default for anything new is "suppresses
+            nothing".
+          </p>
+        </div>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>we should probably have some modifiers, like in vim you have visual, normal, insert mode
+          &hellip; when I go into "bind" key it should no longer send WASD to the camera &hellip; basically
+          going into BIND MODE if you will; and we need something like this probably in multiple
+          places, like maybe even nova os?</q>
+          <p>
+            An input mode owns the keyboard while it is active, and every consumer asks the mode rather
+            than carrying its own denial list. Bind mode swallows everything but its own exit;
+            camera, placement and shortcuts go quiet without knowing bind mode exists. The
+            delete-during-rebind defect stops being reachable rather than being patched.
+          </p>
+          <div class="shift"><b>Shift:</b> the largest scope change on the page &mdash; a one-line guard fix
+          becomes a subsystem. It pays for itself the moment a second modal consumer exists, and text
+          entry, the gallery and Nova OS are all already that.</div>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section class="cluster" id="pixels">
+        <div class="meta">
+          <span class="chip major">Major</span>
+          <span class="stamp read">Read</span>
+          <span>2 findings, 4 sites</span>
+          <span>decided</span>
+        </div>
+        <h2>Two pixel spaces, one comparison</h2>
+        <p class="lede">
+          <code class="path">ComputedNode::size()</code> is physical pixels.
+          <code class="path">Node::left</code> and <code class="path">Node::top</code> are logical
+          pixels. On a 1&times; display they are the same number, which is why this reads fine on the
+          machine it was written on and misplaces every world-anchored element on a HiDPI screen.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>the same loop, four times</span><span class="tag">3 wrong, 1 right</span></div>
+<pre><code><span class="good">ui/rail.rs:375    let scale = computed.inverse_scale_factor();   // correct</span>
+
+<span class="bad">ui/plate.rs:257   computed.size()   // raw physical, compared to logical</span>
+<span class="bad">ui/callout.rs:156 computed.size()</span>
+<span class="bad">keybind.rs:225    computed.size()</span></code></pre>
+        </div>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            The world-anchor loop &mdash; project a world point, measure the element, clamp it inside the
+            viewport &mdash; is written out longhand in four places. One of them learned about the scale
+            factor. The other three were copied before that, or from each other. This is the DRY
+            finding and the HiDPI defect in one: extract the loop and there is exactly one place left
+            to get the units right.
+          </p>
+        </div>
+
+        <p>
+          Also in this family: <code class="path">ui/window.rs:41</code> places the colour picker at
+          <code class="path">size.x - RIGHT_MARGIN - WINDOW_W</code> with
+          <code class="path">RIGHT_MARGIN = 264.0</code> against an inspector
+          <code class="path">PANEL_W = 300.0</code>. The picker overlaps the inspector by 36&nbsp;px at
+          every window width &mdash; the error is width independent, so no monitor escapes it.
+        </p>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>we need a pass on the UI to make sure it renders properly regardless of resolution, so
+          it's more responsive; now obviously it's all landscape resolution, not really vertical, so at
+          least we have that as a small goal</q>
+          <div class="shift"><b>Shift:</b> from three unit fixes to a bounded responsiveness pass.
+          <b>Landscape only</b> is the useful half of that bound &mdash; it keeps the pass from becoming a
+          full portrait layout rework, and makes "correct at any landscape resolution and DPI scale" a
+          goal that can actually be finished.</div>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section class="cluster" id="reload">
+        <div class="meta">
+          <span class="chip major">Major</span>
+          <span class="stamp read">Read</span>
+          <span>5 findings</span>
+          <span>decided &middot; scope shrank</span>
+        </div>
+        <h2>The reload counts what it cannot name</h2>
+        <p class="lede">
+          <code class="path">ContentReload</code> tracks outstanding re-reads as a
+          <code class="path">usize</code> and decrements it by the number of
+          <code class="path">Modified</code> events seen. It never checks <em>which</em> files those
+          events belong to, so a straggler from an abandoned reload closes the next one early.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_assets/src/reload.rs:207&ndash;219</span><span class="tag">settle_reload</span></div>
+<pre><code>let landed = events.read()
+    .filter(|event| matches!(event, AssetEvent::Modified { .. }))
+    <span class="bad">.count();</span>   <span class="c">// a count, not a set of ids</span>
+
+if reload.phase == ReloadPhase::Reading {
+    reload.pending = reload.pending.saturating_sub(landed);
+    if reload.pending == 0 { reload.phase = ReloadPhase::Settling; }
+}
+
+<span class="c">// reload A caps out at 6s with one file still in flight; the resource is
+// removed. The builder presses F5 again. A's straggler lands and closes
+// one of B's slots -- so B uncovers while a file of its own is still out,
+// and the merge frame runs in the open.</span></code></pre>
+        </div>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            The whole machine exists to hide a long merge frame from a player who is mid-game. Every
+            subtlety in it &mdash; the count, the dwell, the settled-frame heuristic, the hard cap &mdash;
+            is there to reload <em>without</em> a real loading screen.
+          </p>
+        </div>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>what I expect is F5 to work only in the main menu, and when I hit F5 the game "blocks" so
+          it goes into the loading screen; it should be similar to restarting the game basically; same
+          to when I exit the mods menu, or also when I exit the sandbox editor or a scenario from
+          playing</q>
+          <p>
+            That removes the premise. A reload that is allowed only from the main menu, and that
+            blocks into the real loading screen, is the boot path with a different trigger. There is no
+            frame to hide, so there is nothing to time.
+          </p>
+          <div class="shift"><b>Shift:</b> the fix is to <b>delete</b> the machine, not to make it count
+          correctly. Three of this cluster's five findings stop existing:</div>
+        </div>
+
+        <div class="findings">
+          <div class="finding" data-sev="held">
+            <div class="f-sev">DISSOLVED</div>
+            <div class="f-body">
+              <b>F5 works mid-flight</b> (<code class="path">plugin.rs:195</code> has no
+              <code class="path">GameStates</code> gate and no clock pause).
+              <span class="verdict">Gone by design: F5 is main-menu only.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="held">
+            <div class="f-sev">DISSOLVED</div>
+            <div class="f-body">
+              <b>A save during a cover is silently dropped</b> (<code class="path">reload.rs:124</code>
+              swallows any request while one is in flight, including the three that have just written
+              new bytes).
+              <span class="verdict">Gone by design: the triggers become screen transitions &mdash; leaving
+              mods, the editor, or a scenario &mdash; which cannot overlap a blocking load.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="held">
+            <div class="f-sev">DISSOLVED</div>
+            <div class="f-body">
+              <b>The stray-file miscount</b> and the untested counting half.
+              <span class="verdict">Gone by design: a blocking load waits on the asset server the way
+              boot does, with no per-file bookkeeping of its own.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">SURVIVES</div>
+            <div class="f-body">
+              <b>Silence when a file never comes back.</b> Whatever replaces the cap still needs to say
+              which file did not return, or a mod with a RON syntax error is an unexplained wait.
+              The log that reports bundles plus content as a content count
+              (<code class="path">:170, :182</code>) goes with it.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section class="cluster" id="frame">
+        <div class="meta">
+          <span class="chip held">Held</span>
+          <span class="stamp read">Read</span>
+          <span>3 findings</span>
+          <span>unmeasured</span>
+        </div>
+        <h2>Rebuilt every frame, changed rarely</h2>
+        <p class="lede">
+          Three editor systems recompute derived state on a cadence set by the frame rather than by
+          the thing they derive from. State this plainly: <strong>no frame was measured in this
+          review</strong>. These are shape arguments, and the cost of each is unknown.
+        </p>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>not sure here, I would rather have something more like immediate mode for certain things,
+          but fair, what can be cached safely we can cache; though the editor doesn't lag right now, it
+          feels fine as FPS goes, so IDK, depends here</q>
+          <p>
+            Correct instinct, and it splits the cluster cleanly. Two of these are speculative
+            optimisation against an editor that does not lag &mdash; no measurement, no complaint, no
+            work. The third is not a performance finding at all.
+          </p>
+        </div>
+
+        <div class="findings">
+          <div class="finding" data-sev="major">
+            <div class="f-sev">KEEP</div>
+            <div class="f-body">
+              <b>gizmo.rs:322 &mdash; <code class="path">GizmoReach::measure</code></b> invalidates only when
+              the selected entity changes, so an inspector resize leaves the handle hit-test where the
+              gizmo used to be.
+              <span class="verdict">This is a correctness bug wearing a performance costume: a cache
+              keyed on the wrong thing. Immediate mode fixes it, and so does a correct key. Either
+              answer is fine; leaving it is not.</span>
+            </div>
+          </div>
+          <div class="finding" data-sev="held">
+            <div class="f-sev">HELD</div>
+            <div class="f-body">
+              <b>node.rs:460 <code class="path">sections_of</code></b> collects and sorts per ship per
+              frame, calling <code class="path">id_order</code> on both sides of every comparison.
+              <b>node.rs:1209 <code class="path">report_duplicate_ids</code></b> takes an unfiltered
+              <code class="path">Query&lt;&amp;Children&gt;</code>, so it walks every parented entity in the
+              world.
+              <span class="verdict held">Held until a probe run says they cost something. Optimising an
+              editor nobody has seen stutter is how simple code stops being simple.</span>
+            </div>
+          </div>
+        </div>
+
+        <p>
+          Three of the review's own corrections landed here and set the ceiling on severity:
+          <code class="path">sync_inspector</code> and <code class="path">sync_scene_list</code> are
+          <em>not</em> unconditional &mdash; <code class="path">lib.rs:513</code> gates the tuple on
+          <code class="path">in_state(Editor).and_then(not(gallery_open))</code>;
+          <code class="path">sync_editor_probe</code> self-guards at
+          <code class="path">probe.rs:203</code>; and the unconditional reload on leaving the Mods panel
+          is deliberate per its own comment. None of it touches a player flying a scenario.
+        </p>
+      </section>
+
+      <!-- 8 -->
+      <section class="cluster" id="inspector">
+        <div class="meta">
+          <span class="chip major">Major</span>
+          <span class="stamp read">Read</span>
+          <span>2 findings</span>
+          <span>decided &middot; scope grew</span>
+        </div>
+        <h2>The inspector writes the unholdable</h2>
+        <p class="lede">
+          Reflection-driven editing gives every field an editor for free. It also gives every field an
+          editor whether or not the value behind it can survive what the box accepts.
+        </p>
+
+        <div class="snip">
+          <div class="snip-head"><span>crates/nova_editor/src/inspect.rs:305&ndash;323</span><span class="tag">number_rule</span></div>
+<pre><code><span class="bad">// x, y and z return None -- no floor, no ceiling, no finiteness check.</span>
+<span class="c">// Every Position, Rotation and Scale box accepts NaN and inf, and a
+// pasted inf propagates straight into the transform.</span></code></pre>
+        </div>
+
+        <p>
+          The second is not a validation gap but a duplicated control.
+          <code class="path">inspect.rs:1002</code> lists <code class="path">"aim"</code> among the
+          picks for a <code class="path">Light</code>, while <code class="path">node.rs:325</code>
+          states outright that a light is aimed by its node rotation and ships with
+          <code class="path">aim: None</code>. Two controls drive one output, the gizmo is the one the
+          builder can see, and nothing indicates which won.
+        </p>
+
+        <div class="root">
+          <div class="root-label">Root cause</div>
+          <p>
+            The pick list and the leaf rules are two independent hand-kept tables describing the same
+            types. A field can appear in one without the other noticing, which is how a vector leaf got
+            an editor with no rule and a light got a second aim control. And every leaf renders as the
+            same control &mdash; a text box &mdash; so the type's constraints have nowhere to live.
+          </p>
+        </div>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>we should try to be precise about what gets edited and what not; also would like if we can
+          get more advanced inputs, rather than just textboxes &hellip; dropdowns, number inputs with drag
+          to increase/decrease, sliders, some kind of validators on the fields that can be interpreted
+          by the editor's inputs so that we can do better validation, like min value, max value,
+          format etc &hellip; something cool is the color picker, get some inspiration from that</q>
+          <p>
+            One table, not two: a field declares what it is and what it accepts, and the editor picks
+            the control from that declaration. A bounded float gets a slider or a drag-number that
+            cannot leave its range; an enum gets a dropdown instead of a spelling test; a colour
+            already has the picker, which is the proof the pattern works. <code class="path">NaN</code>
+            stops being a validation bug and becomes a control that cannot express it.
+          </p>
+          <div class="shift"><b>Shift:</b> from two defect fixes to a field-rule system. The precision
+          half &mdash; deciding what is editable at all, and dropping <code class="path">aim</code> from the
+          light &mdash; is the same table, so it comes along rather than being separate work.</div>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section class="cluster" id="comments">
+        <div class="meta">
+          <span class="chip major">New</span>
+          <span class="stamp read">Raised in review</span>
+          <span>cross-cutting</span>
+        </div>
+        <h2>Comments that restate the code</h2>
+        <p class="lede">
+          Not a lane finding. Raised on the page, and correct: this window put explanatory comments
+          back into the tree at a rate the convention does not allow.
+        </p>
+
+        <div class="decided">
+          <div class="root-label">Decided</div>
+          <q>I noticed we started to add random in-code comments again; I would like to go over the
+          comments and keep only relevant docstrings for public things, and in-code comments only for
+          obscure/more complicated things; if it just explains the code then it should be removed, code
+          should be read as docs</q>
+          <p>
+            Worth noting where this lands: the Clippy blocker at the top of this page is itself a
+            twenty-five-line module header. The rule and the red gate point at the same lines.
+          </p>
+          <div class="shift"><b>Shift:</b> new work item. It touches every file the other sub-tasks touch,
+          so it wants to be its <b>own commit, last</b> &mdash; a comment sweep blended into a behaviour fix
+          makes both unreviewable.</div>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section class="cluster" id="loose">
+        <div class="meta">
+          <span class="chip minor">Minor</span>
+          <span class="stamp read">Read</span>
+          <span>9 findings</span>
+          <span>in scope</span>
+        </div>
+        <h2>Loose ends</h2>
+        <p class="lede">
+          Independent, small, and none of them shares a root with anything above.
+          <em>Decided: if they are small, fix them too</em> &mdash; they are, so they are in.
+        </p>
+
+        <div class="findings">
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">UI</div>
+            <div class="f-body">
+              <b>screen/scroll.rs:217</b> paints a full-track scrollbar over a despawned pane, because
+              <code class="path">max_scroll_y(None)</code> is <code class="path">f32::MAX</code> &mdash;
+              right for the pre-layout caller, wrong here. &nbsp;
+              <b>text_field.rs:47, :283</b> &mdash; <code class="path">at_end</code> is newly public with no
+              production caller and can wedge all typing, since
+              <code class="path">text_field_keyboard</code> bails silently on
+              <code class="path">single_mut()</code> returning <code class="path">Err</code>.
+            </div>
+          </div>
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">TESTS</div>
+            <div class="f-body">
+              <b>reload/tests.rs:159</b> sleeps 0.6&nbsp;s of wall clock and then asserts on frame deltas
+              &mdash; it will flake under load. &nbsp;
+              <b>ui_walk.rs:110 vs :128</b> &mdash; the wait holds if <em>any</em>
+              <code class="path">Camera3d</code> is parked, the assert requires the <em>first</em> one to
+              be, and the editor deliberately holds more than one. &nbsp;
+              <b>bug_sandbox_soak.rs:226</b> founding gesture has no <code class="path">until</code> ack;
+              <b>:115, :121</b> panic on a missing <code class="path">EditorProbe</code> where every
+              sibling uses <code class="path">get_resource</code>.
+            </div>
+          </div>
+          <div class="finding" data-sev="minor">
+            <div class="f-sev">API</div>
+            <div class="f-body">
+              <b>nova_modding/src/lib.rs:211</b> deep-clones the whole document on every save;
+              <code class="path">&amp;content</code> serialises identically. &nbsp;
+              <b>nova_autopilot</b>'s hand-listed prelude is missing <code class="path">or</code>,
+              <code class="path">pointer_pressed</code>, <code class="path">pointer_released</code>,
+              <code class="path">ui_node_present</code>, <code class="path">press_edit_key</code> and
+              <code class="path">type_text</code>. &nbsp;
+              <b>examples/playable/widget_zoo.rs:90</b> re-adds
+              <code class="path">slider_self_update</code>, already added at
+              <code class="path">nova_ui/src/widget/mod.rs:103</code>.
+            </div>
+          </div>
+        </div>
+
+        <p>
+          Two of these fall inside other sub-tasks and should ride with them rather than being done
+          twice: the <code class="path">reload/tests.rs</code> sleep goes with the reload rework, and the
+          <code class="path">text_field</code> focus wedge is the same surface as input modes.
+        </p>
+      </section>
+
+      <!-- plan -->
+      <section class="cluster" id="plan">
+        <div class="meta"><span>The plan</span><span>one parent task, sub-tasks inside it</span></div>
+        <h2>The work, in order</h2>
+        <p class="lede">
+          <em>Decided: one tatr task for the review fix, each item a sub-task inside it, no separate
+          task per finding.</em> Order is not preference &mdash; each row is verified by something the row
+          above it puts in place.
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Sub-task</th><th>Contains</th><th>Kind</th><th>Verified by</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="num">1</td>
+                <td class="name">Green the gates</td>
+                <td>11 Clippy errors; roster to 45 slugs and <code class="path">SYSTEMS_INVARIANTS</code> to 173; name the 4 predicate-only markers in the roster docstring</td>
+                <td><span class="disp fix">Fix</span></td>
+                <td>Both gates run locally</td>
+              </tr>
+              <tr>
+                <td class="num">2</td>
+                <td class="name">Lint on load</td>
+                <td>Lint the config in <code class="path">on_load_scenario</code>; keep the merge pass for startup and reload</td>
+                <td><span class="disp fix">Fix</span></td>
+                <td>Gate 1; a new refuses-on-load test</td>
+              </tr>
+              <tr>
+                <td class="num">3</td>
+                <td class="name">Make save and open inverses</td>
+                <td>Split fly-time from save-time composition; no injected player ship; no constant pickets or beacons in a saved document; keep empty standing ships; refuse a second Player ship in the builder; correct the pilot docstring</td>
+                <td><span class="disp fix">Fix</span></td>
+                <td>Sub-task 2 &mdash; Play now refuses what it used to pass</td>
+              </tr>
+              <tr>
+                <td class="num">4</td>
+                <td class="name">Reload becomes a restart</td>
+                <td>F5 in the main menu only, blocking into the real loading screen; same path on leaving mods, the editor, or a scenario; delete the phase machine and its counting; keep a message naming a file that never returned</td>
+                <td><span class="disp fix">Simplify</span></td>
+                <td>Live run; the flaky sleep test goes with it</td>
+              </tr>
+              <tr>
+                <td class="num">5</td>
+                <td class="name">Resolution pass</td>
+                <td>Extract the world-anchor loop once and fix its units; the 36&nbsp;px picker overlap; correct at any landscape resolution and DPI scale</td>
+                <td><span class="disp fix">Fix</span></td>
+                <td>Live run at two scale factors</td>
+              </tr>
+              <tr>
+                <td class="num">6</td>
+                <td class="name">Input modes</td>
+                <td>A mode that owns the keyboard; bind mode suppresses camera and placement without either knowing it exists; delete-during-rebind becomes unreachable</td>
+                <td><span class="disp build">Build</span></td>
+                <td>New systems range</td>
+              </tr>
+              <tr>
+                <td class="num">7</td>
+                <td class="name">Inspector field rules</td>
+                <td>One declaration per field driving the control: validated text, dropdown, drag-number, slider, bounded float; drop <code class="path">aim</code> from the light; the colour picker as the model</td>
+                <td><span class="disp build">Build</span></td>
+                <td>New systems range</td>
+              </tr>
+              <tr>
+                <td class="num">8</td>
+                <td class="name">Loose ends</td>
+                <td>The 9 minors, less the two that ride with 4 and 6; plus <code class="path">GizmoReach</code> re-measure</td>
+                <td><span class="disp fix">Fix</span></td>
+                <td>Affected tests</td>
+              </tr>
+              <tr>
+                <td class="num">9</td>
+                <td class="name">Comment sweep</td>
+                <td>Drop comments that restate code; keep docstrings on public items and comments only where the reason is not obvious. Own commit, last.</td>
+                <td><span class="disp fix">Sweep</span></td>
+                <td>Gate 1 again</td>
+              </tr>
+              <tr>
+                <td class="num">&mdash;</td>
+                <td class="name">Then: a <code class="path">--play</code> only review</td>
+                <td>Red team and feel lanes, against the fixed tree. <em>Decided: fix first, then play-review.</em></td>
+                <td><span class="disp hold">After</span></td>
+                <td>&mdash;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>
+          <b>Deliberately not now:</b> <code class="path">sections_of</code> and
+          <code class="path">report_duplicate_ids</code>, until a probe run says they cost something; and
+          the prototype focus-out fork, until prototypes exist.
+        </p>
+      </section>
+
+      <!-- open -->
+      <section class="cluster" id="open">
+        <div class="meta"><span>Open</span><span>3 questions, with a default for each</span></div>
+        <h2>Still open</h2>
+        <p class="lede">
+          None of these blocks starting. Each has a default I will take if you say nothing.
+        </p>
+
+        <div class="q">
+          <div>
+            <div class="qq">How does the builder refuse a second Player ship?</div>
+            <div class="qa">
+              <b>Default: refuse the driver change and say why</b>, matching how an occupied socket and a
+              blocked drive lane already refuse. The alternative &mdash; silently demoting the previous
+              player to AI &mdash; is the same silent mutation the finding objects to, one level up.
+            </div>
+          </div>
+          <div>
+            <div class="qq">Do sub-tasks 6 and 7 belong in this task?</div>
+            <div class="qa">
+              They are features, not review fixes: an input-mode subsystem and a field-rule system are
+              each larger than the eight findings that prompted them.
+              <b>Default: keep them in the parent as sub-tasks</b>, since that is what you asked for, and
+              schedule them last so the review fix can land green without waiting on them.
+            </div>
+          </div>
+          <div>
+            <div class="qq">How far does the comment sweep reach?</div>
+            <div class="qa">
+              <b>Default: this range only</b> &mdash; the 88 commits since v0.11.0, which is what "we started
+              to add them again" describes. A whole-tree sweep is a bigger diff than every behaviour fix
+              on this page combined, and it would bury them.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="closing">
+        <h2>What this review did not do</h2>
+        <ul>
+          <li><b>Nothing was measured.</b> No probe run, no <code class="path">--samply</code>, no baseline
+            compare. Every performance claim here is derived from code shape &mdash; which is why the
+            frame cluster is held rather than scheduled.</li>
+          <li><b>Nothing was flown.</b> The red-team and feel lanes were not dispatched. That is the
+            <code class="path">--play</code> pass, scheduled after the fixes.</li>
+          <li><b>Two of thirty findings were proven by execution</b> &mdash; the two red gates. The other
+            twenty-eight are read from the tree, including all three of the remaining blockers.</li>
+          <li><b>Lanes were build-free by design.</b> Thirteen agents on one <code class="path">target/</code>
+            and one GPU would serialise on the cargo lock and corrupt any frame number, so all building
+            and testing was serialised into the main session. That is what surfaced the Clippy failure,
+            which no lane reported.</li>
+          <li><b>Not reviewed at all:</b> <code class="path">tasks/**</code>,
+            <code class="path">.agents/**</code>, <code class="path">.claude/**</code>, and the
+            <code class="path">Reflect</code> derives on the <code class="path">nova_scenario</code> config
+            types against what the editor's reflection walk needs.</li>
+        </ul>
+        <div class="footnote">
+          No files have been changed. Findings are grouped by root cause rather than by severity,
+          because the decision in front of you is which causes are worth doing; the severity ranking is
+          in the inline report. Twelve review comments are folded in above and marked DECIDED &mdash; four
+          of them changed the shape of the work, two by growing it and two by shrinking it.
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
