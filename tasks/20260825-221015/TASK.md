@@ -1,8 +1,8 @@
 # Editor polish: make the node editor feel finished
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 75
-- TAGS: v0.12.0,editor,ui,polish
+- TAGS: v0.12.0, editor, ui, polish
 
 ## Why
 
@@ -134,3 +134,47 @@ Each number is one commit. Ids in brackets are the catalogue's.
 The eight worst-per-effort items are gone, the numbered steps above are either
 committed or consciously dropped with a line saying why, and a walk through the
 editor with fresh eyes finds nothing on this list still standing.
+
+## Resolution
+
+CLOSED 2026-08-26. All 21 steps landed, one commit each, on master:
+
+1. `0f5188f6` stage calms down - own gizmo group, thin grid, thin handles
+2. `2b51a53c` keys on the things they act on; the legend cut to gestures
+3. `d1f7d376` greyed rows read `soon`, and Play says why on hover
+4. `8482cd9a` Delete acts on the selection at any depth; the brush is gone
+5. `17f48566` Add obeys the context, and offers the edited ship's parts
+6. `ad38daf5` one status line, and every refusal answers on it
+7. `5269def0` a confirm before New Scenario and Back to Main Menu
+8. `34a92938` + `6655198d` selection outline, then cross-highlight both ways
+9. `64cf476e` transform in three axis-tinted boxes per row
+10. `089a0e8e` units and floors on the fields that have them
+11. `32257f35` authored names, id on hover, Key row arms the rebind
+12. `309e37b2` the scenario node reports what the document holds
+13. `9932b7e8` one glyph per kind, everywhere a mark is drawn
+14. `63788d34` a readable tree - ellipsis, ordinal order, names
+15. `e7b509ac` the verdict beside the ghost, naming the key that fixes it
+16. `1d949c3e` sockets that read at any distance, chips off the part
+17. `75941004` the gallery pass
+18. `048c3ba5` the wording pass - scenario, ship, skin, each said once
+19. `de4b732e` the rest of the rail - the readout, the greyed style list
+20. `69850152` a clickable path, four view presets, an axis rose
+21. `bf1e9744` the diegetic spike and its one screen: hull nameplates
+
+Step 21 decided against a window system. `diegetic-surfaces.html` beside this
+file grades every editor surface against one rule - one thing, eyes on it, read
+not operated - and finds nothing that is both about a single object in the room
+and operated. Two of the three candidates the step named stay docked panels
+(the floating readout, the gallery card), one was already anchored (the
+placement callout), and the surface that earned an anchor was the one nobody
+listed: the document's names, said on the stage. Hulls always carry a plate,
+everything else takes one while it is marked or hovered.
+
+Nothing was dropped. Step 19's "decide the rest once it can be seen" resolved
+to the four numbers plus part count and the limit note; flip time, centre of
+mass, per-axis thrust and weapon totals stay unbuilt, and the reasoning for
+that is in the absorbed `20260824-120535`.
+
+Verified live under Xvfb rather than by check alone: the driven walk in
+`examples/systems/system_ship_editor.rs` grew beats for the view presets, and
+`screenshot_editor` learned the double-click gesture it needed to leave a ship.

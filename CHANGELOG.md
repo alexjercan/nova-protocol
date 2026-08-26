@@ -53,11 +53,11 @@ does NOT get an entry - and it is the only place they are written down.
   scenario back at the root.
 - F, View > Frame Selection and a click on a scene-tree row all put the camera
   on that node, framing its whole size rather than the point it was founded on.
-- The top bar reads the context back on its right ([SCENARIO] or [SHIP], path,
-  selection) and the footer legend matches the level.
+- The top bar reads the context back on its right - SCENARIO or SHIP, the path,
+  the selection - and the footer legend matches the level.
 - File, Edit, View, Add and Ship drop real menus, with Play dead centre. Ship
-  holds what used to crowd the top right: the parts gallery, the delete tool
-  and Rebind Key. Escape closes an open menu.
+  holds what used to crowd the top right: the parts gallery and Rebind Key.
+  Escape closes an open menu.
 - Scene tree rows step in by depth and print a section as its part name, with
   the ordinal in a column the rail cannot clip, so six alike hulls stay apart.
 - Every tree row wears an icon for what it is, and resting on one reveals the
@@ -68,9 +68,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Inspector rows are typed to what they hold: a colour paints a swatch beside
   its hex, and an enum of bare names becomes a row of choices you can switch
   rather than a readout you cannot.
-- Every placed node reports its heading in degrees beside its position, and
-  typing one turns it. There is no scale row: Nova sections mate, they do not
-  stretch.
+- A node's position and rotation are three axis-tinted boxes each, in degrees
+  and yaw/pitch/roll, and typing one turns it. There is no scale row: Nova
+  sections mate, they do not stretch.
 - The Inspector reaches into a node's lists - a turret's fire rate lives on a
   muzzle inside its joint tree - and draws them as an indented tree of ruled
   headings, not a column of long paths.
@@ -84,6 +84,42 @@ does NOT get an entry - and it is the only place they are written down.
 - File > Save writes the whole document, ships and range together, and File >
   Open reads it back on the same ids and poses. Ctrl+S saves; the rail's line
   reports what happened.
+- Every menu row shows the key that runs it, and the footer legend is cut to
+  the gestures no other surface can carry. A row that is not built yet reads
+  `soon`.
+- What is selected is what Delete deletes, at any depth: a trash on the tree
+  row, the Del key, or Edit > Delete. The delete brush that had to be armed is
+  gone.
+- Add obeys where you are: the world palette greys inside a ship, and Add
+  offers that ship's own parts instead.
+- Every refusal answers on the editor's own line - a rebind conflict names the
+  action already holding the key - instead of only in a log nobody is reading.
+- Nothing throws a document away without asking: File > New Scenario and Back
+  to Main Menu both put the question up first.
+- The selected node wears a phosphor outline in every context, and resting on
+  a tree row lights the thing on the stage - and the other way round.
+- A field knows what it holds: the unit beside the number, and a floor on the
+  ones that have one, so a negative radius is refused where it is typed.
+- A ship carries a name of its own, and the tree shows it with the minted id
+  on hover. The Key row is the button that arms the rebind.
+- The scenario node reports what the document holds: how many ships, how many
+  objects, and which ship the player flies.
+- The placement verdict is said beside the ghost rather than at the window
+  edge, and every refusal names the key that resolves it.
+- Link points read at any distance, the socket the ghost would take is marked
+  apart from the rest, and a part's keybind chip stands off it on a leader.
+- The parts gallery is framed to its parts: each thumbnail fitted to the
+  part's own bounds, sockets drawn on the focus preview, and the filter
+  visible while it is set.
+- The rail reads the ship back: turn rate, mass, thrust, hull and part count,
+  and it names what holds the turn down - shorten the hull, or fit another
+  computer.
+- The path in the top bar is a control: press a rung to go there. View holds
+  front, side, top and iso presets, and an axis rose in the corner says which
+  way is up.
+- Hulls carry their name on the stage, and anything else takes one while it is
+  selected or under the pointer, so five derelicts stop being five identical
+  grey shapes.
 
 ### Ships & Sections
 
@@ -99,6 +135,8 @@ does NOT get an entry - and it is the only place they are written down.
   section is no longer inserted on something that will never fly.
 - Autopilot scripts can wait on a UI node laying out, on the picking pointer
   registering a press or a release, and on either of two conditions (`or`).
+- Autopilot scripts can press a widget twice as one gesture, so a driven walk
+  can spell a double-click.
 
 ## [0.11.0] - 2026-08-23
 

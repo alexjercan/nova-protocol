@@ -57,7 +57,10 @@ The dependency spine; each unblocks the next:
    same ids and poses, driven end to end.
 4. `20260825-221015` (p75) - editor polish: the pass that makes the editor
    feel finished, from two reviews of the built thing. Absorbs the engineer
-   readout (step 19) and world editing's later slices.
+   readout (step 19) and world editing's later slices. CLOSED 2026-08-26: all
+   21 steps landed, one commit each. The diegetic spike (step 21) decided
+   against a window system and shipped hull nameplates instead; its grading of
+   every editor surface is `diegetic-surfaces.html` in that task.
 
 `20260714-081703` (world editing) closed on 2026-08-25: its first slice is on
 master, its save tail is child 3, its polish is child 4, and its objectives and
