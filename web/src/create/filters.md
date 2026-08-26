@@ -163,8 +163,10 @@ to serialize reads as no-match, and repeating events re-run ungated actions.
   log): every `Entity` filter reads "no match" for that event.
 - **Repeating events + an ungated filter = repeated actions.** `OnUpdate`
   fires every frame, and the lifecycle edges re-fire on every genuine
-  transition (a lock landing again, orbit stability recovered). Pair the
-  condition with a one-shot flag the actions flip - the
-  [count-gate idiom](../expressions/#recipes).
+  transition (a lock landing again, orbit stability recovered). When the beat
+  happens one time, mark the handler
+  [`once: true`](../scenarios/#once-a-beat-that-happens-one-time) and it
+  retires the first time its filters pass. When the beat repeats, re-arm it in
+  its own actions - the [recipes](../expressions/#recipes).
 
 </details>

@@ -734,15 +734,7 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "tally_shown",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "open_step",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "opened",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -754,10 +746,6 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "scav_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "scav_gate",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
@@ -765,6 +753,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -788,6 +777,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -811,6 +801,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -834,6 +825,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -857,6 +849,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -880,21 +873,14 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
                         Term(Factor(Literal(Number(5.0)))),
                     ))),
-                    Expression((Equal(
-                        Term(Factor(Name("opened"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "opened",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "beacon_1",
@@ -942,6 +928,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("beacon_1"),
@@ -983,13 +970,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(2.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1045,6 +1029,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("beacon_2"),
@@ -1078,13 +1063,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(3.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(3.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1120,6 +1102,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("crate_1"),
@@ -1149,6 +1132,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("crate_2"),
@@ -1178,6 +1162,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("crate_3"),
@@ -1207,6 +1192,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -1216,16 +1202,8 @@
                         Term(Factor(Name("crates_recovered"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("tally_shown"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "tally_shown",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "b3_salvage",
                     )),
@@ -1237,6 +1215,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -1246,16 +1225,8 @@
                         Term(Factor(Name("crates_recovered"))),
                         Term(Factor(Literal(Number(2.0)))),
                     ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("tally_shown"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "tally_shown",
-                        expression: Term(Factor(Literal(Number(2.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "b3_salvage",
                     )),
@@ -1267,6 +1238,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -1300,13 +1272,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(4.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1367,6 +1336,7 @@
             ),
             (
                 name: OnTravelLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("beacon_3"),
@@ -1403,13 +1373,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(5.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1433,6 +1400,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("beacon_3"),
@@ -1466,13 +1434,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(6.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(6.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1529,6 +1494,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("beacon_4"),
@@ -1565,13 +1531,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(7.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(7.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1615,6 +1578,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("coast_ring"),
@@ -1648,13 +1612,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(8.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(8.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1735,6 +1696,7 @@
             ),
             (
                 name: OnTimerEnd,
+                once: true,
                 filters: [
                     Timer((
                         key: "orbit_hold",
@@ -1844,13 +1806,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(9.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(9.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1871,6 +1830,7 @@
             ),
             (
                 name: OnExit,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("coast_ring"),
@@ -1904,13 +1864,10 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
                         Term(Factor(Literal(Number(10.0)))),
                     ))),
                     Expression((GreaterThan(
@@ -1934,6 +1891,7 @@
             ),
             (
                 name: OnCombatLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("derelict"),
@@ -1963,6 +1921,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("derelict"),
@@ -2052,11 +2011,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("scav_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scav_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -2071,10 +2027,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "scav_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "b12_contact",
                         message: "Drive off the scavenger.",
@@ -2083,6 +2035,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("pirate"),
@@ -2115,6 +2068,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("pirate"),
@@ -2147,6 +2101,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -2169,6 +2124,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

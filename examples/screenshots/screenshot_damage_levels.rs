@@ -590,6 +590,7 @@ fn gallery(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig 
         description: "One ship at all eight crack levels, side by side.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: [
                 ships,

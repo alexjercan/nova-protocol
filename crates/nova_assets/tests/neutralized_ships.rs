@@ -15,7 +15,7 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EventHandler, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
+    CommandsGameEventExt, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
     OnNeutralizedEvent, OnNeutralizedEventInfo, OnTimerEndEvent, OnTimerEndEventInfo,
     OnUpdateEvent, OnUpdateEventInfo,
 };
@@ -66,14 +66,7 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .iter()
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
-        let mut handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in event.filters.iter() {
-            handler.add_filter(filter.clone());
-        }
-        for action in event.actions.iter() {
-            handler.add_action(action.clone());
-        }
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(event.build_handler());
     }
 }
 

@@ -25,9 +25,8 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventAction, EventHandler, GameEventInfo, GameEventsPlugin,
-    LockEventInfo, OnCombatLockStartEvent, OnEnterEvent, OnEnterEventInfo, OnUpdateEvent,
-    OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventAction, GameEventInfo, GameEventsPlugin, LockEventInfo,
+    OnCombatLockStartEvent, OnEnterEvent, OnEnterEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -267,14 +266,7 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .iter()
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
-        let mut handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in event.filters.iter() {
-            handler.add_filter(filter.clone());
-        }
-        for action in event.actions.iter() {
-            handler.add_action(action.clone());
-        }
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(event.build_handler());
     }
 }
 

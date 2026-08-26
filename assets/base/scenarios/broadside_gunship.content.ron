@@ -26,10 +26,6 @@
                         key: "hauler_lost",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "gun_obj_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -374,11 +370,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("gun_obj_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("gun_obj_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -393,10 +386,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "gun_obj_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "screen",
                         message: "Lock the incoming torpedoes and screen them with your PDC.",
@@ -409,6 +398,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -448,6 +438,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -487,6 +478,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -526,6 +518,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -565,6 +558,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler"),
@@ -590,6 +584,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -616,6 +611,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

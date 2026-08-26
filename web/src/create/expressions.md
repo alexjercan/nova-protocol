@@ -165,46 +165,48 @@ VariableSet((
 ))
 ```
 
-The count-gate + one-shot flag - a second handler (often `OnUpdate`, so it
-never depends on handler order) that fires ONCE when the counter crosses a
-threshold. Prefer `> n-1` over `== n` on a count gate: a double-fire that
-jumps the counter past `n` cannot skip a `>` gate, but sails clean over an
-`==` one.
+The count gate - a second handler (often `OnUpdate`, so it never depends on
+handler order) that fires when the counter crosses a threshold.
+[`once: true`](../scenarios/#once-a-beat-that-happens-one-time) is what makes
+it fire one time. Prefer `> n-1` over `== n` on a count gate: a double-fire
+that jumps the counter past `n` cannot skip a `>` gate, but sails clean over
+an `==` one.
 
 ```ron
 (
     name: OnUpdate,
+    once: true,
     filters: [
         Expression((GreaterThan(
             Term(Factor(Name("crates_recovered"))),
             Term(Factor(Literal(Number(1.0)))),      // fires at 2 or more
         ))),
-        Expression((Equal(
-            Term(Factor(Name("quota_done"))),
-            Term(Factor(Literal(Boolean(false)))),
-        ))),
     ],
     actions: [
-        VariableSet((key: "quota_done", expression: Term(Factor(Literal(Boolean(true)))))),
         // ... the beat ...
     ],
 ),
 ```
 
-A one-shot timed beat (clock threshold + flag):
+A timed beat is the same shape - a clock threshold and `once`:
 
 ```ron
-filters: [
-    Expression((GreaterThan(
-        Term(Factor(Name("scenario_elapsed"))),
-        Term(Factor(Literal(Number(30.0)))),
-    ))),
-    Expression((Equal(
-        Term(Factor(Name("beat_fired"))),
-        Term(Factor(Literal(Number(0.0)))),
-    ))),
-],
+(
+    name: OnUpdate,
+    once: true,
+    filters: [
+        Expression((GreaterThan(
+            Term(Factor(Name("scenario_elapsed"))),
+            Term(Factor(Literal(Number(30.0)))),
+        ))),
+    ],
+    actions: [ /* ... */ ],
+),
 ```
+
+Keep a flag only where it is a SIGNAL some OTHER handler reads - "the quota is
+met", "wave two is on the board". A flag whose only reader is its own filter
+is what `once` replaces.
 
 A repeating wave - gate on `elapsed > next_at`, re-arm inside the action:
 

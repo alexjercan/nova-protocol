@@ -34,14 +34,6 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "contact_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "defend_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "defend_gate",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
@@ -381,11 +373,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("contact_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("contact_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -400,10 +389,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "contact_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "contact",
                         message: "Find the yacht Ceres Queen.",
@@ -412,6 +397,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler_area"),
@@ -531,11 +517,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("defend_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("defend_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -550,10 +533,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "defend_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "defend",
                         message: "Drive the corvettes off the Ceres Queen.",
@@ -562,6 +541,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("corvette_a"),
@@ -579,6 +559,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("corvette_b"),
@@ -596,6 +577,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("corvette_a"),
@@ -618,6 +600,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("corvette_b"),
@@ -640,6 +623,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -678,6 +662,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -716,6 +701,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler"),
@@ -741,6 +727,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -767,6 +754,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

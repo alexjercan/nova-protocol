@@ -62,10 +62,9 @@ const ACT_WON: f64 = 2.0;
 /// the loss; either up = the win banner's half-convoy variant.
 const VAR_QUEEN_DOWN: &str = "queen_down";
 const VAR_MERIDIAN_DOWN: &str = "meridian_down";
-/// One-shot flags: each wave has spawned (0/1). The spawn gates check the
-/// clock AND the previous wave's kill flags AND this flag, so a gate fires
-/// exactly once (the standard one-shot idiom).
-const VAR_W1_UP: &str = "w1_up";
+/// Signals: this wave is on the board (0/1). The breathe line before a wave
+/// waits on its flag still being 0, and the early-clear wins wait on wave
+/// three being up. The spawn gates themselves retire on their own.
 const VAR_W2_UP: &str = "w2_up";
 const VAR_W3_UP: &str = "w3_up";
 /// Per-raider kill flags (0/1) - the broadside pattern: independent flags,
@@ -77,16 +76,10 @@ const VAR_R2B_DOWN: &str = "r2b_down";
 const VAR_R2C_DOWN: &str = "r2c_down";
 const VAR_R3A_DOWN: &str = "r3a_down";
 const VAR_R3B_DOWN: &str = "r3b_down";
-/// One-shot flags for the paced comms beats (the greeting and the breathe
-/// lines), so the recurring OnUpdate gates fire their line exactly once.
-const VAR_HELLO_SAID: &str = "hello_said";
-const VAR_W1_CLEAR_SAID: &str = "w1_clear_said";
-const VAR_W2_CLEAR_SAID: &str = "w2_clear_said";
 /// Pacing: the screen-the-convoy objective posts a beat AFTER the dispatch
 /// line, not the same frame. The gate holds the `mark_clock` deadline; the flag
 /// latches the one-shot post.
 const VAR_SCREEN_GATE: &str = "screen_gate";
-const VAR_SCREEN_POSTED: &str = "screen_posted";
 /// The HUD countdown: `RELIEF_SECS - scenario_elapsed`, recomputed every
 /// frame while the act is live, displayed by the `relief` readout in Time
 /// format. Only writing `scenario_elapsed` itself is linted; a DERIVED
@@ -254,17 +247,20 @@ fn raider(id: &str, spawn_pos: Vec3, ship: &str, engage_delay: f32) -> ScenarioO
 }
 
 /// A wave-spawn beat: the warning line, the ships, their markers. One
-/// comms line per beat (the beat sheet); every ship telegraphed.
+/// comms line per beat (the beat sheet); every ship telegraphed. `up_flag`
+/// is the signal LATER beats read to ask whether this wave is on the board -
+/// wave one has no such reader, so it raises nothing.
 fn wave_beat(
-    up_flag: &str,
+    up_flag: Option<&str>,
     line_speaker: &str,
     line: &str,
     ships: Vec<(ScenarioObjectConfig, &str)>,
 ) -> Vec<EventActionConfig> {
-    let mut actions = vec![
-        set_variable(up_flag, number(1.0)),
-        story_message(line_speaker, line),
-    ];
+    let mut actions = Vec::new();
+    if let Some(flag) = up_flag {
+        actions.push(set_variable(flag, number(1.0)));
+    }
+    actions.push(story_message(line_speaker, line));
     for (ship, label) in ships {
         let id = ship.base.id.clone();
         actions.push(spawn_object(ship));
@@ -278,6 +274,7 @@ fn wave_beat(
 fn defeat_flag(id: &str, flag: &str) -> ScenarioEventConfig {
     ScenarioEventConfig {
         name: EventConfig::OnDefeated,
+        once: true,
         filters: vec![entity(id)],
         actions: vec![set_variable(flag, number(1.0)), detach_objective_marker(id)],
     }
@@ -366,10 +363,9 @@ fn lane_beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-/// A one-shot clock-gated comms beat: fires its line once when the clock
-/// passes `at` and the act is still live.
+/// A one-shot clock-gated comms beat: fires its line when the clock passes
+/// `at` and the act is still live, then retires.
 fn paced_line(
-    said_flag: &str,
     at: f64,
     speaker: &str,
     line: &str,
@@ -377,17 +373,14 @@ fn paced_line(
 ) -> ScenarioEventConfig {
     let mut filters = vec![
         number_equals(VAR_ACT, 1.0),
-        number_equals(said_flag, 0.0),
         number_greater_than(SCENARIO_ELAPSED_VAR, at),
     ];
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
+        once: true,
         filters,
-        actions: vec![
-            set_variable(said_flag, number(1.0)),
-            story_message(speaker, line),
-        ],
+        actions: vec![story_message(speaker, line)],
     }
 }
 
@@ -405,6 +398,7 @@ fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEven
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
+        once: true,
         filters,
         actions: pacing::open_outro(
             VAR_ACT,
@@ -426,7 +420,6 @@ pub(crate) fn lifeline(
         set_variable(VAR_ACT, number(1.0)),
         set_variable(VAR_QUEEN_DOWN, number(0.0)),
         set_variable(VAR_MERIDIAN_DOWN, number(0.0)),
-        set_variable(VAR_W1_UP, number(0.0)),
         set_variable(VAR_W2_UP, number(0.0)),
         set_variable(VAR_W3_UP, number(0.0)),
         set_variable(VAR_R1A_DOWN, number(0.0)),
@@ -436,10 +429,6 @@ pub(crate) fn lifeline(
         set_variable(VAR_R2C_DOWN, number(0.0)),
         set_variable(VAR_R3A_DOWN, number(0.0)),
         set_variable(VAR_R3B_DOWN, number(0.0)),
-        set_variable(VAR_HELLO_SAID, number(0.0)),
-        set_variable(VAR_W1_CLEAR_SAID, number(0.0)),
-        set_variable(VAR_W2_CLEAR_SAID, number(0.0)),
-        set_variable(VAR_SCREEN_POSTED, number(0.0)),
         set_variable(VAR_RELIEF_REMAINING, number(RELIEF_SECS)),
         spawn_object(player_ship()),
         spawn_object(convoy_ship(
@@ -499,13 +488,13 @@ pub(crate) fn lifeline(
     let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: opening,
         },
         // The screen-the-convoy objective posts a beat after the dispatch line
         // (pacing pass), while the defense is live.
         pacing::gated_once(
-            VAR_SCREEN_POSTED,
             VAR_SCREEN_GATE,
             vec![number_equals(VAR_ACT, 1.0)],
             vec![post_objective(
@@ -516,6 +505,7 @@ pub(crate) fn lifeline(
         // The countdown, recomputed every live frame: RELIEF_SECS - clock.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: false,
             filters: vec![number_equals(VAR_ACT, 1.0)],
             actions: vec![set_variable(
                 VAR_RELIEF_REMAINING,
@@ -529,7 +519,6 @@ pub(crate) fn lifeline(
         },
         // Halloran's greeting, one breath after the dispatch line.
         paced_line(
-            VAR_HELLO_SAID,
             HELLO_AT,
             CAPTAIN_HALLORAN,
             "Halloran here - the Queen's guild runs this line. Drives are \
@@ -539,13 +528,13 @@ pub(crate) fn lifeline(
         // --- Wave one: two raiders, one vector. ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_W1_UP, 0.0),
                 number_greater_than(SCENARIO_ELAPSED_VAR, W1_AT),
             ],
             actions: wave_beat(
-                VAR_W1_UP,
+                None,
                 BELT_RELAY,
                 "Two contacts off the shelf, one vector, coming down the lane.",
                 vec![
@@ -564,7 +553,6 @@ pub(crate) fn lifeline(
         defeat_flag("raider_1b", VAR_R1B_DOWN),
         // Breathe: wave one cleared, before wave two shows.
         paced_line(
-            VAR_W1_CLEAR_SAID,
             0.0,
             CAPTAIN_HALLORAN,
             "Clean shooting. Watch the dark - the Tallyman does not send \
@@ -578,15 +566,15 @@ pub(crate) fn lifeline(
         // --- Wave two: three raiders, split vectors (one flanker). ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_W2_UP, 0.0),
                 number_greater_than(SCENARIO_ELAPSED_VAR, W2_AT),
                 number_equals(VAR_R1A_DOWN, 1.0),
                 number_equals(VAR_R1B_DOWN, 1.0),
             ],
             actions: wave_beat(
-                VAR_W2_UP,
+                Some(VAR_W2_UP),
                 BELT_RELAY,
                 "Three more - they split the lane, one swinging wide onto \
                  your flank.",
@@ -611,7 +599,6 @@ pub(crate) fn lifeline(
         defeat_flag("raider_2c", VAR_R2C_DOWN),
         // Breathe: the Tallyman speaks for himself.
         paced_line(
-            VAR_W2_CLEAR_SAID,
             0.0,
             TALLYMAN,
             "You are burning my margins, pilot. The next crew brings real \
@@ -626,16 +613,16 @@ pub(crate) fn lifeline(
         // --- Wave three: the full-gun corvette and its escort. ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_W3_UP, 0.0),
                 number_greater_than(SCENARIO_ELAPSED_VAR, W3_AT),
                 number_equals(VAR_R2A_DOWN, 1.0),
                 number_equals(VAR_R2B_DOWN, 1.0),
                 number_equals(VAR_R2C_DOWN, 1.0),
             ],
             actions: wave_beat(
-                VAR_W3_UP,
+                Some(VAR_W3_UP),
                 BELT_RELAY,
                 "Last push: a full-gun corvette with an escort. Hold them off.",
                 vec![
@@ -657,6 +644,7 @@ pub(crate) fn lifeline(
         // win gate before the defeat shows).
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_QUEEN), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_QUEEN_DOWN, number(1.0)),
@@ -666,6 +654,7 @@ pub(crate) fn lifeline(
         },
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_MERIDIAN), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_MERIDIAN_DOWN, number(1.0)),
@@ -675,6 +664,7 @@ pub(crate) fn lifeline(
         },
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_QUEEN_DOWN, 1.0),
@@ -751,6 +741,7 @@ pub(crate) fn lifeline(
         // the countdown.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),
@@ -768,6 +759,7 @@ pub(crate) fn lifeline(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),

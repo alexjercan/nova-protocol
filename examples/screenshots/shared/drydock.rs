@@ -107,6 +107,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
             .to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The photo rig, authored content rather than an example-side
             // observer swap: scale 1.0 around the origin reproduces the kit's

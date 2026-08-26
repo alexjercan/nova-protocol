@@ -86,6 +86,7 @@ pub(crate) fn menu_waystation(
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: objects
                 .into_iter()
@@ -108,6 +109,7 @@ pub(crate) fn menu_waystation(
         },
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "waystation_rotate".to_string(),
             })],

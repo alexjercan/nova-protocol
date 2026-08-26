@@ -126,6 +126,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         description: "A corvette latching a nav beacon downrange.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The photo rig is authored content rather than an example-side
             // observer swap: scale 1.0 around the origin reproduces the kit's

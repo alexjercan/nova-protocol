@@ -166,6 +166,7 @@ pub fn the_ring_with_hull(
         events: vec![
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 // The photo rig, authored content rather than an example-side
                 // observer swap: scale 1.0 around the origin reproduces the kit's
@@ -191,6 +192,7 @@ pub fn the_ring_with_hull(
             },
             ScenarioEventConfig {
                 name: EventConfig::OnOrbitStable,
+                once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                     id: Some(PLANETOID_ID.to_string()),
                     other_id: Some(PLAYER_ID.to_string()),

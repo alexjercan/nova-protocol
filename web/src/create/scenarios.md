@@ -64,12 +64,14 @@ Each event entry is one handler:
 | field | type | default | meaning |
 |---|---|---|---|
 | `name` | event kind | required | Trigger such as `OnStart`, `OnUpdate`, or `OnDestroyed`. |
+| `once` | bool | `false` | Retire this handler the first time its filters pass. |
 | `filters` | list | `[]` | Every filter must pass. An empty list always passes. |
 | `actions` | list | `[]` | Commands run in listed order after the filters pass. |
 
 ```ron
 (
     name: OnDestroyed,
+    once: true,
     filters: [
         Entity((id: Some("lane_blocker"))),
     ],
@@ -82,6 +84,34 @@ Each event entry is one handler:
     ],
 ),
 ```
+
+### `once` - a beat that happens one time
+
+A beat that can only happen once says so, and the engine holds the fact.
+Without `once` the same handler needs a flag of its own: a `VariableSet` in
+`OnStart` to seed it, a filter reading it, and an action writing it - three
+lines of ceremony that are about the machine, not about the game.
+
+`once` retires the handler the first time its filters PASS, not the first time
+its event fires. A refused event leaves it live, so a beat waiting on a
+condition still gets every later chance at it.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Use it for anything with a single occurrence: a story line, an objective post,
+a one-time spawn, an act transition, an outcome. Leave it OFF for anything
+that genuinely repeats - a per-frame HUD readout, a re-armable warning, a
+cycle a player can ride more than once.
+
+Keep a variable only where it is a SIGNAL another handler reads ("wave two is
+on the board", "the convoy lost a ship"). Delete it where its only reader was
+its own filter - that is what `once` replaces.
+
+A retired handler is gone: it stops being walked every frame, and it cannot
+fire again even if the same event repeats in the same frame.
+
+</details>
 
 ## Scenario scripting chapters
 
@@ -100,7 +130,8 @@ section items do not use them.
 
 1. The game tears down the previous scenario and loads the selected scenario.
 2. All handlers are registered, then `OnStart` fires.
-3. Events fire while the scenario is active. Filters gate actions.
+3. Events fire while the scenario is active. Filters gate actions, and a
+   `once` handler retires the first time its filters pass.
 4. A switch or retry removes all scenario-scoped objects and clears variables,
    objectives, story messages, HUD readouts, and pending transitions.
 

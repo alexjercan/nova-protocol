@@ -24,9 +24,9 @@
 
 use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, OnDefeatedEvent,
-    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnTimerEndEvent,
-    OnTimerEndEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnUpdateEvent,
+    OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -127,14 +127,7 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .iter()
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
-        let mut handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in event.filters.iter() {
-            handler.add_filter(filter.clone());
-        }
-        for action in event.actions.iter() {
-            handler.add_action(action.clone());
-        }
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(event.build_handler());
     }
 }
 
@@ -145,7 +138,6 @@ fn seed_live_defense(app: &mut App) {
         ("act", 1.0),
         ("queen_down", 0.0),
         ("meridian_down", 0.0),
-        ("w1_up", 0.0),
         ("w2_up", 0.0),
         ("w3_up", 0.0),
         ("r1a_down", 0.0),
@@ -155,9 +147,6 @@ fn seed_live_defense(app: &mut App) {
         ("r2c_down", 0.0),
         ("r3a_down", 0.0),
         ("r3b_down", 0.0),
-        ("hello_said", 0.0),
-        ("w1_clear_said", 0.0),
-        ("w2_clear_said", 0.0),
         ("relief_remaining", 240.0),
         ("scenario_elapsed", 0.0),
     ] {
@@ -400,7 +389,6 @@ fn waves_stage_on_clock_and_clears_and_the_early_clear_wins() {
     pump(&mut app);
     assert!(ship_in_world(&mut app, "raider_1a"));
     assert!(ship_in_world(&mut app, "raider_1b"));
-    assert_eq!(number_var(&app, "w1_up"), Some(1.0));
 
     // Past W2_AT with wave one still alive: wave two WAITS (no stacking).
     seed_var(&mut app, "scenario_elapsed", 100.0);

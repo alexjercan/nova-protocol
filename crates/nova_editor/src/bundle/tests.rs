@@ -72,6 +72,7 @@ fn scenario(actions: Vec<EventActionConfig>) -> Content {
     Content::Scenario(ScenarioConfig {
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions,
         }],
@@ -160,6 +161,7 @@ fn only_the_start_handlers_spawns_are_layout() {
         events: vec![
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 actions: vec![
                     spawn(object("anchor_1")),
@@ -172,6 +174,7 @@ fn only_the_start_handlers_spawns_are_layout() {
             },
             ScenarioEventConfig {
                 name: EventConfig::OnDestroyed,
+                once: false,
                 filters: vec![],
                 actions: vec![spawn(object("wreck_1"))],
             },

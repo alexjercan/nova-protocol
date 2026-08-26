@@ -374,6 +374,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
 
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         // The range lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.

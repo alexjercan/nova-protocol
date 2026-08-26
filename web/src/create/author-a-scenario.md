@@ -92,11 +92,15 @@ A handler has three parts:
 - Every filter must pass.
 - The actions then run in order.
 
+A handler can also say `once: true`, which retires it the first time its
+filters pass - see [`once`](../scenarios/#once-a-beat-that-happens-one-time).
+
 This handler reacts only when the first target is destroyed:
 
 ```ron
 (
     name: OnDestroyed,
+    once: true,
     filters: [
         Entity((
             id: Some("example_target_1"),
@@ -160,14 +164,11 @@ rocks are gone and only once:
 ```ron
 (
     name: OnUpdate,
+    once: true,
     filters: [
         Expression((GreaterThan(
             Term(Factor(Name("destroyed"))),
             Term(Factor(Literal(Number(1.0)))),
-        ))),
-        Expression((Equal(
-            Term(Factor(Name("arena_done"))),
-            Term(Factor(Literal(Number(0.0)))),
         ))),
     ],
     actions: [
@@ -186,9 +187,11 @@ rocks are gone and only once:
 ),
 ```
 
-`destroyed > 1` means two or more targets are gone. `arena_done == 0` is the
-one-shot guard. The first action changes it to `1`, so this repeating
-`OnUpdate` event cannot show victory again.
+`destroyed > 1` means two or more targets are gone. `once: true` is what
+stops this repeating `OnUpdate` event from showing victory again: the handler
+retires the moment the count gate passes. `arena_done` stays a variable
+because the TIMED beats below read it - they must not nag a player who has
+already finished.
 
 The remaining actions complete the HUD objective and show the victory screen.
 This is enough for a complete first scenario.

@@ -413,6 +413,7 @@ fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
         description: "A named row of thruster looks for the shell spike".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions(),
         }],

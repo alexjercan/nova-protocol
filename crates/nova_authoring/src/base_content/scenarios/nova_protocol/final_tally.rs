@@ -67,28 +67,22 @@ const VAR_SURVEYED: &str = "surveyed";
 /// Per-picket kill flags (the broadside pattern: flags, not counters).
 const VAR_PICKET_A_DOWN: &str = "picket_a_down";
 const VAR_PICKET_B_DOWN: &str = "picket_b_down";
-/// One-shot: the flagship has cast off.
-const VAR_CAST_OFF: &str = "cast_off";
 /// The clock mark (seconds) the cast-off waits for: pickets-down + a
 /// breathe. Written by the pickets-down beat as `scenario_elapsed + 6`.
 const VAR_CAST_AT: &str = "cast_at";
 /// The clock mark the epilogue's beats ride: written by the flagship-kill
 /// beat as the kill-time; the close line fires at +4, the banner at +9.
 const VAR_EPILOGUE_AT: &str = "epilogue_at";
-/// One-shots for the paced lines.
-const VAR_HELLO_SAID: &str = "hello_said";
+/// The pickets-down taunt has landed. A signal, not a latch: the cast-off
+/// waits on it.
 const VAR_TAUNT_SAID: &str = "taunt_said";
-const VAR_CLOSE_SAID: &str = "close_said";
 /// Pacing: objectives post a beat after the comms line that introduces them.
 /// The survey objective follows the opening dispatch; the picket objective
 /// follows the survey-confirmed line. Each gate holds a `mark_clock` deadline;
 /// the `_posted` flag latches the one-shot.
 const VAR_SURVEY_GATE: &str = "survey_gate";
-const VAR_SURVEY_POSTED: &str = "survey_posted";
 const VAR_PICKET_GATE: &str = "picket_gate";
-const VAR_PICKET_POSTED: &str = "picket_posted";
 const VAR_BREAK_GATE: &str = "break_gate";
-const VAR_BREAK_POSTED: &str = "break_posted";
 
 /// The greeting line's clock gate.
 const HELLO_AT: f64 = 9.0;
@@ -349,15 +343,9 @@ pub(crate) fn final_tally(
         set_variable(VAR_SURVEYED, number(0.0)),
         set_variable(VAR_PICKET_A_DOWN, number(0.0)),
         set_variable(VAR_PICKET_B_DOWN, number(0.0)),
-        set_variable(VAR_CAST_OFF, number(0.0)),
         set_variable(VAR_CAST_AT, number(0.0)),
         set_variable(VAR_EPILOGUE_AT, number(0.0)),
-        set_variable(VAR_HELLO_SAID, number(0.0)),
         set_variable(VAR_TAUNT_SAID, number(0.0)),
-        set_variable(VAR_CLOSE_SAID, number(0.0)),
-        set_variable(VAR_SURVEY_POSTED, number(0.0)),
-        set_variable(VAR_PICKET_POSTED, number(0.0)),
-        set_variable(VAR_BREAK_POSTED, number(0.0)),
         // Seed the transition gates so their gated_once filters read a defined
         // 0 before the survey / cast-off stamp them, not an undefined var. The
         // survey gate is seeded by its open_gate below.
@@ -407,13 +395,13 @@ pub(crate) fn final_tally(
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: opening,
         },
         // The survey objective posts a beat after the opening dispatch (pacing
         // pass), while the approach is live.
         pacing::gated_once(
-            VAR_SURVEY_POSTED,
             VAR_SURVEY_GATE,
             vec![number_equals(VAR_ACT, 1.0)],
             vec![post_objective(
@@ -424,19 +412,16 @@ pub(crate) fn final_tally(
         // Halloran's sendoff, one breath after the dispatch.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_HELLO_SAID, 0.0),
                 number_greater_than(SCENARIO_ELAPSED_VAR, HELLO_AT),
             ],
-            actions: vec![
-                set_variable(VAR_HELLO_SAID, number(1.0)),
-                story_message(
-                    CAPTAIN_HALLORAN,
-                    "Whatever is berthed in that pull, pilot - the guild \
+            actions: vec![story_message(
+                CAPTAIN_HALLORAN,
+                "Whatever is berthed in that pull, pilot - the guild \
                      settles its debts. So does he.",
-                ),
-            ],
+            )],
         },
         // The SURVEY: the travel lock lands on the bow. TWO fate variants
         // (the lifeline banner pattern): the pickets may already be drift when
@@ -444,6 +429,7 @@ pub(crate) fn final_tally(
         // will ever complete, nor mark two dead ships.
         ScenarioEventConfig {
             name: EventConfig::OnTravelLockStart,
+            once: true,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
                 number_equals(VAR_ACT, 1.0),
@@ -474,7 +460,6 @@ pub(crate) fn final_tally(
         // pointing at dead ships. The gate is only stamped on the pickets-live
         // survey path, so this cannot fire on the already-drift variant.
         pacing::gated_once(
-            VAR_PICKET_POSTED,
             VAR_PICKET_GATE,
             vec![EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
                 Box::new(number_equals(VAR_PICKET_A_DOWN, 0.0)),
@@ -488,6 +473,7 @@ pub(crate) fn final_tally(
         ),
         ScenarioEventConfig {
             name: EventConfig::OnTravelLockStart,
+            once: true,
             filters: vec![
                 player_travel_locks(ID_WRECK_BOW),
                 number_equals(VAR_ACT, 1.0),
@@ -509,6 +495,7 @@ pub(crate) fn final_tally(
         // Picket defeat flags (unconditional, one handler each).
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: true,
             filters: vec![entity(ID_PICKET_A)],
             actions: vec![
                 set_variable(VAR_PICKET_A_DOWN, number(1.0)),
@@ -517,6 +504,7 @@ pub(crate) fn final_tally(
         },
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: true,
             filters: vec![entity(ID_PICKET_B)],
             actions: vec![
                 set_variable(VAR_PICKET_B_DOWN, number(1.0)),
@@ -529,9 +517,9 @@ pub(crate) fn final_tally(
         // the cast-off below still waits for the survey.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_TAUNT_SAID, 0.0),
                 number_equals(VAR_PICKET_A_DOWN, 1.0),
                 number_equals(VAR_PICKET_B_DOWN, 1.0),
             ],
@@ -550,15 +538,14 @@ pub(crate) fn final_tally(
         // the Final Tally and its escort emerge from behind the anchorage.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_CAST_OFF, 0.0),
                 number_equals(VAR_SURVEYED, 1.0),
                 number_equals(VAR_TAUNT_SAID, 1.0),
                 clock_past(VAR_CAST_AT),
             ],
             actions: vec![
-                set_variable(VAR_CAST_OFF, number(1.0)),
                 // Pacing pass: the flagship and its gold marker appear with
                 // this reveal line; the break objective posts a beat later (the
                 // gated_once below), not the same frame.
@@ -580,7 +567,6 @@ pub(crate) fn final_tally(
         // live act so a fast kill (which locks act 4) cannot post a stale
         // objective under the epilogue.
         pacing::gated_once(
-            VAR_BREAK_POSTED,
             VAR_BREAK_GATE,
             vec![number_equals(VAR_ACT, 1.0)],
             vec![post_objective(OBJ_BREAK, "Break the Final Tally.")],
@@ -591,6 +577,7 @@ pub(crate) fn final_tally(
         // and the banner ride the epilogue clock.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(4.0)),
@@ -605,6 +592,7 @@ pub(crate) fn final_tally(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(4.0)),
@@ -621,9 +609,9 @@ pub(crate) fn final_tally(
         // Epilogue close line, +4s.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 4.0),
-                number_equals(VAR_CLOSE_SAID, 0.0),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
                     VariableConditionNode::new_greater_than(
                         variable(SCENARIO_ELAPSED_VAR),
@@ -638,19 +626,17 @@ pub(crate) fn final_tally(
                     ),
                 )),
             ],
-            actions: vec![
-                set_variable(VAR_CLOSE_SAID, number(1.0)),
-                story_message(
-                    CAPTAIN_HALLORAN,
-                    "Quota's settled, pilot. The guild will not forget \
+            actions: vec![story_message(
+                CAPTAIN_HALLORAN,
+                "Quota's settled, pilot. The guild will not forget \
                      whose guns held the line.",
-                ),
-            ],
+            )],
         },
         // The banner, +9s: the campaign completes - by design, with
         // nothing queued (the banner says so).
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 4.0),
                 EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -680,6 +666,7 @@ pub(crate) fn final_tally(
         // per the ledger lesson). Retry THIS scenario.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),
@@ -697,6 +684,7 @@ pub(crate) fn final_tally(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),

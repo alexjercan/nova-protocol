@@ -16,7 +16,11 @@ event handlers; each pairs an event with filters (all must pass) and actions
 ## Scenario structure
 
 - `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox), `events`.
-- `ScenarioEventConfig` - one handler: `name: EventConfig`, `filters`, `actions`.
+- `ScenarioEventConfig` - one handler: `name: EventConfig`, `once`, `filters`,
+  `actions`. `once` retires the handler the first time its filters PASS (not
+  the first time its event fires): the loader-spawned entity is despawned, and
+  `ScenarioEventConfig::build_handler` is the single place a config becomes a
+  runtime handler, so the loader and every headless rig honour the same fields.
 - `GameScenarios(HashMap<ScenarioId, ScenarioConfig>)` - all known scenarios,
   populated by `nova_assets` (ready at `GameAssetsStates::Loaded`).
 - `CampaignConfig` - `id`, `name`, `scenarios` (ordered member scenario ids,
@@ -131,7 +135,16 @@ flowchart LR
   Actions --> Vars["Mutate variables"]
   Actions --> World["Mutate event world"]
   Actions --> Objects["Spawn / affect objects"]
+  Filters -->|"all pass + once"| Retire["Handler despawns"]
 ```
+
+A `once` handler retires on the PASS edge, so a refused event leaves it live
+and a beat waiting on a condition keeps every later chance at it. Retirement
+is a despawn, which `maintain_handler_index` turns into an index removal
+before the next dispatch; the dispatcher also holds a pass-local spent set,
+because one drain pass walks the whole queue against a single index snapshot
+and two queued events of the same name would otherwise reach the same handler
+twice.
 
 ### What an action does that its RON cannot show
 
@@ -276,11 +289,17 @@ Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.
 ## Scenario patterns
 
-The event vocabulary has no built-in "state" beyond scenario variables, so the
-shipped mods build their control flow out of one numeric variable plus
-`Expression` filters. Two idioms recur; both are worked end to end in the
-[Gauntlet worked example](#the-gauntlet-worked-example) below. Excerpts here are
-verbatim from `webmods/gauntlet/gauntlet.content.ron`.
+The event vocabulary has no built-in "state" beyond scenario variables and
+`once`, so the shipped mods build their control flow out of one numeric
+variable plus `Expression` filters. Two idioms recur; both are worked end to
+end in the [Gauntlet worked example](#the-gauntlet-worked-example) below.
+Excerpts here are verbatim from `webmods/gauntlet/gauntlet.content.ron`.
+
+`once` is what a variable is NOT for. A flag whose only reader is its own
+filter - seeded in `OnStart`, read by one gate, written by that gate's own
+action - is the engine's fact, not the scenario's, and the handler carries it
+now. Keep a variable where another handler reads it: an ORDERING counter like
+`gate` below, or a signal like "the convoy lost a ship".
 
 ### The gate-counter ordering pattern
 

@@ -215,6 +215,87 @@ ceremony comes back.
 - Stage 3 written up as a recommendation with the content evidence stages 1-2
   produce, and NOT implemented as part of this task.
 
+## Stage 1 landed - `once`
+
+`ScenarioEventConfig` grew a serde-defaulted `once: bool`. A handler that says
+`once: true` retires the first time its filters PASS - not the first time its
+event fires, which is the distinction that keeps a beat waiting on a condition
+alive through every event that refuses it.
+
+### Decisions
+
+- **A pass-local spent set, not a latch in `W`.** The task body said to latch
+  it in the event world. `maintain_handler_index` is ungated, runs every frame
+  `.before(queue_system)`, and drains `RemovedComponents`, so the ONLY window
+  a despawn cannot cover is within one drain pass. `queue_system` holds a
+  `HashSet<Entity>` for that pass. No `EventWorld` trait change, no new
+  resource, and no borrow conflict with `Res<EventHandlerIndex<W>>`.
+- **`once` means spent by DOING ITS JOB.** A refused dispatch leaves the
+  handler live. The other reading - spent by being offered the event - would
+  make a scenario silently lose the beat it is waiting for.
+- **`ScenarioEventConfig::build_handler` is now the ONE place a config becomes
+  a handler.** Nine headless rigs each re-implemented the loader's
+  registration loop, and every one of them dropped `once` on the floor - the
+  shakedown walk rig failed loudly and the rest would have passed while
+  testing a scenario the game does not run. A field added to the config now
+  reaches the loader and the rigs together or not at all.
+- **A latch variable dies only when its ONLY reader was its own filter.** A
+  flag another handler reads is a signal about the game and stays: `taunt_said`
+  gates the cast-off, `pinch_warn_said` gates the far-side confirm, `w2_up`
+  and `w3_up` say a wave is on the board, `arena_done` stops the timed beats
+  nagging a finished player. Every deletion was audited by reference count.
+- **Cycles keep their handlers.** The Ledger's overspeed ladder walks
+  `speed_warned` 2 -> 3 -> 2 as often as the player rides it, and Shakedown's
+  orbit trio must re-arm on every lost hold. Marking either `once` would
+  strand the ladder; both carry a comment saying why.
+
+### What it does and does not delete
+
+`once` deletes latch variables and the filters that read them. It does NOT
+delete handlers - that is stage 2's win, and the counts say so plainly.
+
+| scenario | lines | handlers | filters | variables | `once` |
+| --- | --- | --- | --- | --- | --- |
+| `shakedown_run` | 2246 -> 2202 | 42 -> 42 | 98 -> 85 | 9 -> 6 | 36 |
+| `broadside` | 844 -> 832 | 15 -> 15 | 36 -> 34 | 8 -> 6 | 12 |
+| `broadside_gunship` | 693 -> 689 | 11 -> 11 | 26 -> 25 | 4 -> 3 | 8 |
+| `final_tally` | 965 -> 905 | 17 -> 17 | 46 -> 39 | 16 -> 10 | 16 |
+| `lifeline` | 1523 -> 1478 | 27 -> 27 | 73 -> 66 | 19 -> 14 | 23 |
+| `ledger_ch3` | 1838 -> 1814 | 27 -> 27 | 82 -> 77 | 15 -> 11 | 24 |
+| `example_arena` | 784 -> 768 | 8 -> 8 | 11 -> 8 | 4 -> 2 | 6 |
+
+`final_tally` lost six of its sixteen variables; `example_arena`, the mod
+`/create/` teaches from, lost half of its four and three of its eleven filters.
+Both producer kinds are covered: the base scenarios are generated from the Rust
+builders (`content -- gen`), `ledger_ch3` is a direct RON edit.
+
+The webmod chapters other than `ledger_ch3` (ch2, ch2b, ch4, ch5) were left
+alone. The field is defaulted, so they parse and run unchanged.
+
+### Proof
+
+- `cargo test -p nova_events --lib` - 9 pass, including three new ones: a
+  `once` handler fires once and leaves the index, a refused event leaves it
+  live, and two events of the SAME name in one drain pass reach it once.
+  Mutation: deleting the `spent.contains` guard takes only the third down.
+- `cargo test -p nova_authoring` (77 + 24 across its integration tests),
+  `-p nova_assets` (16 suites), `-p nova_scenario --lib` (202).
+- `nova-protocol content lint` - 0 errors, 0 warnings, 0 findings, 13
+  scenarios balance-audited.
+- LIVE: `examples/systems/system_scenario_grammar` under Xvfb. Its beat
+  transitions carry `once` instead of latch filters, and it now holds an
+  UNFILTERED `once` OnUpdate handler counting its own runs. Green:
+  `once_ticks = 1` after three rounds. Mutation: `once: false` there reads 71
+  and error-exits 101.
+- Skipped: the workspace test suite and Clippy, per the standing instruction.
+
+### For stage 2
+
+What is LEFT is the evidence stage 3 asks for. Handler counts did not move,
+because the remaining `OnUpdate` handlers are SEQUENCERS - `open_step` in
+Shakedown and the Ledger, `gate` in the Ledger, the beat counter, the wave
+schedule in Lifeline. Every one is a cursor a `Sequence` would hold.
+
 ## Verified against the tree, round 4 (2026-08-24)
 
 Scheduled into v0.12.0. Full audit:

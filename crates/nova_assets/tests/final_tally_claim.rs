@@ -132,46 +132,41 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .iter()
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
-        let mut handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in event.filters.iter() {
-            handler.add_filter(filter.clone());
-        }
-        for action in event.actions.iter() {
-            handler.add_action(action.clone());
-        }
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(event.build_handler());
     }
 }
 
 /// Seed the whole OnStart variable block the way OnStart would. Must stay in
 /// lockstep with the OnStart `VariableSet` block in `final_tally.content.ron` -
-/// the defer-objectives pass (commit 0ae5c7f9) added the `*_posted` / `*_gate`
-/// breathe variables, and a slice test that omits them leaves the gated
-/// handlers reading `None` (e.g. the picket handler filters `picket_posted ==
-/// 0`, so an unseeded `picket_posted` never lets it fire, and the picket/break
-/// objectives never post). `scenario_elapsed` is engine-provided (the loader
-/// seeds it), so the slice seeds it here too.
+/// a slice test that omits a gate variable leaves the handler reading `None`,
+/// which never passes, so the beat it guards silently never fires.
+/// `scenario_elapsed` is engine-provided (the loader seeds it), so the slice
+/// seeds it here too.
 fn seed_live_claim(app: &mut App) {
     for (key, value) in [
         ("act", 1.0),
         ("surveyed", 0.0),
         ("picket_a_down", 0.0),
         ("picket_b_down", 0.0),
-        ("cast_off", 0.0),
         ("cast_at", 0.0),
         ("epilogue_at", 0.0),
-        ("hello_said", 0.0),
         ("taunt_said", 0.0),
-        ("close_said", 0.0),
-        ("survey_posted", 0.0),
-        ("picket_posted", 0.0),
-        ("break_posted", 0.0),
         ("picket_gate", 0.0),
         ("break_gate", 0.0),
         ("scenario_elapsed", 0.0),
     ] {
         seed_var(app, key, value);
     }
+}
+
+/// How many handlers are still registered. A `once` handler despawns the
+/// moment its filters pass, so this is what a spent beat looks like from
+/// outside: the entity is gone, and the dispatcher never walks it again.
+fn live_handlers(app: &mut App) -> usize {
+    app.world_mut()
+        .query::<&EventHandler<NovaEventWorld>>()
+        .iter(app.world())
+        .count()
 }
 
 fn destroy(app: &mut App, id: &str) {
@@ -519,9 +514,9 @@ fn the_epilogue_paces_the_campaign_end() {
     register_non_start_handlers(&mut app, &scenario);
     seed_live_claim(&mut app);
     seed_var(&mut app, "surveyed", 1.0);
-    seed_var(&mut app, "cast_off", 1.0);
     seed_var(&mut app, "scenario_elapsed", 60.0);
 
+    let before = live_handlers(&mut app);
     destroy(&mut app, "flagship");
     assert_eq!(number_var(&app, "act"), Some(4.0), "the kill locks the win");
     assert_eq!(outcome_kind(&app), None, "no banner yet - the epilogue");
@@ -533,7 +528,13 @@ fn the_epilogue_paces_the_campaign_end() {
         None,
         "the close line beat, still no banner"
     );
-    assert_eq!(number_var(&app, "close_said"), Some(1.0));
+    // The kill beat and the close beat are both `once`: each retired itself
+    // rather than latching a said-flag, so two handlers have left the world.
+    assert_eq!(
+        live_handlers(&mut app),
+        before - 2,
+        "a spent beat leaves the world instead of latching a flag"
+    );
 
     seed_var(&mut app, "scenario_elapsed", 70.0);
     pump(&mut app);
@@ -589,7 +590,6 @@ fn player_death_is_terminal_only_while_live() {
     register_non_start_handlers(&mut app, &scenario);
     seed_live_claim(&mut app);
     seed_var(&mut app, "surveyed", 1.0);
-    seed_var(&mut app, "cast_off", 1.0);
     seed_var(&mut app, "scenario_elapsed", 60.0);
     destroy(&mut app, "flagship");
     destroy(&mut app, "player_spaceship");

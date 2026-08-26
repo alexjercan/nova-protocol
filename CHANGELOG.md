@@ -15,6 +15,12 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Scenarios & Objectives
+
+- A handler can say `once: true` and retire itself the first time its filters
+  pass, so a beat that happens one time no longer needs a latch variable, a
+  filter reading it and an action writing it.
+
 ### Modding & Mod Portal
 
 - A range saved in the editor is an ordinary mod: each built ship a design, the

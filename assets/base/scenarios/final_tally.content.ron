@@ -35,10 +35,6 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "cast_off",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "cast_at",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
@@ -47,27 +43,7 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "hello_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "taunt_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "close_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "survey_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "picket_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "break_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -381,11 +357,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("survey_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("survey_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -400,10 +373,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "survey_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "survey",
                         message: "Survey the anchorage - hold a travel lock on the wreck\'s bow.",
@@ -412,14 +381,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("hello_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -427,10 +393,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "hello_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Capt. Halloran",
                         text: "Whatever is berthed in that pull, pilot - the guild settles its debts. So does he.",
@@ -439,6 +401,7 @@
             ),
             (
                 name: OnTravelLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("anchorage_bow"),
@@ -489,11 +452,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("picket_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("picket_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -514,10 +474,6 @@
                     )),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "picket_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "picket",
                         message: "Break the orbital picket.",
@@ -534,6 +490,7 @@
             ),
             (
                 name: OnTravelLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("anchorage_bow"),
@@ -575,6 +532,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("picket_a"),
@@ -592,6 +550,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("picket_b"),
@@ -609,14 +568,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("taunt_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("picket_a_down"))),
@@ -650,14 +606,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("cast_off"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("surveyed"))),
@@ -673,10 +626,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "cast_off",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "Capital burn off the anchorage - tubes open. That\'s the flagship.",
@@ -753,11 +702,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("break_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("break_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -772,10 +718,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "break_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "break_flagship",
                         message: "Break the Final Tally.",
@@ -784,6 +726,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("flagship"),
@@ -819,6 +762,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("flagship"),
@@ -854,14 +798,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("close_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -872,10 +813,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "close_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Capt. Halloran",
                         text: "Quota\'s settled, pilot. The guild will not forget whose guns held the line.",
@@ -884,6 +821,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -910,6 +848,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -936,6 +875,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

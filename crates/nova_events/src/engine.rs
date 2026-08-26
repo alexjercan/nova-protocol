@@ -11,7 +11,7 @@
 //! no callers here and did not come across.
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     marker::PhantomData,
     sync::Arc,
 };
@@ -92,6 +92,13 @@ pub struct EventHandler<W: EventWorld> {
     pub(super) name: &'static str,
     pub(super) filters: Vec<Arc<dyn EventFilter<W>>>,
     pub(super) actions: Vec<Arc<dyn EventAction<W>>>,
+    /// Retire after the first dispatch whose filters PASS.
+    ///
+    /// A handler that has done its one job is walked every frame for the rest
+    /// of the run otherwise. Set at build time and never after, so the index
+    /// snapshot below stays valid: retirement removes the whole entity rather
+    /// than editing a handler in place.
+    pub(super) once: bool,
 }
 
 // Hand-written, not derived -- a derive would add a `W: Clone` bound the
@@ -103,6 +110,7 @@ impl<W: EventWorld> Clone for EventHandler<W> {
             name: self.name,
             filters: self.filters.clone(),
             actions: self.actions.clone(),
+            once: self.once,
         }
     }
 }
@@ -126,6 +134,7 @@ where
             name,
             filters: Vec::new(),
             actions: Vec::new(),
+            once: false,
         }
     }
 
@@ -159,6 +168,23 @@ where
     /// Add an action to the handler.
     pub fn add_action<A: EventAction<W> + 'static>(&mut self, a: A) {
         self.actions.push(Arc::new(a));
+    }
+
+    /// Retire this handler after the first dispatch whose filters pass
+    /// (builder-style).
+    pub fn with_once(mut self, once: bool) -> Self {
+        self.once = once;
+        self
+    }
+
+    /// Retire this handler after the first dispatch whose filters pass.
+    pub fn set_once(&mut self, once: bool) {
+        self.once = once;
+    }
+
+    /// Whether this handler retires after its first passing dispatch.
+    pub fn is_once(&self) -> bool {
+        self.once
     }
 
     /// Checks if the event passes all filters.
@@ -426,11 +452,19 @@ fn maintain_handler_index<W: EventWorld>(
 }
 
 /// Processes the event queue by applying handlers and executing actions.
+///
+/// A `once` handler is retired the moment its filters pass: the entity is
+/// despawned, which `maintain_handler_index` turns into a bucket removal before
+/// the next dispatch. `spent` covers the window that despawn cannot - this pass
+/// drains the WHOLE queue against one index snapshot, so two queued events of
+/// the same name would otherwise reach the same retiring handler twice.
 fn queue_system<W: EventWorld>(
+    mut commands: Commands,
     mut queue: ResMut<GameEventQueue<W>>,
     mut world: ResMut<W>,
     index: Res<EventHandlerIndex<W>>,
 ) {
+    let mut spent: HashSet<Entity> = HashSet::new();
     while let Some(event) = queue.events.pop_front() {
         trace!(
             "queue_system: processing event {:?}, info {:?}",
@@ -438,10 +472,18 @@ fn queue_system<W: EventWorld>(
             event.info
         );
 
-        for (_entity, handler) in index.handlers(event.name) {
+        for (entity, handler) in index.handlers(event.name) {
+            if handler.once && spent.contains(entity) {
+                continue;
+            }
             if handler.filter(&*world, &event.info) {
                 trace!("queue_system: handler {:?} passed filters", handler.name);
 
+                if handler.once {
+                    spent.insert(*entity);
+                    commands.entity(*entity).despawn();
+                    trace!("queue_system: retiring one-shot handler {:?}", handler.name);
+                }
                 for action in &handler.actions {
                     trace!("queue_system: executing action {:?}", action.name());
                     action.action(&mut *world, &event.info);
@@ -494,6 +536,9 @@ mod tests {
     struct Counts {
         fires: StdHashMap<&'static str, u32>,
         settling: bool,
+        /// What `Gate` reads: a filter a test can open and close, so a
+        /// one-shot handler can be offered an event it must REFUSE.
+        open: bool,
     }
 
     impl EventWorld for Counts {
@@ -509,6 +554,14 @@ mod tests {
     impl EventAction<Counts> for Bump {
         fn action(&self, world: &mut Counts, _: &GameEventInfo) {
             *world.fires.entry(self.0).or_default() += 1;
+        }
+    }
+
+    /// Filter that passes only while the world is `open`.
+    struct Gate;
+    impl EventFilter<Counts> for Gate {
+        fn filter(&self, world: &Counts, _: &GameEventInfo) -> bool {
+            world.open
         }
     }
 
@@ -540,6 +593,22 @@ mod tests {
             .events
             .push_back(GameEvent::new(name, GameEventInfo::default()));
         app.update();
+    }
+
+    /// Spawn a handler that retires after its first PASSING dispatch,
+    /// optionally behind [`Gate`].
+    fn spawn_once_handler(
+        app: &mut App,
+        event: &'static str,
+        tag: &'static str,
+        gated: bool,
+    ) -> Entity {
+        let mut handler = EventHandler::<Counts>::from_event_name(event).with_once(true);
+        if gated {
+            handler.add_filter(Gate);
+        }
+        handler.add_action(Bump(tag));
+        app.world_mut().spawn(handler).id()
     }
 
     fn count(app: &App, tag: &str) -> u32 {
@@ -658,6 +727,86 @@ mod tests {
         fire(&mut app, "alpha");
         assert_eq!(count(&app, "a1"), 1, "despawned handler must not run");
         assert_eq!(count(&app, "a2"), 2);
+    }
+
+    /// The whole point of `once`: the handler runs one time and then STOPS
+    /// BEING WALKED. Content used to spell this with a latch variable, a filter
+    /// reading it and an action writing it, and the handler was still visited
+    /// every frame for the rest of the run.
+    #[test]
+    fn a_once_handler_fires_once_and_leaves_the_index() {
+        let mut app = app();
+        let retiring = spawn_once_handler(&mut app, "alpha", "once", false);
+        spawn_handler(&mut app, "alpha", "always");
+        app.update();
+
+        fire(&mut app, "alpha");
+        assert_eq!(count(&app, "once"), 1);
+        assert_eq!(count(&app, "always"), 1);
+
+        fire(&mut app, "alpha");
+        assert_eq!(count(&app, "once"), 1, "a spent handler must not run again");
+        assert_eq!(
+            count(&app, "always"),
+            2,
+            "and it must not take its neighbours with it"
+        );
+        assert!(
+            app.world().get_entity(retiring).is_err(),
+            "the entity is gone, so nothing walks it"
+        );
+        assert!(
+            app.world()
+                .resource::<EventHandlerIndex<Counts>>()
+                .handlers("alpha")
+                .iter()
+                .all(|(entity, _)| *entity != retiring),
+            "and the index bucket no longer holds it"
+        );
+    }
+
+    /// The window a despawn cannot close. One dispatch pass drains the WHOLE
+    /// queue against one index snapshot, and a commanded despawn lands after
+    /// the pass - so two queued events of the same name would reach the same
+    /// retiring handler twice.
+    #[test]
+    fn two_events_in_one_pass_reach_a_once_handler_once() {
+        let mut app = app();
+        spawn_once_handler(&mut app, "alpha", "once", false);
+        app.update();
+
+        {
+            let mut queue = app.world_mut().resource_mut::<GameEventQueue<Counts>>();
+            queue
+                .events
+                .push_back(GameEvent::new("alpha", GameEventInfo::default()));
+            queue
+                .events
+                .push_back(GameEvent::new("alpha", GameEventInfo::default()));
+        }
+        app.update();
+
+        assert_eq!(count(&app, "once"), 1, "one pass, two events, one fire");
+    }
+
+    /// A one-shot is spent by DOING ITS JOB, not by being offered the event.
+    /// Retiring on a refused dispatch would silently drop the beat a scenario
+    /// is waiting for.
+    #[test]
+    fn a_once_handler_that_refuses_an_event_stays_live() {
+        let mut app = app();
+        spawn_once_handler(&mut app, "alpha", "once", true);
+        app.update();
+
+        fire(&mut app, "alpha");
+        assert_eq!(count(&app, "once"), 0, "the gate was shut");
+
+        app.world_mut().resource_mut::<Counts>().open = true;
+        fire(&mut app, "alpha");
+        assert_eq!(count(&app, "once"), 1, "it was still there to fire");
+
+        fire(&mut app, "alpha");
+        assert_eq!(count(&app, "once"), 1, "and now it is spent");
     }
 
     /// The read-accessor contract: a plain observer on `On<GameEvent>` (a run

@@ -106,6 +106,7 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
         description: "A ship carrying every section type for the wiki shots.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The scene lights itself: the engine spawns no light, so a
             // scenario that authors none renders black.

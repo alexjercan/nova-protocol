@@ -328,6 +328,7 @@ fn attitude_rig(
         description: "A minimal ship chasing a rotating attitude command.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The rig lights itself: the engine spawns no light, so a
             // scenario that authors none renders black.

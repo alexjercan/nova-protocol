@@ -5,6 +5,11 @@ the SIXTEEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
+A handler that describes a beat happening ONCE says
+[`once: true`](../scenarios/#once-a-beat-that-happens-one-time) beside its
+name, and the engine retires it the first time its filters pass. Every
+repeating event below composes with it.
+
 The whole vocabulary at a glance:
 
 | event | payload | fires when |
@@ -77,29 +82,22 @@ The chain order is guaranteed: the scenario clock ticks, typed queries and
 watches update, ended timers fire, then `OnUpdate` fires. Query-backed gates
 see one coherent frame snapshot.
 
-Gate it with `Expression` filters plus a one-shot flag (the
-[count-gate idiom](../expressions/#recipes)); this is the workhorse for
-clock-driven beats and count thresholds that must not depend on handler
-order. Seed `briefing_sent` to `0` in `OnStart`, then write the handler as:
+This is the workhorse for clock-driven beats and count thresholds that must
+not depend on handler order. Gate it with `Expression` filters, and add
+[`once: true`](../scenarios/#once-a-beat-that-happens-one-time) when the beat
+happens one time - then the only filter left is the one about the game:
 
 ```ron
 (
     name: OnUpdate,
+    once: true,
     filters: [
         Expression((GreaterThan(
             Term(Factor(Name("scenario_elapsed"))),
             Term(Factor(Literal(Number(10.0)))),
         ))),
-        Expression((Equal(
-            Term(Factor(Name("briefing_sent"))),
-            Term(Factor(Literal(Number(0.0)))),
-        ))),
     ],
     actions: [
-        VariableSet((
-            key: "briefing_sent",
-            expression: Term(Factor(Literal(Number(1.0)))),
-        )),
         StoryMessage((
             speaker: "Control",
             text: "Ten seconds elapsed.",
@@ -107,6 +105,9 @@ order. Seed `briefing_sent` to `0` in `OnStart`, then write the handler as:
     ],
 ),
 ```
+
+A beat that genuinely repeats leaves `once` off and re-arms itself in its own
+actions - see the [recipes](../expressions/#recipes).
 
 </details>
 

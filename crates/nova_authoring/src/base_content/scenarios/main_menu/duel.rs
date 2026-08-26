@@ -208,6 +208,7 @@ pub(crate) fn menu_duel(
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: stage
                 .into_iter()
@@ -232,6 +233,7 @@ pub(crate) fn menu_duel(
         // The single spawn site for both duelists.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_respawn".to_string(),
             })],
@@ -242,6 +244,7 @@ pub(crate) fn menu_duel(
         // destruction could wait forever).
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: false,
             filters: vec![entity("duel_rival")],
             actions: vec![timer("duel_finisher_beat", 4.0)],
         },
@@ -254,6 +257,7 @@ pub(crate) fn menu_duel(
         // self-restart is legal.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_finisher_beat".to_string(),
             })],
@@ -275,6 +279,7 @@ pub(crate) fn menu_duel(
         // a beat - the wrecks stay in shot - then the carousel turns.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: false,
             filters: vec![entity("duel_victor")],
             actions: vec![
                 EventActionConfig::TimerCancel(TimerCancelActionConfig {
@@ -290,6 +295,7 @@ pub(crate) fn menu_duel(
         // same flush would discard sibling handlers' queued commands.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_reset".to_string(),
             })],
@@ -302,6 +308,7 @@ pub(crate) fn menu_duel(
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "duel_watchdog".to_string(),
             })],

@@ -664,6 +664,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
         events: vec![
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
                     key: "rock_destroyed".to_string(),
@@ -674,6 +675,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             },
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 actions: [
                     vec![
@@ -714,6 +716,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             },
             ScenarioEventConfig {
                 name: EventConfig::OnDestroyed,
+                once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                     id: Some(ROCK.to_string()),
                     ..default()

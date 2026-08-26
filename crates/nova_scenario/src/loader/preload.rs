@@ -394,6 +394,7 @@ mod tests {
                 )]),
                 ScenarioEventConfig {
                     name: EventConfig::OnTimerEnd,
+                    once: false,
                     filters: vec![],
                     actions: vec![spawn_ship(
                         "late",

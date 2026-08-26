@@ -258,6 +258,7 @@ pub fn compare_stage(game_assets: &GameAssets, id: &str, name: &str) -> Scenario
         description: format!("{name} - side-by-side texture comparison"),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
         }],

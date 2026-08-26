@@ -757,6 +757,7 @@ mod tests {
     fn on_start(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions,
         }
@@ -868,6 +869,7 @@ mod tests {
             SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 100.0, 4.0, 100.0)]]);
         let triggered = ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: false,
             filters: vec![],
             actions: vec![
                 spawn_at(
@@ -916,6 +918,7 @@ mod tests {
             )]),
             ScenarioEventConfig {
                 name: EventConfig::OnUpdate,
+                once: false,
                 filters: vec![],
                 actions: vec![spawn_at(
                     "approacher",

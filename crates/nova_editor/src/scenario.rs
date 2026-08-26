@@ -900,6 +900,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         // the ship that locked it.
         ScenarioEventConfig {
             name: EventConfig::OnCombatLockStart,
+            once: false,
             filters: vec![
                 EventFilterConfig::Entity(EntityFilterConfig {
                     id: Some(picket.id.to_string()),
@@ -913,6 +914,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         // Crowded: the trip sphere's own id is the primary entity.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
+            once: false,
             filters: vec![
                 EventFilterConfig::Entity(EntityFilterConfig {
                     id: Some(trip_area_id(picket)),
@@ -948,6 +950,7 @@ fn trip_area(picket: &Picket) -> EventActionConfig {
 fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
     ScenarioEventConfig {
         name: EventConfig::OnEnter,
+        once: false,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
             id: Some(beacon.id.to_string()),
             other_id: Some(PLAYER_ID.to_string()),
@@ -1012,6 +1015,7 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
     let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The world's own lights come through `objects` - the engine spawns
             // none, so a scenario that authors none renders black. (The editor
@@ -1036,6 +1040,7 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
         // complete - so it stays on the HUD as the sandbox's only instruction.
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: vec![
                 EventActionConfig::Objective(ObjectiveActionConfig::new(
@@ -1059,6 +1064,7 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
             // Death is the only outcome, and it offers this same range again.
             ScenarioEventConfig {
                 name: EventConfig::OnDestroyed,
+                once: false,
                 filters: player(PLAYER_ID),
                 actions: [EventActionConfig::DebugMessage(DebugMessageActionConfig {
                     message: "The player's spaceship was destroyed!".to_string(),
@@ -1074,6 +1080,7 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
             // instantly "neutralized" off the line.
             ScenarioEventConfig {
                 name: EventConfig::OnNeutralized,
+                once: false,
                 filters: player(PLAYER_ID),
                 actions: retry("Nothing left to fight with - you drift the range dead."),
             },

@@ -101,11 +101,8 @@ const VAR_HAULER_LOST: &str = "hauler_lost";
 /// the distress call) and the defend objective (after the ambush line). Part
 /// two reuses its own pair in a separate scope.
 const VAR_CONTACT_GATE: &str = "contact_gate";
-const VAR_CONTACT_POSTED: &str = "contact_posted";
 const VAR_DEFEND_GATE: &str = "defend_gate";
-const VAR_DEFEND_POSTED: &str = "defend_posted";
 const VAR_GUN_OBJ_GATE: &str = "gun_obj_gate";
-const VAR_GUN_OBJ_POSTED: &str = "gun_obj_posted";
 
 /// The yacht drifts here; the fight happens around it.
 const HAULER_POS: Vec3 = Vec3::new(0.0, 10.0, -450.0);
@@ -338,8 +335,6 @@ pub(crate) fn broadside(
         set_variable(VAR_CORVETTE_A_DOWN, number(0.0)),
         set_variable(VAR_CORVETTE_B_DOWN, number(0.0)),
         set_variable(VAR_HAULER_LOST, number(0.0)),
-        set_variable(VAR_CONTACT_POSTED, number(0.0)),
-        set_variable(VAR_DEFEND_POSTED, number(0.0)),
         // Seed the defend gate so its gated_once filter reads a defined 0
         // before the ambush stamps it, not an undefined var.
         set_variable(VAR_DEFEND_GATE, number(0.0)),
@@ -379,6 +374,7 @@ pub(crate) fn broadside(
     let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: opening,
         },
@@ -386,7 +382,6 @@ pub(crate) fn broadside(
         // pass): still act 0, so a player who somehow reaches the yacht inside
         // the beat springs the ambush without a stale objective appearing after.
         pacing::gated_once(
-            VAR_CONTACT_POSTED,
             VAR_CONTACT_GATE,
             vec![number_equals(VAR_ACT, 0.0)],
             // The marker is already up (OnStart, above); only the objective
@@ -399,6 +394,7 @@ pub(crate) fn broadside(
         // a frame.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
+            once: true,
             filters: vec![
                 entity_pair(ID_HAULER_AREA, ID_PLAYER),
                 number_equals(VAR_ACT, 0.0),
@@ -424,7 +420,6 @@ pub(crate) fn broadside(
             ],
         },
         pacing::gated_once(
-            VAR_DEFEND_POSTED,
             VAR_DEFEND_GATE,
             vec![number_equals(VAR_ACT, 1.0)],
             vec![post_objective(
@@ -435,6 +430,7 @@ pub(crate) fn broadside(
         // Corvette defeats raise their flags once for either terminal path.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: true,
             filters: vec![entity(ID_CORVETTE_A)],
             actions: vec![
                 set_variable(VAR_CORVETTE_A_DOWN, number(1.0)),
@@ -443,6 +439,7 @@ pub(crate) fn broadside(
         },
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: true,
             filters: vec![entity(ID_CORVETTE_B)],
             actions: vec![
                 set_variable(VAR_CORVETTE_B_DOWN, number(1.0)),
@@ -456,6 +453,7 @@ pub(crate) fn broadside(
         // from the flag handlers so the flag-set stays unconditional.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![
                 entity(ID_CORVETTE_A),
                 number_equals(VAR_ACT, 1.0),
@@ -468,6 +466,7 @@ pub(crate) fn broadside(
         },
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![
                 entity(ID_CORVETTE_B),
                 number_equals(VAR_ACT, 1.0),
@@ -490,6 +489,7 @@ pub(crate) fn broadside(
         // closing line per the beat-sheet convention.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_CORVETTE_A_DOWN, 1.0),
@@ -511,6 +511,7 @@ pub(crate) fn broadside(
         },
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![
                 number_equals(VAR_ACT, 1.0),
                 number_equals(VAR_CORVETTE_A_DOWN, 1.0),
@@ -535,6 +536,7 @@ pub(crate) fn broadside(
         // pushes fresh objectives under the Victory overlay.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_HAULER_LOST, number(1.0)),
@@ -551,6 +553,7 @@ pub(crate) fn broadside(
         // Defeat.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 // Terminal act FIRST: CurrentOutcome is last-write-wins, so a
@@ -572,6 +575,7 @@ pub(crate) fn broadside(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),
@@ -639,7 +643,6 @@ pub(crate) fn broadside_gunship(
     let mut opening = vec![
         set_variable(VAR_ACT, number(1.0)),
         set_variable(VAR_HAULER_LOST, number(0.0)),
-        set_variable(VAR_GUN_OBJ_POSTED, number(0.0)),
         spawn_object(player_ship()),
         spawn_object(yacht_ship()),
         cover_scatter(&asteroid_texture),
@@ -668,11 +671,11 @@ pub(crate) fn broadside_gunship(
     let mut events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: opening,
         },
         pacing::gated_once(
-            VAR_GUN_OBJ_POSTED,
             VAR_GUN_OBJ_GATE,
             vec![number_equals(VAR_ACT, 1.0)],
             vec![
@@ -690,6 +693,7 @@ pub(crate) fn broadside_gunship(
         // the arena restages across the checkpoint.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![
                 entity(ID_GUNSHIP),
                 number_equals(VAR_ACT, 1.0),
@@ -712,6 +716,7 @@ pub(crate) fn broadside_gunship(
         },
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![
                 entity(ID_GUNSHIP),
                 number_equals(VAR_ACT, 1.0),
@@ -734,6 +739,7 @@ pub(crate) fn broadside_gunship(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![
                 entity(ID_GUNSHIP),
                 number_equals(VAR_ACT, 1.0),
@@ -757,6 +763,7 @@ pub(crate) fn broadside_gunship(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![
                 entity(ID_GUNSHIP),
                 number_equals(VAR_ACT, 1.0),
@@ -780,6 +787,7 @@ pub(crate) fn broadside_gunship(
         // Flavor, not failure: same soft-fail beat as part one.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_HAULER_LOST, number(1.0)),
@@ -793,6 +801,7 @@ pub(crate) fn broadside_gunship(
         // Lose: retry THIS part - the checkpoint's whole point (spike F7).
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 // Terminal act FIRST: last-write-wins CurrentOutcome means a
@@ -814,6 +823,7 @@ pub(crate) fn broadside_gunship(
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
             actions: vec![
                 set_variable(VAR_ACT, number(3.0)),

@@ -111,6 +111,7 @@ pub(crate) fn scenario(
         description: "Test".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters,
             actions,
         }],

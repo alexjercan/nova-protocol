@@ -15,7 +15,7 @@
 //
 // Pacing (task 20260722-214105, the ch1/Shakedown idiom): a clock-paced
 // opening conversation (open_step cascade) briefs the run before the first
-// NAV objective lazy-posts (nav_posted hand-off); each gate transition stamps
+// NAV objective lazy-posts; each gate transition stamps
 // beat_gate so the next Vesh line lands a beat LATER (announce -> arrive ->
 // confirm -> breathe), not in the arrival frame; the pinch has its own
 // warning + far-side confirm beats.
@@ -118,36 +118,28 @@
                     )),
                     // Opening-conversation sequencer (the Shakedown/ch1 idiom):
                     // open_step walks Vesh's briefing lines on the scenario
-                    // clock; nav_posted is the one-shot hand-off that lazy-
-                    // posts the first NAV objective; beat_gate + the per-beat
-                    // arrive/said one-shots drive the corridor breathers. All
+                    // clock; beat_gate stamps the corridor breathers. All
                     // seeded here - an undefined gate fails closed forever.
+                    // The handlers themselves carry `once`, so no flag latches
+                    // a beat that has already spoken.
                     VariableSet((
                         key: "open_step",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "nav_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
                         key: "beat_gate",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    // Per-transition breather gates + one-shot said flags. The
-                    // delayed ack handlers gate on the *_said flag AND the clock
-                    // past beat_gate, so an un-stamped leg never speaks.
+                    // Per-transition breather gate. The two NAV-2 acks share
+                    // arrive1_said because they are variants of ONE beat: either
+                    // may speak, neither may follow the other.
                     VariableSet((
                         key: "arrive1_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "arrive3_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     // The debris-pinch beat: pinch_gate stamps the breather
-                    // after NAV-1, pinch_warn_said is the "thread it slow"
-                    // warning one-shot, pinch_clear_said the far-side confirm.
+                    // after NAV-1; pinch_warn_said tells the far-side confirm
+                    // that the "thread it slow" warning has landed.
                     VariableSet((
                         key: "pinch_gate",
                         expression: Term(Factor(Literal(Number(0.0)))),
@@ -156,16 +148,12 @@
                         key: "pinch_warn_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "pinch_clear_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     // Stealth state (task 20260723-000320): spotted is the
                     // provocation one-shot (0 = the pickets sleep, 1 = woken
                     // by proximity, paint, or overspeed - and every wake
                     // handler gates on 0, so the flip fires exactly once).
-                    // win_gate/win_said drive the clean-run deferred Victory
-                    // beat (the ch2b idiom: payoff line first, overlay a beat
+                    // win_gate drives the clean-run deferred Victory beat
+                    // (the ch2b idiom: payoff line first, overlay a beat
                     // later).
                     VariableSet((
                         key: "spotted",
@@ -195,10 +183,6 @@
                     )),
                     VariableSet((
                         key: "win_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "win_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     // The objectives panel stays EMPTY through the opening
@@ -935,6 +919,7 @@
             // blind burn cannot start threading before the run is called. ---
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -959,6 +944,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -982,6 +968,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -1006,6 +993,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
@@ -1028,25 +1016,18 @@
                 ],
             ),
             // The hand-off: the briefing is done, so lazy-post the NAV
-            // objective and complete the holding recap. Gated nav_posted == 0
-            // so it fires exactly once (the count-gate lesson).
+            // objective and complete the holding recap. `once` retires it, so
+            // open_step 4 needs no hand-off flag beside it.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("open_step"))),
                         Term(Factor(Literal(Number(4.0)))),
                     ))),
-                    Expression((Equal(
-                        Term(Factor(Name("nav_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "nav_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "obj_ch3_recap",
                     )),
@@ -1063,6 +1044,7 @@
             // as the arrival line.
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("nav_1"),
@@ -1091,14 +1073,12 @@
                 ],
             ),
             // The pinch WARNING (a beat after the NAV-1 line): thread it slow.
-            // One-shot on pinch_warn_said, gated on the clock past pinch_gate.
+            // Gated on the clock past pinch_gate; it raises pinch_warn_said for
+            // the far-side confirm to read.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("pinch_warn_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("pinch_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -1119,34 +1099,27 @@
                         dwell: Some(10.0),
                     )),
                     // The channel closes in: darker sky for the pinch. Fires
-                    // once (pinch_warn_said 0 -> 1 guard above).
+                    // once - the handler retires with it.
                     SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             // The pinch CONFIRM: fires when the player clears the NARROWS
-            // trigger on the far side of the gap. One-shot on pinch_clear_said;
-            // gated pinch_warn_said == 1 so it cannot pre-empt the warning.
+            // trigger on the far side of the gap. Gated pinch_warn_said == 1
+            // so it cannot pre-empt the warning.
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("pinch_clear"),
                         other_id: Some("player_spaceship"),
                     )),
                     Expression((Equal(
-                        Term(Factor(Name("pinch_clear_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((Equal(
                         Term(Factor(Name("pinch_warn_said"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "pinch_clear_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "Clean through. Steady hands, Kestrel. The line opens up ahead - close on drop two.",
@@ -1166,6 +1139,7 @@
             // nobody). ---
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("picket_watch_starboard"),
@@ -1202,6 +1176,7 @@
             ),
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("picket_watch_port"),
@@ -1240,6 +1215,7 @@
             // thing in the channel - lock light travels both ways.
             (
                 name: OnCombatLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("channel_magpie_1"),
@@ -1276,6 +1252,7 @@
             ),
             (
                 name: OnCombatLockStart,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("channel_magpie_2"),
@@ -1326,9 +1303,13 @@
             // All handlers gate spotted == 0 && act == 1, so they compose
             // one-shot with the zone/paint provocations: any wake stamps
             // spotted = 1 and disarms these, and a trip here disarms those.
-            // speed_warned carries the 0 -> 1 -> 2 -> 3 state. ---
+            // speed_warned carries the 0 -> 1 -> 2 -> 3 state. The two
+            // countdown handlers are the only ones here WITHOUT `once`:
+            // 2 -> 3 -> 2 is a cycle the player may ride as often as they
+            // like, so retiring either would strand the ladder. ---
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("player_speed"))),
@@ -1366,6 +1347,7 @@
             // re-warn every other frame.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((LessThan(
                         Term(Factor(Name("player_speed"))),
@@ -1471,6 +1453,7 @@
             // Magpies Enemy, Vesh calls it.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("player_speed"))),
@@ -1519,6 +1502,7 @@
             // the difference.
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("nav_2"),
@@ -1553,6 +1537,7 @@
             // pre-stamp.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("arrive1_said"))),
@@ -1592,6 +1577,7 @@
             // one-shot as the sneak twin.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("arrive1_said"))),
@@ -1630,6 +1616,7 @@
             // beat_gate for the arrive3 line below).
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("nav_3"),
@@ -1656,15 +1643,12 @@
                 ],
             ),
             // The final-leg BREATHER: a beat after the drop-three line, Vesh
-            // welcomes the player toward the yard. One-shot on arrive3_said;
-            // gated gate == 4 so it only fires on the last leg.
+            // welcomes the player toward the yard. Gated gate == 4 so it only
+            // fires on the last leg.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("arrive3_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((Equal(
                         Term(Factor(Name("gate"))),
                         Term(Factor(Literal(Number(4.0)))),
@@ -1683,10 +1667,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "arrive3_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "That\'s the last of the rocks behind you. Bring her into the yard slow - I\'ll have the lights on.",
@@ -1699,6 +1679,7 @@
             // chapter on the spot, the shipped flow unchanged.
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("vesh_yard"),
@@ -1733,12 +1714,13 @@
             ),
             // The yard, CLEAN path (spotted == 0): the stealth payoff. Vesh's
             // "nothing on their scopes" line lands FIRST as a comms beat and
-            // the Victory overlay follows a beat later (win_gate/win_said, the
-            // ch2b deferred-victory idiom - a StoryMessage beside an Outcome
-            // is never read). act stamps 2 here: the run is over, so a
+            // the Victory overlay follows a beat later (win_gate, the ch2b
+            // deferred-victory idiom - a StoryMessage beside an Outcome is
+            // never read). act stamps 2 here: the run is over, so a
             // post-arrival death or paint changes nothing.
             (
                 name: OnEnter,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("vesh_yard"),
@@ -1777,14 +1759,11 @@
             // path (which declared its Victory above) can never double-fire.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("win_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("win_gate"))),
@@ -1796,10 +1775,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "win_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Outcome((
                         outcome: Victory,
                         message: Some("The channel is behind you and nobody knows you came through it. Vesh waves you into the yard: now the talk is about who exactly is buying this thing. The buyer is ahead."),
@@ -1813,6 +1788,7 @@
             // Player death before arrival: Defeat + retry.
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

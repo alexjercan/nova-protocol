@@ -30,10 +30,6 @@
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
-                        key: "w1_up",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
                         key: "w2_up",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
@@ -67,22 +63,6 @@
                     )),
                     VariableSet((
                         key: "r3b_down",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "hello_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "w1_clear_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "w2_clear_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "screen_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
@@ -509,11 +489,8 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("screen_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("screen_gate"))),
                         Term(Factor(Literal(Number(0.0)))),
@@ -528,10 +505,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "screen_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "screen_convoy",
                         message: "Keep the convoy alive until the relief wing arrives.",
@@ -558,14 +531,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("hello_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -573,10 +543,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "hello_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Capt. Halloran",
                         text: "Halloran here - the Queen\'s guild runs this line. Drives are cold on a transfer fault; we could not run if we wanted to.",
@@ -585,14 +551,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("w1_up"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -600,10 +563,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "w1_up",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "Two contacts off the shelf, one vector, coming down the lane.",
@@ -692,6 +651,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_1a"),
@@ -709,6 +669,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_1b"),
@@ -726,14 +687,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("w1_clear_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -753,10 +711,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "w1_clear_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Capt. Halloran",
                         text: "Clean shooting. Watch the dark - the Tallyman does not send twice the same way.",
@@ -765,14 +719,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("w2_up"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -920,6 +871,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_2a"),
@@ -937,6 +889,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_2b"),
@@ -954,6 +907,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_2c"),
@@ -971,14 +925,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("w2_clear_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -1002,10 +953,6 @@
                     ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "w2_clear_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "The Tallyman",
                         text: "You are burning my margins, pilot. The next crew brings real guns.",
@@ -1014,14 +961,11 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("w3_up"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -1133,6 +1077,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_3a"),
@@ -1150,6 +1095,7 @@
             ),
             (
                 name: OnDefeated,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("raider_3b"),
@@ -1167,6 +1113,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler_queen"),
@@ -1192,6 +1139,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler_meridian"),
@@ -1217,6 +1165,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -1248,6 +1197,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -1286,6 +1236,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -1326,6 +1277,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -1372,6 +1324,7 @@
             ),
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -1420,6 +1373,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -1446,6 +1400,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

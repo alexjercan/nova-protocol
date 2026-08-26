@@ -557,6 +557,7 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         // The scene lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.

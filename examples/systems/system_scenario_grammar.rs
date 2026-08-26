@@ -12,6 +12,11 @@
 //! disarmed escort; a keyed timer and filtered `OnTimerEnd`; and
 //! `ObjectiveComplete` when the ring is finally clear.
 //!
+//! It also measures `once`: the transitions carry it instead of a latch
+//! filter, and one UNFILTERED `once` OnUpdate handler counts its own runs.
+//! Without retirement that counter would read the frame count of the whole
+//! run; the report asserts it reads 1.
+//!
 //! Every beat waits on what the SCENARIO wrote - its own variables - rather
 //! than on a wall-clock settle, so a slow load or an llvmpipe frame stall
 //! delays the run instead of truncating it, and a beat that never resolves
@@ -199,6 +204,7 @@ fn main() -> bevy::app::AppExit {
             "escort_neutralized",
             "timer_ended",
             "ring_cleared",
+            "once_ticks",
         ]));
     }
 
@@ -317,6 +323,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         set_number("escort_neutralized", 0.0),
         set_number("timer_ended", 0.0),
         set_number("ring_cleared", 0.0),
+        set_number("once_ticks", 0.0),
         EventActionConfig::TimerStart(TimerStartActionConfig {
             key: "grammar_delay".to_string(),
             seconds: number(0.25),
@@ -329,11 +336,13 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: start_actions,
         },
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: true,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "grammar_delay".to_string(),
             })],
@@ -343,6 +352,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // variable arithmetic).
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: None,
                 type_name: Some("asteroid".to_string()),
@@ -351,26 +361,25 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             actions: vec![increment_variable("rocks_destroyed")],
         },
         // Enough kills advance the beat (expression filters: tally reached
-        // the threshold while still on beat 1).
+        // the threshold). `once` is what makes it a transition rather than a
+        // repeat - the old "and beat is still 1" guard was the handler asking
+        // whether it had already run.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
-            filters: vec![
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_greater_than(
-                        variable("rocks_destroyed"),
-                        number(KILLS_PER_ROUND as f64 - 1.0),
-                    ),
-                )),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(variable("beat"), number(1.0)),
-                )),
-            ],
+            once: true,
+            filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_greater_than(
+                    variable("rocks_destroyed"),
+                    number(KILLS_PER_ROUND as f64 - 1.0),
+                ),
+            ))],
             actions: vec![set_number("beat", 2.0)],
         },
         // The per-frame pulse promotes beat 2 -> 3 (OnUpdate + expression
-        // filter; the beat change makes it fire exactly once).
+        // filter, retiring on the pass).
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
                 VariableConditionNode::new_equals(variable("beat"), number(2.0)),
             ))],
@@ -383,6 +392,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // the ring's reach.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
+            once: false,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
                 VariableConditionNode::new_greater_than(
                     variable("rocks_destroyed"),
@@ -403,6 +413,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // area's id, the body's id) the area plugin reports.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
+            once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some(AREA_ID.to_string()),
                 other_id: Some(format!("rock_{AREA_ROCK}")),
@@ -412,6 +423,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         },
         ScenarioEventConfig {
             name: EventConfig::OnExit,
+            once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some(AREA_ID.to_string()),
                 other_id: Some(format!("rock_{AREA_ROCK}")),
@@ -424,6 +436,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // never delivers. Completing an objective here is the other half.
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
+            once: true,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                 id: Some(ESCORT_ID.to_string()),
                 ..default()
@@ -435,27 +448,33 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 }),
             ],
         },
-        // The emptied ring completes its objective. The latch in the filter is
-        // what makes an every-frame handler fire exactly once.
+        // The emptied ring completes its objective. `once` is what makes an
+        // every-frame handler fire exactly once; the only filter left is the
+        // one about the ring.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
-            filters: vec![
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_greater_than(
-                        variable("rocks_destroyed"),
-                        number(ASTEROID_COUNT as f64 - 1.0),
-                    ),
-                )),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(variable("ring_cleared"), number(0.0)),
-                )),
-            ],
+            once: true,
+            filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_greater_than(
+                    variable("rocks_destroyed"),
+                    number(ASTEROID_COUNT as f64 - 1.0),
+                ),
+            ))],
             actions: vec![
                 set_number("ring_cleared", 1.0),
                 EventActionConfig::ObjectiveComplete(ObjectiveCompleteActionConfig {
                     id: OBJECTIVE_RING.to_string(),
                 }),
             ],
+        },
+        // The retirement itself, measured: an UNFILTERED OnUpdate handler,
+        // which without `once` would tick on every frame of every round. The
+        // report asserts the counter reads exactly 1.
+        ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            once: true,
+            filters: vec![],
+            actions: vec![increment_variable("once_ticks")],
         },
     ];
 
@@ -688,6 +707,12 @@ fn report_grammar(world: &mut World) {
         ASTEROID_COUNT as f64,
         "every round's kills must be on the tally"
     );
+    assert_eq!(
+        number_variable(world, "once_ticks"),
+        1.0,
+        "a `once` handler runs on ONE frame: this one has no filter at all, so \
+         without retirement it would tick on every frame of every round"
+    );
     let objectives = world.resource::<GameObjectives>();
     for id in [OBJECTIVE_DISARM, OBJECTIVE_RING] {
         assert!(
@@ -708,6 +733,11 @@ fn report_grammar(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: every kill reaches the tally",
+        serde_json::json!({}),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: a once handler retires after one pass",
         serde_json::json!({}),
     );
     nova_probe::probe_marker(

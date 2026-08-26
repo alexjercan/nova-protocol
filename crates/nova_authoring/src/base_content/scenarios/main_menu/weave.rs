@@ -128,6 +128,7 @@ pub(crate) fn menu_weave(
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: objects
                 .into_iter()
@@ -151,6 +152,7 @@ pub(crate) fn menu_weave(
         },
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "weave_rotate".to_string(),
             })],
@@ -165,6 +167,7 @@ pub(crate) fn menu_weave(
         // carousel turns early.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: false,
             filters: vec![crate::scenario_helpers::entity("weave_runner")],
             actions: vec![EventActionConfig::TimerStart(TimerStartActionConfig {
                 key: "weave_reset".to_string(),
@@ -173,6 +176,7 @@ pub(crate) fn menu_weave(
         },
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "weave_reset".to_string(),
             })],

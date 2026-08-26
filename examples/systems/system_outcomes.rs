@@ -265,6 +265,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
     let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: vec![
                 EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -310,6 +311,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
         // Retry button at all: `primary` is None unless something is queued.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: false,
             filters: vec![by_id(PLAYER_ID)],
             actions: vec![
                 EventActionConfig::VariableSet(VariableSetActionConfig {
@@ -334,6 +336,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
         // cut tears the scenario down before the overlay can show.
         ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: false,
             filters: vec![by_id(HOSTILE_ID)],
             actions: vec![
                 EventActionConfig::VariableSet(VariableSetActionConfig {
@@ -374,6 +377,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
 fn outcome_probe_b(game_assets: &GameAssets) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         actions: vec![
             EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {

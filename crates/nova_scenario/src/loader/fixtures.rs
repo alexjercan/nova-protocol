@@ -29,6 +29,7 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
 pub(crate) fn event_with(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
     ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         actions,
     }

@@ -319,6 +319,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     // This example must not change what it reports.
     events.push(ScenarioEventConfig {
         name: EventConfig::OnNeutralized,
+        once: false,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
             id: Some(RAIDER_ID.to_string()),
             type_name: None,

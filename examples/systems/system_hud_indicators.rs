@@ -254,6 +254,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
 
     let events = vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         // The range lights itself: the engine spawns no light, so a scenario
         // that authors none renders black.

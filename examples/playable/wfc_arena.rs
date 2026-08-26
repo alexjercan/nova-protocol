@@ -1324,6 +1324,7 @@ fn arena(
         description: "Wave-function-collapse ships fight in a dressed arena".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: ships
                 .into_iter()

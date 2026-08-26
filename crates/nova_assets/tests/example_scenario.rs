@@ -732,6 +732,7 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
         description: "merge sweep pin".to_string(),
         events: vec![nova_scenario::prelude::ScenarioEventConfig {
             name: nova_scenario::prelude::EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: vec![nova_scenario::prelude::EventActionConfig::NextScenario(
                 nova_scenario::prelude::NextScenarioActionConfig {

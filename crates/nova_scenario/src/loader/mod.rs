@@ -11,6 +11,7 @@
 /// Scenario loader plugin and related types
 use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -308,6 +309,17 @@ fn is_false(b: &bool) -> bool {
 pub struct ScenarioEventConfig {
     /// The name of the event to listen for
     pub name: EventConfig,
+    /// Retire this handler the first time its filters pass.
+    ///
+    /// The engine holds the "we have already done this" fact so content does
+    /// not have to. Without it a beat that can only happen once still needs a
+    /// latch variable of its own, a filter reading it and an action writing it
+    /// - three lines of ceremony per beat, none of them about the game - and
+    /// the handler is walked every frame for the rest of the scenario anyway.
+    ///
+    /// Defaulted, so a file written before it existed parses unchanged.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub once: bool,
     /// Filters to apply to the event
     #[cfg_attr(
         feature = "serde",
@@ -320,6 +332,24 @@ pub struct ScenarioEventConfig {
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
     pub actions: Vec<EventActionConfig>,
+}
+
+impl ScenarioEventConfig {
+    /// Build the runtime handler this config describes.
+    ///
+    /// The loader and every headless rig go through here, so a field added to
+    /// the config cannot be honoured by one and quietly dropped by the other.
+    pub fn build_handler(&self) -> EventHandler<NovaEventWorld> {
+        let mut handler = EventHandler::<NovaEventWorld>::from(self.name);
+        handler.set_once(self.once);
+        for filter in &self.filters {
+            handler.add_filter(filter.clone());
+        }
+        for action in &self.actions {
+            handler.add_action(action.clone());
+        }
+        handler
+    }
 }
 
 /// Load a scenario given the configuration (this can be read from the GameScenarios resource).
@@ -629,6 +659,7 @@ mod tests {
             description: "serde smoke".to_string(),
             events: vec![ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 actions: vec![
                     EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {

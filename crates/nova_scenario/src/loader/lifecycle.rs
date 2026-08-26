@@ -282,17 +282,10 @@ pub(super) fn on_load_scenario(
     ));
 
     for event in scenario.events.iter() {
-        let mut event_handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in event.filters.iter() {
-            event_handler.add_filter(filter.clone());
-        }
-        for action in event.actions.iter() {
-            event_handler.add_action(action.clone());
-        }
         commands.spawn((
             ScenarioScopedMarker,
             Name::new(format!("Event Handler: {:?}", event.name)),
-            event_handler,
+            event.build_handler(),
         ));
     }
 
@@ -594,6 +587,7 @@ mod tests {
             description: "a range whose picket was deleted".to_string(),
             events: vec![ScenarioEventConfig {
                 name: EventConfig::OnDestroyed,
+                once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
                     id: Some("ghost_picket".to_string()),
                     ..default()
@@ -647,6 +641,7 @@ mod tests {
             description: "the sandbox offers itself again".to_string(),
             events: vec![ScenarioEventConfig {
                 name: EventConfig::OnDestroyed,
+                once: false,
                 filters: vec![],
                 actions: vec![EventActionConfig::NextScenario(NextScenarioActionConfig {
                     scenario_id: "sandbox".to_string(),

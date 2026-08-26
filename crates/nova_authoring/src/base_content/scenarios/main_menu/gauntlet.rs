@@ -242,6 +242,7 @@ pub(crate) fn menu_gauntlet(
         // later one.
         ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: stage
                 .into_iter()
@@ -271,6 +272,7 @@ pub(crate) fn menu_gauntlet(
         // batteries fire into the dark and skip - then the FULL reset.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
+            once: false,
             filters: vec![entity("gauntlet_ship")],
             actions: vec![timer("gauntlet_reset", 8.0)],
         },
@@ -280,6 +282,7 @@ pub(crate) fn menu_gauntlet(
         // same-flush rule.
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "gauntlet_reset".to_string(),
             })],
@@ -292,6 +295,7 @@ pub(crate) fn menu_gauntlet(
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: "gauntlet_watchdog".to_string(),
             })],
@@ -310,6 +314,7 @@ pub(crate) fn menu_gauntlet(
     for (id, _, _, period) in BATTERY_PARKS {
         events.push(ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
                 key: format!("{id}_fire"),
             })],

@@ -100,34 +100,35 @@ pub(crate) fn clock_past(key: &str) -> EventFilterConfig {
 }
 
 /// A one-shot OnUpdate handler that fires `actions` once, a beat after the
-/// deadline in `deadline_key` (set by [`mark_clock`]). `done_flag` latches it so
-/// it never re-fires. The `deadline_key > 0` guard keeps it from firing before
-/// the deadline is ever stamped: an unread scenario variable reads 0 and the
-/// clock starts at 0, so without the guard an unstamped deadline would look
-/// "already passed" and the objective would post on frame 0 - exactly the bug
-/// this module removes. `extra_filters` add beat/act preconditions (e.g. only
-/// while the ambush is live).
+/// deadline in `deadline_key` (set by [`mark_clock`]). The `deadline_key > 0`
+/// guard keeps it from firing before the deadline is ever stamped: an unread
+/// scenario variable reads 0 and the clock starts at 0, so without the guard an
+/// unstamped deadline would look "already passed" and the objective would post
+/// on frame 0 - exactly the bug this module removes. `extra_filters` add
+/// beat/act preconditions (e.g. only while the ambush is live).
 ///
 /// This is how an objective posts the beat AFTER its conversation, or after the
 /// previous objective's completion, instead of the same frame.
+///
+/// The "once" is the ENGINE's now. Each of these used to carry a `*_posted`
+/// variable of its own - initialised at OnStart, read by the first filter,
+/// written by the first action - and the handler was still walked every frame
+/// afterwards with that filter answering false forever.
 pub(crate) fn gated_once(
-    done_flag: &str,
     deadline_key: &str,
     extra_filters: Vec<EventFilterConfig>,
     actions: Vec<EventActionConfig>,
 ) -> ScenarioEventConfig {
     let mut filters = vec![
-        number_equals(done_flag, 0.0),
         number_greater_than(deadline_key, 0.0),
         clock_past(deadline_key),
     ];
     filters.extend(extra_filters);
-    let mut all = vec![set_variable(done_flag, number(1.0))];
-    all.extend(actions);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,
+        once: true,
         filters,
-        actions: all,
+        actions,
     }
 }
 
@@ -207,6 +208,7 @@ pub(crate) fn outro_beats(
     vec![
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![
                 timer(OUTRO_TEASE_TIMER),
                 number_equals(act_var, epilogue_act),
@@ -218,6 +220,7 @@ pub(crate) fn outro_beats(
         },
         ScenarioEventConfig {
             name: EventConfig::OnTimerEnd,
+            once: false,
             filters: vec![
                 timer(OUTRO_BANNER_TIMER),
                 number_equals(act_var, epilogue_act),

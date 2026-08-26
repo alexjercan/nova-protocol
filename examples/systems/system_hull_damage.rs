@@ -391,6 +391,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         description: "A sectioned ship taking scripted damage.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The rig lights itself: the engine spawns no light, so a
             // scenario that authors none renders black.

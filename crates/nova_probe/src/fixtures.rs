@@ -122,6 +122,7 @@ pub fn asteroid(
 pub fn spawn_on_start(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
         name: EventConfig::OnStart,
+        once: false,
         filters: vec![],
         actions: objects
             .into_iter()

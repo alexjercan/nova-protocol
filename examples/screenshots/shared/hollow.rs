@@ -221,6 +221,7 @@ pub fn ambush_hollow(
         description: "A rock hollow, and the ambush waiting in it.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             // The photo rig is authored content rather than an example-side
             // observer swap: scale 1.0 around the origin reproduces the kit's
@@ -297,6 +298,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         description: "The rock hollow with only the ordnance cast in it.".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: [
                 vec![shell.action(game_assets), player, raider, lance],

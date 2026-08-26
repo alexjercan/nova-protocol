@@ -997,6 +997,7 @@ mod tests {
         let mut s = scenario(vec![spawn_object("boss")], vec![]);
         s.events.push(ScenarioEventConfig {
             name: EventConfig::OnDestroyed,
+            once: false,
             filters: vec![],
             actions: vec![spawn_object("boss")],
         });
@@ -1252,6 +1253,7 @@ mod tests {
         for l in [line(Some(12.0)), line(None)] {
             s.events.push(ScenarioEventConfig {
                 name: EventConfig::OnStart,
+                once: false,
                 filters: vec![],
                 actions: vec![l],
             });

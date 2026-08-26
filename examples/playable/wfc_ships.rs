@@ -412,6 +412,7 @@ fn wfc_row(
         description: "Wave-function-collapse ships built from link-point rules".to_string(),
         events: vec![ScenarioEventConfig {
             name: EventConfig::OnStart,
+            once: false,
             filters: vec![],
             actions: ships
                 .chain(ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions())

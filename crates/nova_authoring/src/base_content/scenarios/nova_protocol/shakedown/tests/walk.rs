@@ -2,7 +2,7 @@
 //! scenario's handlers registered exactly as `on_load_scenario` registers
 //! them, driven through all five beats.
 
-use nova_events::prelude::{EventHandler, GameEventsPlugin};
+use nova_events::prelude::GameEventsPlugin;
 use nova_hud::prelude::HintEmphasis;
 
 use super::*;
@@ -46,14 +46,7 @@ fn scripted_app() -> App {
 
     let config = scenario();
     for event in &config.events {
-        let mut handler = EventHandler::<NovaEventWorld>::from(event.name);
-        for filter in &event.filters {
-            handler.add_filter(filter.clone());
-        }
-        for action in &event.actions {
-            handler.add_action(action.clone());
-        }
-        app.world_mut().spawn(handler);
+        app.world_mut().spawn(event.build_handler());
     }
     app
 }
