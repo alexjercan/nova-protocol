@@ -441,6 +441,11 @@ pub(crate) fn toggle_all_fields(_activate: On<Activate>, mut overlays: ResMut<Ed
     overlays.all_fields = !overlays.all_fields;
 }
 
+/// View > Ids: draw each tree row's id instead of the name it was given.
+pub(crate) fn toggle_ids(_activate: On<Activate>, mut overlays: ResMut<EditorOverlays>) {
+    overlays.ids = !overlays.ids;
+}
+
 /// Tick the View toggles, so the menu says what is ON rather than only what
 /// can be turned on.
 ///
@@ -459,6 +464,7 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::WorldGrid => overlays.world_grid,
             ViewToggle::ObjectVolumes => overlays.object_volumes,
             ViewToggle::AllFields => overlays.all_fields,
+            ViewToggle::Ids => overlays.ids,
         };
         let Some(lead) = children.iter().next() else {
             continue;
@@ -487,6 +493,8 @@ pub(crate) enum ViewToggle {
     /// Every field of a config, instead of the ones its kind is authored
     /// through.
     AllFields,
+    /// The tree's ids, instead of the names the nodes were given.
+    Ids,
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the

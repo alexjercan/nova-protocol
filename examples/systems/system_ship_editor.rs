@@ -1928,6 +1928,25 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .add()
+        // The tree's own view, and the way an event will be wired: a filter
+        // names its node by id, so the rail has to be able to say the ids.
+        .click_a_menu_item("editor: ask for the ids", MENU_VIEW, "Ids Item")
+        .step("editor: the tree reads as ids")
+        .until(the_tree_reads_as_ids())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: an event could be wired off the rail")
+        .on_enter(|world: &mut World| {
+            let labels = scene_row_labels(world);
+            nova_probe::probe_marker(
+                world,
+                "outcome: the tree can be read as the ids an event names",
+                serde_json::json!({}),
+            );
+            info!("editor: the rail reads {labels:?}");
+        })
+        .add()
+        .click_a_menu_item("editor: back to the names", MENU_VIEW, "Ids Item")
         .step("editor: the ids survived the trip out and back")
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().ids.clone();
@@ -2881,6 +2900,39 @@ fn inspector_labels(world: &World) -> Vec<String> {
         .iter()
         .map(|(label, _)| label.clone())
         .collect()
+}
+
+/// What the Scene rows READ as, in draw order - the label column only.
+#[cfg(feature = "debug")]
+fn scene_row_labels(world: &World) -> Vec<String> {
+    let Some(list) = named_entity(world, "Scene List") else {
+        return Vec::new();
+    };
+    let Some(rows) = world.get::<Children>(list) else {
+        return Vec::new();
+    };
+    rows.iter()
+        .filter_map(|row| {
+            let wrapper = world.get::<Children>(row)?.iter().nth(1)?;
+            let label = world.get::<Children>(wrapper)?.iter().next()?;
+            Some(world.get::<Text>(label)?.0.clone())
+        })
+        .collect()
+}
+
+/// Advance once the rail is drawing ids rather than names.
+///
+/// The ENTERED ship is the row to read it off: its id is short enough to
+/// survive the rail's elide, where a section's `<part>_section_<n>` is not, and
+/// the name it wears otherwise (`Ship 1`) is not its id (`ship_1`).
+#[cfg(feature = "debug")]
+fn the_tree_reads_as_ids() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let Some(inside) = world.resource::<EditorProbe>().inside.clone() else {
+            return false;
+        };
+        scene_row_labels(world).iter().any(|label| *label == inside)
+    })
 }
 
 /// Advance once the inspector is showing a row called `label`.

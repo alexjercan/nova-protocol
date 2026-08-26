@@ -70,7 +70,7 @@ use crate::{
         inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
-            on_menu_scrim, toggle_all_fields, toggle_key_legend, toggle_link_points,
+            on_menu_scrim, toggle_all_fields, toggle_ids, toggle_key_legend, toggle_link_points,
             toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
             MenuId, MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
@@ -176,6 +176,14 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 ViewToggle::AllFields,
                 menu_item_row("All Fields", MenuLead::Toggle, MenuTail::None, skin),
                 observe(toggle_all_fields),
+            ));
+            // And the tree's: an event names the nodes it fires on by id, so
+            // wiring one up is the one job where the names are in the way.
+            items.spawn((
+                Name::new("Ids Item"),
+                ViewToggle::Ids,
+                menu_item_row("Ids", MenuLead::Toggle, MenuTail::None, skin),
+                observe(toggle_ids),
             ));
             items.spawn(separator());
             items.spawn((
@@ -1106,6 +1114,10 @@ pub(crate) struct ShownScene {
 ///
 /// The same nodes `context_nodes` reports, plus the two rungs of the path, so
 /// the tree and the probe agree.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the document is five queries and the view is one flag"
+)]
 fn wanted_rows(
     context: &EditContext,
     q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
@@ -1113,6 +1125,7 @@ fn wanted_rows(
     q_objects: &ObjectNodes,
     nodes: &SectionNodes,
     catalog: Option<&GameSections>,
+    ids: bool,
 ) -> Vec<WantedRow> {
     let Some(scenario) = context.scenario() else {
         return Vec::new();
@@ -1223,6 +1236,19 @@ fn wanted_rows(
             kind: kind.to_string(),
         });
     }
+    // View > Ids, applied to the finished list rather than threaded through
+    // every arm above: the id is the same string whatever built the row. The
+    // trail goes with the name - the ordinal it holds is the tail of the id
+    // now in the label - except the mark that says which ship you are inside,
+    // which no id carries.
+    if ids {
+        for row in &mut rows {
+            row.label = elide(&row.id, label_budget(row.depth));
+            if row.trail != INSIDE {
+                row.trail = String::new();
+            }
+        }
+    }
     rows
 }
 
@@ -1239,6 +1265,7 @@ pub(crate) fn sync_scene_list(
     skin: Res<UiSkin>,
     context: Res<EditContext>,
     catalog: Option<Res<GameSections>>,
+    overlays: Res<EditorOverlays>,
     mut selected: ResMut<SelectedNode>,
     q_scenarios: Query<&NodeId, With<ScenarioNode>>,
     q_ships: ShipNodes,
@@ -1263,6 +1290,7 @@ pub(crate) fn sync_scene_list(
         &q_objects,
         &nodes,
         catalog.as_deref(),
+        overlays.ids,
     );
     // A selection cannot outlive its row: a section of a ship that was left is
     // not in the tree, so there is nothing left to carry the mark.
@@ -2226,6 +2254,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(UiSkin::default());
         app.init_resource::<SelectedNode>();
+        app.init_resource::<EditorOverlays>();
         app.init_resource::<LastClick>();
         app.init_resource::<FrameRequest>();
         // No `TimePlugin`: the clock is driven by hand below, so a "click" and
@@ -2482,6 +2511,35 @@ mod tests {
             row_leads(&mut app),
             vec![SCENARIO, SHIP_PLAYER, hull_mark(&mut app, first)],
             "entering keeps the driver mark and the hull section shows its kind"
+        );
+    }
+
+    /// The tree draws what a builder CALLED a thing, and an event fires on
+    /// what the document calls it. View > Ids is the one switch between them.
+    #[test]
+    fn the_tree_can_be_read_as_the_ids_an_event_would_name() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.world_mut()
+            .entity_mut(ship)
+            .get_mut::<ShipNode>()
+            .expect("the ship node")
+            .name = "Warden".to_string();
+
+        app.update();
+        assert!(
+            row_columns(&mut app).contains(&("Warden".to_string(), String::new())),
+            "named, by default: {:?}",
+            row_columns(&mut app)
+        );
+
+        app.world_mut().resource_mut::<EditorOverlays>().ids = true;
+        app.update();
+        assert!(
+            row_columns(&mut app).contains(&("ship_1".to_string(), String::new())),
+            "and by id on request: {:?}",
+            row_columns(&mut app)
         );
     }
 

@@ -65,6 +65,14 @@ pub(crate) struct InspectorPanel;
 #[derive(Component)]
 pub(crate) struct InspectorTitle;
 
+/// The node's ID, under the title.
+///
+/// A SPAN of the title's own text rather than a node of its own: it is the
+/// second half of one sentence, and a `TextSpan` shares the title's layout
+/// while keeping its own colour and size.
+#[derive(Component)]
+pub(crate) struct InspectorId;
+
 /// The row container, refilled when the row shape changes.
 #[derive(Component)]
 pub(crate) struct InspectorList;
@@ -257,6 +265,17 @@ impl Document<'_, '_> {
         }
     }
 
+    /// The node's ID, said out loud rather than hidden behind a hover.
+    ///
+    /// The one string an event's filter, a spawn action and a save file all
+    /// name a node by, so it belongs where a builder can read it off the panel
+    /// they are already looking at.
+    fn id_of(&self, node: Entity) -> String {
+        self.ids
+            .get(node)
+            .map_or_else(|_| String::new(), |id| id.0.clone())
+    }
+
     /// The title line: what kind of node, and which one.
     ///
     /// The node wears the same name its tree row does, so the panel and the row
@@ -332,6 +351,16 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                     margin: UiRect::vertical(px(6)),
                     ..default()
                 },
+                children![(
+                    Name::new("Inspector Id"),
+                    InspectorId,
+                    TextSpan::new(""),
+                    TextFont {
+                        font_size: FontSize::Px(10.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_MUTED),
+                )],
             ),
             // SCROLLS. A turret's joint tree is thirty rows deep, and a panel
             // that simply ran off the bottom of the screen put its muzzle's
@@ -925,6 +954,7 @@ pub(crate) fn sync_inspector(
     document: Document,
     mut panels: Query<&mut Node, With<InspectorPanel>>,
     mut titles: Query<&mut Text, With<InspectorTitle>>,
+    mut node_ids: Query<&mut TextSpan, With<InspectorId>>,
     lists: Query<Entity, With<InspectorList>>,
     fresh: Query<(), Added<InspectorList>>,
     mut shown: Local<ShownInspector>,
@@ -990,6 +1020,14 @@ pub(crate) fn sync_inspector(
     for mut text in &mut titles {
         if text.0 != title {
             text.0.clone_from(&title);
+        }
+    }
+    // Its own line under the title: the id is long, and a name and an id on
+    // one line is a line that wraps mid-word.
+    let said = format!("\n{}", document.id_of(target.node()));
+    for mut span in &mut node_ids {
+        if span.0 != said {
+            span.0.clone_from(&said);
         }
     }
     let Ok(list) = lists.single() else {

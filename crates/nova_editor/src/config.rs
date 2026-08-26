@@ -148,6 +148,10 @@ pub(crate) struct EditorOverlays {
     /// authored through. Off: the inspector is a first screen, and this is the
     /// way past it.
     pub(crate) all_fields: bool,
+    /// The tree draws each node's ID rather than its name. Off: a name is what
+    /// a builder called the thing, and this is for the times the id is what
+    /// they need - an event's filter names nodes by id, not by name.
+    pub(crate) ids: bool,
 }
 
 impl Default for EditorOverlays {
@@ -161,10 +165,11 @@ impl Default for EditorOverlays {
             link_points: true,
             world_grid: true,
             object_volumes: true,
-            // The exception: the curated inspector IS the editor's answer to
-            // "what does this thing do", and opening on the raw walk would
-            // bury it under the joint tree it was written to hide.
+            // The exceptions, both of which trade a reading for a listing:
+            // the curated inspector IS the editor's answer to "what does this
+            // thing do", and a tree of ids is a tree nobody named.
             all_fields: false,
+            ids: false,
         }
     }
 }

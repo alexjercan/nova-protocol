@@ -200,6 +200,29 @@ fn the_panel_lists_the_fields_of_the_node_it_is_on() {
     );
 }
 
+/// An event's filter names the node it fires on by ID, and the id used to be
+/// something only a hover over the right tree row would say.
+#[test]
+fn the_panel_says_the_id_an_event_would_name_it_by() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_7", 3.0);
+
+    select(&mut app, rock);
+
+    let said = app
+        .world_mut()
+        .query_filtered::<&TextSpan, With<InspectorId>>()
+        .single(app.world())
+        .expect("one id line")
+        .0
+        .clone();
+    assert_eq!(
+        said, "\nasteroid_7",
+        "the whole id, on its own line under the title"
+    );
+}
+
 /// A seeded hull is filed with the rocks only because of how a scenario stores
 /// it. The panel is the one place the reader is asked what they are looking at,
 /// so it says SHIP - and it opens on which hull and who flies it, not on the
