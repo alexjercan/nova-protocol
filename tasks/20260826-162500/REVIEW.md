@@ -194,7 +194,7 @@ see it.
   the grip and say `type a number first`; give a whole-number scrub the floor
   its type already carries rather than a second declaration per unsigned field.
 
-- [ ] R2.10 (MAJOR) web/src/wiki/keybinds.md:316 - the player wiki still
+- [x] R2.10 (MAJOR) web/src/wiki/keybinds.md:316 - the player wiki still
   describes the pre-v0.12.0 editor, and this range - the last of the three
   input and UI tasks - touched no document at all. `:325` sends the player to a
   rail row named Parts that does not exist (`GalleryAction::Open` is a Ship
@@ -315,7 +315,7 @@ see it.
   `Pickable { should_block_lower: false }` keeps it from eating the placement
   ray, so it is clutter rather than a block.
 
-- [ ] R2.22 (MINOR) docs - three chapters the range invalidated.
+- [x] R2.22 (MINOR) docs - three chapters the range invalidated.
   `docs/development.md:255` enumerates 25 `systems/` ranges; disk now holds 28,
   and none of `system_ui_scale`, `system_field_controls` or
   `system_input_modes` appears anywhere in `docs/`.
@@ -698,3 +698,51 @@ Proof:
 Not closed by this: R2.11 has no test. Both call sites need a camera with a
 real projection to reach, and the guard is two lines against a property this
 repo already documents at `nova_autopilot/src/input.rs:321`.
+
+### The documents the range invalidated - R2.10, R2.22
+
+The wiki's Editor section is rewritten against the editor that exists. It names
+the top bar rather than a rail row that never had Parts on it, puts Ship Skin
+back in the rail block it actually lives in (Ship Settings, not a Tools block
+the editor has never had), and lists the keys the section had no rows for:
+`Ctrl+S`, `Del`, `F`, `Bksp`, and the stage rig. `F5` is not among them - the
+editor binds no such key, and F1 is already documented in the Flight table.
+
+The mode rules are stated once, in the players' terms: what the gallery, a text
+field and a pending rebind each take, and what `Ctrl+S` still answers under -
+which is the change this round made, so the sentence documents the fixed
+behaviour rather than the reviewed one. `Esc` gets its whole ladder in order.
+
+A new "The inspector" subsection is the first player-facing text about the
+panel at all. It says the rows are read off the config, that a number's NAME is
+its grip, that lengths are in `u`, and that the drag and the box are different
+rules - a drag ARRIVES at the floor, a typed value below it is refused - plus
+the pointer wrap, which is what makes a 0.05-per-pixel field reachable at all.
+
+The book: `development.md` gains the three missing `systems/` ranges in the
+interface group, each with what it actually asserts. `automation-harness.md`
+gains `pointer_at`, `shot_written`, `loop_written`, `press_edit_key`,
+`scroll_lines` and `scroll_pixels`, and a new subsection on the two keyboard
+channels - the R2.13 defect stated as a rule, so the next range does not write
+the half-proof again. `architecture.md` names `input_mode` in the `nova_ui`
+row, states `InputModeSystems` in the frame-flow list as the `PreUpdate` step
+claims resolve in, and adds a where-it-lives pointer.
+
+Proof:
+
+- `nix develop --command mdbook build` clean.
+- `cd web && npm run ci` green - format check, lint, test and build - and the
+  rendered `/wiki/keybinds/` Editor section was read back out of `dist/`.
+- Every claim written was re-derived against the tree first: the five menus and
+  their rows in `ui/mod.rs:90-310`, the Ship Settings block in `ui/mod.rs:705`,
+  `FRAME_KEY`/`DELETE_KEY`/`SAVE_KEY`/`GALLERY_TOGGLE_KEY`, the Escape ladder
+  in `lib.rs:664`, `PreUpdate` and `InputModeSystems` in
+  `nova_ui/src/input_mode.rs:146`, and the three ranges' own module docs.
+- Two first-draft claims were WRONG and were corrected before commit: that the
+  arrow keys fly (they do not - WASD does, and it is not mode-gated at all),
+  and that dragging moves any selected node (body drags are scenario-node only;
+  inside a ship mating decides where a part sits).
+
+No CHANGELOG entry: every behaviour these documents now describe already has
+one under `[Unreleased]`, and the defects this round fixed were introduced
+inside the same release cycle.

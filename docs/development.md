@@ -277,7 +277,16 @@ What is on disk today, in reading order:
   `bug_neutralized_quiet` (a wreck's point defence stands down) and
   `system_borrowed_battery` (the Flight Computer works idle player PDCs). Then
   the interface, driven by synthesized pointer input: `system_ship_editor`
-  (build a ship and inspect it, refusals included), `system_hud_indicators`
+  (build a ship and inspect it, refusals included), `system_field_controls`
+  (the inspector's number rows: the unit a field's declaration gives it, the
+  step a drag on its name moves it by, and the floor that drag ARRIVES at
+  where a typed value is refused), `system_input_modes` (one owner of the
+  keyboard at a time - the same key pressed under a text field, the gallery, a
+  pending rebind and none of them, each verdict a NEGATIVE read after a settle
+  because a key that went nowhere raises no event), `system_ui_scale` (a
+  world-anchored label holds its LOGICAL offset when the scale factor doubles
+  and the window changes shape, and the top bar and the stage's nameplates are
+  read at every shape alongside it), `system_hud_indicators`
   (where a screen-projected indicator lands), `system_menu_boot` (the shipped
   boot flow) and
   `bug_menu_picker` (the Scenarios picker, whose pane split must not depend on

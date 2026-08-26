@@ -315,14 +315,55 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
 
 ## Editor
 
-The editor is mouse-first and has no gamepad bindings; these are the keys that
-save a trip to the rail. The bottom-left legend shows the ones that apply to
-whatever you are holding.
+The editor is mouse-first and has no gamepad bindings. Every key below is also
+a row on the top bar - **File**, **Edit**, **View**, **Add**, **Ship** - with
+the key printed beside it, so this table is a shortcut list and not a second
+interface. The bottom-left legend shows the gestures that apply to whatever you
+are holding right now; **View > Key Legend** hides it.
+
+Keys are verbs only while nothing else has the keyboard. With the parts gallery
+up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
+than backing out of the ship; with the caret in a text field, every key is a
+character; and while a rebind waits for a key, it takes all of them except
+<kbd>Esc</kbd>. <kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a
+field and a pending rebind.
 
 <table class="controls">
     <tr>
-        <td>Open or close the parts gallery</td>
-        <td><kbd>Tab</kbd> &nbsp;(or click <b>Parts</b> in the rail)</td>
+        <td>Fly the stage camera</td>
+        <td>
+            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
+            <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
+            right-drag to look
+        </td>
+    </tr>
+    <tr>
+        <td>Select a node; enter the ship you selected</td>
+        <td>left click; double click</td>
+    </tr>
+    <tr>
+        <td>Slide a ship or object on the ground plane (scenario node only)</td>
+        <td>drag its body</td>
+    </tr>
+    <tr>
+        <td>Move it along one axis; turn it about one</td>
+        <td>drag an arrow; drag a ring</td>
+    </tr>
+    <tr>
+        <td>Put the camera on the selection</td>
+        <td><kbd>F</kbd> &nbsp;(or <b>View &gt; Frame Selection</b>)</td>
+    </tr>
+    <tr>
+        <td>Delete the selection</td>
+        <td><kbd>Del</kbd> &nbsp;(or <b>Edit &gt; Delete</b>)</td>
+    </tr>
+    <tr>
+        <td>Save the document</td>
+        <td><kbd>Ctrl</kbd>+<kbd>S</kbd> &nbsp;(or <b>File &gt; Save</b>)</td>
+    </tr>
+    <tr>
+        <td>Open or close the parts gallery (inside a ship)</td>
+        <td><kbd>Tab</kbd> &nbsp;(or <b>Ship &gt; Parts...</b>)</td>
     </tr>
     <tr>
         <td>Gallery: take the part under the cursor and go build it</td>
@@ -357,17 +398,55 @@ whatever you are holding.
         <td><kbd>Q</kbd></td>
     </tr>
     <tr>
-        <td>Back out: leave the search field, the gallery, then the part</td>
+        <td>Bind a flight key to the selected part</td>
+        <td>
+            <b>Ship &gt; Rebind Key...</b> or the inspector's Key row, then
+            press the key
+        </td>
+    </tr>
+    <tr>
+        <td>Leave the ship you are inside</td>
+        <td><kbd>Bksp</kbd></td>
+    </tr>
+    <tr>
+        <td>Back out one rung</td>
         <td><kbd>Esc</kbd></td>
     </tr>
 </table>
 
-**Ship Skin**, in the rail's Tools block, dresses the build in the cladding the
-ship would fly with. Nothing places a plate: the skin is derived from the
-structure you have assembled, and it is re-derived as you build - including
-around the part you are still holding, so a hull is dragged about UNDER the skin
-and the plating closes over it before you click. A placement the editor refuses
-stays bare. The toggle carries through to Play, so the ship you built clad is
-the ship you fly clad.
+<kbd>Esc</kbd> takes one rung per press, in this order: an open top-bar menu,
+the search field, the gallery, a pending rebind, the part in hand, the ship you
+are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
+of that - it leaves the ship from wherever you are, unless a text field has the
+caret, where it deletes a character instead.
+
+### The inspector
+
+The right-hand panel shows the selected node's own fields, read off the thing
+itself rather than from a list the editor keeps - so a part that grows a setting
+grows a row. It opens on the fields that matter for that kind; **View > All
+Fields** shows the rest. A field the editor cannot edit is still listed, greyed,
+rather than hidden.
+
+**A number's NAME is its grip.** Drag the name left or right and the value
+follows, one step per pixel, live - there is nothing to confirm. A vector row
+has three of them, one per axis letter. Click into the box instead to type a
+number. Lengths are in `u`, the authored world unit, and the unit is printed
+beside the box; the HUD converts to metres for the player, but the editor is
+content, and content is authored in `u`.
+
+The two gestures are not the same rule. A drag ARRIVES at a field's floor and
+stops there - dragging a radius past zero is asking for the smallest value there
+is. A typed number below the floor is REFUSED, because typing `-3` into a radius
+is a mistake. A drag that runs out of screen wraps the pointer to the other
+side, so a 0.05-per-pixel field is still reachable on a narrow window.
+
+**Ship Skin**, in the left rail's **Ship Settings** block, dresses the build in
+the cladding the ship would fly with. Nothing places a plate: the skin is derived
+from the structure you have assembled, and it is re-derived as you build -
+including around the part you are still holding, so a hull is dragged about UNDER
+the skin and the plating closes over it before you click. A placement the editor
+refuses stays bare. The toggle carries through to Play, so the ship you built
+clad is the ship you fly clad.
 
 Button glyphs from [PromptFont](https://shinmera.com/promptfont/) by Yukari "Shinmera" Hafner (SIL Open Font License).

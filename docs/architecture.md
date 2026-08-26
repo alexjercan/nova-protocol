@@ -26,7 +26,7 @@ real code lives under `crates/`.
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), the portal client and downloads (`portal/`), and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/). |
 | `nova_mod_format` | Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`, not a crate. See [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/). |
-| `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (`theme::*`), the `UiSkin` visual-language switch (`skin`), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`) and the generic `status_bar`. Consumed by `nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor` and `nova_assets`. |
+| `nova_ui`       | Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (`theme::*`), the `UiSkin` visual-language switch (`skin`), the themed widgets (`widget`: button, slider, segmented control, list rows, panel chrome), screen-level composition (`screen`: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (`hud`), player-facing unit formatting (`units`), the shared typeface (`font`), the generic `status_bar` and the keyboard-ownership arbiter (`input_mode`: one app-global `InputMode` resolved from per-frame claims, with `InputModeSystems` as the ordering handle every keyboard consumer gates behind). Consumed by `nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor` and `nova_assets`. |
 | `nova_debug`    | Debug-only plugin (inspector, overlays). Compiled only under the `debug` feature. |
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](automation-harness.md). |
@@ -239,6 +239,11 @@ SpaceshipSystems::First -> SpaceshipInputSystems -> SpaceshipSectionSystems
 - `PostUpdate` hosts the chase camera's final move and the HUD's world-to-screen
   projection, ordered after it.
 - While `Paused`, the input and section sets are gated off and the clocks freeze.
+- `PreUpdate` hosts `nova_ui`'s `InputModeSystems`, which resolves that frame's
+  `ClaimKeyboard` messages into the one `InputMode` every keyboard system then
+  gates on. A claimant writes its claim `.before(InputModeSystems)`; a consumer
+  reads the resolved mode with `in_input_mode`, `in_input_mode_at_most` or
+  `owns_or_enters`.
 
 The render-rate chain (run in both `Update` and `FixedUpdate`) versus the
 fixed-timestep physics step and the interpolation that smooths rendering between
@@ -374,6 +379,9 @@ Never hand-edit the generated files; edit the builders and re-run `gen`.
 - Frame-flow sets: `SpaceshipSystems` - `crates/nova_gameplay/src/plugin.rs`;
   chained in `Update` + `FixedUpdate` by `NovaShipPlugin` -
   `crates/nova_ship/src/lib.rs`.
+- Who owns the keyboard: `InputMode`, `ClaimKeyboard` and `InputModeSystems` -
+  `crates/nova_ui/src/input_mode.rs`; the editor's claimant -
+  `declare_editor_keyboard_owner` in `crates/nova_editor/src/lib.rs`.
 - The two damage readings: `DamageLevel` -
   `crates/nova_gameplay/src/integrity/erosion.rs`; `DamageMarks` and the carve
   cost model - `crates/nova_gameplay/src/integrity/carve.rs`.

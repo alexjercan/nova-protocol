@@ -157,12 +157,28 @@ state, wait N seconds - is sugar for
 `step("hold:<state>").enter(state).until(elapsed(secs))` rather than a second
 mechanism. The vocabulary is in `nova_autopilot::predicate` (`elapsed`,
 `frames`, `state_is`, `resource_where`, `any_entity`, `ui_node_present`,
-`pointer_pressed`, `pointer_released`, `and`, `or`, `not`), the
+`pointer_pressed`, `pointer_released`, `pointer_at`, `shot_written`,
+`loop_written`, `and`, `or`, `not`), the
 gestures in `nova_autopilot::input` (`press_key`, `release_key`, `type_text`,
-`press_mouse`, `release_mouse`, `move_cursor`, `click_at`), and the Nova-typed
+`press_edit_key`, `press_mouse`, `release_mouse`, `move_cursor`, `click_at`,
+`scroll_lines`, `scroll_pixels`), and the Nova-typed
 predicates in `nova_debug::harness` (`scenario_variable_is`, `section_gone`,
 `player_ship_present`, and the `editor_*` set below). Anything the vocabulary
 cannot express is a plain closure: `Arc::new(|world: &World| ...)`.
+
+### A key press is two channels, and a beat has to pick
+
+Bevy delivers a key twice. `press_key` writes `ButtonInput<KeyCode>`, which is
+what a VERB reads. `press_edit_key` writes a `KeyboardInput` message, which is
+what a TEXT FIELD reads. Nothing bridges them, so a beat that drives one channel
+proves nothing about the other: pressing only `KeyCode::Delete` at a focused
+field asserts that the verb stayed quiet while the field was never asked to
+delete anything, and pressing only `Key::Delete` asserts the opposite half.
+
+A beat about who owns the keyboard therefore drives BOTH and reads both
+outcomes - see `examples/systems/system_input_modes.rs`, which presses each key
+down both channels and then asserts what the field holds as well as what the
+document holds.
 
 ### A UI gesture is three waits, not three sleeps
 
