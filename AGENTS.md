@@ -36,6 +36,9 @@ Global `~/AGENTS.md` applies. This file defines project-specific instructions.
 - Name plugins `<Subsystem>Plugin` and system sets `<Subsystem>Systems`. State
   cross-plugin ordering explicitly.
 - Build apps and examples with `AppBuilder`. Use seeded `bevy_rand` for gameplay.
+- Write code that reads as its own documentation. Give public items a
+  docstring. Comment inside a body only where the reason is not recoverable
+  from the code; delete a comment that restates what the next line does.
 - Keep module comments short. Explain ownership and constraints, not code or
   history.
 - Run only affected checks. Do not run full workspace tests or Clippy unless
