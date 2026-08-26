@@ -71,7 +71,11 @@ use self::{
         one_field_holds_the_focus, paint_text_fields, text_field_keyboard, text_field_on_pointer,
     },
 };
-use crate::{font::UiFont, skin::UiSkin};
+use crate::{
+    font::UiFont,
+    input_mode::{owns_or_enters, InputMode},
+    skin::UiSkin,
+};
 
 /// Marks the currently-active button within a `ButtonValue<T>` selection group.
 #[derive(Component)]
@@ -125,7 +129,13 @@ pub(crate) fn build(app: &mut App) {
             sync_slider_tracks.after(reconcile_slider_track_skins),
             (
                 one_field_holds_the_focus.before(text_field_keyboard),
-                text_field_keyboard,
+                // The field is Insert's owner, so it types under Insert and
+                // under Normal - the frame a click gives it the caret, the
+                // arbiter has not resolved yet. What it does NOT do is type
+                // under a mode above its own: a keybind capture takes the
+                // keyboard off a focused field like it takes it off everything
+                // else.
+                text_field_keyboard.run_if(owns_or_enters(InputMode::Insert)),
                 paint_text_fields,
             )
                 .in_set(TextFieldSystems),

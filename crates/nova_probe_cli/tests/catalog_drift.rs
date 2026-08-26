@@ -318,6 +318,15 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_input_modes",
+        &[
+            "insert mode keeps delete off the tree",
+            "the keyboard comes back to normal",
+            "browse mode keeps escape off the back-out",
+            "bind mode keeps delete off the tree",
+        ],
+    ),
+    (
         "bug_sandbox_soak",
         &[
             "every unshot rock collides as a hull",
@@ -423,7 +432,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 174;
+const SYSTEMS_INVARIANTS: usize = 178;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

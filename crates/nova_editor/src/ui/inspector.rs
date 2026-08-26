@@ -1383,15 +1383,6 @@ pub(crate) fn on_inspector_driver(
     }
 }
 
-/// Whether a field has the keyboard.
-///
-/// The editor's keys are single letters - W flies the camera, Q takes a part,
-/// Tab browses - so every one of them is also a character somebody is trying
-/// to type into a name. This is the condition that keeps them apart.
-pub(crate) fn typing_into_a_field(fields: Query<(), With<TextFieldFocused>>) -> bool {
-    !fields.is_empty()
-}
-
 /// Take the free-fly rig off the camera while a field is being typed into, and
 /// give it back afterwards.
 ///

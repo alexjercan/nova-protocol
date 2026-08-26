@@ -20,6 +20,7 @@ use bevy::{
 pub(crate) use catalog::GalleryCategory;
 pub(crate) use input::gallery_keyboard;
 use nova_ship::prelude::*;
+use nova_ui::prelude::{owns_or_enters, InputMode};
 pub(crate) use scene::EditorCamera;
 pub(crate) use ui::{EditorChrome, GalleryAction};
 
@@ -106,13 +107,15 @@ pub(crate) fn register(app: &mut App) {
             // Ahead of the rest: Tab is the only gallery key that acts while
             // the gallery is CLOSED, and the frame it opens on is a frame the
             // browse keys must already see as open.
-            // Tab is a key like any other while an inspector field has the
-            // keyboard: browsing parts is not what a builder naming a beacon
-            // asked for.
+            //
+            // Both are Browse's own systems, so both answer under Browse and
+            // under Normal, and both go quiet under a mode above it: browsing
+            // parts is not what a builder naming a beacon asked for, and a
+            // rebind waiting for a key gets the key.
             input::toggle_gallery
                 .run_if(gallery_reachable)
-                .run_if(not(crate::ui::inspector::typing_into_a_field)),
-            input::gallery_keyboard,
+                .run_if(owns_or_enters(InputMode::Browse)),
+            input::gallery_keyboard.run_if(owns_or_enters(InputMode::Browse)),
             ui::rebuild_gallery,
             ui::paint_gallery_cells,
             ui::sync_editor_chrome,

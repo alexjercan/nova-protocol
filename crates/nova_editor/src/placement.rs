@@ -1264,12 +1264,10 @@ pub(crate) fn draw_ship_heading(
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
+    use nova_ui::prelude::{in_input_mode, InputMode};
 
     use super::*;
-    use crate::{
-        keybind::rebind_armed,
-        node::{ensure_document, NodeId, ScenarioNode},
-    };
+    use crate::node::{ensure_document, NodeId, ScenarioNode};
 
     fn hull_config(id: &str) -> SectionConfig {
         SectionConfig {
@@ -1892,18 +1890,20 @@ mod tests {
         );
     }
 
-    /// The same key while a REBIND is armed belongs to the CAPTURE.
+    /// The same key under Bind belongs to the CAPTURE.
     ///
     /// Binding Delete to a part deleted the part on the way in: the capture
-    /// read the press and so did the tree. Nothing here undoes a delete, so
-    /// the verb stands down until the capture has its key.
+    /// read the press and so did the tree. Delete is a verb, verbs answer in
+    /// Normal, and a rebind waiting for a key is not Normal - so the verb is
+    /// not held off by a predicate naming the rebind, it simply is not the
+    /// keyboard's owner.
     #[test]
-    fn del_does_not_delete_while_a_rebind_waits_for_its_key() {
+    fn del_does_not_delete_under_bind_mode() {
         let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.init_resource::<ButtonInput<KeyCode>>();
-        app.init_resource::<EditorRebind>();
-        app.add_systems(Update, delete_key.run_if(not(rebind_armed)));
+        app.insert_resource(InputMode::Bind);
+        app.add_systems(Update, delete_key.run_if(in_input_mode(InputMode::Normal)));
         let scenario = app
             .world()
             .resource::<EditContext>()
@@ -1931,7 +1931,6 @@ mod tests {
             .id();
         app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
-        app.world_mut().resource_mut::<EditorRebind>().target = Some(section);
 
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

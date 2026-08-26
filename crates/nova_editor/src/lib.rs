@@ -32,6 +32,7 @@ use bevy::{
 use nova_assets::prelude::{GameAssets, GameAssetsStates};
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ui::prelude::{in_input_mode, owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems};
 
 mod bundle;
 mod config;
@@ -63,7 +64,7 @@ use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
-    rebind_armed, sync_section_keybind_labels, EditorRebind,
+    sync_section_keybind_labels, EditorRebind,
 };
 use node::{
     drop_edited_views, ensure_document, rebuild_node_views, report_duplicate_ids,
@@ -85,7 +86,7 @@ use ui::{
     callout::sync_placement_callout,
     inspector::{
         apply_inspector_edits, hold_camera_while_typing, paint_field_reasons, paint_swatch_hover,
-        sync_inspector, typing_into_a_field,
+        sync_inspector,
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
@@ -162,24 +163,22 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            // Ctrl+S is a modifier and a letter, and the letter is one a
-            // builder types into an inspector field. See `typing_into_a_field`.
-            save_key
-                .run_if(not(typing_into_a_field))
-                .run_if(not(rebind_armed)),
+            // Ctrl+S is a verb, and every verb in this file answers in Normal
+            // alone: the S is a letter a builder types into a field, and the
+            // whole chord is a key a rebind is entitled to capture.
+            save_key.run_if(in_input_mode(InputMode::Normal)),
             apply_file_request,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
     );
-    // Del removes what is marked, at any depth. Same guards as Ctrl+S: a name
-    // being typed into an Inspector field takes Delete with it, and an armed
-    // rebind owns the whole keyboard until it has its key.
+    // Del removes what is marked, at any depth - and it is the key that proves
+    // why the modes exist: bound while a rebind waited for it, it deleted the
+    // very section it was being bound to.
     app.add_systems(
         Update,
         delete_key
-            .run_if(not(typing_into_a_field))
-            .run_if(not(rebind_armed))
+            .run_if(in_input_mode(InputMode::Normal))
             .run_if(in_state(ExampleStates::Editor)),
     );
     // The top bar's menus. Closed on entering the editor because the bar they
@@ -219,26 +218,22 @@ fn editor_plugin(app: &mut App) {
     // toggle reads the answer in `Update`, and the two crates cannot order
     // against each other.
     app.add_systems(PreUpdate, declare_editor_escape_owner);
+    // The editor's two keyboard owners, declared where the state that defines
+    // them lives. `PreUpdate` and before the arbiter, so `Update` reads a mode
+    // that already knows about them.
     app.add_systems(
-        Update,
-        escape_backs_out
-            // Same reason as the placement chain below: the Escape that closes
-            // the gallery must not also put down the part it was holding.
-            .before(gallery::gallery_keyboard)
-            // And the Escape that cancels a rebind must not also leave the ship.
-            // Explicit, because this reads the target that system clears: run
-            // the other way round and the guard sees a rebind already gone.
-            .before(apply_section_rebind)
-            // And Escape in a field is the field's: it puts back what was
-            // there, which is one rung of its own.
-            .run_if(not(typing_into_a_field))
-            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+        PreUpdate,
+        declare_editor_keyboard_owner.before(InputModeSystems),
     );
+    // Both are verbs, so Normal is the whole guard. The rungs they do NOT own -
+    // the Escape that closes the gallery, cancels a rebind or puts back what a
+    // field held - belong to those modes' owners, and one press cannot reach
+    // two owners because only one of them is the keyboard's.
     app.add_systems(
         Update,
-        backspace_steps_out
-            .run_if(not(typing_into_a_field))
-            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+        (escape_backs_out, backspace_steps_out)
+            .run_if(in_input_mode(InputMode::Normal))
+            .run_if(in_state(ExampleStates::Editor)),
     );
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
@@ -366,8 +361,8 @@ fn editor_plugin(app: &mut App) {
         Update,
         frame_key
             .before(apply_frame_request)
-            .run_if(not(typing_into_a_field))
-            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+            .run_if(in_input_mode(InputMode::Normal))
+            .run_if(in_state(ExampleStates::Editor)),
     );
     // A request cannot outlive the visit that raised it: the way in frames the
     // context, and a stale request would move the camera straight back off it.
@@ -464,9 +459,11 @@ fn editor_plugin(app: &mut App) {
                 .chain(),
             report_duplicate_ids,
             // Both read single letters, which is also what a builder types
-            // into an inspector field. See `typing_into_a_field`.
-            pick_section_under_pointer.run_if(not(typing_into_a_field)),
-            cycle_placement_pose.run_if(not(typing_into_a_field)),
+            // into an inspector field - so both are verbs, and Normal is where
+            // verbs live. The rest of this chain draws, and drawing is not a
+            // question about the keyboard.
+            pick_section_under_pointer.run_if(in_input_mode(InputMode::Normal)),
+            cycle_placement_pose.run_if(in_input_mode(InputMode::Normal)),
             update_placement_preview,
             // The founding click reads the same pointer state the solver does:
             // with an empty edited ship there is nothing to solve against, and
@@ -510,7 +507,7 @@ fn editor_plugin(app: &mut App) {
         Update,
         wheel_placement_pose
             .before(update_placement_preview)
-            .run_if(not(typing_into_a_field))
+            .run_if(in_input_mode(InputMode::Normal))
             .run_if(resource_exists::<Messages<MouseWheel>>)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
@@ -530,17 +527,16 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Scenario),
         |mut rebind: ResMut<EditorRebind>| *rebind = EditorRebind::default(),
     );
-    // NOTE: the rebind capture and the right-drag cursor grab are gated on the
-    // gallery being CLOSED - while the overlay is up it owns the keyboard (a
-    // filter keystroke would otherwise be captured as a section binding) and
-    // the pointer.
+    // NOTE: the capture is Bind's own system, so it answers under Bind and
+    // under Normal - the click that arms it lands a frame before the mode
+    // resolves. Everything more exclusive than Bind is nothing, and everything
+    // less takes the keyboard off it: a gallery filter keystroke is not a
+    // section binding.
     app.add_systems(
         Update,
         (
             sync_section_keybind_labels,
-            apply_section_rebind
-                .run_if(not(gallery::gallery_open))
-                .run_if(not(typing_into_a_field)),
+            apply_section_rebind.run_if(owns_or_enters(InputMode::Bind)),
             position_section_keybind_labels.run_if(not(gallery::gallery_open)),
             // The gallery covers the ship the chips label, so they go off with
             // the rest of the editor's chrome while it is up.
@@ -633,16 +629,37 @@ fn declare_editor_escape_owner(
     }
 }
 
+/// Claim the keyboard for the editor's two modes (see [`InputMode`]).
+///
+/// A gallery over the build area answers its own keys, and a rebind waiting for
+/// a key is entitled to every one of them. Written from the state that DEFINES
+/// each mode rather than latched on entry, so a mode that ends by having its
+/// state cleared - on a scene change, say - ends here too.
+fn declare_editor_keyboard_owner(
+    editor: Res<State<ExampleStates>>,
+    gallery: Res<gallery::GalleryState>,
+    rebind: Res<EditorRebind>,
+    mut claims: MessageWriter<ClaimKeyboard>,
+) {
+    if *editor.get() != ExampleStates::Editor {
+        return;
+    }
+    if gallery.open {
+        claims.write(ClaimKeyboard(InputMode::Browse));
+    }
+    if rebind.target.is_some() {
+        claims.write(ClaimKeyboard(InputMode::Bind));
+    }
+}
+
 /// Escape backs out one step: it puts the armed part down, and with nothing in
 /// hand it leaves the ship you are inside.
 ///
 /// ONE RUNG PER PRESS. The full ladder is: an open top-bar menu, then the
-/// gallery (which answers its own Escape while it is up, see `gallery::input`),
-/// then a pending rebind (which `keybind::apply_section_rebind` cancels), then
-/// the armed part, then the edit context, then the pause menu. The two rungs
-/// this system does not own are the two it has to check for itself - the
-/// gallery through a run condition, the rebind here - because both of those
-/// cancel in the SAME frame this reads the key, not before it.
+/// gallery, then a pending rebind, then the armed part, then the edit context,
+/// then the pause menu. This system owns the middle of that ladder and nothing
+/// else: the rungs above it belong to modes, and a mode holding the keyboard is
+/// a mode this never runs under.
 /// Backspace steps OUT one level, from anywhere.
 ///
 /// Escape already ends at the same rung, but it is the key that also closes a
@@ -659,15 +676,11 @@ fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<Edit
 
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
-    // Read before `apply_section_rebind` consumes it - see the ordering at the
-    // registration. A rebind cancelled and a ship left on one press is two rungs
-    // of context thrown away for one gesture.
-    rebind: Res<EditorRebind>,
     mut menu: ResMut<OpenMenu>,
     mut choice: ResMut<SectionChoice>,
     mut context: ResMut<EditContext>,
 ) {
-    if !keys.just_pressed(KeyCode::Escape) || rebind.target.is_some() {
+    if !keys.just_pressed(KeyCode::Escape) {
         return;
     }
     // The menu is drawn over everything else, so it is what the press is aimed
@@ -817,6 +830,56 @@ mod tests {
         }
     }
 
+    /// The editor declares its two modes from the state that defines them, and
+    /// declares nothing at all once it is out flying.
+    ///
+    /// Both at once is a real frame - a rebind armed and then the gallery
+    /// opened over it - and both are written; which one WINS is
+    /// `nova_ui::input_mode`'s to settle, not the claimant's.
+    #[test]
+    fn the_editor_claims_the_keyboard_for_its_two_modes() {
+        let cases = [
+            (ExampleStates::Editor, false, false, vec![]),
+            (ExampleStates::Editor, true, false, vec![InputMode::Browse]),
+            (ExampleStates::Editor, false, true, vec![InputMode::Bind]),
+            (
+                ExampleStates::Editor,
+                true,
+                true,
+                vec![InputMode::Browse, InputMode::Bind],
+            ),
+            (ExampleStates::Scenario, true, true, vec![]),
+        ];
+
+        for (state, gallery_open, rebinding, expected) in cases {
+            let mut world = World::new();
+            world.insert_resource(State::new(state.clone()));
+            world.insert_resource(gallery::GalleryState {
+                open: gallery_open,
+                ..default()
+            });
+            world.insert_resource(EditorRebind {
+                target: rebinding.then_some(Entity::PLACEHOLDER),
+                awaiting_release: false,
+            });
+            world.init_resource::<Messages<ClaimKeyboard>>();
+
+            world
+                .run_system_once(declare_editor_keyboard_owner)
+                .expect("the claim system runs");
+
+            let claimed: Vec<InputMode> = world
+                .resource_mut::<Messages<ClaimKeyboard>>()
+                .drain()
+                .map(|claim| claim.0)
+                .collect();
+            assert_eq!(
+                claimed, expected,
+                "{state:?} / gallery {gallery_open} / rebinding {rebinding}"
+            );
+        }
+    }
+
     /// An open top-bar menu is a back step of its own, and the topmost one: it
     /// is drawn over everything else, so Escape has to close it rather than
     /// fall through to the pause menu behind it.
@@ -846,10 +909,15 @@ mod tests {
         assert!(world.resource::<EscapeOwner>().0);
     }
 
-    /// The back gesture is a LADDER, one rung per press: a pending rebind owns
-    /// the press, then a part in hand goes down, and only after that does
-    /// Escape leave the ship. One press doing two would throw away two steps of
-    /// context for one gesture.
+    /// The back gesture is a LADDER, one rung per press: an open menu closes,
+    /// then a part in hand goes down, and only after that does Escape leave the
+    /// ship. One press doing two would throw away two steps of context for one
+    /// gesture.
+    ///
+    /// The rungs ABOVE these are not here because they are not this system's:
+    /// a gallery or a rebind holding the keyboard means Escape never reaches
+    /// it at all (`the_editor_claims_the_keyboard_for_its_two_modes`, and
+    /// `nova_ui::input_mode`).
     #[test]
     fn escape_puts_the_part_down_first_and_leaves_the_ship_second() {
         let scenario = Entity::from_raw_u32(1).expect("a test entity id");
@@ -860,28 +928,12 @@ mod tests {
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
         world.insert_resource(SectionChoice::Section("hull".to_string()));
-        world.init_resource::<EditorRebind>();
         world.insert_resource(OpenMenu(Some(MenuId::File)));
         world.insert_resource(EditContext {
             path: vec![scenario, ship],
         });
 
-        // A pending rebind owns the press outright: `apply_section_rebind`
-        // cancels it in this same frame, so backing out here as well would
-        // spend two rungs on one gesture.
-        world.resource_mut::<EditorRebind>().target = Some(Entity::PLACEHOLDER);
-        world
-            .run_system_once(escape_backs_out)
-            .expect("the back-out system runs");
-        assert_eq!(
-            *world.resource::<SectionChoice>(),
-            SectionChoice::Section("hull".to_string()),
-            "the rebind takes the press; the part stays in hand"
-        );
-        assert_eq!(world.resource::<EditContext>().ship(), Some(ship));
-        world.resource_mut::<EditorRebind>().target = None;
-
-        // Then the open menu, which is drawn over the part in hand.
+        // The open menu first, drawn over the part in hand.
         world
             .run_system_once(escape_backs_out)
             .expect("the back-out system runs");

@@ -27,17 +27,6 @@ pub(crate) struct EditorRebind {
     pub(crate) awaiting_release: bool,
 }
 
-/// Whether a rebind is waiting for a key.
-///
-/// A stop-gap, and a narrow one: while the capture is armed EVERY key belongs
-/// to it, and the editor's own key verbs still answer their own. Delete is the
-/// one that cannot be taken back - binding Delete deleted the section it was
-/// being bound to - so the verbs are held off here until the input modes land
-/// and one owner holds the keyboard at a time.
-pub(crate) fn rebind_armed(rebind: Option<Res<EditorRebind>>) -> bool {
-    rebind.is_some_and(|rebind| rebind.target.is_some())
-}
-
 /// A screen-space UI chip showing `section`'s current keybind, positioned each
 /// frame over the section NODE by projecting its world position with the editor
 /// camera. One per bindable (thruster/turret/torpedo) section.

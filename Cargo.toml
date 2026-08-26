@@ -210,6 +210,10 @@ name = "system_ship_editor"
 path = "examples/systems/system_ship_editor.rs"
 
 [[example]]
+name = "system_input_modes"
+path = "examples/systems/system_input_modes.rs"
+
+[[example]]
 name = "bug_sandbox_soak"
 path = "examples/systems/bug_sandbox_soak.rs"
 

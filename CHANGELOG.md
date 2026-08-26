@@ -151,6 +151,9 @@ does NOT get an entry - and it is the only place they are written down.
   registering a press or a release, and on either of two conditions (`or`).
 - Autopilot scripts can press a widget twice as one gesture, so a driven walk
   can spell a double-click.
+- One arbiter owns the keyboard: a verb answers in normal mode alone, and a
+  mode - a focused field, the parts gallery, a keybind capture - takes every key
+  from the verbs, which never hear of it.
 
 ## [0.11.0] - 2026-08-23
 
