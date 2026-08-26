@@ -1335,13 +1335,18 @@ pub(crate) fn on_row_trash(
     selected.0 = None;
 }
 
-/// One click SELECTS a row and puts the camera on it; two ENTER it.
+/// One click SELECTS a row and puts the camera on it; two ENTER it; one on a
+/// row you are already INSIDE comes back out to it.
 ///
 /// The single click is the cheap, reversible one, so it is the one that
 /// answers everywhere: every row selects, and the camera goes to whatever was
-/// named. Only the second click changes the CONTEXT - into a ship, or out of
-/// one from the root row - because that is the gesture that hides the rest of
-/// the document behind a breadcrumb.
+/// named. Only the second click goes IN - because entering is the gesture that
+/// hides the rest of the document behind a breadcrumb.
+///
+/// Coming OUT is not that gesture and never was. A row for a node the editor
+/// is inside cannot mean "go there", so one click means "come back out to
+/// there", at whatever depth. It used to frame instead, which read as the
+/// click having done nothing.
 ///
 /// An earlier version entered on the first click, so that a container never
 /// needed a double (owner: a double-click here had read as "the first click
@@ -1365,16 +1370,15 @@ pub(crate) fn on_scene_row(
     // `crate::node::sync_camera_focus`, which frames whatever was entered - so
     // the request the first half of the double raised steps aside rather than
     // writing the camera a second time in the same frame.
+    if context.leave_to(*node) {
+        selected.0 = None;
+        request.node = None;
+        return;
+    }
     if scenarios.contains(*node) {
-        if double {
-            context.to_root();
-            selected.0 = None;
-            request.node = None;
-        } else {
-            // The root is the whole stage: framing it is what "show me
-            // everything" means, and leaving a ship is the second click.
-            ask_for(&mut request, Some(*node));
-        }
+        // The root, and the editor is already standing on it: framing it is
+        // what "show me everything" means.
+        ask_for(&mut request, Some(*node));
         return;
     }
     if double && ships.contains(*node) {
@@ -2025,7 +2029,11 @@ pub(crate) fn sync_key_legend(
             "IN A SHIP",
             &[
                 ("LMB", "select"),
-                ("LMB x2", "leave"),
+                // The key, not the gesture: leaving is a single click on the
+                // scenario row now, which the tree shows and does not need a
+                // legend for. What the legend owes is the key that does it
+                // without the rail - see `backspace_steps_out`.
+                ("Bksp", "leave"),
                 ("Q", "pick a part"),
                 ("RMB+drag", "look"),
                 ("WASD", "fly"),
@@ -2639,11 +2647,14 @@ mod tests {
         );
     }
 
-    /// The root row is the way back, and it lands at the scenario node rather
-    /// than outside the document. One click on it frames the whole stage, which
-    /// is what the scenario node's bounds ARE.
+    /// The root row is the way back, on ONE click, and it lands at the scenario
+    /// node rather than outside the document.
+    ///
+    /// A row for something you are already inside cannot mean "go there". It
+    /// used to frame instead, and a builder who pressed the thing they wanted
+    /// to get back to watched the camera pull out without leaving.
     #[test]
-    fn the_root_row_leaves_the_ship_on_the_second_click() {
+    fn the_root_row_leaves_the_ship_on_one_click() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -2652,15 +2663,6 @@ mod tests {
 
         let root = row_for(&mut app, scenario);
         press(&mut app, root);
-        assert_eq!(
-            app.world().resource::<EditContext>().ship(),
-            Some(ship),
-            "one click stays where it is"
-        );
-        assert_eq!(framed(&mut app), Some(scenario), "and shows the stage");
-
-        let root = row_for(&mut app, scenario);
-        double_press(&mut app, root);
 
         assert_eq!(app.world().resource::<EditContext>().ship(), None);
         assert_eq!(
@@ -2668,6 +2670,23 @@ mod tests {
             Some(scenario)
         );
         assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
+    }
+
+    /// Standing ON the scenario node, its own row still frames the whole stage:
+    /// there is nothing to come out of, and "show me everything" is what the
+    /// root's bounds mean.
+    #[test]
+    fn the_root_row_frames_the_stage_from_the_root() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        app.update();
+
+        let root = row_for(&mut app, scenario);
+        press(&mut app, root);
+
+        assert_eq!(framed(&mut app), Some(scenario));
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
     }
 
     /// A selection cannot outlive the context it was made in: there is no row

@@ -282,10 +282,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world| set_colliders(world, false))
         .add()
         // Play compiles the document from the scenario node, so the walk
-        // steps out of the ship through the tree's root row first - and
-        // leaving a ship is the SECOND click on that row, one click only
-        // frames it.
-        .double_click("leave the ship for the hand-off", "Scene Row scenario")
+        // steps out of the ship through the tree's root row first: one click
+        // on a row you are inside is the way back out.
+        .click("leave the ship for the hand-off", "Scene Row scenario")
         .step("Play is reachable")
         .until(the_editor_can_play())
         .deadline(STEP_DEADLINE_SECS)

@@ -1112,7 +1112,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Add > New Ship is a scenario-context action, so the run steps out
         // through the tree's root row first - the same door a builder uses.
-        .double_click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
+        .click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
         .step("editor: back at the scenario node to add a ship")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1198,7 +1198,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Out through the tree's root row.
-        .double_click_a_widget("editor: leave the second ship", "Scene Row scenario")
+        .click_a_widget("editor: leave the second ship", "Scene Row scenario")
         .step("editor: the scenario node holds both ships")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1916,7 +1916,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Play only from the scenario node, so the run steps back out to press
         // it. The button is greyed inside a ship and the observer refuses too.
-        .double_click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
+        .click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
         .step("editor: Play is reachable")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)

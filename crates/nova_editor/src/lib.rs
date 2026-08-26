@@ -230,6 +230,12 @@ fn editor_plugin(app: &mut App) {
             .run_if(not(typing_into_a_field))
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
     );
+    app.add_systems(
+        Update,
+        backspace_steps_out
+            .run_if(not(typing_into_a_field))
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery::gallery_open))),
+    );
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
     // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
@@ -633,6 +639,20 @@ fn declare_editor_escape_owner(
 /// this system does not own are the two it has to check for itself - the
 /// gallery through a run condition, the rebind here - because both of those
 /// cancel in the SAME frame this reads the key, not before it.
+/// Backspace steps OUT one level, from anywhere.
+///
+/// Escape already ends at the same rung, but it is the key that also closes a
+/// menu, drops the part in hand and cancels a rebind - so "get me out of this
+/// ship" is a press whose effect depends on what else is open. This one does
+/// the one thing, always.
+///
+/// Not while a field has the keyboard: there, Backspace is a character.
+fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<EditContext>) {
+    if keys.just_pressed(KeyCode::Backspace) {
+        context.exit();
+    }
+}
+
 fn escape_backs_out(
     keys: Res<ButtonInput<KeyCode>>,
     // Read before `apply_section_rebind` consumes it - see the ordering at the

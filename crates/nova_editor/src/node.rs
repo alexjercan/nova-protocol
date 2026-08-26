@@ -349,10 +349,27 @@ impl EditContext {
         }
     }
 
-    /// Straight back to the scenario node, however deep the path is - what
-    /// clicking the tree's root row means.
+    /// Straight back to the scenario node, however deep the path is.
     pub(crate) fn to_root(&mut self) {
         self.path.truncate(1);
+    }
+
+    /// Come back out to `node`, if the editor is inside it. Says whether it
+    /// was.
+    ///
+    /// The gesture a click on an ancestor row makes: a row for something you
+    /// are already INSIDE cannot mean "go there", so it means "come back out
+    /// to there" - one click, at whatever depth, rather than a double on the
+    /// root and a key for each rung between.
+    pub(crate) fn leave_to(&mut self, node: Entity) -> bool {
+        let Some(depth) = self.path.iter().position(|step| *step == node) else {
+            return false;
+        };
+        if depth + 1 == self.path.len() {
+            return false;
+        }
+        self.path.truncate(depth + 1);
+        true
     }
 }
 
