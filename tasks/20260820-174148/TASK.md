@@ -283,3 +283,65 @@ fired through the per-frame stance hold), `screenshot_radar_lock`,
 `hold actual PDC fire on one point` (`pdc_rounds_landed()` never satisfied,
 15 s deadline). Reproduced with the hunk reverted to the raw `ButtonInput`
 press: identical stall. Untouched here.
+
+### Step 3.5 - the whole player vocabulary (`3b273b85`, `15430962`, `4e0cf075`, `ca3340ef`)
+
+Owner's widening, 2026-08-27: every key a player can press is a registry action,
+so a rebind reaches all of them and stdin can name all of them. 15 actions ->
+33.
+
+**Retired, not ported.** The comms stack's V and B are deleted. Dismiss-oldest
+and skip-backlog were near-duplicates of each other, and the paced window
+already drains on its own. The panel no longer reads the keyboard at all. Its
+dismiss test was replaced by one that proves the real behaviour: a burst larger
+than `COMMS_VISIBLE_CAP` shows the cap's worth and lets the backlog through as
+cards expire.
+
+**Promoted.** `novaos_toggle` (Tab / right-stick click), `hud_cinematic`
+(backquote / Select), and the 16 NOVA OS viewer actions - orbit, pan, reframe,
+next/prev, GOTO, mates, reload, repair, rebind. The viewer actions carry no
+gamepad source: they never had one, and inventing pad buttons would reserve
+them against the flight rig.
+
+**Fixed by owner's call.** Escape stays hardcoded. It is the universal back-out
+at every rung, and a rebind could strand a player inside a mode. `FIXED_ROWS` in
+the settings screen is down to one row.
+
+**Why a polling seam and not a rig.** A `bevy_enhanced_input` rig spawns with
+the player ship; NOVA OS must open with no ship on the field. So
+`nova_input::poll::InputSources` resolves an action name against the live table
+from an ordinary system. It splits `just_pressed_desk` from `just_pressed_pad`
+because `toggle_nova_os` needs them apart - Tab opens and Escape closes, while
+the pad button must do both.
+
+**The footer would have lied after a rebind.** `NovaOsAppRuntime::hints`
+returned fixed strings. It now takes `&InputBindings`, each surface builds its
+row from the live table, and `rebuild_nova_os_footer_hints` gained
+`bindings.is_changed()` as a third trigger so it repaints on a rebind and not
+only on a mode change.
+
+**Two shipped defects found and fixed.**
+
+The gamepad shortcuts outside the flight rig were dead in v0.11.0. bevy 0.19 has
+no `ButtonInput<GamepadButton>` resource - digital state is a private field on
+the `Gamepad` COMPONENT (`bevy_input-0.19.1/src/gamepad.rs:383`, accessors at
+524/529). Every `Option<Res<ButtonInput<GamepadButton>>>` reader was permanently
+`None` in a real run; the tests passed only because they inserted the resource
+themselves. Pause on Start, HUD on Select and NOVA OS on the right-stick click
+all did nothing. `InputSources` reads the component, so it cannot recur.
+
+`rcs_modifier` and `combat_stance` both held gamepad Left Trigger 2, both rigs
+with `consume_input: false`, so one pull did both. Combat keeps the trigger - it
+is the aim position and it pairs with fire on Right Trigger 2, which the shipped
+turrets hold. The modifier takes Left Thumb, the only free standard button.
+`no_two_fixed_rig_actions_share_a_gamepad_button` walks both lists together;
+the radar hold/clear pair is exempt by name.
+
+**Proof.** `nova_os_ui` 111, `nova_hud` 218, `nova_menu` 82, `nova_os` 24,
+`nova_input` 21, `nova_ship` bindings 5/5. `cargo check --workspace
+--all-targets` clean. Live on Xvfb :90: `screenshot_nova_os_apps` drove both
+viewers through the real keyboard path, no panic.
+
+**Design doc.** `design.html` gained `#modekeys`, "And so did the computer's own
+keys", `#rawlanes` (the four stdin lanes) and the shipped section-firing table;
+the action table is 33 rows. Republished to the artifact.
