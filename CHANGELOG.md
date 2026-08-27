@@ -20,6 +20,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A handler can say `once: true` and retire itself the first time its filters
   pass, so a beat that happens one time no longer needs a latch variable, a
   filter reading it and an action writing it.
+- A `Sequence` action runs ordered beats, each behind its own delay or event
+  gate, and the engine holds the cursor - a paced chain costs one action
+  instead of a handler and a step counter per beat.
 
 ### Modding & Mod Portal
 

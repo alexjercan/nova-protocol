@@ -26,6 +26,8 @@ pub mod preload;
 mod trackers;
 
 use clock::register_clock_and_pulse;
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) use clock::tick_scenario_timers;
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
@@ -257,16 +259,25 @@ impl ScenarioConfig {
     /// decides from it whether the per-frame entity sampler has any reader at
     /// all. An arm missed here makes an inline query unavailable at runtime,
     /// which expressions fail closed on.
+    ///
+    /// Walks NESTED actions and `Sequence` gate filters through
+    /// [`EventActionConfig::walk`], so a query inside a step reads like one
+    /// inside a handler.
     pub fn inline_queries(&self) -> Vec<&QueryConfig> {
+        fn condition<'a>(filter: &'a EventFilterConfig, out: &mut Vec<&'a QueryConfig>) {
+            if let EventFilterConfig::Expression(config) = filter {
+                collect_condition_queries(&config.0, out);
+            }
+        }
+
         let mut out = Vec::new();
         for event in &self.events {
             for filter in &event.filters {
-                if let EventFilterConfig::Expression(config) = filter {
-                    collect_condition_queries(&config.0, &mut out);
-                }
+                condition(filter, &mut out);
             }
             for action in &event.actions {
-                match action {
+                action.walk_filters(&mut |filter| condition(filter, &mut out));
+                action.walk(&mut |action| match action {
                     EventActionConfig::VariableSet(config) => {
                         collect_expression_queries(&config.expression, &mut out);
                     }
@@ -274,7 +285,7 @@ impl ScenarioConfig {
                         collect_expression_queries(&config.seconds, &mut out);
                     }
                     _ => {}
-                }
+                });
             }
         }
         out
@@ -350,6 +361,36 @@ impl ScenarioEventConfig {
         }
         handler
     }
+
+    /// The wake handlers for every gated `Sequence` step this event can start.
+    ///
+    /// Separate from [`Self::build_handler`] because they are the ENGINE's
+    /// handlers, not the author's: they carry no authored action, they are not
+    /// counted as scenario handlers, and they exist only to move a cursor.
+    pub fn gate_handlers(&self) -> Vec<EventHandler<NovaEventWorld>> {
+        sequence_gate_handlers(&self.actions)
+    }
+
+    /// Every list of actions this handler can run in ONE frame: its own, plus
+    /// one per `Sequence` step it starts, however deeply nested.
+    ///
+    /// A step is a frame of its own - it lands seconds after the handler that
+    /// queued it - so every rule phrased "in the same frame" (an objective
+    /// beside a comms line, an attach before its spawn) has to read groups
+    /// rather than the handler's own list.
+    pub fn action_groups(&self) -> Vec<&[EventActionConfig]> {
+        let mut groups: Vec<&[EventActionConfig]> = vec![&self.actions];
+        for action in &self.actions {
+            action.walk(&mut |action| {
+                if let EventActionConfig::Sequence(config) = action {
+                    for step in &config.steps {
+                        groups.push(&step.actions);
+                    }
+                }
+            });
+        }
+        groups
+    }
 }
 
 /// Load a scenario given the configuration (this can be read from the GameScenarios resource).
@@ -380,12 +421,14 @@ impl ScenarioLoaded {
     /// Build the load-status snapshot from a scenario config. The counts come straight from the
     /// config: one handler per event, and one object per `SpawnScenarioObject` action.
     fn from_config(scenario: &ScenarioConfig) -> Self {
-        let object_count = scenario
-            .events
-            .iter()
-            .flat_map(|event| event.actions.iter())
-            .filter(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))
-            .count();
+        let mut object_count = 0;
+        for action in scenario.events.iter().flat_map(|event| &event.actions) {
+            action.walk(&mut |action| {
+                if matches!(action, EventActionConfig::SpawnScenarioObject(_)) {
+                    object_count += 1;
+                }
+            });
+        }
         Self {
             scenario_id: scenario.id.clone(),
             handler_count: scenario.events.len(),

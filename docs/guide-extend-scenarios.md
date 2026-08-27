@@ -159,8 +159,8 @@ pass. Everything lives in `crates/nova_scenario/src/filters.rs`.
 An action runs when a handler passes, in order. Everything lives in
 `crates/nova_scenario/src/actions/`: the `EventActionConfig` enum and its
 dispatch in `actions/mod.rs`, each action's config and impl in the submodule
-for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `ship.rs`,
-`spawn.rs`, `timer.rs`).
+for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `sequence.rs`,
+`ship.rs`, `spawn.rs`, `timer.rs`).
 
 1. Define the config struct and its `EventAction<NovaEventWorld>` impl.
    `fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo)` mutates

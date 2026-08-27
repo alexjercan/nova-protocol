@@ -10,6 +10,10 @@ A handler that describes a beat happening ONCE says
 name, and the engine retires it the first time its filters pass. Every
 repeating event below composes with it.
 
+An event name also appears inside a
+[`Sequence`](../actions/#sequence) step's `until` gate, where it names the
+event a paced beat waits for. The filters that qualify it are the same ones.
+
 The whole vocabulary at a glance:
 
 | event | payload | fires when |

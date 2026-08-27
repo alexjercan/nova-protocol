@@ -20,7 +20,53 @@
 use bevy::prelude::*;
 use nova_events::prelude::EventWorld;
 
-use crate::prelude::NovaEventWorld;
+use crate::prelude::*;
+
+/// Register a scenario into a rig exactly as `on_load_scenario` registers it:
+/// its watches, the authored handler per event, and the engine's own `Sequence`
+/// gate handlers.
+///
+/// One call rather than a loop per rig, for the same reason
+/// [`ScenarioEventConfig::build_handler`] exists: a handler kind added to the
+/// loader must not be a handler kind the rigs quietly do without. The watches
+/// come with it because [`advance_scenario_clock`] publishes the clock THROUGH
+/// them - a rig that skipped them would read `scenario_elapsed` as undefined.
+pub fn register_scenario_handlers(app: &mut App, scenario: &ScenarioConfig) {
+    {
+        let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+        world.set_watches(scenario.watches.clone(), scenario.reads_an_entity_query());
+    }
+    for event in &scenario.events {
+        app.world_mut().spawn(event.build_handler());
+        for gate in event.gate_handlers() {
+            app.world_mut().spawn(gate);
+        }
+    }
+}
+
+/// Advance a rig's scenario clock by `seconds`, then run the two systems the
+/// live chain runs behind the clock: deliver every `Sequence` beat that came
+/// due, and fire every timer that ended.
+///
+/// A rig drives its own clock instead of running `tick_scenario_clock`, so it
+/// has to drive what hangs off the clock too - otherwise a beat chain never
+/// plays and a keyed timer never ends, and both read as content bugs.
+///
+/// One call delivers at most one step of any one chain, exactly as the live
+/// pulse does: a step's delay is measured from the step before it, so a single
+/// jump can only make the head of a chain ready.
+pub fn advance_scenario_clock(app: &mut App, seconds: f64) {
+    {
+        let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+        world.advance_scenario_elapsed(seconds);
+    }
+    app.world_mut()
+        .run_system_cached(advance_scenario_sequences)
+        .expect("the sequence driver runs against a rig world");
+    app.world_mut()
+        .run_system_cached(crate::loader::tick_scenario_timers)
+        .expect("the timer tick runs against a rig world");
+}
 
 /// Iterations either helper spends before it calls the drain broken.
 ///
@@ -110,7 +156,6 @@ mod tests {
     use nova_gameplay::prelude::GameObjectives;
 
     use super::*;
-    use crate::prelude::*;
 
     /// Objects applied so far, across every rig in this module.
     static APPLIED: AtomicUsize = AtomicUsize::new(0);

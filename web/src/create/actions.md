@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 25 at a glance:
+never panics a scenario). All 26 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -19,6 +19,7 @@ never panics a scenario). All 25 at a glance:
 | [`HudReadout`](#hudreadout) | [mission](#mission-story) | bind a live HUD readout to a scenario variable |
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
+| [`Sequence`](#sequence) | [pacing](#pacing) | run an ordered list of beats, each behind its own delay or gate |
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
@@ -349,6 +350,102 @@ HintEmphasisClear((verb: "RADAR")),
 
 </details>
 
+## Pacing
+
+### Sequence
+
+Run an ordered list of BEATS. The ENGINE holds the cursor, so a paced chain
+costs one action and no scenario variable.
+
+```ron
+Sequence((
+    key: "opening",
+    steps: [
+        (
+            after: Some(2.0),
+            actions: [
+                StoryMessage((
+                    speaker: "Capt. Halloran",
+                    text: "Kestrel, you are cleared to burn.",
+                )),
+            ],
+        ),
+        (
+            after: Some(8.4),
+            actions: [
+                Objective((id: "b1_burn", message: "Fly to BEACON 1.")),
+            ],
+        ),
+    ],
+)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `key` | string | required | scenario-local chain key; the engine files the cursor under it |
+| `steps` | list | required | the beats, in order; at least one |
+
+A step:
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `after` | seconds | none | scenario time to wait, from when this step became current |
+| `until` | event + filters | none | an event that must arrive, qualified by its filters |
+| `deadline` | seconds | none | how long the step may wait before the chain is called stuck; REQUIRED with `until` |
+| `actions` | list | `[]` | what the beat does |
+
+Both waits may sit on one step, and they run TOGETHER: a gate that opens early
+still owes the delay, and a delay that elapses first still owes the gate. A
+step with neither runs the moment it becomes current - which is how a hand-off
+beat rides the end of a chain.
+
+```ron
+(
+    after: Some(6.0),
+    until: Some((
+        name: OnUpdate,
+        filters: [Expression((Equal(
+            Term(Factor(Name("surveyed"))),
+            Term(Factor(Literal(Number(1.0)))),
+        )))],
+    )),
+    deadline: Some(600.0),
+    actions: [ /* the beat */ ],
+),
+```
+
+The semantics are WAIT, never SKIP: a step whose gate stays shut blocks the
+beats behind it. That is why a gated step must carry a `deadline` - when it
+expires the chain STOPS and logs an error, so a soft-lock is loud instead of
+silent. `content lint` refuses a gated step without one.
+
+Delays ride the pause-frozen scenario clock, so a gap measures play time, not
+wall time.
+
+One cursor per key. Starting a key whose chain is still running is refused and
+logged; a chain that has finished frees its key. Several handlers MAY start the
+same key when only one of them can ever fire - every win variant of a scenario
+starting one shared outro chain is the idiom.
+
+A step's actions are a FRAME of their own, landing seconds after the handler
+that queued them, and everything else applies inside a step unchanged: an
+objective still must not share a beat with a comms line, and a beat may start
+a chain of its own.
+
+**What it replaces.** A paced chain used to be sibling `OnUpdate` handlers
+strung together by hand: a counter variable seeded in `OnStart`, a
+`VariableSet` per beat to advance it, and a filter per beat reading both the
+counter and `scenario_elapsed` against a stamped deadline. All of that is
+about the machine. Reach for a chain whenever the only thing a beat is waiting
+for is "later"; keep a handler where the beat must still ASK something when it
+lands - which of two lines to speak, whether the fight is still live - because
+a step runs when its wait ends and only a handler can re-check.
+
+</details>
+
 ## Flow: outcomes & transitions
 
 ### Outcome
@@ -537,6 +634,10 @@ number. Invalid values log an error and leave an existing timer unchanged.
 Timers freeze under pause and clear on retry or teardown. Use an
 [`OnTimerEnd`](../events/#ontimerend) handler with a
 [`Timer`](../filters/#timer) filter to react once.
+
+A timer earns its handler when the beat must still ASK something when it
+lands - is the wing still alive, which line fits. A run of beats that only
+waits for later is a [`Sequence`](#sequence) instead.
 
 </details>
 

@@ -68,12 +68,14 @@ fn every_referenced_id_is_spawned() {
 fn the_marker_rides_every_leg_and_hands_off() {
     let config = scenario();
 
-    // Handler index -> (attach targets, detach targets) in order.
+    // Handler index -> (attach targets, detach targets) in order. A marker a
+    // beat sets counts as the handler's: the chain belongs to the handler that
+    // started it.
     let marker_ops = |event: &ScenarioEventConfig| {
         let mut attaches = Vec::new();
         let mut detaches = Vec::new();
         for action in &event.actions {
-            match action {
+            action.walk(&mut |action| match action {
                 EventActionConfig::ObjectiveMarkerAttach(attach) => {
                     attaches.push(attach.target_id.clone());
                 }
@@ -81,21 +83,24 @@ fn the_marker_rides_every_leg_and_hands_off() {
                     detaches.push(detach.target_id.clone());
                 }
                 _ => {}
-            }
+            });
         }
         (attaches, detaches)
     };
 
-    // The opening conversation hands off to objective 1: OnStart marks nothing
-    // (beacon 1 spawns lazily after the ~40s captain briefing), and the
-    // convo-end handler both spawns and marks beacon 1.
+    // The opening conversation hands off to objective 1: nothing is marked in
+    // the OnStart FRAME (beacon 1 spawns lazily, on the hand-off beat of the
+    // opening chain), and one handler's chain both spawns and marks beacon 1.
     let on_start = config
         .events
         .iter()
         .find(|event| matches!(event.name, EventConfig::OnStart))
         .unwrap();
     assert!(
-        marker_ops(on_start).0.is_empty(),
+        !on_start
+            .actions
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::ObjectiveMarkerAttach(_))),
         "OnStart marks nothing while the captain briefs"
     );
     let beacon_1_handler = config
@@ -108,34 +113,36 @@ fn the_marker_rides_every_leg_and_hands_off() {
         vec![ID_BEACON_1.to_string()]
     );
 
-    // Attach-after-spawn ordering: in every handler that both spawns
-    // an object and attaches a marker to it, the spawn comes first.
-    for event in &config.events {
+    // Attach-after-spawn ordering: in every FRAME that both spawns an object
+    // and attaches a marker to it, the spawn comes first. A beat is a frame of
+    // its own, and the hand-off beat is exactly this shape.
+    for group in config
+        .events
+        .iter()
+        .flat_map(ScenarioEventConfig::action_groups)
+    {
         let mut spawned_so_far: Vec<&str> = Vec::new();
-        let spawned_by_this_handler: Vec<String> = {
-            // Ids spawned by OTHER handlers before this one can run are
-            // not checkable statically; restrict the ordering assert to
-            // ids this same handler spawns.
-            event
-                .actions
-                .iter()
-                .filter_map(|action| match action {
-                    EventActionConfig::SpawnScenarioObject(object) => Some(object.base.id.clone()),
-                    _ => None,
-                })
-                .collect()
-        };
-        for action in &event.actions {
+        // Ids spawned by OTHER frames before this one can run are not
+        // checkable statically; restrict the ordering assert to ids this same
+        // frame spawns.
+        let spawned_here: Vec<String> = group
+            .iter()
+            .filter_map(|action| match action {
+                EventActionConfig::SpawnScenarioObject(object) => Some(object.base.id.clone()),
+                _ => None,
+            })
+            .collect();
+        for action in group {
             match action {
                 EventActionConfig::SpawnScenarioObject(object) => {
                     spawned_so_far.push(object.base.id.as_str());
                 }
                 EventActionConfig::ObjectiveMarkerAttach(attach)
-                    if spawned_by_this_handler.contains(&attach.target_id) =>
+                    if spawned_here.contains(&attach.target_id) =>
                 {
                     assert!(
                         spawned_so_far.contains(&attach.target_id.as_str()),
-                        "attach to '{}' precedes its spawn in the same handler",
+                        "attach to '{}' precedes its spawn in the same frame",
                         attach.target_id
                     );
                 }
@@ -263,6 +270,7 @@ fn pirate_spawns_late_at_the_debris_cluster() {
     );
 
     let pirate_spawns: Vec<&ScenarioObjectConfig> = all_actions(&config)
+        .into_iter()
         .filter_map(|action| match action {
             EventActionConfig::SpawnScenarioObject(object) if object.base.id == ID_PIRATE => {
                 Some(object)
@@ -299,6 +307,7 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
     let config = scenario();
 
     let ships: Vec<(&str, &SpaceshipConfig)> = all_actions(&config)
+        .into_iter()
         .filter_map(|action| match action {
             EventActionConfig::SpawnScenarioObject(object) => match &object.kind {
                 ScenarioObjectKind::Spaceship(ship) => Some((object.base.id.as_str(), ship)),

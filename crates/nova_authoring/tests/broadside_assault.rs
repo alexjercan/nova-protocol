@@ -18,8 +18,7 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, EntityId, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
-    OnDestroyedEvent, OnDestroyedEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnUpdateEvent,
-    OnUpdateEventInfo,
+    OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -111,6 +110,9 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
         app.world_mut().spawn(event.build_handler());
+        for gate in event.gate_handlers() {
+            app.world_mut().spawn(gate);
+        }
     }
 }
 
@@ -133,27 +135,20 @@ fn destroy(app: &mut App, id: &str) {
     step(app);
 }
 
-/// The outro's timer keys (see `nova_protocol::pacing`). A win opens the
-/// chain; the engine's `tick_scenario_timers` fires these once their deadlines
-/// pass. This rig registers handlers by hand and runs no clock, so it fires
-/// them directly - the same shape as `destroy` above.
-const OUTRO_TEASE_TIMER: &str = "outro_tease";
-const OUTRO_BANNER_TIMER: &str = "outro_banner";
-
-fn fire_timer(app: &mut App, key: &str) {
-    let key = key.to_string();
-    app.world_mut()
-        .run_system_once(move |mut commands: Commands| {
-            commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
-        })
-        .expect("fire OnTimerEnd");
-    step(app);
-}
+/// Longer than any single outro beat's delay. The win opens a `Sequence` and
+/// the ENGINE holds its cursor and delays, so this rig - which registers
+/// handlers by hand and runs no clock - advances the scenario clock past one
+/// beat at a time instead of firing a timer key. The cadence itself is pinned
+/// inside `nova_authoring`, where the pacing constants are visible.
+const OUTRO_BEAT_JUMP: f64 = 30.0;
 
 /// Walk both outro beats: the tease, then the banner that declares the win.
+/// One advance delivers one beat, exactly as the live pulse does.
 fn walk_outro(app: &mut App) {
-    fire_timer(app, OUTRO_TEASE_TIMER);
-    fire_timer(app, OUTRO_BANNER_TIMER);
+    for _ in 0..2 {
+        nova_scenario::test_support::advance_scenario_clock(app, OUTRO_BEAT_JUMP);
+        step(app);
+    }
 }
 
 fn number_var(app: &App, key: &str) -> Option<f64> {
@@ -536,10 +531,14 @@ fn the_win_line_reflects_the_haulers_fate() {
                 "no win line carries '{phrase}'"
             );
         }
-        let banners: Vec<String> = scenario
+        // Every win variant starts the SAME outro chain, so the banner text
+        // appears once per variant in the config. What the pin is about is the
+        // TEXT: one banner, shared - not one per fate.
+        let mut banners: Vec<String> = scenario
             .events
             .iter()
-            .flat_map(|event| event.actions.iter())
+            .flat_map(ScenarioEventConfig::action_groups)
+            .flatten()
             .filter_map(|action| match action {
                 EventActionConfig::Outcome(outcome)
                     if outcome.outcome == ScenarioOutcomeKind::Victory =>
@@ -549,6 +548,8 @@ fn the_win_line_reflects_the_haulers_fate() {
                 _ => None,
             })
             .collect();
+        banners.sort();
+        banners.dedup();
         assert_eq!(banners.len(), 1, "one shared Victory banner per part");
         for phrase in [alive_phrase, lost_phrase] {
             assert!(
@@ -727,11 +728,14 @@ fn base_bundle_ships_broadside() {
 #[test]
 fn the_shakedown_chain_declares_its_outcome() {
     let shakedown = scenario_from(SHAKEDOWN_RON);
+    // The chain rides the outro's LAST beat, so the frame to read is that
+    // beat's action list, not the handler's own.
     let chapter_win = shakedown
         .events
         .iter()
-        .find(|e| {
-            e.actions.iter().any(|a| {
+        .flat_map(ScenarioEventConfig::action_groups)
+        .find(|group| {
+            group.iter().any(|a| {
                 matches!(
                     a,
                     EventActionConfig::NextScenario(next) if next.scenario_id == "broadside"
@@ -740,14 +744,13 @@ fn the_shakedown_chain_declares_its_outcome() {
         })
         .expect("shakedown chains into broadside");
     assert!(
-        chapter_win.actions.iter().any(|a| matches!(
+        chapter_win.iter().any(|a| matches!(
             a,
             EventActionConfig::Outcome(o) if o.outcome == ScenarioOutcomeKind::Victory
         )),
         "the chain rides a Victory overlay (Continue)"
     );
     let chained = chapter_win
-        .actions
         .iter()
         .find_map(|a| match a {
             EventActionConfig::NextScenario(next) => Some(next),

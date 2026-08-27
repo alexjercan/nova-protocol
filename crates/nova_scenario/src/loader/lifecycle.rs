@@ -287,6 +287,17 @@ pub(super) fn on_load_scenario(
             Name::new(format!("Event Handler: {:?}", event.name)),
             event.build_handler(),
         ));
+        // A gated `Sequence` step is woken by a handler of its own, registered
+        // up front and live for the whole run: the step it belongs to may be
+        // many beats away, and the gate has to still be listening when the
+        // cursor gets there.
+        for gate in event.gate_handlers() {
+            commands.spawn((
+                ScenarioScopedMarker,
+                Name::new("Event Handler: Sequence Gate"),
+                gate,
+            ));
+        }
     }
 
     let loaded = ScenarioLoaded::from_config(&scenario);

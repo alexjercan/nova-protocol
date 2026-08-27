@@ -176,8 +176,55 @@ chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.
 
 Actions fan out to one submodule per family beside `actions/mod.rs` -
-`flow`, `mission`, `ship`, `spawn`, `timer`, `view` - and adding one is
-[Extend the scenario engine](guide-extend-scenarios.md).
+`flow`, `mission`, `sequence`, `ship`, `spawn`, `timer`, `view` - and adding
+one is [Extend the scenario engine](guide-extend-scenarios.md).
+
+### `Sequence` keeps its cursor in the engine
+
+`Sequence` is the one action whose state does not live in the action. A
+`SequenceActionConfig` is an authored LITERAL key plus an ordered list of
+steps; running it calls `NovaEventWorld::start_sequence`, which files a
+`SequenceRun` - key, steps, cursor, the time the step became current - in the
+event world beside the keyed timers. The config is immutable and shared
+(`Arc<Vec<SequenceStepConfig>>`), so the same chain can be authored once and
+started from several handlers.
+
+The cursor CANNOT live in the action: handlers are dispatched from an index
+snapshot and an action config is read-only during a pass, so a step counter
+held there would be per-fire, not per-run. Keying it by an authored literal
+also keeps `content lint` whole-program - no id in authored content is
+computed, so the linter still resolves every reference statically.
+
+Three pieces move a chain forward:
+
+- `advance_scenario_sequences` runs in `Update`, chained after
+  `sample_scenario_queries` and before `tick_scenario_timers` and
+  `fire_on_update`. It drains `take_ready_sequence_step` and runs the actions
+  the step returns. Queries are sampled first so a gate filter reads this
+  frame's values.
+- A step's `until` gate is a real handler. `sequence_gate_handlers` walks a
+  handler's actions and spawns one extra `EventHandler` per gated step,
+  carrying a private `SequenceGateAction { key, step }`. It is inert unless
+  the cursor stands on exactly that step, so a gate cannot open a chain it
+  does not belong to, and the gate opens the run rather than running the beat.
+  That costs one frame of latency between the gate event and the beat.
+- `take_ready_sequence_step` stamps `since = now` on the step it hands back,
+  so ONE clock jump delivers at most one step of any one chain. Steps with no
+  delay still collapse into a single pass, because the driver loops.
+
+Both waits on a step apply together, and the semantics are WAIT, never SKIP.
+That makes a shut gate a soft-lock, which is why a gated step carries a
+`deadline`: expiry stops the run and logs an `error!` naming the key, the step
+and the event it waited for. `start_sequence` holds the other loud half - a
+restart on a live key is refused and logged, because one key is one cursor.
+
+Because a step's action list is a FRAME of its own, four walkers had to learn
+to recurse into it: `inline_queries`, `object_count`, the lint's
+`collect_declared` / `check_action`, and the per-event spawn-id pass. The
+shared helpers are `EventActionConfig::walk` and
+`ScenarioEventConfig::action_groups`, which returns a handler's own actions
+plus one group per `Sequence` step it starts, however deeply nested. Any new
+rule that reasons about "one frame" reads `action_groups`, not `actions`.
 
 ## Variables and the event world (`world.rs`, `variables.rs`)
 
@@ -289,17 +336,19 @@ Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.
 ## Scenario patterns
 
-The event vocabulary has no built-in "state" beyond scenario variables and
-`once`, so the shipped mods build their control flow out of one numeric
-variable plus `Expression` filters. Two idioms recur; both are worked end to
-end in the [Gauntlet worked example](#the-gauntlet-worked-example) below.
-Excerpts here are verbatim from `webmods/gauntlet/gauntlet.content.ron`.
+The engine holds three facts for content - `once`, keyed timers, and a
+`Sequence` cursor - and everything past those is one numeric variable plus
+`Expression` filters. Two variable idioms recur; both are worked end to end in
+the [Gauntlet worked example](#the-gauntlet-worked-example) below. Excerpts
+here are verbatim from `webmods/gauntlet/gauntlet.content.ron`.
 
-`once` is what a variable is NOT for. A flag whose only reader is its own
-filter - seeded in `OnStart`, read by one gate, written by that gate's own
-action - is the engine's fact, not the scenario's, and the handler carries it
-now. Keep a variable where another handler reads it: an ORDERING counter like
-`gate` below, or a signal like "the convoy lost a ship".
+`once` and `Sequence` are what a variable is NOT for. A flag whose only reader
+is its own filter - seeded in `OnStart`, read by one gate, written by that
+gate's own action - is the engine's fact, and `once` carries it. A step
+counter whose only job is to keep paced beats in order is the engine's fact
+too, and a `Sequence` cursor carries it. Keep a variable where another handler
+reads it: an ORDERING counter like `gate` below, driven by where the PLAYER
+is, or a signal like "the convoy lost a ship".
 
 ### The gate-counter ordering pattern
 
@@ -581,7 +630,8 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack, and a rock's
   `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted).
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
-  `actions/` submodule (`flow`/`mission`/`ship`/`spawn`/`timer`/`view`), plus an
+  `actions/` submodule (`flow`/`mission`/`sequence`/`ship`/`spawn`/`timer`/
+  `view`), plus an
   `EventActionConfig` variant in `actions/mod.rs`.
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in

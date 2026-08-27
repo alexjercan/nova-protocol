@@ -11,9 +11,9 @@ pub mod prelude {
     pub use super::{
         attach_objective_marker, clear_hint_emphasis, complete_objective, despawn_object,
         detach_objective_marker, entity, entity_pair, increment_variable, number, number_equals,
-        number_greater_than, number_less_than, post_objective, scenario_elapsed_watch, set_number,
-        set_variable, show_hint_emphasis, spawn_object, start_timer, story_message, timer,
-        variable,
+        number_greater_than, number_less_than, post_objective, scenario_elapsed_watch, sequence,
+        set_number, set_variable, show_hint_emphasis, spawn_object, start_timer, step,
+        story_message, timer, until_step, variable,
     };
 }
 
@@ -205,5 +205,52 @@ mod tests {
             scenario_elapsed_watch("elapsed").query,
             QueryConfig::Scenario(_)
         ));
+    }
+}
+
+/// Build a keyed sequence action: an ordered beat chain the engine walks.
+///
+/// The engine holds the cursor, so a chain of beats costs ONE handler and no
+/// scenario variable. Prefer this to sibling handlers strung together by a
+/// counter or a stamped deadline.
+pub fn sequence(key: impl Into<String>, steps: Vec<SequenceStepConfig>) -> EventActionConfig {
+    EventActionConfig::Sequence(SequenceActionConfig {
+        key: key.into(),
+        steps,
+    })
+}
+
+/// Build a sequence step that runs `after` seconds of scenario time from when
+/// the step became current.
+pub fn step(after: f64, actions: Vec<EventActionConfig>) -> SequenceStepConfig {
+    SequenceStepConfig {
+        after: Some(after),
+        actions,
+        ..Default::default()
+    }
+}
+
+/// Build a sequence step that waits for BOTH `after` seconds of scenario time
+/// and `event` (qualified by `filters`), gives up loudly `deadline` seconds
+/// after the step became current, then runs `actions`.
+///
+/// The two waits run together, not one behind the other: a gate that opens
+/// early still owes the delay, and a delay that elapses first still owes the
+/// gate. Pass `after: 0.0` for a step that waits only on the gate.
+pub fn until_step(
+    after: f64,
+    event: EventConfig,
+    filters: Vec<EventFilterConfig>,
+    deadline: f64,
+    actions: Vec<EventActionConfig>,
+) -> SequenceStepConfig {
+    SequenceStepConfig {
+        after: Some(after),
+        until: Some(SequenceGateConfig {
+            name: event,
+            filters,
+        }),
+        deadline: Some(deadline),
+        actions,
     }
 }

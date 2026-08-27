@@ -94,15 +94,19 @@ fn spawn_by_id<'a>(event: &'a ScenarioEventConfig, id: &str) -> &'a ScenarioObje
 }
 
 fn triggered_spawn<'a>(scenario: &'a ScenarioConfig, id: &str) -> &'a ScenarioObjectConfig {
-    scenario
-        .events
-        .iter()
-        .flat_map(|e| e.actions.iter())
-        .find_map(|a| match a {
-            EventActionConfig::SpawnScenarioObject(s) if s.base.id == id => Some(s),
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("a handler spawns '{id}'"))
+    // A lazily spawned ship arrives on a BEAT of a chain (the cast-off), so the
+    // search has to walk into the steps, not just the handler's own actions.
+    let mut found = None;
+    for action in scenario.events.iter().flat_map(|e| e.actions.iter()) {
+        action.walk(&mut |action| {
+            if let EventActionConfig::SpawnScenarioObject(spawn) = action {
+                if spawn.base.id == id && found.is_none() {
+                    found = Some(spawn);
+                }
+            }
+        });
+    }
+    found.unwrap_or_else(|| panic!("a handler spawns '{id}'"))
 }
 
 // --- app harness (mirrors lifeline_convoy.rs) -------------------------------
@@ -133,30 +137,33 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
         app.world_mut().spawn(event.build_handler());
+        for gate in event.gate_handlers() {
+            app.world_mut().spawn(gate);
+        }
     }
 }
 
 /// Seed the whole OnStart variable block the way OnStart would. Must stay in
 /// lockstep with the OnStart `VariableSet` block in `final_tally.content.ron` -
-/// a slice test that omits a gate variable leaves the handler reading `None`,
-/// which never passes, so the beat it guards silently never fires.
-/// `scenario_elapsed` is engine-provided (the loader seeds it), so the slice
-/// seeds it here too.
+/// a slice test that omits a variable leaves the handler reading `None`, which
+/// never passes, so the beat it guards silently never fires.
 fn seed_live_claim(app: &mut App) {
     for (key, value) in [
         ("act", 1.0),
         ("surveyed", 0.0),
         ("picket_a_down", 0.0),
         ("picket_b_down", 0.0),
-        ("cast_at", 0.0),
-        ("epilogue_at", 0.0),
-        ("taunt_said", 0.0),
-        ("picket_gate", 0.0),
-        ("break_gate", 0.0),
-        ("scenario_elapsed", 0.0),
     ] {
         seed_var(app, key, value);
     }
+}
+
+/// Advance the scenario clock and deliver whatever that makes due - a beat of a
+/// chain, a keyed timer's end - then pulse. The rig runs no clock systems of
+/// its own, so this is the only thing that moves scenario time.
+fn advance(app: &mut App, seconds: f64) {
+    nova_scenario::test_support::advance_scenario_clock(app, seconds);
+    pump(app);
 }
 
 /// How many handlers are still registered. A `once` handler despawns the
@@ -399,12 +406,11 @@ fn the_survey_is_a_one_shot_travel_lock_gate() {
     assert_eq!(number_var(&app, "surveyed"), Some(1.0), "the lock surveys");
 
     // The picket objective lands a BREATHE after the survey, not the same
-    // frame: the survey sets `picket_gate = scenario_elapsed + 6` and a
-    // separate OnUpdate handler posts the objective once the clock passes that
-    // gate (the "announce, breathe, arrive" deferral, / the defer-objectives
-    // pass). Advance the clock past the gate, then it posts.
-    seed_var(&mut app, "scenario_elapsed", 30.0);
-    pump(&mut app);
+    // frame: the survey starts a keyed timer and a separate OnTimerEnd handler
+    // posts the objective when it ends (the "announce, breathe, arrive"
+    // deferral). It stays a HANDLER rather than a beat because it must be
+    // ABANDONED if both pickets die inside the gap. Advance past the timer.
+    advance(&mut app, 30.0);
     assert!(
         app.world()
             .resource::<GameObjectives>()
@@ -440,13 +446,18 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
     register_non_start_handlers(&mut app, &scenario);
     seed_live_claim(&mut app);
 
-    // Kill the picket BEFORE surveying: taunt fires, clock marks, but no
-    // flagship (the survey is missing).
+    // Kill the picket BEFORE surveying: the taunt beat starts the cast-off
+    // chain, but no flagship (the chain's step also owes the survey).
     destroy(&mut app, "picket_a");
     destroy(&mut app, "picket_b");
-    assert_eq!(number_var(&app, "taunt_said"), Some(1.0), "the taunt beat");
-    seed_var(&mut app, "scenario_elapsed", 30.0);
-    pump(&mut app);
+    assert_eq!(
+        app.world()
+            .resource::<NovaEventWorld>()
+            .sequence_step("cast_off"),
+        Some(0),
+        "the taunt beat arms the cast-off chain"
+    );
+    advance(&mut app, 30.0);
     assert!(
         !ship_in_world(&mut app, "flagship"),
         "no cast-off without the survey"
@@ -456,7 +467,9 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
     // takes its pickets-down variant: no picket objective is left open for
     // ships that are already drift.
     travel_lock(&mut app, "anchorage_bow");
-    pump(&mut app);
+    // The gate opens on the next pulse the driver sees, so the beat lands on
+    // the following advance rather than in the lock's own frame.
+    advance(&mut app, 1.0);
     assert!(
         app.world()
             .resource::<GameObjectives>()
@@ -472,11 +485,9 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
     assert!(ship_in_world(&mut app, "escort"), "with its escort");
 
     // The break objective also lands a breathe after the cast-off: the cast-off
-    // handler sets `break_gate = scenario_elapsed + 8.4` and a separate
-    // OnUpdate handler posts it once the clock passes that gate (same
-    // announce-breathe-arrive deferral). Advance past the gate, then it posts.
-    seed_var(&mut app, "scenario_elapsed", 60.0);
-    pump(&mut app);
+    // beat starts a one-step chain of its own and the ENGINE holds the delay
+    // (same announce-breathe-arrive deferral). Advance past it, then it posts.
+    advance(&mut app, 30.0);
     assert!(
         app.world()
             .resource::<GameObjectives>()
@@ -494,13 +505,12 @@ fn the_cast_off_waits_for_survey_pickets_and_the_breathe() {
     travel_lock(&mut fresh, "anchorage_bow");
     destroy(&mut fresh, "picket_a");
     destroy(&mut fresh, "picket_b");
-    // cast_at = kill-time + 6; the clock has not moved past it yet.
+    // The beat owes a 6s breathe from the kill; the clock has not moved yet.
     assert!(
         !ship_in_world(&mut fresh, "flagship"),
         "the breathe holds the cast-off"
     );
-    seed_var(&mut fresh, "scenario_elapsed", 30.0);
-    pump(&mut fresh);
+    advance(&mut fresh, 30.0);
     assert!(ship_in_world(&mut fresh, "flagship"));
 }
 
@@ -514,30 +524,28 @@ fn the_epilogue_paces_the_campaign_end() {
     register_non_start_handlers(&mut app, &scenario);
     seed_live_claim(&mut app);
     seed_var(&mut app, "surveyed", 1.0);
-    seed_var(&mut app, "scenario_elapsed", 60.0);
 
     let before = live_handlers(&mut app);
     destroy(&mut app, "flagship");
     assert_eq!(number_var(&app, "act"), Some(4.0), "the kill locks the win");
     assert_eq!(outcome_kind(&app), None, "no banner yet - the epilogue");
 
-    seed_var(&mut app, "scenario_elapsed", 65.0);
-    pump(&mut app);
+    advance(&mut app, 5.0);
     assert_eq!(
         outcome_kind(&app),
         None,
         "the close line beat, still no banner"
     );
-    // The kill beat and the close beat are both `once`: each retired itself
-    // rather than latching a said-flag, so two handlers have left the world.
+    // The kill beat is `once`: it retired itself rather than latching a
+    // said-flag. The two beats behind it are STEPS of the chain it started,
+    // which cost no handler at all.
     assert_eq!(
         live_handlers(&mut app),
-        before - 2,
+        before - 1,
         "a spent beat leaves the world instead of latching a flag"
     );
 
-    seed_var(&mut app, "scenario_elapsed", 70.0);
-    pump(&mut app);
+    advance(&mut app, 6.0);
     assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Victory));
     assert!(
         outcome_message(&app).contains("End of the base campaign"),
@@ -577,8 +585,7 @@ fn player_death_is_terminal_only_while_live() {
     assert!(next.linger);
     // The trade: the flagship dying after the player must not overwrite.
     destroy(&mut app, "flagship");
-    seed_var(&mut app, "scenario_elapsed", 100.0);
-    pump(&mut app);
+    advance(&mut app, 100.0);
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Defeat),
@@ -590,7 +597,6 @@ fn player_death_is_terminal_only_while_live() {
     register_non_start_handlers(&mut app, &scenario);
     seed_live_claim(&mut app);
     seed_var(&mut app, "surveyed", 1.0);
-    seed_var(&mut app, "scenario_elapsed", 60.0);
     destroy(&mut app, "flagship");
     destroy(&mut app, "player_spaceship");
     assert_eq!(
@@ -598,8 +604,8 @@ fn player_death_is_terminal_only_while_live() {
         None,
         "a post-kill death declares nothing (the win is locked)"
     );
-    seed_var(&mut app, "scenario_elapsed", 70.0);
-    pump(&mut app);
+    advance(&mut app, 5.0);
+    advance(&mut app, 6.0);
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Victory),

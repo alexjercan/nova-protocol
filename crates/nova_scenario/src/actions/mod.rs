@@ -4,9 +4,10 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 
-use crate::{variables::VariableExpressionNode, world::NovaEventWorld};
+use crate::{filters::EventFilterConfig, variables::VariableExpressionNode, world::NovaEventWorld};
 mod flow;
 mod mission;
+mod sequence;
 mod ship;
 mod spawn;
 mod timer;
@@ -14,6 +15,7 @@ mod view;
 
 pub use flow::*;
 pub use mission::*;
+pub use sequence::*;
 pub use ship::*;
 pub use spawn::*;
 pub use timer::*;
@@ -23,18 +25,20 @@ pub use view::*;
 /// action config vocabulary and scenario-object types into scope.
 pub mod prelude {
     pub use super::{
-        apply_pending_skybox_swaps, base_scenario_object, BaseScenarioObjectConfig, CurrentOutcome,
-        DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
-        ForceTorpedoLaunchActionConfig, HintEmphasisClearActionConfig, HintEmphasisSetActionConfig,
-        HudReadoutActionConfig, HudReadoutFormatConfig, NextScenarioActionConfig,
-        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        advance_scenario_sequences, apply_pending_skybox_swaps, base_scenario_object,
+        sequence_gate_handlers, BaseScenarioObjectConfig, CurrentOutcome, DebugMessageActionConfig,
+        DespawnScenarioObjectActionConfig, EventActionConfig, ForceTorpedoLaunchActionConfig,
+        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
+        HudReadoutFormatConfig, NextScenarioActionConfig, ObjectiveActionConfig,
+        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig,
-        ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SetAllegianceActionConfig,
-        SetCameraActionConfig, SetControllerVerbActionConfig, SetSkyboxActionConfig,
-        SetSpeedCapActionConfig, StoryMessageActionConfig, TimerCancelActionConfig,
-        TimerStartActionConfig, VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT,
-        NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig, SequenceActionConfig,
+        SequenceGateConfig, SequenceStepConfig, SetAllegianceActionConfig, SetCameraActionConfig,
+        SetControllerVerbActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
+        StoryMessageActionConfig, TimerCancelActionConfig, TimerStartActionConfig,
+        VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS,
+        NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -95,6 +99,8 @@ pub enum EventActionConfig {
     /// Show (or clear) a named HUD readout bound to a scenario variable - the
     /// display half of the scenario-variable vocabulary.
     HudReadout(HudReadoutActionConfig),
+    /// Start a keyed ordered beat chain whose cursor the engine holds.
+    Sequence(SequenceActionConfig),
 }
 
 impl EventAction<NovaEventWorld> for EventActionConfig {
@@ -175,7 +181,48 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
             EventActionConfig::HudReadout(config) => {
                 config.action(world, info);
             }
+            EventActionConfig::Sequence(config) => {
+                config.action(world, info);
+            }
         }
+    }
+}
+
+impl EventActionConfig {
+    /// Visit this action and every action NESTED inside it, self first, in
+    /// authored order.
+    ///
+    /// `Sequence` is the only nesting arm today, and everything that reads an
+    /// event's action list goes through here - inline queries, the object
+    /// count, both lint passes. A second nesting arm therefore cannot be
+    /// honoured by one walker and quietly missed by the others.
+    pub fn walk<'a>(&'a self, visit: &mut impl FnMut(&'a EventActionConfig)) {
+        visit(self);
+        if let EventActionConfig::Sequence(config) = self {
+            for step in &config.steps {
+                for action in &step.actions {
+                    action.walk(visit);
+                }
+            }
+        }
+    }
+
+    /// Visit every filter nested inside this action - the `until` gates of a
+    /// `Sequence` and of any sequence started from one of its steps.
+    ///
+    /// A gate carries the same filter vocabulary a handler does, so whatever
+    /// reads a handler's filters must read these too or an inline query inside
+    /// a gate is never sampled.
+    pub fn walk_filters<'a>(&'a self, visit: &mut impl FnMut(&'a EventFilterConfig)) {
+        self.walk(&mut |action| {
+            if let EventActionConfig::Sequence(config) = action {
+                for step in &config.steps {
+                    for filter in step.until.iter().flat_map(|gate| &gate.filters) {
+                        visit(filter);
+                    }
+                }
+            }
+        });
     }
 }
 

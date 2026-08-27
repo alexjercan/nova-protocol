@@ -33,10 +33,6 @@
                         key: "hauler_lost",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "defend_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -280,9 +276,19 @@
                         speaker: "Capt. Halloran",
                         text: "Ceres Queen to any ship in the belt - drive\'s stripped, and they\'re coming back for the hull.",
                     )),
-                    VariableSet((
-                        key: "contact_gate",
-                        expression: Term(Factor(Literal(Number(6.0)))),
+                    Sequence((
+                        key: "contact",
+                        steps: [
+                            (
+                                after: Some(6.0),
+                                actions: [
+                                    Objective((
+                                        id: "contact",
+                                        message: "Find the yacht Ceres Queen.",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "hauler",
@@ -372,30 +378,6 @@
                 ],
             ),
             (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("contact_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("contact_gate"))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                ],
-                actions: [
-                    Objective((
-                        id: "contact",
-                        message: "Find the yacht Ceres Queen.",
-                    )),
-                ],
-            ),
-            (
                 name: OnEnter,
                 once: true,
                 filters: [
@@ -416,12 +398,19 @@
                     ObjectiveComplete((
                         id: "contact",
                     )),
-                    VariableSet((
-                        key: "defend_gate",
-                        expression: Add(
-                            Factor(Name("scenario_elapsed")),
-                            Term(Factor(Literal(Number(8.399999618530273)))),
-                        ),
+                    Sequence((
+                        key: "defend",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    Objective((
+                                        id: "defend",
+                                        message: "Drive the corvettes off the Ceres Queen.",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -512,30 +501,6 @@
                     )),
                     HintEmphasisSet((
                         verb: "RADAR",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("defend_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("defend_gate"))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                ],
-                actions: [
-                    Objective((
-                        id: "defend",
-                        message: "Drive the corvettes off the Ceres Queen.",
                     )),
                 ],
             ),
@@ -647,16 +612,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "defend",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The pickers break off, hulls venting - and the Ceres Queen is still in one piece.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "Deep scan is not going quiet: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The ambush at the Ceres Queen is broken - and the gang\'s capital is already on its way."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "broadside_gunship",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -686,16 +678,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "defend",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The pickers break off, hulls venting - too late for the Ceres Queen.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "Deep scan is not going quiet: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The ambush at the Ceres Queen is broken - and the gang\'s capital is already on its way."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "broadside_gunship",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -775,54 +794,6 @@
                     )),
                     NextScenario((
                         scenario_id: "broadside",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_tease",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    StoryMessage((
-                        speaker: "Belt Relay",
-                        text: "Deep scan is not going quiet: a capital burn, closing fast. The Rust Tally is coming to finish what its pickers started.",
-                    )),
-                    TimerStart((
-                        key: "outro_banner",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_banner",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The ambush at the Ceres Queen is broken - and the gang\'s capital is already on its way."),
-                    )),
-                    NextScenario((
-                        scenario_id: "broadside_gunship",
                         linger: true,
                     )),
                 ],

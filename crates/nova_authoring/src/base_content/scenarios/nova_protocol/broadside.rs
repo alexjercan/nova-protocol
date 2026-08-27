@@ -40,7 +40,7 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, RUST_TALLY},
-    pacing::{self, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
+    pacing::{self, MID_GAP, REVEAL_GAP},
     ships, SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -95,14 +95,14 @@ const VAR_CORVETTE_B_DOWN: &str = "corvette_b_down";
 const VAR_HAULER_LOST: &str = "hauler_lost";
 
 /// Pacing: objectives post a beat AFTER the comms line that introduces them,
-/// never the same frame. Each gate variable holds a `mark_clock` deadline; the
-/// paired `_posted` flag latches the one-shot `gated_once` that posts the
-/// objective once the clock passes it. Part one: the contact objective (after
-/// the distress call) and the defend objective (after the ambush line). Part
-/// two reuses its own pair in a separate scope.
-const VAR_CONTACT_GATE: &str = "contact_gate";
-const VAR_DEFEND_GATE: &str = "defend_gate";
-const VAR_GUN_OBJ_GATE: &str = "gun_obj_gate";
+/// never the same frame. Each key names the one-step sequence the introducing
+/// beat starts; the ENGINE holds the delay, so there is no gate variable to
+/// seed and no act guard to prove the beat is still current. Part one: the
+/// contact objective (after the distress call) and the defend objective (after
+/// the ambush line). Part two names its own in a separate scope.
+const SEQ_CONTACT: &str = "contact";
+const SEQ_DEFEND: &str = "defend";
+const SEQ_GUN_OBJECTIVE: &str = "gun_objective";
 
 /// The yacht drifts here; the fight happens around it.
 const HAULER_POS: Vec3 = Vec3::new(0.0, 10.0, -450.0);
@@ -321,6 +321,23 @@ fn hard_cover(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
     ]
 }
 
+/// Part one's outro: both ambush-cleared variants differ only in the yacht's
+/// fate, which their own handlers said - the tease and the banner are one
+/// shared chain. Only one variant can ever fire, so they all start this cursor.
+fn ambush_outro() -> EventActionConfig {
+    pacing::outro_sequence(
+        VAR_ACT,
+        ACT_WON,
+        BELT_RELAY,
+        "Deep scan is not going quiet: a capital burn, closing fast. The \
+         Rust Tally is coming to finish what its pickers started.",
+        "The ambush at the Ceres Queen is broken - and the gang's capital \
+         is already on its way.",
+        vec![],
+        Some(BROADSIDE_GUNSHIP_SCENARIO_ID.to_string()),
+    )
+}
+
 pub(crate) fn broadside(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -335,9 +352,6 @@ pub(crate) fn broadside(
         set_variable(VAR_CORVETTE_A_DOWN, number(0.0)),
         set_variable(VAR_CORVETTE_B_DOWN, number(0.0)),
         set_variable(VAR_HAULER_LOST, number(0.0)),
-        // Seed the defend gate so its gated_once filter reads a defined 0
-        // before the ambush stamps it, not an undefined var.
-        set_variable(VAR_DEFEND_GATE, number(0.0)),
         spawn_object(player_ship()),
         spawn_object(yacht_ship()),
         cover_scatter,
@@ -353,9 +367,8 @@ pub(crate) fn broadside(
         }),
         // The voice pass: the distress call the shakedown banner promised is
         // now HEARD - the announce beat's one comms line; the objective shrinks
-        // to the goal. Pacing pass: the objective no longer shares this frame
-        // with the distress call - the deadline is stamped here and OBJ_CONTACT
-        // posts a beat later (the gated_once handler below).
+        // to the goal. Pacing pass: the objective does not share this frame
+        // with the distress call.
         story_message(
             CAPTAIN_HALLORAN,
             "Ceres Queen to any ship in the belt - drive's stripped, and \
@@ -363,35 +376,28 @@ pub(crate) fn broadside(
         ),
         // Reveal-then-navigate: the distress call sets up, "find the yacht" is
         // a soft instruction - a mid gap. The gold marker rides the yacht from
-        // OnStart (NOT withheld inside the gate), so the player has a nav
+        // OnStart (NOT withheld inside the sequence), so the player has a nav
         // target during the call; only the objective TEXT waits, matching
         // shakedown/final_tally.
-        open_gate(VAR_CONTACT_GATE, MID_GAP),
+        pacing::beat_later(
+            SEQ_CONTACT,
+            MID_GAP,
+            vec![post_objective(OBJ_CONTACT, "Find the yacht Ceres Queen.")],
+        ),
         attach_objective_marker(ID_HAULER, "CERES QUEEN"),
     ]);
     opening.extend(ThreePointRig::around("broadside", Vec3::ZERO, 10.0).actions());
 
-    let mut events = vec![
+    let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
             actions: opening,
         },
-        // The contact objective posts a beat after the distress call (pacing
-        // pass): still act 0, so a player who somehow reaches the yacht inside
-        // the beat springs the ambush without a stale objective appearing after.
-        pacing::gated_once(
-            VAR_CONTACT_GATE,
-            vec![number_equals(VAR_ACT, 0.0)],
-            // The marker is already up (OnStart, above); only the objective
-            // text posts here.
-            vec![post_objective(OBJ_CONTACT, "Find the yacht Ceres Queen.")],
-        ),
         // Act 0 -> 1: reaching the yacht springs the ambush. The threats spawn
-        // and the warning lands now; the DEFEND objective posts a beat later
-        // (gated_once below) so "contact done" and "drive them off" never share
-        // a frame.
+        // and the warning lands now; the DEFEND objective posts a beat later so
+        // "contact done" and "drive them off" never share a frame.
         ScenarioEventConfig {
             name: EventConfig::OnEnter,
             once: true,
@@ -405,7 +411,14 @@ pub(crate) fn broadside(
                 // Threat reveal (the ambush springs): full absorb beat; the
                 // corvette markers appear at the transition (below), so the
                 // threats are visible while the objective text waits.
-                mark_clock(VAR_DEFEND_GATE, REVEAL_GAP),
+                pacing::beat_later(
+                    SEQ_DEFEND,
+                    REVEAL_GAP,
+                    vec![post_objective(
+                        OBJ_DEFEND,
+                        "Drive the corvettes off the Ceres Queen.",
+                    )],
+                ),
                 spawn_object(corvette(ID_CORVETTE_A, CORVETTE_A_SPAWN)),
                 spawn_object(corvette(ID_CORVETTE_B, CORVETTE_B_SPAWN)),
                 story_message(
@@ -419,14 +432,6 @@ pub(crate) fn broadside(
                 show_hint_emphasis("RADAR"),
             ],
         },
-        pacing::gated_once(
-            VAR_DEFEND_GATE,
-            vec![number_equals(VAR_ACT, 1.0)],
-            vec![post_objective(
-                OBJ_DEFEND,
-                "Drive the corvettes off the Ceres Queen.",
-            )],
-        ),
         // Corvette defeats raise their flags once for either terminal path.
         ScenarioEventConfig {
             name: EventConfig::OnDefeated,
@@ -499,6 +504,7 @@ pub(crate) fn broadside(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                ambush_outro(),
                 vec![
                     complete_objective(OBJ_DEFEND),
                     story_message(
@@ -521,6 +527,7 @@ pub(crate) fn broadside(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                ambush_outro(),
                 vec![
                     complete_objective(OBJ_DEFEND),
                     story_message(
@@ -592,22 +599,6 @@ pub(crate) fn broadside(
         },
     ];
 
-    // The outro: both ambush-cleared variants differ only in the yacht's
-    // fate, which their own handlers said - the tease and the banner are one
-    // shared copy.
-    events.extend(pacing::outro_beats(
-        VAR_ACT,
-        ACT_OUTRO,
-        ACT_WON,
-        BELT_RELAY,
-        "Deep scan is not going quiet: a capital burn, closing fast. The \
-         Rust Tally is coming to finish what its pickers started.",
-        "The ambush at the Ceres Queen is broken - and the gang's capital \
-         is already on its way.",
-        vec![],
-        Some(BROADSIDE_GUNSHIP_SCENARIO_ID.to_string()),
-    ));
-
     ScenarioConfig {
         id: BROADSIDE_SCENARIO_ID.to_string(),
         name: "Broadside".to_string(),
@@ -634,6 +625,23 @@ pub(crate) fn broadside(
 /// (hidden from the Scenarios picker). The gunship spawns at OnStart - its
 /// ~720u burn toward the yacht IS the act's pacing, torpedo tubes open
 /// through the whole approach - and dying here retries HERE.
+/// Part two's outro: all four win variants (destroyed / neutralized x the
+/// yacht's fate) said their own line already - one shared chain carries the
+/// tease into chapter three and the banner.
+fn gunship_outro() -> EventActionConfig {
+    pacing::outro_sequence(
+        VAR_ACT,
+        ACT_WON,
+        BELT_RELAY,
+        "The deep scan still is not quiet: the gang's traffic keeps moving, \
+         and all of it is inbound to the freight lane.",
+        "The Rust Tally is finished. The gang still holds the lane - and the \
+         belt's convoys are the next thing it reaches for.",
+        vec![],
+        Some(super::lifeline::LIFELINE_SCENARIO_ID.to_string()),
+    )
+}
+
 pub(crate) fn broadside_gunship(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -652,8 +660,7 @@ pub(crate) fn broadside_gunship(
         spawn_object(gunship()),
         // The capital gets a voice: the announce beat's one comms line, while
         // the objectives shrink to goals. Pacing pass: the objectives post a
-        // beat after the taunt (the gated_once handler below), not the same
-        // frame.
+        // beat after the taunt, not the same frame.
         story_message(
             RUST_TALLY,
             "You cost me two pickers, belt rat. The Rust Tally pays its \
@@ -662,22 +669,9 @@ pub(crate) fn broadside_gunship(
         // Threat reveal (the gunship taunts and burns in): full absorb beat.
         // The gunship and its RADAR marker are already up (this is OnStart), so
         // only the objective text waits.
-        open_gate(VAR_GUN_OBJ_GATE, REVEAL_GAP),
-        attach_objective_marker(ID_GUNSHIP, "GUNSHIP"),
-        show_hint_emphasis("RADAR"),
-    ]);
-    opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
-
-    let mut events = vec![
-        ScenarioEventConfig {
-            name: EventConfig::OnStart,
-            once: false,
-            filters: vec![],
-            actions: opening,
-        },
-        pacing::gated_once(
-            VAR_GUN_OBJ_GATE,
-            vec![number_equals(VAR_ACT, 1.0)],
+        pacing::beat_later(
+            SEQ_GUN_OBJECTIVE,
+            REVEAL_GAP,
             vec![
                 post_objective(
                     OBJ_SCREEN,
@@ -686,6 +680,18 @@ pub(crate) fn broadside_gunship(
                 post_objective(OBJ_BREAK, "Break the Rust Tally, section by section."),
             ],
         ),
+        attach_objective_marker(ID_GUNSHIP, "GUNSHIP"),
+        show_hint_emphasis("RADAR"),
+    ]);
+    opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
+
+    let events = vec![
+        ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: opening,
+        },
         // Win: the gunship comes apart - and the deep scan keeps the door open:
         // the lingering chain rides into chapter three (Lifeline). Two variants
         // on the yacht's fate (mutually exclusive on VAR_HAULER_LOST) - each
@@ -702,6 +708,7 @@ pub(crate) fn broadside_gunship(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                gunship_outro(),
                 vec![
                     complete_objective(OBJ_SCREEN),
                     complete_objective(OBJ_BREAK),
@@ -725,6 +732,7 @@ pub(crate) fn broadside_gunship(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                gunship_outro(),
                 vec![
                     complete_objective(OBJ_SCREEN),
                     complete_objective(OBJ_BREAK),
@@ -748,6 +756,7 @@ pub(crate) fn broadside_gunship(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                gunship_outro(),
                 vec![
                     complete_objective(OBJ_SCREEN),
                     complete_objective(OBJ_BREAK),
@@ -772,6 +781,7 @@ pub(crate) fn broadside_gunship(
             actions: pacing::open_outro(
                 VAR_ACT,
                 ACT_OUTRO,
+                gunship_outro(),
                 vec![
                     complete_objective(OBJ_SCREEN),
                     complete_objective(OBJ_BREAK),
@@ -839,22 +849,6 @@ pub(crate) fn broadside_gunship(
             ],
         },
     ];
-
-    // The outro: all four win variants (destroyed / neutralized x the
-    // yacht's fate) said their own line already - one shared tail carries the
-    // tease into chapter three and the banner.
-    events.extend(pacing::outro_beats(
-        VAR_ACT,
-        ACT_OUTRO,
-        ACT_WON,
-        BELT_RELAY,
-        "The deep scan still is not quiet: the gang's traffic keeps moving, \
-         and all of it is inbound to the freight lane.",
-        "The Rust Tally is finished. The gang still holds the lane - and the \
-         belt's convoys are the next thing it reaches for.",
-        vec![],
-        Some(super::lifeline::LIFELINE_SCENARIO_ID.to_string()),
-    ));
 
     ScenarioConfig {
         id: BROADSIDE_GUNSHIP_SCENARIO_ID.to_string(),

@@ -296,6 +296,170 @@ because the remaining `OnUpdate` handlers are SEQUENCERS - `open_step` in
 Shakedown and the Ledger, `gate` in the Ledger, the beat counter, the wave
 schedule in Lifeline. Every one is a cursor a `Sequence` would hold.
 
+## Stage 2 landed - `Sequence`
+
+One action holds an ordered list of steps and the ENGINE holds the cursor.
+`SequenceActionConfig` is an authored literal `key` plus `steps`; running it
+files a `SequenceRun` in `NovaEventWorld` beside the keyed timers, and
+`advance_scenario_sequences` walks it in `Update`, chained after
+`sample_scenario_queries` and before `tick_scenario_timers` / `fire_on_update`.
+
+A step waits on `after:` (scenario seconds), on `until:` (an event plus its
+filters), or on both. WAIT, never SKIP: the beats behind a shut gate stay
+behind it. That makes a stuck gate a soft-lock, so a gated step carries a
+`deadline:` - expiry stops the run and logs an `error!` naming the key, the
+step and the event it waited for. `content lint` refuses a gated step without
+one.
+
+### Decisions
+
+- **WAIT, and both waits together.** A step with `after` and `until` owes
+  both: an early gate still owes the delay, an elapsed delay still owes the
+  gate. Skip was rejected outright - a skipped beat is a scenario silently
+  losing a line, which is the failure `once` was designed away from in stage 1.
+- **The gate is a real handler, not a poll.** `sequence_gate_handlers` spawns
+  one extra `EventHandler` per gated step, carrying a private
+  `SequenceGateAction { key, step }` that is inert unless the cursor stands on
+  exactly that step. The gate OPENS the run; the driver runs the beat one frame
+  later. Polling the gate from the driver would have needed the driver to
+  re-implement filter dispatch.
+- **One clock jump delivers one step.** `take_ready_sequence_step` stamps
+  `since = now` on the step it hands back, so a rig that jumps the clock 60s
+  does not fire a six-beat chain in one frame. Steps with no delay still
+  collapse into a single pass, because the driver loops.
+- **A shared key across handlers is the IDIOM, not a smell.** Every win variant
+  of a scenario starts one outro chain, and only one of them can ever fire.
+  Nothing static tells that apart from a real collision, so the runtime holds
+  that half - `start_sequence` refuses a live key and logs it - and the lint
+  flags duplicates only WITHIN one handler's action list, where the two starts
+  definitely race.
+- **`action_groups`, not `actions`, is what "one frame" now means.** A step's
+  action list is a frame of its own, landing seconds after the handler that
+  queued it. `ScenarioEventConfig::action_groups()` returns the handler's own
+  actions plus one group per `Sequence` step it starts, however deeply nested;
+  every pacing and ordering pin reads it. `EventActionConfig::walk` is the
+  recursion the four walkers the round-4 audit named now share.
+- **The regression rule shipped with the construct.** `lint/scenario.rs` warns
+  on an `OnUpdate` handler whose filters read NOTHING but the scenario clock -
+  a hand-rolled delay walked every frame. A value-gated milestone (a tally, a
+  distance) stays silent, because that is what `OnUpdate` is legitimately for.
+
+### What it deletes, and what it does not
+
+`Sequence` deletes the SEQUENCER handlers - the ones whose only guard was "not
+dead / still this beat" - and the step counters that ordered them. It does not
+delete a handler that must still ASK something when the beat lands; those were
+re-expressed as `OnTimerEnd` on a keyed timer instead of clock arithmetic.
+
+Counted with one script over the shipped RON (`steps` counts sequence steps,
+so the chains are visible as well as the handlers they replaced):
+
+| scenario | lines | handlers | filters | variables | chains | steps |
+| --- | --- | --- | --- | --- | --- | --- |
+| `shakedown_run` | 2202 -> 1991 | 42 -> 25 | 85 -> 51 | 6 -> 3 | 12 | 19 |
+| `lifeline` | 1478 -> 1513 | 27 -> 23 | 68 -> 59 | 14 -> 13 | 5 | 10 |
+| `ledger_ch3` | 1814 -> 1672 | 27 -> 20 | 77 -> 55 | 11 -> 6 | 3 | 7 |
+| `final_tally` | 905 -> 810 | 17 -> 11 | 41 -> 25 | 10 -> 4 | 5 | 8 |
+| `broadside` | 832 -> 803 | 15 -> 11 | 34 -> 24 | 6 -> 4 | 4 | 6 |
+| `broadside_gunship` | 689 -> 735 | 11 -> 8 | 25 -> 18 | 3 -> 2 | 5 | 9 |
+
+The three the definition of done names: `shakedown_run` **42 -> 25**,
+`ledger_ch3` **27 -> 20**, `lifeline` **27 -> 23**. Both producer kinds are
+covered again - the base scenarios come from the Rust builders via
+`content -- gen`, `ledger_ch3` is a direct RON edit.
+
+Two rows deserve their honesty. `broadside_gunship` GREW 46 lines: a chain
+spells its pacing out where the old handlers hid it in a filter, and eight
+handlers reading 25 filters is still a worse thing to author than five chains.
+`lifeline` moved least, 27 -> 23, and that is the stage-3 evidence rather than
+a shortfall - see below.
+
+### Proof
+
+- `cargo test -p nova_scenario --lib` - 221 pass, including 11 new ones in
+  `actions/sequence.rs` (both waits owed, deadline stops the run, a live key
+  refuses a restart, a gate on the wrong step is inert) and the live-pulse test
+  `a_sequence_walks_its_steps_on_the_live_pulse` in `loader/clock.rs`.
+- `cargo test -p nova_authoring --lib` (77) and `--test broadside_assault`
+  (14); the `nova_assets` rigs - `final_tally_claim` (7), `lifeline_convoy`
+  (8), `neutralized_ships` (4), `scenario_act_machine` (7),
+  `scenario_branch_choice` (9), `scenario_gate_course` (6),
+  `scenario_provocation` (7).
+- `cargo check --workspace --all-targets` clean; `cargo fmt --all` run.
+- `nova-protocol content lint` - 0 errors, 0 warnings, 0 findings, 13
+  scenarios balance-audited, 1 acked. No id in authored content is computed:
+  a sequence key is an authored literal, exactly like a timer key.
+- LIVE, `--norender --mute --scenario shakedown_run` for 45s: `loaded scenario
+  'shakedown_run' with 25 handler(s) and 23 object(s)`, and the six-step
+  opening chain walked through to `ObjectiveMarkerAttach: 'beacon_1' <-
+  'BEACON 1'` at ~15s wall, no errors.
+- LIVE, `--scenario-file webmods/the-ledger/ledger_ch3.content.ron`:
+  `20 handler(s) and 13 object(s)`. (The `dep://` asset-source error is
+  expected for a loose file outside a mod install.)
+- Skipped: the workspace test suite and Clippy, per the standing instruction.
+
+### Docs
+
+`/create/actions.md` (26 actions now; new `## Pacing` group with the full
+`Sequence` contract), `/create/events.md` (an event name also names an
+`until` gate), `/create/reference.md` (family table and A-to-Z),
+`/create/scenarios.md` (the chains-of-beats pointer beside `once`),
+`docs/scenario-system.md` (the engine half: the cursor, the gate handlers, the
+`Update` chain position, `action_groups`), `docs/guide-extend-scenarios.md` and
+`docs/concept-index.md` (the new submodule), `CHANGELOG.md`.
+
+## Stage 3 - the recommendation
+
+**Do not build chains, branching, tags or custom triggers. Build the two wake
+sources instead.** Stages 1 and 2 were the measurement the decision point was
+waiting for, and the content came back with an unambiguous answer.
+
+The evidence. After stage 2 the whole mainline holds **22 `OnUpdate` handlers**,
+and not one of them polls the clock alone:
+
+| scenario | `OnUpdate` | what their filters read |
+| --- | --- | --- |
+| `lifeline` | 11 | `act` plus per-wave kill flags (`r1a_down`, `w2_up`, `queen_down`, ...) |
+| `ledger_ch3` | 5 | `act`, `spotted`, `speed_warned`, the watched `player_speed` |
+| `shakedown_run` | 3 | `beat`, `crates_recovered` |
+| `broadside` | 2 | `act` plus corvette and hauler kill flags |
+| `final_tally` | 1 | `act`, `picket_a_down`, `picket_b_down` |
+| `broadside_gunship` | 0 | - |
+
+Every remaining one is a **variable-change** question. The new lint rule fires
+on none of them, which is the point: the ceremony `Sequence` was built to
+delete is gone, and what is left is handlers waiting on a value another handler
+writes. A variable-change wake retires all 22 - the engine already owns every
+write through `NovaEventWorld::insert_variable`, and handlers index by variable
+name exactly as `EventHandlerIndex` indexes by event name. A scheduled time
+wake takes the timers and the `after:` cursor off the frame with one
+priority-queue entry. Neither adds a construct to the authored vocabulary, so
+`/create/` does not grow and `content lint` stays whole-program.
+
+Against that, the branching case the content actually makes is small.
+`lifeline`'s eleven handlers look like the strongest argument for a richer
+control-flow construct, and they are the strongest argument against one: they
+are not a linear chain wearing a guard, they are a genuine wave schedule where
+each beat asks whether the previous wave died. A chain construct would have to
+grow a per-step condition and a way out of the chain - which is a branching
+language, arriving to serve one scenario. The `Sequence` we shipped covers the
+linear case at one action per chain, and the remaining handlers are the honest
+non-linear remainder.
+
+The dangers named in the body all still hold, and stage 2 sharpened one of
+them. `Sequence` already spends the "file order stops matching execution order"
+budget: a chain's beats run seconds apart from the handler that lists them, and
+that is exactly why `action_groups` had to exist and why four walkers had to
+learn to recurse. A named trigger spends the same budget again, on a graph
+rather than a tree, against a `lint/scenario.rs` that answers reachability by
+walking. Paying that for 22 handlers that a wake source retires outright is the
+wrong trade.
+
+Recommendation, in order: (1) variable-change wake, (2) scheduled time wake,
+(3) revisit custom triggers only if content appears that a wake source cannot
+express. Note the naming warning from the body - "watch" is taken and means the
+opposite.
+
 ## Verified against the tree, round 4 (2026-08-24)
 
 Scheduled into v0.12.0. Full audit:

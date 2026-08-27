@@ -63,7 +63,7 @@ pub(super) fn scenario_elapsed(world: &NovaEventWorld) -> f64 {
 
 /// Fire one event for every timer that crossed its deadline. Expired keys are
 /// removed before dispatch, so an `OnTimerEnd` handler can restart the same key.
-fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<NovaEventWorld>) {
+pub(crate) fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<NovaEventWorld>) {
     let now = scenario_elapsed(&world);
     for key in world.drain_ended_timers(now) {
         commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key });
@@ -77,12 +77,18 @@ fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<NovaEventWorld
 /// scenario's queued spawns are still landing the world is not yet LIVE, so
 /// its clock must not advance, its timers must not expire and the pulse must
 /// not offer handlers a half-built world to read.
+///
+/// The `Sequence` driver sits inside the same chain, after the query sample and
+/// before the timers: a step's actions therefore read the same snapshot a
+/// handler does, and a step that starts a timer still has that timer checked
+/// this frame.
 pub(super) fn register_clock_and_pulse(app: &mut App) {
     app.add_systems(
         Update,
         (
             tick_scenario_clock,
             sample_scenario_queries.run_if(scenario_reads_an_entity_query),
+            advance_scenario_sequences,
             tick_scenario_timers,
             fire_on_update,
         )
@@ -106,6 +112,114 @@ fn fire_on_update(mut commands: Commands) {
 mod tests {
     use super::*;
     use crate::loader::fixtures::*;
+
+    /// A `Sequence` end to end through the LIVE chain: the loader's gate
+    /// handler, the driver in the pulse, the real clock.
+    ///
+    /// The chain is what makes this worth a rig - the unit tests drive the
+    /// cursor by hand, and neither the one-frame gate latency nor the gate
+    /// handler's registration exists at that level.
+    #[test]
+    fn a_sequence_walks_its_steps_on_the_live_pulse() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::GameObjectives;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        register_clock_and_pulse(&mut app);
+
+        let mark = |ordinal: f64| {
+            EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: "at".to_string(),
+                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(ordinal)),
+                )),
+            })
+        };
+
+        // Beat one lands half a second in; beat two waits for the timer beat
+        // one starts. Both spellings in one chain, the way content uses them.
+        let config = scenario_with(
+            "live",
+            vec![event_with(vec![EventActionConfig::Sequence(
+                SequenceActionConfig {
+                    key: "opening".to_string(),
+                    steps: vec![
+                        SequenceStepConfig {
+                            after: Some(0.5),
+                            actions: vec![
+                                mark(1.0),
+                                EventActionConfig::TimerStart(TimerStartActionConfig {
+                                    key: "ping".to_string(),
+                                    seconds: VariableExpressionNode::new_term(
+                                        VariableTermNode::new_factor(
+                                            VariableFactorNode::new_literal(
+                                                VariableLiteral::Number(0.5),
+                                            ),
+                                        ),
+                                    ),
+                                }),
+                            ],
+                            ..default()
+                        },
+                        SequenceStepConfig {
+                            until: Some(SequenceGateConfig {
+                                name: EventConfig::OnTimerEnd,
+                                filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
+                                    key: "ping".to_string(),
+                                })],
+                            }),
+                            deadline: Some(30.0),
+                            actions: vec![mark(2.0)],
+                            ..default()
+                        },
+                    ],
+                },
+            )])],
+        );
+        crate::test_support::register_scenario_handlers(&mut app, &config);
+        app.insert_resource(CurrentScenario(Some(config)));
+
+        let at = |app: &App| match app.world().resource::<NovaEventWorld>().get_variable("at") {
+            Some(VariableLiteral::Number(n)) => Some(*n),
+            _ => None,
+        };
+
+        app.world_mut()
+            .commands()
+            .fire::<OnStartEvent>(OnStartEventInfo);
+
+        // ~0.3s of scenario time: beat one is not due.
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(at(&app), None, "the first step holds until its delay");
+
+        // Past 0.5s beat one lands and starts the timer it gates beat two on.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(at(&app), Some(1.0), "the first step lands on the clock");
+
+        // The timer ends ~0.5s later; the gate handler opens the step and the
+        // next pulse delivers it.
+        for _ in 0..8 {
+            app.update();
+        }
+        assert_eq!(at(&app), Some(2.0), "the gated step waits for its event");
+    }
 
     /// The OnUpdate pulse: fires every frame while a scenario is live and stays
     /// silent otherwise. Proven through a real OnUpdate handler mutating a

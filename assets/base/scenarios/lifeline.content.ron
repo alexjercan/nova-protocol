@@ -385,9 +385,28 @@
                         speaker: "Belt Relay",
                         text: "Relief wing is spooled and burning your way - four minutes out. The convoy holds the lane until they arrive.",
                     )),
-                    VariableSet((
-                        key: "screen_gate",
-                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
+                    Sequence((
+                        key: "opening",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    Objective((
+                                        id: "screen_convoy",
+                                        message: "Keep the convoy alive until the relief wing arrives.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(0.6000003814697266),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Capt. Halloran",
+                                        text: "Halloran here - the Queen\'s guild runs this line. Drives are cold on a transfer fault; we could not run if we wanted to.",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "hauler_queen",
@@ -489,30 +508,6 @@
             ),
             (
                 name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("screen_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("screen_gate"))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                ],
-                actions: [
-                    Objective((
-                        id: "screen_convoy",
-                        message: "Keep the convoy alive until the relief wing arrives.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("act"))),
@@ -526,26 +521,6 @@
                             Factor(Literal(Number(240.0))),
                             Term(Factor(Name("scenario_elapsed"))),
                         ),
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(9.0)))),
-                    ))),
-                ],
-                actions: [
-                    StoryMessage((
-                        speaker: "Capt. Halloran",
-                        text: "Halloran here - the Queen\'s guild runs this line. Drives are cold on a transfer fault; we could not run if we wanted to.",
                     )),
                 ],
             ),
@@ -1221,16 +1196,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen_convoy",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The relief wing drops out of the burn, guns hot - and the raiders scatter. The convoy is whole.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The wing traced the raiders\' burn back to a claim deep on the shelf. That is where the Tallyman counts his take.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The convoy is through and the lane is open - and the raiders\' burn leads somewhere worth following."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "final_tally",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -1262,16 +1264,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen_convoy",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The relief wing drops out of the burn, guns hot - and the raiders scatter. Half the convoy made it. The Tallyman will answer for the other half.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The wing traced the raiders\' burn back to a claim deep on the shelf. That is where the Tallyman counts his take.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The convoy is through and the lane is open - and the raiders\' burn leads somewhere worth following."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "final_tally",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -1309,16 +1338,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen_convoy",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The last raider breaks apart before the relief wing even arrives. The convoy is whole.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The wing traced the raiders\' burn back to a claim deep on the shelf. That is where the Tallyman counts his take.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The convoy is through and the lane is open - and the raiders\' burn leads somewhere worth following."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "final_tally",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -1358,16 +1414,43 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen_convoy",
                     )),
                     StoryMessage((
                         speaker: "Belt Relay",
                         text: "The last raider breaks apart before the relief wing even arrives. Half the convoy made it. The Tallyman will answer for the rest.",
+                    )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The wing traced the raiders\' burn back to a claim deep on the shelf. That is where the Tallyman counts his take.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The convoy is through and the lane is open - and the raiders\' burn leads somewhere worth following."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "final_tally",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -1421,54 +1504,6 @@
                     )),
                     NextScenario((
                         scenario_id: "lifeline",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_tease",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    StoryMessage((
-                        speaker: "Belt Relay",
-                        text: "The wing traced the raiders\' burn back to a claim deep on the shelf. That is where the Tallyman counts his take.",
-                    )),
-                    TimerStart((
-                        key: "outro_banner",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_banner",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The convoy is through and the lane is open - and the raiders\' burn leads somewhere worth following."),
-                    )),
-                    NextScenario((
-                        scenario_id: "final_tally",
                         linger: true,
                     )),
                 ],

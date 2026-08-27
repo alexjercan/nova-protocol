@@ -113,6 +113,27 @@ fire again even if the same event repeats in the same frame.
 
 </details>
 
+### `Sequence` - beats that follow each other
+
+A run of beats that only wait for LATER is one
+[`Sequence`](../actions/#sequence) action holding the ordered steps. The
+engine holds the cursor, so the chain needs no step counter, no stamped
+deadline, and no handler per beat.
+
+```ron
+Sequence((
+    key: "opening",
+    steps: [
+        (after: Some(2.0), actions: [ /* first line */ ]),
+        (after: Some(8.4), actions: [ /* second line */ ]),
+    ],
+)),
+```
+
+Keep a HANDLER where the beat must still ASK something when it lands - which
+of two lines to speak, whether the fight is still live. A step runs when its
+wait ends; only a handler re-checks.
+
 ## Scenario scripting chapters
 
 - [Events](../events/) - when handlers run and what entity data they carry.

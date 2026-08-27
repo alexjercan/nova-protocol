@@ -33,7 +33,7 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
-    pacing::{self, clock_past, mark_clock, open_gate, MID_GAP, REVEAL_GAP},
+    pacing::{self, MID_GAP, REVEAL_GAP},
     ships, SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -62,35 +62,41 @@ const OBJ_BREAK: &str = "break_flagship";
 /// (flagship dead, the win locked - no outcome can overwrite it), 2 = won,
 /// 3 = lost. Terminal acts per the ledger lesson.
 const VAR_ACT: &str = "act";
+/// The epilogue act: the flagship is dead and the win locked, but the banner
+/// has not landed. It sits OUTSIDE the defeat gates (`act == 1`), so a death
+/// during the outro beats cannot overwrite the win.
+const ACT_EPILOGUE: f64 = 4.0;
+const ACT_WON: f64 = 2.0;
 /// One-shot: the anchorage has been surveyed (travel lock held on the bow).
 const VAR_SURVEYED: &str = "surveyed";
 /// Per-picket kill flags (the broadside pattern: flags, not counters).
 const VAR_PICKET_A_DOWN: &str = "picket_a_down";
 const VAR_PICKET_B_DOWN: &str = "picket_b_down";
-/// The clock mark (seconds) the cast-off waits for: pickets-down + a
-/// breathe. Written by the pickets-down beat as `scenario_elapsed + 6`.
-const VAR_CAST_AT: &str = "cast_at";
-/// The clock mark the epilogue's beats ride: written by the flagship-kill
-/// beat as the kill-time; the close line fires at +4, the banner at +9.
-const VAR_EPILOGUE_AT: &str = "epilogue_at";
-/// The pickets-down taunt has landed. A signal, not a latch: the cast-off
-/// waits on it.
-const VAR_TAUNT_SAID: &str = "taunt_said";
 /// Pacing: objectives post a beat after the comms line that introduces them.
-/// The survey objective follows the opening dispatch; the picket objective
-/// follows the survey-confirmed line. Each gate holds a `mark_clock` deadline;
-/// the `_posted` flag latches the one-shot.
-const VAR_SURVEY_GATE: &str = "survey_gate";
-const VAR_PICKET_GATE: &str = "picket_gate";
-const VAR_BREAK_GATE: &str = "break_gate";
+/// The keys name the one-step sequences the introducing beats start; the ENGINE
+/// holds the delay, so there is no gate variable to seed.
+const SEQ_OPENING: &str = "opening";
+const SEQ_BREAK: &str = "break_objective";
+/// The cast-off chain: started by the pickets-down beat, it owes BOTH the
+/// breathe and the survey. The survey can still be outstanding when the last
+/// picket dies, so the step carries an `until` gate as well as its delay - and
+/// a deadline, because a cast-off that never arrives strands the scenario with
+/// no flagship to break.
+const SEQ_CAST_OFF: &str = "cast_off";
+/// The picket objective's beat is a TIMER, not a sequence step: it must be
+/// ABANDONED if both pickets die inside the gap, or the objective would post
+/// pointing at two dead ships with nothing left to complete it. A step runs when
+/// its delay elapses; only a handler can still ask whether the beat is current.
+const TIMER_PICKET_GATE: &str = "picket_gate";
 
-/// The greeting line's clock gate.
+/// Halloran's sendoff, one breath behind the opening dispatch.
 const HELLO_AT: f64 = 9.0;
 /// Breathe between pickets-down and the cast-off.
 const CAST_OFF_DELAY: f64 = 6.0;
-/// Epilogue pacing: the close line and the banner, after the kill.
-const CLOSE_LINE_AFTER: f64 = 4.0;
-const BANNER_AFTER: f64 = 9.0;
+/// The cast-off's backstop. The survey is player-paced and untimed, so this is
+/// far longer than any play of the beat: it exists so a cast-off that can never
+/// arrive fails loudly instead of leaving the claim empty.
+const CAST_OFF_DEADLINE: f64 = 600.0;
 
 /// The planetoid: nominal 20u, surface gravity 6 - the shakedown
 /// planetoid's proven numbers (geometric body 70-120u, SOI 560-960u, from
@@ -334,6 +340,64 @@ fn player_travel_locks(target: &str) -> EventFilterConfig {
     })
 }
 
+/// The CAST-OFF chain, started by the pickets-down beat: the Final Tally and
+/// its escort emerge from behind the anchorage, and the break objective posts a
+/// beat behind the reveal.
+///
+/// The step owes BOTH waits. The breathe is the pacing beat between the taunt
+/// and the reveal; the gate is the survey, which can still be outstanding when
+/// the last picket dies. The two run together, so a player who surveyed first
+/// waits only the breathe.
+fn cast_off() -> EventActionConfig {
+    sequence(
+        SEQ_CAST_OFF,
+        vec![until_step(
+            CAST_OFF_DELAY,
+            EventConfig::OnUpdate,
+            vec![number_equals(VAR_SURVEYED, 1.0)],
+            CAST_OFF_DEADLINE,
+            vec![
+                story_message(
+                    BELT_RELAY,
+                    "Capital burn off the anchorage - tubes open. That's \
+                     the flagship.",
+                ),
+                spawn_object(flagship()),
+                spawn_object(escort()),
+                // Threat reveal (the capital ship emerges): full absorb beat -
+                // the flagship's approach IS the peak-fight framing. The marker
+                // is set with the reveal.
+                pacing::beat_later(
+                    SEQ_BREAK,
+                    REVEAL_GAP,
+                    vec![post_objective(OBJ_BREAK, "Break the Final Tally.")],
+                ),
+                attach_objective_marker(ID_FLAGSHIP, "FINAL TALLY"),
+            ],
+        )],
+    )
+}
+
+/// The epilogue chain: the guild's close, then the banner. Both flagship-kill
+/// variants start the same cursor - only one of them can ever fire.
+///
+/// The campaign ends here by design, so nothing is queued behind the banner -
+/// the banner says so.
+fn epilogue() -> EventActionConfig {
+    pacing::outro_sequence(
+        VAR_ACT,
+        ACT_WON,
+        CAPTAIN_HALLORAN,
+        "Quota's settled, pilot. The guild will not forget whose guns held \
+         the line.",
+        "The claim is quiet. The Tallyman's ledger is closed, his flagship is \
+         drift, and the belt's lanes are open. End of the base campaign - for \
+         now.",
+        vec![],
+        None,
+    )
+}
+
 pub(crate) fn final_tally(
     cubemap: AssetRef<Image>,
     asteroid_texture: AssetRef<Image>,
@@ -343,14 +407,6 @@ pub(crate) fn final_tally(
         set_variable(VAR_SURVEYED, number(0.0)),
         set_variable(VAR_PICKET_A_DOWN, number(0.0)),
         set_variable(VAR_PICKET_B_DOWN, number(0.0)),
-        set_variable(VAR_CAST_AT, number(0.0)),
-        set_variable(VAR_EPILOGUE_AT, number(0.0)),
-        set_variable(VAR_TAUNT_SAID, number(0.0)),
-        // Seed the transition gates so their gated_once filters read a defined
-        // 0 before the survey / cast-off stamp them, not an undefined var. The
-        // survey gate is seeded by its open_gate below.
-        set_variable(VAR_PICKET_GATE, number(0.0)),
-        set_variable(VAR_BREAK_GATE, number(0.0)),
         spawn_object(player_ship()),
         spawn_object(claim_anchor(&asteroid_texture)),
         spawn_object(anchorage_wreck(
@@ -372,17 +428,36 @@ pub(crate) fn final_tally(
         spawn_object(picket(ID_PICKET_A, PICKET_A_SPAWN)),
         spawn_object(picket(ID_PICKET_B, PICKET_B_SPAWN)),
         claim_belt(&asteroid_texture),
-        // Pacing pass: the survey objective posts a beat after this dispatch
-        // (the gated_once handler below), not the same frame.
         story_message(
             BELT_RELAY,
             "The raiders' burn traces to a dead claim: a cracked megahauler \
              berthed deep in a planetoid's pull. Confirm what's hiding there.",
         ),
-        // Reveal-then-instruct: "confirm what's hiding there" sets up, the
-        // objective explains the travel-lock mechanic - a mid gap. The
-        // anchorage marker is already up (below).
-        open_gate(VAR_SURVEY_GATE, MID_GAP),
+        // The opening chain. Reveal-then-instruct: "confirm what's hiding
+        // there" sets up, the objective explains the travel-lock mechanic - a
+        // mid gap, so the objective never shares a frame with the dispatch.
+        // Halloran's sendoff follows a breath later. The anchorage marker is
+        // already up (below).
+        sequence(
+            SEQ_OPENING,
+            vec![
+                step(
+                    MID_GAP,
+                    vec![post_objective(
+                        OBJ_SURVEY,
+                        "Survey the anchorage - hold a travel lock on the wreck's bow.",
+                    )],
+                ),
+                step(
+                    HELLO_AT - MID_GAP,
+                    vec![story_message(
+                        CAPTAIN_HALLORAN,
+                        "Whatever is berthed in that pull, pilot - the guild \
+                         settles its debts. So does he.",
+                    )],
+                ),
+            ],
+        ),
         attach_objective_marker(ID_WRECK_BOW, "ANCHORAGE"),
     ];
     // Scale 20, not the usual 10: the claim's planetoid reaches ANCHOR_RADIUS *
@@ -398,30 +473,6 @@ pub(crate) fn final_tally(
             once: false,
             filters: vec![],
             actions: opening,
-        },
-        // The survey objective posts a beat after the opening dispatch (pacing
-        // pass), while the approach is live.
-        pacing::gated_once(
-            VAR_SURVEY_GATE,
-            vec![number_equals(VAR_ACT, 1.0)],
-            vec![post_objective(
-                OBJ_SURVEY,
-                "Survey the anchorage - hold a travel lock on the wreck's bow.",
-            )],
-        ),
-        // Halloran's sendoff, one breath after the dispatch.
-        ScenarioEventConfig {
-            name: EventConfig::OnUpdate,
-            once: true,
-            filters: vec![
-                number_equals(VAR_ACT, 1.0),
-                number_greater_than(SCENARIO_ELAPSED_VAR, HELLO_AT),
-            ],
-            actions: vec![story_message(
-                CAPTAIN_HALLORAN,
-                "Whatever is berthed in that pull, pilot - the guild \
-                     settles its debts. So does he.",
-            )],
         },
         // The SURVEY: the travel lock lands on the bow. TWO fate variants
         // (the lifeline banner pattern): the pickets may already be drift when
@@ -451,26 +502,30 @@ pub(crate) fn final_tally(
                 // The confirm line reveals the pickets (already on-screen
                 // orbiting), so the reveal is short - a mid gap lands "break
                 // the picket" snappier without stepping on the line.
-                mark_clock(VAR_PICKET_GATE, MID_GAP),
+                start_timer(TIMER_PICKET_GATE, MID_GAP),
             ],
         },
         // The picket objective, a beat after the survey confirm. Guarded on at
         // least one picket still live: if BOTH die inside the beat, the objective
         // never posts (the pickets-down beat below drives on), so nothing is left
-        // pointing at dead ships. The gate is only stamped on the pickets-live
+        // pointing at dead ships. The timer is only started on the pickets-live
         // survey path, so this cannot fire on the already-drift variant.
-        pacing::gated_once(
-            VAR_PICKET_GATE,
-            vec![EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
-                Box::new(number_equals(VAR_PICKET_A_DOWN, 0.0)),
-                Box::new(number_equals(VAR_PICKET_B_DOWN, 0.0)),
-            ))],
-            vec![
+        ScenarioEventConfig {
+            name: EventConfig::OnTimerEnd,
+            once: true,
+            filters: vec![
+                timer(TIMER_PICKET_GATE),
+                EventFilterConfig::Conditional(ConditionalFilterConfig::Or(
+                    Box::new(number_equals(VAR_PICKET_A_DOWN, 0.0)),
+                    Box::new(number_equals(VAR_PICKET_B_DOWN, 0.0)),
+                )),
+            ],
+            actions: vec![
                 post_objective(OBJ_PICKET, "Break the orbital picket."),
                 attach_objective_marker(ID_PICKET_A, "PICKET"),
                 attach_objective_marker(ID_PICKET_B, "PICKET"),
             ],
-        ),
+        },
         ScenarioEventConfig {
             name: EventConfig::OnTravelLockStart,
             once: true,
@@ -511,10 +566,10 @@ pub(crate) fn final_tally(
                 detach_objective_marker(ID_PICKET_B),
             ],
         },
-        // Both pickets down: the Tallyman's last taunt, and the cast-off
-        // clock starts (pickets-down + a breathe). Flag-gated, not
-        // act-sequenced, so a pre-survey picket kill cannot deadlock -
-        // the cast-off below still waits for the survey.
+        // Both pickets down: the Tallyman's last taunt, and the cast-off chain
+        // starts. Flag-gated, not act-sequenced, so a pre-survey picket kill
+        // cannot deadlock - the chain's step owes the survey as well as the
+        // breathe, and only the ENGINE holds that wait.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
             once: true,
@@ -524,53 +579,15 @@ pub(crate) fn final_tally(
                 number_equals(VAR_PICKET_B_DOWN, 1.0),
             ],
             actions: vec![
-                set_variable(VAR_TAUNT_SAID, number(1.0)),
-                mark_clock(VAR_CAST_AT, CAST_OFF_DELAY),
                 complete_objective(OBJ_PICKET),
                 story_message(
                     TALLYMAN,
                     "You counted my pickets, pilot. Now count the tubes on \
                      my flagship.",
                 ),
+                cast_off(),
             ],
         },
-        // The CAST-OFF: survey done, pickets down, the breathe elapsed -
-        // the Final Tally and its escort emerge from behind the anchorage.
-        ScenarioEventConfig {
-            name: EventConfig::OnUpdate,
-            once: true,
-            filters: vec![
-                number_equals(VAR_ACT, 1.0),
-                number_equals(VAR_SURVEYED, 1.0),
-                number_equals(VAR_TAUNT_SAID, 1.0),
-                clock_past(VAR_CAST_AT),
-            ],
-            actions: vec![
-                // Pacing pass: the flagship and its gold marker appear with
-                // this reveal line; the break objective posts a beat later (the
-                // gated_once below), not the same frame.
-                story_message(
-                    BELT_RELAY,
-                    "Capital burn off the anchorage - tubes open. That's \
-                     the flagship.",
-                ),
-                spawn_object(flagship()),
-                spawn_object(escort()),
-                // Threat reveal (the capital ship emerges): full absorb beat -
-                // the flagship's approach IS the peak-fight framing. The marker
-                // is set with the reveal (below).
-                mark_clock(VAR_BREAK_GATE, REVEAL_GAP),
-                attach_objective_marker(ID_FLAGSHIP, "FINAL TALLY"),
-            ],
-        },
-        // The break objective, a beat after the cast-off reveal. Gated on the
-        // live act so a fast kill (which locks act 4) cannot post a stale
-        // objective under the epilogue.
-        pacing::gated_once(
-            VAR_BREAK_GATE,
-            vec![number_equals(VAR_ACT, 1.0)],
-            vec![post_objective(OBJ_BREAK, "Break the Final Tally.")],
-        ),
         // The KILL: the epilogue opens. Act 4 locks the win (a post-kill
         // player death declares nothing; the escort's fate is its own -
         // it runs, narratively). The confirm line fires now; the close
@@ -579,87 +596,38 @@ pub(crate) fn final_tally(
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
-            actions: vec![
-                set_variable(VAR_ACT, number(4.0)),
-                mark_clock(VAR_EPILOGUE_AT, 0.0),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_FLAGSHIP),
-                story_message(
-                    BELT_RELAY,
-                    "The Final Tally is breaking up. The claim is going dark.",
-                ),
-            ],
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_EPILOGUE,
+                epilogue(),
+                vec![
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_FLAGSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Final Tally is breaking up. The claim is going dark.",
+                    ),
+                ],
+            ),
         },
         ScenarioEventConfig {
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
-            actions: vec![
-                set_variable(VAR_ACT, number(4.0)),
-                mark_clock(VAR_EPILOGUE_AT, 0.0),
-                complete_objective(OBJ_BREAK),
-                detach_objective_marker(ID_FLAGSHIP),
-                story_message(
-                    BELT_RELAY,
-                    "The Final Tally hangs dead - guns cold, engines dark. \
-                     The claim is going dark.",
-                ),
-            ],
-        },
-        // Epilogue close line, +4s.
-        ScenarioEventConfig {
-            name: EventConfig::OnUpdate,
-            once: true,
-            filters: vec![
-                number_equals(VAR_ACT, 4.0),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_greater_than(
-                        variable(SCENARIO_ELAPSED_VAR),
-                        VariableExpressionNode::new_add(
-                            VariableTermNode::Factor(VariableFactorNode::new_name(VAR_EPILOGUE_AT)),
-                            VariableExpressionNode::new_term(VariableTermNode::Factor(
-                                VariableFactorNode::Literal(VariableLiteral::Number(
-                                    CLOSE_LINE_AFTER,
-                                )),
-                            )),
-                        ),
+            actions: pacing::open_outro(
+                VAR_ACT,
+                ACT_EPILOGUE,
+                epilogue(),
+                vec![
+                    complete_objective(OBJ_BREAK),
+                    detach_objective_marker(ID_FLAGSHIP),
+                    story_message(
+                        BELT_RELAY,
+                        "The Final Tally hangs dead - guns cold, engines dark. \
+                         The claim is going dark.",
                     ),
-                )),
-            ],
-            actions: vec![story_message(
-                CAPTAIN_HALLORAN,
-                "Quota's settled, pilot. The guild will not forget \
-                     whose guns held the line.",
-            )],
-        },
-        // The banner, +9s: the campaign completes - by design, with
-        // nothing queued (the banner says so).
-        ScenarioEventConfig {
-            name: EventConfig::OnUpdate,
-            once: true,
-            filters: vec![
-                number_equals(VAR_ACT, 4.0),
-                EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_greater_than(
-                        variable(SCENARIO_ELAPSED_VAR),
-                        VariableExpressionNode::new_add(
-                            VariableTermNode::Factor(VariableFactorNode::new_name(VAR_EPILOGUE_AT)),
-                            VariableExpressionNode::new_term(VariableTermNode::Factor(
-                                VariableFactorNode::Literal(VariableLiteral::Number(BANNER_AFTER)),
-                            )),
-                        ),
-                    ),
-                )),
-            ],
-            actions: vec![
-                set_variable(VAR_ACT, number(2.0)),
-                EventActionConfig::Outcome(OutcomeActionConfig::new(
-                    ScenarioOutcomeKind::Victory,
-                    "The claim is quiet. The Tallyman's ledger is closed, \
-                     his flagship is drift, and the belt's lanes are open. \
-                     End of the base campaign - for now.",
-                )),
-            ],
+                ],
+            ),
         },
         // Lose: the player dies while the fight is LIVE (act 1 only - the
         // epilogue's act 4 locks the win; terminal act 3 closes every gate

@@ -16,8 +16,7 @@
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
     CommandsGameEventExt, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
-    OnNeutralizedEvent, OnNeutralizedEventInfo, OnTimerEndEvent, OnTimerEndEventInfo,
-    OnUpdateEvent, OnUpdateEventInfo,
+    OnNeutralizedEvent, OnNeutralizedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
@@ -67,6 +66,9 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
         .filter(|e| !matches!(e.name, EventConfig::OnStart))
     {
         app.world_mut().spawn(event.build_handler());
+        for gate in event.gate_handlers() {
+            app.world_mut().spawn(gate);
+        }
     }
 }
 
@@ -91,21 +93,16 @@ fn neutralize(app: &mut App, id: &str) {
 }
 
 /// The destroy counterpart, for the once-semantics cross-check.
-/// The outro's timer keys (see `nova_protocol::pacing`). A win opens the
-/// chain and the banner lands on its last beat; this rig runs no clock, so it
-/// fires the ends directly.
-const OUTRO_TEASE_TIMER: &str = "outro_tease";
-const OUTRO_BANNER_TIMER: &str = "outro_banner";
+/// Longer than any single outro beat's delay. A win opens a `Sequence` and the
+/// ENGINE holds its cursor and delays, so this rig - which runs no clock -
+/// advances the scenario clock past one beat at a time.
+const OUTRO_BEAT_JUMP: f64 = 30.0;
 
 /// Walk the outro: the tease beat, then the banner beat that declares the win.
+/// One advance delivers one beat, exactly as the live pulse does.
 fn walk_outro(app: &mut App) {
-    for key in [OUTRO_TEASE_TIMER, OUTRO_BANNER_TIMER] {
-        let key = key.to_string();
-        app.world_mut()
-            .run_system_once(move |mut commands: Commands| {
-                commands.fire::<OnTimerEndEvent>(OnTimerEndEventInfo { key: key.clone() });
-            })
-            .expect("fire OnTimerEnd");
+    for _ in 0..2 {
+        nova_scenario::test_support::advance_scenario_clock(app, OUTRO_BEAT_JUMP);
         app.update();
         app.update();
     }

@@ -36,7 +36,7 @@ use nova_ship::prelude::*;
 
 use super::{
     cast::{BELT_RELAY, CAPTAIN_HALLORAN, TALLYMAN},
-    pacing::{self, open_gate, REVEAL_GAP},
+    pacing::{self, REVEAL_GAP},
     ships, SCATTER_SEED, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -76,10 +76,11 @@ const VAR_R2B_DOWN: &str = "r2b_down";
 const VAR_R2C_DOWN: &str = "r2c_down";
 const VAR_R3A_DOWN: &str = "r3a_down";
 const VAR_R3B_DOWN: &str = "r3b_down";
-/// Pacing: the screen-the-convoy objective posts a beat AFTER the dispatch
-/// line, not the same frame. The gate holds the `mark_clock` deadline; the flag
-/// latches the one-shot post.
-const VAR_SCREEN_GATE: &str = "screen_gate";
+/// The opening chain's sequence key: the dispatch line, then the objective a
+/// beat later (never the same frame), then Halloran's greeting. Three beats the
+/// engine walks, where each used to be a handler of its own carrying a clock
+/// mark and an act guard.
+const SEQ_OPENING: &str = "opening";
 /// The HUD countdown: `RELIEF_SECS - scenario_elapsed`, recomputed every
 /// frame while the act is live, displayed by the `relief` readout in Time
 /// format. Only writing `scenario_elapsed` itself is linted; a DERIVED
@@ -403,12 +404,29 @@ fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEven
         actions: pacing::open_outro(
             VAR_ACT,
             ACT_OUTRO,
+            outro(),
             vec![
                 complete_objective(OBJ_SCREEN),
                 story_message(BELT_RELAY, message),
             ],
         ),
     }
+}
+
+/// The outro chain: the trace into the finale, then the banner. All four win
+/// variants start the same cursor - only one of them can ever fire.
+fn outro() -> EventActionConfig {
+    pacing::outro_sequence(
+        VAR_ACT,
+        ACT_WON,
+        BELT_RELAY,
+        "The wing traced the raiders' burn back to a claim deep on the \
+         shelf. That is where the Tallyman counts his take.",
+        "The convoy is through and the lane is open - and the raiders' burn \
+         leads somewhere worth following.",
+        vec![],
+        Some(super::final_tally::FINAL_TALLY_SCENARIO_ID.to_string()),
+    )
 }
 
 pub(crate) fn lifeline(
@@ -463,16 +481,35 @@ pub(crate) fn lifeline(
             .map(spawn_object),
     );
     opening.extend([
-        // Pacing pass: the objective posts a beat after the dispatch line (the
-        // gated_once handler below), not the same frame.
         story_message(
             BELT_RELAY,
             "Relief wing is spooled and burning your way - four minutes \
              out. The convoy holds the lane until they arrive.",
         ),
-        // Reveal beat: "the convoy holds the lane" is a situation to absorb, so
-        // the screen objective waits the full gap (pacing).
-        open_gate(VAR_SCREEN_GATE, REVEAL_GAP),
+        // The opening chain. Reveal beat: "the convoy holds the lane" is a
+        // situation to absorb, so the screen objective waits the full gap
+        // (pacing) rather than sharing a frame with the dispatch line. The
+        // greeting follows a breath later.
+        sequence(
+            SEQ_OPENING,
+            vec![
+                step(
+                    REVEAL_GAP,
+                    vec![post_objective(
+                        OBJ_SCREEN,
+                        "Keep the convoy alive until the relief wing arrives.",
+                    )],
+                ),
+                step(
+                    HELLO_AT - REVEAL_GAP,
+                    vec![story_message(
+                        CAPTAIN_HALLORAN,
+                        "Halloran here - the Queen's guild runs this line. Drives are \
+                         cold on a transfer fault; we could not run if we wanted to.",
+                    )],
+                ),
+            ],
+        ),
         attach_objective_marker(ID_QUEEN, "CERES QUEEN"),
         attach_objective_marker(ID_MERIDIAN, "LONG MERIDIAN"),
         EventActionConfig::HudReadout(HudReadoutActionConfig {
@@ -485,23 +522,13 @@ pub(crate) fn lifeline(
     ]);
     opening.extend(ThreePointRig::around("lifeline", Vec3::ZERO, 10.0).actions());
 
-    let mut events = vec![
+    let events = vec![
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
             actions: opening,
         },
-        // The screen-the-convoy objective posts a beat after the dispatch line
-        // (pacing pass), while the defense is live.
-        pacing::gated_once(
-            VAR_SCREEN_GATE,
-            vec![number_equals(VAR_ACT, 1.0)],
-            vec![post_objective(
-                OBJ_SCREEN,
-                "Keep the convoy alive until the relief wing arrives.",
-            )],
-        ),
         // The countdown, recomputed every live frame: RELIEF_SECS - clock.
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
@@ -517,14 +544,6 @@ pub(crate) fn lifeline(
                 ),
             )],
         },
-        // Halloran's greeting, one breath after the dispatch line.
-        paced_line(
-            HELLO_AT,
-            CAPTAIN_HALLORAN,
-            "Halloran here - the Queen's guild runs this line. Drives are \
-             cold on a transfer fault; we could not run if we wanted to.",
-            vec![],
-        ),
         // --- Wave one: two raiders, one vector. ---
         ScenarioEventConfig {
             name: EventConfig::OnUpdate,
@@ -775,21 +794,6 @@ pub(crate) fn lifeline(
             ],
         },
     ];
-
-    // The outro: all four win variants said how the defense ended; the shared
-    // tail carries the trace into the finale and the banner.
-    events.extend(pacing::outro_beats(
-        VAR_ACT,
-        ACT_OUTRO,
-        ACT_WON,
-        BELT_RELAY,
-        "The wing traced the raiders' burn back to a claim deep on the \
-         shelf. That is where the Tallyman counts his take.",
-        "The convoy is through and the lane is open - and the raiders' burn \
-         leads somewhere worth following.",
-        vec![],
-        Some(super::final_tally::FINAL_TALLY_SCENARIO_ID.to_string()),
-    ));
 
     ScenarioConfig {
         id: LIFELINE_SCENARIO_ID.to_string(),

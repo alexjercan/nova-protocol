@@ -113,25 +113,37 @@ pub fn lint_scenario(
         }
     }
 
-    // Pass 1: what the scenario declares. Spawn ids are tracked per event
-    // so the duplicate check can tell a definite bug from a branch pattern.
+    // Pass 1: what the scenario declares. Spawn ids and sequence keys are
+    // tracked per event so the duplicate checks can tell a definite bug from a
+    // branch pattern.
     let mut declared = Declared::default();
     let mut spawns_per_event: Vec<Vec<String>> = Vec::new();
+    let mut sequences_per_event: Vec<Vec<String>> = Vec::new();
     for event in &scenario.events {
         let mut event_spawns = Vec::new();
+        let mut event_sequences = Vec::new();
         for action in &event.actions {
-            collect_declared(action, &mut declared);
-            match action {
-                EventActionConfig::SpawnScenarioObject(config) => {
-                    event_spawns.push(config.base.id.clone());
+            action.walk(&mut |action| {
+                collect_declared(action, &mut declared);
+                match action {
+                    EventActionConfig::SpawnScenarioObject(config) => {
+                        event_spawns.push(config.base.id.clone());
+                    }
+                    EventActionConfig::CreateScenarioArea(config) => {
+                        event_spawns.push(config.id.clone());
+                    }
+                    EventActionConfig::Sequence(config) => {
+                        check_sequence(config, id, &mut issues);
+                        if !config.key.trim().is_empty() {
+                            event_sequences.push(config.key.clone());
+                        }
+                    }
+                    _ => {}
                 }
-                EventActionConfig::CreateScenarioArea(config) => {
-                    event_spawns.push(config.id.clone());
-                }
-                _ => {}
-            }
+            });
         }
         spawns_per_event.push(event_spawns);
+        sequences_per_event.push(event_sequences);
     }
 
     // Duplicate spawned ids: within ONE handler's action list two objects
@@ -159,6 +171,30 @@ pub fn lint_scenario(
                     id,
                     format!(
                         "object id '{spawn_id}' is spawned by more than one handler - fine only if the handlers are mutually exclusive"
+                    ),
+                ));
+            }
+        }
+    }
+
+    // Duplicate sequence keys, within ONE handler's action list only: two starts
+    // there definitely race for one cursor and the engine refuses the second.
+    //
+    // Across handlers a shared key is the INTENDED shape, not a smell: every win
+    // variant of a scenario starts the same outro chain, and only one of them
+    // can ever fire. Nothing static can tell that apart from a real collision,
+    // so the runtime holds that half - `start_sequence` refuses a live key and
+    // says so - and the gate stays quiet rather than warning on the pattern the
+    // mainline uses everywhere.
+    for event_sequences in &sequences_per_event {
+        let mut seen = HashSet::new();
+        for key in event_sequences {
+            if !seen.insert(key.as_str()) {
+                issues.push(LintIssue::error(
+                    id,
+                    format!(
+                        "duplicate Sequence key '{key}' within one handler; the engine \
+                         holds ONE cursor per key, so the second start is refused"
                     ),
                 ));
             }
@@ -194,17 +230,29 @@ pub fn lint_scenario(
             );
         }
         for action in &event.actions {
-            check_action(
-                action,
-                id,
-                sections,
-                ships,
-                known_scenarios,
-                &satisfiable,
-                &declared.timer_keys,
-                &mut used_vars,
-                &mut issues,
-            );
+            action.walk_filters(&mut |filter| {
+                check_filter(
+                    filter,
+                    id,
+                    &satisfiable,
+                    &declared.timer_keys,
+                    &mut used_vars,
+                    &mut issues,
+                );
+            });
+            action.walk(&mut |action| {
+                check_action(
+                    action,
+                    id,
+                    sections,
+                    ships,
+                    known_scenarios,
+                    &satisfiable,
+                    &declared.timer_keys,
+                    &mut used_vars,
+                    &mut issues,
+                );
+            });
         }
     }
 
@@ -224,9 +272,8 @@ pub fn lint_scenario(
     // StoryMessage beside an Outcome is a DEAD line - the overlay pauses the
     // comms queue and the chained teardown drops it unread. Fold it into the
     // overlay message or move it to an earlier beat.
-    for event in &scenario.events {
-        let story_lines = event
-            .actions
+    for group in scenario.events.iter().flat_map(|e| e.action_groups()) {
+        let story_lines = group
             .iter()
             .filter(|a| matches!(a, EventActionConfig::StoryMessage(_)))
             .count();
@@ -241,8 +288,7 @@ pub fn lint_scenario(
             ));
         }
         if story_lines > 0
-            && event
-                .actions
+            && group
                 .iter()
                 .any(|a| matches!(a, EventActionConfig::Outcome(_)))
         {
@@ -263,13 +309,11 @@ pub fn lint_scenario(
     // so the cut never comes while the player reads. Pair Outcome with linger:
     // true (+ auto_advance_secs for a timed banner), or drop the Outcome for a
     // pure delayed cut.
-    for event in &scenario.events {
-        let has_outcome = event
-            .actions
+    for group in scenario.events.iter().flat_map(|e| e.action_groups()) {
+        let has_outcome = group
             .iter()
             .any(|a| matches!(a, EventActionConfig::Outcome(_)));
-        let hard_switch = event
-            .actions
+        let hard_switch = group
             .iter()
             .any(|a| matches!(a, EventActionConfig::NextScenario(next) if !next.linger));
         if has_outcome && hard_switch {
@@ -278,6 +322,55 @@ pub fn lint_scenario(
                 "an Outcome and a non-lingering NextScenario in one handler: the \
                  switch swallows (or, delayed, is frozen under) the overlay - use \
                  linger: true with the Outcome, or drop the Outcome for a pure cut"
+                    .to_string(),
+            ));
+        }
+    }
+
+    // The regression rule stage 2 pays for. An `OnUpdate` handler whose filters
+    // read NOTHING but the scenario clock is a hand-rolled delay: the pulse
+    // walks it every frame to ask a question the engine now answers itself -
+    // `after:` on a `Sequence` step for a beat in a chain, a keyed timer for a
+    // one-off wait. Only pure clock polling is flagged; a value-gated milestone
+    // (a tally, a distance) is a legitimate `OnUpdate` and stays silent.
+    let clock_watches: HashSet<&str> = scenario
+        .watches
+        .iter()
+        .filter(|watch| {
+            matches!(&watch.query, QueryConfig::Scenario(query)
+                if query.property == ScenarioProperty::Elapsed)
+        })
+        .map(|watch| watch.variable.as_str())
+        .collect();
+    for event in &scenario.events {
+        if !matches!(event.name, EventConfig::OnUpdate) || event.filters.is_empty() {
+            continue;
+        }
+        let mut names = HashSet::new();
+        let mut queries = Vec::new();
+        let mut expressions_only = true;
+        for filter in &event.filters {
+            match filter {
+                EventFilterConfig::Expression(config) => {
+                    collect_condition_vars(&config.0, &mut names);
+                    collect_condition_queries(&config.0, &mut queries);
+                }
+                _ => expressions_only = false,
+            }
+        }
+        let reads_only_the_clock = names
+            .iter()
+            .all(|name| clock_watches.contains(name.as_str()))
+            && queries.iter().all(|query| {
+                matches!(query, QueryConfig::Scenario(query)
+                    if query.property == ScenarioProperty::Elapsed)
+            });
+        if expressions_only && reads_only_the_clock && !(names.is_empty() && queries.is_empty()) {
+            issues.push(LintIssue::warn(
+                id,
+                "an OnUpdate handler filtered on nothing but the scenario clock is a \
+                 hand-rolled delay walked every frame - use a Sequence step's `after`, \
+                 or a keyed timer with OnTimerEnd"
                     .to_string(),
             ));
         }
@@ -313,6 +406,68 @@ pub fn lint_scenario(
     }
 
     issues
+}
+
+/// Every action list that runs as ONE beat: a handler's own list, and each
+/// `Sequence` step's, at any depth.
+///
+/// The beat-sheet checks count per group rather than per handler. A five-step
+/// sequence is five beats spaced by the scenario clock, so its five story lines
+/// are the convention being followed, not broken.
+/// Check one `Sequence`'s own shape: a non-empty key, at least one step, and a
+/// deadline on every step that waits for an event.
+///
+/// Key UNIQUENESS is not decided here - it needs the whole scenario, and it
+/// reads per handler (see the duplicate rules in [`lint_scenario`]).
+fn check_sequence(config: &SequenceActionConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
+    if config.key.trim().is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            "Sequence has an empty key".to_string(),
+        ));
+    }
+    if config.steps.is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("Sequence '{}' has no steps", config.key),
+        ));
+    }
+    for (index, step) in config.steps.iter().enumerate() {
+        if step.until.is_some() && step.deadline.is_none() {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "Sequence '{}' step {index} waits for an event with no deadline; \
+                     a gate that never opens is a silent soft-lock",
+                    config.key
+                ),
+            ));
+        }
+        for field in [("after", step.after), ("deadline", step.deadline)] {
+            if let (name, Some(secs)) = field {
+                if !secs.is_finite() || secs < 0.0 {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "Sequence '{}' step {index} has a {name} of {secs}s; \
+                             it must be a finite, non-negative number of seconds",
+                            config.key
+                        ),
+                    ));
+                }
+            }
+        }
+        if step.until.is_none() && step.deadline.is_some() {
+            issues.push(LintIssue::warn(
+                scenario,
+                format!(
+                    "Sequence '{}' step {index} has a deadline but nothing to wait \
+                     for; the deadline is dead unless the step has an `until` gate",
+                    config.key
+                ),
+            ));
+        }
+    }
 }
 
 fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
@@ -1392,5 +1547,254 @@ mod tests {
             "writing a watched speed is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(PLAYER_SPEED_VAR));
+    }
+
+    fn number(n: f64) -> VariableExpressionNode {
+        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_literal(VariableLiteral::Number(n)),
+        ))
+    }
+
+    fn name(n: &str) -> VariableExpressionNode {
+        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_name(n),
+        ))
+    }
+
+    fn story(text: &str) -> EventActionConfig {
+        EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            speaker: "Control".to_string(),
+            text: text.to_string(),
+            dwell: None,
+            icon: None,
+        })
+    }
+
+    fn sequence(key: &str, steps: Vec<SequenceStepConfig>) -> EventActionConfig {
+        EventActionConfig::Sequence(SequenceActionConfig {
+            key: key.to_string(),
+            steps,
+        })
+    }
+
+    fn enter_gate(id: &str) -> SequenceGateConfig {
+        SequenceGateConfig {
+            name: EventConfig::OnEnter,
+            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some(id.to_string()),
+                ..default()
+            })],
+        }
+    }
+
+    /// A gate is a runtime question, so whether it can EVER open is not
+    /// decidable here. The deadline is what turns an unanswerable gate into a
+    /// loud stop instead of a silent soft-lock, so authoring one without it is
+    /// an error.
+    #[test]
+    fn a_gated_step_without_a_deadline_errors() {
+        let s = scenario(
+            vec![
+                spawn_object("beacon_1"),
+                sequence(
+                    "run",
+                    vec![SequenceStepConfig {
+                        until: Some(enter_gate("beacon_1")),
+                        ..default()
+                    }],
+                ),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("no deadline")),
+            "a gate with no deadline must error: {issues:?}"
+        );
+    }
+
+    /// The engine holds ONE cursor per key, so the second start is refused at
+    /// runtime - a beat chain that silently never plays. Catch it on the gate.
+    #[test]
+    fn a_duplicate_sequence_key_errors() {
+        let s = scenario(
+            vec![
+                sequence("run", vec![SequenceStepConfig::default()]),
+                sequence("run", vec![SequenceStepConfig::default()]),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("duplicate Sequence key")),
+            "two sequences on one key must error: {issues:?}"
+        );
+    }
+
+    /// The shared outro pattern: every win variant starts the SAME chain, and
+    /// only one of them can ever fire. Nothing static can tell that apart from
+    /// a real collision, so the gate stays quiet and the runtime holds that
+    /// half - otherwise the mainline's own shape warns five times a run.
+    #[test]
+    fn a_sequence_key_started_by_two_handlers_is_not_flagged() {
+        let mut s = scenario(
+            vec![sequence("outro", vec![SequenceStepConfig::default()])],
+            vec![],
+        );
+        s.events.push(ScenarioEventConfig {
+            name: EventConfig::OnDestroyed,
+            once: true,
+            filters: vec![],
+            actions: vec![sequence("outro", vec![SequenceStepConfig::default()])],
+        });
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.message.contains("Sequence key 'outro'")),
+            "mutually exclusive starts must not be flagged at all: {issues:?}"
+        );
+    }
+
+    /// The walkers recurse. A spawn that only a STEP performs still declares
+    /// its id, so a filter and a gate that name it are satisfiable - without
+    /// the recursion both would read as dangling references.
+    #[test]
+    fn a_spawn_inside_a_step_declares_its_id_to_the_whole_scenario() {
+        let s = scenario(
+            vec![sequence(
+                "run",
+                vec![
+                    SequenceStepConfig {
+                        actions: vec![spawn_object("beacon_1")],
+                        ..default()
+                    },
+                    SequenceStepConfig {
+                        until: Some(enter_gate("beacon_1")),
+                        deadline: Some(120.0),
+                        ..default()
+                    },
+                ],
+            )],
+            vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some("beacon_1".to_string()),
+                ..default()
+            })],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues).is_empty(),
+            "a step's spawn declares its id like a handler's would: {issues:?}"
+        );
+    }
+
+    /// A sequence step is a BEAT, so the one-line-per-beat convention counts
+    /// per step. Three single-line steps are the convention being followed;
+    /// two lines inside one step are the burst it exists to stop.
+    #[test]
+    fn story_lines_are_counted_per_step_not_per_handler() {
+        let paced = scenario(
+            vec![sequence(
+                "run",
+                (0..3)
+                    .map(|i| SequenceStepConfig {
+                        after: Some(4.0),
+                        actions: vec![story(&format!("line {i}"))],
+                        ..default()
+                    })
+                    .collect(),
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&paced, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            !issues.iter().any(|i| i.message.contains("StoryMessages")),
+            "clock-spaced steps are one line per beat: {issues:?}"
+        );
+
+        let burst = scenario(
+            vec![sequence(
+                "run",
+                vec![SequenceStepConfig {
+                    actions: vec![story("one"), story("two")],
+                    ..default()
+                }],
+            )],
+            vec![],
+        );
+        let issues = lint_scenario(&burst, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            issues.iter().any(|i| i.message.contains("StoryMessages")),
+            "two lines inside ONE step are still a burst: {issues:?}"
+        );
+    }
+
+    /// The regression rule: once `after` exists, an `OnUpdate` handler filtered
+    /// on nothing but the clock is a hand-rolled delay walked every frame.
+    #[test]
+    fn an_onupdate_filtered_only_on_the_clock_warns() {
+        let mut s = scenario(vec![], vec![]);
+        s.watches = vec![WatchConfig {
+            variable: "elapsed".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        }];
+        s.events = vec![ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            once: true,
+            filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::GreaterThan(
+                    Box::new(name("elapsed")),
+                    Box::new(number(12.0)),
+                ),
+            ))],
+            actions: vec![story("late")],
+        }];
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.message.contains("hand-rolled delay")),
+            "pure clock polling must be flagged: {issues:?}"
+        );
+    }
+
+    /// The same rule must stay quiet on a value-gated milestone - a tally, a
+    /// distance - which is what `OnUpdate` is legitimately for.
+    #[test]
+    fn an_onupdate_gated_on_a_value_stays_quiet() {
+        let mut s = scenario(vec![spawn_object("beacon_1")], vec![]);
+        s.watches = vec![WatchConfig {
+            variable: "crates_left".to_string(),
+            query: QueryConfig::Entity(EntityQuery {
+                filter: EntityQueryFilter {
+                    id: "beacon_1".to_string(),
+                },
+                property: EntityProperty::Speed,
+            }),
+        }];
+        s.events.push(ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            once: true,
+            filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::LessThan(
+                    Box::new(name("crates_left")),
+                    Box::new(number(1.0)),
+                ),
+            ))],
+            actions: vec![story("all aboard")],
+        });
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.message.contains("hand-rolled delay")),
+            "a value-gated milestone is a legitimate OnUpdate: {issues:?}"
+        );
     }
 }

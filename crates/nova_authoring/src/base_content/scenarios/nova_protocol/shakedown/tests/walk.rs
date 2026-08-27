@@ -45,9 +45,7 @@ fn scripted_app() -> App {
     app.finish();
 
     let config = scenario();
-    for event in &config.events {
-        app.world_mut().spawn(event.build_handler());
-    }
+    nova_scenario::test_support::register_scenario_handlers(&mut app, &config);
     app
 }
 
@@ -61,32 +59,23 @@ fn boot(app: &mut App) {
     pulse(app);
 }
 
-/// Set the scenario clock the loader normally advances each frame, so the
-/// opening conversation's `scenario_elapsed` gates fire in the headless rig.
-fn set_clock(app: &mut App, secs: f64) {
-    app.world_mut()
-        .resource_mut::<NovaEventWorld>()
-        .insert_variable(
-            SCENARIO_ELAPSED_VAR.to_string(),
-            VariableLiteral::Number(secs),
-        );
+/// Advance the scenario clock the loader normally advances each frame, and
+/// deliver whatever beat that makes due.
+///
+/// One advance delivers at most one step of any one chain, exactly as the live
+/// pulse does: a step's delay is measured from the step BEFORE it, so a single
+/// jump can only ever make the head of a chain ready.
+fn advance(app: &mut App, seconds: f64) {
+    nova_scenario::test_support::advance_scenario_clock(app, seconds);
+    step(app);
 }
 
-/// Advance the scenario clock past the current beat gate and pulse, so the
-/// pending `beat_setup` posts its objective. Since the pacing rework an
-/// objective posts a beat AFTER its transition's comms line; beats now use
-/// different gaps, so the walk jumps past the LONGEST (`REVEAL_GAP`) - which
-/// clears every category - and keeps `scenario_elapsed` monotonic across beats.
+/// Advance past the current beat's delay and pulse, so the pending
+/// `beat_setup` posts its objective. Since the pacing rework an objective posts
+/// a beat AFTER its transition's comms line; beats use different gaps, so the
+/// walk jumps past the LONGEST (`REVEAL_GAP`), which clears every category.
 fn settle_beat(app: &mut App) {
-    let now = match app
-        .world()
-        .resource::<NovaEventWorld>()
-        .get_variable(SCENARIO_ELAPSED_VAR)
-    {
-        Some(VariableLiteral::Number(n)) => *n,
-        _ => 0.0,
-    };
-    set_clock(app, now + REVEAL_GAP + 1.0);
+    advance(app, REVEAL_GAP + 1.0);
     pulse(app);
 }
 
@@ -122,16 +111,19 @@ fn walk_to_rehearsal(app: &mut App) {
     settle_beat(app);
 }
 
-/// Run the ~40s opening conversation to its hand-off: push the clock past
-/// the last line and pulse until objective 1 posts and beacon 1 spawns.
+/// Run the opening conversation to its hand-off: walk the opening chain's
+/// steps until objective 1 posts and beacon 1 spawns.
+///
+/// The chain is one `Sequence` now, so the rig walks it the way the pulse does
+/// - one advance per line - rather than parking the clock past every gate at
+/// once and pulsing until the counters catch up.
 fn finish_opening(app: &mut App) {
-    set_clock(app, OPEN_5_AT + 1.0);
-    // Each pulse advances the open_step counter by one line; five lines plus
-    // the hand-off settle in a handful of pulses (the clock is already past
-    // every gate, so they chain).
-    for _ in 0..7 {
-        pulse(app);
+    advance(app, OPEN_1_AT + 1.0);
+    // Four more lines, then the hand-off step, which owes no delay of its own.
+    for _ in 0..5 {
+        advance(app, OPEN_GAP + 1.0);
     }
+    pulse(app);
 }
 
 /// Two frames, then run the world out to LIVE.
@@ -161,25 +153,13 @@ fn pulse(app: &mut App) {
     step(app);
 }
 
-/// Fire a keyed timer's end, the way `tick_scenario_timers` does once its
-/// deadline passes. The rig registers handlers by hand and does not run the
-/// loader's clock systems, so the outro's timers are driven here the same way
-/// every other event in this file is.
-fn fire_timer(app: &mut App, key: &str) {
-    use nova_events::prelude::*;
-    app.world_mut()
-        .commands()
-        .fire::<OnTimerEndEvent>(OnTimerEndEventInfo {
-            key: key.to_string(),
-        });
-    pulse(app);
-}
-
-/// Walk the outro: the tease beat, then the banner beat that posts the final
-/// objective and declares the win.
+/// Walk the outro chain: the tease beat, then the banner beat that posts the
+/// final objective and declares the win.
 fn walk_outro(app: &mut App) {
-    fire_timer(app, pacing::OUTRO_TEASE_TIMER);
-    fire_timer(app, pacing::OUTRO_BANNER_TIMER);
+    advance(app, pacing::OUTRO_TEASE_AFTER + 1.0);
+    pulse(app);
+    advance(app, pacing::OUTRO_BANNER_AFTER + 1.0);
+    pulse(app);
 }
 
 /// The player ship enters `area` (the physics half of this event is proven by
@@ -790,8 +770,6 @@ fn instruction_objectives_land_mid_read_not_after_the_full_reveal_gap() {
     let mut app = scripted_app();
     boot(&mut app);
     finish_opening(&mut app);
-    // The opening handoff parks the clock just past the last opening line.
-    let t0 = OPEN_5_AT + 1.0;
 
     // Beat 1 -> 2: reaching beacon 1 completes B1 and plays the beat-2 line;
     // the objective is NOT up yet (it posts a gap later, never same-frame).
@@ -802,7 +780,7 @@ fn instruction_objectives_land_mid_read_not_after_the_full_reveal_gap() {
     );
 
     // Still short of INSTRUCTION_GAP: nothing posts.
-    set_clock(&mut app, t0 + INSTRUCTION_GAP - 1.0);
+    advance(&mut app, INSTRUCTION_GAP - 1.0);
     pulse(&mut app);
     assert!(
         !has_obj(&app, OBJ_B2),
@@ -815,7 +793,7 @@ fn instruction_objectives_land_mid_read_not_after_the_full_reveal_gap() {
         INSTRUCTION_GAP + 1.0 < REVEAL_GAP,
         "the instruction gap must be strictly shorter than the reveal gap for this pin to bite"
     );
-    set_clock(&mut app, t0 + INSTRUCTION_GAP + 1.0);
+    advance(&mut app, 2.0);
     pulse(&mut app);
     assert!(
         has_obj(&app, OBJ_B2),
@@ -993,9 +971,10 @@ fn the_opening_converses_before_objective_one_and_beats_breathe() {
             .any(|a| matches!(a, EventActionConfig::Objective(o) if o.id == id))
     };
 
-    // OnStart posts NO objective at all - the panel stays empty through the
-    // opening conversation (owner pacing pass); objective 1 posts only when the
-    // conversation hands off.
+    // OnStart posts NO objective in its own frame - the panel stays empty
+    // through the opening conversation (owner pacing pass); objective 1 posts
+    // only when the conversation hands off, which is the last STEP of the
+    // opening chain OnStart carries.
     let on_start = config
         .events
         .iter()
@@ -1012,11 +991,14 @@ fn the_opening_converses_before_objective_one_and_beats_breathe() {
         !posts(on_start, OBJ_B1),
         "objective 1 is deferred past the opening conversation"
     );
-    let obj1_posts = config
-        .events
-        .iter()
-        .filter(|e| !matches!(e.name, EventConfig::OnStart) && posts(e, OBJ_B1))
-        .count();
+    let mut obj1_posts = 0;
+    for action in config.events.iter().flat_map(|e| e.actions.iter()) {
+        action.walk(&mut |action| {
+            if matches!(action, EventActionConfig::Objective(o) if o.id == OBJ_B1) {
+                obj1_posts += 1;
+            }
+        });
+    }
     assert_eq!(obj1_posts, 1, "exactly one deferred objective-1 post");
 
     // The opening + the per-beat transition lines carry voice, and the
@@ -1044,17 +1026,19 @@ fn the_opening_converses_before_objective_one_and_beats_breathe() {
         "the player speaks (the opening back-and-forth)"
     );
 
-    // Every navigation beat transition stamps the beat gate (plus the
-    // OnStart init), so the next objective posts a fixed delay after the
-    // transition line - the "no two beats back to back" guarantee.
-    let gate_stamps = config
+    // Every navigation beat transition starts a beat chain, so the next
+    // objective posts a fixed delay after the transition line - the "no two
+    // beats back to back" guarantee. The delay is the ENGINE's now: a
+    // transition carries the chain, not a stamped gate variable a separate
+    // handler reads back.
+    let beat_chains = config
         .events
         .iter()
         .flat_map(|e| e.actions.iter())
-        .filter(|a| matches!(a, EventActionConfig::VariableSet(v) if v.key == VAR_GATE))
+        .filter(|a| matches!(a, EventActionConfig::Sequence(_)))
         .count();
     assert!(
-        gate_stamps >= 9,
-        "each navigation beat transition stamps the beat gate, got {gate_stamps}"
+        beat_chains >= 9,
+        "each navigation beat transition starts its own beat chain, got {beat_chains}"
     );
 }

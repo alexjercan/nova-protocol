@@ -14,7 +14,7 @@ pub mod prelude {
 }
 
 use core::time::Duration;
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::Arc};
 
 // Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
@@ -65,6 +65,40 @@ pub fn scenario_has_settled(
     !world.is_settling() && !preload.is_some_and(|preload| preload.is_pending())
 }
 
+/// One running [`SequenceActionConfig`]: the engine's cursor into an authored
+/// step list.
+///
+/// The cursor CANNOT live in the action - `EventAction::action` takes `&self`,
+/// actions are `Arc`-shared, and the handler index stores clones - so it lives
+/// here under the authored literal key, exactly as a timer deadline does.
+struct SequenceRun {
+    /// The authored literal the sequence and its gates are filed under.
+    key: String,
+    /// The authored steps. Shared rather than owned so restarting or cloning
+    /// the config does not copy the whole beat chain.
+    steps: Arc<Vec<SequenceStepConfig>>,
+    /// The step waiting to run. `steps.len()` once the run is finished.
+    step: usize,
+    /// Scenario clock when `step` became current - what `after` and `deadline`
+    /// are both measured from.
+    since: f64,
+    /// Whether this step's `until` gate has fired since the step became
+    /// current. Cleared on every advance, so an early gate does not carry.
+    gate_open: bool,
+    /// Set when a deadline expired. A stopped run never advances again and
+    /// keeps its key, so the failure cannot be papered over by a restart.
+    stopped: bool,
+}
+
+/// What a stuck step was waiting for, for the deadline log line.
+fn describe_step_gate(step: &SequenceStepConfig) -> String {
+    match (&step.until, step.after) {
+        (Some(gate), _) => format!("event {:?}", gate.name),
+        (None, Some(after)) => format!("its {after}s delay"),
+        (None, None) => "nothing".to_string(),
+    }
+}
+
 /// The event world for the live scenario: the game-specific [`EventWorld`]
 /// carrying scenario state that scenario actions read and write - objectives,
 /// story log, mutable and watched variables, typed query snapshots, a deferred
@@ -94,6 +128,11 @@ pub struct NovaEventWorld {
     scenario_elapsed: f64,
     /// Keyed timer deadlines on the pause-frozen scenario clock.
     timers: HashMap<String, f64>,
+    /// Every `Sequence` the scenario has started, in start order. A `Vec`
+    /// rather than a map because the driver walks them, and a walk over a hash
+    /// map is not deterministic - two sequences whose beats land on one frame
+    /// must land in the same order on every run.
+    sequences: Vec<SequenceRun>,
     /// Every position a `ScatterObjects` action has placed this scenario, in
     /// placement order. Separation is a property of the FIELD, not of one
     /// action: a belt is authored as sibling scatters whose regions abut, and a
@@ -359,6 +398,7 @@ impl NovaEventWorld {
         self.query_values.clear();
         self.scenario_elapsed = 0.0;
         self.timers.clear();
+        self.sequences.clear();
         self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
@@ -502,6 +542,105 @@ impl NovaEventWorld {
     /// tests; authored content observes completion through `OnTimerEnd`.
     pub fn timer_is_running(&self, key: &str) -> bool {
         self.timers.contains_key(key)
+    }
+
+    /// Start a keyed sequence at its first step.
+    ///
+    /// Restarting a LIVE key is refused: the cursor is the sequence's only
+    /// state, so a restart would replay beats the player has already seen. A
+    /// finished run is pruned, so the same key may be started again later.
+    pub(crate) fn start_sequence(&mut self, key: String, steps: Arc<Vec<SequenceStepConfig>>) {
+        self.prune_finished_sequences();
+        if self.sequences.iter().any(|run| run.key == key) {
+            error!("sequence '{key}' is already running; ignoring the restart");
+            return;
+        }
+        self.sequences.push(SequenceRun {
+            key,
+            steps,
+            step: 0,
+            since: self.scenario_elapsed,
+            gate_open: false,
+            stopped: false,
+        });
+    }
+
+    /// Open the `until` gate of one step, from the handler the loader spawned
+    /// for it.
+    ///
+    /// The step index is checked against the cursor, so a gate event that
+    /// arrives while the cursor is somewhere else does nothing. That is the
+    /// ordering guarantee: a step is armed by the run reaching it, never by the
+    /// world happening to satisfy it early.
+    pub(crate) fn open_sequence_gate(&mut self, key: &str, step: usize) {
+        let Some(run) = self.sequences.iter_mut().find(|run| run.key == key) else {
+            return;
+        };
+        if run.stopped || run.step != step {
+            return;
+        }
+        run.gate_open = true;
+    }
+
+    /// Advance the first sequence whose current step is ready, and return that
+    /// step's actions.
+    ///
+    /// The cursor moves BEFORE the actions are handed back, so a step that
+    /// starts another sequence - or writes anything else back into this world -
+    /// cannot see a cursor that is still standing on itself. The driver calls
+    /// this in a loop, so a run of zero-delay steps resolves within one frame.
+    pub(crate) fn take_ready_sequence_step(&mut self, now: f64) -> Option<Vec<EventActionConfig>> {
+        self.prune_finished_sequences();
+        for run in &mut self.sequences {
+            if run.stopped {
+                continue;
+            }
+            let Some(step) = run.steps.get(run.step) else {
+                continue;
+            };
+            let waited = now - run.since;
+            let after_done = step.after.is_none_or(|after| waited >= after);
+            let gate_done = step.until.is_none() || run.gate_open;
+            if after_done && gate_done {
+                let actions = step.actions.clone();
+                run.step += 1;
+                run.since = now;
+                run.gate_open = false;
+                return Some(actions);
+            }
+            // A step that can never finish is a soft-lock, which is the worst
+            // thing a scenario can ship. Stop the run and SAY SO rather than
+            // skipping ahead, which would hide the authoring bug behind a
+            // scenario that still limps to its end.
+            if step.deadline.is_some_and(|deadline| waited >= deadline) {
+                error!(
+                    "sequence '{}' step {} passed its {}s deadline waiting for {}; the sequence stops here",
+                    run.key,
+                    run.step,
+                    step.deadline.unwrap_or_default(),
+                    describe_step_gate(step),
+                );
+                run.stopped = true;
+            }
+        }
+        None
+    }
+
+    /// Drop runs that reached the end of their step list, freeing the key. A
+    /// run STOPPED by a deadline is kept: its key stays occupied so a restart
+    /// cannot paper over the failure.
+    fn prune_finished_sequences(&mut self) {
+        self.sequences
+            .retain(|run| run.stopped || run.step < run.steps.len());
+    }
+
+    /// Which step a sequence is standing on, or `None` when no run holds that
+    /// key. Diagnostics and tests; authored content never reads the cursor.
+    pub fn sequence_step(&self, key: &str) -> Option<usize> {
+        self.sequences
+            .iter()
+            .find(|run| run.key == key)
+            .map(|run| run.step)
     }
 
     /// Set a mutable scenario variable, unless a watch owns the name.

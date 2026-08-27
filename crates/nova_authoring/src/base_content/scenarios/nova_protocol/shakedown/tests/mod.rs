@@ -11,7 +11,13 @@ fn scenario() -> ScenarioConfig {
     shakedown_run(AssetRef::default(), AssetRef::default())
 }
 
-/// Every action across all handlers, flattened.
-fn all_actions(config: &ScenarioConfig) -> impl Iterator<Item = &EventActionConfig> {
-    config.events.iter().flat_map(|event| event.actions.iter())
+/// Every action across all handlers, flattened - including the actions a
+/// `Sequence` step carries, which are as much part of the script as the frame
+/// that queued them.
+fn all_actions(config: &ScenarioConfig) -> Vec<&EventActionConfig> {
+    let mut out = Vec::new();
+    for action in config.events.iter().flat_map(|event| event.actions.iter()) {
+        action.walk(&mut |action| out.push(action));
+    }
+    out
 }

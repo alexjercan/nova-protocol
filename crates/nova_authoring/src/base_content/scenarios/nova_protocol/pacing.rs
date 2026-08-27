@@ -2,31 +2,27 @@
 //!
 //! Owner playtest (2026-07-22): objectives were showing in the same frame as
 //! the conversation that introduces them, and completing an objective was
-//! immediately followed by the next one - no breathing room. The fix is a
-//! scenario-clock deadline sitting between a conversation (or an objective
-//! completing) and the objective that follows it: the objective posts a beat
-//! LATER, never the same frame.
+//! immediately followed by the next one - no breathing room. The fix is a beat
+//! of scenario time between a conversation (or an objective completing) and the
+//! objective that follows it: the objective posts a beat LATER, never the same
+//! frame.
 //!
-//! Mechanism:
-//! - [`mark_clock`] stamps `scenario_elapsed + delay` into a variable at the
-//!   moment a beat opens (OnStart, or the handler that completes the previous
-//!   objective).
-//! - [`clock_past`] is the filter that passes once the clock reaches that
-//!   deadline.
-//! - [`gated_once`] is the canonical "post the next objective / next line one
-//!   beat later, exactly once" handler built on the two.
+//! Mechanism: [`beat_later`] - the introducing handler starts a one-step
+//! `Sequence`, and the ENGINE holds the delay. The named gaps below are the
+//! delay itself, chosen by how the line relates to the objective.
 //!
-//! Before this module each mainline scenario grew its own copy of the same
-//! idea (shakedown's old `stamp_gate`/`past_gate` pair, final_tally's own
-//! `mark_clock`/`clock_past`); they now share this one definition site
-//! (shakedown keeps a thin `stamp_gate` alias for its breathers). The
-//! clock (`scenario_elapsed`) is engine-owned and pauses behind menus/outcome,
-//! so a deadline measures play time, not wall time.
+//! This used to be spelled with three moving parts per beat: a `mark_clock`
+//! action stamping `scenario_elapsed + delay` into a gate variable, a
+//! `clock_past` filter reading it back, and a `gated_once` handler of its own
+//! carrying both plus an act guard to prove it belonged to the beat that
+//! stamped it. The cursor makes all three structural - the chain is owned by
+//! the handler that started it - so a beat costs one action and no variable.
+//! The clock is engine-owned and pauses behind menus/outcome, so a gap measures
+//! play time, not wall time.
 
 use nova_hud::prelude::{COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS};
 use nova_scenario::prelude::*;
 
-use super::SCENARIO_ELAPSED_VAR;
 use crate::scenario_helpers::prelude::*;
 
 // The beat gap - how long an objective waits after the conversation line that
@@ -60,84 +56,30 @@ pub(crate) const INSTRUCTION_GAP: f64 = COMMS_MIN_SECS as f64;
 /// half.
 pub(crate) const MID_GAP: f64 = ((COMMS_DWELL_SECS + COMMS_MIN_SECS) / 2.0) as f64;
 
-/// Stamp an ABSOLUTE deadline of `delay` seconds into `key`, for a gate that
-/// opens at `OnStart`. The engine clock `scenario_elapsed` is UNDEFINED at
-/// OnStart (its first tick has not run), and the content evaluator errors on an
-/// undefined read - so [`mark_clock`] (which reads `scenario_elapsed`) must NOT
-/// be used at OnStart. The opening beat is at `t ~= 0`, so an absolute `delay`
-/// deadline is exactly what the relative one would be. Every gate the scenario
-/// uses must ALSO be seeded at OnStart (this seeds the opening gate; seed the
-/// rest with `set_variable(gate, number(0.0))`), so a `gated_once` filter never reads an
-/// undefined gate before its transition stamps it.
-pub(crate) fn open_gate(key: &str, delay: f64) -> EventActionConfig {
-    set_variable(key, number(delay))
-}
-
-/// Stamp `scenario_elapsed + delay` into `key`: a one-shot deadline a later
-/// [`clock_past`]/[`gated_once`] waits for. Call it MID-SCENARIO - the
-/// transition that completes the prior objective - where the clock is live.
-/// NOT at OnStart: `scenario_elapsed` is undefined there (use [`open_gate`]).
-/// Baking the delay into the stamp (rather than adding it at the gate) means
-/// one deadline variable drives one follow-up cleanly.
-pub(crate) fn mark_clock(key: &str, delay: f64) -> EventActionConfig {
-    set_variable(
-        key,
-        VariableExpressionNode::new_add(
-            VariableTermNode::Factor(VariableFactorNode::new_name(SCENARIO_ELAPSED_VAR)),
-            VariableExpressionNode::new_term(VariableTermNode::Factor(
-                VariableFactorNode::Literal(VariableLiteral::Number(delay)),
-            )),
-        ),
-    )
-}
-
-/// Filter: the scenario clock has passed the deadline stamped in `key` by
-/// [`mark_clock`].
-pub(crate) fn clock_past(key: &str) -> EventFilterConfig {
-    EventFilterConfig::Expression(ExpressionFilterConfig(
-        VariableConditionNode::new_greater_than(variable(SCENARIO_ELAPSED_VAR), variable(key)),
-    ))
-}
-
-/// A one-shot OnUpdate handler that fires `actions` once, a beat after the
-/// deadline in `deadline_key` (set by [`mark_clock`]). The `deadline_key > 0`
-/// guard keeps it from firing before the deadline is ever stamped: an unread
-/// scenario variable reads 0 and the clock starts at 0, so without the guard an
-/// unstamped deadline would look "already passed" and the objective would post
-/// on frame 0 - exactly the bug this module removes. `extra_filters` add
-/// beat/act preconditions (e.g. only while the ambush is live).
+/// The beat that lands `delay` seconds after the line that introduces it.
 ///
-/// This is how an objective posts the beat AFTER its conversation, or after the
-/// previous objective's completion, instead of the same frame.
+/// The introducing handler runs this as ONE action: it completes the previous
+/// objective, plays its line, and starts a one-step sequence carrying the next
+/// objective, its beacon and its markers. The engine holds the delay, and the
+/// chain belongs to the handler that started it - so there is no gate variable
+/// to seed, no `> 0` guard against an unstamped read, and no act check to prove
+/// the beat is still the current one.
 ///
-/// The "once" is the ENGINE's now. Each of these used to carry a `*_posted`
-/// variable of its own - initialised at OnStart, read by the first filter,
-/// written by the first action - and the handler was still walked every frame
-/// afterwards with that filter answering false forever.
-pub(crate) fn gated_once(
-    deadline_key: &str,
-    extra_filters: Vec<EventFilterConfig>,
+/// `key` is the sequence key: scenario-local, one per beat.
+pub(crate) fn beat_later(
+    key: &str,
+    delay: f64,
     actions: Vec<EventActionConfig>,
-) -> ScenarioEventConfig {
-    let mut filters = vec![
-        number_greater_than(deadline_key, 0.0),
-        clock_past(deadline_key),
-    ];
-    filters.extend(extra_filters);
-    ScenarioEventConfig {
-        name: EventConfig::OnUpdate,
-        once: true,
-        filters,
-        actions,
-    }
+) -> EventActionConfig {
+    sequence(key, vec![step(delay, actions)])
 }
 
 // --- the outro ---------------------------------------------------------------
 
-/// Timer keys the outro chain runs on. Scenario-local, and a scenario has at
-/// most one outro, so fixed keys are safe.
-pub(crate) const OUTRO_TEASE_TIMER: &str = "outro_tease";
-pub(crate) const OUTRO_BANNER_TIMER: &str = "outro_banner";
+/// The sequence key the outro chain runs on. Scenario-local, and a scenario has
+/// at most one outro, so a fixed key is safe: the win variants that start it are
+/// mutually exclusive, so only one ever holds the cursor.
+pub(crate) const OUTRO_SEQUENCE: &str = "outro";
 
 /// The winning blow -> the tease line.
 pub(crate) const OUTRO_TEASE_AFTER: f64 = 4.0;
@@ -145,53 +87,35 @@ pub(crate) const OUTRO_TEASE_AFTER: f64 = 4.0;
 /// playtested epilogue cadence (a line at +4s, the banner at +9s).
 pub(crate) const OUTRO_BANNER_AFTER: f64 = 5.0;
 
-/// The actions a winning handler runs to CLOSE the fight and open the outro:
-/// move to the epilogue act and start the tease timer.
-///
-/// `epilogue_act` must sit outside every defeat gate (the mainline gates read
-/// `act < 2` or `act == 1`), so the win is locked the instant it lands and a
-/// death during the outro declares nothing.
-pub(crate) fn open_outro(
-    act_var: &str,
-    epilogue_act: f64,
-    mut actions: Vec<EventActionConfig>,
-) -> Vec<EventActionConfig> {
-    let mut all = vec![
-        set_variable(act_var, number(epilogue_act)),
-        start_timer(OUTRO_TEASE_TIMER, OUTRO_TEASE_AFTER),
-    ];
-    all.append(&mut actions);
-    all
-}
-
-/// The two beats between the winning blow and the Victory overlay.
+/// The two beats between the winning blow and the Victory overlay, as ONE
+/// action the winning handler runs.
 ///
 /// A win used to fire its modal overlay on the same frame as the killing hit,
 /// so everything the moment had to carry - what just happened AND what it
 /// means for the next chapter - was crammed into one banner string, read
 /// against a paused world. The win handler now posts only the beat it just
 /// earned (which is why that line stays variant-specific, per handler) and
-/// opens this shared chain: the tease lands [`OUTRO_TEASE_AFTER`] later while
-/// the wreck is still on screen, then the banner and the queued next scenario
+/// starts this chain: the tease lands [`OUTRO_TEASE_AFTER`] later while the
+/// wreck is still on screen, then the banner and the queued next scenario
 /// [`OUTRO_BANNER_AFTER`] after that.
 ///
-/// Both beats gate on `epilogue_act` alone, so variants that differ only in
-/// their kill line (destroyed vs neutralized, the yacht's fate) share one
-/// copy of the tail instead of duplicating it per handler.
+/// The chain used to be two `OnTimerEnd` handlers on two timer keys, each
+/// re-checking an epilogue-act variable to prove it belonged to the win that
+/// opened it. The cursor makes that structural: the chain is owned by the
+/// handler that started it, so there is nothing left to re-check.
 ///
 /// `banner_extra` rides the LAST beat. An objective belongs there rather than
 /// on either comms beat: the mainline forbids posting one in the same frame as
 /// a conversation line, and the banner beat is the only one without a line.
-pub(crate) fn outro_beats(
+pub(crate) fn outro_sequence(
     act_var: &'static str,
-    epilogue_act: f64,
     won_act: f64,
     tease_speaker: &str,
     tease: &str,
     banner: &str,
     banner_extra: Vec<EventActionConfig>,
     next_scenario: Option<String>,
-) -> Vec<ScenarioEventConfig> {
+) -> EventActionConfig {
     let mut banner_actions = vec![set_variable(act_var, number(won_act))];
     banner_actions.extend(banner_extra);
     banner_actions.push(EventActionConfig::Outcome(OutcomeActionConfig::new(
@@ -205,27 +129,33 @@ pub(crate) fn outro_beats(
             delay: None,
         }));
     }
-    vec![
-        ScenarioEventConfig {
-            name: EventConfig::OnTimerEnd,
-            once: false,
-            filters: vec![
-                timer(OUTRO_TEASE_TIMER),
-                number_equals(act_var, epilogue_act),
-            ],
-            actions: vec![
-                story_message(tease_speaker, tease),
-                start_timer(OUTRO_BANNER_TIMER, OUTRO_BANNER_AFTER),
-            ],
-        },
-        ScenarioEventConfig {
-            name: EventConfig::OnTimerEnd,
-            once: false,
-            filters: vec![
-                timer(OUTRO_BANNER_TIMER),
-                number_equals(act_var, epilogue_act),
-            ],
-            actions: banner_actions,
-        },
-    ]
+    sequence(
+        OUTRO_SEQUENCE,
+        vec![
+            step(OUTRO_TEASE_AFTER, vec![story_message(tease_speaker, tease)]),
+            step(OUTRO_BANNER_AFTER, banner_actions),
+        ],
+    )
+}
+
+/// The actions a winning handler runs to CLOSE the fight and open the outro:
+/// move to the epilogue act, say what just happened, and start the outro chain.
+///
+/// `epilogue_act` must sit outside every defeat gate (the mainline gates read
+/// `act < 2` or `act == 1`), so the win is locked the instant it lands and a
+/// death during the outro declares nothing.
+///
+/// `outro` is the scenario's [`outro_sequence`], built once and shared by every
+/// win variant - only one of them can ever fire, so they can all start the same
+/// cursor.
+pub(crate) fn open_outro(
+    act_var: &str,
+    epilogue_act: f64,
+    outro: EventActionConfig,
+    mut actions: Vec<EventActionConfig>,
+) -> Vec<EventActionConfig> {
+    let mut all = vec![set_variable(act_var, number(epilogue_act))];
+    all.append(&mut actions);
+    all.push(outro);
+    all
 }
