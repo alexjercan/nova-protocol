@@ -312,22 +312,27 @@
   <p>
     The first draft of this page reasoned about input as if the names were
     still to be invented. They are not. Phase 1 shipped, and the game now
-    carries a registry of fifteen named actions with a group, a display label
-    and live sources on each &mdash; plus two things that are NOT in it and were
-    being quietly modelled as if they were.
+    carries a registry of named actions with a group, a display label and live
+    sources on each &mdash; plus things that are NOT in it and were being
+    quietly modelled as if they were.
   </p>
   <p class="sub">
     So this section is not a proposal for a vocabulary. It is the vocabulary,
-    read off the code, and the four different addressing forms it turns out to
-    need.
+    read off the code, and the addressing forms it turns out to need. It began
+    at fifteen actions and a footnote about five raw keys; it is now
+    thirty-three, and the footnote turned into
+    <a href="#modekeys">two sections of work</a>.
   </p>
 
-  <h3>The fifteen registry actions</h3>
+  <h3>The registry actions</h3>
   <p>
-    <code>crates/nova_ship/src/input/bindings.rs</code> and
-    <code>nova_scenario/src/loader/lifecycle.rs</code>. Rebindable, persisted
-    per player, and pinned by
-    <code>the_shipped_readout_columns_are_pinned</code>.
+    <code>crates/nova_ship/src/input/bindings.rs</code>,
+    <code>nova_scenario/src/loader/lifecycle.rs</code>,
+    <code>nova_hud/src/lib.rs</code> and
+    <code>nova_os_ui/src/bindings.rs</code>. Rebindable, persisted per player,
+    and pinned by <code>the_shipped_readout_columns_are_pinned</code>. The
+    fifteen flight and scenario rows are the ones that shipped; the rest moved
+    here on 2026-08-27.
   </p>
   <div class="scroll">
     <table>
@@ -338,7 +343,7 @@
         <tr><td class="m">autopilot_goto</td><td class="m">FLIGHT</td><td>Autopilot: Go To</td><td>G</td><td>Y</td><td>&mdash;</td></tr>
         <tr><td class="m">autopilot_orbit</td><td class="m">FLIGHT</td><td>Autopilot: Orbit</td><td>O</td><td>A</td><td>&mdash;</td></tr>
         <tr><td class="m">autopilot_off</td><td class="m">FLIGHT</td><td>Autopilot: Off</td><td>Z</td><td>X</td><td>&mdash;</td></tr>
-        <tr><td class="m">rcs_modifier</td><td class="m">FLIGHT</td><td>RCS Fine Adjust</td><td>Shift</td><td>Left Trigger 2</td><td>&mdash;</td></tr>
+        <tr><td class="m">rcs_modifier</td><td class="m">FLIGHT</td><td>RCS Fine Adjust</td><td>Shift</td><td>Left Thumb</td><td>&mdash;</td></tr>
         <tr><td class="m">rcs_aim</td><td class="m">FLIGHT</td><td>RCS Aim</td><td>Mouse</td><td><span class="tag q">unbound</span></td><td>mouse motion</td></tr>
         <tr><td class="m">radar_hold</td><td class="m">TARGETING</td><td>Radar (hold search)</td><td>Ctrl</td><td>D-Pad Up</td><td>&mdash;</td></tr>
         <tr><td class="m">radar_clear</td><td class="m">TARGETING</td><td>Radar (tap clear)</td><td>Ctrl</td><td>D-Pad Up</td><td>&mdash;</td></tr>
@@ -348,6 +353,24 @@
         <tr><td class="m">camera_rotate</td><td class="m">CAMERA</td><td>Aim</td><td>Mouse</td><td>Right Stick</td><td>motion + stick</td></tr>
         <tr><td class="m">free_look</td><td class="m">CAMERA</td><td>Free Look</td><td>Left Alt</td><td>Left Trigger</td><td>&mdash;</td></tr>
         <tr><td class="m">scenario_advance</td><td class="m">SCENARIO</td><td>Advance</td><td>Enter</td><td>D-Pad Down</td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_toggle</td><td class="m">SYSTEM</td><td>NOVA OS</td><td>Tab</td><td>Right Thumb</td><td>&mdash;</td></tr>
+        <tr><td class="m">hud_cinematic</td><td class="m">SYSTEM</td><td>HUD (On / Cinematic)</td><td>`</td><td>Select</td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_orbit_left</td><td class="m">NOVA OS</td><td>Turn Left</td><td>Q</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_orbit_right</td><td class="m">NOVA OS</td><td>Turn Right</td><td>E</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_orbit_up</td><td class="m">NOVA OS</td><td>Tilt Up</td><td>R</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_orbit_down</td><td class="m">NOVA OS</td><td>Tilt Down</td><td>F</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_pan_forward</td><td class="m">NOVA OS</td><td>Pan Forward</td><td>W</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_pan_back</td><td class="m">NOVA OS</td><td>Pan Back</td><td>S</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_pan_left</td><td class="m">NOVA OS</td><td>Pan Left</td><td>A</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_pan_right</td><td class="m">NOVA OS</td><td>Pan Right</td><td>D</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_reframe</td><td class="m">NOVA OS</td><td>Reset View</td><td>T</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_next</td><td class="m">NOVA OS</td><td>Select Next</td><td>]</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">novaos_prev</td><td class="m">NOVA OS</td><td>Select Previous</td><td>[</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">map_goto</td><td class="m">MAP</td><td>Set GOTO</td><td>G</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">ship_mates</td><td class="m">SHIP</td><td>Mates Overlay</td><td>G</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">ship_reload</td><td class="m">SHIP</td><td>Reload Section</td><td>L</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">ship_repair</td><td class="m">SHIP</td><td>Repair Section</td><td>P</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
+        <tr><td class="m">ship_rebind</td><td class="m">SHIP</td><td>Rebind Section Key</td><td>B</td><td><span class="tag q">unbound</span></td><td>&mdash;</td></tr>
       </tbody>
     </table>
   </div>
@@ -383,7 +406,7 @@
         <tr><td>Registry action</td><td class="m">flight.main_drive</td><td><span class="tag ok">yes</span></td><td><code>InputBindings</code>, persisted per player</td></tr>
         <tr><td>Section binding</td><td class="m">section.turret_port</td><td><span class="tag ok">yes</span></td><td>content <code>input_mapping</code>, per ship</td></tr>
         <tr><td>Axis</td><td class="m">flight.rcs_aim</td><td><span class="tag no">no</span></td><td>a delta, not a press &mdash; see below</td></tr>
-        <tr><td>Fixed key</td><td class="m">key.Tab</td><td><span class="tag no">no</span></td><td>hardcoded <code>just_pressed</code> in five places</td></tr>
+        <tr><td>Fixed key</td><td class="m">key.Escape</td><td><span class="tag no">no</span></td><td>the universal back-out &mdash; see <a href="#rawlanes">the raw lanes</a></td></tr>
       </tbody>
     </table>
   </div>
@@ -407,6 +430,28 @@
     prints <code>ships[].sections[].id</code>, so the id half is free &mdash;
     only the binding half is new.
   </p>
+  <p>
+    Which is why firing has no row in the registry table above, and cannot
+    have one. It still needs to be written down, so here is what the shipped
+    corvette actually carries &mdash; the same two rows every combat scenario
+    builds from <code>CARGOA_TURRET_IDS</code>:
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">on the wire</th><th>Section</th><th>Keyboard</th><th>Gamepad</th><th>Authored in</th></tr></thead>
+      <tbody>
+        <tr><td class="m">section.turret_port</td><td>Port turret</td><td>Left Mouse</td><td>Right Trigger 2</td><td>scenario <code>input_mapping</code></td></tr>
+        <tr><td class="m">section.turret_starboard</td><td>Starboard turret</td><td>Left Mouse</td><td>Right Trigger 2</td><td>scenario <code>input_mapping</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    Both on one button is the corvette's broadside, not an oversight: the
+    player fires the pair and turns the ship to bear. A racer that mounted one
+    turret would author one row. Read the table as an example of the FORM, not
+    as a fixed control scheme &mdash; the ids and the keys are content, and a
+    mod replaces both.
+  </p>
 
   <h3>Axes are not presses, and the code already says so</h3>
   <p>
@@ -426,32 +471,93 @@
   </p>
   <pre><code>{"tick":1200,"aim":{"name":"flight.rcs_aim","delta":[3.0,-1.0]}}</code></pre>
 
-  <h3>Five keys are not actions at all</h3>
+  <h3 id="modekeys">The mode keys moved &middot; done 2026-08-27</h3>
   <p>
-    Tab, Escape, backquote, V and B are raw <code>just_pressed</code> reads in
-    five different subsystems, not registry rows &mdash; which is exactly why
-    the settings list has to declare them by hand.
+    Tab, Escape, backquote, V and B were raw <code>just_pressed</code> reads in
+    five subsystems &mdash; which is exactly why the settings list had to
+    declare them by hand. That is now settled, and not the way this section
+    first proposed.
   </p>
   <div class="scroll">
     <table>
-      <thead><tr><th class="m">key</th><th>Does</th><th>Owner</th></tr></thead>
+      <thead><tr><th class="m">key</th><th>Was</th><th>Now</th></tr></thead>
       <tbody>
-        <tr><td class="m">Tab</td><td>open / close NOVA OS (pad: Right Thumb)</td><td><code>nova_os_ui/src/terminal/input.rs</code></td></tr>
-        <tr><td class="m">Escape</td><td>pause (pad: Start)</td><td><code>nova_menu/src/pause.rs</code></td></tr>
-        <tr><td class="m">Backquote</td><td>HUD on / cinematic</td><td><code>nova_hud/src/lib.rs</code></td></tr>
-        <tr><td class="m">V</td><td>dismiss the oldest comms card</td><td><code>nova_hud/src/comms_panel.rs</code></td></tr>
-        <tr><td class="m">B</td><td>skip the queued comms backlog</td><td><code>nova_hud/src/comms_panel.rs</code></td></tr>
+        <tr><td class="m">Tab</td><td>open / close NOVA OS</td><td><code>novaos_toggle</code> <span class="tag ok">registry</span></td></tr>
+        <tr><td class="m">Backquote</td><td>HUD on / cinematic</td><td><code>hud_cinematic</code> <span class="tag ok">registry</span></td></tr>
+        <tr><td class="m">Escape</td><td>pause, and back out of every mode</td><td>fixed <span class="tag q">not rebindable</span></td></tr>
+        <tr><td class="m">V</td><td>dismiss the oldest comms card</td><td>deleted <span class="tag no">gone</span></td></tr>
+        <tr><td class="m">B</td><td>skip the queued comms backlog</td><td>deleted <span class="tag no">gone</span></td></tr>
       </tbody>
     </table>
   </div>
   <p class="sub">
-    Promoting them into the registry is the tidy answer and it is NOT this
-    task: it means changing how five subsystems read input, and the settings
-    list stops declaring anything by hand only after all five move. Until then
-    a <code>key.&lt;KeyCode&gt;</code> form is honest &mdash; it says &ldquo;this
-    is a raw key, not an action&rdquo;, and for these five that is a fact about
-    the game rather than a guess by the driver. The editor keys stay untouched
-    for the same reason.
+    V and B went rather than moved: B popped the same card V did, only when the
+    queue happened to be full, and nothing on screen advertised either. Escape
+    stays fixed by decision &mdash; it is the universal back-out, and a rebind
+    that stranded a player inside a mode leaves no way out. It keeps its one
+    hand-written row in the Controls list; every other row there is now live.
+  </p>
+
+  <h3>And so did the computer&rsquo;s own keys</h3>
+  <p>
+    The <code>map</code> and <code>ship</code> viewers held the biggest cluster
+    left: 23 raw reads across two scenes. They are registry rows now, sharing
+    the verbs that are genuinely the same instrument &mdash;
+    <code>novaos_orbit_*</code>, <code>novaos_pan_*</code>,
+    <code>novaos_reframe</code>, <code>novaos_next</code> /
+    <code>novaos_prev</code> &mdash; with only the subject verbs per app:
+    <code>map_goto</code>, and <code>ship_mates</code> /
+    <code>ship_reload</code> / <code>ship_repair</code> /
+    <code>ship_rebind</code>.
+  </p>
+  <p class="sub">
+    The monitor&rsquo;s footer had to follow. It printed fixed strings naming
+    the shipped key, so a rebind would have left it advertising a key that no
+    longer did anything. <code>NovaOsAppRuntime::hints</code> takes the table
+    and builds the row from it, and the reconciler rebuilds on a rebind as well
+    as on a surface change. <span class="m">DRAG</span>,
+    <span class="m">WHEEL</span> and <span class="m">ESC</span> stay literal:
+    two pointer gestures and the fixed back-out.
+  </p>
+
+  <h3 id="rawlanes">Typing and pointing are transport, not vocabulary</h3>
+  <p>
+    A driver still has to type <code>map</code> at the NOVA OS prompt and click
+    <span class="m">Resume</span> in the pause menu. Neither belongs in the
+    registry. A registry action is a REBINDABLE PLAYER VERB &mdash; a name, a
+    label, a Controls row, a line in the settings file. There is no verb behind
+    the letter <span class="m">h</span>, and giving the alphabet rows would
+    bury the thirty-three real actions under a hundred nobody can move.
+  </p>
+  <p>
+    The technical half decides it anyway. <code>dispatch::apply</code> writes
+    <code>ButtonInput</code> and nothing else. The prompt reads
+    <code>KeyboardInput.logical_key</code> &mdash; that is how it tells
+    <span class="m">h</span> from <span class="m">H</span> &mdash; and
+    <code>bevy_picking</code> builds a click out of
+    <code>WindowEvent::MouseButtonInput</code>. Neither ever looks at
+    <code>ButtonInput</code>, so the action lane physically cannot type or
+    click, whatever it is named.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">lane</th><th>Drives</th><th>Writes</th><th>Already exists as</th></tr></thead>
+      <tbody>
+        <tr><td class="m">input.action</td><td>a named verb</td><td><code>ButtonInput</code></td><td><code>nova_input::dispatch::apply</code></td></tr>
+        <tr><td class="m">input.text</td><td>a string into whatever has focus</td><td><code>KeyboardInput</code> + <code>logical_key</code></td><td><code>autopilot::input::type_text</code></td></tr>
+        <tr><td class="m">input.key</td><td>one literal editing key</td><td><code>KeyboardInput</code></td><td><code>autopilot::input::press_edit_key</code></td></tr>
+        <tr><td class="m">input.pointer</td><td>move, press, release at a position</td><td><code>WindowEvent</code> + <code>CursorMoved</code></td><td><code>autopilot::input::move_cursor</code>, <code>click_at</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    The channel wraps those rather than inventing anything. One thing worth
+    taking from the same module: <code>click_named</code> addresses a UI node by
+    its <code>Name</code>. Over stdin that beats raw pixels badly &mdash; a
+    driver writes <code>click "Resume"</code> instead of guessing coordinates
+    that shift with the layout. The named form should be primary and raw pixels
+    the fallback, for the same reason <code>press_action</code> beat
+    <code>press_key</code>.
   </p>
 
   <h3>Several lines may share a tick, and they apply as a set</h3>
@@ -491,21 +597,33 @@
     the same script against a remapped profile can be told what moved.
   </p>
 
-  <h3>One thing the table exposed</h3>
+  <h3 id="lt2">One thing the table exposed &middot; fixed 2026-08-27</h3>
   <p>
-    <code>rcs_modifier</code> and <code>combat_stance</code> both bind gamepad
+    <code>rcs_modifier</code> and <code>combat_stance</code> both bound gamepad
     <span class="m">Left Trigger 2</span>. Both rigs run with
-    <code>consume_input: false</code>, so on a pad that one trigger raises the
-    weapons AND engages RCS fine adjust together.
+    <code>consume_input: false</code>, so on a pad that one trigger raised the
+    weapons AND engaged RCS fine adjust together.
   </p>
   <p class="sub">
-    Nothing catches it: <code>flight_rig_reserved_sources</code> guards content
+    Nothing caught it: <code>flight_rig_reserved_sources</code> guards content
     <code>input_mapping</code> against the flight rig, not the fixed rigs
     against each other, and the two rows live in different lists
-    (<code>flight_bindings</code>, <code>camera_bindings</code>). It may well be
-    deliberate &mdash; but it was invisible while the settings list was a
-    hand-written mirror, and it is a decision to take rather than inherit. A
-    cross-rig source check is cheap now that every source is in one table.
+    (<code>flight_bindings</code>, <code>camera_bindings</code>). It was
+    invisible while the settings list was a hand-written mirror.
+  </p>
+  <p>
+    Combat keeps the trigger. <span class="m">Left Trigger 2</span> is the aim
+    position, and it pairs with fire on <span class="m">Right Trigger 2</span>,
+    which the shipped turrets already hold. The modifier moves to
+    <span class="m">Left Thumb</span> &mdash; the only free standard button on
+    the pad, and a fine-adjust modifier is the right thing to spend it on.
+  </p>
+  <p class="sub">
+    <code>no_two_fixed_rig_actions_share_a_gamepad_button</code> now walks
+    <code>flight_bindings</code> and <code>camera_bindings</code> together and
+    fails on a repeat. <code>radar_hold</code> and <code>radar_clear</code> are
+    exempt by name: they are one gesture read two ways, and they share
+    <span class="m">D-Pad Up</span> on purpose.
   </p>
 
   <h2><span class="n">The open questions</span>Decisions</h2>

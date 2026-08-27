@@ -178,6 +178,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The gamepad shortcuts outside the flight rig fire again: pause on Start, the
   HUD cycle on Select, the NOVA OS on the right-stick click. All three read a
   resource bevy no longer has.
+- RCS fine adjust moves off the pad's left trigger onto the left stick click:
+  it shared the trigger with Raise Weapons, so one pull did both at once.
 
 ### Internals & Tooling
 

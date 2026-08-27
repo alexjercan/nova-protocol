@@ -60,9 +60,14 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .keyboard([Keyboard(KeyCode::BracketLeft)])
             .gamepad([Gamepad(GamepadButton::DPadLeft)])
             .wheel(WheelDirection::Down),
+        // Left Thumb, not Left Trigger 2: LT2 is the aim button, and
+        // `combat_stance` holds it. Both rigs run with `consume_input: false`,
+        // so while they shared it one trigger raised the weapons AND engaged
+        // fine adjust. Combat keeps the trigger - it is the idiomatic pair with
+        // fire on RT2 - and the modifier takes the one free button.
         ActionBinding::new("rcs_modifier", "FLIGHT", "RCS Fine Adjust")
             .keyboard([Keyboard(KeyCode::ShiftLeft), Keyboard(KeyCode::ShiftRight)])
-            .gamepad([Gamepad(GamepadButton::LeftTrigger2)]),
+            .gamepad([Gamepad(GamepadButton::LeftThumb)]),
         // Raw mouse motion, accumulated into the ship-local RCS plane while
         // the modifier is held. No discrete source: nothing collides on an
         // axis and no rebind row can capture one.
@@ -162,6 +167,40 @@ mod tests {
         );
     }
 
+    /// No two fixed-rig actions may hold the same gamepad button, because both
+    /// rigs run with `consume_input: false` - a shared button drives both at
+    /// once. `radar_hold` and `radar_clear` are the deliberate exception: they
+    /// are one gesture read two ways, and they share the key on purpose.
+    ///
+    /// The reserved-sources check guards content `input_mapping` against the
+    /// flight rig; it never guarded the fixed rigs against EACH OTHER, and the
+    /// two lists are separate, so `rcs_modifier` and `combat_stance` sat on
+    /// Left Trigger 2 together unnoticed.
+    #[test]
+    fn no_two_fixed_rig_actions_share_a_gamepad_button() {
+        let radar = ["radar_hold", "radar_clear"];
+        let mut held: Vec<(String, &str)> = flight_bindings()
+            .into_iter()
+            .chain(camera_bindings())
+            .filter(|action| !radar.contains(&action.name))
+            .flat_map(|action| {
+                action
+                    .gamepad
+                    .iter()
+                    .map(|source| (source.label(), action.name))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        held.sort();
+        for pair in held.windows(2) {
+            assert_ne!(
+                pair[0].0, pair[1].0,
+                "`{}` and `{}` both hold {}",
+                pair[0].1, pair[1].1, pair[0].0
+            );
+        }
+    }
+
     /// What the settings screen actually prints for every shipped row. The
     /// readout is derived now, so this is where a label regression shows up -
     /// a key that reads `BracketRight` to a player, or a wheel alternate that
@@ -195,7 +234,7 @@ mod tests {
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
                 ("Lock / Component Next", "] / Scroll Up", "D-Pad Right"),
                 ("Lock / Component Prev", "[ / Scroll Down", "D-Pad Left"),
-                ("RCS Fine Adjust", "Shift", "Left Trigger 2"),
+                ("RCS Fine Adjust", "Shift", "Left Thumb"),
                 ("RCS Aim", "Mouse", "Unbound"),
                 ("Aim", "Mouse", "Right Stick"),
                 ("Free Look", "Left Alt", "Left Trigger"),
