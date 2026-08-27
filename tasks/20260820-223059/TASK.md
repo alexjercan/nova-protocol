@@ -1,8 +1,9 @@
 # Give the scenario language the primitives its content hand-rolls
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
-- TAGS: v0.12.0,scenario,events
+- TAGS: v0.12.0, scenario, events
+- COMMITS: `8b2b0ad3` (stage 1, `once`), `5617a108` (stage 2, `Sequence`)
 
 The modding vocabulary is sound and the review says so plainly
 (`tasks/20260818-220812/review-modding-model.md`): a stateless
