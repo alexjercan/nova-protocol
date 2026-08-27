@@ -40,13 +40,13 @@
 #[path = "system_turret_gunnery/slider.rs"]
 mod slider;
 
+use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
 use avian3d::prelude::*;
 use bevy::{
     color::palettes::tailwind,
-    platform::collections::HashMap,
     prelude::*,
     ui_widgets::{observe, ValueChange},
 };
@@ -269,7 +269,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::from([(
+            input_mapping: BTreeMap::from([(
                 "turret".to_string(),
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),

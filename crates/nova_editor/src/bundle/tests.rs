@@ -1,6 +1,7 @@
 //! What a save is made of, and what a load gets back out of it.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
 use nova_scenario::prelude::{
     AnchorConfig, BaseScenarioObjectConfig, PlayerControllerConfig, ScenarioEventConfig,
@@ -203,9 +204,10 @@ fn a_file_with_no_scenario_is_not_a_document() {
 #[test]
 fn the_players_keys_come_back_on_the_sections_that_fire_them() {
     let mut mapping = PlayerControllerConfig::default();
-    mapping
-        .input_mapping
-        .insert("thruster_2".to_string(), vec![Binding::from(KeyCode::KeyW)]);
+    mapping.input_mapping.insert(
+        "thruster_2".to_string(),
+        vec![InputSource::from(KeyCode::KeyW)],
+    );
     let items = vec![
         design("ship_1"),
         scenario(vec![spawn(instance(
@@ -220,7 +222,7 @@ fn the_players_keys_come_back_on_the_sections_that_fire_them() {
     let ship = &lifted.ships[0];
     assert_eq!(
         ship.binds.get("thruster_2"),
-        Some(&vec![Binding::from(KeyCode::KeyW)])
+        Some(&vec![InputSource::from(KeyCode::KeyW)])
     );
 }
 
@@ -273,7 +275,7 @@ fn document(world: &mut World) -> Entity {
         SectionNode {
             source: SectionSource::Prototype("light_hull_section".to_string()),
             modifications: vec![],
-            binds: vec![Binding::from(KeyCode::KeyW)],
+            binds: vec![InputSource::from(KeyCode::KeyW)],
         },
         NodeId("hull_1".to_string()),
         Transform::from_xyz(0.0, 0.0, 1.0),
@@ -416,7 +418,7 @@ fn a_document_survives_being_written_and_read_back() {
     assert_eq!(ship.sections[0].position, Vec3::new(0.0, 0.0, 1.0));
     assert_eq!(
         ship.binds.get("hull_1"),
-        Some(&vec![Binding::from(KeyCode::KeyW)]),
+        Some(&vec![InputSource::from(KeyCode::KeyW)]),
         "the keys a section fires on ride the instance's input mapping"
     );
 

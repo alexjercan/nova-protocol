@@ -4,8 +4,7 @@
 //! `apply_section_rebind` consumes the next key or mouse-button press.
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use bevy_enhanced_input::prelude::Binding;
-use nova_input::prelude::{binding_label, binding_source};
+use nova_input::prelude::{source_label, InputSource};
 use nova_ship::prelude::*;
 use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
 
@@ -257,7 +256,7 @@ pub(crate) fn position_section_keybind_labels(
         let wanted = if rebind.target == Some(*section) {
             REBIND_PROMPT.to_string()
         } else {
-            binding_label(&node_section.binds)
+            source_label(&node_section.binds)
         };
         if text.0 != wanted {
             text.0 = wanted;
@@ -332,8 +331,7 @@ pub(crate) fn on_rebind_action(
 /// Two SECTIONS may share a source for the same reason: firing two turrets on
 /// one trigger is a loadout choice, and the content lint does not compare
 /// sections to each other either.
-fn binding_conflict(binding: &Binding) -> Option<String> {
-    let source = binding_source(binding)?;
+fn binding_conflict(source: InputSource) -> Option<String> {
     flight_rig_reserved_sources()
         .into_iter()
         .find(|(reserved, _)| *reserved == source)
@@ -387,27 +385,29 @@ pub(crate) fn apply_section_rebind(
     let new_binding = keys
         .get_just_pressed()
         .find(|k| **k != KeyCode::Escape)
-        .map(|k| Binding::from(*k))
-        .or_else(|| mouse.get_just_pressed().next().map(|b| Binding::from(*b)));
+        .map(|k| InputSource::Keyboard(*k))
+        .or_else(|| {
+            mouse
+                .get_just_pressed()
+                .next()
+                .map(|b| InputSource::Mouse(*b))
+        });
     let Some(new_binding) = new_binding else {
         return;
     };
 
     // A key the flight rig also drives is TAKEN, and said out loud: both things
     // fire on it, which is a choice a builder is allowed to make.
-    if let Some(taken_by) = binding_conflict(&new_binding) {
-        says.note(format!(
-            "{} also drives {taken_by}",
-            binding_label(std::slice::from_ref(&new_binding))
-        ));
+    if let Some(taken_by) = binding_conflict(new_binding) {
+        says.note(format!("{} also drives {taken_by}", new_binding.label()));
     }
 
     // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
-    let rebind_binds = |current: &[Binding]| -> Vec<Binding> {
-        let mut binds: Vec<Binding> = current
+    let rebind_binds = |current: &[InputSource]| -> Vec<InputSource> {
+        let mut binds: Vec<InputSource> = current
             .iter()
-            .filter(|b| !matches!(b, Binding::Keyboard { .. } | Binding::MouseButton { .. }))
-            .cloned()
+            .filter(|b| !matches!(b, InputSource::Keyboard(_) | InputSource::Mouse(_)))
+            .copied()
             .collect();
         binds.insert(0, new_binding);
         binds
@@ -424,7 +424,6 @@ pub(crate) fn apply_section_rebind(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
-    use nova_input::prelude::InputSource;
     use nova_scenario::prelude::SectionSource;
 
     use super::*;
@@ -451,7 +450,7 @@ mod tests {
         world: &mut World,
         ship: Entity,
         kind: SectionKind,
-        binds: Vec<Binding>,
+        binds: Vec<InputSource>,
     ) -> Entity {
         world
             .spawn((
@@ -473,20 +472,20 @@ mod tests {
     }
 
     /// The same, on the ship the editor is inside.
-    fn section_node(world: &mut World, kind: SectionKind, binds: Vec<Binding>) -> Entity {
+    fn section_node(world: &mut World, kind: SectionKind, binds: Vec<InputSource>) -> Entity {
         let ship = edited_ship(world);
         section_on(world, ship, kind, binds)
     }
 
-    fn thruster(world: &mut World, binds: Vec<Binding>) -> Entity {
+    fn thruster(world: &mut World, binds: Vec<InputSource>) -> Entity {
         section_node(world, SectionKind::Thruster(default()), binds)
     }
 
-    fn turret(world: &mut World, binds: Vec<Binding>) -> Entity {
+    fn turret(world: &mut World, binds: Vec<InputSource>) -> Entity {
         section_node(world, SectionKind::Turret(default()), binds)
     }
 
-    fn binds_of(world: &World, section: Entity) -> Vec<Binding> {
+    fn binds_of(world: &World, section: Entity) -> Vec<InputSource> {
         world
             .entity(section)
             .get::<SectionNode>()
@@ -506,7 +505,7 @@ mod tests {
     #[test]
     fn keybind_labels_reconcile_to_one_per_bound_section() {
         let mut world = World::new();
-        let section = thruster(&mut world, vec![Binding::from(KeyCode::KeyW)]);
+        let section = thruster(&mut world, vec![InputSource::from(KeyCode::KeyW)]);
         // A hull takes no binding at all, so it gets no label.
         let _unbound = section_node(&mut world, SectionKind::Hull(default()), vec![]);
 
@@ -545,7 +544,7 @@ mod tests {
     #[test]
     fn a_ship_you_are_not_inside_gets_no_chips() {
         let mut world = World::new();
-        let mine = thruster(&mut world, vec![Binding::from(KeyCode::KeyW)]);
+        let mine = thruster(&mut world, vec![InputSource::from(KeyCode::KeyW)]);
         let other = world.spawn(ShipNode::default()).id();
         section_on(&mut world, other, SectionKind::Turret(default()), vec![]);
 
@@ -573,7 +572,7 @@ mod tests {
     #[test]
     fn leaving_the_ship_drops_a_pending_rebind() {
         let mut world = World::new();
-        let section = turret(&mut world, vec![Binding::from(KeyCode::Space)]);
+        let section = turret(&mut world, vec![InputSource::from(KeyCode::Space)]);
         armed(&mut world, section);
         world.resource_mut::<EditContext>().exit();
         let mut input = ButtonInput::<KeyCode>::default();
@@ -590,7 +589,7 @@ mod tests {
         );
         assert_eq!(
             binds_of(&world, section),
-            vec![Binding::from(KeyCode::Space)],
+            vec![InputSource::from(KeyCode::Space)],
             "and the key that was pressed bound nothing"
         );
     }
@@ -603,8 +602,8 @@ mod tests {
         let section = thruster(
             &mut world,
             vec![
-                Binding::from(KeyCode::Space),
-                Binding::from(GamepadButton::RightTrigger),
+                InputSource::from(KeyCode::Space),
+                InputSource::from(GamepadButton::RightTrigger),
             ],
         );
         armed(&mut world, section);
@@ -619,17 +618,17 @@ mod tests {
         assert!(
             binds
                 .iter()
-                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR)),
+                .any(|b| matches!(b, InputSource::Keyboard(key) if *key == KeyCode::KeyR)),
             "the new key is bound"
         );
         assert!(
             !binds
                 .iter()
-                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::Space)),
+                .any(|b| matches!(b, InputSource::Keyboard(key) if *key == KeyCode::Space)),
             "the old key is replaced"
         );
         assert!(
-            binds.iter().any(|b| matches!(b, Binding::GamepadButton(_))),
+            binds.iter().any(|b| matches!(b, InputSource::Gamepad(_))),
             "a non-keyboard bind is preserved"
         );
         assert_eq!(
@@ -644,7 +643,7 @@ mod tests {
     #[test]
     fn keybind_chips_do_not_block_the_picking_ray() {
         let mut world = World::new();
-        thruster(&mut world, vec![Binding::from(KeyCode::KeyR)]);
+        thruster(&mut world, vec![InputSource::from(KeyCode::KeyR)]);
 
         world.run_system_once(sync_section_keybind_labels).unwrap();
 
@@ -665,7 +664,7 @@ mod tests {
     #[test]
     fn rebind_takes_a_key_the_flight_rig_drives_and_says_so() {
         let mut world = World::new();
-        let section = turret(&mut world, vec![Binding::from(MouseButton::Left)]);
+        let section = turret(&mut world, vec![InputSource::from(MouseButton::Left)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
         // Space is the main drive - see `flight_rig_reserved_sources`.
@@ -677,7 +676,7 @@ mod tests {
 
         assert_eq!(
             binds_of(&world, section),
-            vec![Binding::from(KeyCode::Space)],
+            vec![InputSource::from(KeyCode::Space)],
             "the key is bound"
         );
         assert_eq!(
@@ -709,8 +708,8 @@ mod tests {
     #[test]
     fn rebind_lets_two_sections_share_one_key() {
         let mut world = World::new();
-        let taken = thruster(&mut world, vec![Binding::from(KeyCode::KeyR)]);
-        let section = turret(&mut world, vec![Binding::from(MouseButton::Left)]);
+        let taken = thruster(&mut world, vec![InputSource::from(KeyCode::KeyR)]);
+        let section = turret(&mut world, vec![InputSource::from(MouseButton::Left)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyR);
@@ -722,7 +721,7 @@ mod tests {
         assert!(
             binds_of(&world, section)
                 .iter()
-                .any(|b| matches!(b, Binding::Keyboard { key, .. } if *key == KeyCode::KeyR)),
+                .any(|b| matches!(b, InputSource::Keyboard(key) if *key == KeyCode::KeyR)),
             "the second section takes the shared key"
         );
         assert_eq!(
@@ -735,7 +734,7 @@ mod tests {
         // `input_mapping` is keyed by section - one source can appear twice.
         assert_eq!(
             binds_of(&world, taken),
-            vec![Binding::from(KeyCode::KeyR)],
+            vec![InputSource::from(KeyCode::KeyR)],
             "the first section keeps the key"
         );
     }
@@ -755,7 +754,7 @@ mod tests {
         // mode the arbiter would otherwise write a frame later.
         app.init_resource::<InputMode>();
         app.add_observer(on_rebind_action);
-        let turret = turret(app.world_mut(), vec![Binding::from(MouseButton::Left)]);
+        let turret = turret(app.world_mut(), vec![InputSource::from(MouseButton::Left)]);
         let hull = section_node(app.world_mut(), SectionKind::Hull(default()), vec![]);
         let button = app.world_mut().spawn_empty().id();
 
@@ -787,7 +786,7 @@ mod tests {
     #[test]
     fn rebind_escape_cancels_without_changing_the_bind() {
         let mut world = World::new();
-        let section = turret(&mut world, vec![Binding::from(KeyCode::Space)]);
+        let section = turret(&mut world, vec![InputSource::from(KeyCode::Space)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::Escape);
@@ -798,7 +797,7 @@ mod tests {
 
         assert_eq!(
             binds_of(&world, section),
-            vec![Binding::from(KeyCode::Space)],
+            vec![InputSource::from(KeyCode::Space)],
             "unchanged"
         );
         assert_eq!(
@@ -818,8 +817,8 @@ mod tests {
         let section = turret(
             &mut world,
             vec![
-                Binding::from(KeyCode::Space),
-                Binding::from(GamepadButton::RightTrigger2),
+                InputSource::from(KeyCode::Space),
+                InputSource::from(GamepadButton::RightTrigger2),
             ],
         );
         armed(&mut world, section);
@@ -853,17 +852,17 @@ mod tests {
 
         let binds = binds_of(&world, section);
         assert!(
-            binds.iter().any(
-                |b| matches!(b, Binding::MouseButton { button, .. } if *button == MouseButton::Left)
-            ),
+            binds
+                .iter()
+                .any(|b| matches!(b, InputSource::Mouse(button) if *button == MouseButton::Left)),
             "LMB is now bound"
         );
         assert!(
-            !binds.iter().any(|b| matches!(b, Binding::Keyboard { .. })),
+            !binds.iter().any(|b| matches!(b, InputSource::Keyboard(_))),
             "the old keyboard primary is replaced"
         );
         assert!(
-            binds.iter().any(|b| matches!(b, Binding::GamepadButton(_))),
+            binds.iter().any(|b| matches!(b, InputSource::Gamepad(_))),
             "the gamepad bind is preserved"
         );
         assert_eq!(

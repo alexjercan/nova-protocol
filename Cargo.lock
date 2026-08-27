@@ -4515,6 +4515,7 @@ dependencies = [
  "nova_core",
  "nova_debug",
  "nova_gameplay",
+ "nova_input",
  "nova_menu",
  "nova_probe",
  "nova_probe_cli",

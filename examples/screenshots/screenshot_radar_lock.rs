@@ -29,7 +29,9 @@
 #[path = "shared/kit.rs"]
 mod kit;
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
@@ -103,7 +105,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         // cone, and clear of the player's own hull in frame.
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),

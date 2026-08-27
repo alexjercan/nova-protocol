@@ -37,9 +37,11 @@
 //! # inside its deadline is an error exit naming the BEAT.
 //! ```
 
+use std::collections::BTreeMap;
+
 #[cfg(feature = "debug")]
 use avian3d::prelude::ComputedCenterOfMass;
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -219,7 +221,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
     let player = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,

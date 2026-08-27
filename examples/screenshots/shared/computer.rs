@@ -19,12 +19,14 @@
     reason = "one source, many example targets: what one producer leaves unused another needs, so no single build can fulfil an expectation"
 )]
 
+use std::collections::BTreeMap;
+
 #[cfg(feature = "debug")]
 use bevy::input::{
     keyboard::{Key, KeyboardInput},
     ButtonState,
 };
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
 /// A single named player ship at the origin - enough for the NOVA OS computer to
@@ -51,7 +53,7 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
     let player = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),

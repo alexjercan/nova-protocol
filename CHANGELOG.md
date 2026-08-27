@@ -186,6 +186,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Every named action declares WHEN it can fire, so the three actions bound to G
   never listen at once, and one check across the whole table catches two that
   can.
+- One vocabulary names a physical input everywhere: content bindings, the three
+  weapon components and all three rebind surfaces speak `nova_input`'s source
+  type, and the scenario format's private copy of it is gone.
 - The editor publishes its build state - armed tool, placement, gallery, edited
   ship, inspector rows, the status line - as read-only data the driven ranges
   wait on instead of counting frames.

@@ -1,9 +1,16 @@
 //! Content-authored weapon bindings: each section's `input_mapping` becomes a
 //! rig whose observers hold and release the section trigger.
+//!
+//! The binding a section CARRIES is a Nova [`InputSource`]; upstream's
+//! `Binding` appears only where this module builds the rig, one line per
+//! section kind. A section binds a modifier-free button and nothing else, so
+//! nothing is lost, and the component is then the same vocabulary the registry,
+//! the settings readout and the save file already speak.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputSource;
 
 use super::hints::HOLD_FIRE_DURING_RADAR;
 use crate::prelude::*;
@@ -12,7 +19,7 @@ use crate::prelude::*;
 /// content `input_mapping` onto the section entity. One section may bind several
 /// [`Binding`]s. Must not reuse a [`flight_rig_reserved_sources`] source.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct SpaceshipThrusterInputBinding(pub Vec<Binding>);
+pub struct SpaceshipThrusterInputBinding(pub Vec<InputSource>);
 
 /// A live player-ship section changed its complete input binding list.
 #[derive(Message, Clone, Debug)]
@@ -24,7 +31,7 @@ pub struct SectionInputBindingChanged {
     /// Stable authored section id.
     pub section_id: String,
     /// Complete replacement binding list.
-    pub bindings: Vec<Binding>,
+    pub bindings: Vec<InputSource>,
 }
 
 #[derive(Component, Debug, Clone)]
@@ -66,7 +73,7 @@ pub(super) fn on_thruster_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(binding.0.clone()),
+                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
             )]
         ),
     ));
@@ -121,7 +128,7 @@ pub(super) fn on_thruster_input_completed(
 /// The player input bindings that fire a turret section, snapshotted from its
 /// content `input_mapping`. Same rules as [`SpaceshipThrusterInputBinding`].
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct SpaceshipTurretInputBinding(pub Vec<Binding>);
+pub struct SpaceshipTurretInputBinding(pub Vec<InputSource>);
 
 #[derive(Component, Debug, Clone)]
 pub(super) struct TurretInputMarker;
@@ -158,7 +165,7 @@ pub(super) fn on_turret_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(binding.0.clone()),
+                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
             )]
         ),
     ));
@@ -220,7 +227,7 @@ pub(super) fn on_turret_input_completed(
 /// The player input bindings that fire a torpedo section, snapshotted from its
 /// content `input_mapping`. Same rules as [`SpaceshipThrusterInputBinding`].
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
-pub struct SpaceshipTorpedoInputBinding(pub Vec<Binding>);
+pub struct SpaceshipTorpedoInputBinding(pub Vec<InputSource>);
 
 #[derive(Component, Debug, Clone)]
 pub(super) struct TorpedoInputMarker;
@@ -257,7 +264,7 @@ pub(super) fn on_torpedo_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(binding.0.clone()),
+                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
             )]
         ),
     ));

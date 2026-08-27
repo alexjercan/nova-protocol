@@ -83,8 +83,8 @@ pub mod prelude {
             ActionAxes, ActionBinding, BindingSpec, GamepadStick, InputBindings, WheelDirection,
         },
         source::{
-            binding_label, binding_source, gamepad_label, key_symbol, keyboard_label,
-            modifier_pair, InputSource,
+            binding_source, gamepad_label, key_symbol, keyboard_label, modifier_pair, source_label,
+            InputSource,
         },
         NovaInputPlugin, RegisterInputActions,
     };

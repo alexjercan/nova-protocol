@@ -462,6 +462,9 @@ nova_ui = { path = "crates/nova_ui" }
 nova_assets = { path = "crates/nova_assets" }
 nova_autopilot = { path = "crates/nova_autopilot" }
 nova_gameplay = { path = "crates/nova_gameplay" }
+# The bindings vocabulary: every example that gives a ship an `input_mapping`
+# names its sources as `InputSource`.
+nova_input = { path = "crates/nova_input" }
 nova_menu = { path = "crates/nova_menu" }
 nova_probe_cli = { path = "crates/nova_probe_cli" }
 nova_scenario = { path = "crates/nova_scenario" }

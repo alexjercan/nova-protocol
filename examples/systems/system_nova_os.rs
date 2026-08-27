@@ -37,6 +37,9 @@
 //! # A beat that never resolves inside its deadline is an error exit naming it.
 //! ```
 
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 #[cfg(feature = "debug")]
 use bevy::{
     input::{
@@ -47,7 +50,6 @@ use bevy::{
     ui::Pressed,
     window::PrimaryWindow,
 };
-use bevy::{platform::collections::HashMap, prelude::*};
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_protocol::nova_os_ui::{
@@ -517,7 +519,7 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     let player = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),

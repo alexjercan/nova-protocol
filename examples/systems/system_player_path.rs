@@ -34,7 +34,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 use clap::Parser;
 use nova_authoring::scenario_helpers::number;
 use nova_probe::fixtures::{self, prelude::*};
@@ -212,7 +214,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             // FlightBurnInput in the flight rig, so a held fire key would
             // burn the main drive too and coast the ship past the beacon,
             // out of the radar cone (task 20260718-235837).
-            input_mapping: HashMap::from([(
+            input_mapping: BTreeMap::from([(
                 "guns".to_string(),
                 vec![
                     MouseButton::Left.into(),

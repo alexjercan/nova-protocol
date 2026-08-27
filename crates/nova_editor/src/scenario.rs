@@ -21,9 +21,9 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
     BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, LIGHT_HULL_SECTION_ID,
@@ -416,7 +416,7 @@ pub(crate) struct LoweredShip {
     /// The AI pilot's standing orders, used only by an AI-driven ship.
     pilot: AIControllerConfig,
     pub(crate) sections: Vec<SpaceshipSectionConfig>,
-    inputs: Vec<(SectionId, Vec<Binding>)>,
+    inputs: Vec<(SectionId, Vec<InputSource>)>,
     pub(crate) skin: bool,
     pub(crate) style: Option<String>,
     position: Vec3,

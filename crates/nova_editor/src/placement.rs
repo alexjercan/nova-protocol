@@ -13,7 +13,7 @@ use bevy::{
     input::mouse::MouseWheel, picking::pointer::PointerInteraction, prelude::*,
     ui_widgets::Activate,
 };
-use bevy_enhanced_input::prelude::Binding;
+use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 use nova_ui::theme;
 
@@ -104,17 +104,17 @@ where
 fn placement_binds(
     keyboard: Option<&ButtonInput<KeyCode>>,
     gamepad: Option<&ButtonInput<GamepadButton>>,
-    default_key: Binding,
-    default_pad: Binding,
-) -> Vec<Binding> {
+    default_key: InputSource,
+    default_pad: InputSource,
+) -> Vec<InputSource> {
     let mut binds = Vec::new();
     if let Some(keyboard) = keyboard {
         binds.push(
-            capture_binding(keyboard, &EDITOR_CAMERA_KEYS).map_or(default_key, Binding::from),
+            capture_binding(keyboard, &EDITOR_CAMERA_KEYS).map_or(default_key, InputSource::from),
         );
     }
     if let Some(gamepad) = gamepad {
-        binds.push(capture_binding(gamepad, &[]).map_or(default_pad, Binding::from));
+        binds.push(capture_binding(gamepad, &[]).map_or(default_pad, InputSource::from));
     }
     binds
 }
@@ -125,7 +125,7 @@ fn default_binds_for(
     kind: &SectionKind,
     keyboard: Option<&ButtonInput<KeyCode>>,
     gamepad: Option<&ButtonInput<GamepadButton>>,
-) -> Vec<Binding> {
+) -> Vec<InputSource> {
     match kind {
         SectionKind::Hull(_) | SectionKind::Controller(_) => vec![],
         SectionKind::Thruster(_) => placement_binds(
@@ -1997,7 +1997,7 @@ mod tests {
         );
         assert_eq!(
             binds,
-            vec![Binding::from(MouseButton::Left)],
+            vec![InputSource::from(MouseButton::Left)],
             "W drives the camera, so the turret keeps its default"
         );
     }

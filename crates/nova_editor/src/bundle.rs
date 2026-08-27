@@ -21,9 +21,9 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use bevy_enhanced_input::prelude::Binding;
 use nova_assets::prelude::EnabledMods;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_modding::prelude::{BundleManifest, ModMeta};
@@ -147,7 +147,7 @@ pub(crate) struct LiftedShip {
     pub(crate) sections: Vec<SpaceshipSectionConfig>,
     /// The keys each section fires on, by section id. Sorted, because the
     /// document is rebuilt from it.
-    pub(crate) binds: BTreeMap<SectionId, Vec<Binding>>,
+    pub(crate) binds: BTreeMap<SectionId, Vec<InputSource>>,
 }
 
 /// A saved file, split back into the two things the document is made of.

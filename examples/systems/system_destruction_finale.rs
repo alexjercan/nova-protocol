@@ -46,10 +46,14 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
-use bevy::{platform::collections::HashMap, prelude::*};
+// Only the debug-only tally keys wreckage by the body that died.
+#[cfg(feature = "debug")]
+use bevy::platform::collections::HashMap;
+use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -627,7 +631,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),

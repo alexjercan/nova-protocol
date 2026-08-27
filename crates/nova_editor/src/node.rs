@@ -20,8 +20,8 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use bevy_enhanced_input::prelude::Binding;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
@@ -183,7 +183,7 @@ pub(crate) struct SectionNode {
     /// The inputs this section fires on. Document data rather than a component
     /// on the view: the view is render-only, and a binding that lived out there
     /// would be a second copy to keep in step across a despawn.
-    pub(crate) binds: Vec<Binding>,
+    pub(crate) binds: Vec<InputSource>,
 }
 
 impl SectionNode {
@@ -1126,7 +1126,7 @@ pub(crate) fn spawn_section_node(
     ship: Entity,
     config: &SectionConfig,
     transform: Transform,
-    binds: Vec<Binding>,
+    binds: Vec<InputSource>,
 ) -> Entity {
     let id = mint_id(ordinals, ship, &config.base.id);
     insert_section_node(commands, ship, id, config, transform, binds)
@@ -1139,7 +1139,7 @@ fn insert_section_node(
     id: NodeId,
     config: &SectionConfig,
     transform: Transform,
-    binds: Vec<Binding>,
+    binds: Vec<InputSource>,
 ) -> Entity {
     let node = commands
         .spawn((

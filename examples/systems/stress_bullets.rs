@@ -39,7 +39,9 @@
 //! cargo run --features debug probe run stress_bullets
 //! ```
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
@@ -247,7 +249,7 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
                         ],
                     )
                 })
-                .collect::<HashMap<_, _>>(),
+                .collect::<BTreeMap<_, _>>(),
             speed_cap: None,
             // Saturation harness: the magazine is not the subject.
             infinite_ammo: true,

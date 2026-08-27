@@ -11,7 +11,11 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 /// A physical input source, stripped of modifiers and gesture conditions.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+///
+/// `From<KeyCode>`, `From<MouseButton>` and `From<GamepadButton>` mirror
+/// upstream's conversions into `Binding`, so a caller writes
+/// `KeyCode::KeyF.into()` here exactly as it did there.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum InputSource {
     /// A keyboard key.
@@ -33,6 +37,24 @@ impl InputSource {
             InputSource::Mouse(button) => format!("{button:?}"),
             InputSource::Gamepad(button) => gamepad_label(*button),
         }
+    }
+}
+
+impl From<KeyCode> for InputSource {
+    fn from(key: KeyCode) -> Self {
+        InputSource::Keyboard(key)
+    }
+}
+
+impl From<MouseButton> for InputSource {
+    fn from(button: MouseButton) -> Self {
+        InputSource::Mouse(button)
+    }
+}
+
+impl From<GamepadButton> for InputSource {
+    fn from(button: GamepadButton) -> Self {
+        InputSource::Gamepad(button)
     }
 }
 
@@ -168,13 +190,12 @@ fn spaced_words(name: &str) -> String {
     }
 }
 
-/// A short display chip for a list of live bindings: the first keyboard or
-/// mouse binding in the list. Empty when the list is gamepad-only or bound to
-/// an axis.
-pub fn binding_label(bindings: &[Binding]) -> String {
-    bindings
+/// A short display chip for a list of sources: the first keyboard or mouse
+/// source in the list. Empty when the list is gamepad-only, because a pad
+/// button has no keycap to draw.
+pub fn source_label(sources: &[InputSource]) -> String {
+    sources
         .iter()
-        .filter_map(binding_source)
         .find(|source| !matches!(source, InputSource::Gamepad(_)))
         .map(|source| source.label())
         .unwrap_or_default()
@@ -236,21 +257,24 @@ mod tests {
 
     #[test]
     fn a_gamepad_only_list_has_no_display_chip() {
-        let gamepad = [Binding::from(GamepadButton::South)];
-        assert_eq!(binding_label(&gamepad), "");
+        let gamepad = [InputSource::from(GamepadButton::South)];
+        assert_eq!(source_label(&gamepad), "");
 
         let mixed = [
-            Binding::from(GamepadButton::South),
-            Binding::from(KeyCode::KeyO),
+            InputSource::from(GamepadButton::South),
+            InputSource::from(KeyCode::KeyO),
         ];
-        assert_eq!(binding_label(&mixed), "O");
+        assert_eq!(source_label(&mixed), "O");
 
-        assert_eq!(binding_label(&[]), "");
-        assert_eq!(binding_label(&[Binding::from(MouseButton::Left)]), "LMB");
+        assert_eq!(source_label(&[]), "");
+        assert_eq!(source_label(&[InputSource::from(MouseButton::Left)]), "LMB");
         assert_eq!(
-            binding_label(&[Binding::mouse_motion(), Binding::from(KeyCode::Space)]),
+            source_label(&[
+                InputSource::from(GamepadButton::South),
+                InputSource::from(KeyCode::Space)
+            ]),
             "Space",
-            "an axis binding is not a chip; the first real button wins"
+            "a pad button is not a chip; the first keycap wins"
         );
     }
 }

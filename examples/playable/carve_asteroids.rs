@@ -48,9 +48,11 @@
 //!   whole row), one `carve-asteroids-<hits>.png` per scattered rock, and
 //!   `carve-asteroids-cut.png` for the severed one.
 
+use std::collections::BTreeMap;
+
 #[cfg(feature = "debug")]
 use avian3d::prelude::RigidBody;
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -850,7 +852,10 @@ fn firing_ship() -> ScenarioObjectConfig {
                 ..default()
             }),
             controller: SpaceshipController::Player(PlayerControllerConfig {
-                input_mapping: HashMap::from([("pdc".to_string(), vec![MouseButton::Left.into()])]),
+                input_mapping: BTreeMap::from([(
+                    "pdc".to_string(),
+                    vec![MouseButton::Left.into()],
+                )]),
                 speed_cap: None,
                 infinite_ammo: true,
             }),

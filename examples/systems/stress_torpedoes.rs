@@ -39,7 +39,9 @@
 //! cargo run --features debug probe run stress_torpedoes
 //! ```
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
@@ -258,7 +260,7 @@ fn rack(sections: &GameSections) -> SpaceshipConfig {
                         ],
                     )
                 })
-                .collect::<HashMap<_, _>>(),
+                .collect::<BTreeMap<_, _>>(),
             speed_cap: None,
             // Saturation harness: the six-round rack and its regen are not the
             // subject, the thousand torpedoes are.

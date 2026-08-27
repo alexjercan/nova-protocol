@@ -23,7 +23,7 @@ use bevy::{
         ReflectMut, ReflectRef, TypeInfo,
     },
 };
-use nova_input::prelude::binding_label;
+use nova_input::prelude::source_label;
 use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
 use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
@@ -1498,7 +1498,7 @@ pub(crate) fn section_rows(
 ) -> Vec<InspectorRow> {
     let mut rows = vec![fixed(FieldRoot::Config, "Part", node.prototype())];
     if node.bindable(catalog) {
-        let binding = binding_label(&node.binds);
+        let binding = source_label(&node.binds);
         rows.push(InspectorRow {
             root: FieldRoot::Config,
             path: Vec::new(),

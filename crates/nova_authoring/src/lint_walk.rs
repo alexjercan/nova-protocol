@@ -9,7 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use nova_input::prelude::{binding_source, InputSource};
+use nova_input::prelude::InputSource;
 use nova_mod_format::{BundleManifest, BASE_MOD_ID};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
@@ -462,17 +462,12 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
             let SpaceshipController::Player(player) = &ship.controller else {
                 continue;
             };
-            // Sorted: `input_mapping` is a `HashMap`, so iterating it raw makes
-            // the findings (and the report file the CI diff compares) come out
-            // in a different order every run.
-            let mut sections: Vec<_> = player.input_mapping.iter().collect();
-            sections.sort_by_key(|(id, _)| *id);
-            for (section_id, bindings) in sections {
-                for binding in bindings {
-                    if let Some(source) = binding_source(binding) {
-                        if let Some(verb) = reserved.get(&source) {
-                            out.push((section_id.clone(), source, (*verb).to_string()));
-                        }
+            // `input_mapping` is ordered, so the findings - and the report
+            // file the CI diff compares - come out the same every run.
+            for (section_id, bindings) in &player.input_mapping {
+                for source in bindings {
+                    if let Some(verb) = reserved.get(source) {
+                        out.push((section_id.clone(), *source, (*verb).to_string()));
                     }
                 }
             }

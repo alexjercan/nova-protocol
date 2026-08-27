@@ -3,6 +3,7 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
+use nova_input::prelude::InputSource;
 use nova_ui::{skin::UiSkin, theme, widget::prelude::*};
 
 use super::*;
@@ -22,7 +23,7 @@ pub(super) struct LobbyModel {
     side_styles: [usize; TEAMS.len()],
     ships: Vec<LobbyShip>,
     next_seed: u64,
-    binding_overrides: BTreeMap<(usize, String), Vec<Binding>>,
+    binding_overrides: BTreeMap<(usize, String), Vec<InputSource>>,
 }
 
 #[derive(Component)]

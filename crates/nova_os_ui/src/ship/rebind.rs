@@ -1,7 +1,6 @@
 use bevy::prelude::*;
-use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
-use nova_input::prelude::{binding_source, InputSource};
+use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 
 use super::ShipRuntime;
@@ -44,20 +43,17 @@ pub(crate) fn apply_ship_rebind(
         runtime.rebind_just_armed = false;
         return;
     }
-    let binding = keys
+    let source = keys
         .get_just_pressed()
         .find(|key| **key != KeyCode::Escape)
-        .map(|key| Binding::from(*key))
+        .map(|key| InputSource::Keyboard(*key))
         .or_else(|| {
             mouse
                 .get_just_pressed()
                 .next()
-                .map(|button| Binding::from(*button))
+                .map(|button| InputSource::Mouse(*button))
         });
-    let Some(binding) = binding else {
-        return;
-    };
-    let Some(source) = binding_source(&binding) else {
+    let Some(source) = source else {
         return;
     };
     let Ok((parent, id, thruster, turret, torpedo)) = targets.get(target) else {
@@ -73,7 +69,7 @@ pub(crate) fn apply_ship_rebind(
         return;
     }
 
-    let bindings = vec![binding];
+    let bindings = vec![source];
     if thruster.is_some() {
         commands
             .entity(target)
@@ -146,10 +142,7 @@ mod tests {
         world.run_system_once(apply_ship_rebind).unwrap();
 
         let target_bindings = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
-        assert_eq!(
-            binding_source(&target_bindings[0]),
-            Some(InputSource::Mouse(MouseButton::Left))
-        );
+        assert_eq!(target_bindings[0], InputSource::Mouse(MouseButton::Left));
         assert!(world.resource::<ShipRuntime>().rebinding.is_none());
     }
 
@@ -186,10 +179,7 @@ mod tests {
 
         let binding = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
         assert_eq!(binding.len(), 1);
-        assert_eq!(
-            binding_source(&binding[0]),
-            Some(InputSource::Keyboard(KeyCode::KeyK))
-        );
+        assert_eq!(binding[0], InputSource::Keyboard(KeyCode::KeyK));
         assert!(world.resource::<ShipRuntime>().rebinding.is_none());
         let messages = world.resource::<Messages<SectionInputBindingChanged>>();
         assert_eq!(messages.len(), 1);

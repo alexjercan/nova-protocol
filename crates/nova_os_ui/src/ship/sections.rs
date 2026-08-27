@@ -8,10 +8,9 @@
 //! Touch this module when adding a section fact the ship app displays.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
-use nova_input::prelude::binding_source;
+use nova_input::prelude::InputSource;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 
@@ -167,7 +166,7 @@ pub(crate) struct ShipSectionView {
     pub(crate) link_points: Vec<LinkPoint>,
     pub(crate) health: Option<Health>,
     pub(crate) ammo: Option<SectionAmmo>,
-    pub(crate) bindings: Option<Vec<Binding>>,
+    pub(crate) bindings: Option<Vec<InputSource>>,
     pub(crate) inactive: bool,
     pub(crate) zero_health: bool,
 }
@@ -178,13 +177,11 @@ impl ShipSectionView {
             if bindings.is_empty() {
                 return "UNBOUND".to_string();
             }
+            // Every source has a label - the fallback that printed a `Binding`
+            // debug string went with the type that could fail to name one.
             bindings
                 .iter()
-                .map(|binding| {
-                    binding_source(binding)
-                        .map(|source| source.label())
-                        .unwrap_or_else(|| format!("{binding:?}"))
-                })
+                .map(InputSource::label)
                 .collect::<Vec<_>>()
                 .join(" / ")
         })

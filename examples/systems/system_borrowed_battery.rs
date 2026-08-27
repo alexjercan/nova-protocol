@@ -39,7 +39,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
-use bevy::{platform::collections::HashMap, prelude::*};
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
@@ -200,7 +202,7 @@ fn defender(sections: &GameSections) -> SpaceshipConfig {
     fixtures::ship(
         sections,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::from([(
+            input_mapping: BTreeMap::from([(
                 DEFENDER_GUNS.to_string(),
                 vec![
                     MouseButton::Left.into(),

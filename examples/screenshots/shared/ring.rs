@@ -43,6 +43,8 @@
 #[path = "kit.rs"]
 mod kit;
 
+use std::collections::BTreeMap;
+
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
@@ -134,7 +136,7 @@ pub fn the_ring_with_hull(
         start_position(),
         start_rotation(),
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: bevy::platform::collections::HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),

@@ -27,8 +27,10 @@
 #[path = "kit.rs"]
 mod kit;
 
-use bevy::{platform::collections::HashMap, prelude::*};
-use bevy_enhanced_input::prelude::Binding;
+use std::collections::BTreeMap;
+
+use bevy::prelude::*;
+use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 
 /// Scenario id of the player's ship.
@@ -258,7 +260,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         Vec3::ZERO,
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             infinite_ammo: true,
         }),
@@ -391,7 +393,7 @@ pub fn fighter(patrol: Vec<Vec3>) -> SpaceshipController {
 pub fn turret_bindings(
     sections: &GameSections,
     hull: &[SpaceshipSectionConfig],
-) -> HashMap<String, Vec<Binding>> {
+) -> BTreeMap<String, Vec<InputSource>> {
     hull.iter()
         .filter(|section| {
             let SectionSource::Prototype(prototype) = &section.source else {

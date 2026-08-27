@@ -43,11 +43,12 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
 use avian3d::prelude::*;
-use bevy::{color::palettes::tailwind, platform::collections::HashMap, prelude::*};
+use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
 use nova_protocol::prelude::*;
@@ -292,7 +293,7 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
     fixtures::ship(
         sections,
         SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::from([
+            input_mapping: BTreeMap::from([
                 ("torpedo".to_string(), trigger()),
                 ("lance".to_string(), trigger()),
             ]),

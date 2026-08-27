@@ -651,14 +651,15 @@ mod tests {
     /// The whole scenario config tree round-trips through RON under the
     /// `serde` feature: an asteroid with a path-authored texture, a beacon,
     /// and a player ship whose thruster section carries one keyboard and one
-    /// mouse binding. The bindings survive the `Binding <-> BindingInput`
-    /// bridge (`binding_map_serde`), and the cubemap/texture author as bare
-    /// path strings (`AssetRef`).
+    /// mouse binding. The bindings are `InputSource`s and serialize as
+    /// themselves - there is no bridge left to survive - and the
+    /// cubemap/texture author as bare path strings (`AssetRef`).
     #[cfg(feature = "serde")]
     #[test]
     fn a_scenario_config_round_trips_through_ron() {
-        use bevy::platform::collections::HashMap;
-        use bevy_enhanced_input::prelude::Binding;
+        use std::collections::BTreeMap;
+
+        use nova_input::prelude::InputSource;
         use nova_ship::prelude::{
             BaseSectionConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
         };
@@ -672,10 +673,10 @@ mod tests {
         };
 
         let bindings = vec![
-            Binding::from(KeyCode::KeyW),
-            Binding::from(MouseButton::Left),
+            InputSource::from(KeyCode::KeyW),
+            InputSource::from(MouseButton::Left),
         ];
-        let mut input_mapping: HashMap<String, Vec<Binding>> = HashMap::default();
+        let mut input_mapping: BTreeMap<String, Vec<InputSource>> = BTreeMap::new();
         input_mapping.insert("thruster".to_string(), bindings.clone());
 
         let ship = SpaceshipConfig {
@@ -783,7 +784,7 @@ mod tests {
         assert_eq!(rock_kind.texture.path(), Some("textures/rock.png"));
         assert_eq!(rock_kind.radius, 5.0);
 
-        // The player ship's bindings survive the Binding<->BindingInput bridge.
+        // The player ship's bindings come back as the sources they went in as.
         let EventActionConfig::SpawnScenarioObject(player) = &actions[2] else {
             panic!("third action is the ship spawn");
         };

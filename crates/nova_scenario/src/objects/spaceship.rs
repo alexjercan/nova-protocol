@@ -9,11 +9,13 @@
 //! Touch this module when changing how a ship is SPAWNED. What a ship IS lives
 //! in [`ship`](crate::objects::ship).
 
+use std::collections::BTreeMap;
+
 use avian3d::prelude::*;
-use bevy::{platform::collections::HashMap, prelude::*};
-use bevy_enhanced_input::prelude::*;
+use bevy::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
 
 use crate::objects::{
@@ -57,15 +59,21 @@ pub enum SpaceshipController {
 pub struct PlayerControllerConfig {
     #[cfg_attr(
         feature = "serde",
-        serde(
-            default,
-            with = "crate::objects::binding_input::binding_map_serde",
-            skip_serializing_if = "HashMap::is_empty"
-        )
+        serde(default, skip_serializing_if = "BTreeMap::is_empty")
     )]
     /// Per-section input bindings: the keys/buttons that drive each thruster,
     /// turret, or torpedo section, keyed by section id. Empty by default.
-    pub input_mapping: HashMap<SectionId, Vec<Binding>>,
+    ///
+    /// [`InputSource`] rather than `bevy_enhanced_input`'s `Binding`: a
+    /// section binds a modifier-free button and nothing else, and `Binding`
+    /// carries three variants (`AnyKey`, `Custom`, `None`) that mean nothing
+    /// in a file. The rig converts at spawn, so upstream's type lives inside
+    /// rig construction and nowhere in the data model.
+    ///
+    /// Ordered, not hashed: this writes `input_mapping:` into the GENERATED
+    /// `assets/base/**/*.content.ron`, and a hash-ordered map makes
+    /// `content -- gen` produce a different file every run.
+    pub input_mapping: BTreeMap<SectionId, Vec<InputSource>>,
     /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
     /// ship root: the manual burn tapers off approaching it (the starter
     /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12

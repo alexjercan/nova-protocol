@@ -48,11 +48,12 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
+use std::collections::BTreeMap;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
 use avian3d::prelude::*;
-use bevy::{color::palettes::tailwind, platform::collections::HashMap, prelude::*};
+use bevy::{color::palettes::tailwind, prelude::*};
 use clap::Parser;
 use nova_protocol::prelude::*;
 
@@ -358,7 +359,7 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     let ship = SpaceshipConfig {
         allegiance: None,
         controller: SpaceshipController::Player(PlayerControllerConfig {
-            input_mapping: HashMap::new(),
+            input_mapping: BTreeMap::new(),
             speed_cap: None,
             // Dev/tuning harness: fire freely.
             infinite_ammo: true,

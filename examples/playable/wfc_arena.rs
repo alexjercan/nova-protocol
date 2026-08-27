@@ -113,15 +113,15 @@
 use std::collections::BTreeMap;
 
 use avian3d::prelude::RigidBody;
-use bevy::{platform::collections::HashMap, prelude::*};
+use bevy::prelude::*;
 // The player slot's weapon bindings are authored in the game's own binding
 // type, exactly as the campaign scenarios author theirs.
-use bevy_enhanced_input::prelude::Binding;
 use clap::Parser;
+use nova_debug::prelude::capturing;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
 // the `debug` feature, and `capturing()` gates the idle orbit and chevrons
 // in EVERY build.
-use nova_debug::prelude::capturing;
+use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
 // Only for the derelicts' tumble: everything the fight depends on stays on the
 // generator's own seed stream.
@@ -642,7 +642,7 @@ struct Roster {
     ships: Vec<ShipSpec>,
     drafted: Vec<u64>,
     style: usize,
-    binding_overrides: BTreeMap<(usize, String), Vec<Binding>>,
+    binding_overrides: BTreeMap<(usize, String), Vec<InputSource>>,
 }
 
 impl Roster {
@@ -872,15 +872,15 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
 fn player_bindings(
     hull: &ShipHull,
     slot: usize,
-    overrides: &BTreeMap<(usize, String), Vec<Binding>>,
-) -> HashMap<String, Vec<Binding>> {
+    overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
+) -> BTreeMap<String, Vec<InputSource>> {
     hull.sections
         .iter()
         .filter_map(|section| {
             let SectionSource::Prototype(id) = &section.source else {
                 return None;
             };
-            let bindings: Vec<Binding> = match id.as_str() {
+            let bindings: Vec<InputSource> = match id.as_str() {
                 KINETIC_MOUNT | PIERCE_MOUNT => vec![
                     MouseButton::Left.into(),
                     GamepadButton::RightTrigger2.into(),
@@ -908,7 +908,7 @@ fn combatant(
     hull: ShipHull,
     ship: &ShipSpec,
     place: (usize, usize),
-    binding_overrides: &BTreeMap<(usize, String), Vec<Binding>>,
+    binding_overrides: &BTreeMap<(usize, String), Vec<InputSource>>,
 ) -> ScenarioObjectConfig {
     let team = &TEAMS[ship.team];
     // The armament roll, per ship: the draft floor bounds it from below but one

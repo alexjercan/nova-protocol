@@ -18,7 +18,6 @@ pub mod asteroid_carve;
 /// How a rock is textured (triplanar, no UVs) and how its silhouette is shaped.
 pub mod asteroid_surface;
 pub mod beacon;
-pub mod binding_input;
 /// Light scenario object: the authored directional and point lights a scene
 /// lights itself with.
 pub mod light;
@@ -33,9 +32,9 @@ pub mod spaceship;
 pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
-        asteroid_surface::prelude::*, beacon::prelude::*, binding_input::prelude::*,
-        light::prelude::*, modification::prelude::*, salvage::prelude::*, ship::prelude::*,
-        spaceship::prelude::*, ScenarioObjectsPlugin,
+        asteroid_surface::prelude::*, beacon::prelude::*, light::prelude::*,
+        modification::prelude::*, salvage::prelude::*, ship::prelude::*, spaceship::prelude::*,
+        ScenarioObjectsPlugin,
     };
 }
 
