@@ -105,6 +105,7 @@ use nova_gameplay::{
     GameStates,
 };
 use nova_hud::prelude::HudVisibility;
+use nova_input::prelude::{dispatch, InputPhase};
 use nova_scenario::prelude::{
     NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
     VariableLiteral,
@@ -501,6 +502,48 @@ pub fn shoot(world: &mut World, path: &str) {
     }
     capture_window(world, path);
     info!("nova capture: {path}");
+}
+
+/// Press whatever the player action called `name` is bound to.
+///
+/// The Nova-typed half of [`nova_autopilot::input::press_key`]: a beat says
+/// `press_action("radar_hold")`
+/// and the bindings registry decides which key that is. A script written this
+/// way survives a rebind, and - more to the point - stops being a SECOND copy
+/// of the binding table that can silently disagree with the rig it drives.
+///
+/// The press is not released, like the generic helpers: a hold is one
+/// [`press_action`] beat and one [`release_action`] beat. A range that instead
+/// re-presses every frame calls [`drive_action`] directly.
+pub fn press_action(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| drive_action(world, &name, InputPhase::Press)
+}
+
+/// Release whatever the player action called `name` is bound to.
+pub fn release_action(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| drive_action(world, &name, InputPhase::Release)
+}
+
+/// The body of [`press_action`] and [`release_action`], for a caller that has
+/// the world already - a per-frame hold, which must not build a closure and
+/// allocate its name every frame inside a range that measures frame cost.
+///
+/// Writes the button state and nothing else, which is exactly what the raw
+/// `ButtonInput` presses these calls replaced wrote. The pointer helpers'
+/// extra `WindowEvent` is deliberately NOT sent: no registry action is a UI
+/// click, every one of them is read through `bevy_enhanced_input`, and feeding
+/// `bevy_picking` a synthetic press each frame would add event churn to the
+/// stress ranges for nothing.
+///
+/// An unknown or pad-only name is an error in the log and no press. The beat
+/// then stalls on its own predicate and the deadline watcher names it - a
+/// better report than a panic inside a step closure.
+pub fn drive_action(world: &mut World, name: &str, phase: InputPhase) {
+    if let Err(error) = dispatch::apply(world, name, phase) {
+        error!("nova harness: {error}");
+    }
 }
 
 /// Advance once the scenario is live - its camera has spawned.

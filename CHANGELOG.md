@@ -178,6 +178,9 @@ does NOT get an entry - and it is the only place they are written down.
 - One arbiter owns the keyboard: a verb answers in normal mode alone, and a
   mode - a focused field, the parts gallery, a keybind capture - takes every key
   from the verbs, which never hear of it.
+- A driven range presses an action by NAME - `press_action("radar_hold")` - and
+  the registry decides which key that is. Twenty-six hardcoded copies of the
+  binding table are gone from the fleet.
 
 ## [0.11.0] - 2026-08-23
 

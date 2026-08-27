@@ -357,9 +357,7 @@ fn hold_inputs(world: &mut World, _elapsed: f32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .press(MouseButton::Right);
+        drive_action(world, "combat_stance", InputPhase::Press);
     }
     if fire {
         world

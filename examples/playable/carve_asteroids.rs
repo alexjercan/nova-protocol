@@ -395,9 +395,7 @@ fn hold_inputs(world: &mut World, _elapsed: f32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {
-        world
-            .resource_mut::<ButtonInput<MouseButton>>()
-            .press(MouseButton::Right);
+        drive_action(world, "combat_stance", InputPhase::Press);
     }
     if fire {
         world
@@ -459,9 +457,7 @@ fn cease_fire(world: &mut World) {
     world
         .resource_mut::<ButtonInput<MouseButton>>()
         .release(MouseButton::Left);
-    world
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .release(MouseButton::Right);
+    release_action("combat_stance")(world);
 }
 
 /// The sustained-fire readout, and the two numbers the merge rules are tuned

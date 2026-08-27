@@ -204,3 +204,78 @@ observation half alone forces it.
 
 Design record: `tasks/20260820-174148/design.html`. Its "Deferred" section is
 the reasoning `20260827-120347` starts from.
+
+## Progress
+
+### Step 1 - the registry (`ee2edcaf`)
+
+`nova_input` is a leaf crate holding `ActionBinding`, `BindingSpec` and the
+`InputBindings` resource. The 14 shipped defaults are pure data in
+`nova_ship/src/input/bindings.rs`; `flight_rig_reserved_sources` derives from
+them, so the content lint's overlap check cannot go stale. The 15-row
+`nova_ship/src/input/reference.rs` mirror is deleted.
+
+### Step 2 - settings reads the registry (`82c6785e`, `9592ec83`)
+
+The Controls list loops `bindings.groups()`; four rows stay declared fixed, not
+five - `camera_rotate` can declare `mouse_motion` + `stick(Right)`, so "Aim"
+renders from the registry after all. The list gained RCS Fine Adjust, RCS Aim,
+the radar hold/tap split and Advance. Rebinds persist through
+`PersistedSettings::keybinds`, and the settings card scrolls so a longer list
+cannot push Back off the bottom.
+
+Display strings needed three additions the design did not name: a second
+`readout_label`/`key_symbol` labeller (`keyboard_label` stays raw, because it
+keys `nova_hud`'s glyph files), `modifier_pair` collapsing Left+Right into
+`Ctrl`/`Shift`, and machine-readable `ActionAxes` so `/ Scroll Up` is derived
+rather than typed.
+
+### Step 3 - the dispatcher
+
+`nova_input::dispatch` - `apply(world, name, phase)`, `apply_axis(world, name,
+delta)` and `primary_source(world, name)`. Source route, not `ActionMock`: the
+mock REPLACES conditions and modifiers, so a mocked `radar_hold` proves the
+state and never the gesture.
+
+Three source kinds beyond the button: mouse motion and the wheel write
+`AccumulatedMouseMotion` / `AccumulatedMouseScroll` (which is what
+`bevy_enhanced_input` reads - `input_reader.rs:28`, and its own tests write the
+same resources); gamepad is refused by name as `DispatchError::NoButton` rather
+than silently doing nothing.
+
+**Deviation.** The design put the wrapper in `nova_autopilot`. It cannot go
+there: that crate's contract is bevy and nothing else, with Nova-typed
+predicates built on it in `nova_debug::harness`. `press_action` /
+`release_action` / `drive_action` therefore live in `nova_debug::harness`,
+which every example already globs through `nova_core::prelude`.
+
+`drive_action` writes the button state alone, not the pointer helpers'
+`WindowEvent`: no registry action is a UI click, every one is read through
+`bevy_enhanced_input`, and the five per-frame `hold_inputs` ranges would
+otherwise feed `bevy_picking` a synthetic press every frame.
+
+Ported: 26 call sites across 10 example files, including all three separate
+copies of `hold_radar` (`hollow.rs`, `screenshot_radar_lock.rs`,
+`system_hud_indicators.rs`) and both copies of `raise_stance`.
+
+**Axis timing, for step 5.** A button press survives across frames; an axis
+write does not. Bevy REPLACES the accumulators every frame, so a caller driving
+an axis must run `after(InputSystems).before(EnhancedInputSystems::Prepare)`.
+The autopilot driver only guarantees the first half, which is why no example
+drives an axis by name yet and why `nova_channel`'s system must state both.
+
+**Proof.** `nova_ship` 683/683, `nova_input` 16/16, `nova_debug` 16/16;
+`cargo check --workspace --all-targets` and `--features debug --examples` clean.
+New test `a_named_radar_hold_is_a_real_hold_not_a_mocked_state` drives the real
+rig by name and asserts the tap window, the threshold latch and the sticking
+release - the three things a mock would have skipped.
+
+Live on Xvfb :97, all exit 0: `system_player_path` (stance, two radar sweeps,
+GOTO - full chain), `system_hud_indicators`, `system_turret_gunnery` (rounds
+fired through the per-frame stance hold), `screenshot_radar_lock`,
+`screenshot_combat_lock`, `loop_player_flight`.
+
+**Pre-existing failure, not caused by this change.** `carve_asteroids` stalls at
+`hold actual PDC fire on one point` (`pdc_rounds_landed()` never satisfied,
+15 s deadline). Reproduced with the hunk reverted to the raw `ButtonInput`
+press: identical stall. Untouched here.

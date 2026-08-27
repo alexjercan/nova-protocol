@@ -19,6 +19,9 @@ nova_autopilot = { path = "../nova_autopilot" }
 nova_editor = { path = "../nova_editor" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
+# `press_action` resolves a beat's action NAME through the bindings registry,
+# so a driven script stops being a second copy of the binding table.
+nova_input = { path = "../nova_input" }
 nova_ship = { path = "../nova_ship" }
 nova_hud = { path = "../nova_hud" }
 nova_scenario = { path = "../nova_scenario" }

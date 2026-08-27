@@ -50,6 +50,8 @@ pub mod prelude {
     // Nova-typed predicates it is composing them with. `not` is deliberately
     // absent: it collides with `bevy::prelude::not`, which every example globs,
     // so a caller that wants it names `nova_autopilot::predicate::not`.
+    // The phase `drive_action` takes. A range that holds an action every frame
+    // names it; the `press_action` / `release_action` beats do not.
     pub use nova_autopilot::{
         input::{
             assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
@@ -64,21 +66,22 @@ pub mod prelude {
         // `KeyCode` - the PHYSICAL key - but not this one.
         prelude::Key,
     };
+    pub use nova_input::prelude::InputPhase;
 
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::screenshot::{ScreenshotHotkeyPlugin, SCREENSHOT_KEYCODE};
     pub use super::{
         debugdump,
         harness::{
-            assert_scenario_loaded, capture_window, capturing, editor_field_focused,
+            assert_scenario_loaded, capture_window, capturing, drive_action, editor_field_focused,
             editor_filter_focused, editor_gallery_closed, editor_gallery_open,
             editor_gallery_selected, editor_gizmo_on, editor_inspector_reads, editor_part_armed,
             editor_placement_clear, editor_placement_refused, editor_placement_solved,
             editor_tool_is, force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud,
             loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,
-            pose_camera, scenario_camera_present, scenario_variable_is, script_reports_done,
-            section_gone, shoot, CaptureLog, LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
-            SHOT_DEADLINE_SECS,
+            pose_camera, press_action, release_action, scenario_camera_present,
+            scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
+            LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
         },
         DebugPlugin,
     };

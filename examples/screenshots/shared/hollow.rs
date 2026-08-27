@@ -511,28 +511,22 @@ pub fn nudge_raider(world: &mut World) {
     }
 }
 
-/// Hold CTRL: the radar gesture. Which slot it latches depends on the stance.
+/// Hold the radar gesture. Which slot it latches depends on the stance.
 #[cfg(feature = "debug")]
 pub fn hold_radar(world: &mut World) {
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::ControlLeft);
+    press_action("radar_hold")(world);
 }
 
 /// Release the radar gesture.
 #[cfg(feature = "debug")]
 pub fn release_radar(world: &mut World) {
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::ControlLeft);
+    release_action("radar_hold")(world);
 }
 
-/// Raise the weapons (RMB), switching the radar from the nav slot to combat.
+/// Raise the weapons, switching the radar from the nav slot to combat.
 #[cfg(feature = "debug")]
 pub fn raise_stance(world: &mut World) {
-    world
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .press(MouseButton::Right);
+    press_action("combat_stance")(world);
 }
 
 /// Hold the trigger (LMB) so the player's turret is firing in the combat shots.

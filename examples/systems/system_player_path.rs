@@ -118,7 +118,7 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(nova_probe::capture_reload_end)
                 .add()
                 .step(format!("round {round}: raise the stance"))
-                .on_enter(beat(press_mouse(MouseButton::Right), "beat: raised"))
+                .on_enter(beat(press_action("combat_stance"), "beat: raised"))
                 .until(elapsed(0.3))
                 .add()
                 // Hold the sweep until the combat lock is LIVE. The radar
@@ -126,10 +126,7 @@ fn main() -> bevy::app::AppExit {
                 // rather than the clock is what survives llvmpipe stutter,
                 // where a wall-clock window can collapse into a single frame.
                 .step(format!("round {round}: sweep the prey into a combat lock"))
-                .on_enter(beat(
-                    press_key(KeyCode::ControlLeft),
-                    "beat: radar combat sweep",
-                ))
+                .on_enter(beat(press_action("radar_hold"), "beat: radar combat sweep"))
                 .until(combat_lock_live())
                 .deadline(20.0)
                 .add()
@@ -148,10 +145,7 @@ fn main() -> bevy::app::AppExit {
                     "round {round}: sweep the waypoint into a travel lock"
                 ))
                 .until(travel_lock_live())
-                .on_enter(beat(
-                    press_key(KeyCode::ControlLeft),
-                    "beat: radar travel sweep",
-                ))
+                .on_enter(beat(press_action("radar_hold"), "beat: radar travel sweep"))
                 .deadline(20.0)
                 .add()
                 // GOTO with the real key, then wait until the autopilot is
@@ -376,14 +370,14 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 }
 
 /// Let go of everything the last round left held. GOTO is the one that
-/// matters - a still-pressed G would re-engage the autopilot on the fresh ship
+/// matters - a still-held GOTO key would re-engage the autopilot on the fresh ship
 /// before its beat, and the run would prove the chain on a lock it never took.
 #[cfg(feature = "debug")]
 fn release_all_held_keys(world: &mut World) {
-    release_key(KeyCode::KeyG)(world);
-    release_key(KeyCode::ControlLeft)(world);
+    release_action("autopilot_goto")(world);
+    release_action("radar_hold")(world);
     release_mouse(MouseButton::Left)(world);
-    release_mouse(MouseButton::Right)(world);
+    release_action("combat_stance")(world);
 }
 
 /// Restart the cycle on an autopilot loop: release the held inputs, mark the
@@ -491,7 +485,7 @@ fn open_fire(world: &mut World) {
         "beat: fire",
         serde_json::json!({ "t": t, "combat_lock": combat_id }),
     );
-    release_key(KeyCode::ControlLeft)(world);
+    release_action("radar_hold")(world);
     press_mouse(MouseButton::Left)(world);
 }
 
@@ -501,7 +495,7 @@ fn lower_stance(world: &mut World) {
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: lowered", serde_json::json!({ "t": t }));
     release_mouse(MouseButton::Left)(world);
-    release_mouse(MouseButton::Right)(world);
+    release_action("combat_stance")(world);
 }
 
 /// Release the travel sweep and engage GOTO with the real key.
@@ -509,8 +503,8 @@ fn lower_stance(world: &mut World) {
 fn engage_goto(world: &mut World) {
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: goto engaged", serde_json::json!({ "t": t }));
-    release_key(KeyCode::ControlLeft)(world);
-    press_key(KeyCode::KeyG)(world);
+    release_action("radar_hold")(world);
+    press_action("autopilot_goto")(world);
 }
 
 /// Each round's last beat: the scenario saw the kill and the travel lock, and

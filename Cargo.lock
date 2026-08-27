@@ -4619,6 +4619,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_hud",
+ "nova_input",
  "nova_scenario",
  "nova_ship",
 ]

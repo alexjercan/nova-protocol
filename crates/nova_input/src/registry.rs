@@ -37,16 +37,40 @@ pub struct ActionBinding {
     pub keyboard: Vec<InputSource>,
     /// Gamepad button sources, primary first.
     pub gamepad: Vec<InputSource>,
-    /// What the keyboard column adds for the axis half of this action: `Mouse`
-    /// for a motion binding, `Scroll Up` for a wheel one. Empty for an action
-    /// that is only buttons.
-    ///
-    /// The axis itself is not a source (see the type doc), so without this the
-    /// readout would tell a player `]` cycles the lock and never mention the
-    /// wheel.
-    pub keyboard_note: &'static str,
-    /// What the gamepad column adds for the axis half: `Right Stick`.
-    pub gamepad_note: &'static str,
+    /// The axis halves: motion, wheel and stick. Not sources - they carry rig
+    /// modifiers, nothing collides on them and no rebind row can capture one -
+    /// but they ARE how the action is driven, so both the readout and the
+    /// dispatcher need them named.
+    pub axes: ActionAxes,
+}
+
+/// The axis bindings an action carries beside its buttons.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ActionAxes {
+    /// Raw mouse motion drives this action.
+    pub mouse_motion: bool,
+    /// The wheel drives it, in this direction.
+    pub wheel: Option<WheelDirection>,
+    /// A gamepad stick drives it.
+    pub stick: Option<GamepadStick>,
+}
+
+/// Which way the wheel has to turn to drive an action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WheelDirection {
+    /// Away from the player.
+    Up,
+    /// Towards the player.
+    Down,
+}
+
+/// Which stick drives an action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GamepadStick {
+    /// The left stick.
+    Left,
+    /// The right stick.
+    Right,
 }
 
 /// What one action is bound to, with nothing else about it: the persisted form
@@ -76,8 +100,7 @@ impl ActionBinding {
             label,
             keyboard: Vec::new(),
             gamepad: Vec::new(),
-            keyboard_note: "",
-            gamepad_note: "",
+            axes: ActionAxes::default(),
         }
     }
 
@@ -95,24 +118,50 @@ impl ActionBinding {
         self
     }
 
-    /// Name the axis half of this action for the readout: what the wheel or
-    /// mouse motion does that no discrete source can say.
+    /// Raw mouse motion drives this action too.
     #[must_use]
-    pub fn notes(mut self, keyboard: &'static str, gamepad: &'static str) -> Self {
-        self.keyboard_note = keyboard;
-        self.gamepad_note = gamepad;
+    pub fn mouse_motion(mut self) -> Self {
+        self.axes.mouse_motion = true;
         self
     }
 
-    /// The keyboard column of a settings row: every bound key, plus the axis
-    /// note. `Unbound` when the action has neither.
+    /// The wheel drives this action, turned this way.
+    #[must_use]
+    pub fn wheel(mut self, direction: WheelDirection) -> Self {
+        self.axes.wheel = Some(direction);
+        self
+    }
+
+    /// A gamepad stick drives this action.
+    #[must_use]
+    pub fn stick(mut self, stick: GamepadStick) -> Self {
+        self.axes.stick = Some(stick);
+        self
+    }
+
+    /// The keyboard column of a settings row: every bound key, then what the
+    /// motion or wheel half adds. `Unbound` when the action has neither.
     pub fn keyboard_display(&self) -> String {
-        display_column(&self.keyboard, self.keyboard_note)
+        let note = if self.axes.mouse_motion {
+            "Mouse"
+        } else {
+            match self.axes.wheel {
+                Some(WheelDirection::Up) => "Scroll Up",
+                Some(WheelDirection::Down) => "Scroll Down",
+                None => "",
+            }
+        };
+        display_column(&self.keyboard, note)
     }
 
     /// The gamepad column of a settings row.
     pub fn gamepad_display(&self) -> String {
-        display_column(&self.gamepad, self.gamepad_note)
+        let note = match self.axes.stick {
+            Some(GamepadStick::Left) => "Left Stick",
+            Some(GamepadStick::Right) => "Right Stick",
+            None => "",
+        };
+        display_column(&self.gamepad, note)
     }
 
     /// What this action is bound to right now, detached from its name and
@@ -365,7 +414,7 @@ mod tests {
 
         let cycle = ActionBinding::new("component_next", "TARGETING", "Next")
             .keyboard([InputSource::Keyboard(KeyCode::BracketRight)])
-            .notes("Scroll Up", "");
+            .wheel(WheelDirection::Up);
         assert_eq!(cycle.keyboard_display(), "] / Scroll Up");
         assert_eq!(
             cycle.gamepad_display(),

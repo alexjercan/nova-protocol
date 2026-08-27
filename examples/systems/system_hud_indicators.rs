@@ -401,15 +401,15 @@ fn readout_value(line: &str) -> f32 {
 /// the threshold latch retired it, Q1a.)
 #[cfg(feature = "debug")]
 fn raise_stance(world: &mut World) {
-    press_mouse(MouseButton::Right)(world);
+    press_action("combat_stance")(world);
     info!("hud range: raised (live gesture)");
 }
 
-/// Hold CTRL: at the hold threshold the radar latches the COMBAT slot and the
-/// lock goes LIVE under the sweep.
+/// Hold the radar gesture: at the hold threshold the radar latches the COMBAT
+/// slot and the lock goes LIVE under the sweep.
 #[cfg(feature = "debug")]
 fn hold_radar(world: &mut World) {
-    press_key(KeyCode::ControlLeft)(world);
+    press_action("radar_hold")(world);
     info!("hud range: radar held (live gesture)");
 }
 
@@ -486,12 +486,8 @@ fn commit_lock(world: &mut World) {
     info!("hud range: inset viewfinder up at lock time, frame armed");
     // Release: stick; lower the stance; set the travel designation for
     // the GOTO stage directly (its gesture is the same, already proven).
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .release(KeyCode::ControlLeft);
-    world
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .release(MouseButton::Right);
+    release_action("radar_hold")(world);
+    release_action("combat_stance")(world);
     world.entity_mut(player).get_mut::<TravelLock>().unwrap().0 = Some(target);
     info!("hud range: radar released - the live combat lock sticks");
 }

@@ -282,13 +282,10 @@ fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
     pose_camera(world, position, look_at);
 }
 
-/// Hold CTRL: the radar gesture. Weapons are lowered, so it latches the nav
-/// slot.
+/// Hold the radar gesture. Weapons are lowered, so it latches the nav slot.
 #[cfg(feature = "debug")]
 fn hold_radar(world: &mut World) {
-    world
-        .resource_mut::<ButtonInput<KeyCode>>()
-        .press(KeyCode::ControlLeft);
+    press_action("radar_hold")(world);
 }
 
 /// Advance once the travel lock is on the beacon (and not on some rock the aim

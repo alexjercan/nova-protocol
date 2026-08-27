@@ -17,8 +17,12 @@
 //! plain function, and [`NovaInputPlugin`] is what turns those into the live
 //! [`InputBindings`]. Offline consumers - the content lint has no world - call
 //! the plain function instead.
+//!
+//! [`dispatch`] rides here for the same reason: driving an action by name is a
+//! lookup in this table plus a press, so it belongs where the table lives.
 #![warn(missing_docs)]
 
+pub mod dispatch;
 pub mod registry;
 pub mod source;
 
@@ -67,7 +71,11 @@ impl RegisterInputActions for App {
 /// action record, the physical-source vocabulary and the plugin into scope.
 pub mod prelude {
     pub use super::{
-        registry::{ActionBinding, BindingSpec, InputBindings},
+        dispatch,
+        dispatch::{DispatchError, InputPhase},
+        registry::{
+            ActionAxes, ActionBinding, BindingSpec, GamepadStick, InputBindings, WheelDirection,
+        },
         source::{
             binding_label, binding_source, gamepad_label, key_symbol, keyboard_label,
             modifier_pair, InputSource,

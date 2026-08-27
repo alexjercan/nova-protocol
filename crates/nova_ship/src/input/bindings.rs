@@ -55,18 +55,18 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("component_next", "TARGETING", "Lock / Component Next")
             .keyboard([Keyboard(KeyCode::BracketRight)])
             .gamepad([Gamepad(GamepadButton::DPadRight)])
-            .notes("Scroll Up", ""),
+            .wheel(WheelDirection::Up),
         ActionBinding::new("component_prev", "TARGETING", "Lock / Component Prev")
             .keyboard([Keyboard(KeyCode::BracketLeft)])
             .gamepad([Gamepad(GamepadButton::DPadLeft)])
-            .notes("Scroll Down", ""),
+            .wheel(WheelDirection::Down),
         ActionBinding::new("rcs_modifier", "FLIGHT", "RCS Fine Adjust")
             .keyboard([Keyboard(KeyCode::ShiftLeft), Keyboard(KeyCode::ShiftRight)])
             .gamepad([Gamepad(GamepadButton::LeftTrigger2)]),
         // Raw mouse motion, accumulated into the ship-local RCS plane while
         // the modifier is held. No discrete source: nothing collides on an
         // axis and no rebind row can capture one.
-        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim").notes("Mouse", ""),
+        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim").mouse_motion(),
     ]
 }
 
@@ -75,7 +75,9 @@ pub fn camera_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard, Mouse};
     vec![
         // Mouse motion plus the right stick: both axes, neither reservable.
-        ActionBinding::new("camera_rotate", "CAMERA", "Aim").notes("Mouse", "Right Stick"),
+        ActionBinding::new("camera_rotate", "CAMERA", "Aim")
+            .mouse_motion()
+            .stick(GamepadStick::Right),
         ActionBinding::new("free_look", "CAMERA", "Free Look")
             .keyboard([Keyboard(KeyCode::AltLeft)])
             .gamepad([Gamepad(GamepadButton::LeftTrigger)]),

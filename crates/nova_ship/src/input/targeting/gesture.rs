@@ -395,6 +395,58 @@ mod tests {
         assert_eq!(combat_of(&app, ship), None, "the engaged slot only");
     }
 
+    /// The whole reason the dispatcher presses a SOURCE instead of mocking the
+    /// action: a driven `radar_hold` has to be a real hold. Nothing latches
+    /// inside the tap window, the threshold latches, and the release sticks -
+    /// the same three assertions the raw-key test makes, reached by name.
+    ///
+    /// `ActionMock` would have replaced the `Hold` condition outright and
+    /// proved the state without the gesture.
+    #[test]
+    fn a_named_radar_hold_is_a_real_hold_not_a_mocked_state() {
+        use nova_input::prelude::{dispatch, InputBindings, InputPhase};
+
+        use crate::input::bindings::flight_bindings;
+
+        let (mut app, ship) = gesture_app();
+        app.world_mut()
+            .insert_resource(InputBindings::from_actions(flight_bindings()));
+        let ahead = spawn_ship(&mut app, Vec3::new(0.0, 0.0, -100.0));
+
+        dispatch::apply(app.world_mut(), "radar_hold", InputPhase::Press)
+            .expect("the shipped table binds radar_hold to a key");
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world()
+                .get::<RadarState>(ship)
+                .expect("search open")
+                .engaged,
+            None,
+            "a driven press still lands inside the tap window"
+        );
+
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().get::<RadarState>(ship).unwrap().engaged,
+            Some(RadarSlot::Travel),
+            "the driven hold crosses the same threshold a held key does"
+        );
+        assert_eq!(travel_of(&app, ship), Some(ahead));
+
+        dispatch::apply(app.world_mut(), "radar_hold", InputPhase::Release)
+            .expect("the same action releases");
+        app.update();
+        assert_eq!(travel_of(&app, ship), Some(ahead), "release = it sticks");
+        assert!(
+            app.world().get::<RadarState>(ship).is_none(),
+            "the search closes on release"
+        );
+    }
+
     #[test]
     fn raising_inside_the_tap_window_latches_the_combat_slot() {
         // Q1a (threshold latch): CTRL pressed lowered, RMB raised 100 ms
