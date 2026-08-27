@@ -370,8 +370,6 @@ pub(crate) fn sync_volume_slider(
 /// registry: raw `ButtonInput` chords read by the comms panel and by the pause
 /// and HUD toggles. They stay declared here until someone names them.
 const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[
-    ("COMMS", "Dismiss oldest visible card", "V", "Unbound"),
-    ("COMMS", "Skip queued backlog into view", "B", "Unbound"),
     ("SYSTEM", "Pause / Menu", "Esc", "Start"),
     ("SYSTEM", "HUD (On / Cinematic)", "`", "Select"),
 ];

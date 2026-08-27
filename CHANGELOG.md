@@ -158,6 +158,9 @@ does NOT get an entry - and it is the only place they are written down.
   the wheel's lock cycle, and the scenario advance.
 - The Settings panel scrolls, so a longer controls list cannot push Back off
   the bottom of the card.
+- The comms stack drops its V and B keys. Dismissing the oldest card and
+  skipping the backlog were near-identical shortcuts, and the paced window
+  already flows on its own.
 
 ### Ships & Sections
 

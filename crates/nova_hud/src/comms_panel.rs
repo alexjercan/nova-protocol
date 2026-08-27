@@ -182,7 +182,6 @@ impl Plugin for CommsPanelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<StoryFeed>();
         app.init_resource::<CommsQueue>();
-        app.init_resource::<ButtonInput<KeyCode>>();
         app.add_systems(Startup, spawn_comms_panel);
         app.add_systems(
             Update,
@@ -259,7 +258,6 @@ fn drive_comms_stack(
     time: Res<Time>,
     mut queue: ResMut<CommsQueue>,
     mut commands: Commands,
-    keys: Res<ButtonInput<KeyCode>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     panel: Query<Entity, With<CommsPanelMarker>>,
 ) {
@@ -271,16 +269,6 @@ fn drive_comms_stack(
         visible.age_secs += time.delta_secs();
     }
     queue.visible.retain(|visible| !visible.expired());
-
-    if keys.just_pressed(KeyCode::KeyV) {
-        queue.visible.pop_front();
-    }
-    if keys.just_pressed(KeyCode::KeyB)
-        && !queue.pending.is_empty()
-        && queue.visible.len() >= COMMS_VISIBLE_CAP
-    {
-        queue.visible.pop_front();
-    }
 
     while queue.visible.len() < COMMS_VISIBLE_CAP {
         let Some(line) = queue.pending.pop_front() else {
@@ -435,7 +423,6 @@ mod tests {
         )));
         app.init_resource::<StoryFeed>();
         app.init_resource::<CommsQueue>();
-        app.init_resource::<ButtonInput<KeyCode>>();
         app.add_systems(Startup, spawn_comms_panel);
         app.add_systems(
             Update,
@@ -486,16 +473,6 @@ mod tests {
             .collect()
     }
 
-    fn press_key(app: &mut App, key: KeyCode) {
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .press(key);
-        app.update();
-        app.world_mut()
-            .resource_mut::<ButtonInput<KeyCode>>()
-            .release(key);
-    }
-
     #[test]
     fn a_burst_stacks_visible_lines_newest_at_bottom() {
         let mut app = comms_app();
@@ -517,29 +494,11 @@ mod tests {
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
     }
 
+    /// The stack is a WINDOW on the queue: a burst larger than the cap shows
+    /// the cap's worth and holds the rest back, then lets them through as the
+    /// visible cards age out.
     #[test]
-    fn dismiss_hides_a_visible_line_without_touching_the_log() {
-        let mut app = comms_app();
-        app.update();
-        push_line(&mut app, "Alpha", "First.", None);
-        push_line(&mut app, "Bravo", "Second.", None);
-        app.update();
-
-        press_key(&mut app, KeyCode::KeyV);
-        assert_eq!(
-            visible_texts(&mut app),
-            vec!["BRAVO > Second.".to_string()],
-            "dismiss removes the oldest visible card"
-        );
-        assert_eq!(
-            app.world().resource::<StoryFeed>().0.len(),
-            2,
-            "dismiss is visual only; the transcript remains complete"
-        );
-    }
-
-    #[test]
-    fn skip_promotes_pending_lines_into_the_stack() {
+    fn a_burst_larger_than_the_cap_drains_as_cards_expire() {
         let mut app = comms_app();
         app.update();
         for i in 0..6 {
@@ -552,13 +511,23 @@ mod tests {
             "the initial burst fills only the visible stack"
         );
 
-        press_key(&mut app, KeyCode::KeyB);
-        let texts = visible_texts(&mut app);
-        assert_eq!(texts.len(), COMMS_VISIBLE_CAP);
+        // One card is 8 s of dwell plus a 0.4 s fade, and the manual clock
+        // advances 0.25 s an update, so the newest line waits out two cards.
+        let mut seen_last_line = false;
+        for _ in 0..80 {
+            app.update();
+            seen_last_line |= visible_texts(&mut app)
+                .iter()
+                .any(|text| text == "ALPHA > Line 5.");
+        }
+        assert!(
+            seen_last_line,
+            "the backlog reaches the stack once the earlier cards expire"
+        );
         assert_eq!(
-            texts.last().map(String::as_str),
-            Some("ALPHA > Line 5."),
-            "skip advances the next queued card to the bottom immediately"
+            app.world().resource::<StoryFeed>().0.len(),
+            6,
+            "the paced window never trims the transcript"
         );
     }
 

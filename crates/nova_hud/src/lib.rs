@@ -292,6 +292,9 @@ impl Plugin for NovaHudPlugin {
         );
         // The cycle key is gameplay-only (the menu drives the resource
         // itself); plain ButtonInput, same pattern as the debug F11 toggle.
+        // The resource is ours to guarantee: a headless HUD app carries no
+        // `InputPlugin`, and the comms panel used to init it as a side effect.
+        app.init_resource::<ButtonInput<KeyCode>>();
         app.add_systems(
             Update,
             cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
