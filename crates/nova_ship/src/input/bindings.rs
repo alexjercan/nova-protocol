@@ -45,14 +45,17 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .keyboard([Keyboard(KeyCode::KeyZ)])
             .gamepad([Gamepad(GamepadButton::West)]),
         // Hold and tap share the key and the threshold constant so the
-        // boundary frame cannot fall between them.
-        ActionBinding::new("radar_hold", "TARGETING", "Radar (hold search)")
+        // boundary frame cannot fall between them. `radar_clear` FOLLOWS the
+        // hold: one settings row, one rebind, and the tap cannot be left
+        // behind on the old key.
+        ActionBinding::new("radar_hold", "TARGETING", "Radar (hold / tap)")
             .keyboard([
                 Keyboard(KeyCode::ControlLeft),
                 Keyboard(KeyCode::ControlRight),
             ])
             .gamepad([Gamepad(GamepadButton::DPadUp)]),
         ActionBinding::new("radar_clear", "TARGETING", "Radar (tap clear)")
+            .follows("radar_hold")
             .keyboard([
                 Keyboard(KeyCode::ControlLeft),
                 Keyboard(KeyCode::ControlRight),
@@ -181,8 +184,8 @@ mod tests {
 
     /// No two fixed-rig actions may hold the same source, because both rigs
     /// run with `consume_input: false` - a shared key or button drives both at
-    /// once. `radar_hold` and `radar_clear` are the deliberate exception: they
-    /// are one gesture read two ways, and they share the key on purpose.
+    /// once. `radar_clear` FOLLOWS `radar_hold`, so the table knows that pair
+    /// is one gesture and this test needs no exemption list.
     ///
     /// The reserved-sources check guards content `input_mapping` against the
     /// flight rig; it never guarded the fixed rigs against EACH OTHER, and the
@@ -193,13 +196,11 @@ mod tests {
     /// surface it can never be up beside.
     #[test]
     fn no_two_fixed_rig_actions_share_a_source() {
-        let radar = ["radar_hold", "radar_clear"];
         let table =
             InputBindings::from_actions(flight_bindings().into_iter().chain(camera_bindings()));
         let found: Vec<String> = table
             .conflicts()
             .into_iter()
-            .filter(|(one, other, _)| !(radar.contains(&one.name) && radar.contains(&other.name)))
             .map(|(one, other, source)| {
                 format!(
                     "`{}` and `{}` both hold {}",
@@ -241,7 +242,7 @@ mod tests {
                 ("Autopilot: Go To", "G", "Y"),
                 ("Autopilot: Orbit", "O", "A"),
                 ("Autopilot: Off", "Z", "X"),
-                ("Radar (hold search)", "Ctrl", "D-Pad Up"),
+                ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
                 ("Lock / Component Next", "] / Scroll Up", "D-Pad Right"),
                 ("Lock / Component Prev", "[ / Scroll Down", "D-Pad Left"),

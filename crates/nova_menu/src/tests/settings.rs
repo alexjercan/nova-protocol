@@ -329,12 +329,11 @@ fn the_controls_readout_follows_a_rebind() {
 /// actions holding one source INSIDE a live set, because nothing consumes an
 /// input: the key would drive both.
 ///
-/// `radar_hold` and `radar_clear` are exempt. They are one gesture read two
-/// ways - hold to search, tap to clear - and the tap window and the hold
-/// threshold share the key so the boundary frame cannot fall between them.
+/// `radar_clear` FOLLOWS `radar_hold` - one gesture read two ways, hold to
+/// search and tap to clear - so the table itself knows that pair shares its
+/// key on purpose and this test carries no exemption list.
 #[test]
 fn no_two_actions_that_can_be_live_together_share_a_source() {
-    let radar = ["radar_hold", "radar_clear"];
     let mut table = InputBindings::from_actions(nova_ship::input::bindings::flight_bindings());
     for action in nova_ship::input::bindings::camera_bindings()
         .into_iter()
@@ -347,7 +346,6 @@ fn no_two_actions_that_can_be_live_together_share_a_source() {
     let found: Vec<String> = table
         .conflicts()
         .into_iter()
-        .filter(|(one, other, _)| !(radar.contains(&one.name) && radar.contains(&other.name)))
         .map(|(one, other, source)| {
             format!(
                 "`{}` ({:?}) and `{}` ({:?}) both hold {}",

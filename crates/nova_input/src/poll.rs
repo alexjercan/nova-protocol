@@ -67,6 +67,58 @@ impl InputSources<'_, '_> {
             .any(|source| self.edge(source))
     }
 
+    /// The desk source a rebind row should take from this frame: the lowest
+    /// key or mouse button that just went down.
+    ///
+    /// LOWEST rather than first because `ButtonInput` iterates a `HashSet` -
+    /// pressing W and D in one frame would otherwise capture either one.
+    /// Escape is never offered: it is the cancel on every capture surface in
+    /// the game, so a row that took it could not be backed out of.
+    pub fn captured_desk(&self) -> Option<InputSource> {
+        let key = self
+            .keys
+            .get_just_pressed()
+            .copied()
+            .filter(|key| *key != KeyCode::Escape)
+            .min()
+            .map(InputSource::Keyboard);
+        key.or_else(|| {
+            // `MouseButton` is not `Ord`, so the tie is broken by the order a
+            // player would name the buttons in rather than by a derive.
+            [
+                MouseButton::Left,
+                MouseButton::Right,
+                MouseButton::Middle,
+                MouseButton::Back,
+                MouseButton::Forward,
+            ]
+            .into_iter()
+            .find(|button| self.mouse.just_pressed(*button))
+            .map(InputSource::Mouse)
+        })
+    }
+
+    /// The same for the pad, across every connected one: a player with two
+    /// controllers binds with whichever is to hand.
+    pub fn captured_pad(&self) -> Option<InputSource> {
+        self.gamepads
+            .iter()
+            .flat_map(|pad| pad.digital().get_just_pressed().copied())
+            .min()
+            .map(InputSource::Gamepad)
+    }
+
+    /// Whether every button on every surface is up. A capture armed BY a click
+    /// waits on this, so the arming press is not the captured one.
+    pub fn all_released(&self) -> bool {
+        self.keys.get_pressed().next().is_none()
+            && self.mouse.get_pressed().next().is_none()
+            && self
+                .gamepads
+                .iter()
+                .all(|pad| pad.digital().get_pressed().next().is_none())
+    }
+
     fn edge(&self, source: InputSource) -> bool {
         match source {
             InputSource::Keyboard(key) => self.keys.just_pressed(key),
@@ -135,6 +187,19 @@ mod tests {
         app
     }
 
+    #[derive(Resource, Default)]
+    struct Captured {
+        desk: Option<InputSource>,
+        pad: Option<InputSource>,
+        all_released: bool,
+    }
+
+    fn capture(sources: InputSources, mut captured: ResMut<Captured>) {
+        captured.desk = sources.captured_desk();
+        captured.pad = sources.captured_pad();
+        captured.all_released = sources.all_released();
+    }
+
     /// A connected pad, the way bevy models one: a component, not a resource.
     fn connect_pad(app: &mut App, button: GamepadButton) {
         let mut pad = Gamepad::default();
@@ -199,6 +264,59 @@ mod tests {
         connect_pad(&mut app, GamepadButton::South);
         app.update();
         assert!(!app.world().resource::<Seen>().any);
+    }
+
+    /// What a rebind row takes off a frame. Escape is the cancel everywhere a
+    /// capture is armed, so it is never on offer.
+    #[test]
+    fn a_capture_takes_the_lowest_desk_press_and_never_escape() {
+        let mut app = app();
+        app.init_resource::<Captured>();
+        app.add_systems(Update, capture);
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::Escape);
+        }
+        app.update();
+        assert_eq!(
+            app.world().resource::<Captured>().desk,
+            None,
+            "Escape backs out of the capture; it does not fill it"
+        );
+
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.clear();
+            keys.press(KeyCode::KeyW);
+            keys.press(KeyCode::KeyD);
+        }
+        app.update();
+        let taken = app.world().resource::<Captured>().desk;
+        assert!(taken.is_some(), "a two-key frame still captures one key");
+        assert_eq!(
+            taken,
+            Some(InputSource::Keyboard(KeyCode::KeyW.min(KeyCode::KeyD))),
+            "and the same one every time, because the set iterates unordered"
+        );
+    }
+
+    /// The genuinely new half: a rebind row can take a pad button, which lives
+    /// on the component and never on a resource.
+    #[test]
+    fn a_capture_takes_a_pad_button_off_the_component() {
+        let mut app = app();
+        app.init_resource::<Captured>();
+        app.add_systems(Update, capture);
+        connect_pad(&mut app, GamepadButton::South);
+        app.update();
+        assert_eq!(
+            app.world().resource::<Captured>().pad,
+            Some(InputSource::Gamepad(GamepadButton::South))
+        );
+        assert!(
+            !app.world().resource::<Captured>().all_released,
+            "a held pad button is not a released one"
+        );
     }
 
     #[test]

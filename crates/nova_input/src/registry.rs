@@ -40,6 +40,13 @@ pub struct ActionBinding {
     pub context: ActionContext,
     /// What a player reads: `Radar Hold`.
     pub label: &'static str,
+    /// The action this one shadows: it holds the same sources on purpose and
+    /// moves whenever that one is rebound.
+    ///
+    /// `radar_clear` follows `radar_hold` - one gesture the rig reads two
+    /// ways. A follower is not a conflict, gets no settings row of its own,
+    /// and cannot be left behind by a rebind.
+    pub follows: Option<&'static str>,
     /// Keyboard and mouse-button sources, primary first. The first entry is
     /// the one a one-line readout prints.
     pub keyboard: Vec<InputSource>,
@@ -106,11 +113,21 @@ impl ActionBinding {
             name,
             group,
             label,
+            follows: None,
             context: ActionContext::default(),
             keyboard: Vec::new(),
             gamepad: Vec::new(),
             axes: ActionAxes::default(),
         }
+    }
+
+    /// Declare this action a shadow of `name`: same sources, moved together,
+    /// never a conflict and never its own settings row. Register the action it
+    /// follows FIRST - a rebind walks the table in order.
+    #[must_use]
+    pub fn follows(mut self, name: &'static str) -> Self {
+        self.follows = Some(name);
+        self
     }
 
     /// When this action can fire. Declare it beside the action, in the same
@@ -273,6 +290,17 @@ impl InputBindings {
             warn!("InputBindings::rebind: no action named `{name}`; ignoring the binding");
             return false;
         };
+        let followers: Vec<usize> = self
+            .actions
+            .iter()
+            .enumerate()
+            .filter(|(_, action)| action.follows == Some(self.actions[at].name))
+            .map(|(at, _)| at)
+            .collect();
+        for follower in followers {
+            self.actions[follower].keyboard = spec.keyboard.clone();
+            self.actions[follower].gamepad = spec.gamepad.clone();
+        }
         self.actions[at].keyboard = spec.keyboard;
         self.actions[at].gamepad = spec.gamepad;
         true
@@ -356,14 +384,13 @@ impl InputBindings {
     /// the bug - both rigs run with `consume_input: false`, so one press
     /// drives both actions.
     ///
-    /// Deliberate pairs exist (`radar_hold` and `radar_clear` are one gesture
-    /// read two ways), so this reports rather than refuses: the caller exempts
-    /// by name.
+    /// A [`follows`](ActionBinding::follows) pair is not a conflict: it shares
+    /// the source on purpose and is rebound as a unit.
     pub fn conflicts(&self) -> Vec<(&ActionBinding, &ActionBinding, InputSource)> {
         let mut found = Vec::new();
         for (at, action) in self.actions.iter().enumerate() {
             for other in &self.actions[at + 1..] {
-                if !action.context.overlaps(other.context) {
+                if !action.context.overlaps(other.context) || shadows(action, other) {
                     continue;
                 }
                 for source in action.sources() {
@@ -374,6 +401,30 @@ impl InputBindings {
             }
         }
         found
+    }
+
+    /// What already holds `source` and could be listening at the same instant
+    /// as `name` - the reason a rebind row refuses a capture.
+    ///
+    /// A key `name` already holds is not a conflict with itself, and neither
+    /// is the action it shadows: rebinding `radar_hold` onto its own key is a
+    /// no-op, not a collision with `radar_clear`.
+    pub fn conflict_for(&self, name: &str, source: InputSource) -> Option<&ActionBinding> {
+        let action = self.get(name)?;
+        self.actions.iter().find(|other| {
+            other.name != name
+                && !shadows(action, other)
+                && action.context.overlaps(other.context)
+                && other.sources().any(|held| held == source)
+        })
+    }
+
+    /// The actions a settings screen draws a row for: everything but the
+    /// shadows, which move with the action they follow.
+    pub fn rows(&self) -> impl Iterator<Item = &ActionBinding> {
+        self.actions
+            .iter()
+            .filter(|action| action.follows.is_none())
     }
 
     /// The row headers a settings screen draws, in first-appearance order.
@@ -426,6 +477,12 @@ impl InputBindings {
         };
         Bindings::spawn((SpawnIter(sources.into_iter()), axes))
     }
+}
+
+/// Whether one of these two actions shadows the other. Not a method on
+/// [`ActionBinding`] because it is symmetric and neither side owns it.
+fn shadows(one: &ActionBinding, other: &ActionBinding) -> bool {
+    one.follows == Some(other.name) || other.follows == Some(one.name)
 }
 
 #[cfg(test)]
@@ -533,6 +590,82 @@ mod tests {
                 InputSource::Keyboard(KeyCode::BracketRight)
             )],
             "a named app runs INSIDE the shared viewer set, so both hear the key"
+        );
+    }
+
+    /// One gesture the rig reads two ways is ONE thing to a player: it shares
+    /// its key on purpose, it gets one settings row, and a rebind that left
+    /// half of it behind would break the gesture silently.
+    #[test]
+    fn a_shadow_shares_a_key_gets_no_row_and_moves_with_what_it_follows() {
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("radar_hold", "TARGETING", "Radar")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::ControlLeft)]),
+            ActionBinding::new("radar_clear", "TARGETING", "Radar (tap clear)")
+                .context(ActionContext::Flight)
+                .follows("radar_hold")
+                .keyboard([InputSource::Keyboard(KeyCode::ControlLeft)]),
+        ]);
+        assert!(
+            table.conflicts().is_empty(),
+            "a shadow holding the same key is the point, not a collision"
+        );
+        assert_eq!(
+            table.rows().map(|action| action.name).collect::<Vec<_>>(),
+            vec!["radar_hold"],
+            "the shadow has no settings row of its own"
+        );
+
+        table.rebind(
+            "radar_hold",
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyK)],
+                gamepad: vec![],
+            },
+        );
+        assert_eq!(
+            table.get("radar_clear").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyK)],
+            "the shadow went with it"
+        );
+    }
+
+    /// What a rebind row refuses on, and what it must not refuse on: its own
+    /// current key, its shadow, and an action that can never be up beside it.
+    #[test]
+    fn a_capture_is_refused_only_by_something_that_could_answer_beside_it() {
+        let table = InputBindings::from_actions([
+            burn().context(ActionContext::Flight),
+            ActionBinding::new("radar_clear", "TARGETING", "Radar (tap clear)")
+                .context(ActionContext::Flight)
+                .follows("main_drive")
+                .keyboard([InputSource::Keyboard(KeyCode::KeyW)]),
+            ActionBinding::new("autopilot_goto", "FLIGHT", "Go To")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
+            ActionBinding::new("map_goto", "MAP", "Set GOTO")
+                .context(ActionContext::ViewerApp("map"))
+                .keyboard([InputSource::Keyboard(KeyCode::KeyM)]),
+        ]);
+        assert_eq!(
+            table
+                .conflict_for("main_drive", InputSource::Keyboard(KeyCode::KeyG))
+                .map(|action| action.name),
+            Some("autopilot_goto"),
+            "flight is one live set; the key is taken"
+        );
+        assert!(
+            table
+                .conflict_for("main_drive", InputSource::Keyboard(KeyCode::KeyM))
+                .is_none(),
+            "the map viewer is never up beside flight"
+        );
+        assert!(
+            table
+                .conflict_for("main_drive", InputSource::Keyboard(KeyCode::KeyW))
+                .is_none(),
+            "its own key, and its own shadow, are not a conflict"
         );
     }
 
