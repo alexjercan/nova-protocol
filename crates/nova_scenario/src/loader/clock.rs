@@ -82,6 +82,10 @@ pub(crate) fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<Nov
 /// before the timers: a step's actions therefore read the same snapshot a
 /// handler does, and a step that starts a timer still has that timer checked
 /// this frame.
+///
+/// Only the pulse is conditional. The clock, the query sample, the sequence
+/// driver and the timers run whenever the scenario is live, because each of
+/// them is what PRODUCES a reason to wake.
 pub(super) fn register_clock_and_pulse(app: &mut App) {
     app.add_systems(
         Update,
@@ -90,7 +94,7 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
             sample_scenario_queries.run_if(scenario_reads_an_entity_query),
             advance_scenario_sequences,
             tick_scenario_timers,
-            fire_on_update,
+            fire_on_update.run_if(scenario_pulse_is_due),
         )
             .chain()
             .run_if(
@@ -101,10 +105,22 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
     );
 }
 
+/// Run condition on the pulse: is there anything for an `OnUpdate` handler to
+/// react to?
+///
+/// The scenario SLEEPS otherwise, the way a settled rigidbody does. Waking is
+/// not a poll - a write to a variable some filter reads, or the clock crossing
+/// a threshold one compares against. See `loader::wake` for what is provable
+/// and what falls back to every frame.
+fn scenario_pulse_is_due(world: Res<NovaEventWorld>) -> bool {
+    world.is_wake_due()
+}
+
 /// The per-frame pulse behind `EventConfig::OnUpdate` handlers. Scenarios
 /// use it for value-gated milestones (e.g. shakedown's crate tally), which
 /// must not depend on handler execution order within another event.
-fn fire_on_update(mut commands: Commands) {
+fn fire_on_update(mut commands: Commands, mut world: ResMut<NovaEventWorld>) {
+    world.consume_wake();
     commands.fire::<OnUpdateEvent>(OnUpdateEventInfo);
 }
 
@@ -219,6 +235,153 @@ mod tests {
             app.update();
         }
         assert_eq!(at(&app), Some(2.0), "the gated step waits for its event");
+    }
+
+    /// A scenario with nothing to react to does not pulse at all, and one
+    /// write wakes it EXACTLY once.
+    ///
+    /// Counted on the fired event itself rather than on a side effect: the
+    /// question is whether `OnUpdate` was queued, and a handler's actions would
+    /// answer a different one.
+    #[test]
+    fn the_pulse_sleeps_until_a_variable_it_reads_is_written() {
+        let mut app = pulse_app(vec![on_update_filtered(vec![equals("armed", 1.0)])]);
+
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(
+            pulses(&app),
+            0,
+            "nothing has been written; the scenario sleeps"
+        );
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("armed".to_string(), VariableLiteral::Number(1.0));
+
+        app.update();
+        assert_eq!(pulses(&app), 1, "the write wakes the pulse");
+
+        for _ in 0..5 {
+            app.update();
+        }
+        assert_eq!(
+            pulses(&app),
+            1,
+            "the filter still passes, but nothing changed - it sleeps again"
+        );
+    }
+
+    /// A literal clock threshold wakes the pulse ONCE, as it is crossed. A
+    /// level test rather than a crossing would pulse every frame after it,
+    /// which is the bug this pins.
+    #[test]
+    fn a_scheduled_time_wakes_the_pulse_once_as_it_is_crossed() {
+        let mut app = pulse_app(vec![on_update_filtered(vec![
+            EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_greater_than(
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_name("scenario_elapsed"),
+                    )),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(0.5)),
+                    )),
+                ),
+            )),
+        ])]);
+
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(pulses(&app), 0, "before the threshold");
+
+        for _ in 0..10 {
+            app.update();
+        }
+        assert_eq!(pulses(&app), 1, "crossed once, not held down");
+    }
+
+    /// A scenario the analyser cannot prove keeps every frame it has today.
+    #[test]
+    fn an_unprovable_scenario_still_pulses_every_frame() {
+        let mut app = pulse_app(vec![on_update_filtered(vec![])]);
+
+        for _ in 0..5 {
+            app.update();
+        }
+        assert!(
+            pulses(&app) >= 4,
+            "an unfiltered OnUpdate is the fail-safe case, got {}",
+            pulses(&app)
+        );
+    }
+
+    #[derive(Resource, Default)]
+    struct Pulses(usize);
+
+    fn pulses(app: &App) -> usize {
+        app.world().resource::<Pulses>().0
+    }
+
+    fn equals(key: &str, value: f64) -> EventFilterConfig {
+        EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
+            VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_name(key),
+            )),
+            VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Number(value)),
+            )),
+        )))
+    }
+
+    fn on_update_filtered(filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
+        ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            filters,
+            ..event_with(vec![])
+        }
+    }
+
+    /// The live chain plus a counter on the fired `OnUpdate` event.
+    fn pulse_app(events: Vec<ScenarioEventConfig>) -> App {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+        use nova_events::prelude::{EventKind, GameEvent, GameEventsPlugin, OnUpdateEvent};
+        use nova_gameplay::prelude::GameObjectives;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<Pulses>();
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+            100,
+        )));
+        app.add_observer(|event: On<GameEvent>, mut pulses: ResMut<Pulses>| {
+            if event.event().name() == OnUpdateEvent::name() {
+                pulses.0 += 1;
+            }
+        });
+        register_clock_and_pulse(&mut app);
+
+        let config = ScenarioConfig {
+            watches: vec![WatchConfig {
+                variable: "scenario_elapsed".to_string(),
+                query: QueryConfig::Scenario(ScenarioQuery {
+                    property: ScenarioProperty::Elapsed,
+                }),
+            }],
+            ..scenario_with("pulse", events)
+        };
+        crate::test_support::register_scenario_handlers(&mut app, &config);
+        app.insert_resource(CurrentScenario(Some(config)));
+        app
     }
 
     /// The OnUpdate pulse: fires every frame while a scenario is live and stays

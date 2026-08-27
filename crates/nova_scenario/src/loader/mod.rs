@@ -24,6 +24,7 @@ mod lifecycle;
 /// The scenario's glTF warm-up: resolved at load, held for the run.
 pub mod preload;
 mod trackers;
+mod wake;
 
 use clock::register_clock_and_pulse;
 #[cfg(any(test, feature = "test-support"))]
@@ -35,6 +36,7 @@ use lifecycle::{
 };
 use preload::register_scenario_preload;
 use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
+pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
 /// Glob-import surface: `use nova_scenario::loader::prelude::*` brings the
 /// scenario registry resources, load/unload triggers, and markers into scope.

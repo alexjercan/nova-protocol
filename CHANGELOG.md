@@ -23,11 +23,15 @@ does NOT get an entry - and it is the only place they are written down.
 - A `Sequence` action runs ordered beats, each behind its own delay or event
   gate, and the engine holds the cursor - a paced chain costs one action
   instead of a handler and a step counter per beat.
+- The `OnUpdate` pulse sleeps: it fires only when a variable its filters read is
+  written, or when the clock crosses a threshold they compare against. A
+  value-gated scenario wakes on about 2% of frames.
 
 ### Modding & Mod Portal
 
-- The Ledger (1.25.0 -> 1.26.0): chapter three rewritten onto `once` and
-  `Sequence` - 27 handlers down to 20, and five latch variables gone.
+- The Ledger (1.25.0 -> 1.26.0): all five chapters rewritten onto `once`, keyed
+  timers and `Sequence` - 74 handlers down to 65, and half the latch variables
+  gone, 51 to 25.
 - A range saved in the editor is an ordinary mod: each built ship a design, the
   range a scenario naming them. Editing a design moves every instance of it.
 - F5 reads every content file off disk behind a loading screen, as does leaving

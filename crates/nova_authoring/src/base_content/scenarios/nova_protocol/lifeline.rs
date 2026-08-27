@@ -364,18 +364,24 @@ fn lane_beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
     }
 }
 
-/// A one-shot clock-gated comms beat: fires its line when the clock passes
-/// `at` and the act is still live, then retires.
+/// A one-shot comms beat: fires its line once the act is live, the clock has
+/// passed `at` and `extra_filters` agree, then retires.
+///
+/// `at: 0.0` means NO clock gate, and emits none. `scenario_elapsed > 0.0` is
+/// true from the first tick, so authoring it would be a filter that reads the
+/// clock every frame to answer yes - which is exactly the ceremony the pacing
+/// primitives exist to delete, and it hides the state gate that is doing the
+/// real work behind a clock the reader has to check.
 fn paced_line(
     at: f64,
     speaker: &str,
     line: &str,
     extra_filters: Vec<EventFilterConfig>,
 ) -> ScenarioEventConfig {
-    let mut filters = vec![
-        number_equals(VAR_ACT, 1.0),
-        number_greater_than(SCENARIO_ELAPSED_VAR, at),
-    ];
+    let mut filters = vec![number_equals(VAR_ACT, 1.0)];
+    if at > 0.0 {
+        filters.push(number_greater_than(SCENARIO_ELAPSED_VAR, at));
+    }
     filters.extend(extra_filters);
     ScenarioEventConfig {
         name: EventConfig::OnUpdate,

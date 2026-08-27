@@ -19,13 +19,16 @@ use std::{collections::VecDeque, sync::Arc};
 // Bevy's platform Instant, not std's - `std::time::Instant::now` panics
 // on wasm32-unknown-unknown, which this crate ships to.
 use bevy::{
-    ecs::world::CommandQueue, platform::collections::HashMap, platform::time::Instant, prelude::*,
+    ecs::world::CommandQueue,
+    platform::collections::{HashMap, HashSet},
+    platform::time::Instant,
+    prelude::*,
 };
 use nova_events::prelude::EventWorld;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 
-use crate::prelude::*;
+use crate::{loader::WakeProfile, prelude::*};
 
 /// How long ONE frame may spend applying queued scenario commands.
 ///
@@ -146,6 +149,16 @@ pub struct NovaEventWorld {
     /// ticked by `state_to_world_system` on the world's (pause-frozen) time;
     /// the switch executes at expiry.
     pub next_scenario_delay: Option<Timer>,
+    /// What the loaded scenario needs to be woken FOR, derived from its
+    /// `OnUpdate` filters at load. See `loader::wake`.
+    wake: WakeProfile,
+    /// Variable names written since the last [`Self::take_wake`]. The pulse
+    /// reads it to decide whether an `OnUpdate` event is worth queueing at all.
+    dirty: HashSet<String>,
+    /// The scenario clock at the last [`Self::take_wake`], so a scheduled wake
+    /// time is tested as a CROSSING rather than a level - a level test would
+    /// fire the pulse every frame after the threshold instead of once.
+    wake_checked_at: f64,
     /// Logging-only: the last variable snapshot we debug-logged. `state_to_world_system`
     /// runs every frame, so it logs the variables only when they DIFFER from this, to
     /// avoid per-frame spam.
@@ -394,6 +407,9 @@ impl NovaEventWorld {
         self.variables.clear();
         self.watched_values.clear();
         self.watches.clear();
+        self.wake = WakeProfile::EveryFrame;
+        self.dirty.clear();
+        self.wake_checked_at = 0.0;
         self.reads_entity_queries = false;
         self.query_values.clear();
         self.scenario_elapsed = 0.0;
@@ -649,6 +665,7 @@ impl NovaEventWorld {
             error!("cannot write watched scenario variable '{}'", key);
             return;
         }
+        self.dirty.insert(key.clone());
         self.variables.insert(key, value);
     }
 
@@ -676,6 +693,44 @@ impl NovaEventWorld {
         );
         self.watched_values.clear();
         self.publish_watches();
+    }
+
+    /// Install the loaded scenario's wake profile. Set from `loader::wake`
+    /// beside [`Self::set_watches`]; `EveryFrame` again at teardown.
+    pub(crate) fn set_wake(&mut self, wake: WakeProfile) {
+        self.wake = wake;
+        self.dirty.clear();
+        self.wake_checked_at = self.scenario_elapsed;
+    }
+
+    /// Whether the `OnUpdate` pulse is worth firing this frame.
+    ///
+    /// Two reasons to wake, and neither is a poll: a variable some `OnUpdate`
+    /// filter reads was written, or the clock crossed a threshold one compares
+    /// against. `EveryFrame` is the fail-safe answer for a scenario the
+    /// analyser could not prove - the cost of a miss is today's behaviour.
+    ///
+    /// Read-only, because a Bevy run condition must be. The pulse itself calls
+    /// [`Self::consume_wake`] when it fires, so a frame that does NOT fire
+    /// leaves the reasons standing rather than swallowing them.
+    pub(crate) fn is_wake_due(&self) -> bool {
+        match &self.wake {
+            WakeProfile::EveryFrame => true,
+            WakeProfile::OnChange { vars, times } => {
+                let crossed = times
+                    .iter()
+                    .any(|at| self.wake_checked_at < *at && *at <= self.scenario_elapsed);
+                crossed || !self.dirty.is_disjoint(vars)
+            }
+        }
+    }
+
+    /// Retire the reasons the pulse just fired for. A scheduled time is tested
+    /// as a CROSSING of this mark, so a threshold fires once and not on every
+    /// frame after it.
+    pub(crate) fn consume_wake(&mut self) {
+        self.dirty.clear();
+        self.wake_checked_at = self.scenario_elapsed;
     }
 
     /// Whether the loaded scenario can read an entity query - the gate on the

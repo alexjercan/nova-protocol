@@ -374,6 +374,25 @@ pub fn lint_scenario(
                     .to_string(),
             ));
         }
+
+        // The other half of the same regression, which the rule above cannot
+        // see because these handlers read real state too: comparing the clock
+        // against anything but a LITERAL is a stopwatch written by hand - a
+        // `deadline = now + 3.5` stamp somewhere else, and this filter watching
+        // for it. A keyed timer says it in one action and one event, and
+        // nothing has to poll the clock to find out.
+        if event
+            .filters
+            .iter()
+            .any(|filter| compares_the_clock_to_a_non_literal(filter, &clock_watches))
+        {
+            issues.push(LintIssue::warn(
+                id,
+                "an OnUpdate handler comparing the scenario clock against a variable is a \
+                 hand-rolled stopwatch - start a keyed timer and react to OnTimerEnd"
+                    .to_string(),
+            ));
+        }
     }
 
     for var in &used_vars {
@@ -862,6 +881,43 @@ fn collect_factor_vars(node: &VariableFactorNode, vars: &mut HashSet<String>) {
         }
         VariableFactorNode::Query(_) | VariableFactorNode::Literal(_) => {}
     }
+}
+
+/// A condition of the shape `<clock> < <not a literal>` (either way round).
+///
+/// Only the bare `Term(Factor(..))` spelling counts on the clock side, because
+/// that is the only shape that reads as a stopwatch; `elapsed * 2 > x` is
+/// arithmetic and is somebody else's problem.
+fn compares_the_clock_to_a_non_literal(
+    filter: &EventFilterConfig,
+    clock_watches: &HashSet<&str>,
+) -> bool {
+    let EventFilterConfig::Expression(config) = filter else {
+        return false;
+    };
+    let (left, right) = match &config.0 {
+        VariableConditionNode::LessThan(left, right)
+        | VariableConditionNode::GreaterThan(left, right) => (left.as_ref(), right.as_ref()),
+        VariableConditionNode::Equal(_, _) => return false,
+    };
+    let clock_side = |node: &VariableExpressionNode| match node {
+        VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Name(name))) => {
+            clock_watches.contains(name.as_str())
+        }
+        VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Query(
+            QueryConfig::Scenario(query),
+        ))) => query.property == ScenarioProperty::Elapsed,
+        _ => false,
+    };
+    let literal_side = |node: &VariableExpressionNode| {
+        matches!(
+            node,
+            VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Literal(
+                VariableLiteral::Number(_)
+            )))
+        )
+    };
+    (clock_side(left) && !literal_side(right)) || (clock_side(right) && !literal_side(left))
 }
 
 #[cfg(test)]
@@ -1761,6 +1817,79 @@ mod tests {
                 .iter()
                 .any(|i| i.message.contains("hand-rolled delay")),
             "pure clock polling must be flagged: {issues:?}"
+        );
+    }
+
+    /// The stopwatch half: the clock against a VARIABLE deadline is a keyed
+    /// timer written by hand, and the pure-clock rule cannot see it because
+    /// the handler reads real state too.
+    #[test]
+    fn an_onupdate_comparing_the_clock_to_a_variable_warns() {
+        let mut s = scenario(vec![], vec![]);
+        s.watches = vec![WatchConfig {
+            variable: "elapsed".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        }];
+        s.events = vec![ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            once: true,
+            filters: vec![
+                EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::Equal(Box::new(name("armed")), Box::new(number(1.0))),
+                )),
+                EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::GreaterThan(
+                        Box::new(name("elapsed")),
+                        Box::new(name("deadline")),
+                    ),
+                )),
+            ],
+            actions: vec![story("too late")],
+        }];
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.message.contains("hand-rolled stopwatch")),
+            "a stamped deadline must be flagged: {issues:?}"
+        );
+    }
+
+    /// A literal threshold is an ordinary clock gate and stays quiet - it is
+    /// schedulable, and it is what a paced beat looks like.
+    #[test]
+    fn an_onupdate_comparing_the_clock_to_a_literal_stays_quiet() {
+        let mut s = scenario(vec![], vec![]);
+        s.watches = vec![WatchConfig {
+            variable: "elapsed".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Elapsed,
+            }),
+        }];
+        s.events = vec![ScenarioEventConfig {
+            name: EventConfig::OnUpdate,
+            once: true,
+            filters: vec![
+                EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::Equal(Box::new(name("armed")), Box::new(number(1.0))),
+                )),
+                EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::GreaterThan(
+                        Box::new(name("elapsed")),
+                        Box::new(number(95.0)),
+                    ),
+                )),
+            ],
+            actions: vec![story("wave two")],
+        }];
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.message.contains("hand-rolled stopwatch")),
+            "a literal threshold is a legitimate clock gate: {issues:?}"
         );
     }
 

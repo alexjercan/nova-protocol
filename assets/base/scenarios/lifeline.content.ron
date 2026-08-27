@@ -668,10 +668,6 @@
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
                     ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                     Expression((Equal(
                         Term(Factor(Name("r1a_down"))),
                         Term(Factor(Literal(Number(1.0)))),
@@ -905,10 +901,6 @@
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("r2a_down"))),

@@ -232,7 +232,7 @@ pub(super) fn on_load_scenario(
     );
 
     let scenario = (**load).clone();
-    world.set_watches(scenario.watches.clone(), scenario.reads_an_entity_query());
+    super::configure_scenario_shape(&mut world, &scenario);
     **current_scenario = Some(scenario.clone());
     debug!("on_load_scenario: scenario {:?}", scenario.name);
 

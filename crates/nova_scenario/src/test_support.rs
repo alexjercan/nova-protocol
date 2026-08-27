@@ -34,7 +34,7 @@ use crate::prelude::*;
 pub fn register_scenario_handlers(app: &mut App, scenario: &ScenarioConfig) {
     {
         let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
-        world.set_watches(scenario.watches.clone(), scenario.reads_an_entity_query());
+        crate::loader::configure_scenario_shape(&mut world, scenario);
     }
     for event in &scenario.events {
         app.world_mut().spawn(event.build_handler());

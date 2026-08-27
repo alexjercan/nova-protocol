@@ -104,18 +104,6 @@
                         key: "choice",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    // Burn-ending one-shots: the burn path bumps `act` to 3
-                    // synchronously (no death window) and lands its Victory a
-                    // beat later on `burn_gate`, guarded once by `burn_said`.
-                    // Seeded here so the deferred OnUpdate reads defined values.
-                    VariableSet((
-                        key: "burn_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "burn_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Broker Vesh",
                         text: "Here's the arithmetic, Kestrel: my buyer pays enough to clear your debt twice. Or you burn the box and nobody owns what's inside. Berth or buoy. Pick.",
@@ -544,9 +532,9 @@
             // comes. `act` jumps straight to 3 (the "done" latch) SYNCHRONOUS
             // with the choice, so no death window ever opens on this path - the
             // player-death Defeat handler (act < 3) can never fire here. The
-            // terminal Victory lands a beat later on `burn_gate` (the burn line
-            // plays first, then the overlay), so no StoryMessage sits beside an
-            // Outcome. NO auditor spawn - this is the SAFE-BUT-BROKE escape as
+            // terminal Victory lands a beat later on the `outro` chain (the
+            // burn line plays first, then the overlay), so no StoryMessage sits
+            // beside an Outcome. NO auditor spawn - this is the SAFE-BUT-BROKE escape as
             // shipped (owner playtest question 1: bittersweet vs clean tone). ---
             (
                 name: OnEnter,
@@ -572,12 +560,6 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(3.0)))),
                     )),
-                    // Stamp the breather deadline; the Victory overlay follows
-                    // a beat later via the `burn_said` one-shot handler below.
-                    VariableSet((
-                        key: "burn_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))),
-                    )),
                     ObjectiveComplete((
                         id: "obj_ch4_recap",
                     )),
@@ -585,41 +567,24 @@
                         speaker: "Broker Vesh",
                         text: "You cooked a fortune, Kestrel. The buoy's got it - nothing left in that flash but slag and static. No box, no buyer, nobody chasing a thing that no longer exists. Take us home. Quiet.",
                     )),
-                ],
-            ),
-            // The BURN terminal overlay: a beat after the burn line
-            // (`burn_said` one-shot). Victory + a DISTINCT no-fight message; no
-            // NextScenario (the burn ending is terminal - only the SELL/fight
-            // win chains onward, to the ch5 raid), no StoryMessage beside the
-            // Outcome.
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("choice"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("burn_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("burn_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("burn_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "burn_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("BURNED. The box is slag and nobody's left to chase you - no Auditor, no gunship, no fight. But there's no payday either: the debt still stands, and the Kestrel limps home empty. Clear, and broke."),
+                    // The terminal Victory overlay follows a beat later. It is
+                    // a DISTINCT no-fight message with no NextScenario - the
+                    // burn ending is terminal, only the SELL/fight win chains
+                    // onward to the ch5 raid - and no StoryMessage may sit
+                    // beside an Outcome (lint arm), so it rides a chain step.
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                            Outcome((
+                                outcome: Victory,
+                                message: Some("BURNED. The box is slag and nobody's left to chase you - no Auditor, no gunship, no fight. But there's no payday either: the debt still stands, and the Kestrel limps home empty. Clear, and broke."),
+                            )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),

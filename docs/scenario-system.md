@@ -334,6 +334,59 @@ shapes built on them. Three mechanism facts sit under it:
 
 Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.
+
+### The `OnUpdate` pulse SLEEPS (`loader/wake.rs`)
+
+`fire_on_update` used to queue an event every frame, and the dispatcher then
+walked the whole bucket re-evaluating filters that could not have changed their
+answer. It now runs behind a gate, and a scenario with nothing to react to
+queues nothing. The rigidbody analogy is exact: the scenario sleeps until
+something wakes it.
+
+Two things wake it, both derived at load by `wake.rs` and held in a
+`WakeProfile`:
+
+- **A write.** `NovaEventWorld::insert_variable` is the single write path, so
+  every write joins a dirty set; the pulse fires when that set meets a variable
+  an `OnUpdate` filter reads. What an `OnUpdate` handler WRITES joins what it
+  reads, or a counter it advances itself would freeze the moment nothing else
+  in the scenario writes.
+- **A scheduled time.** `GreaterThan(scenario_elapsed, 95.0)` is known at load,
+  so the crossing is scheduled rather than polled. Only a bare clock read
+  against a literal schedules; `scenario_elapsed * 2` is arithmetic.
+
+Three properties are worth knowing before reading the code:
+
+- **Nothing is authored.** The filters already declare all of it. An authored
+  wake list would be a second source of truth that can disagree with them -
+  name two variables, read three, and the handler silently never fires on the
+  third. `/create/` does not grow.
+- **The default is `EveryFrame`, and it is the fail-safe.** A filterless
+  `OnUpdate`, an `Entity` or `Timer` filter, an inline `Query(..)`, a watch fed
+  by a per-frame sample, or a clock compared against a variable all fall back to
+  the old behaviour. A case the analyser does not understand is SLOW, never
+  wrong.
+- **The decision is per SCENARIO, not per handler.** The gate either queues the
+  event or does not; per-handler gating would mean changing the `nova_events`
+  dispatcher. One per-frame handler therefore holds the whole scenario awake,
+  and that is sometimes correct - a speed ladder and a HUD countdown are both
+  continuous questions.
+
+A `Sequence` step's `until` gate is a real handler the loader spawns, so it is
+scanned with the authored ones. A gate waiting on `OnUpdate` that was not a
+reason to wake would stall its chain forever.
+
+Measured on a headless run, as the share of frames that queue the event:
+
+| scenario | pulses / frames | why |
+| --- | --- | --- |
+| `final_tally` | 308 / 18300 | value-gated milestones |
+| `broadside` | 355 / 13500 | value-gated milestones |
+| `shakedown_run` | 425 / 16800 | value-gated milestones |
+| `ledger_ch1` | 350 / 22500 | milestones plus four scheduled lines |
+| `ledger_ch3` | every frame | a `player_speed` ladder, correctly polling |
+| `lifeline` | every frame | recomputes a HUD countdown per frame |
+
 ## Scenario patterns
 
 The engine holds three facts for content - `once`, keyed timers, and a
@@ -651,7 +704,9 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 - Loading and scoping: `ScenarioLoaderPlugin`, `ScenarioScopedMarker`,
   `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`; the glTF
   warm-up: `ScenarioPreload`, `scenario_render_meshes` -
-  `crates/nova_scenario/src/loader/preload.rs`.
+  `crates/nova_scenario/src/loader/preload.rs`; what the pulse wakes for:
+  `WakeProfile`, `configure_scenario_shape` -
+  `crates/nova_scenario/src/loader/wake.rs`.
 - Objects: `ScenarioObjectsPlugin` - `crates/nova_scenario/src/objects/mod.rs`;
   kind dispatch: `ScenarioObjectKind` -
   `crates/nova_scenario/src/actions/spawn.rs`.

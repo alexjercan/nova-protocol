@@ -99,59 +99,14 @@
                     // Opening-conversation sequencer (the Shakedown idiom):
                     // open_step walks the briefing lines on the scenario
                     // clock; quota_posted is the one-shot hand-off that lazy-
-                    // posts the first crate objective; beat_gate/setup_last
-                    // drive the between-pickup breathers. All seeded here - an
-                    // undefined gate fails closed forever.
+                    // posts the first crate objective. The between-pickup
+                    // breathers are keyed timers and need no seed.
                     VariableSet((
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     VariableSet((
                         key: "quota_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "beat_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "setup_last",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    // Per-crate breather gates + one-shot said flags (seeded
-                    // 0: the delayed ack handlers gate on gate > 0, so an
-                    // un-stamped crate never speaks).
-                    VariableSet((
-                        key: "ack1_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ack2_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ack3_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ack1_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ack2_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ack3_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    // The 4th-ping reveal breather gate + one-shot (seeded 0).
-                    VariableSet((
-                        key: "ping_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "ping_said",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
                     // The objectives panel stays EMPTY through the opening
@@ -781,9 +736,9 @@
                     // the acknowledgment lands a beat after the pickup, not
                     // on the same frame (the beat-sheet breather). Per-crate
                     // gates keep the three pickups order-free and independent.
-                    VariableSet((
-                        key: "ack1_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
+                    TimerStart((
+                        key: "ack1",
+                        seconds: Term(Factor(Literal(Number(2.5)))),
                     )),
                 ],
             ),
@@ -810,9 +765,9 @@
                     ObjectiveComplete((
                         id: "obj_crate_2",
                     )),
-                    VariableSet((
-                        key: "ack2_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
+                    TimerStart((
+                        key: "ack2",
+                        seconds: Term(Factor(Literal(Number(2.5)))),
                     )),
                 ],
             ),
@@ -839,39 +794,24 @@
                     ObjectiveComplete((
                         id: "obj_crate_3",
                     )),
-                    VariableSet((
-                        key: "ack3_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(2.5))))),
+                    TimerStart((
+                        key: "ack3",
+                        seconds: Term(Factor(Literal(Number(2.5)))),
                     )),
                 ],
             ),
             // The three delayed pickup acknowledgments: each fires a beat
-            // after ITS crate is on the hook (clock_past the crate's own
-            // stamped gate), one line per handler. The gate is seeded 0 and
-            // only stamped by that crate's pickup, and the ackN_said guard
-            // makes each a one-shot - so the three are independent and the
-            // pickups stay order-free.
+            // after ITS crate is on the hook, on the `ackN` timer that
+            // crate's pickup starts. A timer that was never started never
+            // ends, and `once` retires the handler, so the three are
+            // independent and the pickups stay order-free.
             (
-                name: OnUpdate,
+                name: OnTimerEnd,
+                once: true,
                 filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("ack1_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("ack1_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("ack1_gate"))),
-                    ))),
+                    Timer((key: "ack1")),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "ack1_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "MV-1 on the hook. Two to go.",
@@ -879,26 +819,12 @@
                 ],
             ),
             (
-                name: OnUpdate,
+                name: OnTimerEnd,
+                once: true,
                 filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("ack2_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("ack2_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("ack2_gate"))),
-                    ))),
+                    Timer((key: "ack2")),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "ack2_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "MV-2 logged. Keep it moving, the Matron isn't getting any deader.",
@@ -906,26 +832,12 @@
                 ],
             ),
             (
-                name: OnUpdate,
+                name: OnTimerEnd,
+                once: true,
                 filters: [
-                    Expression((GreaterThan(
-                        Term(Factor(Name("ack3_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("ack3_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("ack3_gate"))),
-                    ))),
+                    Timer((key: "ack3")),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "ack3_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "MV-3. That's the manifest done.",
@@ -934,7 +846,7 @@
             ),
             // Quota met (`> 2`, not `== 3`: a double-fire cannot skip the
             // gate - the count-gate lesson) -> act 2. This only ARMS the
-            // reveal (stamps ping_gate); the reveal itself is the chapter's
+            // reveal (starts the `ping` timer); the reveal is the chapter's
             // hook, so it gets its own announce -> breathe -> objective beats
             // below, not a single frame-0 dump.
             (
@@ -955,38 +867,28 @@
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
                     // Let the "manifest done" line breathe before the hook.
-                    VariableSet((
-                        key: "ping_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(4.0))))),
+                    TimerStart((
+                        key: "ping",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                 ],
             ),
             // The 4th-ping reveal ANNOUNCE (a beat after the quota closes):
-            // one line, then re-stamp the gate for the objective breather.
+            // one line, then the `beat` timer for the objective breather.
             (
-                name: OnUpdate,
+                name: OnTimerEnd,
+                once: true,
                 filters: [
+                    Timer((key: "ping")),
                     Expression((Equal(
                         Term(Factor(Name("act"))),
                         Term(Factor(Literal(Number(2.0)))),
                     ))),
-                    Expression((Equal(
-                        Term(Factor(Name("ping_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("ping_gate"))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "ping_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    VariableSet((
-                        key: "beat_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.5))))),
+                    TimerStart((
+                        key: "beat",
+                        seconds: Term(Factor(Literal(Number(3.5)))),
                     )),
                     StoryMessage((
                         speaker: "Foreman Okono",
@@ -994,35 +896,21 @@
                         dwell: Some(8.0),
                     )),
                     // The belt turns wrong the moment the black box shows up.
-                    // Fires once (ping_said 0 -> 1 guard above).
+                    // Fires once (`once` on the handler above).
                     SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                 ],
             ),
             // The reveal BREATHE -> objective: the unlogged container posts a
-            // beat after the reveal line lands (ping_said == 1, clock past
-            // the re-stamped beat_gate), guarded by setup_last so it fires
-            // once.
+            // beat after the reveal line lands, on the `beat` timer that line
+            // starts. The timer only exists because the reveal fired, so the
+            // old ping_said == 1 filter has nothing left to say.
             (
-                name: OnUpdate,
+                name: OnTimerEnd,
+                once: true,
                 filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("ping_said"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((LessThan(
-                        Term(Factor(Name("setup_last"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("beat_gate"))),
-                    ))),
+                    Timer((key: "beat")),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "setup_last",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     Objective((
                         id: "obj_blackbox",
                         message: "Investigate the unlogged container.",

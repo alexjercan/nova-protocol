@@ -126,14 +126,6 @@
                         key: "obj_posted",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "win_gate",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "win_said",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     // The objectives panel stays EMPTY through the short
                     // opener; this HOLDING line is all that shows until the
                     // opener hands off to the real objectives (beat sheet: no
@@ -1143,52 +1135,32 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
-                    // Breather: the win lands as a COMMS line first, then the
-                    // Victory overlay follows a beat later (win_gate) - a
-                    // StoryMessage beside the Outcome would be frozen behind
-                    // the overlay (lint arm), so the line goes here and the
-                    // overlay handler is separate below.
-                    VariableSet((
-                        key: "win_gate",
-                        expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))),
-                    )),
                     StoryMessage((
                         speaker: "Foreman Okono",
                         text: "Wave one's scrap and the Mule's still with us. Breathe, Kestrel - the scope already shows two more burns coming.",
                         dwell: Some(6.0),
                     )),
-                ],
-            ),
-            // The checkpoint overlay, a beat after the win line (win_said
-            // one-shot). Outcome + lingering NextScenario, no StoryMessage.
-            (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("win_said"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("win_gate"))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "win_said",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("Wave one broken. Catch your breath while you can - the Mule holds station, and the Magpies are angry now."),
-                    )),
-                    NextScenario((
-                        scenario_id: "ledger_ch2b_the_heavies",
-                        linger: true,
+                    // Breather: the win lands as a COMMS line first and the
+                    // Victory overlay follows a beat later. A StoryMessage
+                    // beside the Outcome would be frozen behind the overlay
+                    // (lint arm), so the overlay rides a chain step instead.
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                            Outcome((
+                                outcome: Victory,
+                                message: Some("Wave one broken. Catch your breath while you can - the Mule holds station, and the Magpies are angry now."),
+                            )),
+                            NextScenario((
+                                scenario_id: "ledger_ch2b_the_heavies",
+                                linger: true,
+                            )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
