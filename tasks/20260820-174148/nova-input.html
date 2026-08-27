@@ -211,9 +211,9 @@
       it as <code>NoButton</code> rather than doing nothing quietly.</p>
     </div>
     <div class="card q">
-      <span class="st">in queue</span><span class="nm">section weapons</span>
-      <p>Firing is authored per ship and keyed by section id, so it is not in
-      this table and cannot be rebound from Controls.</p>
+      <span class="st">in queue</span><span class="nm">section bindings</span>
+      <p>Thruster throttles as much as turret and torpedo triggers: authored
+      per ship, keyed by section id, so none of them are in this table.</p>
     </div>
   </div>
 
@@ -439,24 +439,33 @@
 
   <div class="q-item">
     <span class="who">nova_ship</span>
-    <p class="call">Decide whether section weapons join the table</p>
+    <p class="call">Decide whether section bindings join the table</p>
     <p>
-      Firing is authored per ship, keyed by section id, and rebindable only in
-      the editor. That is right for a mod and wrong for a player who wants to
-      move their fire key. Names would have to be derived per section rather
-      than fixed, which is why it was cut from the first pass.
+      All three are the same case, and the module being called
+      <code>weapons.rs</code> hides it: <code>SpaceshipThrusterInputBinding</code>,
+      <code>SpaceshipTurretInputBinding</code> and
+      <code>SpaceshipTorpedoInputBinding</code> each hold a
+      <code>Vec&lt;InputSource&gt;</code> read off the ship&rsquo;s own
+      <code>input_mapping</code>. So it is not only the fire key a player cannot
+      move from Controls &mdash; it is their throttle. Authoring them per ship is
+      right for a mod and wrong for a player, and the way out is the same for
+      all three: names derived per section rather than fixed, which is why it
+      was cut from the first pass.
     </p>
   </div>
 
   <div class="q-item">
     <span class="who">nova_hud</span>
-    <p class="call">Finish deriving the keycap glyph coverage</p>
+    <p class="call">Reach the last hand-written keycap label</p>
     <p>
-      The glyph test walks the flight rig&rsquo;s reserved sources, then adds
-      <code>["CTRL", "SHIFT", "SCROLL", "Tab", "Backquote"]</code> by hand. Two
-      of those are registry actions now, so the hand-written half should come
-      off the table like the rest. A small mirror, but mirrors are what this
-      whole task exists to delete.
+      Mostly done: the glyph test now walks the flight rig&rsquo;s sources AND
+      <code>hud_bindings()</code>, and the OBJECTIVES affordance reads
+      <code>novaos_toggle</code> off the live table. What is left is
+      <code>"Tab"</code>, still named by hand as a fallback, because the toggle
+      is declared in <code>nova_os_ui</code> &mdash; which depends on
+      <code>nova_hud</code> and so cannot be read from it. The three gesture
+      pseudo-labels stay: <code>CTRL</code>, <code>SHIFT</code> and
+      <code>SCROLL</code> stand for a modifier or a wheel, not for a key.
     </p>
   </div>
 
