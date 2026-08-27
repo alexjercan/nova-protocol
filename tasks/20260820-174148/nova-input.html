@@ -1,0 +1,491 @@
+<title>The Bindings Registry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #faf9f6; --panel: #fffefb; --fg: #1b1a17; --muted: #6d6a62;
+    --line: #e5e2da; --accent: #9a6a1f; --in: #2f6f4f; --act: #93414f;
+    --chip: #f1ede3; --shade: #f4f1e9;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+      --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+      --chip: #22222a; --shade: #1a1a20;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+    --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+    --chip: #22222a; --shade: #1a1a20;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 400 15px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+
+  .eyebrow {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 .7rem;
+  }
+  h1 {
+    font: 700 1.9rem/1.2 var(--sans); margin: 0 0 .6rem;
+    letter-spacing: -.015em; text-wrap: balance;
+  }
+  .lede { color: var(--muted); font-size: 1.02rem; margin: 0 0 .9rem; max-width: 42rem; }
+  .meta { font: 400 .74rem/1.6 var(--mono); color: var(--muted); margin: 0 0 2.4rem; }
+  .meta span::after { content: "  ·  "; color: var(--line); }
+  .meta span:last-child::after { content: ""; }
+
+  h2 {
+    font: 600 1.12rem/1.3 var(--sans); margin: 3rem 0 .2rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+    letter-spacing: -.01em;
+  }
+  h2 .n {
+    font: 500 .7rem/1 var(--mono); color: var(--accent);
+    letter-spacing: .1em; display: block; margin-bottom: .45rem;
+  }
+  h3 { font: 600 .95rem/1.4 var(--sans); margin: 1.8rem 0 .3rem; }
+  p { margin: .55rem 0; }
+  p.sub { color: var(--muted); margin-top: .1rem; }
+  ul, ol { margin: .55rem 0; padding-left: 1.15rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+  code {
+    font: 400 .86em/1.5 var(--mono); background: var(--chip);
+    padding: .08em .32em; border-radius: 3px; word-break: break-word;
+  }
+  pre {
+    font: 400 .8rem/1.65 var(--mono); background: var(--shade);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto; margin: .9rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cm { color: var(--muted); }
+
+  /* the state board: one card per piece of the crate's surface */
+  .board {
+    display: grid; grid-template-columns: 1fr; gap: .55rem;
+    margin: 1.4rem 0 .4rem;
+  }
+  @media (min-width: 42rem) { .board { grid-template-columns: 1fr 1fr; } }
+  .card {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    padding: .75rem .9rem .8rem; border-left-width: 3px;
+    border-left-color: var(--in);
+  }
+  .card.q { border-left-color: var(--accent); border-style: dashed; border-left-style: solid; }
+  .card .st {
+    font: 500 .62rem/1.4 var(--mono); letter-spacing: .13em;
+    text-transform: uppercase; color: var(--in); float: right; margin-left: .6rem;
+  }
+  .card.q .st { color: var(--accent); }
+  .card .nm { font: 600 .82rem/1.5 var(--mono); display: block; }
+  .card p { margin: .3rem 0 0; font-size: .85rem; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+  .scroll { overflow-x: auto; margin: 1rem 0; }
+  .scroll table { margin: 0; min-width: 40rem; }
+  th {
+    text-align: left; font: 500 .68rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--line); padding: .35rem .6rem .35rem 0;
+  }
+  td {
+    padding: .42rem .6rem .42rem 0; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  td.m, th.m { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr.brk td { border-top: 2px solid var(--line); }
+
+  .tag {
+    font: 500 .68rem/1.5 var(--mono); border-radius: 3px;
+    padding: .05rem .38rem; white-space: nowrap;
+  }
+  .tag.ok { color: var(--in); background: var(--chip); }
+  .tag.no { color: var(--act); background: var(--chip); }
+  .tag.q  { color: var(--accent); background: var(--chip); }
+
+  .note {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+    padding: .8rem 1rem; margin: 1.1rem 0; font-size: .93rem;
+  }
+  .note .h {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); display: block;
+    margin-bottom: .35rem;
+  }
+
+  /* the queue: a numbered ledger, because the order is the order of pain */
+  .q-item {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-radius: 0 6px 6px 0; padding: .8rem 1rem .85rem;
+    margin: .9rem 0;
+  }
+  .q-item .who {
+    font: 500 .64rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); float: right; margin-left: .8rem;
+  }
+  .q-item .call { font-weight: 600; margin: 0 0 .35rem; }
+  .q-item p { margin: .35rem 0 0; font-size: .92rem; }
+
+  .foot {
+    margin-top: 3.2rem; border-top: 1px solid var(--line); padding-top: 1.1rem;
+    color: var(--muted); font: 400 .82rem/1.7 var(--mono);
+  }
+</style>
+
+<main>
+  <p class="eyebrow">Task 20260820-174148 &middot; nova_input</p>
+  <h1>The bindings registry</h1>
+  <p class="lede">
+    One table that says which named player actions exist, what each is called
+    on screen, which physical sources it occupies, and when it can fire at all.
+    Every rig is built from it, every rebind surface reads it, and driving an
+    action by name is a lookup in it plus a press.
+  </p>
+  <p class="meta">
+    <span>crates/nova_input</span><span>33 actions</span><span>4 owners</span><span>2026-08-27</span>
+  </p>
+
+  <h2><span class="n">Where it stands</span>What is built, and what is not</h2>
+  <p>
+    Six pieces shipped. What is missing is not missing by accident: three of the
+    four gaps are somebody else&rsquo;s half of a seam this crate deliberately
+    stops at.
+  </p>
+  <div class="board">
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">registry</span>
+      <p><code>ActionBinding</code>, <code>BindingSpec</code> and the
+      <code>InputBindings</code> resource. Registered per plugin, complete
+      before the first frame.</p>
+    </div>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">source vocabulary</span>
+      <p>Keyboard, mouse, gamepad and the three axis halves, plus the readout
+      labels a settings row and a footer hint print.</p>
+    </div>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">contexts</span>
+      <p>When each action can fire, the live set, and a conflict check that
+      only pairs actions that can hear a key together.</p>
+    </div>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">polling seam</span>
+      <p><code>InputSources</code>, for the surfaces that cannot be a rig
+      because they must answer with no player ship on the field.</p>
+    </div>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">dispatcher</span>
+      <p><code>apply(name, phase)</code> and <code>apply_axis</code>: resolve a
+      name to its live sources and write the input layer.</p>
+    </div>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">persistence</span>
+      <p>Only the rows a player moved are saved, so a changed DEFAULT still
+      reaches a player who never touched that row.</p>
+    </div>
+    <div class="card q">
+      <span class="st">in queue</span><span class="nm">capture UI</span>
+      <p>The Controls list is read-only. A player can see every binding and
+      change none of them from inside the game.</p>
+    </div>
+    <div class="card q">
+      <span class="st">in queue</span><span class="nm">rebind conflict guard</span>
+      <p><code>conflicts()</code> exists and only the tests call it. Nothing
+      stops a rebind landing two live actions on one key.</p>
+    </div>
+    <div class="card q">
+      <span class="st">in queue</span><span class="nm">gamepad synthesis</span>
+      <p>A pad-bound action cannot be pressed by name: the dispatcher refuses
+      it as <code>NoButton</code> rather than doing nothing quietly.</p>
+    </div>
+    <div class="card q">
+      <span class="st">in queue</span><span class="nm">section weapons</span>
+      <p>Firing is authored per ship and keyed by section id, so it is not in
+      this table and cannot be rebound from Controls.</p>
+    </div>
+  </div>
+
+  <h2><span class="n">The two rules</span>What the crate is</h2>
+  <h3>A leaf, and it has to stay one</h3>
+  <p>
+    <code>bevy</code> and <code>bevy_enhanced_input</code>, nothing else. The
+    rigs are built from the table and every rebind surface reads it, so it must
+    sit below all of them. <code>nova_scenario</code> already depends on
+    <code>nova_ship</code>; a crate that also held the process channel would
+    have to sit above <code>nova_scenario</code> too, and that is a cycle.
+    <a href="https://claude.ai/code/artifact/6ce6c4fe-ad19-4f54-9720-ddfb3a68aca0">The channel</a>
+    is a separate crate for exactly this reason.
+  </p>
+  <h3>A resource, not a property of the rig</h3>
+  <p>
+    The settings panel renders in the main menu, where no rig exists &mdash; a
+    <code>bevy_enhanced_input</code> rig spawns with the player ship. The same
+    fact is why the NOVA OS toggle and the HUD cycle are polled through
+    <code>InputSources</code> rather than driven by a rig: the monitor has to
+    open with nothing on the field.
+  </p>
+  <p class="sub">
+    Defaults stay pure data. Each owning crate exposes its list as a plain
+    function, and the plugin turns those into the live table, so the content
+    lint &mdash; which has no world &mdash; calls the function instead.
+  </p>
+
+  <h2><span class="n">The shape of a row</span>Three axes, not one</h2>
+  <p>
+    An action carries a name, a group and a context, and they are close enough
+    to be mistaken for each other. They are not the same axis, and collapsing
+    any two of them breaks something specific.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">field</th><th>Answers</th><th>Read by</th><th>Why it is its own field</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="m">name</td><td>Which action is this?</td>
+          <td>The wire, the save file, every lookup</td>
+          <td>Persisted rebinds are keyed by it. A rename is a save-file break: <code>apply_overrides</code> SKIPS a name the build lost, so it silently discards what a player moved.</td>
+        </tr>
+        <tr>
+          <td class="m">group</td><td>Where does it print?</td>
+          <td>The settings headings, the wire prefix</td>
+          <td>FLIGHT, TARGETING and CAMERA are three headings a player reads apart. Address as <code>&lt;group&gt;.&lt;name&gt;</code> and the prefix is free.</td>
+        </tr>
+        <tr>
+          <td class="m">context</td><td>When can it fire?</td>
+          <td>The live set, the conflict check</td>
+          <td>Those same three headings are ONE firing context: they go live together and go quiet together. Deriving it from the group would make a display change a behaviour change.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Why the context had to exist</h3>
+  <p>
+    Every action resolves to a <strong>key</strong>, and keys are reused across
+    surfaces on purpose. Three actions hold <code>G</code>. Two hold
+    <code>W</code>. Two more hold each of <code>[</code> and <code>]</code>.
+  </p>
+  <p>
+    So handing a driver the whole table tells it one key means three things at
+    once, and pressing an action that is not live does not fail &mdash; it
+    presses the key, and whatever IS live reads it as its own action. Asking
+    for <code>flight.autopilot_goto</code> with the map open sets a GOTO on the
+    map instead. The list has to be the live one.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">context</th><th>Live while</th><th>Raised by</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr><td class="m">Always</td><td>Every rung, by definition &mdash; nobody raises it</td><td class="m">&mdash;</td><td>2</td></tr>
+        <tr><td class="m">Flight</td><td>A player ship is on the field and the clocks run</td><td class="m">nova_ship</td><td>15</td></tr>
+        <tr><td class="m">Viewer</td><td>Any NOVA OS app owns the screen, never the prompt</td><td class="m">nova_os_ui</td><td>11</td></tr>
+        <tr><td class="m">ViewerApp(id)</td><td>One named app owns the screen</td><td class="m">nova_os_ui</td><td>5</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    <code>Viewer</code> is deliberately down at the prompt: there the keyboard
+    is typing a command, and <code>W</code> is a character. And it is the only
+    nesting &mdash; a named app runs INSIDE the shared viewer set, so
+    <code>novaos_next</code> and a future <code>map_next</code> would collide
+    while <code>map_goto</code> and <code>ship_mates</code> do not.
+  </p>
+  <div class="note">
+    <span class="h">The check this bought</span>
+    <p>
+      Both fixed rigs run with <code>consume_input: false</code>, so two actions
+      on one source drive both at once. The old guard compared gamepad buttons
+      inside the flight lists alone, which is how <code>rcs_modifier</code> and
+      <code>combat_stance</code> sat on Left Trigger 2 unnoticed.
+      <code>conflicts()</code> pairs only actions whose contexts overlap, so it
+      can read the keyboard half too and run over all 33 without flagging the
+      keys flight shares with a surface it can never be up beside. It reports
+      rather than refuses: <code>radar_hold</code> and <code>radar_clear</code>
+      share <code>Ctrl</code> on purpose, one gesture read two ways.
+    </p>
+  </div>
+
+  <h2><span class="n">The vocabulary</span>Every action, and when it fires</h2>
+  <p>
+    Read off the code, not proposed. The fifteen flight and scenario rows are
+    the ones that shipped in v0.11.0; the other eighteen moved here on
+    2026-08-27, when the rule became &ldquo;every key a player presses is a
+    named action&rdquo;.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">name</th><th class="m">group</th><th class="m">context</th><th>Keyboard</th><th>Gamepad</th></tr></thead>
+      <tbody>
+        <tr><td class="m">main_drive</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>W / Space</td><td>Right Trigger</td></tr>
+        <tr><td class="m">autopilot_stop</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>X</td><td>B</td></tr>
+        <tr><td class="m">autopilot_goto</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>G</td><td>Y</td></tr>
+        <tr><td class="m">autopilot_orbit</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>O</td><td>A</td></tr>
+        <tr><td class="m">autopilot_off</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Z</td><td>X</td></tr>
+        <tr><td class="m">rcs_modifier</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Shift</td><td>Left Thumb</td></tr>
+        <tr><td class="m">rcs_aim</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Mouse</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">radar_hold</td><td class="m">TARGETING</td><td class="m">Flight</td><td>Ctrl</td><td>D-Pad Up</td></tr>
+        <tr><td class="m">radar_clear</td><td class="m">TARGETING</td><td class="m">Flight</td><td>Ctrl</td><td>D-Pad Up</td></tr>
+        <tr><td class="m">component_next</td><td class="m">TARGETING</td><td class="m">Flight</td><td>] / Scroll Up</td><td>D-Pad Right</td></tr>
+        <tr><td class="m">component_prev</td><td class="m">TARGETING</td><td class="m">Flight</td><td>[ / Scroll Down</td><td>D-Pad Left</td></tr>
+        <tr><td class="m">combat_stance</td><td class="m">TARGETING</td><td class="m">Flight</td><td>Right Mouse</td><td>Left Trigger 2</td></tr>
+        <tr><td class="m">camera_rotate</td><td class="m">CAMERA</td><td class="m">Flight</td><td>Mouse</td><td>Right Stick</td></tr>
+        <tr><td class="m">free_look</td><td class="m">CAMERA</td><td class="m">Flight</td><td>Left Alt</td><td>Left Trigger</td></tr>
+        <tr><td class="m">scenario_advance</td><td class="m">SCENARIO</td><td class="m">Flight</td><td>Enter</td><td>D-Pad Down</td></tr>
+        <tr class="brk"><td class="m">novaos_toggle</td><td class="m">SYSTEM</td><td class="m">Always</td><td>Tab</td><td>Right Thumb</td></tr>
+        <tr><td class="m">hud_cinematic</td><td class="m">SYSTEM</td><td class="m">Always</td><td>`</td><td>Select</td></tr>
+        <tr class="brk"><td class="m">novaos_orbit_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>Q</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_orbit_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>E</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_orbit_up</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>R</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_orbit_down</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>F</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_pan_forward</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>W</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_pan_back</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>S</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_pan_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>A</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_pan_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>D</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_reframe</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>T</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_next</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>]</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">novaos_prev</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>[</td><td><span class="tag q">unbound</span></td></tr>
+        <tr class="brk"><td class="m">map_goto</td><td class="m">MAP</td><td class="m">ViewerApp("map")</td><td>G</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">ship_mates</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>G</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">ship_reload</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>L</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">ship_repair</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>P</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">ship_rebind</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>B</td><td><span class="tag q">unbound</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    The viewer actions carry no pad binding, and that is deliberate rather than
+    unfinished. They never had one: the monitor is a keyboard surface, and
+    inventing pad buttons here would reserve them against the flight rig for a
+    gesture nobody asked for. <code>Left Thumb</code> was the last free standard
+    button and the RCS modifier just took it.
+  </p>
+
+  <h2><span class="n">The edges</span>What is deliberately not in here</h2>
+  <h3>Escape</h3>
+  <p>
+    The universal back-out at every rung, and the one key that stays
+    hardcoded. A rebind could strand a player inside a mode with no way out.
+    It is the only row left in the settings screen&rsquo;s fixed list.
+  </p>
+  <h3>Typing and pointing</h3>
+  <p>
+    There are three input transports in this tree that do not see each other:
+    <code>ButtonInput</code>, which is what the dispatcher writes;
+    <code>KeyboardInput.logical_key</code>, which is what the NOVA OS prompt
+    reads to tell <code>h</code> from <code>H</code>; and
+    <code>WindowEvent::MouseButtonInput</code>, which is what
+    <code>bevy_picking</code> builds a click from.
+  </p>
+  <p class="sub">
+    So an action physically cannot type a character or press a button on
+    screen &mdash; it writes to a resource neither of those readers looks at.
+    Typing and pointing are transport, not vocabulary, and they get their own
+    raw lanes on
+    <a href="https://claude.ai/code/artifact/6ce6c4fe-ad19-4f54-9720-ddfb3a68aca0#rawlanes">the channel</a>.
+  </p>
+  <h3>Firing a section</h3>
+  <p>
+    There is no <code>fire_primary</code> and there never was. What fires a
+    section is a per-section component snapshotted from the content
+    <code>input_mapping</code>, so the addressable identity is the authored
+    section id and two sections on one ship can carry different keys with no
+    name in common. The corvette binds <code>turret_port</code> and
+    <code>turret_starboard</code> both to LMB and Right Trigger 2; nothing
+    stops a mod binding Q and E.
+  </p>
+
+  <h2><span class="n">The seam</span>This crate defines; the channel shows</h2>
+  <p>
+    <code>nova_input</code> answers two questions and stops:
+    <em>what actions exist</em>, and <em>which of them can fire right now</em>.
+    It hands back <code>live()</code> and <code>conflicts()</code> and does not
+    act on either.
+  </p>
+  <p>
+    Advertising the live set and refusing a name outside it is
+    <code>nova_channel</code>&rsquo;s job, because that is where a caller with
+    no window exists at all. The dispatcher stays an injector rather than an
+    interpreter for the same reason: it presses what it is told to press, and
+    every example driving an action by name goes through it with no protocol
+    around it.
+  </p>
+
+  <h2><span class="n">Next</span>In queue</h2>
+
+  <div class="q-item">
+    <span class="who">nova_menu</span>
+    <p class="call">A capture UI, so a player can actually move a key</p>
+    <p>
+      The Controls list is a read-only readout. <code>rebind</code> works, the
+      persistence works, and the test that a moved key survives a save and a
+      reload passes &mdash; but every one of those paths is reachable only from
+      code. This is the shipping half of the feature the registry was built for.
+    </p>
+  </div>
+
+  <div class="q-item">
+    <span class="who">nova_menu</span>
+    <p class="call">Refuse a rebind that collides, using the check that exists</p>
+    <p>
+      <code>conflicts()</code> is called by tests and by nothing else. The
+      moment a capture UI lands, a player can put two live-together actions on
+      one key and get both at once, which is the exact bug the Left Trigger 2
+      pair was. The guard should run on the candidate binding, not only on the
+      shipped defaults.
+    </p>
+  </div>
+
+  <div class="q-item">
+    <span class="who">nova_input</span>
+    <p class="call">Press a gamepad-bound action by name</p>
+    <p>
+      <code>apply</code> refuses a gamepad source as <code>NoButton</code>
+      rather than doing nothing quietly, which is honest but still a hole: a
+      pad-only action cannot be driven at all. The route is the
+      <code>bevy_enhanced_input</code> mock API, and whether it composes with
+      the <code>Hold</code>/<code>Tap</code> conditions the radar gesture needs
+      is unverified. Not urgent while every action has a keyboard half.
+    </p>
+  </div>
+
+  <div class="q-item">
+    <span class="who">nova_ship</span>
+    <p class="call">Decide whether section weapons join the table</p>
+    <p>
+      Firing is authored per ship, keyed by section id, and rebindable only in
+      the editor. That is right for a mod and wrong for a player who wants to
+      move their fire key. Names would have to be derived per section rather
+      than fixed, which is why it was cut from the first pass.
+    </p>
+  </div>
+
+  <div class="q-item">
+    <span class="who">nova_hud</span>
+    <p class="call">Finish deriving the keycap glyph coverage</p>
+    <p>
+      The glyph test walks the flight rig&rsquo;s reserved sources, then adds
+      <code>["CTRL", "SHIFT", "SCROLL", "Tab", "Backquote"]</code> by hand. Two
+      of those are registry actions now, so the hand-written half should come
+      off the table like the rest. A small mirror, but mirrors are what this
+      whole task exists to delete.
+    </p>
+  </div>
+
+  <p class="foot">
+    nova_input &middot; 33 actions across 4 owners &middot; part of
+    <a href="https://claude.ai/code/artifact/6ce6c4fe-ad19-4f54-9720-ddfb3a68aca0">the process channel</a>
+    &middot; updated 2026-08-27
+  </p>
+</main>

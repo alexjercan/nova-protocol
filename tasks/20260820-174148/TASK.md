@@ -345,3 +345,51 @@ viewers through the real keyboard path, no panic.
 **Design doc.** `design.html` gained `#modekeys`, "And so did the computer's own
 keys", `#rawlanes` (the four stdin lanes) and the shipped section-firing table;
 the action table is 33 rows. Republished to the artifact.
+
+### Step 3.6 - when an action can fire (`07a306ba`)
+
+Owner's question: can the channel allow only the valid actions, or show only
+them? It can, and it is not cosmetic. Every action resolves to a KEY, and keys
+are reused across surfaces on purpose - `G` is `autopilot_goto` in flight,
+`map_goto` in the map viewer and `ship_mates` in the ship viewer; `W`, `[` and
+`]` are each held twice. So a driver handed the whole table is told one key
+means three things, and pressing an action that is not live does not fail: it
+presses the key, and whatever IS live reads it as its own action.
+
+`ActionContext` is a third axis beside `name` and `group`, on the action
+itself. `Always` (2), `Flight` (15), `Viewer` (11), `ViewerApp(id)` (5).
+`Viewer` is down at the prompt on purpose - there the keyboard is typing, and
+`W` is a character - and it is the only nesting, so a named app runs inside the
+shared viewer set.
+
+`nova_input` is a leaf and cannot see `PauseStates` or the terminal mode, so
+the subsystem that owns a context raises it. `nova_ship` raises `Flight` while
+a player ship is on the field and no frozen variant holds the clocks;
+`nova_os_ui` raises `Viewer` and the one `ViewerApp` that owns the screen. The
+named apps are read off `InputBindings::contexts()` rather than listed in the
+sync system, so a new NOVA OS app declares its context beside its actions and
+nothing else moves.
+
+`InputBindings::live()` is what a snapshot advertises and what a channel checks;
+`conflicts()` pairs only actions whose contexts overlap. That generalises the
+gamepad guard added with the LT2 fix - it covers the keyboard half too, and
+`nova_menu` runs it over all 33 actions, being the one crate that sees every
+owner's list.
+
+**Where the seam is, per the owner:** `nova_input` defines the vocabulary and
+answers which of it is live. Advertising the set and refusing a name outside it
+is `nova_channel`'s job.
+
+**Proof.** `nova_input` 27, `nova_ship` 685, `nova_os_ui` 112, `nova_menu` 84,
+`nova_hud` 218, `nova_scenario` 236. `cargo check --workspace --all-targets`
+clean. New behaviour tests: the flight context follows the ship and the freeze,
+the viewer contexts follow the app that owns the monitor, and exactly one of
+the three `G` actions is live at any instant.
+
+**Design record.** `tasks/20260820-174148/nova-input.html`, published as
+<https://claude.ai/code/artifact/7838fafd-f82a-4c51-a7fc-308449c03b07>. It is
+the crate's own page: what shipped, the action table with contexts, what is
+deliberately outside the table, and the queue - a capture UI (the Controls list
+is still read-only), a rebind conflict guard, gamepad synthesis, whether
+section weapons join the table, and the last hand-written half of the keycap
+glyph coverage.
