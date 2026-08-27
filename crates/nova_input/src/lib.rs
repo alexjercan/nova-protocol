@@ -67,7 +67,7 @@ impl RegisterInputActions for App {
 /// action record, the physical-source vocabulary and the plugin into scope.
 pub mod prelude {
     pub use super::{
-        registry::{ActionBinding, InputBindings},
+        registry::{ActionBinding, BindingSpec, InputBindings},
         source::{
             binding_label, binding_source, gamepad_label, key_symbol, keyboard_label,
             modifier_pair, InputSource,

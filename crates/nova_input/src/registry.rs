@@ -6,6 +6,8 @@
 //! and `nova_input`'s consumers pin their own name lists with tests; nothing
 //! else in the workspace type-checks them.
 
+use std::collections::BTreeMap;
+
 use bevy::{
     ecs::spawn::{SpawnIter, SpawnableList},
     platform::collections::HashMap,
@@ -45,6 +47,24 @@ pub struct ActionBinding {
     pub keyboard_note: &'static str,
     /// What the gamepad column adds for the axis half: `Right Stick`.
     pub gamepad_note: &'static str,
+}
+
+/// What one action is bound to, with nothing else about it: the persisted form
+/// of a rebind, and what a rebind screen hands back.
+///
+/// Nova-owned on purpose. Upstream's `Binding` derives serde only behind a
+/// feature this workspace does not enable, and three of its variants (`AnyKey`,
+/// `Custom`, `None`) mean nothing in a save file. This is the whole vocabulary
+/// a saved keybind needs.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct BindingSpec {
+    /// Keyboard and mouse-button sources, primary first.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub keyboard: Vec<InputSource>,
+    /// Gamepad button sources, primary first.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub gamepad: Vec<InputSource>,
 }
 
 impl ActionBinding {
@@ -95,6 +115,15 @@ impl ActionBinding {
         display_column(&self.gamepad, self.gamepad_note)
     }
 
+    /// What this action is bound to right now, detached from its name and
+    /// labels.
+    pub fn spec(&self) -> BindingSpec {
+        BindingSpec {
+            keyboard: self.keyboard.clone(),
+            gamepad: self.gamepad.clone(),
+        }
+    }
+
     /// Every source this action occupies, keyboard before gamepad.
     pub fn sources(&self) -> impl Iterator<Item = InputSource> + '_ {
         self.keyboard.iter().chain(self.gamepad.iter()).copied()
@@ -134,6 +163,10 @@ fn display_column(sources: &[InputSource], note: &'static str) -> String {
 #[derive(Resource, Debug, Default)]
 pub struct InputBindings {
     actions: Vec<ActionBinding>,
+    /// What each action was REGISTERED with, parallel to `actions`. A rebind
+    /// writes `actions` alone, so this is what tells a saved store which
+    /// actions the player actually changed - and what `reset` restores.
+    defaults: Vec<BindingSpec>,
     index: HashMap<&'static str, usize>,
 }
 
@@ -157,11 +190,57 @@ impl InputBindings {
                 "InputBindings::register: `{}` is already registered (was {:?}); replacing it",
                 action.name, self.actions[existing].label
             );
+            self.defaults[existing] = action.spec();
             self.actions[existing] = action;
             return;
         }
         self.index.insert(action.name, self.actions.len());
+        self.defaults.push(action.spec());
         self.actions.push(action);
+    }
+
+    /// Bind an action to something else. Unknown names are refused loudly and
+    /// return `false`: a store written by a build that had an action this one
+    /// does not must not take the whole load down with it.
+    pub fn rebind(&mut self, name: &str, spec: BindingSpec) -> bool {
+        let Some(&at) = self.index.get(name) else {
+            warn!("InputBindings::rebind: no action named `{name}`; ignoring the binding");
+            return false;
+        };
+        self.actions[at].keyboard = spec.keyboard;
+        self.actions[at].gamepad = spec.gamepad;
+        true
+    }
+
+    /// Put one action back on what it was registered with.
+    pub fn reset(&mut self, name: &str) -> bool {
+        let Some(&at) = self.index.get(name) else {
+            return false;
+        };
+        let default = self.defaults[at].clone();
+        self.rebind(name, default)
+    }
+
+    /// Every action bound to something other than its default, keyed by name.
+    ///
+    /// This is what a save file holds: only the rows the player moved, so a
+    /// store stays small and a change to a DEFAULT reaches a player who never
+    /// touched that row.
+    pub fn overrides(&self) -> BTreeMap<String, BindingSpec> {
+        self.actions
+            .iter()
+            .zip(&self.defaults)
+            .filter(|(action, default)| action.spec() != **default)
+            .map(|(action, _)| (action.name.to_string(), action.spec()))
+            .collect()
+    }
+
+    /// Apply saved [`overrides`](Self::overrides). Names this build does not
+    /// have are skipped with a warning.
+    pub fn apply_overrides(&mut self, overrides: &BTreeMap<String, BindingSpec>) {
+        for (name, spec) in overrides {
+            self.rebind(name, spec.clone());
+        }
     }
 
     /// Look one action up by name.
@@ -303,6 +382,65 @@ mod tests {
             ActionBinding::new("autopilot_off", "FLIGHT", "Off"),
         ]);
         assert_eq!(table.groups(), vec!["FLIGHT", "TARGETING"]);
+    }
+
+    #[test]
+    fn only_the_rows_the_player_moved_are_persisted() {
+        let mut table = InputBindings::from_actions([
+            burn(),
+            ActionBinding::new("autopilot_off", "FLIGHT", "Off")
+                .keyboard([InputSource::Keyboard(KeyCode::KeyZ)]),
+        ]);
+        assert!(
+            table.overrides().is_empty(),
+            "an untouched table saves nothing"
+        );
+
+        table.rebind(
+            "main_drive",
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+                gamepad: vec![],
+            },
+        );
+        let saved = table.overrides();
+        assert_eq!(saved.keys().collect::<Vec<_>>(), vec!["main_drive"]);
+        assert_eq!(
+            table.get("main_drive").map(ActionBinding::keyboard_display),
+            Some("J".to_string())
+        );
+
+        let mut fresh = InputBindings::from_actions([
+            burn(),
+            ActionBinding::new("autopilot_off", "FLIGHT", "Off")
+                .keyboard([InputSource::Keyboard(KeyCode::KeyZ)]),
+        ]);
+        fresh.apply_overrides(&saved);
+        assert_eq!(fresh.overrides(), saved, "a saved override reloads as one");
+
+        fresh.reset("main_drive");
+        assert!(
+            fresh.overrides().is_empty(),
+            "reset puts the action back on its registered default"
+        );
+    }
+
+    #[test]
+    fn a_saved_binding_for_an_action_this_build_lost_is_skipped() {
+        let mut table = InputBindings::from_actions([burn()]);
+        let mut saved = BTreeMap::new();
+        saved.insert(
+            "warp_drive".to_string(),
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyQ)],
+                gamepad: vec![],
+            },
+        );
+        table.apply_overrides(&saved);
+        assert!(
+            table.overrides().is_empty(),
+            "an unknown name is dropped, not adopted"
+        );
     }
 
     #[test]

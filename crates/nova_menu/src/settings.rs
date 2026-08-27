@@ -242,6 +242,7 @@ pub(crate) fn load_persisted_settings(
     mut quality: ResMut<GraphicsQuality>,
     mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
+    mut bindings: ResMut<InputBindings>,
 ) {
     let Some(saved) = load_settings() else {
         return;
@@ -250,6 +251,10 @@ pub(crate) fn load_persisted_settings(
     *quality = saved.graphics_quality;
     *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
+    // Before the first rig is built: the flight rig spawns with the player
+    // ship, which is a scenario away, so a saved keybind is on the table by
+    // the time anything reads it.
+    bindings.apply_overrides(&saved.keybinds);
 }
 
 /// Idle frames a settings value must hold steady before it is written to disk.
@@ -270,12 +275,14 @@ pub(crate) fn persist_settings_on_change(
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     monitor: Res<NovaOsMonitorSettings>,
+    bindings: Res<InputBindings>,
     mut pending: ResMut<PendingSettingsSave>,
 ) {
     let edited = (volume.is_changed() && !volume.is_added())
         || (quality.is_changed() && !quality.is_added())
         || (skin.is_changed() && !skin.is_added())
-        || (monitor.is_changed() && !monitor.is_added());
+        || (monitor.is_changed() && !monitor.is_added())
+        || (bindings.is_changed() && !bindings.is_added());
     if edited {
         // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
         // changes into one pending save.
@@ -285,7 +292,7 @@ pub(crate) fn persist_settings_on_change(
     if let Some(frames) = pending.idle_frames {
         if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
             save_settings(&PersistedSettings::from_resources(
-                *volume, *quality, *skin, *monitor,
+                *volume, *quality, *skin, *monitor, &bindings,
             ));
             pending.idle_frames = None;
         } else {
@@ -314,6 +321,7 @@ pub(crate) fn flush_settings_on_exit(
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     monitor: Res<NovaOsMonitorSettings>,
+    bindings: Res<InputBindings>,
     mut pending: ResMut<PendingSettingsSave>,
 ) {
     if exits.is_empty() || pending.idle_frames.is_none() {
@@ -321,7 +329,7 @@ pub(crate) fn flush_settings_on_exit(
     }
     exits.clear();
     save_settings(&PersistedSettings::from_resources(
-        *volume, *quality, *skin, *monitor,
+        *volume, *quality, *skin, *monitor, &bindings,
     ));
     pending.idle_frames = None;
 }

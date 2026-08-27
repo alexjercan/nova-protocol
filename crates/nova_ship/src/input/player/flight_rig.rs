@@ -570,8 +570,74 @@ mod tests {
     use super::*;
     use crate::input::player::{
         hints::update_flight_verb_hints,
-        test_support::{hint_world, spawn_flight_rig, spawn_flyable_ship},
+        test_support::{hint_world, spawn_flight_rig, spawn_flight_rig_from, spawn_flyable_ship},
     };
+
+    /// The end of the saved-keybind path: a table carrying an override builds
+    /// a rig that answers the NEW key and ignores the shipped one. Nothing
+    /// between the save file and the ship re-states what `autopilot_off` is
+    /// bound to, so this is the whole claim.
+    #[test]
+    fn a_rebound_action_answers_its_new_key_and_not_the_old_one() {
+        use bevy::input::InputPlugin;
+        use nova_input::prelude::BindingSpec;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_autopilot_off_input);
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+
+        let mut bindings = InputBindings::from_actions(crate::input::bindings::flight_bindings());
+        bindings.apply_overrides(
+            &[(
+                "autopilot_off".to_string(),
+                BindingSpec {
+                    keyboard: vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyQ)],
+                    gamepad: vec![],
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig_from(&mut app, bindings);
+        app.update();
+
+        // Z is what the game ships with, and it is no longer bound.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyZ);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_some(),
+            "the old key is unbound; it must not disengage the autopilot"
+        );
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyZ);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyQ);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "the saved key disengages the autopilot"
+        );
+    }
 
     /// End-to-end through the REAL flight rig and EnhancedInputPlugin: a GOTO
     /// keypress engages the autopilot only when a live controller grants GOTO.

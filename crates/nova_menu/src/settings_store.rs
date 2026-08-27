@@ -4,8 +4,11 @@
 //! one versionable blob and names the store key. Storage, and its best-effort
 //! semantics, belong to [`nova_assets::persist`].
 
+use std::collections::BTreeMap;
+
 use nova_assets::persist;
 use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
+use nova_input::prelude::{BindingSpec, InputBindings};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
@@ -13,7 +16,10 @@ use serde::{Deserialize, Serialize};
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
 /// an older or newer file still loads.
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug)]
+/// Not `Copy`: `keybinds` owns heap data. Nothing needed the bound - the
+/// value is built once per save and read through `&self` - so dropping it
+/// cost no call site.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub struct PersistedSettings {
     /// Linear master volume `0.0..=1.0`.
     #[serde(default = "default_volume")]
@@ -33,6 +39,11 @@ pub struct PersistedSettings {
     /// NOVA OS SND speaker toggle (default ON).
     #[serde(default = "default_sound_enabled")]
     pub nova_os_sound_enabled: bool,
+    /// Keybinds the player moved, by action name. Only the CHANGED rows are
+    /// here, so a default the game later moves reaches a player who never
+    /// touched that row.
+    #[serde(default)]
+    pub keybinds: BTreeMap<String, BindingSpec>,
 }
 
 fn default_volume() -> f32 {
@@ -61,6 +72,7 @@ impl Default for PersistedSettings {
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
+            keybinds: BTreeMap::new(),
         }
     }
 }
@@ -72,6 +84,7 @@ impl PersistedSettings {
         quality: GraphicsQuality,
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
+        bindings: &InputBindings,
     ) -> Self {
         Self {
             master_volume: volume.factor(),
@@ -80,6 +93,7 @@ impl PersistedSettings {
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
+            keybinds: bindings.overrides(),
         }
     }
 
@@ -118,6 +132,8 @@ pub fn save_settings(settings: &PersistedSettings) {
 // setting never invalidates a player's saved store.
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
+    use std::collections::BTreeMap;
+
     use nova_assets::{
         persist::{load_from, save_to},
         storage::NativeStorage,
@@ -157,6 +173,7 @@ mod tests {
             nova_os_bright_detent: 3,
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
+            keybinds: BTreeMap::new(),
         };
         save_to(&store, KEY, &settings);
         assert!(
@@ -165,7 +182,7 @@ mod tests {
         );
         assert_eq!(
             load_from::<PersistedSettings>(&store, KEY),
-            Some(settings),
+            Some(settings.clone()),
             "settings round-trip through RON"
         );
         assert_eq!(
@@ -223,6 +240,7 @@ mod tests {
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
+                keybinds: BTreeMap::new(),
             }),
             "a missing field falls back to its serde default"
         );
@@ -254,6 +272,44 @@ mod tests {
             load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
             Some(UiSkin::Phosphor),
             "a store written before the ui_skin field defaults to Phosphor"
+        );
+        clear(&store);
+    }
+
+    /// A moved keybind survives the round-trip, and a store written before
+    /// keybinds were persisted still loads - which is the whole reason only
+    /// the CHANGED rows go in the file.
+    #[test]
+    fn a_moved_keybind_persists_and_an_older_store_still_loads() {
+        use nova_input::prelude::{BindingSpec, InputSource};
+
+        let store = temp_store("keybinds");
+        clear(&store);
+
+        let mut keybinds = BTreeMap::new();
+        keybinds.insert(
+            "main_drive".to_string(),
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(bevy::prelude::KeyCode::KeyJ)],
+                gamepad: vec![],
+            },
+        );
+        let settings = PersistedSettings {
+            keybinds: keybinds.clone(),
+            ..PersistedSettings::default()
+        };
+        save_to(&store, KEY, &settings);
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.keybinds),
+            Some(keybinds),
+            "the moved row round-trips through RON"
+        );
+
+        write_raw(&store, b"(master_volume: 0.5)");
+        assert_eq!(
+            load_from::<PersistedSettings>(&store, KEY).map(|s| s.keybinds),
+            Some(BTreeMap::new()),
+            "a store written before keybinds reads as no overrides"
         );
         clear(&store);
     }

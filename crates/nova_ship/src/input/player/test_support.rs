@@ -15,7 +15,12 @@ use crate::{input::bindings::flight_bindings, prelude::*};
 /// Spawn the REAL flight rig, bound from the REAL defaults. Every rig test
 /// goes through here so none of them can drift from what the game ships.
 pub(crate) fn spawn_flight_rig(app: &mut App) -> Entity {
-    let bindings = InputBindings::from_actions(flight_bindings());
+    spawn_flight_rig_from(app, InputBindings::from_actions(flight_bindings()))
+}
+
+/// The real flight rig, built from a table a test has changed - what a saved
+/// rebind does on the way in.
+pub(crate) fn spawn_flight_rig_from(app: &mut App, bindings: InputBindings) -> Entity {
     app.world_mut().spawn(flight_input_rig(&bindings)).id()
 }
 
