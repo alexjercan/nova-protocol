@@ -24,47 +24,72 @@ use nova_input::prelude::*;
 /// The viewer actions carry no pad binding. They never had one: the monitor is
 /// a keyboard surface, and inventing pad buttons here would reserve them
 /// against the flight rig for a gesture nobody asked for.
+///
+/// Three firing contexts, and the split is what makes the shared keys legal.
+/// `novaos_toggle` is `Always` - it has to open the monitor from wherever the
+/// player is. The orbit and cycle verbs are `Viewer`: live while ANY app owns
+/// the screen, quiet at the prompt, where the keyboard is typing. The per-app
+/// verbs are `ViewerApp`, so `map_goto` and `ship_mates` can both hold `G`
+/// without colliding, and `novaos_next` and a future `map_next` could not.
 pub fn novaos_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard};
     vec![
         // RightThumb is the one free pad button, mirroring `nova_menu`'s
         // optional-gamepad guard.
         ActionBinding::new("novaos_toggle", "SYSTEM", "NOVA OS")
+            .context(ActionContext::Always)
             .keyboard([Keyboard(KeyCode::Tab)])
             .gamepad([Gamepad(GamepadButton::RightThumb)]),
         // The shared viewer controls. `map` and `ship` both drive an orbit
         // camera over a schematic, so they answer the same verbs.
         ActionBinding::new("novaos_orbit_left", "NOVA OS", "Turn Left")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyQ)]),
         ActionBinding::new("novaos_orbit_right", "NOVA OS", "Turn Right")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyE)]),
         ActionBinding::new("novaos_orbit_up", "NOVA OS", "Tilt Up")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyR)]),
         ActionBinding::new("novaos_orbit_down", "NOVA OS", "Tilt Down")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyF)]),
         ActionBinding::new("novaos_pan_forward", "NOVA OS", "Pan Forward")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyW)]),
         ActionBinding::new("novaos_pan_back", "NOVA OS", "Pan Back")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyS)]),
         ActionBinding::new("novaos_pan_left", "NOVA OS", "Pan Left")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyA)]),
         ActionBinding::new("novaos_pan_right", "NOVA OS", "Pan Right")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyD)]),
         ActionBinding::new("novaos_reframe", "NOVA OS", "Reset View")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::KeyT)]),
         ActionBinding::new("novaos_next", "NOVA OS", "Select Next")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::BracketRight)]),
         ActionBinding::new("novaos_prev", "NOVA OS", "Select Previous")
+            .context(ActionContext::Viewer)
             .keyboard([Keyboard(KeyCode::BracketLeft)]),
         // What each app does to the thing it has selected.
-        ActionBinding::new("map_goto", "MAP", "Set GOTO").keyboard([Keyboard(KeyCode::KeyG)]),
+        ActionBinding::new("map_goto", "MAP", "Set GOTO")
+            .context(ActionContext::ViewerApp("map"))
+            .keyboard([Keyboard(KeyCode::KeyG)]),
         ActionBinding::new("ship_mates", "SHIP", "Mates Overlay")
+            .context(ActionContext::ViewerApp("ship"))
             .keyboard([Keyboard(KeyCode::KeyG)]),
         ActionBinding::new("ship_reload", "SHIP", "Reload Section")
+            .context(ActionContext::ViewerApp("ship"))
             .keyboard([Keyboard(KeyCode::KeyL)]),
         ActionBinding::new("ship_repair", "SHIP", "Repair Section")
+            .context(ActionContext::ViewerApp("ship"))
             .keyboard([Keyboard(KeyCode::KeyP)]),
         ActionBinding::new("ship_rebind", "SHIP", "Rebind Section Key")
+            .context(ActionContext::ViewerApp("ship"))
             .keyboard([Keyboard(KeyCode::KeyB)]),
     ]
 }

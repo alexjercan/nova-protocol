@@ -59,6 +59,29 @@ pub mod prelude {
     };
 }
 
+/// Raise the `Flight` context while a flight action can actually be heard.
+///
+/// Two halves, because flight goes quiet two ways. The rig entity is spawned
+/// and despawned with `PlayerSpaceshipMarker`, so with no player ship there is
+/// nothing listening at all; and every frozen variant gates the input sets, so
+/// while the NOVA OS or the pause overlay holds the screen a flight key is
+/// read by whatever is up instead - `W` pans the viewer rather than burning.
+///
+/// `PauseStates` belongs to `AppBuilder`, and a test rig that adds this plugin
+/// alone has no pause state to read. Absent means nothing can freeze the ship.
+fn sync_flight_context(
+    player: Query<(), With<nova_gameplay::markers::PlayerSpaceshipMarker>>,
+    pause: Option<Res<State<nova_gameplay::PauseStates>>>,
+    mut active: ResMut<ActiveContexts>,
+) {
+    let frozen = pause.is_some_and(|state| state.get().is_frozen());
+    ActiveContexts::sync(
+        &mut active,
+        ActionContext::Flight,
+        !player.is_empty() && !frozen,
+    );
+}
+
 /// Wires human input for the player ship: the flight rig, weapon fire bindings,
 /// autopilot verbs and RCS. Added by
 /// [`SpaceshipInputPlugin`](super::SpaceshipInputPlugin).
@@ -69,6 +92,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         trace!("SpaceshipPlayerInputPlugin: build");
 
         app.register_input_actions(flight_bindings());
+        app.add_systems(PreUpdate, sync_flight_context);
         app.add_message::<SectionInputBindingChanged>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
@@ -114,5 +138,66 @@ impl Plugin for SpaceshipPlayerInputPlugin {
             )
                 .in_set(super::SpaceshipInputSystems),
         );
+    }
+}
+
+#[cfg(test)]
+mod context_tests {
+    use bevy::state::app::StatesPlugin;
+    use nova_gameplay::{markers::PlayerSpaceshipMarker, PauseStates};
+
+    use super::*;
+
+    fn rig() -> App {
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<PauseStates>();
+        app.init_resource::<ActiveContexts>();
+        app.add_systems(Update, sync_flight_context);
+        app
+    }
+
+    fn flight_is_live(app: &App) -> bool {
+        app.world()
+            .resource::<ActiveContexts>()
+            .is_live(ActionContext::Flight)
+    }
+
+    fn freeze(app: &mut App, state: PauseStates) {
+        app.world_mut()
+            .resource_mut::<NextState<PauseStates>>()
+            .set(state);
+        app.update();
+    }
+
+    /// Flight goes quiet two ways, and both have to lower the context: with no
+    /// player ship there is no rig to hear a key, and behind a frozen overlay
+    /// the input sets do not run, so the key reaches whatever is up instead.
+    #[test]
+    fn flight_is_live_only_with_a_player_ship_and_the_clocks_running() {
+        let mut app = rig();
+        app.update();
+        assert!(!flight_is_live(&app), "no player ship, nothing listening");
+
+        let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        app.update();
+        assert!(flight_is_live(&app));
+
+        freeze(&mut app, PauseStates::NovaOs);
+        assert!(
+            !flight_is_live(&app),
+            "the monitor has the screen, so `W` pans the viewer rather than burning"
+        );
+
+        freeze(&mut app, PauseStates::Unpaused);
+        assert!(flight_is_live(&app));
+
+        freeze(&mut app, PauseStates::Paused);
+        assert!(!flight_is_live(&app));
+
+        freeze(&mut app, PauseStates::Unpaused);
+        app.world_mut().entity_mut(player).despawn();
+        app.update();
+        assert!(!flight_is_live(&app), "the rig despawns with the marker");
     }
 }

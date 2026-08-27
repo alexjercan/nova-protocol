@@ -22,6 +22,7 @@
 //! lookup in this table plus a press, so it belongs where the table lives.
 #![warn(missing_docs)]
 
+pub mod context;
 pub mod dispatch;
 pub mod poll;
 pub mod registry;
@@ -29,7 +30,7 @@ pub mod source;
 
 use bevy::prelude::*;
 
-use crate::registry::InputBindings;
+use crate::{context::ActiveContexts, registry::InputBindings};
 
 /// Installs the empty [`InputBindings`] table. Every crate that owns actions
 /// registers into it from its own plugin's `build`, so the table is complete
@@ -39,6 +40,7 @@ pub struct NovaInputPlugin;
 impl Plugin for NovaInputPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputBindings>();
+        app.init_resource::<ActiveContexts>();
     }
 }
 
@@ -60,6 +62,7 @@ impl RegisterInputActions for App {
         actions: impl IntoIterator<Item = registry::ActionBinding>,
     ) -> &mut Self {
         self.init_resource::<InputBindings>();
+        self.init_resource::<ActiveContexts>();
         let mut table = self.world_mut().resource_mut::<InputBindings>();
         for action in actions {
             table.register(action);
@@ -72,6 +75,7 @@ impl RegisterInputActions for App {
 /// action record, the physical-source vocabulary and the plugin into scope.
 pub mod prelude {
     pub use super::{
+        context::{ActionContext, ActiveContexts},
         dispatch,
         dispatch::{DispatchError, InputPhase},
         poll::InputSources,

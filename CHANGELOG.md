@@ -183,6 +183,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- Every named action declares WHEN it can fire, so the three actions bound to G
+  never listen at once, and one check across the whole table catches two that
+  can.
 - The editor publishes its build state - armed tool, placement, gallery, edited
   ship, inspector rows, the status line - as read-only data the driven ranges
   wait on instead of counting frames.

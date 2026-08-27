@@ -14,6 +14,12 @@ use nova_input::prelude::*;
 
 /// The always-on flight and targeting actions, in reading order.
 ///
+/// `FLIGHT`, `TARGETING` and `CAMERA` are three headers a player reads apart
+/// and ONE firing context: they go live together when a player ship is on the
+/// field, and they go quiet together when the NOVA OS takes the screen. So the
+/// context is applied to the whole list rather than typed on each row - a new
+/// action cannot be added without one.
+///
 /// Every action here runs with `consume_input: false`, so a content
 /// `input_mapping` that reuses one of these sources SILENTLY double-drives
 /// flight (lesson `input-mapping-overlays-flight-rig`). That is what
@@ -73,6 +79,9 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // axis and no rebind row can capture one.
         ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim").mouse_motion(),
     ]
+    .into_iter()
+    .map(|action| action.context(ActionContext::Flight))
+    .collect()
 }
 
 /// The chase-camera controller's actions.
@@ -90,6 +99,9 @@ pub fn camera_bindings() -> Vec<ActionBinding> {
             .keyboard([Mouse(MouseButton::Right)])
             .gamepad([Gamepad(GamepadButton::LeftTrigger2)]),
     ]
+    .into_iter()
+    .map(|action| action.context(ActionContext::Flight))
+    .collect()
 }
 
 /// The discrete input sources the always-on flight rig reserves, each paired
@@ -167,38 +179,37 @@ mod tests {
         );
     }
 
-    /// No two fixed-rig actions may hold the same gamepad button, because both
-    /// rigs run with `consume_input: false` - a shared button drives both at
+    /// No two fixed-rig actions may hold the same source, because both rigs
+    /// run with `consume_input: false` - a shared key or button drives both at
     /// once. `radar_hold` and `radar_clear` are the deliberate exception: they
     /// are one gesture read two ways, and they share the key on purpose.
     ///
     /// The reserved-sources check guards content `input_mapping` against the
     /// flight rig; it never guarded the fixed rigs against EACH OTHER, and the
     /// two lists are separate, so `rcs_modifier` and `combat_stance` sat on
-    /// Left Trigger 2 together unnoticed.
+    /// Left Trigger 2 together unnoticed. `conflicts` reads the whole table and
+    /// only pairs actions that can be live at the same instant, so this covers
+    /// the keyboard half too without flagging a key flight shares with a
+    /// surface it can never be up beside.
     #[test]
-    fn no_two_fixed_rig_actions_share_a_gamepad_button() {
+    fn no_two_fixed_rig_actions_share_a_source() {
         let radar = ["radar_hold", "radar_clear"];
-        let mut held: Vec<(String, &str)> = flight_bindings()
+        let table =
+            InputBindings::from_actions(flight_bindings().into_iter().chain(camera_bindings()));
+        let found: Vec<String> = table
+            .conflicts()
             .into_iter()
-            .chain(camera_bindings())
-            .filter(|action| !radar.contains(&action.name))
-            .flat_map(|action| {
-                action
-                    .gamepad
-                    .iter()
-                    .map(|source| (source.label(), action.name))
-                    .collect::<Vec<_>>()
+            .filter(|(one, other, _)| !(radar.contains(&one.name) && radar.contains(&other.name)))
+            .map(|(one, other, source)| {
+                format!(
+                    "`{}` and `{}` both hold {}",
+                    one.name,
+                    other.name,
+                    source.label()
+                )
             })
             .collect();
-        held.sort();
-        for pair in held.windows(2) {
-            assert_ne!(
-                pair[0].0, pair[1].0,
-                "`{}` and `{}` both hold {}",
-                pair[0].1, pair[1].1, pair[0].0
-            );
-        }
+        assert!(found.is_empty(), "{}", found.join("; "));
     }
 
     /// What the settings screen actually prints for every shipped row. The

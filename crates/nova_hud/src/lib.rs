@@ -404,7 +404,10 @@ impl Plugin for NovaHudPlugin {
 /// that asks the registry which sources it holds.
 pub fn hud_bindings() -> Vec<ActionBinding> {
     vec![
+        // Always: the whole point is that it answers at every rung, so it is
+        // stated rather than inherited from the default.
         ActionBinding::new("hud_cinematic", "SYSTEM", "HUD (On / Cinematic)")
+            .context(ActionContext::Always)
             .keyboard([InputSource::Keyboard(KeyCode::Backquote)])
             .gamepad([InputSource::Gamepad(GamepadButton::Select)]),
     ]

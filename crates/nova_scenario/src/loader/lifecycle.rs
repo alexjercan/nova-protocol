@@ -371,9 +371,15 @@ pub(super) struct NextScenarioInput;
 ///
 /// DPadDown, not South: South is ORBIT on the flight rig, and one pad press
 /// must not both skip the scenario and park the ship.
+///
+/// `Flight` context, not one of its own: the beat is on screen while the
+/// player flies, and the key goes quiet with the rest of the rig when the
+/// NOVA OS takes the screen. Sharing the context is also what lets the
+/// conflict check see Enter against the flight keys.
 pub(crate) fn scenario_bindings() -> Vec<ActionBinding> {
     vec![
         ActionBinding::new("scenario_advance", "SCENARIO", "Advance")
+            .context(ActionContext::Flight)
             .keyboard([InputSource::Keyboard(KeyCode::Enter)])
             .gamepad([InputSource::Gamepad(GamepadButton::DPadDown)]),
     ]

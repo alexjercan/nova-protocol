@@ -797,3 +797,69 @@ fn nova_os_objective_flip_announces_in_open_terminal() {
 // reference it is measured against is a hand transcription of the WGSL
 // fragment's own sample-UV chain, living in `nova_os_pointer_rig` so the
 // live-tree click tests measure against the same independent definition.
+
+/// The viewer contexts follow what owns the monitor, and the per-app one
+/// follows WHICH app. This is what makes `map_goto` and `ship_mates` sharing
+/// `G` legal - one of them is live at a time and the other cannot hear the
+/// key.
+///
+/// `Viewer` is deliberately down at the prompt: there the keyboard is typing a
+/// command, not naming actions, and `W` is a character.
+#[test]
+fn the_viewer_contexts_follow_the_app_that_owns_the_monitor() {
+    use nova_input::prelude::{ActionContext, ActiveContexts};
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.add_plugins(StatesPlugin);
+    app.init_state::<PauseStates>();
+    app.init_resource::<NovaOsTerminal>();
+    app.register_input_actions(crate::bindings::novaos_bindings());
+    app.add_systems(Update, crate::terminal::sync_nova_os_contexts);
+
+    let live = |app: &App, context: ActionContext| {
+        app.world().resource::<ActiveContexts>().is_live(context)
+    };
+
+    app.update();
+    assert!(
+        !live(&app, ActionContext::Viewer),
+        "with the monitor shut nothing in it is listening"
+    );
+
+    // The monitor is open, but at the prompt.
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::NovaOs);
+    app.update();
+    assert!(
+        !live(&app, ActionContext::Viewer),
+        "at the prompt the keyboard is typing, not naming actions"
+    );
+
+    app.world_mut()
+        .resource_mut::<NovaOsTerminal>()
+        .enter_app("ship");
+    app.update();
+    assert!(live(&app, ActionContext::Viewer), "the shared verbs answer");
+    assert!(live(&app, ActionContext::ViewerApp("ship")));
+    assert!(
+        !live(&app, ActionContext::ViewerApp("map")),
+        "one app owns the screen, so the other app's verbs stay quiet"
+    );
+
+    app.world_mut()
+        .resource_mut::<NovaOsTerminal>()
+        .enter_app("map");
+    app.update();
+    assert!(live(&app, ActionContext::ViewerApp("map")));
+    assert!(!live(&app, ActionContext::ViewerApp("ship")));
+
+    // Closing the monitor lowers everything, app still entered or not.
+    app.world_mut()
+        .resource_mut::<NextState<PauseStates>>()
+        .set(PauseStates::Unpaused);
+    app.update();
+    assert!(!live(&app, ActionContext::Viewer));
+    assert!(!live(&app, ActionContext::ViewerApp("map")));
+}

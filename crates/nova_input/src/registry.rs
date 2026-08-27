@@ -15,7 +15,10 @@ use bevy::{
 };
 use bevy_enhanced_input::prelude::*;
 
-use crate::source::{modifier_pair, InputSource};
+use crate::{
+    context::{ActionContext, ActiveContexts},
+    source::{modifier_pair, InputSource},
+};
 
 /// One named action and the discrete sources bound to it.
 ///
@@ -30,6 +33,11 @@ pub struct ActionBinding {
     pub name: &'static str,
     /// The settings row header this action sits under: `FLIGHT`.
     pub group: &'static str,
+    /// When this action can fire. Display grouping and firing context are
+    /// close but NOT the same axis - `FLIGHT`, `TARGETING` and `CAMERA` are
+    /// three headers a player reads apart and one context that is live or not
+    /// as a unit - so they stay separate fields.
+    pub context: ActionContext,
     /// What a player reads: `Radar Hold`.
     pub label: &'static str,
     /// Keyboard and mouse-button sources, primary first. The first entry is
@@ -98,10 +106,19 @@ impl ActionBinding {
             name,
             group,
             label,
+            context: ActionContext::default(),
             keyboard: Vec::new(),
             gamepad: Vec::new(),
             axes: ActionAxes::default(),
         }
+    }
+
+    /// When this action can fire. Declare it beside the action, in the same
+    /// list the plugin that adds the reading systems registers.
+    #[must_use]
+    pub fn context(mut self, context: ActionContext) -> Self {
+        self.context = context;
+        self
     }
 
     /// Add keyboard/mouse sources, primary first.
@@ -302,6 +319,63 @@ impl InputBindings {
         self.actions.iter()
     }
 
+    /// Every action that can fire right now, in registration order.
+    ///
+    /// This is what a driver may press and what a snapshot advertises. The
+    /// whole table is the wrong answer to that question: an action resolves to
+    /// a key, and three actions hold `G`, so a list of all of them says the
+    /// same key means three things at once.
+    pub fn live<'a>(
+        &'a self,
+        active: &'a ActiveContexts,
+    ) -> impl Iterator<Item = &'a ActionBinding> {
+        self.actions
+            .iter()
+            .filter(|action| active.is_live(action.context))
+    }
+
+    /// The distinct contexts the table declares, in first-appearance order.
+    /// A sync system reads this instead of naming the apps itself, so adding a
+    /// NOVA OS app does not need a second edit somewhere else.
+    pub fn contexts(&self) -> Vec<ActionContext> {
+        let mut contexts: Vec<ActionContext> = Vec::new();
+        for action in &self.actions {
+            if !contexts.contains(&action.context) {
+                contexts.push(action.context);
+            }
+        }
+        contexts
+    }
+
+    /// Every pair of actions that share a physical source AND can be live at
+    /// the same instant, with the source they collide on.
+    ///
+    /// Sharing a key ACROSS contexts is the normal case and not a conflict:
+    /// `G` is go-to in flight and the map's GOTO in the map viewer, and one of
+    /// them is always the only one listening. Sharing one WITHIN a live set is
+    /// the bug - both rigs run with `consume_input: false`, so one press
+    /// drives both actions.
+    ///
+    /// Deliberate pairs exist (`radar_hold` and `radar_clear` are one gesture
+    /// read two ways), so this reports rather than refuses: the caller exempts
+    /// by name.
+    pub fn conflicts(&self) -> Vec<(&ActionBinding, &ActionBinding, InputSource)> {
+        let mut found = Vec::new();
+        for (at, action) in self.actions.iter().enumerate() {
+            for other in &self.actions[at + 1..] {
+                if !action.context.overlaps(other.context) {
+                    continue;
+                }
+                for source in action.sources() {
+                    if other.sources().any(|held| held == source) {
+                        found.push((action, other, source));
+                    }
+                }
+            }
+        }
+        found
+    }
+
     /// The row headers a settings screen draws, in first-appearance order.
     pub fn groups(&self) -> Vec<&'static str> {
         let mut groups: Vec<&'static str> = Vec::new();
@@ -365,6 +439,101 @@ mod tests {
                 InputSource::Keyboard(KeyCode::Space),
             ])
             .gamepad([InputSource::Gamepad(GamepadButton::RightTrigger)])
+    }
+
+    /// The whole point of the context field: three actions hold `G`, and a
+    /// list that named all three would tell a driver one key means three
+    /// things at once. Only the live ones come back.
+    #[test]
+    fn only_the_actions_whose_context_is_raised_are_live() {
+        let table = InputBindings::from_actions([
+            burn(),
+            ActionBinding::new("autopilot_goto", "FLIGHT", "Go To")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
+            ActionBinding::new("map_goto", "MAP", "Set GOTO")
+                .context(ActionContext::ViewerApp("map"))
+                .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
+        ]);
+
+        let mut active = ActiveContexts::default();
+        let names = |active: &ActiveContexts| -> Vec<&'static str> {
+            table.live(active).map(|action| action.name).collect()
+        };
+
+        assert_eq!(
+            names(&active),
+            vec!["main_drive"],
+            "an undeclared action defaults to Always and is live with nothing raised"
+        );
+
+        active.set(ActionContext::Flight, true);
+        assert_eq!(names(&active), vec!["main_drive", "autopilot_goto"]);
+
+        active.set(ActionContext::Flight, false);
+        active.set(ActionContext::ViewerApp("map"), true);
+        assert_eq!(names(&active), vec!["main_drive", "map_goto"]);
+    }
+
+    #[test]
+    fn the_declared_contexts_come_back_in_first_appearance_order() {
+        let table = InputBindings::from_actions([
+            ActionBinding::new("novaos_toggle", "SYSTEM", "NOVA OS"),
+            ActionBinding::new("map_goto", "MAP", "Set GOTO")
+                .context(ActionContext::ViewerApp("map")),
+            ActionBinding::new("novaos_next", "NOVA OS", "Next").context(ActionContext::Viewer),
+            ActionBinding::new("ship_mates", "SHIP", "Mates")
+                .context(ActionContext::ViewerApp("ship")),
+        ]);
+        assert_eq!(
+            table.contexts(),
+            vec![
+                ActionContext::Always,
+                ActionContext::ViewerApp("map"),
+                ActionContext::Viewer,
+                ActionContext::ViewerApp("ship"),
+            ]
+        );
+    }
+
+    /// One key held by two actions is a conflict only when both can hear it.
+    #[test]
+    fn a_shared_source_is_a_conflict_only_inside_one_live_set() {
+        let across = InputBindings::from_actions([
+            ActionBinding::new("autopilot_goto", "FLIGHT", "Go To")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
+            ActionBinding::new("map_goto", "MAP", "Set GOTO")
+                .context(ActionContext::ViewerApp("map"))
+                .keyboard([InputSource::Keyboard(KeyCode::KeyG)]),
+        ]);
+        assert!(
+            across.conflicts().is_empty(),
+            "flight and the map viewer never listen at the same instant"
+        );
+
+        let within = InputBindings::from_actions([
+            ActionBinding::new("novaos_next", "NOVA OS", "Next")
+                .context(ActionContext::Viewer)
+                .keyboard([InputSource::Keyboard(KeyCode::BracketRight)]),
+            ActionBinding::new("map_next", "MAP", "Next")
+                .context(ActionContext::ViewerApp("map"))
+                .keyboard([InputSource::Keyboard(KeyCode::BracketRight)]),
+        ]);
+        let found: Vec<_> = within
+            .conflicts()
+            .into_iter()
+            .map(|(one, other, source)| (one.name, other.name, source))
+            .collect();
+        assert_eq!(
+            found,
+            vec![(
+                "novaos_next",
+                "map_next",
+                InputSource::Keyboard(KeyCode::BracketRight)
+            )],
+            "a named app runs INSIDE the shared viewer set, so both hear the key"
+        );
     }
 
     #[test]

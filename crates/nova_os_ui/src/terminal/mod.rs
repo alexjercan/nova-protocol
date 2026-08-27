@@ -58,7 +58,7 @@ mod style;
 mod tests;
 
 use bevy::{prelude::*, ui_render::prelude::UiMaterialPlugin};
-use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal};
+use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal, TerminalMode};
 
 /// Glob-import surface: `use nova_os_ui::terminal::prelude::*`.
 pub mod prelude {
@@ -70,7 +70,7 @@ pub mod prelude {
 
 use nova_gameplay::{objectives::prelude::GameObjectives, GameStates, PauseStates};
 use nova_hud::prelude::StoryFeed;
-use nova_input::prelude::RegisterInputActions;
+use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, RegisterInputActions};
 
 pub use self::{
     components::NovaOsMonitorSettings,
@@ -139,6 +139,34 @@ pub enum NovaOsSystems {
     Paint,
 }
 
+/// Raise the viewer contexts to match what owns the monitor.
+///
+/// `Viewer` covers the verbs both apps answer, so it is up while ANY app has
+/// the screen and down at the prompt, where the keyboard is typing rather than
+/// naming actions. Each `ViewerApp` is up for its own app alone.
+///
+/// The named apps are read off the bindings table rather than listed here: a
+/// new NOVA OS app declares its context beside its actions, and this system
+/// picks it up with no second edit.
+pub(crate) fn sync_nova_os_contexts(
+    pause: Option<Res<State<PauseStates>>>,
+    terminal: Res<NovaOsTerminal>,
+    bindings: Res<InputBindings>,
+    mut active: ResMut<ActiveContexts>,
+) {
+    let open = pause.is_some_and(|state| *state.get() == PauseStates::NovaOs);
+    let live = match (open, terminal.active_mode()) {
+        (true, TerminalMode::App { id }) => Some(id),
+        _ => None,
+    };
+    ActiveContexts::sync(&mut active, ActionContext::Viewer, live.is_some());
+    for context in bindings.contexts() {
+        if let ActionContext::ViewerApp(id) = context {
+            ActiveContexts::sync(&mut active, context, live == Some(id));
+        }
+    }
+}
+
 /// Wires the Tab NOVA OS shell: the toggle, the slide and the terminal.
 /// Registered by [`crate::NovaOsUiPlugin`].
 pub(crate) struct NovaOsPlugin;
@@ -154,6 +182,7 @@ impl Plugin for NovaOsPlugin {
         app.register_type::<NovaOsMonitorSettings>();
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
         app.register_input_actions(crate::bindings::novaos_bindings());
+        app.add_systems(PreUpdate, sync_nova_os_contexts);
 
         // Tab opens the NOVA OS. It keeps running in all of Playing so an open
         // NOVA OS can reserve Tab for terminal completion instead of closing.

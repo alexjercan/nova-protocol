@@ -318,3 +318,88 @@ fn the_controls_readout_follows_a_rebind() {
         "the old binding is still on screen"
     );
 }
+
+/// The whole shipped table, which exists in one place only here: `nova_menu`
+/// is the crate that renders every group, so it is the only one that can see
+/// all four owners' actions at once.
+///
+/// A key held by two actions is normal and deliberate - `G` is go-to in
+/// flight, GOTO in the map viewer and the mates overlay in the ship viewer,
+/// and only one of the three is ever listening. What must not happen is two
+/// actions holding one source INSIDE a live set, because nothing consumes an
+/// input: the key would drive both.
+///
+/// `radar_hold` and `radar_clear` are exempt. They are one gesture read two
+/// ways - hold to search, tap to clear - and the tap window and the hold
+/// threshold share the key so the boundary frame cannot fall between them.
+#[test]
+fn no_two_actions_that_can_be_live_together_share_a_source() {
+    let radar = ["radar_hold", "radar_clear"];
+    let mut table = InputBindings::from_actions(nova_ship::input::bindings::flight_bindings());
+    for action in nova_ship::input::bindings::camera_bindings()
+        .into_iter()
+        .chain(nova_hud::hud_bindings())
+        .chain(nova_os_ui::bindings::novaos_bindings())
+    {
+        table.register(action);
+    }
+
+    let found: Vec<String> = table
+        .conflicts()
+        .into_iter()
+        .filter(|(one, other, _)| !(radar.contains(&one.name) && radar.contains(&other.name)))
+        .map(|(one, other, source)| {
+            format!(
+                "`{}` ({:?}) and `{}` ({:?}) both hold {}",
+                one.name,
+                one.context,
+                other.name,
+                other.context,
+                source.label()
+            )
+        })
+        .collect();
+    assert!(found.is_empty(), "{}", found.join("; "));
+}
+
+/// The reason the shared keys are legal, stated as a test: exactly one of the
+/// three `G` actions is live at any instant, and which one depends on what
+/// owns the screen.
+#[test]
+fn only_one_of_the_three_actions_bound_to_g_is_ever_live() {
+    use nova_input::prelude::{ActionContext, ActiveContexts};
+
+    let mut table = InputBindings::from_actions(nova_ship::input::bindings::flight_bindings());
+    for action in nova_os_ui::bindings::novaos_bindings() {
+        table.register(action);
+    }
+    let on_g = |active: &ActiveContexts| -> Vec<&'static str> {
+        table
+            .live(active)
+            .filter(|action| {
+                action
+                    .keyboard
+                    .contains(&InputSource::Keyboard(KeyCode::KeyG))
+            })
+            .map(|action| action.name)
+            .collect()
+    };
+
+    let mut active = ActiveContexts::default();
+    assert!(
+        on_g(&active).is_empty(),
+        "at the prompt `G` is a character being typed, not an action"
+    );
+
+    active.set(ActionContext::Flight, true);
+    assert_eq!(on_g(&active), vec!["autopilot_goto"]);
+
+    active.set(ActionContext::Flight, false);
+    active.set(ActionContext::Viewer, true);
+    active.set(ActionContext::ViewerApp("map"), true);
+    assert_eq!(on_g(&active), vec!["map_goto"]);
+
+    active.set(ActionContext::ViewerApp("map"), false);
+    active.set(ActionContext::ViewerApp("ship"), true);
+    assert_eq!(on_g(&active), vec!["ship_mates"]);
+}
