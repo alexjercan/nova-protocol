@@ -243,11 +243,15 @@ Three source kinds beyond the button: mouse motion and the wheel write
 same resources); gamepad is refused by name as `DispatchError::NoButton` rather
 than silently doing nothing.
 
-**Deviation.** The design put the wrapper in `nova_autopilot`. It cannot go
-there: that crate's contract is bevy and nothing else, with Nova-typed
-predicates built on it in `nova_debug::harness`. `press_action` /
-`release_action` / `drive_action` therefore live in `nova_debug::harness`,
-which every example already globs through `nova_core::prelude`.
+**Where the wrapper went.** The design names no crate for it - its only
+mention of the autopilot is the TIMING claim, "it runs where the autopilot
+already injects", which still holds. Putting the wrapper in `nova_autopilot`
+was a working assumption, and it does not survive that crate's own contract:
+bevy and nothing else, with Nova-typed helpers built on it in
+`nova_debug::harness` (`nova_autopilot/src/lib.rs:1`). `press_action` needs
+`InputBindings`, a `nova_input` type. So `press_action` / `release_action` /
+`drive_action` live in `nova_debug::harness`, which every example already globs
+through `nova_core::prelude`.
 
 `drive_action` writes the button state alone, not the pointer helpers'
 `WindowEvent`: no registry action is a UI click, every one is read through
