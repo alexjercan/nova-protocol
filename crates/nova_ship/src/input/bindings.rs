@@ -77,10 +77,15 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("rcs_modifier", "FLIGHT", "RCS Fine Adjust")
             .keyboard([Keyboard(KeyCode::ShiftLeft), Keyboard(KeyCode::ShiftRight)])
             .gamepad([Gamepad(GamepadButton::LeftThumb)]),
-        // Raw mouse motion, accumulated into the ship-local RCS plane while
-        // the modifier is held. No discrete source: nothing collides on an
-        // axis and no rebind row can capture one.
-        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim").mouse_motion(),
+        // Raw mouse motion, or the LEFT stick, read into the ship-local RCS
+        // plane while the modifier is held. The left stick is the pad's half
+        // of the same gesture: the modifier IS its click, so a thumb that
+        // engages RCS is already on the stick that steers it. No discrete
+        // source either way - nothing collides on an axis and no rebind row
+        // can capture one.
+        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim")
+            .mouse_motion()
+            .stick(GamepadStick::Left),
     ]
     .into_iter()
     .map(|action| action.context(ActionContext::Flight))

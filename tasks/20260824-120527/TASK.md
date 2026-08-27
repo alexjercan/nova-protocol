@@ -170,3 +170,81 @@ The menu test fixture was loading the developer's real
 game - or by one of this task's own screenshot runs - silently rewrote
 the table the tests assert on. `support::app()` now points
 `NOVA_CONFIG_ROOT` at a scratch dir.
+
+## Proof round 2 (2026-08-27, commit f9895619)
+
+Owner follow-up on the same request: image icons instead of text, a
+wider fixed-height panel, a tab per binding group, gamepad prompts from
+the Free Input Prompts pack, `Esc` shown as a button but not changeable,
+and pad bindings for the columns that read `Unbound`.
+
+### Built
+
+- **Icons.** `BindingChip` carries what a row READS and what it DRAWS,
+  because they are two vocabularies: `Left Ctrl` is prose, `ControlLeft`
+  keys the art. `InputSource::glyph_label` qualifies the pad (`Pad A`)
+  so a controller's face buttons stop colliding with four keys.
+- **The whole pack preloads.** 101 images, ~800K, in
+  `GameAssets::key_glyphs`. A rebind can put any key on any row, and a
+  lazily loaded glyph would arrive after the row was drawn and would
+  need a later alpha scan to be sized.
+- **Group tabs.** `SettingsControlsGroup` + `ControlsGroupTab`; the
+  reconciler's dirty condition gained the resource, and the group bar is
+  `segmented_option_fit` because `button()` is 100% wide by default and
+  a wrapping container gave every segment its own line.
+- **Read-only chips.** `segmented_option("")` + `InteractionDisabled`,
+  not a new widget: disabled paint, live reskinning, no hover light.
+- **Pad synthesis.** `driven_source` falls back to the pad; `apply`
+  connects a `SynthesizedGamepad` and writes `digital_mut()` AND
+  `analog_mut()`.
+
+### Decisions
+
+- **Section bindings stay out of Settings.** Recorded on
+  `tasks/20260820-174148/nova-input.html` as a decided no, not an open
+  question. A thruster on `W` is how the mainline campaign's ship is
+  configured, not a fact about the game; a Controls row printing it
+  would be untrue of every other hull.
+- **Free Input Prompts, not Kenney.** The Kenney Xbox set was imported
+  first and removed: the keycaps already come from JulioCacko's pack,
+  which ships its own XGamepad `Alt` style, so one pack now draws both
+  halves of a row. No trademark carve-out is needed either - that pack
+  draws no guide/logo glyph at all.
+- **White face buttons, not coloured.** The pack offers both; white
+  reads like the keycaps beside it on a phosphor panel.
+- **The pad is a fallback, not a second surface.** An action bound on
+  both is still driven by its key, so a keyboard-only run never grows a
+  pad entity. `primary_source` stays desk-only for the pointer helpers.
+
+### Verified live (Xvfb :94)
+
+`screenshot_menu` under `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`, walked to
+Controls and through the group bar. Read off the captures: eight group
+tabs on ONE line, `W`+`Space` keycaps on Main Drive, RB/B/Y/A/X and the
+left-stick click drawn from the pad pack, the D-pad glyphs on the NOVA
+OS group, and `Mouse`/`Unbound` wearing the disabled chip frame.
+
+### Found and fixed on the way
+
+A regeneration pass wrote the 101 keycap paths over `GameAssets::ui_sfx`
+instead of `key_glyphs`, killing the UI sound effects and leaving the
+glyphs on their old thirteen paths. Every test still passed: both
+`#[cfg(test)]` path consts are COPIES of the attributes, and nothing
+compared the two. `each_mirror_const_matches_the_attribute_it_mirrors`
+now reads the attributes out of `include_str!("collections.rs")`.
+
+`~/.config/nova-protocol/settings.ron` also held a `main_drive` rebind
+left by an earlier capture run, which is why the first capture drew one
+keycap where the table has two. The menu TESTS were fixed to use a
+scratch config root in round 1; the capture EXAMPLES still read the real
+one.
+
+### Skipped
+
+- The workspace test suite and Clippy (standing instruction). Ran
+  `-p` tests for `nova_input` (36), `nova_menu` settings (27),
+  `nova_hud` key_glyphs (6), `nova_assets` collections (4) and
+  `nova_os_ui` bindings (2), plus `cargo fmt --all`, `cargo check` over
+  the six touched crates `--all-targets`, and `cargo check --examples`.
+- A real controller. The pad path is proved by a `bevy_enhanced_input`
+  rig whose `Hold` runs on a synthesized press, not by hardware.

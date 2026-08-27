@@ -170,6 +170,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The NOVA OS viewers answer a pad: orbit, pan, cycle, GOTO and reload reuse
   the flight rig's buttons, which the context rule keeps from ever being live
   beside them.
+- RCS answers a pad too: click the left stick to engage it, push that same
+  stick to translate. A held deflection is full authority, not the mouse's
+  per-frame nudge.
 - Settings opens on tabs - Audio, Graphics, Controls, Interface - and Controls
   lists one binding group at a time, from the main menu and the pause overlay
   alike.

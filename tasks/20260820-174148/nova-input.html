@@ -341,7 +341,7 @@
         <tr><td class="m">autopilot_orbit</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>O</td><td>A</td></tr>
         <tr><td class="m">autopilot_off</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Z</td><td>X</td></tr>
         <tr><td class="m">rcs_modifier</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Shift</td><td>Left Thumb</td></tr>
-        <tr><td class="m">rcs_aim</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Mouse</td><td><span class="tag q">unbound</span></td></tr>
+        <tr><td class="m">rcs_aim</td><td class="m">FLIGHT</td><td class="m">Flight</td><td>Mouse</td><td>Left Stick</td></tr>
         <tr><td class="m">radar_hold</td><td class="m">TARGETING</td><td class="m">Flight</td><td>Ctrl</td><td>D-Pad Up</td></tr>
         <tr><td class="m">radar_clear</td><td class="m">TARGETING</td><td class="m">Flight</td><td>Ctrl</td><td>D-Pad Up</td></tr>
         <tr><td class="m">component_next</td><td class="m">TARGETING</td><td class="m">Flight</td><td>] / Scroll Up</td><td>D-Pad Right</td></tr>
@@ -378,6 +378,17 @@
     steer a ship &mdash; only one of the two contexts is live. The two
     <code>Always</code> actions are the exceptions that stay reserved: the NOVA
     OS toggle on Right Thumb, the HUD cycle on View, plus the fixed Menu pause.
+  </p>
+  <p class="sub">
+    The two sticks are the two aiming gestures, and they were assigned by which
+    thumb is already there. <code>rcs_modifier</code> is the LEFT stick&rsquo;s
+    own click, so the thumb that engages RCS is on the stick that steers it;
+    the camera keeps the right. Neither is a discrete source, so nothing about
+    the pairing can collide in <code>conflicts()</code> or be captured by a
+    rebind row. The mouse half and the stick half meet at one observer: it is
+    written for a per-frame DELTA and scales what it is handed down, so the
+    stick binding cancels that scale &mdash; a held deflection has to arrive as
+    intent directly, or full lean would be 3% of a translation.
   </p>
   <p class="sub">
     A pad runs out before the app verbs do. <code>ViewerApp</code> DOES overlap

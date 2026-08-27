@@ -228,10 +228,12 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     bindings.bundle("rcs_modifier"),
                 ),
                 (
-                    // The RCS aim: raw mouse motion, accumulated into RcsIntent's
-                    // XZ plane while RCS is held. Shares mouse_motion with the
-                    // camera rig (consume_input: false); the camera's consumer is
-                    // frozen during RCS so this is the only reader that acts.
+                    // The RCS aim: raw mouse motion or the left stick, read
+                    // into RcsIntent's XZ plane while RCS is held. Shares
+                    // mouse_motion with the camera rig (consume_input: false);
+                    // the camera's consumer is frozen during RCS so this is
+                    // the only reader that acts. The camera takes the RIGHT
+                    // stick, so the two never read the same axis.
                     Name::new("Input: RCS Aim"),
                     Action::<RcsAimInput>::new(),
                     ActionSettings {
@@ -240,7 +242,24 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     },
                     bindings.bundle_with(
                         "rcs_aim",
-                        Spawn((Binding::mouse_motion(), Scale::splat(1.0))),
+                        (
+                            Spawn((Binding::mouse_motion(), Scale::splat(1.0))),
+                            // The stick is a HELD position, not a delta, so it
+                            // is scaled to arrive as intent directly and the Y
+                            // half is inverted: a stick reads +up, and the
+                            // observer wants the mouse's +down.
+                            Axial {
+                                x: (
+                                    Binding::from(GamepadAxis::LeftStickX),
+                                    Scale::splat(RCS_STICK_SCALE),
+                                ),
+                                y: (
+                                    Binding::from(GamepadAxis::LeftStickY),
+                                    Scale::splat(RCS_STICK_SCALE),
+                                    Negate::all(),
+                                ),
+                            },
+                        ),
                     ),
                 ),
             ]
@@ -510,6 +529,16 @@ pub(super) fn on_autopilot_off_input(
 /// so a deliberate sweep crosses the range and a twitch barely moves it.
 /// Feel-tunable (nudged up 0.02 -> 0.03 in).
 const RCS_AIM_SENSITIVITY: f32 = 0.03;
+
+/// What a stick deflection is multiplied by before [`on_rcs_aim`] divides it
+/// back down again.
+///
+/// The observer is written for a mouse DELTA and scales what it is handed by
+/// [`RCS_AIM_SENSITIVITY`]. A stick already speaks the observer's own -1..1
+/// language, so its binding cancels that scale: full deflection is full
+/// intent, and one observer serves both devices without asking which sent the
+/// value.
+const RCS_STICK_SCALE: f32 = 1.0 / RCS_AIM_SENSITIVITY;
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
 /// grants the RCS verb, mark it [`RcsActive`] (the modal gate the helm, camera
@@ -1043,6 +1072,79 @@ mod tests {
             intent.z, 0.0,
             "the second motion had no forward component, so z is set back to 0 (got {})",
             intent.z
+        );
+    }
+
+    /// The pad's half of the same gesture: click the left stick to engage RCS,
+    /// then push it to translate. The stick is a HELD position where the mouse
+    /// is a delta, so the binding cancels the observer's mouse sensitivity -
+    /// full deflection has to be full intent, not 3% of it.
+    #[test]
+    fn rcs_left_stick_drives_the_plane_only_while_active() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_modifier_released);
+        app.add_observer(on_rcs_aim);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(RcsIntent::default());
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        let pad = app.world_mut().spawn(Gamepad::default()).id();
+        app.update();
+
+        // Upstream reads a pad through its ANALOG values, digital included, so
+        // a test that only pressed `digital` would drive nothing here.
+        let push = |app: &mut App, x: f32, y: f32| {
+            let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+            gamepad.analog_mut().set(GamepadAxis::LeftStickX, x);
+            gamepad.analog_mut().set(GamepadAxis::LeftStickY, y);
+        };
+        let click = |app: &mut App, down: bool| {
+            let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+            gamepad
+                .analog_mut()
+                .set(GamepadButton::LeftThumb, if down { 1.0 } else { 0.0 });
+        };
+
+        push(&mut app, 0.6, 0.0);
+        app.update();
+        assert_eq!(
+            app.world().get::<RcsIntent>(ship).unwrap().0,
+            Vec3::ZERO,
+            "the stick is ignored outside RCS mode"
+        );
+
+        click(&mut app, true);
+        app.update();
+        push(&mut app, 0.6, 0.6);
+        app.update();
+        let intent = app.world().get::<RcsIntent>(ship).unwrap().0;
+        assert!(intent.x > 0.0, "stick-right strafes +X (got {intent:?})");
+        assert!(
+            intent.z < 0.0,
+            "stick-forward drives the ship forward, -Z, as mouse-up does (got {intent:?})"
+        );
+        assert_eq!(intent.y, 0.0, "the stick does not touch the vertical axis");
+
+        push(&mut app, 1.0, 0.0);
+        app.update();
+        let intent = app.world().get::<RcsIntent>(ship).unwrap().0;
+        assert!(
+            (intent.x - 1.0).abs() < 1e-4,
+            "full deflection is full intent, not {}",
+            intent.x
         );
     }
 
