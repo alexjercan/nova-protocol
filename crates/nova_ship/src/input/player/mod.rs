@@ -13,12 +13,13 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
+use nova_input::prelude::*;
 
 pub mod flight_rig;
 mod hints;
 pub mod intent;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 mod weapons;
 
 use flight_rig::{
@@ -38,27 +39,23 @@ use weapons::{
     on_turret_input_completed, ThrusterInputMarker, TorpedoInputMarker, TurretInputMarker,
 };
 
-#[cfg(test)]
-pub(crate) use self::flight_rig::flight_input_rig;
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
-    hints::{
-        binding_label, binding_source, flight_rig_reserved_sources, keyboard_label,
-        FlightVerbHints, InputSource, VerbHint,
-    },
+    hints::{FlightVerbHints, VerbHint},
     weapons::{
         SectionInputBindingChanged, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
         SpaceshipTurretInputBinding,
     },
 };
+use crate::input::bindings::flight_bindings;
 
 /// The input sources and per-verb bindings, the verb hints and
 /// `SpaceshipPlayerInputPlugin`.
 pub mod prelude {
     pub use super::{
-        binding_label, binding_source, flight_rig_reserved_sources, FlightVerbHints, InputSource,
-        SectionInputBindingChanged, SpaceshipPlayerInputPlugin, SpaceshipThrusterInputBinding,
-        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding, VerbHint,
+        FlightVerbHints, SectionInputBindingChanged, SpaceshipPlayerInputPlugin,
+        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        VerbHint,
     };
 }
 
@@ -71,6 +68,7 @@ impl Plugin for SpaceshipPlayerInputPlugin {
     fn build(&self, app: &mut App) {
         trace!("SpaceshipPlayerInputPlugin: build");
 
+        app.register_input_actions(flight_bindings());
         app.add_message::<SectionInputBindingChanged>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);

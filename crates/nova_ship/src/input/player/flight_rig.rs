@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 
 use crate::{
     input::targeting::{
@@ -70,6 +71,7 @@ pub(super) fn on_player_added_spawn_flight_input(
     add: On<Add, PlayerSpaceshipMarker>,
     mut commands: Commands,
     q_existing: Query<(), With<FlightInputMarker>>,
+    bindings: Res<InputBindings>,
 ) {
     trace!(
         "on_player_added_spawn_flight_input: entity {:?}",
@@ -80,12 +82,17 @@ pub(super) fn on_player_added_spawn_flight_input(
         return;
     }
 
-    commands.spawn(flight_input_rig());
+    commands.spawn(flight_input_rig(&bindings));
 }
 
-/// The flight rig bundle: all flight actions and their bindings. A named
+/// The flight rig bundle: all flight actions, bound from the registry. A named
 /// fn (not inlined in the observer) so the input tests can spawn the REAL
 /// rig and drive it with simulated devices.
+///
+/// Discrete buttons come from [`InputBindings`] by action name, so a remap
+/// reaches the rig without editing this file. Axis bindings stay here: they
+/// carry modifiers only the rig understands, no rebind row can capture one,
+/// and nothing collides on them.
 ///
 /// The CTRL layer (cycle the SHIP lock instead of components) is NOT
 /// expressed as input conditions: a binding-level Chord ignores the binding's
@@ -94,7 +101,7 @@ pub(super) fn on_player_added_spawn_flight_input(
 /// Instead the modifier is a plain action whose state the cycle observers
 /// READ (input/targeting/component_lock.rs dispatch): plain wheel/brackets step components,
 /// the same gesture with the modifier held steps the ship lock.
-pub(crate) fn flight_input_rig() -> impl Bundle {
+pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
     (
         Name::new("Input: Flight"),
         FlightInputMarker,
@@ -107,11 +114,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        KeyCode::KeyW,
-                        KeyCode::Space,
-                        GamepadButton::RightTrigger
-                    ],
+                    bindings.bundle("main_drive"),
                 ),
                 (
                     Name::new("Input: Autopilot Stop"),
@@ -120,7 +123,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::KeyX, GamepadButton::East],
+                    bindings.bundle("autopilot_stop"),
                 ),
                 (
                     Name::new("Input: Autopilot Goto"),
@@ -129,7 +132,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::KeyG, GamepadButton::North],
+                    bindings.bundle("autopilot_goto"),
                 ),
                 (
                     Name::new("Input: Autopilot Orbit"),
@@ -138,10 +141,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    // South: the scenario-advance confirm (loader.rs) was moved
-                    // off South to DPadDown so this pad press cannot both skip
-                    // the scenario and toggle a parking maneuver.
-                    bindings![KeyCode::KeyO, GamepadButton::South],
+                    bindings.bundle("autopilot_orbit"),
                 ),
                 (
                     Name::new("Input: Autopilot Off"),
@@ -150,7 +150,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![KeyCode::KeyZ, GamepadButton::West],
+                    bindings.bundle("autopilot_off"),
                 ),
                 (
                     // The radar hold: Start = search opens (slot latched),
@@ -166,11 +166,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        KeyCode::ControlLeft,
-                        KeyCode::ControlRight,
-                        GamepadButton::DPadUp
-                    ],
+                    bindings.bundle("radar_hold"),
                 ),
                 (
                     // The tap clear, same key + threshold const as the hold
@@ -182,11 +178,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        KeyCode::ControlLeft,
-                        KeyCode::ControlRight,
-                        GamepadButton::DPadUp
-                    ],
+                    bindings.bundle("radar_clear"),
                 ),
                 (
                     Name::new("Input: Component Cycle Next"),
@@ -198,11 +190,10 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                     // Scroll up = next: the wheel is an axis (y = vertical),
                     // so swizzle y into the action value and clamp away the
                     // opposite direction so only up-scrolls actuate.
-                    bindings![
-                        KeyCode::BracketRight,
-                        GamepadButton::DPadRight,
-                        (Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos()),
-                    ],
+                    bindings.bundle_with(
+                        "component_next",
+                        Spawn((Binding::mouse_wheel(), SwizzleAxis::YXZ, Clamp::pos())),
+                    ),
                 ),
                 (
                     Name::new("Input: Component Cycle Prev"),
@@ -213,16 +204,15 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                     },
                     // Scroll down = prev: negate the (swizzled) wheel axis so
                     // down-scrolls become positive, then clamp like above.
-                    bindings![
-                        KeyCode::BracketLeft,
-                        GamepadButton::DPadLeft,
-                        (
+                    bindings.bundle_with(
+                        "component_prev",
+                        Spawn((
                             Binding::mouse_wheel(),
                             SwizzleAxis::YXZ,
                             Negate::all(),
-                            Clamp::pos()
-                        ),
-                    ],
+                            Clamp::pos(),
+                        )),
+                    ),
                 ),
                 (
                     // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
@@ -235,11 +225,7 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    bindings![
-                        KeyCode::ShiftLeft,
-                        KeyCode::ShiftRight,
-                        GamepadButton::LeftTrigger2
-                    ],
+                    bindings.bundle("rcs_modifier"),
                 ),
                 (
                     // The RCS aim: raw mouse motion, accumulated into RcsIntent's
@@ -252,7 +238,10 @@ pub(crate) fn flight_input_rig() -> impl Bundle {
                         consume_input: false,
                         ..default()
                     },
-                    Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(1.0)))),
+                    bindings.bundle_with(
+                        "rcs_aim",
+                        Spawn((Binding::mouse_motion(), Scale::splat(1.0))),
+                    ),
                 ),
             ]
         ),
@@ -581,7 +570,7 @@ mod tests {
     use super::*;
     use crate::input::player::{
         hints::update_flight_verb_hints,
-        test_support::{hint_world, spawn_flyable_ship},
+        test_support::{hint_world, spawn_flight_rig, spawn_flyable_ship},
     };
 
     /// End-to-end through the REAL flight rig and EnhancedInputPlugin: a GOTO
@@ -615,7 +604,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         // Press G with GOTO withheld: nothing engages.
@@ -675,7 +664,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         // Open the NOVA OS, then press the throttle: intent stays put.
@@ -745,7 +734,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         // Press SHIFT: RCS entered, autopilot gone.
@@ -812,7 +801,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         app.world_mut()
@@ -851,7 +840,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         // Not in RCS yet: mouse motion must not move the intent.
@@ -931,7 +920,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         let scroll_up = |app: &mut App| {

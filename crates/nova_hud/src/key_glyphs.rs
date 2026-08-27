@@ -14,7 +14,7 @@
 //! (in `nova_assets`) pins the two together.
 //!
 //! Keys are addressed by their DISPLAY LABEL - the string
-//! `nova_ship::input::player`'s `keyboard_label` produces for a `KeyCode`
+//! `nova_input`'s `keyboard_label` produces for a `KeyCode`
 //! (`"X"`, `"Space"`, `"ControlLeft"`), plus the handful of fixed pseudo-labels
 //! the flight rig uses for gestures that have no single key (`"CTRL"`,
 //! `"SHIFT"`, `"SCROLL"`). That is exactly what `FlightVerbHints` carries, so
@@ -272,7 +272,8 @@ impl KeyGlyphs {
 
 #[cfg(test)]
 mod tests {
-    use nova_ship::input::player::flight_rig_reserved_sources;
+    use nova_input::prelude::{keyboard_label, InputSource};
+    use nova_ship::prelude::flight_rig_reserved_sources;
 
     use super::*;
 
@@ -286,11 +287,10 @@ mod tests {
         // The rig's real keyboard bindings, labelled by the PRODUCTION labeller
         // the hints use - a local reimplementation would keep this green while
         // a change to the real labels broke the runtime lookup.
-        let label = nova_ship::input::player::keyboard_label;
         let bound: Vec<String> = flight_rig_reserved_sources()
             .into_iter()
             .filter_map(|(source, _)| match source {
-                nova_ship::input::player::InputSource::Keyboard(key) => Some(label(key)),
+                InputSource::Keyboard(key) => Some(keyboard_label(key)),
                 _ => None,
             })
             .collect();

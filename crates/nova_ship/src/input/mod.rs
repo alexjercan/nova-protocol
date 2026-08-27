@@ -14,6 +14,7 @@
 use bevy::prelude::*;
 
 pub mod ai;
+pub mod bindings;
 pub mod player;
 pub mod point_defense;
 mod reference;
@@ -24,6 +25,7 @@ pub mod targeting;
 pub mod prelude {
     pub use super::{
         ai::prelude::*,
+        bindings::{camera_bindings, flight_bindings, flight_rig_reserved_sources},
         player::prelude::*,
         point_defense::prelude::*,
         reference::{keybind_reference, KeybindEntry},

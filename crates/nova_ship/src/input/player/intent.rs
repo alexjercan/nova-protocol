@@ -8,7 +8,7 @@ use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 
 #[cfg(test)]
-use super::flight_rig::{flight_input_rig, FlightInputMarker};
+use super::flight_rig::FlightInputMarker;
 use crate::prelude::*;
 
 /// System that takes the point rotation output from the chase camera and applies it to the
@@ -598,8 +598,10 @@ mod command_lag_tests {
     use core::time::Duration;
 
     use bevy::time::TimeUpdateStrategy;
+    use nova_input::prelude::{binding_source, InputSource};
 
     use super::*;
+    use crate::input::player::test_support::spawn_flight_rig;
 
     /// The drift guard for [`flight_rig_reserved_sources`]: build the REAL
     /// flight rig and confirm the hand-authored reserved list names exactly the
@@ -621,7 +623,7 @@ mod command_lag_tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         let mut rig_sources: HashSet<InputSource> = HashSet::new();

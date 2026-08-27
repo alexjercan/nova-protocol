@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
+use nova_input::prelude::{binding_source, InputSource};
 use nova_ship::prelude::*;
 
 use super::ShipRuntime;

@@ -180,6 +180,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::input::player::test_support::spawn_flight_rig;
 
     /// Count of [`RadarLockAcquired`] cues seen, drained by a test-local
     /// reader system so the once-per-gesture contract is observable across
@@ -204,7 +205,7 @@ mod tests {
     fn gesture_app() -> (App, Entity) {
         use bevy::input::InputPlugin;
 
-        use crate::input::player::{flight_input_rig, FlightInputMarker};
+        use crate::input::player::FlightInputMarker;
 
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
@@ -284,7 +285,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
         (app, ship)
     }

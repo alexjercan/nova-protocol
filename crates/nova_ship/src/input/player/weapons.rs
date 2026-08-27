@@ -318,6 +318,8 @@ pub(super) fn on_torpedo_input_completed(
 
 #[cfg(test)]
 mod tests {
+    use nova_input::prelude::{binding_source, InputSource};
+
     use super::*;
 
     #[test]

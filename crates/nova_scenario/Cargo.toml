@@ -14,6 +14,7 @@ rand = { version = "0.10.2" }
 noise = { version = "0.9" }
 bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
 nova_events = { path = "../nova_events" }
+nova_input = { path = "../nova_input" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship", features = ["serde"] }
 nova_hud = { path = "../nova_hud" }

@@ -4,11 +4,20 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 
 use super::flight_rig::{
-    AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput, AutopilotStopInput,
+    flight_input_rig, AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput,
+    AutopilotStopInput,
 };
-use crate::prelude::*;
+use crate::{input::bindings::flight_bindings, prelude::*};
+
+/// Spawn the REAL flight rig, bound from the REAL defaults. Every rig test
+/// goes through here so none of them can drift from what the game ships.
+pub(crate) fn spawn_flight_rig(app: &mut App) -> Entity {
+    let bindings = InputBindings::from_actions(flight_bindings());
+    app.world_mut().spawn(flight_input_rig(&bindings)).id()
+}
 
 /// A world with the flight rig's four autopilot actions bound as in
 /// the real rig, plus the resources the resolver reads.

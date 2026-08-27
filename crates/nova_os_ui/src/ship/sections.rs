@@ -11,6 +11,7 @@ use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_enhanced_input::prelude::Binding;
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::binding_source;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 

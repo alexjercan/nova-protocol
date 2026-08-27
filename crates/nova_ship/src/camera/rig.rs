@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 
 use super::{chase::ChaseCamera, handback::CameraHandbackBlend};
 
@@ -162,6 +163,7 @@ pub(super) fn insert_player_input(
     add: On<Add, SpaceshipCameraController>,
     mut commands: Commands,
     q_camera: Query<Entity, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
+    bindings: Res<InputBindings>,
 ) {
     let entity = add.entity;
     trace!("insert_camera_turret: entity {:?}", entity);
@@ -184,23 +186,29 @@ pub(super) fn insert_player_input(
                     (
                         Name::new("Input: Camera Rotate"),
                         Action::<CameraInputRotate>::new(),
-                        Bindings::spawn((
-                            // Bevy requires single entities to be wrapped in
-                            // `Spawn`. You can attach modifiers to individual
-                            // bindings as well.
-                            Spawn((Binding::mouse_motion(), Scale::splat(0.001), Negate::all())),
-                            Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
-                        )),
+                        // The two look axes carry modifiers per binding, so
+                        // they are spawned beside whatever the registry holds.
+                        bindings.bundle_with(
+                            "camera_rotate",
+                            (
+                                Spawn((
+                                    Binding::mouse_motion(),
+                                    Scale::splat(0.001),
+                                    Negate::all(),
+                                )),
+                                Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
+                            ),
+                        ),
                     ),
                     (
                         Name::new("Input: Free Look Mode"),
                         Action::<FreeLookInput>::new(),
-                        bindings![KeyCode::AltLeft, GamepadButton::LeftTrigger],
+                        bindings.bundle("free_look"),
                     ),
                     (
                         Name::new("Input: Combat Mode"),
                         Action::<CombatInput>::new(),
-                        bindings![MouseButton::Right, GamepadButton::LeftTrigger2],
+                        bindings.bundle("combat_stance"),
                     ),
                 ]
             ),

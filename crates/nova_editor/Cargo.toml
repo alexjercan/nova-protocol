@@ -11,6 +11,7 @@ avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 bevy_enhanced_input = { version = "0.26.0" }
 rand = { version = "0.10.2" }
+nova_input = { path = "../nova_input" }
 nova_assets = { path = "../nova_assets" }
 nova_gameplay = { path = "../nova_gameplay" }
 # The save file IS the mod format: `Content`, its RON writer and its reader.

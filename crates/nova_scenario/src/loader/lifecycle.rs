@@ -6,6 +6,7 @@ use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
+use nova_input::prelude::*;
 use nova_ship::prelude::*;
 
 use super::{scenario_is_live, ScenarioLoaded};
@@ -187,6 +188,7 @@ pub(super) fn on_load_scenario(
     ships: Option<Res<GameShips>>,
     scenarios: Option<Res<GameScenarios>>,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
+    bindings: Res<InputBindings>,
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
     // start - better a clear failure than a silently half-spawned scene.
@@ -275,8 +277,7 @@ pub(super) fn on_load_scenario(
             ScenarioInputMarker[(
                 Name::new("Input: Next Scenario"),
                 Action::<NextScenarioInput>::new(),
-                // DPadDown: moved off South, which ORBIT now uses (input/player/flight_rig.rs).
-                bindings![KeyCode::Enter, GamepadButton::DPadDown]
+                bindings.bundle("scenario_advance")
             )]
         ),
     ));
@@ -365,6 +366,18 @@ pub(super) struct ScenarioInputMarker;
 #[derive(InputAction)]
 #[action_output(bool)]
 pub(super) struct NextScenarioInput;
+
+/// The scenario layer's own action: advance past the beat on screen.
+///
+/// DPadDown, not South: South is ORBIT on the flight rig, and one pad press
+/// must not both skip the scenario and park the ship.
+pub(crate) fn scenario_bindings() -> Vec<ActionBinding> {
+    vec![
+        ActionBinding::new("scenario_advance", "SCENARIO", "Advance")
+            .keyboard([InputSource::Keyboard(KeyCode::Enter)])
+            .gamepad([InputSource::Gamepad(GamepadButton::DPadDown)]),
+    ]
+}
 
 /// What the scenario-advance input does, given the current state. Extracted
 /// from the observer so the decision table is unit-testable (synthesizing a
@@ -513,6 +526,7 @@ mod tests {
                 message: None,
                 auto_advance_secs: None,
             })));
+            app.register_input_actions(scenario_bindings());
             app.add_observer(on_load_scenario);
             app
         };
@@ -592,6 +606,7 @@ mod tests {
         app.init_resource::<ScenarioStartFailure>();
         // Deliberately no ContentIssues: nothing has filed a finding under this
         // id, which is exactly the editor's position.
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
 
         let scenario = ScenarioConfig {
@@ -646,6 +661,7 @@ mod tests {
         app.init_resource::<CurrentScenario>();
         app.init_resource::<GameObjectives>();
         app.init_resource::<ScenarioStartFailure>();
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
 
         let scenario = ScenarioConfig {
@@ -692,6 +708,7 @@ mod tests {
         app.init_resource::<CurrentScenario>();
         // state_to_world_system mirrors objectives unconditionally.
         app.init_resource::<GameObjectives>();
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
 
         app.world_mut().trigger(LoadScenario(ScenarioConfig {
@@ -833,6 +850,7 @@ mod tests {
         // SpaceshipSectionSystems, which only ticks while a scenario is live.
         configure_scenario_gating(&mut app);
         app.add_plugins(TorpedoSectionPlugin { render: false });
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
         register_scenario_scoping(&mut app);
         app.finish();
@@ -940,6 +958,7 @@ mod tests {
         app.init_resource::<GameObjectives>();
         // The production spawner and the production scoping wiring.
         app.add_plugins(SfxPlugin);
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
         register_scenario_scoping(&mut app);
         // The first manual-Time frame runs at dt 0; warm up before asserting.
@@ -1150,6 +1169,7 @@ mod tests {
         app.init_resource::<CurrentScenario>();
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveRepaints>();
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
         app.add_systems(
             Update,
@@ -1354,6 +1374,7 @@ mod tests {
             bevy::asset::AssetPlugin::default(),
         ));
         app.init_resource::<NovaEventWorld>();
+        app.register_input_actions(scenario_bindings());
         app.add_observer(on_load_scenario);
         app.add_observer(unload_scenario);
 

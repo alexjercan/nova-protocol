@@ -1,0 +1,18 @@
+[package]
+name = "nova_input"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The bindings registry: named player actions, the sources they occupy, and the rigs built from them"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+bevy_enhanced_input = { version = "0.26.0" }
+serde = { version = "1", features = ["derive"], optional = true }
+
+[lints]
+workspace = true
+
+[features]
+serde = ["dep:serde", "bevy/serialize"]

@@ -275,6 +275,9 @@ impl AppBuilder {
 
         self.app
             .add_plugins(bevy_enhanced_input::EnhancedInputPlugin);
+        // The bindings registry is a leaf: it holds the table every rig is
+        // built from, so it lands before any plugin that registers an action.
+        self.app.add_plugins(nova_input::NovaInputPlugin);
         self.app.add_plugins(GameAssetsPlugin);
         self.app.add_plugins(LoadingScreenPlugin);
         self.app.add_plugins(NovaGameplayPlugin {

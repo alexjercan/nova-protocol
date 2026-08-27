@@ -19,6 +19,7 @@ serde = { version = "1", features = ["derive"] }
 clap = { version = "4.5.48", features = ["derive"] }
 # The reference-scope checks (mod_refs) and the atomic write `gen` commits
 # through - the runtime asset stack owns both, so the tool sits above it.
+nova_input = { path = "../nova_input" }
 nova_assets = { path = "../nova_assets" }
 nova_gameplay = { path = "../nova_gameplay" }
 # The section catalog the builders write IS `nova_ship`'s config vocabulary, and

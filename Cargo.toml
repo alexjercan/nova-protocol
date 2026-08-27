@@ -642,6 +642,10 @@ members = [
   "crates/nova_gameplay",
   "crates/nova_hud",
   "crates/nova_info",
+  # The bindings registry every input rig is built from. A LEAF on purpose:
+  # bevy + bevy_enhanced_input only, so nova_ship, nova_scenario and all three
+  # rebind surfaces can draw from one source without a cycle.
+  "crates/nova_input",
   "crates/nova_menu",
   "crates/nova_mod_format",
   "crates/nova_modding",

@@ -9,6 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use nova_input::prelude::{binding_source, InputSource};
 use nova_mod_format::{BundleManifest, BASE_MOD_ID};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
@@ -16,7 +17,7 @@ use nova_scenario::prelude::{
     KnownSections, KnownShips, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
     ShipConfig, SpaceshipController,
 };
-use nova_ship::prelude::{binding_source, flight_rig_reserved_sources, InputSource, SectionConfig};
+use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},

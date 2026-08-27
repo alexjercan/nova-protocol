@@ -23,8 +23,9 @@ use bevy::{
         ReflectMut, ReflectRef, TypeInfo,
     },
 };
+use nova_input::prelude::binding_label;
 use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
-use nova_ship::prelude::{binding_label, GameSections, SectionConfig, SectionKind};
+use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
 use crate::{
     config::SelectedNode,

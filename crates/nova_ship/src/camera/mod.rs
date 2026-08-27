@@ -17,6 +17,9 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
+use nova_input::prelude::*;
+
+use crate::input::bindings::camera_bindings;
 
 mod authority;
 pub mod chase;
@@ -77,6 +80,8 @@ pub struct SpaceshipCameraControllerPlugin;
 impl Plugin for SpaceshipCameraControllerPlugin {
     fn build(&self, app: &mut App) {
         trace!("SpaceshipCameraControllerPlugin: build");
+
+        app.register_input_actions(camera_bindings());
 
         app.init_resource::<SpaceshipCameraControlMode>();
         app.add_input_context::<PlayerInputMarker>();

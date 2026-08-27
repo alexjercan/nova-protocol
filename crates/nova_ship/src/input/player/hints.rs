@@ -4,12 +4,13 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 
-#[cfg(test)]
-use super::flight_rig::{flight_input_rig, FlightBurnInput, FlightInputMarker};
 use super::flight_rig::{
     AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput, AutopilotStopInput,
 };
+#[cfg(test)]
+use super::flight_rig::{FlightBurnInput, FlightInputMarker};
 use crate::prelude::*;
 
 /// One flight verb's hint state, for the keybind-hint HUD.
@@ -73,125 +74,6 @@ fn cycle_label(label: &str, rig_exists: bool) -> String {
     } else {
         String::new()
     }
-}
-
-/// A short chip label for a keyboard binding: `KeyX` -> `X`, `Digit1` -> `1`,
-/// everything else (Space, Enter...) as spelled. `nova_hud`'s key-glyph
-/// coverage test labels the real bindings with THIS function, so it crosses the
-/// HUD seam.
-pub fn keyboard_label(key: KeyCode) -> String {
-    let name = format!("{key:?}");
-    name.strip_prefix("Key")
-        .or_else(|| name.strip_prefix("Digit"))
-        .unwrap_or(&name)
-        .to_string()
-}
-
-/// A short display chip for a section's input binding (the editor keybind
-/// readout): the first keyboard or mouse binding in the list, keyboards via
-/// `keyboard_label` and mouse buttons as `LMB`/`RMB`/`MMB`. Empty string when
-/// there is no keyboard/mouse binding (e.g. gamepad-only).
-pub fn binding_label(bindings: &[Binding]) -> String {
-    bindings
-        .iter()
-        .find_map(|binding| match binding {
-            Binding::Keyboard { key, .. } => Some(keyboard_label(*key)),
-            Binding::MouseButton { button, .. } => Some(
-                match button {
-                    MouseButton::Left => "LMB",
-                    MouseButton::Right => "RMB",
-                    MouseButton::Middle => "MMB",
-                    _ => "MB",
-                }
-                .to_string(),
-            ),
-            _ => None,
-        })
-        .unwrap_or_default()
-}
-
-/// A physical input source - the discrete button a binding occupies, stripped
-/// of modifiers and gesture conditions. Two bindings that name the same source
-/// drive the same physical input; that is exactly the silent double-drive a
-/// content `input_mapping` must not create against the always-on flight rig.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum InputSource {
-    /// A keyboard key.
-    Keyboard(KeyCode),
-    /// A mouse button.
-    Mouse(MouseButton),
-    /// A gamepad button.
-    Gamepad(GamepadButton),
-}
-
-impl InputSource {
-    /// A short human label for the source (`W`, `Space`, `LMB`, `RightTrigger`).
-    pub fn label(&self) -> String {
-        match self {
-            InputSource::Keyboard(key) => keyboard_label(*key),
-            InputSource::Mouse(MouseButton::Left) => "LMB".to_string(),
-            InputSource::Mouse(MouseButton::Right) => "RMB".to_string(),
-            InputSource::Mouse(MouseButton::Middle) => "MMB".to_string(),
-            InputSource::Mouse(button) => format!("{button:?}"),
-            InputSource::Gamepad(button) => format!("{button:?}"),
-        }
-    }
-}
-
-/// The physical source a binding occupies, if it names a discrete button
-/// (keyboard / mouse / gamepad). Motion, wheel, stick-axis, `AnyKey`, custom
-/// and empty bindings have no single collision key and return `None`.
-pub fn binding_source(binding: &Binding) -> Option<InputSource> {
-    match binding {
-        Binding::Keyboard { key, .. } => Some(InputSource::Keyboard(*key)),
-        Binding::MouseButton { button, .. } => Some(InputSource::Mouse(*button)),
-        Binding::GamepadButton(button) => Some(InputSource::Gamepad(*button)),
-        _ => None,
-    }
-}
-
-/// The discrete input sources the always-on flight rig (`flight_input_rig`)
-/// reserves, each paired with the flight verb it drives. Every action in that
-/// rig runs with `consume_input: false`, so a content `input_mapping` section
-/// that reuses one of these sources SILENTLY double-drives flight (bug:
-/// "guns" on Space burned the ship off its mark and broke the 10_playable CI
-/// smoke; lesson `input-mapping-overlays-flight-rig`). The content lint's
-/// input-overlap check flags exactly this set; the
-/// `flight_rig_reserves_exactly_these_sources` test in this module pins the
-/// list against the REAL rig so authoring and lint cannot drift apart. Wheel
-/// and motion sources (component cycle, RCS aim) are deliberately absent:
-/// they are axes, not discrete buttons a section binding collides on.
-pub fn flight_rig_reserved_sources() -> Vec<(InputSource, &'static str)> {
-    use InputSource::{Gamepad, Keyboard};
-    vec![
-        (Keyboard(KeyCode::KeyW), "flight burn"),
-        (Keyboard(KeyCode::Space), "flight burn"),
-        (Gamepad(GamepadButton::RightTrigger), "flight burn"),
-        (Keyboard(KeyCode::KeyX), "autopilot stop"),
-        (Gamepad(GamepadButton::East), "autopilot stop"),
-        (Keyboard(KeyCode::KeyG), "autopilot goto"),
-        (Gamepad(GamepadButton::North), "autopilot goto"),
-        (Keyboard(KeyCode::KeyO), "autopilot orbit"),
-        (Gamepad(GamepadButton::South), "autopilot orbit"),
-        (Keyboard(KeyCode::KeyZ), "autopilot off"),
-        (Gamepad(GamepadButton::West), "autopilot off"),
-        (
-            Keyboard(KeyCode::ControlLeft),
-            "radar hold / lock-cycle modifier",
-        ),
-        (
-            Keyboard(KeyCode::ControlRight),
-            "radar hold / lock-cycle modifier",
-        ),
-        (Gamepad(GamepadButton::DPadUp), "radar hold"),
-        (Keyboard(KeyCode::BracketRight), "component cycle next"),
-        (Gamepad(GamepadButton::DPadRight), "component cycle next"),
-        (Keyboard(KeyCode::BracketLeft), "component cycle prev"),
-        (Gamepad(GamepadButton::DPadLeft), "component cycle prev"),
-        (Keyboard(KeyCode::ShiftLeft), "RCS modifier"),
-        (Keyboard(KeyCode::ShiftRight), "RCS modifier"),
-        (Gamepad(GamepadButton::LeftTrigger2), "RCS modifier"),
-    ]
 }
 
 /// Resolve the verb hints from the live world: availability from the same
@@ -346,7 +228,7 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::input::player::test_support::{hint_world, spawn_flyable_ship};
+    use crate::input::player::test_support::{hint_world, spawn_flight_rig, spawn_flyable_ship};
 
     #[test]
     fn reference_rows_track_the_flight_rig() {
@@ -360,7 +242,7 @@ mod tests {
         app.finish();
         app.cleanup();
         app.update();
-        app.world_mut().spawn(flight_input_rig());
+        spawn_flight_rig(&mut app);
         app.update();
 
         // The first keyboard key the rig binds to an action (its primary key,
@@ -446,27 +328,6 @@ mod tests {
                 row.keyboard
             );
         }
-    }
-
-    #[test]
-    fn binding_label_shows_the_first_keyboard_or_mouse_input() {
-        assert_eq!(
-            binding_label(&[Binding::from(KeyCode::KeyW)]),
-            "W",
-            "keyboard keys drop the Key/Digit prefix"
-        );
-        assert_eq!(binding_label(&[Binding::from(MouseButton::Left)]), "LMB");
-        // First bindable input wins; a keyboard key ahead of a gamepad button.
-        assert_eq!(
-            binding_label(&[
-                Binding::from(KeyCode::Space),
-                Binding::from(GamepadButton::South),
-            ]),
-            "Space"
-        );
-        // Gamepad-only / empty -> no chip.
-        assert_eq!(binding_label(&[Binding::from(GamepadButton::South)]), "");
-        assert_eq!(binding_label(&[]), "");
     }
 
     #[test]

@@ -5,6 +5,7 @@
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use bevy_enhanced_input::prelude::Binding;
+use nova_input::prelude::{binding_label, binding_source};
 use nova_ship::prelude::*;
 use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
 
@@ -423,6 +424,7 @@ pub(crate) fn apply_section_rebind(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_input::prelude::InputSource;
     use nova_scenario::prelude::SectionSource;
 
     use super::*;
@@ -666,7 +668,7 @@ mod tests {
         let section = turret(&mut world, vec![Binding::from(MouseButton::Left)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
-        // "flight burn" - see `flight_rig_reserved_sources`.
+        // Space is the main drive - see `flight_rig_reserved_sources`.
         input.press(KeyCode::Space);
         world.insert_resource(input);
         world.init_resource::<ButtonInput<MouseButton>>();
@@ -687,8 +689,15 @@ mod tests {
             .resource::<crate::config::EditorStatus>()
             .line()
             .expect("a shared key is reported on the line");
+        // The verb comes from the registry, not from a word spelled here: a
+        // renamed action must move this assertion with it, not break it.
+        let verb = flight_rig_reserved_sources()
+            .into_iter()
+            .find(|(source, _)| *source == InputSource::Keyboard(KeyCode::Space))
+            .map(|(_, verb)| verb)
+            .expect("the flight rig holds Space");
         assert!(
-            line.contains("Space") && line.contains("burn"),
+            line.contains("Space") && line.contains(verb),
             "a builder pressing a key the rig holds is owed the other thing it \
              does; the line read {line:?}"
         );

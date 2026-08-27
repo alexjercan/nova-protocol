@@ -13,6 +13,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::prelude::*;
@@ -32,7 +33,8 @@ pub(crate) use clock::tick_scenario_timers;
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
-    on_player_spaceship_spawned, register_scenario_scoping, unload_scenario, ScenarioInputMarker,
+    on_player_spaceship_spawned, register_scenario_scoping, scenario_bindings, unload_scenario,
+    ScenarioInputMarker,
 };
 use preload::register_scenario_preload;
 use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
@@ -494,6 +496,7 @@ impl Plugin for ScenarioLoaderPlugin {
 
         register_scenario_scoping(app);
 
+        app.register_input_actions(scenario_bindings());
         app.add_input_context::<ScenarioInputMarker>();
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
