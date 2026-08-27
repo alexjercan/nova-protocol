@@ -7,19 +7,21 @@
 
 use bevy::{
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{
         observe, Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
     },
 };
 use nova_gameplay::prelude::*;
+use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::*;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::{
     prelude::UiSkin,
     theme,
     widget::{
-        panel_header, segmented_container, segmented_option, separator, slider_track, ButtonValue,
-        Selected, UiText,
+        panel_header, segmented_container, segmented_container_wrapping, segmented_option,
+        segmented_option_fit, separator, slider_track, ButtonValue, Selected, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -104,6 +106,19 @@ pub(crate) struct SettingsActiveTab(pub(crate) SettingsTabKind);
 /// A tab-bar button: the tab it opens.
 #[derive(Component)]
 pub(crate) struct SettingsTab(pub(crate) SettingsTabKind);
+
+/// Which binding GROUP the Controls tab is showing.
+///
+/// The registry has eight groups and a panel has room for a dozen rows, so the
+/// tab shows one group at a time behind its own bar rather than one scroll of
+/// everything. Empty means "whichever group comes first", which is what a
+/// fresh install and a group that was removed both resolve to.
+#[derive(Resource, Default, PartialEq, Eq)]
+pub(crate) struct SettingsControlsGroup(pub(crate) &'static str);
+
+/// A Controls group-bar button: the group it opens.
+#[derive(Component)]
+pub(crate) struct ControlsGroupTab(pub(crate) &'static str);
 
 /// The container [`refresh_settings_tab`] owns the children of. Both entry
 /// points put it on their scrolling body, so one reconciler fills both.
@@ -274,6 +289,26 @@ pub(crate) fn on_settings_tab(
     commands.entity(entity).insert(Selected);
 }
 
+/// Open the clicked Controls group. The body is rebuilt from the resource, so
+/// the `Selected` highlight moves with it rather than being placed by hand.
+pub(crate) fn on_controls_group_tab(
+    activate: On<Activate>,
+    tabs: Query<&ControlsGroupTab>,
+    mut open: ResMut<SettingsControlsGroup>,
+    mut rebind: ResMut<PendingRebind>,
+) {
+    let Ok(tab) = tabs.get(activate.entity) else {
+        return;
+    };
+    if open.0 == tab.0 {
+        return;
+    }
+    open.0 = tab.0;
+    // Leaving a group with a chip armed would leave the next key press
+    // captured by a row nothing is showing.
+    disarm(&mut rebind);
+}
+
 /// Whether [`refresh_settings_tab`] has anything to redraw.
 ///
 /// Deliberately NOT armed by `MasterVolume`: the slider mutates it every frame
@@ -282,31 +317,47 @@ pub(crate) fn on_settings_tab(
 /// `button_on_setting`, so they need no rebuild either.
 pub(crate) fn settings_tab_dirty(
     active: Res<SettingsActiveTab>,
+    group: Res<SettingsControlsGroup>,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
     spawned: Query<(), Added<SettingsTabBody>>,
 ) -> bool {
-    active.is_changed() || bindings.is_changed() || rebind.is_changed() || !spawned.is_empty()
+    active.is_changed()
+        || group.is_changed()
+        || bindings.is_changed()
+        || rebind.is_changed()
+        || !spawned.is_empty()
 }
 
 /// Fill every [`SettingsTabBody`] with the open tab.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the reconciler draws every tab, so it reads every setting the panel shows"
+)]
 pub(crate) fn refresh_settings_tab(
     mut commands: Commands,
     bodies: Query<Entity, With<SettingsTabBody>>,
     active: Res<SettingsActiveTab>,
+    group: Res<SettingsControlsGroup>,
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     window_mode: Res<WindowModeSetting>,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
+    // Absent on a bare menu rig that never ran asset loading, which is exactly
+    // the text-chip fallback the keycap table is designed to degrade to.
+    hud_assets: Option<Res<NovaHudAssets>>,
 ) {
+    let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
     for body in &bodies {
         commands.entity(body).despawn_related::<Children>();
         commands.entity(body).with_children(|list| match active.0 {
             SettingsTabKind::Audio => build_audio_tab(list, *volume, *skin),
             SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
-            SettingsTabKind::Controls => build_controls_tab(list, &bindings, &rebind),
+            SettingsTabKind::Controls => {
+                build_controls_tab(list, &bindings, &rebind, group.0, glyphs, *skin);
+            }
             SettingsTabKind::Interface => build_interface_tab(list, *skin),
         });
     }
@@ -455,8 +506,8 @@ fn build_interface_tab(list: &mut ChildSpawnerCommands, skin: UiSkin) {
         });
 }
 
-/// CONTROLS - every rebindable action off the LIVE table, then the chords that
-/// are not actions at all.
+/// CONTROLS - one binding GROUP at a time, off the LIVE table, then the chords
+/// in that group that are not actions at all.
 ///
 /// A shadow row (`radar_clear`) is absent: it moves with the action it
 /// follows, so showing it would offer a second way to break one gesture.
@@ -464,6 +515,9 @@ fn build_controls_tab(
     list: &mut ChildSpawnerCommands,
     bindings: &InputBindings,
     rebind: &PendingRebind,
+    open_group: &str,
+    glyphs: Option<&KeyGlyphs>,
+    skin: UiSkin,
 ) {
     let mut groups = bindings.groups();
     for (group, ..) in FIXED_ROWS {
@@ -471,28 +525,41 @@ fn build_controls_tab(
             groups.push(group);
         }
     }
-    for group in groups {
-        list.spawn((
-            Name::new(format!("Controls Group: {group}")),
-            UiText,
-            Text::new(group),
-            TextFont {
-                font_size: FontSize::Px(11.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR_MUTED),
-            Node {
-                margin: UiRect::top(px(6)),
-                ..default()
-            },
-        ));
-        for action in bindings.rows().filter(|action| action.group == group) {
-            spawn_rebind_row(list, action, rebind);
+    // A group the table no longer carries falls back to the first, so a store
+    // written before a group was renamed opens on something rather than blank.
+    let Some(open) = groups
+        .iter()
+        .copied()
+        .find(|group| *group == open_group)
+        .or_else(|| groups.first().copied())
+    else {
+        return;
+    };
+
+    list.spawn((
+        Name::new("Controls Group Bar"),
+        segmented_container_wrapping(skin),
+    ))
+    .with_children(|bar| {
+        for group in &groups {
+            let mut button = bar.spawn((
+                Name::new(format!("Controls Group: {group}")),
+                segmented_option_fit(group),
+                ControlsGroupTab(group),
+                observe(on_controls_group_tab),
+            ));
+            if *group == open {
+                button.insert(Selected);
+            }
         }
-        for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(fixed, ..)| *fixed == group)
-        {
-            spawn_keybind_row(list, label, keyboard, gamepad);
-        }
+    });
+    list.spawn(separator());
+
+    for action in bindings.rows().filter(|action| action.group == open) {
+        spawn_rebind_row(list, action, rebind, glyphs);
+    }
+    for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(group, ..)| *group == open) {
+        spawn_keybind_row(list, label, keyboard, gamepad, glyphs);
     }
 
     list.spawn(separator());
@@ -642,6 +709,7 @@ fn spawn_rebind_row(
     list: &mut ChildSpawnerCommands,
     action: &ActionBinding,
     rebind: &PendingRebind,
+    glyphs: Option<&KeyGlyphs>,
 ) {
     list.spawn((
         Name::new(format!("Keybind: {}", action.label)),
@@ -677,38 +745,38 @@ fn spawn_rebind_row(
             action,
             RebindDevice::Desk,
             !action.keyboard.is_empty(),
-            &action.keyboard_display(),
+            &action.keyboard_chips(),
             rebind,
+            glyphs,
         );
         spawn_chip(
             row,
             action,
             RebindDevice::Pad,
             !action.gamepad.is_empty(),
-            &action.gamepad_display(),
+            &action.gamepad_chips(),
             rebind,
+            glyphs,
         );
     });
 }
 
 /// One device column of a rebind row: a button when the action holds a source
 /// there, plain text when it does not.
+///
+/// The button carries NO label of its own - [`spawn_binding_chips`] fills it
+/// with keycap pictures instead, which is why it is built from an empty
+/// `segmented_option`.
 fn spawn_chip(
     row: &mut ChildSpawnerCommands,
     action: &ActionBinding,
     device: RebindDevice,
     rebindable: bool,
-    display: &str,
+    chips: &[BindingChip],
     rebind: &PendingRebind,
+    glyphs: Option<&KeyGlyphs>,
 ) {
     let armed = rebind.armed_on(action.name, device);
-    let text = if armed {
-        device.prompt()
-    } else if display.is_empty() {
-        "-"
-    } else {
-        display
-    };
     // A fixed-width CELL, not a fixed-width chip: `segmented_option` brings its
     // own `Node` and a second one would replace the button's padding with this.
     let mut cell = row.spawn((
@@ -719,23 +787,26 @@ fn spawn_chip(
         },
     ));
     if !rebindable {
+        // The SAME chip, wearing the disabled face: a column an action cannot
+        // hold a button in still reads as a chip in the column, and the paint
+        // is what says it will not take a press. `InteractionDisabled` also
+        // stops it lighting under the pointer, which a bare frame could not.
         cell.with_children(|cell| {
             cell.spawn((
-                UiText,
-                Text::new(text.to_string()),
-                TextFont {
-                    font_size: FontSize::Px(13.0),
-                    ..default()
-                },
-                TextColor(theme::PHOSPHOR_MUTED),
-            ));
+                Name::new(format!("Controls Fixed: {} {:?}", action.name, device)),
+                segmented_option(""),
+                InteractionDisabled,
+            ))
+            .with_children(|slot| {
+                spawn_binding_chips(slot, chips, glyphs, theme::PHOSPHOR_MUTED);
+            });
         });
         return;
     }
     cell.with_children(|cell| {
         let mut chip = cell.spawn((
             Name::new(format!("Rebind: {} {:?}", action.name, device)),
-            segmented_option(text),
+            segmented_option(if armed { device.prompt() } else { "" }),
             RebindChip {
                 action: action.name,
                 device,
@@ -744,13 +815,68 @@ fn spawn_chip(
         ));
         if armed {
             chip.insert(Selected);
+        } else {
+            chip.with_children(|slot| {
+                spawn_binding_chips(slot, chips, glyphs, theme::SCREEN_TEXT);
+            });
         }
     });
+}
+
+/// Draw one binding column: a KEYCAP per chip where the pack has art for it,
+/// the chip's own text where it does not.
+///
+/// A keycap is sized off its measured cap rect ([`KeyCap::node`]), so the wide
+/// ones (Space, Shift, Tab) keep their proportions instead of being squashed
+/// into a square.
+fn spawn_binding_chips(
+    slot: &mut ChildSpawnerCommands,
+    chips: &[BindingChip],
+    glyphs: Option<&KeyGlyphs>,
+    text_color: Color,
+) {
+    if chips.is_empty() {
+        slot.spawn((
+            UiText,
+            Text::new("Unbound"),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(text_color),
+        ));
+        return;
+    }
+    for chip in chips {
+        let cap =
+            glyphs.and_then(|glyphs| chip.glyph.as_deref().and_then(|label| glyphs.get(label)));
+        match cap {
+            Some(cap) => {
+                let (image, node) = cap.node(CHIP_GLYPH_PX);
+                slot.spawn((Name::new(format!("Keycap: {}", chip.text)), image, node));
+            }
+            None => {
+                slot.spawn((
+                    UiText,
+                    Text::new(chip.text.clone()),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(text_color),
+                ));
+            }
+        }
+    }
 }
 
 /// How wide each device column of a Controls row is. Fixed so the two columns
 /// line up down the tab whatever a row happens to be bound to.
 const CHIP_WIDTH: f32 = 132.0;
+
+/// How tall a keycap picture is drawn in a Controls chip. Width follows the
+/// art, so this is the ONE number that sets the row rhythm.
+const CHIP_GLYPH_PX: f32 = 20.0;
 
 /// Load the persisted settings once at startup and write them into the live
 /// resources. A missing/corrupt store is a no-op (the resources keep their
@@ -942,19 +1068,20 @@ pub(crate) fn sync_volume_slider(
 const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[("SYSTEM", "Pause / Menu", "Esc", "Start")];
 
 /// One read-only keybind row: the action on the left, the keyboard and gamepad
-/// bindings on the right.
+/// bindings on the right, in the same two columns a rebindable row uses so the
+/// fixed chords line up with the ones above them.
 pub(crate) fn spawn_keybind_row(
     list: &mut ChildSpawnerCommands,
     action: &str,
     keyboard: &str,
     gamepad: &str,
+    glyphs: Option<&KeyGlyphs>,
 ) {
     list.spawn((
         Name::new(format!("Keybind: {action}")),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Row,
-            justify_content: JustifyContent::SpaceBetween,
             align_items: AlignItems::Center,
             column_gap: px(12),
             padding: UiRect::axes(px(2), px(3)),
@@ -970,32 +1097,37 @@ pub(crate) fn spawn_keybind_row(
                 ..default()
             },
             TextColor(theme::SCREEN_TEXT),
-        ));
-        row.spawn((
-            UiText,
-            Text::new(keyboard.to_string()),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR_MUTED),
             Node {
-                width: px(CHIP_WIDTH),
+                flex_grow: 1.0,
+                flex_basis: px(0),
                 ..default()
             },
         ));
-        row.spawn((
-            UiText,
-            Text::new(gamepad.to_string()),
-            TextFont {
-                font_size: FontSize::Px(13.0),
-                ..default()
-            },
-            TextColor(theme::PHOSPHOR_MUTED),
-            Node {
-                width: px(CHIP_WIDTH),
-                ..default()
-            },
-        ));
+        for (device, column) in [("Desk", keyboard), ("Pad", gamepad)] {
+            // A fixed chord is spelled, not bound, so it has no `InputSource`
+            // to label - the spelling IS the keycap key, which is why `Esc`
+            // sits in the glyph table beside `Escape`.
+            let chip = BindingChip {
+                text: column.to_string(),
+                glyph: Some(column.to_string()),
+            };
+            row.spawn((
+                Name::new(format!("Controls Cell: {action} {device}")),
+                Node {
+                    width: px(CHIP_WIDTH),
+                    ..default()
+                },
+            ))
+            .with_children(|cell| {
+                cell.spawn((
+                    Name::new(format!("Controls Fixed: {action} {device}")),
+                    segmented_option(""),
+                    InteractionDisabled,
+                ))
+                .with_children(|slot| {
+                    spawn_binding_chips(slot, &[chip], glyphs, theme::PHOSPHOR_MUTED);
+                });
+            });
+        }
     });
 }

@@ -156,8 +156,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The Controls list reads the bindings the game actually flies with, so a key
   it prints is the key that fires. It also names what it used to omit: RCS,
   the wheel's lock cycle, and the scenario advance.
-- The Settings panel scrolls, so a longer controls list cannot push Back off
-  the bottom of the card.
+- The Settings panel is sized for a binding row and holds that size, and its
+  body scrolls, so a longer list cannot push Back off the bottom of the card.
 - The comms stack drops its V and B keys. Dismissing the oldest card and
   skipping the backlog were near-identical shortcuts, and the paced window
   already flows on its own.
@@ -167,9 +167,15 @@ does NOT get an entry - and it is the only place they are written down.
 - Every key in the NOVA OS map and ship viewers is a named action - orbit, pan,
   cycle, GOTO, reload, repair, rebind - and the monitor's footer prints the key
   each one is bound to now.
+- The NOVA OS viewers answer a pad: orbit, pan, cycle, GOTO and reload reuse
+  the flight rig's buttons, which the context rule keeps from ever being live
+  beside them.
 - Settings opens on tabs - Audio, Graphics, Controls, Interface - and Controls
-  lists every action with its keyboard and pad binding, from the main menu and
-  the pause overlay alike.
+  lists one binding group at a time, from the main menu and the pause overlay
+  alike.
+- A Controls row draws the button it is bound to as a picture, keycap or pad
+  glyph, and a key that cannot move, like Escape, wears the same chip greyed
+  rather than plain text.
 - A binding moves by pressing its chip and then the key or pad button. A source
   another action already holds is refused by name, and Reset Defaults puts the
   whole table back.
@@ -200,9 +206,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Every named action declares WHEN it can fire, so the three actions bound to G
   never listen at once, and one check across the whole table catches two that
   can.
-- One vocabulary names a physical input everywhere: content bindings, the three
-  weapon components and all three rebind surfaces speak `nova_input`'s source
-  type, and the scenario format's private copy of it is gone.
+- One vocabulary names a physical input everywhere: content bindings, the
+  weapon components and every rebind surface speak `nova_input`'s source type.
+  The scenario format's private copy of it is gone.
 - The editor publishes its build state - armed tool, placement, gallery, edited
   ship, inspector rows, the status line - as read-only data the driven ranges
   wait on instead of counting frames.
@@ -218,6 +224,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A driven range presses an action by NAME - `press_action("radar_hold")` - and
   the registry decides which key that is. Twenty-six hardcoded copies of the
   binding table are gone from the fleet.
+- A pad-only action can be pressed by name too: the dispatcher connects a pad
+  and writes both halves of it, so a rig's hold condition runs on a synthesized
+  press.
 - The editor's section-key chip and the NOVA OS ship viewer's read the LIVE
   binding table rather than the shipped defaults, so a moved verb takes its
   conflict warning with it.

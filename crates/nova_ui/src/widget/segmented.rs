@@ -49,6 +49,32 @@ pub fn segmented_container(skin: UiSkin) -> impl Bundle {
     )
 }
 
+/// A [`segmented_container`] whose options WRAP onto further lines.
+///
+/// For a bar with more segments than a panel is wide - the Controls tab's
+/// group bar, which has one segment per binding group. A single-line container
+/// would push its last groups off the panel edge, where nothing can click
+/// them.
+pub fn segmented_container_wrapping(skin: UiSkin) -> impl Bundle {
+    let (bg, border, radius) = segmented_container_paint(skin);
+    (
+        Node {
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
+            column_gap: px(3),
+            row_gap: px(3),
+            padding: UiRect::all(px(3)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(radius)),
+            align_self: AlignSelf::Start,
+            ..default()
+        },
+        SegmentedSkin,
+        BorderColor::all(border),
+        BackgroundColor(bg),
+    )
+}
+
 /// Repaint LIVE segmented containers on a `UiSkin` change (their options ride
 /// the button reconciler).
 pub(super) fn reconcile_segmented_skins(
@@ -71,6 +97,20 @@ pub(super) fn reconcile_segmented_skins(
 /// shared `button_on_setting::<T>` observer drives the setting on click.
 pub fn segmented_option(label: &str) -> impl Bundle {
     let mut spec = ButtonSpec::new(label);
+    spec.variant = ButtonVariant::Ghost;
+    spec.min_height = 28.0;
+    spec.font_size = 12.0;
+    button(spec)
+}
+
+/// One option of a WRAPPING segmented control ([`segmented_container_wrapping`]):
+/// a [`segmented_option`] sized to its own label.
+///
+/// The full-width kind is right in a single-line bar, where the segments share
+/// the row evenly. In a wrapping one it puts every segment on a line of its
+/// own.
+pub fn segmented_option_fit(label: &str) -> impl Bundle {
+    let mut spec = ButtonSpec::new(label).fit();
     spec.variant = ButtonVariant::Ghost;
     spec.min_height = 28.0;
     spec.font_size = 12.0;

@@ -18,13 +18,22 @@ use nova_ui::{
 
 use super::support::{all_texts, entity_by_name, mods_app};
 use crate::settings::{
-    SettingsActiveTab, SettingsTab, SettingsTabKind, VolumeLabel, VolumeSlider, WindowModeSetting,
+    SettingsActiveTab, SettingsControlsGroup, SettingsTab, SettingsTabKind, VolumeLabel,
+    VolumeSlider, WindowModeSetting,
 };
 
 /// Open a settings tab and let the body reconcile. The tab BUTTON is exercised
 /// by `pressing_a_tab_swaps_the_body`; every other test only wants the page.
 fn open_tab(app: &mut App, tab: SettingsTabKind) {
     app.world_mut().resource_mut::<SettingsActiveTab>().0 = tab;
+    app.update();
+}
+
+/// Open one Controls group. The tab shows a single binding group at a time, so
+/// a test that wants a row outside FLIGHT has to say which page it is on. The
+/// group BUTTON is exercised by `pressing_a_controls_group_swaps_the_rows`.
+fn open_group(app: &mut App, group: &'static str) {
+    app.world_mut().resource_mut::<SettingsControlsGroup>().0 = group;
     app.update();
 }
 
@@ -136,23 +145,29 @@ fn settings_panel_builds_one_tab_at_a_time() {
         "the window-mode group is on the graphics tab"
     );
 
-    // CONTROLS: the live registry rows, the fixed chords, and no slider - the
-    // audio page went away with its tab.
+    // CONTROLS: the live registry rows, one GROUP at a time, plus the fixed
+    // chords in that group - and no slider, the audio page went away with its
+    // tab.
     open_tab(&mut app, SettingsTabKind::Controls);
+    assert!(
+        all_texts(&mut app).iter().any(|t| t == "Main Drive"),
+        "the tab opens on the first group"
+    );
+    open_group(&mut app, "SYSTEM");
     let texts = all_texts(&mut app);
-    for row in [
-        "Main Drive",
-        "Pause / Menu",
-        "NOVA OS",
-        "HUD (On / Cinematic)",
-    ] {
+    for row in ["Pause / Menu", "NOVA OS", "HUD (On / Cinematic)"] {
         assert!(
             texts.iter().any(|t| t == row),
-            "the {row} row is missing from the controls tab"
+            "the {row} row is missing from the SYSTEM group"
         );
     }
     assert!(
-        !texts.iter().any(|t| t == "Radar (tap clear)"),
+        !texts.iter().any(|t| t == "Main Drive"),
+        "and a group shows only its own rows"
+    );
+    open_group(&mut app, "TARGETING");
+    assert!(
+        !all_texts(&mut app).iter().any(|t| t == "Radar (tap clear)"),
         "a shadow row moves with what it follows; it gets no row of its own"
     );
     {
@@ -351,10 +366,13 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
 fn the_controls_readout_follows_a_rebind() {
     let mut app = mods_app();
     open_tab(&mut app, SettingsTabKind::Controls);
-    assert!(
-        all_texts(&mut app).iter().any(|t| t == "W / Space"),
-        "the shipped Main Drive row leads with its keyboard binding"
-    );
+    let shipped = all_texts(&mut app);
+    for key in ["W", "Space"] {
+        assert!(
+            shipped.iter().any(|t| t == key),
+            "the shipped Main Drive row shows its {key} binding"
+        );
+    }
 
     app.world_mut().resource_mut::<InputBindings>().register(
         ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
@@ -371,8 +389,103 @@ fn the_controls_readout_follows_a_rebind() {
         "the Main Drive row still shows the old key; the readout is a mirror"
     );
     assert!(
-        !texts.iter().any(|t| t == "W / Space"),
+        !texts.iter().any(|t| t == "Space"),
         "the old binding is still on screen"
+    );
+}
+
+/// The group BUTTON, not just the resource: a press swaps the rows and moves
+/// the highlight. Without it a player can only ever see the first group.
+#[test]
+fn pressing_a_controls_group_swaps_the_rows() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    let system = entity_by_name(&mut app, "Controls Group: SYSTEM").expect("the group exists");
+    app.world_mut()
+        .trigger(bevy::ui_widgets::Activate { entity: system });
+    app.update();
+
+    assert_eq!(app.world().resource::<SettingsControlsGroup>().0, "SYSTEM");
+    let texts = all_texts(&mut app);
+    assert!(
+        texts.iter().any(|t| t == "NOVA OS"),
+        "the SYSTEM rows are up"
+    );
+    assert!(
+        !texts.iter().any(|t| t == "Main Drive"),
+        "and the group it came from is gone"
+    );
+    // The bar itself stays whole: a group tab must never hide the way back.
+    assert!(
+        entity_by_name(&mut app, "Controls Group: FLIGHT").is_some(),
+        "every group is still one press away"
+    );
+}
+
+/// A bound key is drawn as its KEYCAP, not spelled out - and an unmapped one
+/// falls back to text rather than to an empty box.
+///
+/// `mods_app` runs no asset loading, so the glyph lookup is seeded here the
+/// way `nova_assets` seeds it in the game: from the mapping table.
+#[test]
+fn a_bound_key_draws_its_keycap_and_an_unmapped_one_falls_back() {
+    use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
+
+    let mut app = mods_app();
+    app.world_mut().insert_resource(NovaHudAssets {
+        key_glyphs: KeyGlyphs::from_stems(|_| Some(Handle::default())),
+        ..default()
+    });
+    open_tab(&mut app, SettingsTabKind::Controls);
+
+    let chip = entity_by_name(&mut app, "Rebind: main_drive Desk").expect("the chip exists");
+    let caps = |app: &mut App, chip: Entity| -> usize {
+        let children: Vec<Entity> = app
+            .world()
+            .entity(chip)
+            .get::<Children>()
+            .map(|kids| kids.iter().collect())
+            .unwrap_or_default();
+        children
+            .into_iter()
+            .filter(|kid| app.world().entity(*kid).contains::<ImageNode>())
+            .count()
+    };
+    assert_eq!(
+        caps(&mut app, chip),
+        2,
+        "W and Space are drawn, not spelled"
+    );
+    // The pad column too, off its own pack - and its `A` must be the
+    // controller's, not the keyboard key of the same name.
+    let pad = entity_by_name(&mut app, "Rebind: autopilot_orbit Pad").expect("the chip exists");
+    assert_eq!(caps(&mut app, pad), 1, "the pad face button is drawn");
+    // The axis notes are keycaps too: RCS Aim is raw mouse motion, and the
+    // read-only cell that says so draws the mouse rather than spelling it.
+    let aim = entity_by_name(&mut app, "Controls Cell: rcs_aim Desk").expect("the cell exists");
+    let slot = app
+        .world()
+        .entity(aim)
+        .get::<Children>()
+        .and_then(|kids| kids.iter().next())
+        .expect("the cell holds its chip row");
+    assert_eq!(caps(&mut app, slot), 1, "the mouse note is drawn too");
+    assert!(
+        !all_texts(&mut app).iter().any(|t| t == "W"),
+        "and the text chip is gone where a picture took its place"
+    );
+
+    // F13 has no art in the pack. The row must still say what it is bound to.
+    app.world_mut().resource_mut::<InputBindings>().register(
+        ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
+            .keyboard([InputSource::Keyboard(KeyCode::F13)]),
+    );
+    app.update();
+    let chip = entity_by_name(&mut app, "Rebind: main_drive Desk").expect("the chip exists");
+    assert_eq!(caps(&mut app, chip), 0, "no keycap for an unmapped key");
+    assert!(
+        all_texts(&mut app).iter().any(|t| t == "F13"),
+        "the unmapped key falls back to its name"
     );
 }
 
@@ -585,6 +698,7 @@ fn reset_defaults_puts_every_row_back() {
 fn rebinding_a_gesture_moves_the_half_that_follows_it() {
     let mut app = mods_app();
     open_tab(&mut app, SettingsTabKind::Controls);
+    open_group(&mut app, "TARGETING");
     arm_chip(&mut app, "Rebind: radar_hold Desk");
     tap_key(&mut app, KeyCode::KeyJ);
 

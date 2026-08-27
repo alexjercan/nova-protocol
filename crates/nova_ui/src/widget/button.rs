@@ -572,6 +572,8 @@ pub struct ButtonSpec {
     pub block: bool,
     /// Optional trailing amber key-chip (`Enter`/`Esc`).
     pub key: Option<String>,
+    /// Size to the label instead of filling the row.
+    pub fit: bool,
     /// Minimum height in px.
     pub min_height: f32,
     /// Label font size in px.
@@ -586,9 +588,19 @@ impl ButtonSpec {
             variant: ButtonVariant::Default,
             block: false,
             key: None,
+            fit: false,
             min_height: 34.0,
             font_size: 14.0,
         }
+    }
+
+    /// Size to the label rather than filling the row.
+    ///
+    /// A full-width button in a WRAPPING row takes a line to itself, which
+    /// turns a bar of segments into a stack of them.
+    pub fn fit(mut self) -> Self {
+        self.fit = true;
+        self
     }
 
     /// The larger main-menu sizing (40px / 16px).
@@ -633,12 +645,16 @@ impl ButtonSpec {
 /// optional block cursor and key-chip, as children; the initial colours are the
 /// phosphor idle face and get corrected to the live skin by
 /// `reconcile_button_skins` on the frame it appears.
+///
+/// An EMPTY `text` spawns no label span at all, which is how a caller that
+/// spawns its own content (an icon) gets a button with nothing else in it.
 pub fn button(spec: ButtonSpec) -> impl Bundle {
     let ButtonSpec {
         text,
         variant,
         block,
         key,
+        fit,
         min_height,
         font_size,
     } = spec;
@@ -654,7 +670,7 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
 
     (
         Node {
-            width: percent(100),
+            width: if fit { Val::Auto } else { percent(100) },
             min_height: px(min_height),
             margin: UiRect::vertical(px(4)),
             padding: UiRect::axes(px(12), px(6)),
@@ -684,20 +700,27 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     TextColor(theme::PHOSPHOR.with_alpha(0.0)),
                 ));
             }
-            parent.spawn((
-                ButtonLabel,
-                UiText,
-                Text::new(text),
-                TextFont {
-                    font_size: FontSize::Px(font_size),
-                    ..default()
-                },
-                TextColor(idle.text),
-                // No TextShadow. Bevy's `TextShadow` is a hard drop
-                // shadow (no blur), so its default 4px black offset ghosts the
-                // label on a bright/inverted fill instead of glowing. Crisp CLI
-                // text needs no shadow.
-            ));
+            // An EMPTY label spawns nothing, not an empty span: the button
+            // lays its children out with a `column_gap`, so a zero-width span
+            // would still push whatever the caller spawns inside off centre.
+            // That is how an icon button (the settings keycap chips) says it
+            // brings its own content.
+            if !text.is_empty() {
+                parent.spawn((
+                    ButtonLabel,
+                    UiText,
+                    Text::new(text),
+                    TextFont {
+                        font_size: FontSize::Px(font_size),
+                        ..default()
+                    },
+                    TextColor(idle.text),
+                    // No TextShadow. Bevy's `TextShadow` is a hard drop
+                    // shadow (no blur), so its default 4px black offset ghosts
+                    // the label on a bright/inverted fill instead of glowing.
+                    // Crisp CLI text needs no shadow.
+                ));
+            }
             if let Some(key) = key {
                 parent.spawn(key_chip(&key, font_size));
             }

@@ -298,7 +298,12 @@ pub(crate) fn setup_pause_ui(
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Stretch,
-                        width: px(460),
+                        // Wide enough for a keybind label plus its two chip
+                        // columns, and a FIXED height so the panel does not
+                        // resize under the pointer when a tab with fewer rows
+                        // opens. The cap keeps it on screen on a short display.
+                        width: px(620),
+                        height: px(560),
                         max_height: percent(92),
                         padding: UiRect::all(px(20)),
                         border: UiRect::all(px(theme::BORDER_W)),
@@ -329,6 +334,10 @@ pub(crate) fn setup_pause_ui(
                             Node {
                                 flex_direction: FlexDirection::Row,
                                 align_items: AlignItems::Stretch,
+                                // Takes the panel's leftover height, so the
+                                // scroll viewport clips instead of the fixed
+                                // panel overflowing past the Back button.
+                                flex_grow: 1.0,
                                 min_height: px(0),
                                 ..default()
                             },

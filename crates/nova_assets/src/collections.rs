@@ -65,19 +65,107 @@ const UI_SFX_COLLECTION_PATHS: [&str; 14] = [
 /// they move together). `key_glyph_collection_matches_mapping_table` pins this
 /// against `nova_hud::key_glyphs`'s mapping table, which OWNS the set.
 #[cfg(test)]
-const KEY_GLYPH_COLLECTION_PATHS: [&str; 13] = [
+const KEY_GLYPH_COLLECTION_PATHS: [&str; 101] = [
+    "input-prompts/gamepad/Alt/T_X_A_White_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_B_White_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Dpad_Down_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Dpad_Left_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Dpad_Right_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Dpad_Up_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_LB_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_LT_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_L_2D_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Left_Stick_Click_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_RB_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_RT_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_R_2D_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Right_Stick_Click_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Share_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_X_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_X_White_Alt.png",
+    "input-prompts/gamepad/Alt/T_X_Y_White_Alt.png",
+    "input-prompts/keyboard/Alt/T_0_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_1_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_2_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_3_Key_Alt-1.png",
+    "input-prompts/keyboard/Alt/T_3_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_5_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_6_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_7_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_8_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_9_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_A_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Alt_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_B_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_BackSpace_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Brackets_L_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Brackets_R_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_C_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_CapsLock_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Crtl_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_D_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Del_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Down_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_E_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_End_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Enter_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Esc_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F10_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F11_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F12_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F1_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F2_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F3_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F4_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F5_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F6_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F7_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F8_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F9_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_F_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_G_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_H_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Home_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_I_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Ins_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_J_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_K_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_L_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Left_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_M_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Minus_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Left_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Middle_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Right_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Scroll_Down_Key_Dark_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Mouse_Scroll_Key_Dark_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Scroll_Up_Key_Dark_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Mouse_Simple_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_N_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_NumLock_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_O_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_P_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_PageDown_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_PageUp_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_PrtScrn_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Q_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Quotation_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_R_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Right_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_S_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Semicolon_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Shift_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Slash_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Space_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_T_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Tab_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Tilde_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_U_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Up_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_V_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_W_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_X_Key_Alt.png",
+    "input-prompts/keyboard/Alt/T_Y_Key_Alt.png",
     "input-prompts/keyboard/Alt/T_Z_Key_Alt.png",
 ];
 
@@ -161,27 +249,115 @@ pub struct GameAssets {
     /// `mods.catalog.ron` resolves to `catalog.ron` and matches `CatalogLoader`.
     #[asset(path = "mods.catalog.ron")]
     pub catalog: Handle<InstalledCatalog>,
-    /// The keycap glyphs the HUD draws for bound keys, keyed by file stem. The
-    /// explicit `paths(...)` list mirrors
+    /// The keycap and pad glyphs the HUD draws for bound sources, keyed by file
+    /// stem. The explicit `paths(...)` list mirrors
     /// [`nova_hud::key_glyphs::key_glyph_asset_paths`] (the mapping
     /// table owns it); `key_glyph_collection_matches_mapping_table` pins them
     /// together. Preloaded rather than lazily `server.load`ed per chip so the
-    /// keycaps load-gate like the UI font and the CRT mark; a folder collection
+    /// glyphs load-gate like the UI font and the CRT mark; a folder collection
     /// is not used because folder collections do not work on wasm.
     #[asset(
         paths(
+            "input-prompts/gamepad/Alt/T_X_A_White_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_B_White_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Dpad_Down_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Dpad_Left_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Dpad_Right_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Dpad_Up_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_LB_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_LT_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_L_2D_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Left_Stick_Click_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_RB_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_RT_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_R_2D_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Right_Stick_Click_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Share_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_X_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_X_White_Alt.png",
+            "input-prompts/gamepad/Alt/T_X_Y_White_Alt.png",
+            "input-prompts/keyboard/Alt/T_0_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_1_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_2_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_3_Key_Alt-1.png",
+            "input-prompts/keyboard/Alt/T_3_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_5_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_6_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_7_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_8_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_9_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_A_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Alt_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_B_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_BackSpace_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Brackets_L_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Brackets_R_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_C_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_CapsLock_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Crtl_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_D_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Del_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Down_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_E_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_End_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Enter_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Esc_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F10_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F11_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F12_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F1_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F2_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F3_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F4_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F5_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F6_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F7_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F8_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F9_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_F_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_G_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_H_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Home_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_I_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Ins_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_J_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_K_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_L_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Left_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_M_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Minus_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Left_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Middle_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Right_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Scroll_Down_Key_Dark_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Mouse_Scroll_Key_Dark_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Scroll_Up_Key_Dark_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Mouse_Simple_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_N_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_NumLock_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_O_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_P_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_PageDown_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_PageUp_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_PrtScrn_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Q_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Quotation_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_R_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Right_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_S_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Semicolon_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Shift_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Slash_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Space_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_T_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Tab_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Tilde_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_U_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Up_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_V_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_W_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_X_Key_Alt.png",
+            "input-prompts/keyboard/Alt/T_Y_Key_Alt.png",
             "input-prompts/keyboard/Alt/T_Z_Key_Alt.png",
         ),
         collection(mapped, typed)
@@ -307,6 +483,46 @@ mod tests {
                 full.display()
             );
         }
+    }
+
+    /// Both mirror consts above are `#[cfg(test)]` COPIES of an
+    /// `#[asset(paths(...))]` attribute, and a copy can drift from its
+    /// original: a regeneration pass once rewrote the `ui_sfx` attribute with
+    /// the keycap list and left `key_glyphs` on its old thirteen paths, which
+    /// every other test here still called correct because they only ever read
+    /// the consts. This reads the attributes themselves.
+    #[test]
+    fn each_mirror_const_matches_the_attribute_it_mirrors() {
+        let source = include_str!("collections.rs");
+        for (field, mirror) in [
+            ("ui_sfx", UI_SFX_COLLECTION_PATHS.as_slice()),
+            ("key_glyphs", KEY_GLYPH_COLLECTION_PATHS.as_slice()),
+        ] {
+            let declared = attribute_paths(source, field);
+            assert_eq!(
+                declared,
+                mirror.iter().map(|p| (*p).to_string()).collect::<Vec<_>>(),
+                "the `{field}` #[asset(paths(...))] attribute drifted from its mirror const"
+            );
+        }
+    }
+
+    /// The quoted paths of the `#[asset(paths(...))]` attribute that sits
+    /// directly above `pub <field>:` in `source`.
+    fn attribute_paths(source: &str, field: &str) -> Vec<String> {
+        let end = source
+            .find(&format!("\n    pub {field}:"))
+            .unwrap_or_else(|| panic!("no `pub {field}:` field"));
+        let block = &source[..end];
+        let start = block
+            .rfind("        paths(")
+            .expect("the field carries no paths(...) attribute");
+        block[start..]
+            .lines()
+            .skip(1)
+            .take_while(|line| !line.trim_start().starts_with(')'))
+            .map(|line| line.trim().trim_matches(',').trim_matches('"').to_string())
+            .collect()
     }
 
     /// The `GameAssets::ui_sfx` mapped collection must load-gate exactly the

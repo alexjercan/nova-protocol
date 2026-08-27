@@ -88,6 +88,8 @@
     text-transform: uppercase; color: var(--in); float: right; margin-left: .6rem;
   }
   .card.q .st { color: var(--accent); }
+  .card.d { border-left-color: var(--act); }
+  .card.d .st { color: var(--act); }
   .card .nm { font: 600 .82rem/1.5 var(--mono); display: block; }
   .card p { margin: .3rem 0 0; font-size: .85rem; color: var(--muted); }
 
@@ -159,9 +161,11 @@
 
   <h2><span class="n">Where it stands</span>What is built, and what is not</h2>
   <p>
-    Eight pieces shipped, the last two on 27 August: a player can now move a
-    key from inside the game. Both remaining gaps are somebody else&rsquo;s
-    half of a seam this crate deliberately stops at.
+    Nine pieces shipped, the last three on 27 August: a player can now move a
+    key from inside the game, read the row as a picture of the button, and
+    drive a pad-only action by name with no controller plugged in. The one
+    remaining gap is not a gap any more &mdash; it was closed by a decision, not
+    by code.
   </p>
   <div class="board">
     <div class="card">
@@ -197,23 +201,26 @@
     </div>
     <div class="card">
       <span class="st">shipped</span><span class="nm">capture UI</span>
-      <p>Settings opens on four tabs; a Controls chip arms a capture the next
-      key or pad button fills, and the live rigs rebuild on the spot.</p>
+      <p>Settings opens on four tabs, Controls on one binding group at a
+      time; a chip arms a capture the next key or pad button fills, draws the
+      button as a picture, and the live rigs rebuild on the spot.</p>
     </div>
     <div class="card">
       <span class="st">shipped</span><span class="nm">rebind conflict guard</span>
       <p><code>conflict_for</code> and <code>holder_in</code> run on the
       candidate, from all three rebind surfaces, against the LIVE table.</p>
     </div>
-    <div class="card q">
-      <span class="st">in queue</span><span class="nm">gamepad synthesis</span>
-      <p>A pad-bound action cannot be pressed by name: the dispatcher refuses
-      it as <code>NoButton</code> rather than doing nothing quietly.</p>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">gamepad synthesis</span>
+      <p>A pad-only action is driven on a pad the dispatcher connects, writing
+      the digital AND analog halves, so a rig&rsquo;s <code>Hold</code> runs on
+      it.</p>
     </div>
-    <div class="card q">
-      <span class="st">in queue</span><span class="nm">section bindings</span>
-      <p>Thruster throttles as much as turret and torpedo triggers: authored
-      per ship, keyed by section id, so none of them are in this table.</p>
+    <div class="card d">
+      <span class="st">decided: no</span><span class="nm">section bindings</span>
+      <p>Thruster throttles and weapon triggers stay out of the table and out
+      of Settings. They are ship configuration, not the player&rsquo;s
+      keyboard.</p>
     </div>
   </div>
 
@@ -345,31 +352,39 @@
         <tr><td class="m">scenario_advance</td><td class="m">SCENARIO</td><td class="m">Flight</td><td>Enter</td><td>D-Pad Down</td></tr>
         <tr class="brk"><td class="m">novaos_toggle</td><td class="m">SYSTEM</td><td class="m">Always</td><td>Tab</td><td>Right Thumb</td></tr>
         <tr><td class="m">hud_cinematic</td><td class="m">SYSTEM</td><td class="m">Always</td><td>`</td><td>Select</td></tr>
-        <tr class="brk"><td class="m">novaos_orbit_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>Q</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_orbit_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>E</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_orbit_up</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>R</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_orbit_down</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>F</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_pan_forward</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>W</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_pan_back</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>S</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_pan_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>A</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_pan_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>D</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_reframe</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>T</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_next</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>]</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">novaos_prev</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>[</td><td><span class="tag q">unbound</span></td></tr>
-        <tr class="brk"><td class="m">map_goto</td><td class="m">MAP</td><td class="m">ViewerApp("map")</td><td>G</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">ship_mates</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>G</td><td><span class="tag q">unbound</span></td></tr>
-        <tr><td class="m">ship_reload</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>L</td><td><span class="tag q">unbound</span></td></tr>
+        <tr class="brk"><td class="m">novaos_orbit_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>Q</td><td>D-Pad Left</td></tr>
+        <tr><td class="m">novaos_orbit_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>E</td><td>D-Pad Right</td></tr>
+        <tr><td class="m">novaos_orbit_up</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>R</td><td>D-Pad Up</td></tr>
+        <tr><td class="m">novaos_orbit_down</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>F</td><td>D-Pad Down</td></tr>
+        <tr><td class="m">novaos_pan_forward</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>W</td><td>Right Trigger 2</td></tr>
+        <tr><td class="m">novaos_pan_back</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>S</td><td>Left Trigger 2</td></tr>
+        <tr><td class="m">novaos_pan_left</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>A</td><td>X</td></tr>
+        <tr><td class="m">novaos_pan_right</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>D</td><td>B</td></tr>
+        <tr><td class="m">novaos_reframe</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>T</td><td>Left Thumb</td></tr>
+        <tr><td class="m">novaos_next</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>]</td><td>Right Trigger</td></tr>
+        <tr><td class="m">novaos_prev</td><td class="m">NOVA OS</td><td class="m">Viewer</td><td>[</td><td>Left Trigger</td></tr>
+        <tr class="brk"><td class="m">map_goto</td><td class="m">MAP</td><td class="m">ViewerApp("map")</td><td>G</td><td>A</td></tr>
+        <tr><td class="m">ship_mates</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>G</td><td>A</td></tr>
+        <tr><td class="m">ship_reload</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>L</td><td>Y</td></tr>
         <tr><td class="m">ship_repair</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>P</td><td><span class="tag q">unbound</span></td></tr>
         <tr><td class="m">ship_rebind</td><td class="m">SHIP</td><td class="m">ViewerApp("ship")</td><td>B</td><td><span class="tag q">unbound</span></td></tr>
       </tbody>
     </table>
   </div>
   <p class="sub">
-    The viewer actions carry no pad binding, and that is deliberate rather than
-    unfinished. They never had one: the monitor is a keyboard surface, and
-    inventing pad buttons here would reserve them against the flight rig for a
-    gesture nobody asked for. <code>Left Thumb</code> was the last free standard
-    button and the RCS modifier just took it.
+    The viewer verbs REUSE the flight rig&rsquo;s buttons, and that is the
+    context rule paying for itself: <code>Viewer</code> does not overlap
+    <code>Flight</code>, so the same D-pad that steers a camera cannot also
+    steer a ship &mdash; only one of the two contexts is live. The two
+    <code>Always</code> actions are the exceptions that stay reserved: the NOVA
+    OS toggle on Right Thumb, the HUD cycle on View, plus the fixed Menu pause.
+  </p>
+  <p class="sub">
+    A pad runs out before the app verbs do. <code>ViewerApp</code> DOES overlap
+    <code>Viewer</code>, so only the two face buttons the camera does not use
+    are left &mdash; A and Y &mdash; and the remaining two, <code>ship_repair</code>
+    and <code>ship_rebind</code>, stay keyboard-only rather than take a chord
+    nobody would find.
   </p>
 
   <h2><span class="n">The edges</span>What is deliberately not in here</h2>
@@ -405,6 +420,15 @@
     <code>turret_starboard</code> both to LMB and Right Trigger 2; nothing
     stops a mod binding Q and E.
   </p>
+  <p class="sub">
+    <strong>Decided 27 August: they stay out of Settings.</strong> The open
+    question was whether the three section bindings &mdash; thruster throttle,
+    turret trigger, torpedo trigger &mdash; should get rebind rows. They should
+    not. A thruster on <code>W</code> is not a fact about the game; it is how
+    the mainline campaign&rsquo;s ship happens to be configured, and a Controls
+    row that printed it would be telling the player something untrue about
+    every other hull they fly. Authoring stays per ship, where it belongs.
+  </p>
 
   <h2><span class="n">The seam</span>This crate defines; the channel shows</h2>
   <p>
@@ -423,36 +447,11 @@
   </p>
 
   <h2><span class="n">Next</span>In queue</h2>
-
-  <div class="q-item">
-    <span class="who">nova_input</span>
-    <p class="call">Press a gamepad-bound action by name</p>
-    <p>
-      <code>apply</code> refuses a gamepad source as <code>NoButton</code>
-      rather than doing nothing quietly, which is honest but still a hole: a
-      pad-only action cannot be driven at all. The route is the
-      <code>bevy_enhanced_input</code> mock API, and whether it composes with
-      the <code>Hold</code>/<code>Tap</code> conditions the radar gesture needs
-      is unverified. Not urgent while every action has a keyboard half.
-    </p>
-  </div>
-
-  <div class="q-item">
-    <span class="who">nova_ship</span>
-    <p class="call">Decide whether section bindings join the table</p>
-    <p>
-      All three are the same case, and the module being called
-      <code>weapons.rs</code> hides it: <code>SpaceshipThrusterInputBinding</code>,
-      <code>SpaceshipTurretInputBinding</code> and
-      <code>SpaceshipTorpedoInputBinding</code> each hold a
-      <code>Vec&lt;InputSource&gt;</code> read off the ship&rsquo;s own
-      <code>input_mapping</code>. So it is not only the fire key a player cannot
-      move from Controls &mdash; it is their throttle. Authoring them per ship is
-      right for a mod and wrong for a player, and the way out is the same for
-      all three: names derived per section rather than fixed, which is why it
-      was cut from the first pass.
-    </p>
-  </div>
+  <p>
+    One item, and it is a dependency direction rather than a design question.
+    The other two closed on 27 August: the dispatcher presses a pad now, and
+    section bindings were decided against above.
+  </p>
 
   <div class="q-item">
     <span class="who">nova_hud</span>

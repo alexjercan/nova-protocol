@@ -25,12 +25,12 @@ pub mod prelude {
     pub use super::{
         badge, button, button_on_setting, checkbox, checkbox_colors, checkbox_glyph, key_chip,
         list_row, list_row_colors, menu_button, panel, panel_head, panel_header, panel_node,
-        segmented, segmented_container, segmented_option, separator, slider_meter_color,
-        slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonLabel,
-        ButtonSpec, ButtonValue, ButtonVariant, ListRow, PanelSkin, SegmentedSkin, Selected,
-        SliderBlock, SliderFill, SliderTrackSkin, TextField, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedButton, UiText,
-        SLIDER_SEGMENTS,
+        segmented, segmented_container, segmented_container_wrapping, segmented_option,
+        segmented_option_fit, separator, slider_meter_color, slider_track, swatch, text_field,
+        themed_button, toggle, BadgeKind, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant,
+        ListRow, PanelSkin, SegmentedSkin, Selected, SliderBlock, SliderFill, SliderTrackSkin,
+        TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
+        TextFieldSystems, TextFieldValue, ThemedButton, UiText, SLIDER_SEGMENTS,
     };
 }
 

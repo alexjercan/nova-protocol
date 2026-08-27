@@ -173,9 +173,10 @@ impl ActionBinding {
         self
     }
 
-    /// The keyboard column of a settings row: every bound key, then what the
-    /// motion or wheel half adds. `Unbound` when the action has neither.
-    pub fn keyboard_display(&self) -> String {
+    /// The keyboard column of a settings row, chip by chip: every bound key,
+    /// then what the motion or wheel half adds. Empty when the action has
+    /// neither - the caller decides what "nothing" reads as.
+    pub fn keyboard_chips(&self) -> Vec<BindingChip> {
         let note = if self.axes.mouse_motion {
             "Mouse"
         } else {
@@ -185,17 +186,28 @@ impl ActionBinding {
                 None => "",
             }
         };
-        display_column(&self.keyboard, note)
+        display_chips(&self.keyboard, note)
     }
 
-    /// The gamepad column of a settings row.
-    pub fn gamepad_display(&self) -> String {
+    /// The gamepad column of a settings row, chip by chip.
+    pub fn gamepad_chips(&self) -> Vec<BindingChip> {
         let note = match self.axes.stick {
             Some(GamepadStick::Left) => "Left Stick",
             Some(GamepadStick::Right) => "Right Stick",
             None => "",
         };
-        display_column(&self.gamepad, note)
+        display_chips(&self.gamepad, note)
+    }
+
+    /// The keyboard column as one string, for a readout with no room to draw
+    /// keycaps. `Unbound` when the action holds nothing there.
+    pub fn keyboard_display(&self) -> String {
+        joined(&self.keyboard_chips())
+    }
+
+    /// The gamepad column as one string. See [`Self::keyboard_display`].
+    pub fn gamepad_display(&self) -> String {
+        joined(&self.gamepad_chips())
     }
 
     /// What this action is bound to right now, detached from its name and
@@ -213,31 +225,66 @@ impl ActionBinding {
     }
 }
 
+/// One item of a binding readout: what it READS, and the keycap it DRAWS.
+///
+/// The two are different vocabularies on purpose. `text` is prose for a player
+/// (`Left Ctrl`, `]`, `Right Mouse`); `glyph` is the keycap-table key
+/// ([`InputSource::label`]), which a friendlier spelling would silently miss.
+/// A surface with room for pictures draws the glyph and falls back to the text
+/// where a key has no art; a surface without room prints the text alone.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BindingChip {
+    /// What this chip reads.
+    pub text: String,
+    /// The keycap-table key, or `None` for an axis with no single button.
+    pub glyph: Option<String>,
+}
+
 /// One readout column: the sources, then the axis note. A modifier bound on
 /// both sides collapses to the bare name - a player who reads `Ctrl` knows
-/// both work, and `Left Ctrl / Right Ctrl` says nothing extra.
-fn display_column(sources: &[InputSource], note: &'static str) -> String {
+/// both work, and `Left Ctrl / Right Ctrl` says nothing extra, and the pair
+/// shares one keycap anyway.
+fn display_chips(sources: &[InputSource], note: &'static str) -> Vec<BindingChip> {
     let bound = |key: KeyCode| sources.contains(&InputSource::Keyboard(key));
-    let mut parts: Vec<String> = Vec::with_capacity(sources.len() + 1);
+    let mut chips: Vec<BindingChip> = Vec::with_capacity(sources.len() + 1);
     for source in sources {
-        let label = match source {
+        let text = match source {
             InputSource::Keyboard(key) => match modifier_pair(*key) {
                 Some((bare, other)) if bound(other) => bare.to_string(),
                 _ => source.readout_label(),
             },
             _ => source.readout_label(),
         };
-        if !parts.contains(&label) {
-            parts.push(label);
+        let chip = BindingChip {
+            text,
+            glyph: Some(source.glyph_label()),
+        };
+        if !chips.iter().any(|held| held.text == chip.text) {
+            chips.push(chip);
         }
     }
     if !note.is_empty() {
-        parts.push(note.to_string());
+        // The axis notes are their own keycap keys: the wheel and the mouse
+        // body have art, the sticks do not, and a missing one falls back to
+        // the text like any unmapped key.
+        chips.push(BindingChip {
+            text: note.to_string(),
+            glyph: Some(note.to_string()),
+        });
     }
-    if parts.is_empty() {
+    chips
+}
+
+/// A whole column as one string, for a readout with no room for keycaps.
+fn joined(chips: &[BindingChip]) -> String {
+    if chips.is_empty() {
         return "Unbound".to_string();
     }
-    parts.join(" / ")
+    chips
+        .iter()
+        .map(|chip| chip.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" / ")
 }
 
 /// The live bindings table. Registered at plugin build so it is populated in
@@ -736,6 +783,53 @@ mod tests {
             cycle.gamepad_display(),
             "Unbound",
             "a column with no source and no note says so"
+        );
+    }
+
+    /// A chip says two different things at once: what a player READS, and
+    /// which keycap the picture comes from. A surface that drew from `text`
+    /// would look `Ctrl` up in a table keyed on `ControlLeft` and quietly find
+    /// nothing.
+    #[test]
+    fn a_chip_reads_as_prose_and_draws_from_the_source_label() {
+        let radar = ActionBinding::new("radar_hold", "TARGETING", "Radar").keyboard([
+            InputSource::Keyboard(KeyCode::ControlLeft),
+            InputSource::Keyboard(KeyCode::ControlRight),
+        ]);
+        let chips = radar.keyboard_chips();
+        assert_eq!(chips.len(), 1, "both halves of one modifier are one chip");
+        assert_eq!(chips[0].text, "Ctrl");
+        assert_eq!(
+            chips[0].glyph.as_deref(),
+            Some("ControlLeft"),
+            "the picture comes from the source, not from the prose"
+        );
+
+        let pad = ActionBinding::new("radar_hold", "TARGETING", "Radar")
+            .gamepad([InputSource::Gamepad(GamepadButton::South)]);
+        let chips = pad.gamepad_chips();
+        assert_eq!(chips[0].text, "A", "the pad face button reads as the shell");
+        assert_eq!(
+            chips[0].glyph.as_deref(),
+            Some("Pad A"),
+            "and draws from a key the keyboard's own A cannot claim"
+        );
+
+        let cycle = ActionBinding::new("component_next", "TARGETING", "Next")
+            .keyboard([InputSource::Keyboard(KeyCode::BracketRight)])
+            .wheel(WheelDirection::Up);
+        let chips = cycle.keyboard_chips();
+        assert_eq!(chips[0].text, "]");
+        assert_eq!(chips[0].glyph.as_deref(), Some("BracketRight"));
+        assert_eq!(
+            chips[1].glyph.as_deref(),
+            Some("Scroll Up"),
+            "an axis note is its own keycap key"
+        );
+
+        assert!(
+            cycle.gamepad_chips().is_empty(),
+            "an empty column is empty chips; only the joined readout says Unbound"
         );
     }
 

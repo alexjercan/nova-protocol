@@ -71,7 +71,8 @@ use scenarios::{
 use settings::{
     apply_settings_rebind, flush_settings_on_exit, load_persisted_settings,
     on_volume_slider_change, persist_settings_on_change, refresh_settings_tab, settings_tab_dirty,
-    sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab, WindowModeSetting,
+    sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab,
+    SettingsControlsGroup, WindowModeSetting,
 };
 use widgets::on_menu_button_activate;
 
@@ -117,6 +118,7 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<NovaOsMonitorSettings>();
         app.init_resource::<WindowModeSetting>();
         app.init_resource::<SettingsActiveTab>();
+        app.init_resource::<SettingsControlsGroup>();
         app.init_resource::<PendingRebind>();
         app.add_observer(on_volume_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);

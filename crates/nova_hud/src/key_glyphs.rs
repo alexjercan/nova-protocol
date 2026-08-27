@@ -1,9 +1,9 @@
-//! Key-glyph lookup for the HUD: which keycap picture stands for which binding.
+//! Key-glyph lookup: which keycap picture stands for which binding.
 //!
-//! The HUD shows keys as PICTURES, not `[BRACKETED]` text - the icon dock, the
-//! anchored verb cues and the objective stack's NOVA OS affordance all draw a
-//! keycap from `assets/input-prompts/keyboard/Alt/` (the dark keycaps with white
-//! glyphs).
+//! The game shows keys as PICTURES, not `[BRACKETED]` text - the HUD icon dock,
+//! the anchored verb cues, the objective stack's NOVA OS affordance and the
+//! settings Controls rows all draw a keycap from
+//! `assets/input-prompts/keyboard/Alt/` (the dark keycaps with white glyphs).
 //!
 //! This module owns the mapping, and with it the explicit asset path list that
 //! `nova_assets`'s `GameAssets::key_glyphs` collection preloads: the glyphs
@@ -13,18 +13,24 @@
 //! path list is explicit and `key_glyph_collection_matches_mapping_table`
 //! (in `nova_assets`) pins the two together.
 //!
+//! The table covers the WHOLE pack, not just what the flight rig ships bound.
+//! A settings rebind can put any key on any row, and a lazily loaded glyph
+//! would arrive after the row that wanted it was drawn - and would have to be
+//! alpha-scanned on some later frame to be sized. Preloading 83 tiny keycaps
+//! (720K on disk) buys a rebind to any key its picture, on the first frame,
+//! on wasm too.
+//!
 //! Keys are addressed by their DISPLAY LABEL - the string
-//! `nova_input`'s `keyboard_label` produces for a `KeyCode`
-//! (`"X"`, `"Space"`, `"ControlLeft"`), plus the handful of fixed pseudo-labels
-//! the flight rig uses for gestures that have no single key (`"CTRL"`,
-//! `"SHIFT"`, `"SCROLL"`). That is exactly what `FlightVerbHints` carries, so
-//! the HUD looks a glyph up with the string it already has.
+//! [`nova_input::prelude::InputSource::label`] produces (`"X"`, `"Space"`,
+//! `"ControlLeft"`, `"LMB"`), plus the fixed pseudo-labels the flight rig uses
+//! for gestures that have no single key (`"CTRL"`, `"SHIFT"`, `"SCROLL"`) and
+//! the axis notes a binding readout adds (`"Mouse"`, `"Scroll Up"`). That is
+//! exactly what `FlightVerbHints` and `BindingChip` carry, so a consumer looks
+//! a glyph up with the string it already has.
 //!
 //! Unmapped labels resolve to `None`, and every consumer falls back to a TEXT
-//! chip - a rebind to an unmapped key degrades to the old look instead of
-//! rendering an empty box. TODO(20260710-231927): the remapping/gamepad
-//! follow-up may `server.load` a glyph for a runtime-rebound key - that is
-//! dynamic content and cannot sit behind a one-shot preload collection.
+//! chip - a key with no art degrades to the old look instead of rendering an
+//! empty box.
 
 use bevy::{platform::collections::HashMap, prelude::*};
 
@@ -32,7 +38,7 @@ use bevy::{platform::collections::HashMap, prelude::*};
 pub mod prelude {
     pub use super::{
         key_glyph_asset_paths, key_glyph_stem, trimmed_cap, KeyCap, KeyGlyphs, KEY_GLYPH_DIR,
-        KEY_GLYPH_FILES,
+        KEY_GLYPH_FILES, PAD_GLYPH_DIR, PAD_GLYPH_FILES,
     };
 }
 
@@ -41,55 +47,197 @@ pub const KEY_GLYPH_DIR: &str = "input-prompts/keyboard/Alt";
 
 /// The mapping: display label -> keycap file stem under [`KEY_GLYPH_DIR`].
 ///
-/// Covers every key the flight rig binds (`flight_rig_reserved_sources`) plus
-/// the HUD's own chrome keys (Tab for the NOVA OS, the backquote HUD-level
-/// cycle) and the fixed gesture pseudo-labels. Two upstream filenames are
-/// misspelled/abbreviated and are pinned here so a rename is caught by
+/// Several upstream filenames are misspelled or abbreviated and are pinned
+/// here so a rename is caught by
 /// `every_bound_key_maps_to_an_existing_glyph_asset`: `T_Crtl_Key_Alt` (the
-/// upstream typo for Ctrl) and `T_Brackets_L/R_Key_Alt`.
+/// upstream typo for Ctrl), `T_Brackets_L/R_Key_Alt`, and `T_3_Key_Alt-1`,
+/// which draws a `4`.
+///
+/// The pack's spare alternates (`T_Enter_Tall`, `T_Shift_Super_Wide`,
+/// `T_Backspace_Alt`, the keyboard/mouse sprite sheet) are absent: nothing
+/// names them, and preloading art no label resolves is dead weight.
 pub const KEY_GLYPH_FILES: &[(&str, &str)] = &[
-    // Flight verbs.
-    ("X", "T_X_Key_Alt"),
+    // Letters.
+    ("A", "T_A_Key_Alt"),
+    ("B", "T_B_Key_Alt"),
+    ("C", "T_C_Key_Alt"),
+    ("D", "T_D_Key_Alt"),
+    ("E", "T_E_Key_Alt"),
+    ("F", "T_F_Key_Alt"),
     ("G", "T_G_Key_Alt"),
+    ("H", "T_H_Key_Alt"),
+    ("I", "T_I_Key_Alt"),
+    ("J", "T_J_Key_Alt"),
+    ("K", "T_K_Key_Alt"),
+    ("L", "T_L_Key_Alt"),
+    ("M", "T_M_Key_Alt"),
+    ("N", "T_N_Key_Alt"),
     ("O", "T_O_Key_Alt"),
-    ("Z", "T_Z_Key_Alt"),
+    ("P", "T_P_Key_Alt"),
+    ("Q", "T_Q_Key_Alt"),
+    ("R", "T_R_Key_Alt"),
+    ("S", "T_S_Key_Alt"),
+    ("T", "T_T_Key_Alt"),
+    ("U", "T_U_Key_Alt"),
+    ("V", "T_V_Key_Alt"),
     ("W", "T_W_Key_Alt"),
+    ("X", "T_X_Key_Alt"),
+    ("Y", "T_Y_Key_Alt"),
+    ("Z", "T_Z_Key_Alt"),
+    // Digits. The `4` cap ships misnamed as a second `3`.
+    ("0", "T_0_Key_Alt"),
+    ("1", "T_1_Key_Alt"),
+    ("2", "T_2_Key_Alt"),
+    ("3", "T_3_Key_Alt"),
+    ("4", "T_3_Key_Alt-1"),
+    ("5", "T_5_Key_Alt"),
+    ("6", "T_6_Key_Alt"),
+    ("7", "T_7_Key_Alt"),
+    ("8", "T_8_Key_Alt"),
+    ("9", "T_9_Key_Alt"),
+    // Function row.
+    ("F1", "T_F1_Key_Alt"),
+    ("F2", "T_F2_Key_Alt"),
+    ("F3", "T_F3_Key_Alt"),
+    ("F4", "T_F4_Key_Alt"),
+    ("F5", "T_F5_Key_Alt"),
+    ("F6", "T_F6_Key_Alt"),
+    ("F7", "T_F7_Key_Alt"),
+    ("F8", "T_F8_Key_Alt"),
+    ("F9", "T_F9_Key_Alt"),
+    ("F10", "T_F10_Key_Alt"),
+    ("F11", "T_F11_Key_Alt"),
+    ("F12", "T_F12_Key_Alt"),
+    // Arrows.
+    ("ArrowUp", "T_Up_Key_Alt"),
+    ("ArrowDown", "T_Down_Key_Alt"),
+    ("ArrowLeft", "T_Left_Key_Alt"),
+    ("ArrowRight", "T_Right_Key_Alt"),
+    // The wide caps and the editing keys.
     ("Space", "T_Space_Key_Alt"),
-    // Modifier gestures: both physical sides share one keycap, and the flight
-    // rig's fixed pseudo-labels ("CTRL"/"SHIFT") land on the same art.
+    ("Tab", "T_Tab_Key_Alt"),
+    ("TAB", "T_Tab_Key_Alt"),
+    ("Enter", "T_Enter_Key_Alt"),
+    ("Escape", "T_Esc_Key_Alt"),
+    ("Esc", "T_Esc_Key_Alt"),
+    ("Backspace", "T_BackSpace_Key_Alt"),
+    ("CapsLock", "T_CapsLock_Key_Alt"),
+    ("NumLock", "T_NumLock_Key_Alt"),
+    ("PrintScreen", "T_PrtScrn_Key_Alt"),
+    // Navigation.
+    ("Insert", "T_Ins_Key_Alt"),
+    ("Delete", "T_Del_Key_Alt"),
+    ("Home", "T_Home_Key_Alt"),
+    ("End", "T_End_Key_Alt"),
+    ("PageUp", "T_PageUp_Key_Alt"),
+    ("PageDown", "T_PageDown_Key_Alt"),
+    // Modifiers: both physical sides share one keycap, and the flight rig's
+    // fixed pseudo-labels ("CTRL"/"SHIFT") land on the same art.
     ("CTRL", "T_Crtl_Key_Alt"),
     ("ControlLeft", "T_Crtl_Key_Alt"),
     ("ControlRight", "T_Crtl_Key_Alt"),
     ("SHIFT", "T_Shift_Key_Alt"),
     ("ShiftLeft", "T_Shift_Key_Alt"),
     ("ShiftRight", "T_Shift_Key_Alt"),
-    // Component fine-lock cycle: the wheel gesture (the hint's label) and the
-    // two bracket keys that step it discretely.
-    ("SCROLL", "T_Mouse_Scroll_Key_Dark_Key_Alt"),
+    ("AltLeft", "T_Alt_Key_Alt"),
+    ("AltRight", "T_Alt_Key_Alt"),
+    // Punctuation the game can reach. `Equal` is deliberately absent: the pack
+    // draws a `+`, and a row bound to `=` would read as the wrong key.
     ("BracketLeft", "T_Brackets_L_Key_Alt"),
     ("BracketRight", "T_Brackets_R_Key_Alt"),
-    // HUD chrome.
-    ("Tab", "T_Tab_Key_Alt"),
-    ("TAB", "T_Tab_Key_Alt"),
     ("Backquote", "T_Tilde_Key_Alt"),
+    ("Minus", "T_Minus_Key_Alt"),
+    ("Slash", "T_Slash_Key_Alt"),
+    ("Semicolon", "T_Semicolon_Key_Alt"),
+    ("Quote", "T_Quotation_Key_Alt"),
+    // The mouse: the three buttons under `InputSource::label`'s short names,
+    // then the axis notes a readout adds for motion and the wheel.
+    ("LMB", "T_Mouse_Left_Key_Alt"),
+    ("RMB", "T_Mouse_Right_Key_Alt"),
+    ("MMB", "T_Mouse_Middle_Key_Alt"),
+    ("Mouse", "T_Mouse_Simple_Key_Alt"),
+    ("SCROLL", "T_Mouse_Scroll_Key_Dark_Key_Alt"),
+    ("Scroll Up", "T_Mouse_Scroll_Up_Key_Dark_Key_Alt"),
+    ("Scroll Down", "T_Mouse_Scroll_Down_Key_Dark_Key_Alt"),
 ];
 
-/// The keycap file stem for `label`, or `None` when the key has no art (the
-/// caller then falls back to a text chip).
-pub fn key_glyph_stem(label: &str) -> Option<&'static str> {
+/// Where the gamepad prompt art lives, relative to `assets/`. The SAME pack as
+/// the keycaps ([`KEY_GLYPH_DIR`]) and the same `Alt` style, so a pad glyph and
+/// a keycap sitting in one row are drawn by one hand.
+pub const PAD_GLYPH_DIR: &str = "input-prompts/gamepad/Alt";
+
+/// The mapping for the PAD: glyph label -> file stem under [`PAD_GLYPH_DIR`].
+///
+/// A separate table from [`KEY_GLYPH_FILES`] because it is a separate
+/// directory, and because the two vocabularies overlap: a pad's face buttons
+/// read `A`/`B`/`X`/`Y` and so do four keyboard keys. The pad keys are `Pad
+/// `-prefixed, which is exactly what
+/// [`nova_input::prelude::InputSource::glyph_label`] produces.
+///
+/// Bevy's names are not the shell's. `LeftTrigger` is the BUMPER and
+/// `LeftTrigger2` is the trigger, so the art is paired to the button, not to
+/// the name. `Mode` (the guide button) has no entry: the pack draws no guide
+/// glyph and nothing in the game binds that button.
+///
+/// The pack's own Xbox filenames are kept verbatim, as the keycaps are. Two
+/// of them are not what they look like: `T_X_X_Alt` is the MENU button (three
+/// bars), and `T_X_Share_Alt` is the VIEW button - the face-button X is
+/// `T_X_X_White_Alt`.
+pub const PAD_GLYPH_FILES: &[(&str, &str)] = &[
+    // Face buttons, under the names `gamepad_label` prints. The white variants,
+    // not the coloured ones, so a pad glyph reads like the keycaps beside it.
+    ("Pad A", "T_X_A_White_Alt"),
+    ("Pad B", "T_X_B_White_Alt"),
+    ("Pad X", "T_X_X_White_Alt"),
+    ("Pad Y", "T_X_Y_White_Alt"),
+    // Bumpers and triggers. Bevy calls the bumper `LeftTrigger` and the
+    // trigger `LeftTrigger2`, which is why the art does not read that way.
+    ("Pad Left Trigger", "T_X_LB_Alt"),
+    ("Pad Right Trigger", "T_X_RB_Alt"),
+    ("Pad Left Trigger 2", "T_X_LT_Alt"),
+    ("Pad Right Trigger 2", "T_X_RT_Alt"),
+    // Stick presses, then the two chords a pad has instead of Escape.
+    ("Pad Left Thumb", "T_X_Left_Stick_Click_Alt"),
+    ("Pad Right Thumb", "T_X_Right_Stick_Click_Alt"),
+    ("Pad Select", "T_X_Share_Alt"),
+    ("Pad Start", "T_X_X_Alt"),
+    // The D-pad.
+    ("Pad D-Pad Up", "T_X_Dpad_Up_Alt"),
+    ("Pad D-Pad Down", "T_X_Dpad_Down_Alt"),
+    ("Pad D-Pad Left", "T_X_Dpad_Left_Alt"),
+    ("Pad D-Pad Right", "T_X_Dpad_Right_Alt"),
+    // The stick AXIS notes a readout adds - not buttons, so not `Pad`-keyed.
+    ("Left Stick", "T_X_L_2D_Alt"),
+    ("Right Stick", "T_X_R_2D_Alt"),
+];
+
+/// Every mapped label, with the directory and file stem its picture lives at.
+/// The two packs read as one table to a consumer; only the paths differ.
+fn glyph_files() -> impl Iterator<Item = (&'static str, &'static str, &'static str)> {
     KEY_GLYPH_FILES
         .iter()
-        .find(|(key, _)| *key == label)
-        .map(|(_, stem)| *stem)
+        .map(|(label, stem)| (*label, KEY_GLYPH_DIR, *stem))
+        .chain(
+            PAD_GLYPH_FILES
+                .iter()
+                .map(|(label, stem)| (*label, PAD_GLYPH_DIR, *stem)),
+        )
+}
+
+/// The keycap file stem for `label`, or `None` when the button has no art (the
+/// caller then falls back to a text chip). Covers both packs.
+pub fn key_glyph_stem(label: &str) -> Option<&'static str> {
+    glyph_files()
+        .find(|(key, ..)| *key == label)
+        .map(|(_, _, stem)| stem)
 }
 
 /// The DISTINCT asset paths the mapping references, sorted - the list
-/// `GameAssets::key_glyphs` must preload. Several labels share one keycap, so
-/// this is shorter than [`KEY_GLYPH_FILES`].
+/// `GameAssets::key_glyphs` must preload. Several labels share one picture, so
+/// this is shorter than the two tables together.
 pub fn key_glyph_asset_paths() -> Vec<String> {
-    let mut paths: Vec<String> = KEY_GLYPH_FILES
-        .iter()
-        .map(|(_, stem)| format!("{KEY_GLYPH_DIR}/{stem}.png"))
+    let mut paths: Vec<String> = glyph_files()
+        .map(|(_, dir, stem)| format!("{dir}/{stem}.png"))
         .collect();
     paths.sort();
     paths.dedup();
@@ -220,10 +368,9 @@ impl KeyGlyphs {
     /// pixels are there.
     pub fn from_stems(mut resolve: impl FnMut(&str) -> Option<Handle<Image>>) -> Self {
         Self(
-            KEY_GLYPH_FILES
-                .iter()
-                .filter_map(|(label, stem)| {
-                    resolve(stem).map(|image| (*label, KeyCap { image, cap: None }))
+            glyph_files()
+                .filter_map(|(label, _, stem)| {
+                    resolve(stem).map(|image| (label, KeyCap { image, cap: None }))
                 })
                 .collect(),
         )
@@ -346,9 +493,68 @@ mod tests {
             "the (upstream-misspelled) Ctrl keycap is preloaded"
         );
         assert!(
-            paths.len() < KEY_GLYPH_FILES.len(),
+            paths.len() < KEY_GLYPH_FILES.len() + PAD_GLYPH_FILES.len(),
             "shared keycaps collapse to one path"
         );
+        assert!(
+            paths.iter().any(|path| path.starts_with(PAD_GLYPH_DIR)),
+            "the pad pack preloads beside the keyboard one"
+        );
+    }
+
+    /// The table grew to the whole pack for the settings rebind rows, so the
+    /// disk check cannot ride on what the flight rig happens to bind any
+    /// more: EVERY mapped stem must be a file.
+    #[test]
+    fn every_mapped_stem_is_a_file_on_disk() {
+        for path in key_glyph_asset_paths() {
+            let full = std::path::Path::new("../../assets").join(&path);
+            assert!(full.exists(), "glyph missing on disk: {path}");
+        }
+    }
+
+    /// The pad has pictures too, and its face buttons must not be answered
+    /// with the KEYBOARD's `A`. The `Pad ` prefix is what keeps them apart, so
+    /// it is asserted through the production labeller.
+    #[test]
+    fn a_pad_button_resolves_its_own_art_and_not_the_keyboards() {
+        let pad_a = InputSource::Gamepad(GamepadButton::South);
+        assert_eq!(
+            key_glyph_stem(&pad_a.glyph_label()),
+            Some("T_X_A_White_Alt"),
+            "the pad face button draws the pad glyph"
+        );
+        assert_eq!(
+            key_glyph_stem(&InputSource::Keyboard(KeyCode::KeyA).glyph_label()),
+            Some("T_A_Key_Alt"),
+            "and the keyboard key still draws its keycap"
+        );
+        assert_eq!(
+            key_glyph_stem(&InputSource::Gamepad(GamepadButton::Mode).glyph_label()),
+            None,
+            "the pack draws no guide glyph; it falls back to text"
+        );
+    }
+
+    /// The labels a settings row asks for come from `InputSource::label`, not
+    /// from a spelling this crate invents - a friendlier one silently loses
+    /// the picture.
+    #[test]
+    fn a_rebindable_key_resolves_by_its_source_label() {
+        for source in [
+            InputSource::Keyboard(KeyCode::KeyQ),
+            InputSource::Keyboard(KeyCode::Digit4),
+            InputSource::Keyboard(KeyCode::F7),
+            InputSource::Keyboard(KeyCode::ArrowLeft),
+            InputSource::Keyboard(KeyCode::Delete),
+            InputSource::Mouse(MouseButton::Middle),
+        ] {
+            let label = source.label();
+            assert!(
+                key_glyph_stem(&label).is_some(),
+                "no keycap glyph for '{label}'"
+            );
+        }
     }
 
     /// An unmapped key resolves to nothing, which is the text-chip fallback -

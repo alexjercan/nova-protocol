@@ -31,11 +31,24 @@ use nova_input::prelude::*;
 /// the screen, quiet at the prompt, where the keyboard is typing. The per-app
 /// verbs are `ViewerApp`, so `map_goto` and `ship_mates` can both hold `G`
 /// without colliding, and `novaos_next` and a future `map_next` could not.
+///
+/// # What the pad reaches
+///
+/// `Viewer` does not overlap `Flight`, so the viewer verbs REUSE the flight
+/// rig's buttons rather than hunting for spare ones: the D-pad orbits, the
+/// triggers dolly, the bumpers step the selection, the left stick press
+/// reframes. Only the two `Always` actions (the NOVA OS toggle on Right Thumb,
+/// the HUD cycle on View) are off limits, plus the fixed Menu pause chord.
+///
+/// A pad runs out before the app verbs do. `ViewerApp` overlaps `Viewer`, so
+/// only the two face buttons the camera does not use are left - A and Y, which
+/// go to what each app does MOST. `ship_repair` and `ship_rebind` stay
+/// keyboard-only rather than take a camera verb's button away.
 pub fn novaos_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard};
     vec![
-        // RightThumb is the one free pad button, mirroring `nova_menu`'s
-        // optional-gamepad guard.
+        // RightThumb, and only RightThumb: this is `Always`, so it collides
+        // with every context at once.
         ActionBinding::new("novaos_toggle", "SYSTEM", "NOVA OS")
             .context(ActionContext::Always)
             .keyboard([Keyboard(KeyCode::Tab)])
@@ -44,47 +57,61 @@ pub fn novaos_bindings() -> Vec<ActionBinding> {
         // camera over a schematic, so they answer the same verbs.
         ActionBinding::new("novaos_orbit_left", "NOVA OS", "Turn Left")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyQ)]),
+            .keyboard([Keyboard(KeyCode::KeyQ)])
+            .gamepad([Gamepad(GamepadButton::DPadLeft)]),
         ActionBinding::new("novaos_orbit_right", "NOVA OS", "Turn Right")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyE)]),
+            .keyboard([Keyboard(KeyCode::KeyE)])
+            .gamepad([Gamepad(GamepadButton::DPadRight)]),
         ActionBinding::new("novaos_orbit_up", "NOVA OS", "Tilt Up")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyR)]),
+            .keyboard([Keyboard(KeyCode::KeyR)])
+            .gamepad([Gamepad(GamepadButton::DPadUp)]),
         ActionBinding::new("novaos_orbit_down", "NOVA OS", "Tilt Down")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyF)]),
+            .keyboard([Keyboard(KeyCode::KeyF)])
+            .gamepad([Gamepad(GamepadButton::DPadDown)]),
         ActionBinding::new("novaos_pan_forward", "NOVA OS", "Pan Forward")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyW)]),
+            .keyboard([Keyboard(KeyCode::KeyW)])
+            .gamepad([Gamepad(GamepadButton::RightTrigger2)]),
         ActionBinding::new("novaos_pan_back", "NOVA OS", "Pan Back")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyS)]),
+            .keyboard([Keyboard(KeyCode::KeyS)])
+            .gamepad([Gamepad(GamepadButton::LeftTrigger2)]),
         ActionBinding::new("novaos_pan_left", "NOVA OS", "Pan Left")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyA)]),
+            .keyboard([Keyboard(KeyCode::KeyA)])
+            .gamepad([Gamepad(GamepadButton::West)]),
         ActionBinding::new("novaos_pan_right", "NOVA OS", "Pan Right")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyD)]),
+            .keyboard([Keyboard(KeyCode::KeyD)])
+            .gamepad([Gamepad(GamepadButton::East)]),
         ActionBinding::new("novaos_reframe", "NOVA OS", "Reset View")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::KeyT)]),
+            .keyboard([Keyboard(KeyCode::KeyT)])
+            .gamepad([Gamepad(GamepadButton::LeftThumb)]),
         ActionBinding::new("novaos_next", "NOVA OS", "Select Next")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::BracketRight)]),
+            .keyboard([Keyboard(KeyCode::BracketRight)])
+            .gamepad([Gamepad(GamepadButton::RightTrigger)]),
         ActionBinding::new("novaos_prev", "NOVA OS", "Select Previous")
             .context(ActionContext::Viewer)
-            .keyboard([Keyboard(KeyCode::BracketLeft)]),
+            .keyboard([Keyboard(KeyCode::BracketLeft)])
+            .gamepad([Gamepad(GamepadButton::LeftTrigger)]),
         // What each app does to the thing it has selected.
         ActionBinding::new("map_goto", "MAP", "Set GOTO")
             .context(ActionContext::ViewerApp("map"))
-            .keyboard([Keyboard(KeyCode::KeyG)]),
+            .keyboard([Keyboard(KeyCode::KeyG)])
+            .gamepad([Gamepad(GamepadButton::South)]),
         ActionBinding::new("ship_mates", "SHIP", "Mates Overlay")
             .context(ActionContext::ViewerApp("ship"))
-            .keyboard([Keyboard(KeyCode::KeyG)]),
+            .keyboard([Keyboard(KeyCode::KeyG)])
+            .gamepad([Gamepad(GamepadButton::South)]),
         ActionBinding::new("ship_reload", "SHIP", "Reload Section")
             .context(ActionContext::ViewerApp("ship"))
-            .keyboard([Keyboard(KeyCode::KeyL)]),
+            .keyboard([Keyboard(KeyCode::KeyL)])
+            .gamepad([Gamepad(GamepadButton::North)]),
         ActionBinding::new("ship_repair", "SHIP", "Repair Section")
             .context(ActionContext::ViewerApp("ship"))
             .keyboard([Keyboard(KeyCode::KeyP)]),

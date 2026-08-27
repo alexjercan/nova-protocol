@@ -38,6 +38,20 @@ impl InputSource {
             InputSource::Gamepad(button) => gamepad_label(*button),
         }
     }
+
+    /// The keycap-table key for this source - what a surface with room for
+    /// pictures looks a glyph up by (`nova_hud`'s `key_glyph_stem`).
+    ///
+    /// The same as [`Self::label`] for the desk, and DEVICE-QUALIFIED for the
+    /// pad: a controller's face buttons read `A`/`B`/`X`/`Y`, which are also
+    /// four keyboard keys, and one flat table cannot answer both with the
+    /// right picture.
+    pub fn glyph_label(&self) -> String {
+        match self {
+            InputSource::Gamepad(button) => format!("Pad {}", gamepad_label(*button)),
+            desk => desk.label(),
+        }
+    }
 }
 
 impl From<KeyCode> for InputSource {
@@ -237,6 +251,24 @@ mod tests {
             let binding = Binding::from(source);
             assert_eq!(binding_source(&binding), Some(source));
         }
+    }
+
+    /// Four face buttons and four keyboard keys read the same. Only the glyph
+    /// key tells them apart, so it is the one a picture table is keyed on.
+    #[test]
+    fn a_pad_glyph_key_does_not_collide_with_a_keyboard_one() {
+        assert_eq!(InputSource::Gamepad(GamepadButton::South).label(), "A");
+        assert_eq!(InputSource::Keyboard(KeyCode::KeyA).label(), "A");
+        assert_eq!(
+            InputSource::Gamepad(GamepadButton::South).glyph_label(),
+            "Pad A"
+        );
+        assert_eq!(InputSource::Keyboard(KeyCode::KeyA).glyph_label(), "A");
+        assert_eq!(
+            InputSource::Mouse(MouseButton::Left).glyph_label(),
+            "LMB",
+            "the desk keeps one vocabulary"
+        );
     }
 
     #[test]

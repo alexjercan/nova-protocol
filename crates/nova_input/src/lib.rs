@@ -77,10 +77,11 @@ pub mod prelude {
     pub use super::{
         context::{ActionContext, ActiveContexts},
         dispatch,
-        dispatch::{DispatchError, InputPhase},
+        dispatch::{DispatchError, InputPhase, SynthesizedGamepad},
         poll::InputSources,
         registry::{
-            ActionAxes, ActionBinding, BindingSpec, GamepadStick, InputBindings, WheelDirection,
+            ActionAxes, ActionBinding, BindingChip, BindingSpec, GamepadStick, InputBindings,
+            WheelDirection,
         },
         source::{
             binding_source, gamepad_label, key_symbol, keyboard_label, modifier_pair,

@@ -26,6 +26,21 @@
 //! The axis writers are the exception in kind but not in timing: bevy CLEARS
 //! [`AccumulatedMouseMotion`] and [`AccumulatedMouseScroll`] each frame in the
 //! same set, so [`apply_axis`] must land after it for the same reason.
+//!
+//! # The pad is two halves
+//!
+//! A pad-only action is driven on a pad this module CONNECTS
+//! ([`SynthesizedGamepad`]), because bevy models a controller as a [`Gamepad`]
+//! component on an entity and there is no controller plugged in on a test box.
+//!
+//! Writing that pad means writing both halves of it, the way bevy's own
+//! `gamepad_event_processing_system` does. [`Gamepad::digital`] is the button
+//! set a poller reads (this crate's `InputSources`); [`Gamepad::analog`] is
+//! what `bevy_enhanced_input` reads, through [`Gamepad::get`]. Setting one
+//! half drives half the game and looks like it works.
+//!
+//! Bevy clears the pad's digital EDGES in the same `PreUpdate` set it clears
+//! the keyboard's, so the press/release rule above is the pad's rule too.
 
 use bevy::{
     input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit},
@@ -52,9 +67,8 @@ pub enum DispatchError {
     /// No action of that name is registered. Carries the name, because the
     /// caller's whole input was a string.
     Unknown(String),
-    /// The action exists but has no keyboard or mouse button to press. Either
-    /// it is an axis (`rcs_aim` is mouse motion and nothing else), or it is
-    /// bound to a gamepad, which is not synthesizable here.
+    /// The action exists but has no button on any device to press: it is an
+    /// axis, like `rcs_aim`, which is mouse motion and nothing else.
     NoButton(&'static str),
     /// The action exists but carries no axis, so there is no value to write.
     NoAxis(&'static str),
@@ -66,7 +80,7 @@ impl std::fmt::Display for DispatchError {
             DispatchError::Unknown(name) => write!(f, "no action named `{name}`"),
             DispatchError::NoButton(name) => write!(
                 f,
-                "`{name}` has no keyboard or mouse button to press; it is an axis or gamepad-only"
+                "`{name}` has no button on any device to press; it is an axis"
             ),
             DispatchError::NoAxis(name) => write!(f, "`{name}` is not driven by an axis"),
         }
@@ -78,9 +92,9 @@ impl std::error::Error for DispatchError {}
 /// Press or release whatever `name` is bound to, writing the button state a
 /// game polls.
 ///
-/// [`primary_source`] picks which source that is.
+/// [`driven_source`] picks which source that is.
 pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), DispatchError> {
-    match (primary_source(world, name)?, phase) {
+    match (driven_source(world, name)?, phase) {
         (InputSource::Keyboard(key), InputPhase::Press) => {
             world.resource_mut::<ButtonInput<KeyCode>>().press(key);
         }
@@ -97,10 +111,69 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
                 .resource_mut::<ButtonInput<MouseButton>>()
                 .release(button);
         }
-        // `primary_source` never returns one.
-        (InputSource::Gamepad(_), _) => unreachable!(),
+        (InputSource::Gamepad(button), phase) => press_pad(world, button, phase),
     }
     Ok(())
+}
+
+/// The pad this module presses when an action reaches no desk button.
+///
+/// Marks the entity [`apply`] connects the first time it needs one, so the
+/// next press lands on the SAME pad instead of connecting another, and so a
+/// real controller plugged in beside it is never written to.
+#[derive(Component, Debug, Default)]
+pub struct SynthesizedGamepad;
+
+/// Write both halves of one pad button. See the pad section of the module doc
+/// for why one half is not enough.
+fn press_pad(world: &mut World, button: GamepadButton, phase: InputPhase) {
+    let pad = synthesized_pad(world);
+    let mut pad = world.entity_mut(pad);
+    let mut gamepad = pad
+        .get_mut::<Gamepad>()
+        .expect("the synthesized pad is spawned with one");
+    match phase {
+        InputPhase::Press => {
+            gamepad.digital_mut().press(button);
+            gamepad.analog_mut().set(button, 1.0);
+        }
+        InputPhase::Release => {
+            gamepad.digital_mut().release(button);
+            gamepad.analog_mut().set(button, 0.0);
+        }
+    }
+}
+
+/// The synthesized pad, connecting one if this is the first pad press.
+fn synthesized_pad(world: &mut World) -> Entity {
+    let mut pads = world.query_filtered::<Entity, With<SynthesizedGamepad>>();
+    if let Some(pad) = pads.iter(world).next() {
+        return pad;
+    }
+    world
+        .spawn((
+            Name::new("Input: Synthesized Gamepad"),
+            SynthesizedGamepad,
+            Gamepad::default(),
+        ))
+        .id()
+}
+
+/// The source [`apply`] drives `name` through: [`primary_source`] where the
+/// action holds a desk button, its first PAD button where it does not.
+///
+/// The desk comes first because that is what a player on a keyboard presses
+/// and what a driven UI run can also click; the pad is the fallback for the
+/// actions that only ever had one, not a second surface to press in parallel.
+pub fn driven_source(world: &World, name: &str) -> Result<InputSource, DispatchError> {
+    match primary_source(world, name) {
+        Err(DispatchError::NoButton(label)) => world
+            .resource::<InputBindings>()
+            .get(name)
+            .and_then(|action| action.gamepad.first().copied())
+            .ok_or(DispatchError::NoButton(label)),
+        resolved => resolved,
+    }
 }
 
 /// The one source `name` is driven through: the first keyboard or mouse button
@@ -115,9 +188,10 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
 ///
 /// The FIRST bound source wins: an action on several keys is driven by one of
 /// them, because pressing all of them is a gesture no player performs. A
-/// gamepad source is never returned - bevy's gamepad input is connection-gated
-/// and synthesizing it is unverified - so a pad-only action is
-/// [`DispatchError::NoButton`] rather than a silent no-op.
+/// gamepad source is never returned here - a caller that resolves a source to
+/// press it through a WINDOW has no window to press a pad button in - so a
+/// pad-only action is [`DispatchError::NoButton`]. [`driven_source`] is the
+/// one that falls back to the pad, and [`apply`] uses it.
 pub fn primary_source(world: &World, name: &str) -> Result<InputSource, DispatchError> {
     let Some(action) = world.resource::<InputBindings>().get(name) else {
         return Err(DispatchError::Unknown(name.to_string()));
@@ -178,7 +252,12 @@ mod tests {
         world.init_resource::<ButtonInput<MouseButton>>();
         world.init_resource::<AccumulatedMouseMotion>();
         world.init_resource::<AccumulatedMouseScroll>();
-        world.insert_resource(InputBindings::from_actions([
+        world.insert_resource(bindings());
+        world
+    }
+
+    fn bindings() -> InputBindings {
+        InputBindings::from_actions([
             ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
                 .keyboard([
                     InputSource::Keyboard(KeyCode::KeyW),
@@ -196,8 +275,7 @@ mod tests {
             ActionBinding::new("camera_rotate", "CAMERA", "Aim")
                 .mouse_motion()
                 .stick(GamepadStick::Right),
-        ]));
-        world
+        ])
     }
 
     #[test]
@@ -231,11 +309,6 @@ mod tests {
             Err(DispatchError::Unknown("warp_drive".to_string()))
         );
         assert_eq!(
-            apply(&mut world, "pad_only", InputPhase::Press),
-            Err(DispatchError::NoButton("pad_only")),
-            "a gamepad-only action fails loudly rather than doing nothing"
-        );
-        assert_eq!(
             apply(&mut world, "rcs_aim", InputPhase::Press),
             Err(DispatchError::NoButton("rcs_aim")),
             "an axis action has no press"
@@ -244,6 +317,134 @@ mod tests {
             apply_axis(&mut world, "main_drive", Vec2::Y),
             Err(DispatchError::NoAxis("main_drive")),
             "a button action has no axis"
+        );
+    }
+
+    /// The pad half. A pad-only action reaches a pad this module connects
+    /// itself, and BOTH halves of it are written: the digital set a poller
+    /// reads and the analog value `bevy_enhanced_input` reads.
+    #[test]
+    fn a_pad_only_action_presses_a_pad_that_did_not_exist() {
+        let mut world = world();
+        apply(&mut world, "pad_only", InputPhase::Press).unwrap();
+
+        let pads: Vec<&Gamepad> = world
+            .query_filtered::<&Gamepad, With<SynthesizedGamepad>>()
+            .iter(&world)
+            .collect();
+        assert_eq!(pads.len(), 1, "one pad was connected for the press");
+        let pad = pads[0];
+        assert!(
+            pad.digital().pressed(GamepadButton::South),
+            "the poller's half is down"
+        );
+        assert_eq!(
+            pad.get(GamepadButton::South),
+            Some(1.0),
+            "and so is the half bevy_enhanced_input reads"
+        );
+
+        apply(&mut world, "pad_only", InputPhase::Release).unwrap();
+        let pads = world
+            .query_filtered::<&Gamepad, With<SynthesizedGamepad>>()
+            .iter(&world)
+            .count();
+        assert_eq!(pads, 1, "the release reuses the pad; it does not add one");
+        let pad = world
+            .query_filtered::<&Gamepad, With<SynthesizedGamepad>>()
+            .single(&world)
+            .unwrap();
+        assert!(!pad.digital().pressed(GamepadButton::South));
+        assert_eq!(pad.get(GamepadButton::South), Some(0.0));
+    }
+
+    /// The pad is the FALLBACK, not a second surface: an action bound on both
+    /// is still driven by its key, so a keyboard-only game never grows a pad.
+    #[test]
+    fn an_action_bound_on_both_is_driven_by_the_desk() {
+        let mut world = world();
+        apply(&mut world, "main_drive", InputPhase::Press).unwrap();
+        assert!(world
+            .resource::<ButtonInput<KeyCode>>()
+            .pressed(KeyCode::KeyW));
+        assert_eq!(
+            world
+                .query_filtered::<Entity, With<SynthesizedGamepad>>()
+                .iter(&world)
+                .count(),
+            0,
+            "no pad was connected"
+        );
+    }
+
+    /// The claim the module opens with, on the PAD: a driven pad press reaches
+    /// a REAL `bevy_enhanced_input` rig, and the rig's `Hold` still runs on it.
+    ///
+    /// This is the half a keyboard test cannot cover, and the half a
+    /// developer with no controller cannot press: upstream reads the pad's
+    /// ANALOG value through `Gamepad::get`, not the digital set, so writing
+    /// only the digital half would leave every rig-driven pad action dead
+    /// while the polled ones (the NOVA OS toggle) looked fine.
+    #[test]
+    fn a_driven_pad_press_reaches_a_real_rig_and_its_hold() {
+        use core::time::Duration;
+
+        use bevy::{input::InputPlugin, time::TimeUpdateStrategy};
+        use bevy_enhanced_input::prelude::*;
+
+        use crate::source::source_bindings;
+
+        const HOLD_SECS: f32 = 0.2;
+        const TICK: Duration = Duration::from_millis(50);
+
+        #[derive(Component)]
+        struct PadContext;
+
+        #[derive(InputAction)]
+        #[action_output(bool)]
+        struct PadFire;
+
+        #[derive(Resource, Default)]
+        struct Held(bool);
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(TICK));
+        app.insert_resource(bindings());
+        app.init_resource::<Held>();
+        app.add_input_context::<PadContext>();
+        app.add_observer(|_: On<Fire<PadFire>>, mut held: ResMut<Held>| held.0 = true);
+        app.finish();
+        app.cleanup();
+        // The first update advances the clock by nothing; the hold would
+        // measure from a frame that never elapsed.
+        app.update();
+
+        app.world_mut().spawn((
+            PadContext,
+            actions!(
+                PadContext[(
+                    Action::<PadFire>::new(),
+                    Hold::new(HOLD_SECS),
+                    source_bindings([InputSource::Gamepad(GamepadButton::South)]),
+                )]
+            ),
+        ));
+        app.update();
+
+        apply(app.world_mut(), "pad_only", InputPhase::Press).expect("the pad is a source now");
+        app.update();
+        assert!(
+            !app.world().resource::<Held>().0,
+            "one tick is short of the hold; the condition is running, not bypassed"
+        );
+
+        for _ in 0..4 {
+            app.update();
+        }
+        assert!(
+            app.world().resource::<Held>().0,
+            "the driven pad button crosses the same threshold a real one does"
         );
     }
 
