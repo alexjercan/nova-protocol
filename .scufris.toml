@@ -1,20 +1,22 @@
-[preferences.tracking]
-keywords = { tool = "tatr", when = "on-request", evidence = "tasks/" }
+# Scufris reads this file as a menu, not a workflow. Conventions are inferred
+# when the request is silent. Agents run only when the request names them.
+
+[conventions]
+keywords = { tracking = "tatr", when = "on-request", evidence = "tasks/", workspace = "sprout", base = "master", toolchain = "nix develop", rust = "cargo", landing = "explicit", attribution = "none" }
 guidance = """
-Use Tatr only when the user requests tracked work. Keep one task for one request
-and its follow-up work. Keep proof-bearing decisions, notes, review, and
-verification evidence with the task.
+Use Tatr only when the request asks for tracked work. Keep one task for one
+request and its follow-up work, and keep proof-bearing decisions, notes and
+verification evidence with the task. Keep the main checkout on master,
+preserve unrelated user changes, and do project work in a Sprout worktree.
+Run only affected checks unless the request asks for broader verification.
+Inspect rendered reports and generated output rather than trusting exit status
+alone. Commit self-contained changes with explicit paths and no AI
+attribution. Never push, tag, publish or cut a release without an explicit
+request.
 """
 
-[preferences.workspace]
-keywords = { workspace = "sprout", base = "master" }
-guidance = """
-Use a Sprout workspace for project implementation. Keep the main checkout on
-master, preserve unrelated user changes, and land the completed Sprout
-explicitly after review and approval.
-"""
-
-[preferences.implementation]
+[agents.work]
+description = "Implement a change in the project."
 keywords = { harness = "claude", model = "Opus", thinking = "xhigh" }
 guidance = """
 Follow AGENTS.md and the project's existing architecture and conventions. Keep
@@ -22,47 +24,40 @@ scope focused, inspect local sources first, and prefer the cheapest proof that
 establishes the change.
 """
 
-[preferences.independent-review]
-keywords = { review = "independent-review", order = "first", harness = "claude", model = "Opus", thinking = "xhigh" }
+[agents.review]
+description = "Read finished work independently and report findings."
+keywords = { harness = "claude", model = "Opus", thinking = "xhigh", spawn = "review_of", command = "/nova-review" }
 guidance = """
-Repeat the implementation -> independent read-only review cycle, resolving
-correctness, coverage, regression, maintainability, documentation, and proof
-findings each round, until the reviewer approves.
+Run `/nova-review` over the range the work produced. It is this project's own
+review panel: it dispatches the reviewer lanes and adjudicates what they
+report, read-only against the implementation job's exact workspace. Report
+correctness, coverage, regression, maintainability, documentation and proof
+findings with paths and lines. Keep one review job for the work: spawn it for
+the first round, then steer that same job with scufris_job_send for each later
+round, because a fresh reviewer has no record of what it already accepted.
+Spawn a second review job only when no owned review job covers this work.
+Repeat the implement-then-review cycle only for as long as the request asked
+for.
 """
 
-[preferences.quick-review]
-keywords = { review = "quick-review", order = "second", harness = "pi", mode = "rpc", model = "openai-codex/gpt-5.6-sol", thinking = "medium", extension = "npm:@alexjercan/quick-review@0.1.1" }
-guidance = """
-After independent review approves, start the standalone Quick Review extension
-in its separate Pi RPC agent once as the final user approval gate. Do not use
-these Pi RPC settings for independent review.
-"""
-
-[preferences.research]
+[agents.research]
+description = "Search, compare references, and build reports or visual studies."
 keywords = { harness = "claude", model = "Fable", thinking = "xhigh", sources = "local-first" }
 guidance = """
-Prefer this harness for research and creative exploration: searching for assets,
-comparing references, building reports, designing HTML artifacts, making visual
-studies, and creating disposable proofs of concept. Inspect project sources
-before external research. Keep factual claims sourced, label taste and
-speculation, preserve useful artifacts with the owning task or at the
-user-requested destination, and hand settled implementation requirements to the
-coding agent.
+Use this agent for research and creative exploration: searching for assets,
+comparing references, building reports, designing HTML artifacts, making
+visual studies, and creating disposable proofs of concept. Inspect project
+sources before external research. Keep factual claims sourced, label taste and
+speculation, and preserve useful artifacts with the owning task or at the
+requested destination. Hand settled implementation requirements to the work
+agent rather than building them here.
 """
 
-[preferences.verification]
-keywords = { verification = "focused", toolchain = "nix develop", rust = "cargo" }
+[agents.quick-review]
+description = "Open the Quick Review walkthrough page for the user to approve."
+keywords = { tool = "scufris_job_quick_review", harness = "pi", mode = "rpc", model = "openai-codex/gpt-5.6-sol", thinking = "medium", extension = "npm:@alexjercan/quick-review@0.1.1" }
 guidance = """
-Run only affected checks unless the user requests broader verification. Use
-probe ranges for behavior, inspect their rendered reports and checks, and open
-generated or rendered output rather than trusting exit status alone.
-"""
-
-[preferences.landing]
-keywords = { landing = "sprout", gate = "quick-review-approval", attribution = "none" }
-guidance = """
-Land the approved Sprout with the guarded Sprout landing operation. Commit
-self-contained changes with explicit paths and no AI attribution. Never infer
-landing from worker completion or review alone, and never push, tag, publish,
-or cut a release without an explicit user request.
+Start the standalone Quick Review extension in its separate Pi RPC agent. Keep
+foreground Scufris responsive while that agent writes the walkthrough and
+answers page questions. Do not use these Pi RPC settings for the review agent.
 """
