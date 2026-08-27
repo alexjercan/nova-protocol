@@ -161,11 +161,20 @@ does NOT get an entry - and it is the only place they are written down.
 - The comms stack drops its V and B keys. Dismissing the oldest card and
   skipping the backlog were near-identical shortcuts, and the paced window
   already flows on its own.
+- Tab and the HUD cycle key are named actions: the Controls list prints them,
+  the settings file remembers a move, and both answer a rebind like every
+  flight key already did.
 
 ### Ships & Sections
 
 - Sections keep a stable name for as long as they exist, so a ship read back
   after a trip out to flight is the ship that was built.
+
+### Fixes
+
+- The gamepad shortcuts outside the flight rig fire again: pause on Start, the
+  HUD cycle on Select, the NOVA OS on the right-stick click. All three read a
+  resource bevy no longer has.
 
 ### Internals & Tooling
 

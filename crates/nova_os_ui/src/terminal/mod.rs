@@ -70,6 +70,7 @@ pub mod prelude {
 
 use nova_gameplay::{objectives::prelude::GameObjectives, GameStates, PauseStates};
 use nova_hud::prelude::StoryFeed;
+use nova_input::prelude::RegisterInputActions;
 
 pub use self::{
     components::NovaOsMonitorSettings,
@@ -152,6 +153,7 @@ impl Plugin for NovaOsPlugin {
         app.init_resource::<NovaOsDegauss>();
         app.register_type::<NovaOsMonitorSettings>();
         app.add_plugins(UiMaterialPlugin::<NovaOsCrtMaterial>::default());
+        app.register_input_actions(crate::bindings::novaos_bindings());
 
         // Tab opens the NOVA OS. It keeps running in all of Playing so an open
         // NOVA OS can reserve Tab for terminal completion instead of closing.

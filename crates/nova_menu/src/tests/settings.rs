@@ -82,6 +82,14 @@ fn settings_panel_builds_its_controls() {
         texts.iter().any(|t| t == "Pause / Menu"),
         "the declared-fixed rows are missing (no Pause / Menu row)"
     );
+    // The mode toggles are registry rows, not fixed text: they reach this list
+    // from the plugins that own them, so a rebind moves the readout.
+    for action in ["NOVA OS", "HUD (On / Cinematic)"] {
+        assert!(
+            texts.iter().any(|t| t == action),
+            "the {action} row is missing from the live bindings readout"
+        );
+    }
 
     // Exactly one volume slider, seeded to the current level, with a thumb
     // and a percent label.

@@ -23,6 +23,7 @@
 #![warn(missing_docs)]
 
 pub mod dispatch;
+pub mod poll;
 pub mod registry;
 pub mod source;
 
@@ -73,6 +74,7 @@ pub mod prelude {
     pub use super::{
         dispatch,
         dispatch::{DispatchError, InputPhase},
+        poll::InputSources,
         registry::{
             ActionAxes, ActionBinding, BindingSpec, GamepadStick, InputBindings, WheelDirection,
         },

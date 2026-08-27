@@ -25,11 +25,14 @@ use crate::{
 };
 
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
-/// press-to-toggle; no existing Escape binding anywhere in the repo
-/// (checked 2026-07-11).
+/// press-to-toggle.
+///
+/// Escape is deliberately NOT a registry action: it is the universal back-out,
+/// and a rebind that stranded a player inside a mode would leave no way out.
+/// The settings list carries it as a fixed row instead.
 pub(crate) fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    gamepads: Query<&Gamepad>,
     escape_owner: Option<Res<EscapeOwner>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
@@ -51,9 +54,12 @@ pub(crate) fn toggle_pause(
     if outcome.is_some_and(|outcome| outcome.0.is_some()) {
         return;
     }
-    let pad = gamepad
-        .map(|g| g.just_pressed(GamepadButton::Start))
-        .unwrap_or(false);
+    // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
+    // `ButtonInput<GamepadButton>` resource, so the `Option<Res<..>>` this used
+    // to ask for was `None` on every real run and Start never paused anything.
+    let pad = gamepads
+        .iter()
+        .any(|pad| pad.digital().just_pressed(GamepadButton::Start));
     if keys.just_pressed(KeyCode::Escape) || pad {
         let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,

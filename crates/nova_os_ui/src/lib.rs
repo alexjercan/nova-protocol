@@ -16,12 +16,14 @@
 //!
 //! | Module | Concern |
 //! | --- | --- |
+//! | `bindings` | The named actions the monitor and its apps answer to. |
 //! | `terminal` | The monitor itself: casing, CRT, shell, input, sound. |
 //! | `map` | The `map` app: a schematic 3D minimap of local space. |
 //! | `ship` | The `ship` app: a schematic 3D viewer of the player ship. |
 
 #![warn(missing_docs)]
 
+pub mod bindings;
 pub mod map;
 pub mod ship;
 pub mod terminal;
@@ -39,7 +41,10 @@ mod pointer_rig;
 
 /// Glob-import surface: `use nova_os_ui::prelude::*`.
 pub mod prelude {
-    pub use super::{map::prelude::*, ship::prelude::*, terminal::prelude::*, NovaOsUiPlugin};
+    pub use super::{
+        bindings::novaos_bindings, map::prelude::*, ship::prelude::*, terminal::prelude::*,
+        NovaOsUiPlugin,
+    };
 }
 
 use bevy::prelude::*;

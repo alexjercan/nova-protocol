@@ -26,6 +26,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::prelude::*;
@@ -291,10 +292,12 @@ impl Plugin for NovaHudPlugin {
             emphasis::drive_hud_emphasis.before(bevy::ui::UiSystems::Layout),
         );
         // The cycle key is gameplay-only (the menu drives the resource
-        // itself); plain ButtonInput, same pattern as the debug F11 toggle.
-        // The resource is ours to guarantee: a headless HUD app carries no
-        // `InputPlugin`, and the comms panel used to init it as a side effect.
+        // itself). The resources are ours to guarantee: a headless HUD app
+        // carries no `InputPlugin`, and the comms panel used to init the
+        // keyboard one as a side effect.
         app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<ButtonInput<MouseButton>>();
+        app.register_input_actions(hud_bindings());
         app.add_systems(
             Update,
             cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
@@ -393,17 +396,31 @@ impl Plugin for NovaHudPlugin {
     }
 }
 
-/// Cycle the HUD level on grave/tilde (or the gamepad Select button).
+/// The HUD's own action: drop the instruments for a clean view and bring them
+/// back.
+///
+/// Not a `bevy_enhanced_input` rig. The rig spawns with the player ship, and
+/// this has to answer wherever the HUD is drawn, so it stays a polling system
+/// that asks the registry which sources it holds.
+pub fn hud_bindings() -> Vec<ActionBinding> {
+    vec![
+        ActionBinding::new("hud_cinematic", "SYSTEM", "HUD (On / Cinematic)")
+            .keyboard([InputSource::Keyboard(KeyCode::Backquote)])
+            .gamepad([InputSource::Gamepad(GamepadButton::Select)]),
+    ]
+}
+
+/// Cycle the HUD level on whatever `hud_cinematic` is bound to.
 /// Press-to-cycle, no hold gesture: two states, so one press round-trips.
 fn cycle_hud_visibility(
-    keys: Res<ButtonInput<KeyCode>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    sources: InputSources,
+    bindings: Res<InputBindings>,
     mut level: ResMut<HudVisibility>,
 ) {
-    let pad = gamepad
-        .map(|g| g.just_pressed(GamepadButton::Select))
-        .unwrap_or(false);
-    if keys.just_pressed(KeyCode::Backquote) || pad {
+    let Some(action) = bindings.get("hud_cinematic") else {
+        return;
+    };
+    if sources.just_pressed(action) {
         let next = level.next();
         info!("hud visibility: {:?} -> {:?}", *level, next);
         *level = next;
@@ -855,6 +872,8 @@ mod tests {
         app.init_state::<nova_gameplay::PauseStates>();
         app.init_resource::<HudVisibility>();
         app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<ButtonInput<MouseButton>>();
+        app.register_input_actions(hud_bindings());
         app.add_systems(
             Update,
             cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
@@ -889,6 +908,27 @@ mod tests {
 
     fn level(app: &App) -> HudVisibility {
         *app.world().resource::<HudVisibility>()
+    }
+
+    /// The pad half of the same action. It read `ButtonInput<GamepadButton>`
+    /// before, a resource bevy 0.19 never registers, so Select was inert in
+    /// every real run and only answered in a test that inserted the resource
+    /// itself. The state now lives on the `Gamepad` COMPONENT, as bevy models
+    /// it, and this spawns one.
+    #[test]
+    fn the_pad_button_cycles_the_hud_too() {
+        let mut app = app();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::Select);
+        app.world_mut().spawn(pad);
+        assert_eq!(level(&app), HudVisibility::On);
+
+        app.update();
+        assert_eq!(
+            level(&app),
+            HudVisibility::Cinematic,
+            "the pad drops the instruments without a keyboard press"
+        );
     }
 
     /// Delivery-guarded per step (LESSONS assert-each-gesture-step): the level

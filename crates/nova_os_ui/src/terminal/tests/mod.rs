@@ -33,6 +33,7 @@ use nova_gameplay::{
     GameStates, PauseStates,
 };
 use nova_hud::prelude::*;
+use nova_input::prelude::RegisterInputActions;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::theme;
@@ -52,6 +53,8 @@ fn toggle_app() -> App {
     app.init_state::<GameStates>();
     app.init_state::<PauseStates>();
     app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<NovaOsCloseTransition>();
     // The computer belongs to a ship: with none on the field the toggle is
     // inert (see `toggle_nova_os`), so the rig flies one.
@@ -267,14 +270,29 @@ fn register_ship_view_command(app: &mut App) {
 /// One right-stick-click press: press + update (toggle sets NextState), then
 /// release + clear + update (applies the transition; the clear stops the
 /// stale edge re-firing next frame - same shape as `press_tab`).
+/// Press the pad button on a CONNECTED pad. Bevy 0.19 keeps digital state on
+/// the `Gamepad` component, so the rig spawns one on first use and reuses it -
+/// a second pad would double every press.
 fn press_pad(app: &mut App) {
+    let existing = app
+        .world_mut()
+        .query::<(Entity, &Gamepad)>()
+        .iter(app.world())
+        .map(|(entity, _)| entity)
+        .next();
+    let entity = existing.unwrap_or_else(|| app.world_mut().spawn(Gamepad::default()).id());
     app.world_mut()
-        .resource_mut::<ButtonInput<GamepadButton>>()
+        .entity_mut(entity)
+        .get_mut::<Gamepad>()
+        .expect("just spawned")
+        .digital_mut()
         .press(GamepadButton::RightThumb);
     app.update();
-    let mut pad = app.world_mut().resource_mut::<ButtonInput<GamepadButton>>();
-    pad.release(GamepadButton::RightThumb);
-    pad.clear();
+    let mut entity_mut = app.world_mut().entity_mut(entity);
+    let mut pad = entity_mut.get_mut::<Gamepad>().expect("still connected");
+    let digital = pad.digital_mut();
+    digital.release(GamepadButton::RightThumb);
+    digital.clear();
     app.update();
 }
 

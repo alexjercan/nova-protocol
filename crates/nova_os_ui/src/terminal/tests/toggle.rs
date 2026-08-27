@@ -252,7 +252,6 @@ fn nova_os_block_caret_is_absolute_and_tracks_measured_text_width() {
 #[test]
 fn pad_opens_nova_os_and_requests_animated_close() {
     let mut app = toggle_app();
-    app.init_resource::<ButtonInput<GamepadButton>>();
     assert_eq!(pause_state(&app), PauseStates::Unpaused);
 
     press_pad(&mut app);

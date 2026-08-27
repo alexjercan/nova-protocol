@@ -26,6 +26,7 @@ use nova_gameplay::{
     prelude::*,
     PauseStates,
 };
+use nova_input::prelude::*;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::screen::{max_scroll_y, page_step};
@@ -33,31 +34,36 @@ use nova_ui::screen::{max_scroll_y, page_step};
 use super::{components::*, content::*, sound::*, style::*};
 use crate::ship::prelude::SectionCode;
 
-/// Tab opens the shared freeze axis and becomes autocomplete while open. The
-/// gamepad right-stick click still toggles `Unpaused <-> NovaOs`; both inputs are
-/// inert while the pause menu owns the freeze (`Paused`) - which is also how a
-/// live outcome (it forces `Paused`) blocks the NOVA OS without a cross-crate
-/// dependency. The pad button is `RightThumb`, the one free button, mirroring
-/// `nova_menu`'s optional-gamepad guard.
+/// `novaos_toggle` opens the shared freeze axis, and its key becomes
+/// autocomplete while open. The pad half still toggles `Unpaused <-> NovaOs`;
+/// both inputs are inert while the pause menu owns the freeze (`Paused`) -
+/// which is also how a live outcome (it forces `Paused`) blocks the NOVA OS
+/// without a cross-crate dependency.
+///
+/// The desk and pad halves are read apart, and that asymmetry is the point: a
+/// keyboard closes the monitor with Escape, which a pad has not got, so the pad
+/// button has to close what it opened.
 ///
 /// OPENING also needs a ship to be the computer OF. `Playing` covers the
-/// editor's build mode as well as flight, and there Tab used to arm the freeze
-/// axis over a scene with no ship: the monitor never drew, but the state stuck,
-/// so pressing Play dropped the player straight into a NOVA OS they never asked
-/// for. Closing stays ungated - a computer that opened must always be closable.
+/// editor's build mode as well as flight, and there the key used to arm the
+/// freeze axis over a scene with no ship: the monitor never drew, but the state
+/// stuck, so pressing Play dropped the player straight into a NOVA OS they
+/// never asked for. Closing stays ungated - a computer that opened must always
+/// be closable.
 pub(crate) fn toggle_nova_os(
-    keys: Res<ButtonInput<KeyCode>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    sources: InputSources,
+    bindings: Res<InputBindings>,
     player: Query<(), With<PlayerSpaceshipMarker>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
 ) {
-    let pad = gamepad
-        .map(|g| g.just_pressed(GamepadButton::RightThumb))
-        .unwrap_or(false);
-    let tab = keys.just_pressed(KeyCode::Tab);
-    if !tab && !pad {
+    let Some(action) = bindings.get("novaos_toggle") else {
+        return;
+    };
+    let pad = sources.just_pressed_pad(action);
+    let desk = sources.just_pressed_desk(action);
+    if !desk && !pad {
         return;
     }
     match current.get() {
@@ -66,7 +72,7 @@ pub(crate) fn toggle_nova_os(
             close.closing = false;
             next.set(PauseStates::NovaOs);
         }
-        PauseStates::NovaOs if pad && !tab => {
+        PauseStates::NovaOs if pad && !desk => {
             close.closing = true;
         }
         PauseStates::NovaOs | PauseStates::Paused => {}
@@ -82,7 +88,7 @@ pub(crate) fn control_held(keys: &ButtonInput<KeyCode>) -> bool {
 
 pub(crate) fn close_nova_os_from_menu_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    gamepads: Query<&Gamepad>,
     current: Res<State<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
     mut terminal: ResMut<NovaOsTerminal>,
@@ -98,9 +104,14 @@ pub(crate) fn close_nova_os_from_menu_keys(
     // `context-key-handled-in-one-owner` lesson): Escape, gamepad Start, and the
     // Ctrl+C / Ctrl+[ app-exit chord are all branched on `active_mode` here, so a
     // single press can never both exit an app and close the NOVA OS.
-    let start = gamepad
-        .map(|g| g.just_pressed(GamepadButton::Start))
-        .unwrap_or(false);
+    // Escape is the one gesture that stays off the registry: it is the
+    // universal back-out, and a rebind that stranded a player inside a mode
+    // would have no way out. Start is its pad twin, read off the `Gamepad`
+    // COMPONENT - bevy 0.19 registers no `ButtonInput<GamepadButton>`, so the
+    // `Option<Res<..>>` this used to ask for was `None` on every real run.
+    let start = gamepads
+        .iter()
+        .any(|pad| pad.digital().just_pressed(GamepadButton::Start));
     let escape = keys.just_pressed(KeyCode::Escape) || start;
     let shift = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
     let ctrl = control_held(&keys);

@@ -369,10 +369,7 @@ pub(crate) fn sync_volume_slider(
 /// The controls that are not enhanced-input actions, and so are not in the
 /// registry: raw `ButtonInput` chords read by the comms panel and by the pause
 /// and HUD toggles. They stay declared here until someone names them.
-const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[
-    ("SYSTEM", "Pause / Menu", "Esc", "Start"),
-    ("SYSTEM", "HUD (On / Cinematic)", "`", "Select"),
-];
+const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[("SYSTEM", "Pause / Menu", "Esc", "Start")];
 
 /// One read-only keybind row: the action on the left, the keyboard and gamepad
 /// bindings on the right.
