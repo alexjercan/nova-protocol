@@ -159,9 +159,9 @@
 
   <h2><span class="n">Where it stands</span>What is built, and what is not</h2>
   <p>
-    Six pieces shipped. What is missing is not missing by accident: three of the
-    four gaps are somebody else&rsquo;s half of a seam this crate deliberately
-    stops at.
+    Eight pieces shipped, the last two on 27 August: a player can now move a
+    key from inside the game. Both remaining gaps are somebody else&rsquo;s
+    half of a seam this crate deliberately stops at.
   </p>
   <div class="board">
     <div class="card">
@@ -195,15 +195,15 @@
       <p>Only the rows a player moved are saved, so a changed DEFAULT still
       reaches a player who never touched that row.</p>
     </div>
-    <div class="card q">
-      <span class="st">in queue</span><span class="nm">capture UI</span>
-      <p>The Controls list is read-only. A player can see every binding and
-      change none of them from inside the game.</p>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">capture UI</span>
+      <p>Settings opens on four tabs; a Controls chip arms a capture the next
+      key or pad button fills, and the live rigs rebuild on the spot.</p>
     </div>
-    <div class="card q">
-      <span class="st">in queue</span><span class="nm">rebind conflict guard</span>
-      <p><code>conflicts()</code> exists and only the tests call it. Nothing
-      stops a rebind landing two live actions on one key.</p>
+    <div class="card">
+      <span class="st">shipped</span><span class="nm">rebind conflict guard</span>
+      <p><code>conflict_for</code> and <code>holder_in</code> run on the
+      candidate, from all three rebind surfaces, against the LIVE table.</p>
     </div>
     <div class="card q">
       <span class="st">in queue</span><span class="nm">gamepad synthesis</span>
@@ -423,29 +423,6 @@
   </p>
 
   <h2><span class="n">Next</span>In queue</h2>
-
-  <div class="q-item">
-    <span class="who">nova_menu</span>
-    <p class="call">A capture UI, so a player can actually move a key</p>
-    <p>
-      The Controls list is a read-only readout. <code>rebind</code> works, the
-      persistence works, and the test that a moved key survives a save and a
-      reload passes &mdash; but every one of those paths is reachable only from
-      code. This is the shipping half of the feature the registry was built for.
-    </p>
-  </div>
-
-  <div class="q-item">
-    <span class="who">nova_menu</span>
-    <p class="call">Refuse a rebind that collides, using the check that exists</p>
-    <p>
-      <code>conflicts()</code> is called by tests and by nothing else. The
-      moment a capture UI lands, a player can put two live-together actions on
-      one key and get both at once, which is the exact bug the Left Trigger 2
-      pair was. The guard should run on the candidate binding, not only on the
-      shipped defaults.
-    </p>
-  </div>
 
   <div class="q-item">
     <span class="who">nova_input</span>
