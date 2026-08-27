@@ -68,6 +68,21 @@ impl From<InputSource> for Binding {
     }
 }
 
+/// The `Bindings` bundle for a list of sources a rig owns DIRECTLY, with no
+/// registry name behind it: a section's content `input_mapping`, which is
+/// authored per ship rather than declared as a named action.
+///
+/// A named action goes through [`InputBindings::bundle`] instead. Both end at
+/// the same place, and this is the only other one - upstream's `Binding` is
+/// built nowhere outside this crate except where a rig spawns an AXIS, which
+/// has no source to name.
+///
+/// [`InputBindings::bundle`]: crate::registry::InputBindings::bundle
+pub fn source_bindings(sources: impl IntoIterator<Item = InputSource>) -> impl Bundle {
+    let bindings: Vec<Binding> = sources.into_iter().map(Binding::from).collect();
+    Bindings::spawn(SpawnIter(bindings.into_iter()))
+}
+
 /// The physical source a binding occupies, if it names a discrete button.
 /// Motion, wheel, stick-axis, `AnyKey`, custom and empty bindings return
 /// `None`: they are axes, not buttons something else can collide on.

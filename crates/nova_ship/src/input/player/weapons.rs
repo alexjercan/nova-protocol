@@ -1,23 +1,22 @@
 //! Content-authored weapon bindings: each section's `input_mapping` becomes a
 //! rig whose observers hold and release the section trigger.
 //!
-//! The binding a section CARRIES is a Nova [`InputSource`]; upstream's
-//! `Binding` appears only where this module builds the rig, one line per
-//! section kind. A section binds a modifier-free button and nothing else, so
-//! nothing is lost, and the component is then the same vocabulary the registry,
-//! the settings readout and the save file already speak.
+//! The binding a section CARRIES is a Nova [`InputSource`], the same vocabulary
+//! the registry, the settings readout and the save file speak. A section binds
+//! a modifier-free button and nothing else, so `source_bindings` builds the
+//! whole rig side of it and upstream's `Binding` never appears here.
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_input::prelude::InputSource;
+use nova_input::prelude::{source_bindings, InputSource};
 
 use super::hints::HOLD_FIRE_DURING_RADAR;
 use crate::prelude::*;
 
 /// The player input bindings that fire a thruster section, snapshotted from its
 /// content `input_mapping` onto the section entity. One section may bind several
-/// [`Binding`]s. Must not reuse a [`flight_rig_reserved_sources`] source.
+/// sources. Must not reuse a [`flight_rig_reserved_sources`] source.
 #[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
 pub struct SpaceshipThrusterInputBinding(pub Vec<InputSource>);
 
@@ -73,7 +72,7 @@ pub(super) fn on_thruster_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
+                source_bindings(binding.0.iter().copied()),
             )]
         ),
     ));
@@ -165,7 +164,7 @@ pub(super) fn on_turret_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
+                source_bindings(binding.0.iter().copied()),
             )]
         ),
     ));
@@ -264,7 +263,7 @@ pub(super) fn on_torpedo_input_binding(
                     consume_input: false,
                     ..default()
                 },
-                Bindings::spawn(SpawnIter(binding.0.clone().into_iter().map(Binding::from))),
+                source_bindings(binding.0.iter().copied()),
             )]
         ),
     ));
