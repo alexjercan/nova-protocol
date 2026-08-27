@@ -54,17 +54,19 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .gamepad([Gamepad(GamepadButton::DPadUp)]),
         ActionBinding::new("component_next", "TARGETING", "Lock / Component Next")
             .keyboard([Keyboard(KeyCode::BracketRight)])
-            .gamepad([Gamepad(GamepadButton::DPadRight)]),
+            .gamepad([Gamepad(GamepadButton::DPadRight)])
+            .notes("Scroll Up", ""),
         ActionBinding::new("component_prev", "TARGETING", "Lock / Component Prev")
             .keyboard([Keyboard(KeyCode::BracketLeft)])
-            .gamepad([Gamepad(GamepadButton::DPadLeft)]),
+            .gamepad([Gamepad(GamepadButton::DPadLeft)])
+            .notes("Scroll Down", ""),
         ActionBinding::new("rcs_modifier", "FLIGHT", "RCS Fine Adjust")
             .keyboard([Keyboard(KeyCode::ShiftLeft), Keyboard(KeyCode::ShiftRight)])
             .gamepad([Gamepad(GamepadButton::LeftTrigger2)]),
         // Raw mouse motion, accumulated into the ship-local RCS plane while
         // the modifier is held. No discrete source: nothing collides on an
         // axis and no rebind row can capture one.
-        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim"),
+        ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim").notes("Mouse", ""),
     ]
 }
 
@@ -73,7 +75,7 @@ pub fn camera_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard, Mouse};
     vec![
         // Mouse motion plus the right stick: both axes, neither reservable.
-        ActionBinding::new("camera_rotate", "CAMERA", "Aim"),
+        ActionBinding::new("camera_rotate", "CAMERA", "Aim").notes("Mouse", "Right Stick"),
         ActionBinding::new("free_look", "CAMERA", "Free Look")
             .keyboard([Keyboard(KeyCode::AltLeft)])
             .gamepad([Gamepad(GamepadButton::LeftTrigger)]),
@@ -154,6 +156,48 @@ mod tests {
                 "camera_rotate",
                 "free_look",
                 "combat_stance",
+            ]
+        );
+    }
+
+    /// What the settings screen actually prints for every shipped row. The
+    /// readout is derived now, so this is where a label regression shows up -
+    /// a key that reads `BracketRight` to a player, or a wheel alternate that
+    /// quietly stopped being mentioned.
+    #[test]
+    fn the_shipped_readout_columns_are_pinned() {
+        let rows: Vec<(&str, String, String)> = flight_bindings()
+            .into_iter()
+            .chain(camera_bindings())
+            .map(|action| {
+                (
+                    action.label,
+                    action.keyboard_display(),
+                    action.gamepad_display(),
+                )
+            })
+            .collect();
+        let rows: Vec<(&str, &str, &str)> = rows
+            .iter()
+            .map(|(label, keyboard, gamepad)| (*label, keyboard.as_str(), gamepad.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![
+                ("Main Drive", "W / Space", "Right Trigger"),
+                ("Autopilot: Stop", "X", "B"),
+                ("Autopilot: Go To", "G", "Y"),
+                ("Autopilot: Orbit", "O", "A"),
+                ("Autopilot: Off", "Z", "X"),
+                ("Radar (hold search)", "Ctrl", "D-Pad Up"),
+                ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
+                ("Lock / Component Next", "] / Scroll Up", "D-Pad Right"),
+                ("Lock / Component Prev", "[ / Scroll Down", "D-Pad Left"),
+                ("RCS Fine Adjust", "Shift", "Left Trigger 2"),
+                ("RCS Aim", "Mouse", "Unbound"),
+                ("Aim", "Mouse", "Right Stick"),
+                ("Free Look", "Left Alt", "Left Trigger"),
+                ("Raise Weapons", "Right Mouse", "Left Trigger 2"),
             ]
         );
     }

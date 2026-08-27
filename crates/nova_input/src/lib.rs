@@ -68,7 +68,10 @@ impl RegisterInputActions for App {
 pub mod prelude {
     pub use super::{
         registry::{ActionBinding, InputBindings},
-        source::{binding_label, binding_source, keyboard_label, InputSource},
+        source::{
+            binding_label, binding_source, gamepad_label, key_symbol, keyboard_label,
+            modifier_pair, InputSource,
+        },
         NovaInputPlugin, RegisterInputActions,
     };
 }

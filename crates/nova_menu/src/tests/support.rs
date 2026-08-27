@@ -13,7 +13,9 @@ use nova_assets::{
     },
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
+use nova_ship::prelude::{camera_bindings, flight_bindings};
 
 use crate::{
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
@@ -44,8 +46,21 @@ pub(crate) fn app() -> App {
     // touch.
     app.insert_resource(Time::<Virtual>::default());
     app.insert_resource(Time::<Physics>::default());
+    // The rig defaults the settings readout renders. In production
+    // `SpaceshipPlayerInputPlugin` and `SpaceshipCameraControllerPlugin`
+    // register these; a menu-only harness adds neither.
+    app.register_input_actions(flight_bindings());
+    app.register_input_actions(camera_bindings());
     app.add_plugins(NovaMenuPlugin);
     app
+}
+
+/// Move to `state` and let the transition schedules run.
+pub(crate) fn set_state(app: &mut App, state: GameStates) {
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(state);
+    app.update();
 }
 
 pub(crate) fn enter_playing(app: &mut App) {

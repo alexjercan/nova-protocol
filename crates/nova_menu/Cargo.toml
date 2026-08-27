@@ -15,6 +15,7 @@ bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"
 rand = { version = "0.10.2" }
 nova_assets = { path = "../nova_assets" }
 nova_events = { path = "../nova_events" }
+nova_input = { path = "../nova_input" }
 nova_mod_format = { path = "../nova_mod_format" }
 # `serde` enables the Serialize/Deserialize derives on the settings resources
 # (GraphicsQuality/MasterVolume) so the settings store can persist them.

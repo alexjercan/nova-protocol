@@ -6,12 +6,13 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
     screen::{
-        details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_column,
-        scroll_viewport,
+        details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_bar,
+        scroll_column, scroll_viewport,
     },
     theme,
     widget::{panel, panel_head, themed_button, ButtonVariant, Selected, UiText},
@@ -41,6 +42,7 @@ pub(crate) fn setup_menu_ui(
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
+    bindings: Res<InputBindings>,
 ) {
     commands
         .spawn((
@@ -181,7 +183,27 @@ pub(crate) fn setup_menu_ui(
                             ..default()
                         },
                     ));
-                    build_settings_body(parent, *volume, *quality, *skin);
+                    parent
+                        .spawn((
+                            Name::new("Settings Body Row"),
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Stretch,
+                                min_height: px(0),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|row| {
+                            row.spawn((
+                                Name::new("Settings Body"),
+                                scroll_column(),
+                                scroll_viewport(),
+                            ))
+                            .with_children(|body| {
+                                build_settings_body(body, *volume, *quality, *skin, &bindings);
+                            });
+                            row.spawn((Name::new("Settings Scroll Bar"), scroll_bar(*skin)));
+                        });
                     parent.spawn((
                         Name::new("Settings Back Button"),
                         button("Back"),

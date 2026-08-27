@@ -153,6 +153,11 @@ does NOT get an entry - and it is the only place they are written down.
 - Labels pinned to something in the world - a keybind chip, a NOVA OS blip -
   sat a label's height off target on a HiDPI screen. They point where they mean
   at any scale and landscape size.
+- The Controls list reads the bindings the game actually flies with, so a key
+  it prints is the key that fires. It also names what it used to omit: RCS,
+  the wheel's lock cycle, and the scenario advance.
+- The Settings panel scrolls, so a longer controls list cannot push Back off
+  the bottom of the card.
 
 ### Ships & Sections
 

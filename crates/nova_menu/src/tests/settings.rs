@@ -7,6 +7,7 @@ use bevy::{
     ui_widgets::{SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::{ActionBinding, InputBindings, InputSource};
 use nova_ui::{
     prelude::UiSkin,
     widget::{
@@ -15,7 +16,7 @@ use nova_ui::{
     },
 };
 
-use super::support::{all_texts, entity_by_name, mods_app};
+use super::support::{all_texts, entity_by_name, mods_app, set_state};
 use crate::settings::{VolumeLabel, VolumeSlider};
 
 /// DoD 2: pressing a `UI skin` segmented button (a `ThemedButton` carrying
@@ -75,7 +76,11 @@ fn settings_panel_builds_its_controls() {
     }
     assert!(
         texts.iter().any(|t| t == "Main Drive"),
-        "the keybind reference rows are missing (no Main Drive row)"
+        "the keybind readout rows are missing (no Main Drive row)"
+    );
+    assert!(
+        texts.iter().any(|t| t == "Pause / Menu"),
+        "the declared-fixed rows are missing (no Pause / Menu row)"
     );
 
     // Exactly one volume slider, seeded to the current level, with a thumb
@@ -270,4 +275,38 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
 
     unsafe { std::env::remove_var(nova_assets::storage::CONFIG_ROOT_ENV) };
     let _ = std::fs::remove_dir_all(&store);
+}
+
+/// The controls list is the LIVE table, not a copy of it. Rebind an action and
+/// the row reads the new key on the next menu entry - which the hand-authored
+/// KEYBINDS list could not do, and is why it went stale.
+#[test]
+fn the_controls_readout_follows_a_rebind() {
+    let mut app = mods_app();
+    assert!(
+        all_texts(&mut app)
+            .iter()
+            .any(|t| t.starts_with("W / Space")),
+        "the shipped Main Drive row leads with its keyboard binding"
+    );
+
+    app.world_mut().resource_mut::<InputBindings>().register(
+        ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
+            .keyboard([InputSource::Keyboard(KeyCode::KeyJ)])
+            .gamepad([InputSource::Gamepad(GamepadButton::RightTrigger)]),
+    );
+
+    // The panel is built on menu entry, so leave and come back.
+    set_state(&mut app, GameStates::Playing);
+    set_state(&mut app, GameStates::MainMenu);
+
+    let texts = all_texts(&mut app);
+    assert!(
+        texts.iter().any(|t| t == "J   \u{b7}   Right Trigger"),
+        "the Main Drive row still shows the old key; the readout is a mirror"
+    );
+    assert!(
+        !texts.iter().any(|t| t.starts_with("W / Space")),
+        "the old binding is still on screen"
+    );
 }

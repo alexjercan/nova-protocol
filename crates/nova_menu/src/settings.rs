@@ -6,8 +6,8 @@ use bevy::{
     ui_widgets::{Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::*;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
-use nova_ship::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
     theme,
@@ -74,6 +74,7 @@ pub(crate) fn build_settings_body(
     volume: MasterVolume,
     quality: GraphicsQuality,
     skin: UiSkin,
+    bindings: &InputBindings,
 ) {
     // AUDIO - master volume as a draggable slider (bevy's headless `Slider`;
     // drag handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value
@@ -167,28 +168,43 @@ pub(crate) fn build_settings_body(
 
     list.spawn(separator());
 
-    // CONTROLS - a read-only reference of the current bindings.
+    // CONTROLS - a read-only readout of the LIVE bindings table. Every row
+    // that names an enhanced-input action comes from `bindings`, so a remap
+    // moves the readout with it; FIXED_ROWS carries the rest.
     list.spawn(panel_header("Controls"));
-    let mut current_section = "";
-    for entry in keybind_reference() {
-        if entry.section != current_section {
-            current_section = entry.section;
-            list.spawn((
-                Name::new(format!("Controls Section: {}", entry.section)),
-                UiText,
-                Text::new(entry.section),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(theme::PHOSPHOR_MUTED),
-                Node {
-                    margin: UiRect::top(px(6)),
-                    ..default()
-                },
-            ));
+    let mut groups = bindings.groups();
+    for (group, ..) in FIXED_ROWS {
+        if !groups.contains(group) {
+            groups.push(group);
         }
-        spawn_keybind_row(list, entry);
+    }
+    for group in groups {
+        list.spawn((
+            Name::new(format!("Controls Group: {group}")),
+            UiText,
+            Text::new(group),
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_MUTED),
+            Node {
+                margin: UiRect::top(px(6)),
+                ..default()
+            },
+        ));
+        for action in bindings.iter().filter(|action| action.group == group) {
+            spawn_keybind_row(
+                list,
+                action.label,
+                &action.keyboard_display(),
+                &action.gamepad_display(),
+            );
+        }
+        for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(fixed, ..)| *fixed == group)
+        {
+            spawn_keybind_row(list, label, keyboard, gamepad);
+        }
     }
 
     list.spawn(separator());
@@ -342,11 +358,26 @@ pub(crate) fn sync_volume_slider(
     }
 }
 
+/// The controls that are not enhanced-input actions, and so are not in the
+/// registry: raw `ButtonInput` chords read by the comms panel and by the pause
+/// and HUD toggles. They stay declared here until someone names them.
+const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[
+    ("COMMS", "Dismiss oldest visible card", "V", "Unbound"),
+    ("COMMS", "Skip queued backlog into view", "B", "Unbound"),
+    ("SYSTEM", "Pause / Menu", "Esc", "Start"),
+    ("SYSTEM", "HUD (On / Cinematic)", "`", "Select"),
+];
+
 /// One read-only keybind row: the action on the left, the keyboard and gamepad
 /// bindings on the right.
-pub(crate) fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &KeybindEntry) {
+pub(crate) fn spawn_keybind_row(
+    list: &mut ChildSpawnerCommands,
+    action: &str,
+    keyboard: &str,
+    gamepad: &str,
+) {
     list.spawn((
-        Name::new(format!("Keybind: {}", entry.action)),
+        Name::new(format!("Keybind: {action}")),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Row,
@@ -360,7 +391,7 @@ pub(crate) fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &Keybind
     .with_children(|row| {
         row.spawn((
             UiText,
-            Text::new(entry.action),
+            Text::new(action.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -369,7 +400,7 @@ pub(crate) fn spawn_keybind_row(list: &mut ChildSpawnerCommands, entry: &Keybind
         ));
         row.spawn((
             UiText,
-            Text::new(format!("{}   ·   {}", entry.keyboard, entry.gamepad)),
+            Text::new(format!("{keyboard}   ·   {gamepad}")),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()

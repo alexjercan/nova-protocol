@@ -3,9 +3,9 @@
 //! [`ai`] (the enemy behavior state machine), [`targeting`] (the player's
 //! lock/radar system that also derives weapons-safety) and [`point_defense`]
 //! (the autonomous answer to inbound ordnance, which both controllers share).
-//! [`keybind_reference`](prelude::keybind_reference)
-//! exposes the keybind table for the HUD. [`SpaceshipInputPlugin`] adds all
-//! four.
+//! [`bindings`] holds the DEFAULTS the player and camera rigs are built from;
+//! the live table is `nova_input`'s `InputBindings`. [`SpaceshipInputPlugin`]
+//! adds all four producers.
 //!
 //! Touch this module when adding a new way to command a ship. The intents these
 //! produce are consumed by the section plugins ([`sections`](crate::sections))
@@ -17,18 +17,16 @@ pub mod ai;
 pub mod bindings;
 pub mod player;
 pub mod point_defense;
-mod reference;
 pub mod targeting;
 
-/// The AI, player, targeting and point-defence preludes, the keybind reference,
-/// and `SpaceshipInputPlugin` with `SpaceshipInputSystems`.
+/// The AI, player, targeting and point-defence preludes, the rig binding
+/// defaults, and `SpaceshipInputPlugin` with `SpaceshipInputSystems`.
 pub mod prelude {
     pub use super::{
         ai::prelude::*,
         bindings::{camera_bindings, flight_bindings, flight_rig_reserved_sources},
         player::prelude::*,
         point_defense::prelude::*,
-        reference::{keybind_reference, KeybindEntry},
         targeting::prelude::*,
         SpaceshipInputPlugin, SpaceshipInputSystems,
     };

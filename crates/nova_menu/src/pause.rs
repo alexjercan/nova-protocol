@@ -8,9 +8,11 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
+    screen::{scroll_bar, scroll_column, scroll_viewport},
     theme,
     widget::{panel, ButtonVariant, UiText},
 };
@@ -167,6 +169,7 @@ pub(crate) fn setup_pause_ui(
     volume: Res<MasterVolume>,
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
+    bindings: Res<InputBindings>,
     outcome: Option<Res<CurrentOutcome>>,
 ) {
     // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze the sim,
@@ -316,7 +319,27 @@ pub(crate) fn setup_pause_ui(
                             ..default()
                         },
                     ));
-                    build_settings_body(parent, *volume, *quality, *skin);
+                    parent
+                        .spawn((
+                            Name::new("Pause Settings Body Row"),
+                            Node {
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Stretch,
+                                min_height: px(0),
+                                ..default()
+                            },
+                        ))
+                        .with_children(|row| {
+                            row.spawn((
+                                Name::new("Pause Settings Body"),
+                                scroll_column(),
+                                scroll_viewport(),
+                            ))
+                            .with_children(|body| {
+                                build_settings_body(body, *volume, *quality, *skin, &bindings);
+                            });
+                            row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar(*skin)));
+                        });
                     parent.spawn((
                         Name::new("Pause Settings Back Button"),
                         button("Back"),

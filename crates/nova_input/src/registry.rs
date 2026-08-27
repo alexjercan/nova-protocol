@@ -13,7 +13,7 @@ use bevy::{
 };
 use bevy_enhanced_input::prelude::*;
 
-use crate::source::InputSource;
+use crate::source::{modifier_pair, InputSource};
 
 /// One named action and the discrete sources bound to it.
 ///
@@ -35,6 +35,16 @@ pub struct ActionBinding {
     pub keyboard: Vec<InputSource>,
     /// Gamepad button sources, primary first.
     pub gamepad: Vec<InputSource>,
+    /// What the keyboard column adds for the axis half of this action: `Mouse`
+    /// for a motion binding, `Scroll Up` for a wheel one. Empty for an action
+    /// that is only buttons.
+    ///
+    /// The axis itself is not a source (see the type doc), so without this the
+    /// readout would tell a player `]` cycles the lock and never mention the
+    /// wheel.
+    pub keyboard_note: &'static str,
+    /// What the gamepad column adds for the axis half: `Right Stick`.
+    pub gamepad_note: &'static str,
 }
 
 impl ActionBinding {
@@ -46,6 +56,8 @@ impl ActionBinding {
             label,
             keyboard: Vec::new(),
             gamepad: Vec::new(),
+            keyboard_note: "",
+            gamepad_note: "",
         }
     }
 
@@ -63,10 +75,57 @@ impl ActionBinding {
         self
     }
 
+    /// Name the axis half of this action for the readout: what the wheel or
+    /// mouse motion does that no discrete source can say.
+    #[must_use]
+    pub fn notes(mut self, keyboard: &'static str, gamepad: &'static str) -> Self {
+        self.keyboard_note = keyboard;
+        self.gamepad_note = gamepad;
+        self
+    }
+
+    /// The keyboard column of a settings row: every bound key, plus the axis
+    /// note. `Unbound` when the action has neither.
+    pub fn keyboard_display(&self) -> String {
+        display_column(&self.keyboard, self.keyboard_note)
+    }
+
+    /// The gamepad column of a settings row.
+    pub fn gamepad_display(&self) -> String {
+        display_column(&self.gamepad, self.gamepad_note)
+    }
+
     /// Every source this action occupies, keyboard before gamepad.
     pub fn sources(&self) -> impl Iterator<Item = InputSource> + '_ {
         self.keyboard.iter().chain(self.gamepad.iter()).copied()
     }
+}
+
+/// One readout column: the sources, then the axis note. A modifier bound on
+/// both sides collapses to the bare name - a player who reads `Ctrl` knows
+/// both work, and `Left Ctrl / Right Ctrl` says nothing extra.
+fn display_column(sources: &[InputSource], note: &'static str) -> String {
+    let bound = |key: KeyCode| sources.contains(&InputSource::Keyboard(key));
+    let mut parts: Vec<String> = Vec::with_capacity(sources.len() + 1);
+    for source in sources {
+        let label = match source {
+            InputSource::Keyboard(key) => match modifier_pair(*key) {
+                Some((bare, other)) if bound(other) => bare.to_string(),
+                _ => source.readout_label(),
+            },
+            _ => source.readout_label(),
+        };
+        if !parts.contains(&label) {
+            parts.push(label);
+        }
+    }
+    if !note.is_empty() {
+        parts.push(note.to_string());
+    }
+    if parts.is_empty() {
+        return "Unbound".to_string();
+    }
+    parts.join(" / ")
 }
 
 /// The live bindings table. Registered at plugin build so it is populated in
@@ -113,6 +172,17 @@ impl InputBindings {
     /// Every action, in registration order.
     pub fn iter(&self) -> impl Iterator<Item = &ActionBinding> {
         self.actions.iter()
+    }
+
+    /// The row headers a settings screen draws, in first-appearance order.
+    pub fn groups(&self) -> Vec<&'static str> {
+        let mut groups: Vec<&'static str> = Vec::new();
+        for action in &self.actions {
+            if !groups.contains(&action.group) {
+                groups.push(action.group);
+            }
+        }
+        groups
     }
 
     /// Every action name, in registration order.
@@ -194,6 +264,45 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn a_readout_column_names_the_keys_the_note_and_nothing_else() {
+        assert_eq!(burn().keyboard_display(), "W / Space");
+        assert_eq!(burn().gamepad_display(), "Right Trigger");
+
+        let radar = ActionBinding::new("radar_hold", "TARGETING", "Radar")
+            .keyboard([
+                InputSource::Keyboard(KeyCode::ControlLeft),
+                InputSource::Keyboard(KeyCode::ControlRight),
+            ])
+            .gamepad([InputSource::Gamepad(GamepadButton::DPadUp)]);
+        assert_eq!(
+            radar.keyboard_display(),
+            "Ctrl",
+            "both halves of one modifier read as the modifier"
+        );
+        assert_eq!(radar.gamepad_display(), "D-Pad Up");
+
+        let cycle = ActionBinding::new("component_next", "TARGETING", "Next")
+            .keyboard([InputSource::Keyboard(KeyCode::BracketRight)])
+            .notes("Scroll Up", "");
+        assert_eq!(cycle.keyboard_display(), "] / Scroll Up");
+        assert_eq!(
+            cycle.gamepad_display(),
+            "Unbound",
+            "a column with no source and no note says so"
+        );
+    }
+
+    #[test]
+    fn groups_come_back_in_first_appearance_order() {
+        let table = InputBindings::from_actions([
+            burn(),
+            ActionBinding::new("radar_hold", "TARGETING", "Radar"),
+            ActionBinding::new("autopilot_off", "FLIGHT", "Off"),
+        ]);
+        assert_eq!(table.groups(), vec!["FLIGHT", "TARGETING"]);
     }
 
     #[test]
