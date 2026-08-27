@@ -20,7 +20,8 @@
 //! through the CRT composite, but a UI button is - the same reason `map` uses
 //! blips); each blip carries a per-kind glyph + its code, an integrity bar
 //! (width = HP, colour = status) and, for weapons, ammo pips - that is where a
-//! section's status now shows. Orbit the camera with Q/E/R/F + drag + wheel;
+//! section's status now shows. Orbit the camera with the `novaos_orbit_*`
+//! actions + drag + wheel;
 //! `[`/`]` cycle the selection; `G` toggles structural mates; `L` reloads, `P`
 //! repairs, and `B` replaces the selected bindable section's input.
 //!
@@ -47,10 +48,12 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 
 pub use self::sections::SectionCode;
 pub(crate) use self::{app::*, rebind::*, scene::*, sections::*};
+use crate::bindings::hint;
 
 /// Glob-import surface: `use nova_os_ui::ship::prelude::*`.
 pub mod prelude {
@@ -79,19 +82,31 @@ const SHIP_PHI_DEFAULT: f32 = 0.5;
 const SHIP_CENTER_EASE: f32 = 9.0;
 
 /// Footer hints while the ship app owns the screen.
-const SHIP_HINTS: &[&str] = &[
-    "Q/E: TURN",
-    "R/F: TILT",
-    "DRAG: LOOK",
-    "WHEEL: ZOOM",
-    "[ / ]: SELECT",
-    "G: MATES",
-    "L: RELOAD",
-    "P: REPAIR",
-    "B: REBIND",
-    "T: RESET",
-    "ESC: BACK",
-];
+///
+/// Built per call from the live table, like the map's - see [`crate::map`].
+fn ship_hints(bindings: &InputBindings) -> Vec<String> {
+    let mut hints = Vec::with_capacity(11);
+    hints.extend(hint(
+        bindings,
+        &["novaos_orbit_left", "novaos_orbit_right"],
+        "TURN",
+    ));
+    hints.extend(hint(
+        bindings,
+        &["novaos_orbit_up", "novaos_orbit_down"],
+        "TILT",
+    ));
+    hints.push("DRAG: LOOK".to_string());
+    hints.push("WHEEL: ZOOM".to_string());
+    hints.extend(hint(bindings, &["novaos_next", "novaos_prev"], "SELECT"));
+    hints.extend(hint(bindings, &["ship_mates"], "MATES"));
+    hints.extend(hint(bindings, &["ship_reload"], "RELOAD"));
+    hints.extend(hint(bindings, &["ship_repair"], "REPAIR"));
+    hints.extend(hint(bindings, &["ship_rebind"], "REBIND"));
+    hints.extend(hint(bindings, &["novaos_reframe"], "RESET"));
+    hints.push("ESC: BACK".to_string());
+    hints
+}
 
 /// Registers the `ship` app + CLI verbs and drives the schematic scene, blips and
 /// section actions.

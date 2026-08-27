@@ -4761,6 +4761,7 @@ version = "0.11.0"
 dependencies = [
  "bevy",
  "nova_info",
+ "nova_input",
 ]
 
 [[package]]

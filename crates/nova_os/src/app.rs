@@ -5,15 +5,15 @@
 //! itself.
 
 use bevy::{input::keyboard::Key, prelude::*};
+use nova_input::prelude::{InputBindings, InputSource};
 
-/// The terminal-surface footer hints: the full set of keys that work at the
-/// prompt (owner playtest - the footer should list every current binding, not
-/// just three). Kept ASCII (no arrow glyphs) and terse so the row fits. Apps
-/// override [`NovaOsAppRuntime::hints`] to swap these for their own set while
-/// active. A slice, not a fixed array, so the terminal and each app can list a
-/// different number of keys.
+/// The terminal-surface footer hints that name a FIXED key: the shell's own
+/// editing keys, which are part of the terminal's grammar rather than player
+/// bindings. Kept ASCII (no arrow glyphs) and terse so the row fits.
+///
+/// The rebindable half is prepended by [`terminal_hints`]. Apps override
+/// [`NovaOsAppRuntime::hints`] to swap the whole set for their own while active.
 pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
-    "TAB: COMPLETE",
     "ENTER: RUN",
     "UP/DN: HISTORY",
     "PGUP/PGDN: SCROLL",
@@ -23,6 +23,27 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
     "ESC: CLOSE",
     "TYPE HELP",
 ];
+
+/// The prompt-surface footer, with the rebindable completion key resolved
+/// against the live table.
+///
+/// The monitor's own key doubles as autocomplete while the shell has the
+/// screen, so a player who moved `novaos_toggle` moved this too.
+pub fn terminal_hints(bindings: &InputBindings) -> Vec<String> {
+    let complete = bindings
+        .get("novaos_toggle")
+        .and_then(|action| action.keyboard.first())
+        .map(InputSource::readout_label)
+        .unwrap_or_else(|| "Tab".to_string())
+        .to_uppercase();
+    let mut hints = vec![format!("{complete}: COMPLETE")];
+    hints.extend(
+        NOVA_OS_TERMINAL_HINTS
+            .iter()
+            .map(|hint| (*hint).to_string()),
+    );
+    hints
+}
 
 /// A NOVA OS app: a full-screen tool launched from the terminal that swallows the
 /// terminal surface and owns input until the user exits back to the prompt.
@@ -63,8 +84,12 @@ pub trait NovaOsAppRuntime: Send + Sync + 'static {
     /// The footer hints shown while this app owns the screen (PoC `HINTS` map).
     /// Default: the terminal hint set, so an app that does not care still shows a
     /// sensible footer.
-    fn hints(&self) -> &'static [&'static str] {
-        NOVA_OS_TERMINAL_HINTS
+    ///
+    /// Built from the live bindings rather than returned as fixed text: the
+    /// app keys are rebindable, and a footer that printed the shipped default
+    /// would tell a player who moved one the wrong key.
+    fn hints(&self, bindings: &InputBindings) -> Vec<String> {
+        terminal_hints(bindings)
     }
 }
 
@@ -80,5 +105,7 @@ pub enum NovaOsAppInputOutcome {
 /// The `NovaOsAppRuntime` seam, its `NovaOsAppInputOutcome`, and
 /// `NOVA_OS_TERMINAL_HINTS`.
 pub mod prelude {
-    pub use super::{NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS};
+    pub use super::{
+        terminal_hints, NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS,
+    };
 }

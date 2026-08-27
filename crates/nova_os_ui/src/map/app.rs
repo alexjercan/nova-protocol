@@ -5,6 +5,7 @@
 //! or accepts as a command.
 
 use bevy::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 
@@ -111,8 +112,8 @@ impl NovaOsAppRuntime for MapApp {
     fn title(&self) -> &'static str {
         "MAP / LOCAL SPACE"
     }
-    fn hints(&self) -> &'static [&'static str] {
-        MAP_HINTS
+    fn hints(&self, bindings: &InputBindings) -> Vec<String> {
+        map_hints(bindings)
     }
     fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>) {
         // The viewport shows the offscreen map image (patched in once the RTT

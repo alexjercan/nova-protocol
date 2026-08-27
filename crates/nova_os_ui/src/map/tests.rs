@@ -7,6 +7,7 @@ use bevy::{
     ui::{ComputedNode, UiGlobalTransform},
 };
 use nova_events::prelude::{EntityTypeName, ASTEROID_TYPE_NAME};
+use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 
 use super::{app::*, contacts::*, scene::*, *};
@@ -346,6 +347,7 @@ fn map_scene_activates_with_the_app_surface() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin));
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<MapRuntime>();
     app.insert_resource(NovaOsTerminal::default());
 
@@ -378,6 +380,7 @@ fn map_scene_builds_and_drives_with_render_assets() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<MapRuntime>();
 
     let mut terminal = NovaOsTerminal::default();
@@ -436,6 +439,7 @@ fn map_focus_follow_recenters_on_a_new_selection() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<MapRuntime>();
 
     let mut terminal = NovaOsTerminal::default();
@@ -487,11 +491,77 @@ fn map_focus_follow_recenters_on_a_new_selection() {
     );
 }
 
+/// The viewers read ACTIONS, so a moved key moves the control. Before this the
+/// map named `KeyCode::KeyG` in the system that read it: rebindable everywhere
+/// except the computer the player flies with.
+#[test]
+fn a_rebound_goto_key_is_the_key_the_map_answers() {
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, StatesPlugin, bevy::input::InputPlugin));
+    app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
+    app.init_resource::<MapRuntime>();
+
+    let mut terminal = NovaOsTerminal::default();
+    terminal.enter_app(MAP_APP_ID);
+    app.insert_resource(terminal);
+
+    let player = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            PlayerSpaceshipMarker,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, 0.0)),
+            Name::new("NOVA"),
+        ))
+        .id();
+    let target = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            Allegiance::Enemy,
+            GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)),
+            Name::new("RAIDER"),
+        ))
+        .id();
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.selected = Some(target);
+    }
+    app.world_mut().resource_mut::<InputBindings>().rebind(
+        "map_goto",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            gamepad: Vec::new(),
+        },
+    );
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyG);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert!(
+        app.world().get::<Autopilot>(player).is_none(),
+        "the key that used to be GOTO does nothing once it is moved"
+    );
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyJ);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert!(
+        app.world().get::<Autopilot>(player).is_some(),
+        "the key it was moved to sets the GOTO"
+    );
+}
+
 #[test]
 fn map_goto_sets_autopilot_on_the_player_ship() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin, bevy::input::InputPlugin));
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<MapRuntime>();
 
     let mut terminal = NovaOsTerminal::default();
@@ -554,6 +624,7 @@ fn map_input_app() -> App {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<MapRuntime>();
 
     let mut terminal = NovaOsTerminal::default();

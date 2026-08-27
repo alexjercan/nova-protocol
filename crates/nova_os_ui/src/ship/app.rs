@@ -6,6 +6,7 @@
 
 use bevy::{prelude::*, ui_widgets::Button};
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 
@@ -24,8 +25,8 @@ impl NovaOsAppRuntime for ShipApp {
     fn title(&self) -> &'static str {
         "SHIP / SCHEMATIC"
     }
-    fn hints(&self) -> &'static [&'static str] {
-        SHIP_HINTS
+    fn hints(&self, bindings: &InputBindings) -> Vec<String> {
+        ship_hints(bindings)
     }
     fn spawn_body(&self, body: &mut ChildSpawnerCommands, font: Handle<Font>) {
         // The body is a Column; lay the viewport + inspector panel out as a Row

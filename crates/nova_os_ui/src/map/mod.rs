@@ -9,8 +9,8 @@
 //! blips (a nested 3D mesh would not be pickable through the NOVA OS CRT
 //! composite, but UI buttons are).
 //!
-//! The camera is a `MapOrbit` you drive with the keyboard (Q/E turn, R/F tilt)
-//! plus WASD (move the focus around) and the wheel (zoom). Selecting a contact fills a
+//! The camera is a `MapOrbit` you drive with the `novaos_orbit_*` and
+//! `novaos_pan_*` actions plus the wheel (zoom). Selecting a contact fills a
 //! readout with kind / name / range / bearing; `G` sets a flight [`Autopilot`](nova_ship::prelude::Autopilot)
 //! GOTO on the player ship that persists after the computer closes.
 //!
@@ -35,10 +35,12 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 
 pub use self::contacts::MapContactCode;
 pub(crate) use self::{app::*, contacts::*, scene::*};
+use crate::bindings::hint;
 
 /// Glob-import surface: `use nova_os_ui::map::prelude::*`.
 pub mod prelude {
@@ -67,17 +69,40 @@ const MAP_THETA_DEFAULT: f32 = 0.8;
 const MAP_PHI_DEFAULT: f32 = 0.62;
 
 /// Footer hints while the map owns the screen (swapped in by the runtime).
-const MAP_HINTS: &[&str] = &[
-    "WASD: MOVE",
-    "Q/E: TURN",
-    "R/F: TILT",
-    "DRAG: LOOK",
-    "WHEEL: ZOOM",
-    "[ / ]: CYCLE",
-    "G: GOTO",
-    "T: RESET",
-    "ESC: BACK",
-];
+///
+/// Built per call from the live table so a rebind moves the footer with it.
+/// DRAG and WHEEL stay literal: they are pointer gestures, not bound actions,
+/// and ESC is the fixed back-out.
+fn map_hints(bindings: &InputBindings) -> Vec<String> {
+    let mut hints = Vec::with_capacity(9);
+    hints.extend(hint(
+        bindings,
+        &[
+            "novaos_pan_forward",
+            "novaos_pan_left",
+            "novaos_pan_back",
+            "novaos_pan_right",
+        ],
+        "MOVE",
+    ));
+    hints.extend(hint(
+        bindings,
+        &["novaos_orbit_left", "novaos_orbit_right"],
+        "TURN",
+    ));
+    hints.extend(hint(
+        bindings,
+        &["novaos_orbit_up", "novaos_orbit_down"],
+        "TILT",
+    ));
+    hints.push("DRAG: LOOK".to_string());
+    hints.push("WHEEL: ZOOM".to_string());
+    hints.extend(hint(bindings, &["novaos_next", "novaos_prev"], "CYCLE"));
+    hints.extend(hint(bindings, &["map_goto"], "GOTO"));
+    hints.extend(hint(bindings, &["novaos_reframe"], "RESET"));
+    hints.push("ESC: BACK".to_string());
+    hints
+}
 
 /// Registers the `map` app and drives its scene, camera, blips and GOTO.
 pub(crate) struct NovaOsMapPlugin;

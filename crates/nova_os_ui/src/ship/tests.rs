@@ -10,6 +10,7 @@ use bevy::{
     ui_widgets::Activate,
 };
 use nova_events::prelude::EntityId;
+use nova_input::prelude::RegisterInputActions;
 use nova_ship::prelude::*;
 
 use super::{app::*, scene::*, sections::*, *};
@@ -299,6 +300,7 @@ fn scene_blocks_use_local_space_when_ship_off_origin() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     let mut terminal = ship_terminal();
     terminal.enter_app(SHIP_APP_ID);
@@ -358,6 +360,7 @@ fn ship_app_launches_and_exits() {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, StatesPlugin));
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     app.insert_resource(ship_terminal());
 
@@ -396,6 +399,7 @@ fn ship_app_renders_blocks_and_selects_section() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
 
@@ -462,6 +466,7 @@ fn ship_orbit_drag_is_rmb_only() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
 
@@ -604,6 +609,7 @@ fn offset_ship_app() -> (App, Entity, Entity, Entity) {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     app.add_message::<ShipSectionCommand>();
 
@@ -840,6 +846,7 @@ fn blocks_stay_uniform_green_regardless_of_status() {
     app.init_asset::<Mesh>();
     app.init_asset::<StandardMaterial>();
     app.insert_state(PauseStates::NovaOs);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<ShipRuntime>();
     let mut terminal = ship_terminal();
     terminal.enter_app(SHIP_APP_ID);

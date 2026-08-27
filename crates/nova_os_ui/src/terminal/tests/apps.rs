@@ -639,19 +639,23 @@ fn nova_os_footer_hints_follow_active_surface() {
         HintsApp,
     ));
     app.insert_resource(registry);
+    app.register_input_actions(crate::bindings::novaos_bindings());
     app.add_systems(Update, rebuild_nova_os_footer_hints);
 
     let footer = app.world_mut().spawn(NovaOsFooterHintsMarker).id();
 
     // At the prompt the footer shows the terminal hint set.
     app.update();
+    let prompt_hints = terminal_hints(app.world().resource::<InputBindings>());
     assert_eq!(
         footer_hint_texts(&app, footer),
-        NOVA_OS_TERMINAL_HINTS
-            .iter()
-            .map(|hint| hint.to_string())
-            .collect::<Vec<_>>(),
+        prompt_hints,
         "the terminal surface shows the terminal hints",
+    );
+    assert_eq!(
+        prompt_hints.first().map(String::as_str),
+        Some("TAB: COMPLETE"),
+        "the completion hint names the key `novaos_toggle` holds",
     );
 
     // Entering the app swaps the footer to the app's own hints.
@@ -674,11 +678,24 @@ fn nova_os_footer_hints_follow_active_surface() {
     app.update();
     assert_eq!(
         footer_hint_texts(&app, footer),
-        NOVA_OS_TERMINAL_HINTS
-            .iter()
-            .map(|hint| hint.to_string())
-            .collect::<Vec<_>>(),
+        prompt_hints,
         "returning to the prompt restores the terminal hints",
+    );
+
+    // A rebind is the third trigger: the surface never changed, but the key the
+    // footer names did.
+    app.world_mut().resource_mut::<InputBindings>().rebind(
+        "novaos_toggle",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::Backslash)],
+            gamepad: Vec::new(),
+        },
+    );
+    app.update();
+    assert_eq!(
+        footer_hint_texts(&app, footer).first().map(String::as_str),
+        Some("\\: COMPLETE"),
+        "the footer follows the move without leaving the prompt",
     );
 }
 

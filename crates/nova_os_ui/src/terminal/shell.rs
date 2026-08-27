@@ -13,6 +13,7 @@ use nova_gameplay::{
     PauseStates,
 };
 use nova_hud::prelude::HudNovaOsExempt;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 use nova_ui::{font::UiFont, theme};
 
@@ -308,20 +309,25 @@ pub(crate) fn reconcile_nova_os_header(
 /// spawned (the `Local` survives a shell teardown/respawn, so without this a
 /// respawn whose mode matches the stale `Local` would skip refilling the new
 /// footer), mirroring [`reconcile_nova_os_header`].
+///
+/// A rebind is the third trigger: the hints name the keys the actions hold, so
+/// a footer keyed on the mode alone would keep printing the old key for as long
+/// as the player stayed on the surface where they moved it.
 pub(crate) fn rebuild_nova_os_footer_hints(
     terminal: Res<NovaOsTerminal>,
     registry: Res<NovaOsCommandRegistry>,
+    bindings: Res<InputBindings>,
     ui_font: Option<Res<UiFont>>,
     mut commands: Commands,
     q_added: Query<(), Added<NovaOsFooterHintsMarker>>,
     q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
     mut last_mode: Local<Option<TerminalMode>>,
 ) {
-    if q_added.is_empty() && *last_mode == Some(terminal.active_mode()) {
+    if q_added.is_empty() && !bindings.is_changed() && *last_mode == Some(terminal.active_mode()) {
         return;
     }
     *last_mode = Some(terminal.active_mode());
-    let hints = nova_os_footer_hints(terminal.active_mode(), &registry);
+    let hints = nova_os_footer_hints(terminal.active_mode(), &registry, &bindings);
     let font = nova_os_font(ui_font.as_deref());
     for (footer, children) in &q_footer {
         if let Some(children) = children {
@@ -330,7 +336,7 @@ pub(crate) fn rebuild_nova_os_footer_hints(
             }
         }
         commands.entity(footer).with_children(|footer| {
-            for &hint in hints {
+            for hint in &hints {
                 footer.spawn((
                     Text::new(hint),
                     nova_os_text_font(11.0, font.clone()),

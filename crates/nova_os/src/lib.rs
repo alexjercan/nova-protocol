@@ -23,7 +23,7 @@ pub mod terminal;
 /// The public NOVA OS logic surface `nova_os_ui` imports as one glob.
 pub mod prelude {
     pub use crate::{
-        app::{NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS},
+        app::{terminal_hints, NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS},
         command::{nova_os_footer_hints, CommandBody, NovaOsCommandRegistry, TerminalCommand},
         shell::{CliOutput, CommandArity},
         terminal::{

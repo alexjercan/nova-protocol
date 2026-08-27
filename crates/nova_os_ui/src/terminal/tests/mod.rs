@@ -33,7 +33,7 @@ use nova_gameplay::{
     GameStates, PauseStates,
 };
 use nova_hud::prelude::*;
-use nova_input::prelude::RegisterInputActions;
+use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::theme;
@@ -547,12 +547,14 @@ impl NovaOsAppRuntime for HintsApp {
         "Hints"
     }
     fn spawn_body(&self, _body: &mut ChildSpawnerCommands, _font: Handle<Font>) {}
-    fn hints(&self) -> &'static [&'static str] {
-        &[
+    fn hints(&self, _bindings: &InputBindings) -> Vec<String> {
+        [
             "1/2/3: DO A THING",
             "ESC: BACK TO TERMINAL",
             "SHIFT+ESC: CLOSE",
         ]
+        .map(String::from)
+        .to_vec()
     }
 }
 

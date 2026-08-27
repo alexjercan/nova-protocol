@@ -92,12 +92,13 @@ pub(crate) struct ShipOrbit {
     /// The eased orbit center the camera currently looks at and orbits around.
     pub(crate) center: Vec3,
     /// Where `center` is easing toward - the selected section's local position,
-    /// or `center_home` after a `T` reset.
+    /// or `center_home` after a `novaos_reframe`.
     pub(crate) center_target: Vec3,
-    /// The whole-ship centroid; `T` re-frames the ship by retargeting here.
+    /// The whole-ship centroid; `novaos_reframe` re-frames the ship by
+    /// retargeting here.
     pub(crate) center_home: Vec3,
     /// The selection `center_target` was last set for. The center only retargets
-    /// when `ShipRuntime.selected` diverges from this, so `T`'s home reframe is
+    /// when `ShipRuntime.selected` diverges from this, so the home reframe is
     /// not immediately chased back to the still-selected section.
     pub(crate) centered_on: Option<Entity>,
 }
@@ -356,7 +357,7 @@ pub(crate) fn drive_ship_camera(
         return;
     };
     // Frame-rate-independent exponential ease of the center toward its target, so
-    // Q/E/R/F + drag orbit around the section being inspected.
+    // Keyed orbit + drag around the section being inspected.
     let dt = time.delta_secs().max(1.0 / 240.0);
     let alpha = 1.0 - (-SHIP_CENTER_EASE * dt).exp();
     orbit.center = orbit.center.lerp(orbit.center_target, alpha);
@@ -393,16 +394,16 @@ pub(crate) fn ship_input(
 
     if let Ok(mut orbit) = q_camera.single_mut() {
         let turn = 1.6 * dt;
-        if input.pressed(KeyCode::KeyQ) {
+        if input.pressed("novaos_orbit_left") {
             orbit.theta += turn;
         }
-        if input.pressed(KeyCode::KeyE) {
+        if input.pressed("novaos_orbit_right") {
             orbit.theta -= turn;
         }
-        if input.pressed(KeyCode::KeyR) {
+        if input.pressed("novaos_orbit_up") {
             orbit.phi = (orbit.phi + turn).min(1.45);
         }
-        if input.pressed(KeyCode::KeyF) {
+        if input.pressed("novaos_orbit_down") {
             orbit.phi = (orbit.phi - turn).max(0.12);
         }
         // Mouse drag orbits, RIGHT button ONLY. LMB is the blip-select click (the
@@ -419,7 +420,7 @@ pub(crate) fn ship_input(
         }
     }
 
-    if input.just_pressed(KeyCode::KeyG) {
+    if input.just_pressed("ship_mates") {
         runtime.show_mates = !runtime.show_mates;
         for mut visibility in &mut q_mates {
             *visibility = if runtime.show_mates {
@@ -434,9 +435,9 @@ pub(crate) fn ship_input(
     if list.is_empty() {
         return;
     }
-    // Cycle the selection with [ and ].
-    let forward = input.just_pressed(KeyCode::BracketRight);
-    let backward = input.just_pressed(KeyCode::BracketLeft);
+    // Cycle the selection.
+    let forward = input.just_pressed("novaos_next");
+    let backward = input.just_pressed("novaos_prev");
     if forward || backward {
         let current = runtime
             .selected
@@ -451,10 +452,11 @@ pub(crate) fn ship_input(
     }
 
     // Reconcile the orbit center after any selection change this frame. This is
-    // the single funnel for `[`/`]`, blip clicks, and the default selection: each
-    // caller only sets `runtime.selected`, and the center chases it here.
+    // the single funnel for the cycle actions, blip clicks, and the default
+    // selection: each caller only sets `runtime.selected`, and the center
+    // chases it here.
     if let Ok(mut orbit) = q_camera.single_mut() {
-        if input.just_pressed(KeyCode::KeyT) {
+        if input.just_pressed("novaos_reframe") {
             // Reset re-frames the whole ship: restore the default angles and
             // retarget the center home. Consuming the current selection
             // (centered_on = selected) makes the reframe STICK - the change check
@@ -476,10 +478,10 @@ pub(crate) fn ship_input(
         }
     }
 
-    // Actions on the selected section: L reload, P repair, B rebind. Route
-    // mutation actions through their shared seams.
+    // What the app does to the section it has selected. Route mutation actions
+    // through their shared seams.
     if let Some(sel) = runtime.selected {
-        if input.just_pressed(KeyCode::KeyB)
+        if input.just_pressed("ship_rebind")
             && list
                 .iter()
                 .find(|view| view.entity == sel)
@@ -490,13 +492,13 @@ pub(crate) fn ship_input(
             runtime.note = None;
             return;
         }
-        if input.just_pressed(KeyCode::KeyL) {
+        if input.just_pressed("ship_reload") {
             commands.write(ShipSectionCommand {
                 target: sel,
                 action: ShipAction::Reload,
             });
         }
-        if input.just_pressed(KeyCode::KeyP) {
+        if input.just_pressed("ship_repair") {
             commands.write(ShipSectionCommand {
                 target: sel,
                 action: ShipAction::Repair,

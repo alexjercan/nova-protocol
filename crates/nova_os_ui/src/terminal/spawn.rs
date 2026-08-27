@@ -19,6 +19,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::NovaHudAssets;
+use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 use nova_ui::font::UiFont;
 
@@ -662,6 +663,11 @@ pub(crate) fn spawn_nova_os_terminal_content(
 /// it) so it stays visible while an app hides the terminal content - the footer
 /// carries each app's own keybinds (`rebuild_nova_os_footer_hints` refills it per
 /// active surface). A higher `ZIndex` keeps it above the app overlay.
+///
+/// Seeded from the SHIPPED defaults, not the live table: the spawn runs in an
+/// observer with no world access to thread a resource through, and
+/// `rebuild_nova_os_footer_hints` overwrites this on `Added`, so a moved key is
+/// wrong for at most the spawn frame.
 pub(crate) fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Handle<Font>) {
     parent
         .spawn((
@@ -691,7 +697,7 @@ pub(crate) fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Hand
             ZIndex(NOVA_OS_CONTENT_Z + 10),
         ))
         .with_children(|footer| {
-            for &hint in NOVA_OS_TERMINAL_HINTS {
+            for hint in terminal_hints(&InputBindings::default()) {
                 footer.spawn((
                     Text::new(hint),
                     nova_os_text_font(11.0, font.clone()),

@@ -475,7 +475,7 @@ pub(crate) fn scroll_nova_os_panels(
     }
 }
 
-/// The input surface a NOVA OS app reads: the activity gate, pointer and key
+/// The input surface a NOVA OS app reads: the activity gate, pointer and action
 /// state, and the frame clock.
 ///
 /// F81: `map_input` and `ship_input` each declared this same seven-parameter
@@ -484,12 +484,18 @@ pub(crate) fn scroll_nova_os_panels(
 /// [`Self::just_pressed`] withhold every key while Control is down, because
 /// Control is the app-exit chord (F34). Reading `ButtonInput` directly is what
 /// let Ctrl+`[` both leave the app and cycle its selection.
+///
+/// The apps name ACTIONS, not keys: the two viewers were the last cluster of
+/// hardcoded `KeyCode`s in the tree, so a player could rebind flight but not
+/// the computer they fly it with.
 #[derive(SystemParam)]
 pub(crate) struct NovaOsAppInput<'w, 's> {
     pause: Res<'w, State<PauseStates>>,
     terminal: Res<'w, NovaOsTerminal>,
     keys: Res<'w, ButtonInput<KeyCode>>,
     mouse_buttons: Res<'w, ButtonInput<MouseButton>>,
+    bindings: Res<'w, InputBindings>,
+    sources: InputSources<'w, 's>,
     motion: MessageReader<'w, 's, bevy::input::mouse::MouseMotion>,
     wheel: MessageReader<'w, 's, bevy::input::mouse::MouseWheel>,
     time: Res<'w, Time>,
@@ -523,13 +529,25 @@ impl NovaOsAppInput<'_, '_> {
         self.mouse_buttons.pressed(button)
     }
 
-    /// A held key, withheld while Control owns the chord.
-    pub(crate) fn pressed(&self, key: KeyCode) -> bool {
-        !control_held(&self.keys) && self.keys.pressed(key)
+    /// A held action, withheld while Control owns the chord.
+    ///
+    /// An unregistered name is simply not pressed. The apps run inside the
+    /// monitor, and a missing row is a wiring mistake worth a quiet no-op
+    /// rather than a panic in the middle of a frame.
+    pub(crate) fn pressed(&self, action: &str) -> bool {
+        !control_held(&self.keys)
+            && self
+                .bindings
+                .get(action)
+                .is_some_and(|action| self.sources.pressed(action))
     }
 
-    /// A key pressed this frame, withheld while Control owns the chord.
-    pub(crate) fn just_pressed(&self, key: KeyCode) -> bool {
-        !control_held(&self.keys) && self.keys.just_pressed(key)
+    /// An action pressed this frame, withheld while Control owns the chord.
+    pub(crate) fn just_pressed(&self, action: &str) -> bool {
+        !control_held(&self.keys)
+            && self
+                .bindings
+                .get(action)
+                .is_some_and(|action| self.sources.just_pressed(action))
     }
 }

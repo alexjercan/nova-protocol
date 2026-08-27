@@ -66,7 +66,7 @@ pub(crate) fn manage_map_scene(
     };
 
     // The map opens framed on the player ship (the sim is frozen, so this stays
-    // put); WASD pans the focus from here.
+    // put); the pan actions move the focus from here.
     let focus = q_player
         .iter()
         .next()
@@ -119,7 +119,7 @@ pub(crate) fn manage_map_scene(
                 theta: MAP_THETA_DEFAULT,
                 phi: MAP_PHI_DEFAULT,
                 radius: MAP_RADIUS_DEFAULT,
-                // Seed the focus on the player ship; WASD pans it from here.
+                // Seed the focus on the player ship; the pan actions move it.
                 center: focus,
             },
             ChildOf(scene_root),
@@ -198,9 +198,9 @@ pub(crate) fn reconcile_map_target(
 }
 
 /// Drive the map camera transform from the orbit output. The orbit `center` is
-/// the focus point the player pans with WASD (seeded to the player ship on open,
-/// reset with `R`); this system must NOT overwrite it, or WASD would snap back
-/// every frame.
+/// the focus point `novaos_pan_*` moves (seeded to the player ship on open,
+/// re-framed by `novaos_reframe`); this system must NOT overwrite it, or a pan
+/// would snap back every frame.
 pub(crate) fn drive_map_camera(
     mut q_camera: Query<(&mut Transform, &MapOrbit), With<MapCameraMarker>>,
 ) {
@@ -226,7 +226,7 @@ pub(crate) fn focus_point(contacts: &MapContacts, selected: Option<Entity>) -> V
 }
 
 /// When a NEW contact is selected, snap the orbit center onto it once (so the
-/// map + rings recenter on it); after that WASD is free to pan away. Every frame
+/// map + rings recenter on it); after that a pan is free to move away. Every frame
 /// keep the ring/hub anchor sitting on the current center.
 pub(crate) fn map_focus_follow(
     mut runtime: ResMut<MapRuntime>,
@@ -258,8 +258,10 @@ pub(crate) fn map_focus_follow(
     }
 }
 
-/// Read mouse + keyboard while the map owns the screen: RMB-drag look, wheel
-/// zoom, WASD move, `R` reset, `[`/`]` cycle selection, `G` set GOTO.
+/// Read mouse + actions while the map owns the screen: RMB-drag look and wheel
+/// zoom are raw pointer gestures; everything else is a named action -
+/// `novaos_pan_*`, `novaos_orbit_*`, `novaos_reframe`, `novaos_next` /
+/// `novaos_prev`, and `map_goto`.
 pub(crate) fn map_input(
     mut input: NovaOsAppInput,
     mut runtime: ResMut<MapRuntime>,
@@ -285,20 +287,21 @@ pub(crate) fn map_input(
     }
 
     if let Ok((mut orbit, transform)) = q_camera.single_mut() {
-        // Keyboard orbit: Q/E turn (yaw), R/F tilt (pitch). This is the reliable
-        // path - mouse-drag look is unreliable through the NOVA OS pointer
-        // forwarding. Applied straight to the orbit angles (no smoothing layer).
+        // Keyed orbit: `novaos_orbit_left`/`_right` turn (yaw),
+        // `novaos_orbit_up`/`_down` tilt (pitch). This is the reliable path -
+        // mouse-drag look is unreliable through the NOVA OS pointer forwarding.
+        // Applied straight to the orbit angles (no smoothing layer).
         let turn = 1.6 * dt;
-        if input.pressed(KeyCode::KeyQ) {
+        if input.pressed("novaos_orbit_left") {
             orbit.theta += turn;
         }
-        if input.pressed(KeyCode::KeyE) {
+        if input.pressed("novaos_orbit_right") {
             orbit.theta -= turn;
         }
-        if input.pressed(KeyCode::KeyR) {
+        if input.pressed("novaos_orbit_up") {
             orbit.phi = (orbit.phi + turn).min(1.45);
         }
-        if input.pressed(KeyCode::KeyF) {
+        if input.pressed("novaos_orbit_down") {
             orbit.phi = (orbit.phi - turn).max(0.12);
         }
         // Mouse drag orbits, RIGHT button ONLY. LMB is the contact-select click
@@ -315,19 +318,20 @@ pub(crate) fn map_input(
             orbit.radius =
                 (orbit.radius * (1.0 - wheel_delta * 0.12)).clamp(MAP_RADIUS_MIN, MAP_RADIUS_MAX);
         }
-        // WASD pans the focus RELATIVE TO THE MAP VIEW (the camera's heading on
-        // the ground plane), not the ship: W moves into the screen, D screen-right.
+        // The pan actions move the focus RELATIVE TO THE MAP VIEW (the camera's
+        // heading on the ground plane), not the ship: forward goes into the
+        // screen, right goes screen-right.
         let mut pan = Vec2::ZERO;
-        if input.pressed(KeyCode::KeyW) {
+        if input.pressed("novaos_pan_forward") {
             pan.y += 1.0;
         }
-        if input.pressed(KeyCode::KeyS) {
+        if input.pressed("novaos_pan_back") {
             pan.y -= 1.0;
         }
-        if input.pressed(KeyCode::KeyA) {
+        if input.pressed("novaos_pan_left") {
             pan.x -= 1.0;
         }
-        if input.pressed(KeyCode::KeyD) {
+        if input.pressed("novaos_pan_right") {
             pan.x += 1.0;
         }
         if pan != Vec2::ZERO {
@@ -337,8 +341,8 @@ pub(crate) fn map_input(
             let speed = orbit.radius * 0.8 * dt;
             orbit.center += (forward * pan.y + right * pan.x) * speed;
         }
-        // T re-frames on the selected object (or the player if nothing is picked).
-        if input.just_pressed(KeyCode::KeyT) {
+        // Re-frame on the selected object (or the player if nothing is picked).
+        if input.just_pressed("novaos_reframe") {
             orbit.radius = MAP_RADIUS_DEFAULT;
             orbit.theta = MAP_THETA_DEFAULT;
             orbit.phi = MAP_PHI_DEFAULT;
@@ -347,11 +351,11 @@ pub(crate) fn map_input(
         }
     }
 
-    // Cycle selection with [ and ].
+    // Cycle selection.
     let list = contacts.collect();
     if !list.is_empty() {
-        let forward = input.just_pressed(KeyCode::BracketRight);
-        let backward = input.just_pressed(KeyCode::BracketLeft);
+        let forward = input.just_pressed("novaos_next");
+        let backward = input.just_pressed("novaos_prev");
         if forward || backward {
             let current = runtime
                 .selected
@@ -369,7 +373,7 @@ pub(crate) fn map_input(
     // GOTO on the selected contact (skip own ship). Sets a flight autopilot on
     // the player ship directly - this intentionally bypasses the normal
     // `FlightVerb::Goto` grant check (fine for the PoC nav computer).
-    if input.just_pressed(KeyCode::KeyG) {
+    if input.just_pressed("map_goto") {
         if let (Some(sel), Some((player, _, _))) = (runtime.selected, contacts.player_frame()) {
             if let Some(contact) = list.iter().find(|c| c.entity == sel) {
                 if contact.kind != MapContactKind::OwnShip {

@@ -164,6 +164,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Tab and the HUD cycle key are named actions: the Controls list prints them,
   the settings file remembers a move, and both answer a rebind like every
   flight key already did.
+- Every key in the NOVA OS map and ship viewers is a named action - orbit, pan,
+  cycle, GOTO, reload, repair, rebind - and the monitor's footer prints the key
+  each one is bound to now.
 
 ### Ships & Sections
 

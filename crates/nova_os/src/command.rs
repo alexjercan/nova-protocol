@@ -11,6 +11,7 @@
 //! its CLI subcommands and its runtime are declared together in one place.
 
 use bevy::prelude::*;
+use nova_input::prelude::InputBindings;
 
 use crate::{app::prelude::*, shell::prelude::*, terminal::TerminalMode};
 
@@ -234,13 +235,14 @@ impl NovaOsCommandRegistry {
 pub fn nova_os_footer_hints(
     mode: TerminalMode,
     registry: &NovaOsCommandRegistry,
-) -> &'static [&'static str] {
+    bindings: &InputBindings,
+) -> Vec<String> {
     match mode {
-        TerminalMode::Prompt => NOVA_OS_TERMINAL_HINTS,
+        TerminalMode::Prompt => terminal_hints(bindings),
         TerminalMode::App { id } => registry
             .app_runtime(id)
-            .map(|app| app.hints())
-            .unwrap_or(NOVA_OS_TERMINAL_HINTS),
+            .map(|app| app.hints(bindings))
+            .unwrap_or_else(|| terminal_hints(bindings)),
     }
 }
 
