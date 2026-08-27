@@ -1,8 +1,8 @@
-# The game as a process: named inputs, a command channel, and state on stdout
+# The game as a process: named inputs, an input channel, and state on stdout
 
 - STATUS: OPEN
 - PRIORITY: 70
-- TAGS: v0.12.0,tooling,input,autopilot
+- TAGS: v0.12.0, tooling, input, autopilot
 
 Make the game drivable and observable as a PROCESS: named input actions, a
 command channel that carries both inputs and scenario actions, world state on
@@ -182,3 +182,25 @@ per synced spawn AND per component removal, ~2.4 MB per 100k
 upstream so it CANNOT be drained from outside. Resolve the strategy
 (upstream fix or bounded sessions) in this task before advertising
 indefinite driven sessions.
+
+## Scope narrowed (2026-08-27)
+
+This task is `input` only: press named inputs by name, read world state back.
+
+The `action` vocabulary moved to `20260827-120347`, to be designed together with
+the in-game console rather than bolted onto stdin first. Reason: `action` is a
+command layer that stdin happens to reach when there is no window, not a stdin
+feature. Building the stdin half first means designing arming, classification
+and eligibility twice.
+
+The line schema still parses all three lane keys. `action` and `command` are
+reserved and refused with a clear error, so adding them later is additive.
+
+Checked before agreeing: the two-crate split survives the cut. `nova_channel`
+still sits above `nova_scenario`, now because `capture_snapshot` reads
+`CurrentScenario` and `NovaEventWorld` (`nova_probe/src/capabilities/snapshot.rs:107`)
+rather than because the action vocabulary is `EventActionConfig`. The
+observation half alone forces it.
+
+Design record: `tasks/20260820-174148/design.html`. Its "Deferred" section is
+the reasoning `20260827-120347` starts from.

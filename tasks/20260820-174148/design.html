@@ -1,0 +1,1145 @@
+<title>The Process Channel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #faf9f6; --panel: #fffefb; --fg: #1b1a17; --muted: #6d6a62;
+    --line: #e5e2da; --accent: #9a6a1f; --in: #2f6f4f; --act: #93414f;
+    --chip: #f1ede3; --shade: #f4f1e9;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+      --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+      --chip: #22222a; --shade: #1a1a20;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+    --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+    --chip: #22222a; --shade: #1a1a20;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 400 15px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+
+  .eyebrow {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 .7rem;
+  }
+  h1 {
+    font: 700 1.9rem/1.2 var(--sans); margin: 0 0 .6rem;
+    letter-spacing: -.015em; text-wrap: balance;
+  }
+  .lede { color: var(--muted); font-size: 1.02rem; margin: 0 0 .9rem; max-width: 42rem; }
+  .meta { font: 400 .74rem/1.6 var(--mono); color: var(--muted); margin: 0 0 2.6rem; }
+  .meta span::after { content: "  ·  "; color: var(--line); }
+  .meta span:last-child::after { content: ""; }
+
+  h2 {
+    font: 600 1.12rem/1.3 var(--sans); margin: 3rem 0 .2rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+    letter-spacing: -.01em;
+  }
+  h2 .n {
+    font: 500 .7rem/1 var(--mono); color: var(--accent);
+    letter-spacing: .1em; display: block; margin-bottom: .45rem;
+  }
+  h3 { font: 600 .95rem/1.4 var(--sans); margin: 1.8rem 0 .3rem; }
+  p { margin: .55rem 0; }
+  p.sub { color: var(--muted); margin-top: .1rem; }
+  ul, ol { margin: .55rem 0; padding-left: 1.15rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+  code {
+    font: 400 .86em/1.5 var(--mono); background: var(--chip);
+    padding: .08em .32em; border-radius: 3px; word-break: break-word;
+  }
+  pre {
+    font: 400 .8rem/1.65 var(--mono); background: var(--shade);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto; margin: .9rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cm { color: var(--muted); }
+
+  /* the channel schematic */
+  .wire {
+    display: grid; grid-template-columns: 1fr; gap: .8rem;
+    margin: 1.6rem 0 .6rem;
+  }
+  @media (min-width: 44rem) { .wire { grid-template-columns: 1fr 1fr; } }
+  .lane {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    padding: .9rem 1rem 1rem; border-top-width: 3px;
+  }
+  .lane.i { border-top-color: var(--in); }
+  .lane.a { border-top-color: var(--act); }
+  .lane h4 {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .14em;
+    text-transform: uppercase; margin: 0 0 .5rem;
+  }
+  .lane.i h4 { color: var(--in); }
+  .lane.a h4 { color: var(--act); }
+  .lane pre { margin: 0 0 .6rem; background: var(--shade); font-size: .74rem; }
+  .lane p { margin: .35rem 0 0; font-size: .86rem; color: var(--muted); }
+  .lane.f {
+    border: 1px dashed var(--line); border-top-width: 3px;
+    border-top-style: dashed; opacity: .8;
+  }
+  .lane.f h4 { color: var(--muted); }
+  .lane.a.f { border-top-color: var(--act); }
+  .lane.a.f h4 { color: var(--act); }
+  .lane.f .later {
+    font-size: .82em; letter-spacing: .08em; color: var(--accent);
+    border: 1px solid var(--line); border-radius: 3px; padding: .05em .35em;
+    margin-left: .4rem;
+  }
+  .lane .rule {
+    font: 500 .74rem/1.5 var(--mono); color: var(--fg);
+    display: block; margin-bottom: .35rem;
+  }
+
+  /* decision blocks */
+  .dec {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-radius: 0 6px 6px 0; padding: .85rem 1.05rem .95rem;
+    margin: 1.1rem 0;
+  }
+  .dec .q {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 .3rem;
+  }
+  .dec .call { font-weight: 600; margin: 0 0 .4rem; }
+  .dec p { margin: .4rem 0 0; font-size: .93rem; }
+  .dec p:first-of-type { margin-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+  .scroll { overflow-x: auto; margin: 1rem 0; }
+  .scroll table { margin: 0; min-width: 34rem; }
+  th {
+    text-align: left; font: 500 .68rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--line); padding: .35rem .6rem .35rem 0;
+  }
+  td {
+    padding: .42rem .6rem .42rem 0; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  td.m, th.m { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; padding-right: 1.2rem; }
+  tr:last-child td { border-bottom: none; }
+
+  .tag {
+    font: 500 .68rem/1.5 var(--mono); border-radius: 3px;
+    padding: .05rem .38rem; white-space: nowrap;
+  }
+  .tag.ok { color: var(--in); background: var(--chip); }
+  .tag.no { color: var(--act); background: var(--chip); }
+  .tag.q  { color: var(--accent); background: var(--chip); }
+
+  .note {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+    padding: .8rem 1rem; margin: 1.1rem 0; font-size: .93rem;
+  }
+  .note .h {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); display: block;
+    margin-bottom: .35rem;
+  }
+  /* crate stack */
+  .stack { margin: 1.6rem 0 .5rem; }
+  .axis {
+    display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem;
+    font: 500 .66rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .axis .bar { flex: 1; height: 1px; background: var(--line); }
+  .tier {
+    display: grid; grid-template-columns: 1fr; gap: .45rem;
+    padding: .5rem 0; border-top: 1px dashed var(--line);
+  }
+  .tier:first-of-type { border-top: none; }
+  @media (min-width: 40rem) {
+    .tier { grid-template-columns: 7.5rem 1fr; gap: .9rem; align-items: start; }
+  }
+  .tier > .lbl {
+    font: 500 .64rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding-top: .5rem;
+  }
+  .tier.hi {
+    background: var(--shade); border-radius: 6px;
+    padding: .55rem .65rem; border-top: none; margin: .35rem 0;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .tier.hi > .lbl { color: var(--accent); }
+  .boxes { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .crate {
+    border: 1px solid var(--line); border-radius: 5px; background: var(--panel);
+    padding: .4rem .6rem .45rem; min-width: 8.5rem; flex: 1 1 auto;
+  }
+  .crate .nm { font: 600 .78rem/1.4 var(--mono); display: block; }
+  .crate .ow { font-size: .78rem; color: var(--muted); display: block; margin-top: .12rem; }
+  .crate.new {
+    border-color: var(--accent); border-left-width: 3px; background: var(--chip);
+  }
+  .crate.new .nm { color: var(--accent); }
+  .crate.dbg { border-style: dashed; opacity: .82; }
+  .crate.ext { background: none; border-style: dotted; }
+  .crate .badge {
+    font: 500 .6rem/1.4 var(--mono); letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted); float: right;
+    margin-left: .5rem;
+  }
+  .crate.new .badge { color: var(--accent); }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 1rem; margin: .7rem 0 0;
+    font: 400 .76rem/1.5 var(--sans); color: var(--muted);
+  }
+  .legend i { font-style: normal; display: inline-flex; align-items: center; gap: .35rem; }
+  .legend .sw {
+    width: .8rem; height: .8rem; border-radius: 3px; border: 1px solid var(--line);
+    display: inline-block;
+  }
+  .legend .sw.new { border-color: var(--accent); background: var(--chip); border-left-width: 3px; }
+  .legend .sw.dbg { border-style: dashed; }
+  .legend .sw.ext { border-style: dotted; background: none; }
+
+  .foot {
+    margin-top: 3.2rem; border-top: 1px solid var(--line); padding-top: 1.1rem;
+    color: var(--muted); font: 400 .82rem/1.7 var(--mono);
+  }
+</style>
+
+<main>
+  <p class="eyebrow">Task 20260820-174148 &middot; design</p>
+  <h1>The game as a process</h1>
+  <p class="lede">
+    Named input actions, a bindings registry the flight rig is built from, a
+    channel that presses those inputs by name, world state on stdout, and an
+    opt-in step clock that lets a slow driver keep up.
+  </p>
+  <p class="meta">
+    <span>v0.12.0</span><span>priority 70</span><span>tooling / input / autopilot</span><span>written 2026-08-27</span>
+  </p>
+
+  <div class="note">
+    <span class="h">Scope, narrowed 2026-08-27</span>
+    This task is now <strong><code>input</code> only</strong>: press named
+    inputs, read world state back. The <code>action</code> vocabulary &mdash;
+    reaching into the world by name &mdash; moved to
+    <strong>20260827-120347</strong>, to be designed together with the in-game
+    console rather than bolted onto stdin first. The reasoning for it is not
+    lost: it is recorded below, and carried into that task. The line schema
+    keeps the <code>action</code> key reserved so adding it is additive.
+  </div>
+
+  <p>
+    This document answers the four questions the task left open, corrects three
+    figures in the round-4 audit, and records what was verified against the
+    tree today versus what still needs a spike. Three things changed after
+    review: <em>where the code lives</em> &mdash; two new release crates rather
+    than a debug-only home (Q2, Crate layout); <em>who waits</em> &mdash; the
+    simulation never blocks on a read, and stepping gates the clock instead
+    (Q3); and <em>how much is in scope</em> &mdash; the note above.
+  </p>
+
+  <h2><span class="n">The shape</span>One transport, three vocabularies</h2>
+  <p>
+    The whole design turns on one asymmetry: an input goes through the game's
+    rules and can legitimately fail; an action bypasses them. Only the first
+    is built here. The other two lanes are drawn because the schema has to
+    leave room for them &mdash; a vocabulary added after drivers exist is a
+    parse break, while one reserved and unused costs a match arm.
+  </p>
+
+  <div class="wire">
+    <div class="lane i">
+      <h4>input &mdash; through the rules</h4>
+      <pre><code>{"tick":1200,"input":"radar_hold","phase":"start"}</code></pre>
+      <span class="rule">apply(name, phase) &rarr; press the bound source</span>
+      <p>
+        Resolves through the registry to a live <code>Binding</code> and presses
+        it. Conditions and modifiers still run, so a driven radar hold is a real
+        <code>Hold</code>. It can do nothing &mdash; radar destroyed, magazine
+        empty &mdash; and that is the point.
+      </p>
+    </div>
+    <div class="lane a f">
+      <h4>action &mdash; around the rules <span class="later">task 120347</span></h4>
+      <pre><code>{"tick":1200,"action":{"VariableSet":{"key":"act", …}}}</code></pre>
+      <span class="rule">serde &rarr; EventActionConfig &rarr; run it</span>
+      <p>
+        Would parse the same enum the RON parses, so all 26 actions arrive with
+        zero per-action work and the two can never drift. Deferred: it is a
+        console feature that stdin happens to reach, not a stdin feature.
+      </p>
+    </div>
+    <div class="lane f">
+      <h4>command &mdash; beside the rules <span class="later">task 120347</span></h4>
+      <pre><code>{"tick":1200,"command":{"SetGraphics":"low"}}</code></pre>
+      <span class="rule">the process, not the world</span>
+      <p>
+        Graphics presets, replay speed, window size. It touches nothing the
+        simulation can see, so it neither marks a run nor makes a scenario
+        ineligible. Named here because the schema has to leave room for it;
+        nothing is built for it in this task.
+      </p>
+    </div>
+  </div>
+  <p class="sub">
+    Merging the namespaces would lose the guarantee that makes an input test
+    prove &ldquo;a player could do this&rdquo;. Keep them apart even though one
+    transport will carry all three.
+  </p>
+  <p class="sub">
+    The same three exist in the GUI, on different surfaces: keys carry
+    <code>input</code>, and a console carries the other two. Without a window
+    there is no keyboard and no console, so one transport carries all three.
+    That is why stdin looked like it was inventing a vocabulary &mdash; it is
+    not; it is the only place all three are visible at once.
+  </p>
+
+  <h2><span class="n">The open questions</span>Decisions</h2>
+
+  <div class="dec">
+    <p class="q">Q1 &mdash; the line schema</p>
+    <p class="call">One JSON object per line, both directions. In: a tick and exactly one of <code>input</code>, <code>action</code> or <code>command</code>. Out: the snapshot, plus an <code>applied</code> block.</p>
+    <p>
+      <code>capture_snapshot</code> already emits a schema-versioned header
+      (<code>schema</code>, <code>scenario</code>, <code>frame</code>,
+      <code>elapsed</code>, <code>game_state</code>, <code>reason</code>). The
+      channel adds one field and invents nothing else.
+    </p>
+    <pre><code><span class="cm">// in</span>
+{"tick":1200,"input":"radar_hold","phase":"start"}
+{"tick":1260,"input":"radar_hold","phase":"stop"}
+{"tick":1260,"action":{"StoryMessage":{…}}}   <span class="cm">// parsed, refused, 120347</span>
+
+<span class="cm">// out (one per snapshot; body elided)</span>
+{"schema":1,"frame":1260,"elapsed":21.0,"reason":"step",
+ "applied":[{"input":"radar_hold","phase":"stop","state":"Fired"}],
+ "ships":[…],"ordnance":[…]}</code></pre>
+    <p>
+      <strong>How an input reports failure.</strong> The dispatcher cannot know
+      whether the game acted; it only presses a key. So <code>applied</code>
+      carries each named action's live <code>TriggerState</code> after the
+      frame evaluates &mdash; <code>None</code>, <code>Ongoing</code>,
+      <code>Fired</code>. A driver reading <code>"state":"None"</code> knows the
+      press did nothing, and the rest of the snapshot says why. An unknown
+      <em>name</em> is a script error in any lane and logs loudly.
+    </p>
+    <p>
+      <strong>Why all three keys are parsed today.</strong> A reserved lane
+      answers &ldquo;not in this build yet, see 20260827-120347&rdquo;. An
+      unreserved one answers with a parse failure indistinguishable from a
+      typo. The first is a version negotiation; the second is a bug report.
+      Externally tagging the lane by key &mdash; rather than a
+      <code>&quot;kind&quot;</code> field beside a payload &mdash; is what makes
+      the later addition purely additive: a new key is a new variant, and every
+      existing line still parses byte for byte.
+    </p>
+  </div>
+
+  <div class="dec">
+    <p class="q">Q2 &mdash; which crate owns the stdin reader</p>
+    <p class="call">Two new crates, neither of them debug-gated: <code>nova_input</code> below <code>nova_ship</code> for the registry, <code>nova_channel</code> above <code>nova_scenario</code> for the reader and the snapshot. <code>nova_probe</code> depends on them, never the reverse.</p>
+    <p>
+      <strong>Not <code>nova_probe</code>.</strong> It is an
+      <code>optional</code> dependency behind the <code>debug</code> feature and
+      the manifest says so in as many words: <em>release/dist builds never carry
+      it</em>. Headless mode is not debug-gated in the same way &mdash;
+      <code>AppBuilder::new()</code> reads <code>NOVA_NORENDER</code>
+      unconditionally, so any build boots headless from the environment, and
+      only the <code>--norender</code> CLI flag needs the feature. Putting the
+      reader in <code>nova_probe</code> would mean the one mode with no keyboard
+      also has no way to be driven in the build players get.
+    </p>
+    <p>
+      <strong>Not <code>nova_ship</code> either.</strong> A ship crate has no
+      business owning a table of action names. It happens to be reachable from
+      the settings menu, which is a dependency-graph accident, not a reason.
+    </p>
+    <p>
+      <strong>And not one crate for both.</strong> The registry and the reader
+      cannot share a crate, because the graph puts them on opposite sides of
+      <code>nova_ship</code>: the registry must sit <em>below</em> it, since
+      <code>nova_ship</code>, <code>nova_scenario</code> and
+      <code>nova_menu</code> all build from it; the reader must sit
+      <em>above</em> <code>nova_scenario</code>, because the
+      <code>action</code> vocabulary is <code>EventActionConfig</code>. One
+      crate holding both would be a cycle.
+    </p></div>
+
+  <div class="dec">
+    <p class="q">Q3 &mdash; step mode, and who waits</p>
+    <p class="call">The simulation thread never blocks on a read. A reader thread owns the blocking <code>read_line</code>; the game only ever does <code>try_recv</code>. Step mode then gates the CLOCK, not the read.</p>
+    <p>
+      <strong>Reading stdin is a poll, always.</strong> A line arriving on the
+      channel should feel exactly like a keypress: the loop ticks at its own
+      rate, drains whatever is waiting, applies it, and carries on. That is what
+      a multiplayer server does with an idle client, and it is the behaviour
+      that ships. <code>std::io::Stdin</code> has no portable non-blocking read,
+      so the blocking call is parked on a dedicated thread and reaches the
+      simulation through an <code>mpsc</code> channel &mdash; the process has a
+      thread in <code>read()</code>, the <em>game</em> never does.
+    </p>
+    <p>
+      <strong>Step mode is a separate, opt-in clock policy.</strong> It exists
+      for one reason the poll cannot solve: an LLM thinks for seconds and the
+      game runs 60 ticks a second, so a free-running world has moved hundreds of
+      ticks before the reply lands and the observation describes a game that no
+      longer exists. Step mode holds the clock &mdash; it does not halt the
+      loop, which keeps polling, keeps its shutdown line live, and can time out
+      and say so.
+    </p>
+    <pre><code>loop {
+    while let Ok(line) = rx.try_recv() { queue.push(line); }   <span class="cm">// never blocks</span>
+    if stepping &amp;&amp; !queue.has_tick(next_tick) { continue; }    <span class="cm">// gate the CLOCK</span>
+    for _ in 0..n { app.update(); }        <span class="cm">// ManualDuration, fixed dt</span>
+    sink.write(capture_snapshot(app.world_mut(), "step"));
+}</code></pre>
+    <p>
+      Still a custom runner rather than an exclusive system in
+      <code>First</code>: the runner already owns exit handling, and a gate that
+      lives inside a frame cannot decide whether the frame happens.
+      <code>TimeUpdateStrategy::ManualDuration</code> keeps dt off the wall
+      clock either way. <strong>Warm up with one update first</strong> &mdash;
+      the first manual update reports dt 0.
+    </p>
+    <p>
+      <strong>That gives the <code>tick</code> field two readings, and the mode
+      picks which.</strong> Free-running, a tick is an ASSERTION: a line stamped
+      1200 that arrives at 1263 is applied late and the lateness is reported, so
+      a driver learns it cannot keep up. Stepping, a tick is a SCHEDULE: the
+      clock waits for it, which is what makes the same script replay to the same
+      result.
+    </p></div>
+
+  <div class="dec">
+    <p class="q">Q4 &mdash; which cheats are catalog actions &middot; moved to 20260827-120347</p>
+    <p class="call">All of them, and the question splits in two. <em>Did the player reach in?</em> marks the RUN. <em>Does this script inject world state?</em> makes the SCENARIO a creative map. Different subjects, different answers, and only the first one accuses anybody.</p>
+    <p>
+      Answered, then handed on. None of it is buildable without the console, so
+      it belongs with the console. The working is kept below rather than
+      discarded &mdash; it is the reason the follow-up task starts from a
+      position instead of a blank page.
+    </p>
+    <p>
+      The bar this question started from &mdash; would a scenario genuinely want
+      it? &mdash; answers a different question than the one asked. It is a good
+      test for what belongs in the base game. It is the wrong test for what a
+      modder may reach for, because a modder who wants <code>god</code> in their
+      mod has a legitimate reason: it is their mod.
+    </p>
+    <p>
+      So the catalog documents everything, cheat-class actions in their own
+      section carrying what they cost. An undocumented action is strictly worse
+      than a documented cheat: it still exists, it is still reachable, and now
+      nobody can find out what it does without reading the source.
+    </p>
+    <p>
+      One addition. <code>kill_all</code> should not be a verb at all: it should
+      be the existing entity filter with a destructive effect, so &ldquo;kill
+      all raiders&rdquo; and &ldquo;kill everything in this area&rdquo; come
+      free and it reads like every other action. A blunt verb would be the only
+      action in the catalog that cannot be scoped.
+    </p>
+  </div>
+
+  <h2><span class="n">Deferred &middot; task 20260827-120347</span>The action vocabulary</h2>
+  <p>
+    Everything from here to the crate layout describes work this task no longer
+    does. It is recorded because it was reasoned through with the tree open, and
+    because a decision reached and then forgotten gets made worse the second
+    time. The follow-up task carries the same list.
+  </p>
+
+  <h3>Why the locked door stops working</h3>
+  <p>
+    The codebase already has one cheat, and it takes the opposite approach.
+    <code>infinite_ammo</code> is honored only under the <code>debug</code>
+    feature; a shipped build logs a warning and keeps the authored magazines
+    (<code>objects/spaceship.rs</code>). The cheat is compiled out of the game
+    people play.
+  </p>
+  <p>
+    That works while authoring a scenario is the only way to reach a cheat. The
+    channel ends it. The channel ships in release &mdash; that was the whole
+    finding behind the crate split &mdash; so a released build now has a way to
+    invoke any action by name. Gating actions on <code>cfg(debug)</code> would
+    make the vocabulary <strong>differ between builds</strong>: a driver written
+    against a debug build would fail on a release one with a missing verb rather
+    than a refusal. That is precisely the failure the single-vocabulary decision
+    exists to prevent.
+  </p>
+  <div class="note">
+    <span class="h">The consequence</span>
+    Once the door cannot be locked, marking is not the softer option. It is the
+    only one that keeps every build's vocabulary identical to every other
+    build's.
+  </div>
+
+  <h3>Two subjects, and keeping them apart</h3>
+  <p>
+    It is tempting to run these on one switch. They are not the same thing, and
+    collapsing them produces an accusation where none is warranted:
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>&nbsp;</th><th>The run is cheated</th><th>The scenario is a creative map</th></tr></thead>
+      <tbody>
+        <tr><td class="m">subject</td><td>this session</td><td>the content, every time anyone plays it</td></tr>
+        <tr><td class="m">set by</td><td>origin &mdash; you reached in through the console or stdin</td><td>the script &mdash; it injects world state</td></tr>
+        <tr><td class="m">decided</td><td>at runtime, once, one-way</td><td>at lint time, computed, never hand-set</td></tr>
+        <tr><td class="m">tone</td><td>you did something</td><td>nobody did anything wrong</td></tr>
+        <tr><td class="m">precedent</td><td>Minecraft cheats-enabled</td><td>a creative world</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>
+    A mod built around <code>god</code> is that mod working exactly as authored.
+    Its author is not cheating and neither are you for playing it. It is simply
+    a scenario where a completion time means nothing &mdash; so it carries a
+    badge, its runs never reach the stats, and it stays fully playable and
+    fully shareable. That is the whole penalty, and it is the right size.
+  </p>
+
+  <h3>What marks a run: origin, not the action</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Origin</th><th>Marks the run</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="m">scenario / mod RON</td><td><span class="tag ok">no</span></td><td>The author chose it. Their script running is not you cheating &mdash; it is the content's eligibility that answers for this.</td></tr>
+        <tr><td class="m">input &lt;name&gt;</td><td><span class="tag ok">no</span></td><td>A keypress. It goes through the rules and can legitimately fail.</td></tr>
+        <tr><td class="m">command &lt;name&gt;</td><td><span class="tag ok">no</span></td><td>Graphics and window settings touch nothing the simulation can see.</td></tr>
+        <tr><td class="m">action &lt;name&gt;</td><td><span class="tag no">yes</span></td><td>You reached in. It skips the rules the same keypress would have had to satisfy.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    Which means no per-action classification is needed for the mark at all. The
+    lane already carries it.
+  </p>
+
+  <h3>Arming, the Minecraft way</h3>
+  <p>
+    The precedent worth copying is that enabling cheats is <strong>one
+    deliberate act on the world</strong>, not a judgement made per command. You
+    turn it on once, the world is flagged from then on, and afterwards the
+    commands simply work.
+  </p>
+  <p>
+    Same here. The <code>action</code> lane is refused until the channel is
+    armed, and arming is what sets the one-way bit, at the moment you ask for
+    it. That gets the ordering right: the run is marked by a decision made
+    knowingly and up front, not discovered forty minutes in. It also gives the
+    refusal something honest to say &mdash; &ldquo;this needs the channel armed,
+    and arming marks the run&rdquo; beats a missing verb.
+  </p>
+
+  <h3>Where eligibility does need a class &mdash; and a correction</h3>
+  <p>
+    The tempting shortcut is &ldquo;every scenario action is a cheat, so
+    eligibility needs no field&rdquo;. It does not survive contact with the enum.
+    Every scenario alive uses <code>Objective</code>, <code>VariableSet</code>
+    and <code>Outcome</code> &mdash; that is what a scenario <em>is</em>. Under
+    that rule 100% of content is a creative map and the badge means nothing.
+  </p>
+  <p>
+    Sorting the 26 variants by the only question that matters &mdash; does it
+    change the simulated world in a way playing could not have produced?
+    &mdash; the split is lopsided, which is why it works:
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="num">n</th><th>Class</th><th>Variants</th></tr></thead>
+      <tbody>
+        <tr><td class="num">18</td><td><span class="tag ok">bookkeeping</span></td><td>Objective and its markers, VariableSet, the timers, Sequence, StoryMessage, HudReadout, HintEmphasis, DebugMessage, Outcome, NextScenario, SetCamera, Screenshot, SetSkybox. Scenario state and presentation. Nothing the ship can feel.</td></tr>
+        <tr><td class="num">8</td><td><span class="tag no">injection</span></td><td>SpawnScenarioObject, ScatterObjects, DespawnScenarioObject, SetSpeedCap, SetControllerVerb, SetAllegiance, ForceTorpedoLaunch, CreateScenarioArea. These reach into the world.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    Eight variants to classify, not twenty-six, and the eligibility rule reads
+    plainly: a scenario is a creative map if its script contains any injection
+    action. Computed by the linter, never authored &mdash; nobody can write a
+    cheat scenario that declares itself eligible.
+  </p>
+  <div class="note">
+    <span class="h">The edge worth naming</span>
+    <code>Outcome</code> and <code>NextScenario</code> are bookkeeping in a
+    script and blatant from a console &mdash; instant win, level skip. They need
+    no class, because the origin rule already caught them: typed at the console
+    they arrive on the <code>action</code> lane, and that lane always marks.
+    Two rules, no overlap, no third case.
+  </div>
+
+  <h3><code>infinite_ammo</code> stops being a ship field</h3>
+  <p>
+    It should be an action that grants unlimited ammunition, not a flag baked
+    into the player ship's shape. A ship has no business carrying &ldquo;someone
+    cheated&rdquo; in its own type; the missing magazine is the effect the
+    action leaves behind, not a property of the hull.
+  </p>
+  <p>
+    Checked before proposing it: <strong>no shipped scenario sets it true.</strong>
+    All six base <code>.content.ron</code> files and the example mod pass
+    <code>false</code>. The only <code>true</code> sites are examples, which
+    build with the <code>debug</code> feature &mdash; exactly the population the
+    <code>cfg</code> gate was protecting. So the field can be dropped from
+    <code>SpaceshipController::Player</code> at no cost to released content.
+  </p>
+  <div class="note">
+    <span class="h">The real cost, stated</span>
+    Today the flag decides whether <code>SectionAmmo</code> is attached
+    <em>at spawn</em>. As an action it must add and remove that component on
+    live entities, which is a different code path and not a rename. That is the
+    price, and it buys a cheat that is reachable, documented, and classifiable
+    like every other one instead of a special case in the spawn path.
+  </div>
+
+  <h3>What each task owes the other</h3>
+  <p>
+    There are no achievements and no stats, so none of the enforcement is worth
+    writing yet. The split leaves exactly one obligation on this side, and the
+    rest travels:
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Who</th><th>What</th><th>Why now, or why not</th></tr></thead>
+      <tbody>
+        <tr><td class="m">this task</td><td>Three lanes in the schema, <code>action</code> and <code>command</code> reserved and refused with a clear error.</td><td>The only thing that gets expensive if deferred. A vocabulary added after drivers exist is a parse break; one reserved and unused costs a match arm.</td></tr>
+        <tr><td class="m">120347</td><td>Class the eight injection actions.</td><td>One field, default bookkeeping. Cheap while the catalog is not yet a mod contract.</td></tr>
+        <tr><td class="m">120347</td><td>Compute eligibility in the linter, as a warning naming the offending action.</td><td>Never blocks a scenario. A creative map is a legitimate thing to publish.</td></tr>
+        <tr><td class="m">120347</td><td>Stamp a one-way bit at arming, beside <code>ScenarioOutcome</code>.</td><td>Meaningless until something reads it, and arming does not exist until the console does.</td></tr>
+        <tr><td class="m">120347</td><td><code>infinite_ammo</code> off the ship, into an action.</td><td>Needs the action vocabulary to have somewhere to land.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2><span class="n">Where it lives</span>Crate layout</h2>
+  <p>
+    Two new crates, both ordinary release code, both inert until armed. The
+    ladder is forced by what each half needs to see &mdash; there is no
+    arrangement that puts them in one crate.
+  </p>
+
+  <div class="stack">
+    <div class="axis"><span>higher depends on lower</span><span class="bar"></span><span>&darr;</span></div>
+
+    <div class="tier">
+      <span class="lbl">assembly</span>
+      <div class="boxes">
+        <div class="crate"><span class="badge">existing</span><span class="nm">nova_core</span><span class="ow">installs the runner on the headless branch</span></div>
+        <div class="crate dbg"><span class="badge">debug only</span><span class="nm">nova_probe</span><span class="ow">keeps the NOVA_PROBE_SNAPSHOT file sink and its frame schedule; calls the shared serializer</span></div>
+      </div>
+    </div>
+
+    <div class="tier hi">
+      <span class="lbl">the channel</span>
+      <div class="boxes">
+        <div class="crate new"><span class="badge">new &middot; ships</span><span class="nm">nova_channel</span><span class="ow">the reader thread, the line schema, the clock policy, and <code>capture_snapshot</code></span></div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <span class="lbl">rebind UI</span>
+      <div class="boxes">
+        <div class="crate"><span class="nm">nova_menu</span><span class="ow">settings rows, rebind capture, conflict check</span></div>
+        <div class="crate"><span class="nm">nova_editor</span><span class="ow">hull-section keybind chips, click-to-rebind</span></div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <span class="lbl">scenario</span>
+      <div class="boxes">
+        <div class="crate"><span class="nm">nova_scenario</span><span class="ow">owns <code>CurrentScenario</code> and <code>NovaEventWorld</code>, which the snapshot reads; scenario-advance rig</span></div>
+        <div class="crate"><span class="nm">nova_os_ui</span><span class="ow">ship-app rebind flow</span></div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <span class="lbl">flight</span>
+      <div class="boxes">
+        <div class="crate"><span class="nm">nova_ship</span><span class="ow">flight, targeting and camera rigs &mdash; built from the registry instead of declaring bindings inline</span></div>
+      </div>
+    </div>
+
+    <div class="tier hi">
+      <span class="lbl">the registry</span>
+      <div class="boxes">
+        <div class="crate new"><span class="badge">new &middot; ships</span><span class="nm">nova_input</span><span class="ow">registry, <code>BindingSpec</code>, <code>InputSource</code>, <code>apply(name, phase)</code></span></div>
+      </div>
+    </div>
+
+    <div class="tier">
+      <span class="lbl">external</span>
+      <div class="boxes">
+        <div class="crate ext"><span class="nm">bevy</span></div>
+        <div class="crate ext"><span class="nm">bevy_enhanced_input</span></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <i><span class="sw new"></span> new, in every build</i>
+      <i><span class="sw"></span> exists today</i>
+      <i><span class="sw dbg"></span> debug feature only &mdash; absent from release</i>
+      <i><span class="sw ext"></span> third party</i>
+    </div>
+  </div>
+
+  <h3>Why it cannot be one crate</h3>
+  <p>
+    Both halves were asked for as &ldquo;a crate for the reader thing&rdquo;.
+    They cannot share one, and the reason is two constraints pulling opposite
+    ways across a crate that already exists between them. Note that narrowing
+    the task to <code>input</code> did not loosen this: the upper constraint
+    used to come from the <code>action</code> vocabulary being
+    <code>EventActionConfig</code>, and now comes from
+    <code>capture_snapshot</code> reading <code>CurrentScenario</code> and
+    <code>NovaEventWorld</code> (<code>capabilities/snapshot.rs:107</code>). The
+    observation half alone is enough.
+  </p>
+  <pre><code>the registry  must sit BELOW nova_ship      <span class="cm">nova_ship builds its rigs from it</span>
+the snapshot  must sit ABOVE nova_scenario  <span class="cm">it reads CurrentScenario + NovaEventWorld</span>
+and already   nova_scenario -&gt; nova_ship      <span class="cm">crates/nova_scenario/Cargo.toml, today</span>
+<span class="cm">              ----------------------------------------------------</span>
+              one crate would have to sit below nova_ship AND
+              above a crate that depends on nova_ship. That is a cycle.</code></pre>
+  <p class="sub">
+    Two crates is not tidiness. It is the only arrangement the graph admits.
+  </p>
+
+  <p>
+    <code>capture_snapshot</code> moves with the reader for the same reason the
+    reader moves: a release-mode driver that can press keys but cannot read the
+    world is half a channel. What stays in <code>nova_probe</code> is the part
+    that is genuinely diagnostic &mdash; the <code>NOVA_PROBE_SNAPSHOT</code>
+    file sink and its frame schedule. The serializer already imports nothing
+    from <code>nova_core</code>, so the move is a file move, not a redesign.
+  </p>
+
+  <div class="note">
+    <span class="h">Armed by environment, not by feature</span>
+    <p style="margin:0">
+      The channel ships in release and does nothing until a variable names it,
+      the same contract every probe capability already keeps: <em>an ordinary
+      run wires nothing</em>. That is what makes it safe to ship a stdin reader
+      in a player build, and it is also what keeps the multiplayer option open
+      &mdash; an input path that exists only under a cargo feature would have to
+      be rebuilt the day anything else wants to drive the simulation.
+    </p>
+  </div>
+
+  <h2><span class="n">Phase 1</span>The bindings registry</h2>
+  <p>
+    Naming the rig's actions does not delete <code>reference.rs</code> by
+    itself. The settings panel renders in the main menu, and no rig exists there
+    &mdash; the flight rig spawns with the player ship. The structure that fixes
+    that is a persistent registry the rig is <em>built from</em>, and it is the
+    same structure rebinding and the dispatcher need.
+  </p>
+
+  <pre><code><span class="cm">// nova_input: the one source of truth. The rigs read it; the settings</span>
+<span class="cm">// menu reads it; the dispatcher resolves through it.</span>
+#[derive(Resource)]
+pub struct InputBindings(Vec&lt;ActionBinding&gt;);
+
+pub struct ActionBinding {
+    pub name: &'static str,        <span class="cm">// "radar_hold" - the channel's key</span>
+    pub group: &'static str,       <span class="cm">// "FLIGHT" - the settings row header</span>
+    pub label: &'static str,       <span class="cm">// "Radar Hold" - what a player reads</span>
+    pub keyboard: Vec&lt;BindingSpec&gt;,
+    pub gamepad: Vec&lt;BindingSpec&gt;,
+}</code></pre>
+
+  <div class="note">
+    <span class="h">Not a cosmetic rename</span>
+    That field is called <code>section</code> today, on
+    <code>KeybindEntry</code> in <code>input/reference.rs</code>, and the
+    settings screen reads it as a row header. In <code>nova_ship</code>
+    <em>section</em> already means a hull section &mdash;
+    <code>SectionAmmo</code>, <code>insert_turret_section</code>, and the
+    editor's <code>apply_section_rebind</code>, which really does rebind a ship
+    section. One word, two meanings, in one crate. The registry replaces
+    <code>KeybindEntry</code> outright, so this is the one moment the rename is
+    free; later it is a churn commit nobody schedules.
+  </div>
+
+  <p>
+    Fifteen actions are in scope, all of them fixed rigs where every action
+    already carries a display <code>Name</code>:
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Rig</th><th class="m">Where</th><th class="num">Actions</th><th>Names</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Flight + targeting</td>
+        <td class="m">input/player/flight_rig.rs</td>
+        <td class="num">11</td>
+        <td class="m">main_drive, autopilot_stop, autopilot_goto, autopilot_orbit, autopilot_off, radar_hold, radar_clear, component_next, component_prev, rcs_modifier, rcs_aim</td>
+      </tr>
+      <tr>
+        <td>Camera</td>
+        <td class="m">camera/rig.rs</td>
+        <td class="num">3</td>
+        <td class="m">camera_rotate, free_look, combat_stance</td>
+      </tr>
+      <tr>
+        <td>Scenario advance</td>
+        <td class="m">loader/lifecycle.rs</td>
+        <td class="num">1</td>
+        <td class="m">scenario_advance</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Out of scope for phase 1, deliberately: per-section weapon actions &mdash;
+    <em>hull</em> sections, the other meaning &mdash; are dynamic (built from
+    content <code>input_mapping</code>, keyed by section entity) and need
+    derived names; the raw system chords &mdash; pause, HUD
+    level, NOVA OS, comms &mdash; are not enhanced-input actions at all and stay
+    fixed rows in the settings screen until someone names them.
+  </p>
+
+  <h3>What dies with the registry</h3>
+  <p>
+    Three hand-kept mirrors, not one. The task names the first; the audit found
+    the second and third, and they are the ones that go stale silently on the
+    first remap.
+  </p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th class="m">Mirror</th><th>What it is</th><th>Fate</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="m">reference.rs KEYBINDS</td>
+        <td>15 hand-authored display rows; 10 of them flight and targeting</td>
+        <td>10 rows become registry-derived; 5 (camera prose, comms, system) stay declared fixed</td>
+      </tr>
+      <tr>
+        <td class="m">flight_rig_reserved_sources()</td>
+        <td>21 hardcoded sources for conflict checking, pinned by a test</td>
+        <td>Computed from the registry, or the editor and NOVA OS rebind guards lie</td>
+      </tr>
+      <tr>
+        <td class="m">key_glyphs coverage</td>
+        <td>Glyph table carrying the same TODO</td>
+        <td>Same live source</td>
+      </tr>
+      <tr>
+        <td class="m">reference_rows_track_the_flight_rig</td>
+        <td>The parity test holding the first mirror honest</td>
+        <td>Dies with the rows it pins</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <span class="h">Two blockers found in persistence</span>
+    <p style="margin:0 0 .5rem">
+      <strong><code>PersistedSettings</code> is <code>Copy</code>.</strong> Adding a
+      <code>bindings</code> map breaks that derive, and every use site that
+      relies on it has to be audited in the same change. The serde-defaulted
+      field itself is non-breaking; the <code>Copy</code> bound is the work.
+    </p>
+    <p style="margin:0">
+      <strong>Do not persist upstream <code>Binding</code>.</strong> It derives
+      serde only behind <code>bevy_enhanced_input</code>'s
+      <code>serialize</code> feature, which this workspace does not enable
+      &mdash; and three of its variants (<code>AnyKey</code>,
+      <code>Custom</code>, <code>None</code>) are meaningless in a save file.
+      Persist a nova-owned <code>BindingSpec</code> and convert at rig build, so
+      the save format is not hostage to a dependency's variant list.
+    </p>
+  </div>
+
+  <h2><span class="n">Phase 2</span>The dispatcher, and what it may honestly claim</h2>
+  <p>
+    <code>apply(name, phase)</code> is a lookup and an injector, not an
+    interpreter. It runs where the autopilot already injects &mdash;
+    <code>PreUpdate</code> after <code>InputSystems</code>, so a synthesized
+    press is still <code>just_pressed</code> when game systems read it.
+  </p>
+  <p>
+    There are two ways to make an action fire, and they are not
+    interchangeable:
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Route</th><th>Mechanism</th><th>Conditions and modifiers</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Source</strong></td>
+        <td class="m">press the bound key / button</td>
+        <td><span class="tag ok">run</span> a driven <code>radar_hold</code> is a real <code>Hold</code></td>
+        <td>The default. It is what makes an input test truthful.</td>
+      </tr>
+      <tr>
+        <td><strong>Mock</strong></td>
+        <td class="m">ActionMock component</td>
+        <td><span class="tag no">skipped</span> upstream is explicit: input reading, conditions and modifiers are all bypassed</td>
+        <td>Not the default. It cannot prove a gesture, only a state.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    That settles the audit's open question about whether the mock API composes
+    with <code>Hold</code> and <code>Tap</code>: it does not compose &mdash; it
+    replaces. So the dispatcher takes the source route, and the three source
+    kinds with no press/release helper get one written rather than being handed
+    to the mock:
+  </p>
+  <ul>
+    <li><strong>Mouse motion</strong> (<code>rcs_aim</code>, <code>camera_rotate</code>) &rarr; write <code>AccumulatedMouseMotion</code>.</li>
+    <li><strong>Wheel</strong> (<code>component_next</code> / <code>component_prev</code>) &rarr; write <code>AccumulatedMouseScroll</code>.</li>
+    <li><strong>Gamepad</strong> &rarr; unverified; see the open list.</li>
+  </ul>
+  <p class="sub">
+    All three are read by <code>bevy_enhanced_input</code> as plain resources,
+    the same way it reads <code>ButtonInput</code>, so writing them stays on the
+    truthful path.
+  </p>
+
+  <div class="note">
+    <span class="h">Correction to the round-4 audit</span>
+    <p style="margin:0">
+      The audit's proof-of-done is &ldquo;38 hardcoded call sites across 7
+      example files&rdquo;. The tree today has <strong>165</strong> injection
+      sites across 14 files &mdash; but only <strong>12 of them press a flight
+      or targeting key</strong>, in 4 files. The other ~153 are UI-walk gestures
+      (LMB on a widget, Escape, Enter, Tab, typing) that are not named game
+      actions and must stay raw. Porting them would be busywork that makes the
+      harness worse. The real phase-1 target is those 12, plus
+      <code>raise_stance</code>, plus the <strong>three separate copies</strong>
+      of <code>hold_radar</code> &mdash; in <code>hollow.rs</code>,
+      <code>screenshot_radar_lock.rs</code> and
+      <code>system_hud_indicators.rs</code>, each hardcoding
+      <code>ControlLeft</code> independently.
+    </p>
+  </div>
+
+  <h2><span class="n">Phase 3</span>The clock, and the snapshot sink</h2>
+  <p>
+    Two clock policies, one loop. <strong>Free-running</strong> is the default
+    and the one that ships: the world ticks at its own rate and stdin is drained
+    each pass, so a line lands like a keypress. <strong>Stepping</strong> is the
+    opt-in policy for a slow driver &mdash; an LLM thinks for seconds and the
+    game runs 60 ticks a second, so free-running the world has moved hundreds of
+    ticks before the reply arrives and the observation describes a game that no
+    longer exists. Stepping replaces the keyboard <em>and the clock</em>, and it
+    does that by withholding <code>app.update()</code>, never by blocking a
+    read.
+  </p>
+  <p>
+    The output half is mostly built. <code>capture_snapshot(&amp;mut World,
+    reason)</code> is confirmed pure &mdash; no IO, no mutation beyond the query
+    state bevy builds to read it &mdash; and its module doc already anticipates
+    this exact mode. Phase 3 is a runner and a sink, not a serializer; the
+    serializer only changes crates.
+  </p>
+
+  <div class="note">
+    <span class="h">The SyncWorldPlugin leak decides the session length</span>
+    <p style="margin:0 0 .5rem">
+      On the headless branch <code>SyncWorldPlugin</code> supplies a resource
+      whose queue is never drained, because draining happens in the render
+      sub-app's extract. That leaks ~24 bytes per synced spawn <em>and</em> per
+      synced component removal &mdash; about 2.4 MB per 100k, linear in run
+      length. <code>PendingSyncEntity</code> is <code>pub(crate)</code> upstream,
+      so it cannot be drained from outside.
+    </p>
+    <p style="margin:0">
+      <strong>The call: bound the session and say the number.</strong> Ship a
+      step cap, document the memory cost per 100k steps, and do not advertise
+      indefinite driven sessions. Vendoring bevy or adding
+      <code>ExtractPlugin</code> both cost more than the problem &mdash;
+      <code>ExtractPlugin</code> would rebuild the mirror render world that
+      <code>--norender</code> exists to avoid. Revisit if an upstream fix lands.
+    </p>
+  </div>
+
+  <h2><span class="n">Verified today</span>Evidence and gaps</h2>
+  <p>
+    Everything below was checked against the current checkout while writing
+    this, not carried forward from the audit.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Claim</th><th>Status</th><th>How</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Keyboard injection drives real rig actions headless</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">system_player_path under NOVA_NORENDER: the ControlLeft radar sweep took a live combat lock</td>
+      </tr>
+      <tr>
+        <td>Mouse-button actions work headless</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">enhanced-input reads ButtonInput&lt;MouseButton&gt;; set_mouse_button writes it before the window check</td>
+      </tr>
+      <tr>
+        <td>The missing primary window only costs UI picking</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">only the WindowEvent wrapper is skipped headless; it warns and continues</td>
+      </tr>
+      <tr>
+        <td>ActionMock bypasses conditions and modifiers</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">bevy_enhanced_input 0.26 mock.rs module doc</td>
+      </tr>
+      <tr>
+        <td>Binding derives serde only behind a disabled feature</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">binding.rs cfg_attr; no workspace Cargo.toml enables "serialize"</td>
+      </tr>
+      <tr>
+        <td>PersistedSettings is Copy</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">settings_store.rs derive list</td>
+      </tr>
+      <tr>
+        <td>NOVA_NORENDER works in a release build</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">AppBuilder::new() reads it with no cfg; only the --norender flag is debug-gated</td>
+      </tr>
+      <tr>
+        <td>nova_probe is absent from release builds</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">optional dep behind the debug feature; the manifest says release/dist never carry it</td>
+      </tr>
+      <tr>
+        <td>capture_snapshot needs no nova_core</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">imports only nova_events, nova_gameplay, nova_scenario, nova_ship - so it can move below nova_core</td>
+      </tr>
+      <tr>
+        <td>No stdin reader exists anywhere</td>
+        <td><span class="tag ok">verified</span></td>
+        <td class="m">one grep hit repo-wide, in a doc comment</td>
+      </tr>
+      <tr>
+        <td>Gamepad writes reach enhanced-input bindings</td>
+        <td><span class="tag q">spike</span></td>
+        <td class="m">unverified; the raw reads use a global resource, but nothing proves a write is read back</td>
+      </tr>
+      <tr>
+        <td>Headless combat is reliable enough to drive an agent</td>
+        <td><span class="tag q">watch</span></td>
+        <td class="m">one headless run stalled 20s at the fire step; an identical rerun completed the script. Flaky, not broken - but step mode makes it load-bearing</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2><span class="n">Traps</span>What this must not become</h2>
+  <ul>
+    <li>
+      <strong>More unchecked runtime strings.</strong> Action names are exactly
+      the failure this project has no compiler for: a rename compiles clean and
+      fails at load. The registry must be covered by a test that asserts it
+      names every action the rigs spawn, in both directions &mdash; a name with
+      no action, and an action with no name, are both failures.
+    </li>
+    <li>
+      <strong>A network protocol.</strong> This is shaped like a multiplayer
+      server's input path. That is a reason to keep the simulation clean, not a
+      reason to add framing, versioning or auth. Nothing on the board points at
+      multiplayer.
+    </li>
+    <li>
+      <strong>Scope inflation from the agent case.</strong> Rebinding and
+      no-rebuild testing each justify the work alone. The agent is the third
+      payoff, not the specification.
+    </li>
+    <li>
+      <strong>A simulation that waits on a human.</strong> Reading stdin must
+      feel like a keypress: the world does not freeze because nobody has typed
+      yet. Anything that parks the game thread in a read is wrong even when it
+      happens to work for one driver &mdash; it forecloses the multiplayer
+      option, and it cannot time out or answer a shutdown line. Stepping earns
+      its wait by gating the clock, in one named mode, with the loop still live.
+    </li>
+    <li>
+      <strong>NOVA OS as the console.</strong> It cannot be: opening it freezes
+      the game deliberately, so it can never drive a live one. Share the
+      dispatcher, not the surface, and do the console last.
+    </li>
+  </ul>
+
+  <h2><span class="n">Sequence</span>Order of work</h2>
+  <ol>
+    <li>
+      <strong><code>nova_input</code>, and build the rigs from it.</strong> The
+      new leaf crate, the registry, and the four callers switched over. No
+      behaviour change, no new surface. Lands with the coverage test and the
+      reserved-sources computation. <em>Unblocks the settings task on its
+      own.</em>
+    </li>
+    <li>
+      <strong>Settings reads the registry.</strong> Ten mirror rows die; five
+      are declared fixed. Persistence lands here, with the <code>Copy</code>
+      audit and <code>BindingSpec</code>.
+    </li>
+    <li>
+      <strong>Dispatcher.</strong> <code>apply(name, phase)</code>, the three
+      new source kinds, and the port of 12 call sites plus three
+      <code>hold_radar</code> copies.
+    </li>
+    <li>
+      <strong><code>nova_channel</code>: the runner and the stdout sink.</strong>
+      Free-running first, stepping as a flag on top of it.
+      <code>capture_snapshot</code> moves here and <code>nova_probe</code>
+      starts depending on it. Bounded sessions, documented cost.
+    </li>
+    <li>
+      <strong>stdin transport, <code>input</code> only.</strong> Three lanes
+      parsed, two of them reserved and refused with a clear error, plus the
+      <code>applied</code> block and replay-by-tick. The lanes land together;
+      adding one after drivers exist is a parse break.
+    </li>
+  </ol>
+  <p class="sub">
+    Five steps, not six. The console and everything that hangs off it is
+    20260827-120347.
+  </p>
+
+  <p>
+    Done when the settings menu reads keybinds by action name rather than from a
+    mirror; a range drives the game through the dispatcher instead of a raw
+    <code>KeyCode</code>; and a headless run emits world state, accepts named
+    inputs on a channel, and replays the same input sequence to the same result.
+  </p>
+  <p class="sub">
+    Note what the cut did not cost. Pressing named inputs and reading world
+    state back is the whole of &ldquo;a driver can play this game&rdquo;. The
+    action vocabulary was the convenience layer on top, and it is the half that
+    needed the console anyway.
+  </p>
+
+  <p class="foot">
+    Sources read while writing: tasks/20260820-174148/TASK.md &middot;
+    tasks/20260815-231945/INPUT-AND-PROCESS.md &middot; SCENARIO-PIPELINE.md &sect;5
+    &middot; nova_ship input rigs and reference mirror &middot; nova_autopilot/src/input.rs
+    &middot; nova_core/src/lib.rs assemble &middot; nova_probe snapshot &middot;
+    nova_menu settings store &middot; bevy_enhanced_input 0.26 binding, mock and input_reader.
+  </p>
+</main>
