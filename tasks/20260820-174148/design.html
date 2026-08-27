@@ -541,6 +541,19 @@
     bury the thirty-three real actions under a hundred nobody can move.
   </p>
   <p>
+    An &ldquo;any key&rdquo; action does not rescue it either, and the reason
+    is sharper than taste: a typed character has NO <code>KeyCode</code>.
+    <code>type_text</code> writes <code>key_code: KeyCode::Unidentified</code>
+    and carries the letter in <code>logical_key</code>, because that is the
+    only way to tell <span class="m">h</span> from <span class="m">H</span>
+    &mdash; the same physical key.
+    <code>InputSource::Keyboard(KeyCode)</code> cannot represent it, so such a
+    row would have nothing to bind, nothing to persist and nothing to print.
+    <code>bevy_enhanced_input</code> does offer <code>Binding::AnyKey</code>,
+    and <code>BindingSpec</code> already excludes it for the same reason: it
+    means nothing in a save file.
+  </p>
+  <p>
     The technical half decides it anyway. <code>dispatch::apply</code> writes
     <code>ButtonInput</code> and nothing else. The prompt reads
     <code>KeyboardInput.logical_key</code> &mdash; that is how it tells
@@ -570,6 +583,26 @@
     the fallback, for the same reason <code>press_action</code> beat
     <code>press_key</code>.
   </p>
+  <div class="note">
+    <span class="h">The wrapping is not free &mdash; no window, no typing</span>
+    <p>
+      <code>type_text</code> resolves a <code>PrimaryWindow</code> to stamp on
+      the event and warns out if there is none. <code>--norender</code> sets
+      <code>primary_window: None</code>, so under exactly the mode the channel
+      exists for, every one of those helpers is a no-op.
+    </p>
+    <p>
+      The reader does not care, though: <code>handle_terminal_keyboard</code>
+      filters on the prompt being active, the state being
+      <code>Pressed</code> and the <code>logical_key</code>, and never reads
+      <code>event.window</code> at all. So the channel writes the same event
+      with a placeholder entity and the prompt takes it. The fix is to make the
+      window optional on the helper rather than to require a window the
+      headless path deliberately does not have. Pointer input is the harder
+      half of the same problem, because <code>bevy_picking</code> DOES resolve
+      a window and a camera.
+    </p>
+  </div>
 
   <h3>Several lines may share a tick, and they apply as a set</h3>
   <p>
