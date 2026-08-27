@@ -419,6 +419,20 @@ impl InputBindings {
         })
     }
 
+    /// Which action holds `source` at a rung `context` reaches - the question a
+    /// surface that binds something OUTSIDE the registry asks. A ship section's
+    /// own trigger key is not an action, so it cannot be checked with
+    /// [`Self::conflict_for`], but it still fires beside whatever the flight
+    /// rig holds.
+    ///
+    /// Reads the LIVE table, so a source freed by a rebind stops being
+    /// reported and a source a rebind took starts.
+    pub fn holder_in(&self, context: ActionContext, source: InputSource) -> Option<&ActionBinding> {
+        self.actions.iter().find(|action| {
+            action.context.overlaps(context) && action.sources().any(|held| held == source)
+        })
+    }
+
     /// The actions a settings screen draws a row for: everything but the
     /// shadows, which move with the action they follow.
     pub fn rows(&self) -> impl Iterator<Item = &ActionBinding> {

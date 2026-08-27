@@ -69,8 +69,9 @@ use scenarios::{
     SelectedScenarioId,
 };
 use settings::{
-    flush_settings_on_exit, load_persisted_settings, on_volume_slider_change,
-    persist_settings_on_change, sync_volume_slider, PendingSettingsSave,
+    apply_settings_rebind, flush_settings_on_exit, load_persisted_settings,
+    on_volume_slider_change, persist_settings_on_change, refresh_settings_tab, settings_tab_dirty,
+    sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab, WindowModeSetting,
 };
 use widgets::on_menu_button_activate;
 
@@ -114,10 +115,31 @@ impl Plugin for NovaMenuPlugin {
         // so the invariant survives a future reorder.
         app.init_resource::<UiSkin>();
         app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<WindowModeSetting>();
+        app.init_resource::<SettingsActiveTab>();
+        app.init_resource::<PendingRebind>();
         app.add_observer(on_volume_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
         app.add_observer(button_on_setting::<UiSkin>);
+        app.add_observer(button_on_setting::<WindowModeSetting>);
         app.add_systems(Update, sync_volume_slider);
+        // Ungated by menu state: the SAME body is the pause overlay's, which
+        // only exists while playing.
+        app.add_systems(
+            Update,
+            (
+                // The capture runs FIRST: a rebind taken this frame is what the
+                // rows redraw from, so the chip stops prompting on the same
+                // frame the key lands rather than a frame later.
+                (
+                    apply_settings_rebind,
+                    refresh_settings_tab.run_if(settings_tab_dirty),
+                )
+                    .chain(),
+            ),
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(Update, settings::apply_window_mode);
         app.add_systems(Startup, load_persisted_settings);
         app.init_resource::<PendingSettingsSave>();
         app.add_systems(Update, persist_settings_on_change);

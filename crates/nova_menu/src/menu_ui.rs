@@ -6,7 +6,6 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_gameplay::prelude::*;
-use nova_input::prelude::InputBindings;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
@@ -27,7 +26,10 @@ use crate::{
         listed_scenarios, on_scenarios, on_scenarios_back, NewGameScenario, ScenarioDetailsPanel,
         ScenariosList, ScenariosPanel, SelectedScenarioId,
     },
-    settings::{build_settings_body, on_settings, on_settings_back, SettingsPanel},
+    settings::{
+        build_settings_tabs, on_settings, on_settings_back, SettingsActiveTab, SettingsPanel,
+        SettingsTabBody,
+    },
     widgets::{button, button_variant},
 };
 
@@ -39,10 +41,8 @@ pub(crate) fn setup_menu_ui(
     mut active_tab: ResMut<ModsActiveTab>,
     mut selected: ResMut<SelectedModId>,
     mut selected_scenario: ResMut<SelectedScenarioId>,
-    volume: Res<MasterVolume>,
-    quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
-    bindings: Res<InputBindings>,
+    active_settings_tab: Res<SettingsActiveTab>,
 ) {
     commands
         .spawn((
@@ -183,6 +183,7 @@ pub(crate) fn setup_menu_ui(
                             ..default()
                         },
                     ));
+                    build_settings_tabs(parent, *skin, active_settings_tab.0);
                     parent
                         .spawn((
                             Name::new("Settings Body Row"),
@@ -194,14 +195,15 @@ pub(crate) fn setup_menu_ui(
                             },
                         ))
                         .with_children(|row| {
+                            // Spawned EMPTY: `refresh_settings_tab` fills it on
+                            // the first Update after entry, the same path a tab
+                            // press and a rebind take.
                             row.spawn((
                                 Name::new("Settings Body"),
+                                SettingsTabBody,
                                 scroll_column(),
                                 scroll_viewport(),
-                            ))
-                            .with_children(|body| {
-                                build_settings_body(body, *volume, *quality, *skin, &bindings);
-                            });
+                            ));
                             row.spawn((Name::new("Settings Scroll Bar"), scroll_bar(*skin)));
                         });
                     parent.spawn((

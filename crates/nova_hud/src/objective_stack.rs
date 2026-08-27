@@ -34,6 +34,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::{objectives::GameObjectives, prelude::*};
+use nova_input::prelude::{source_label, InputBindings};
 use nova_ui::hud::{chip_node, ChipTone};
 
 use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
@@ -341,6 +342,7 @@ fn read_on_nova_os(
 fn sync_objective_chips(
     notifications: Res<ObjectiveNotifications>,
     assets: Option<Res<NovaHudAssets>>,
+    bindings: Option<Res<InputBindings>>,
     mut commands: Commands,
     q_stack: Query<Entity, With<ObjectiveStackHudMarker>>,
 ) {
@@ -352,9 +354,10 @@ fn sync_objective_chips(
         return;
     }
 
+    let key = novaos_key_label(bindings.as_deref());
     let tab_cap = assets
         .as_deref()
-        .and_then(|assets| assets.key_glyphs.get("Tab"));
+        .and_then(|assets| assets.key_glyphs.get(&key));
     commands.entity(stack).with_children(|stack| {
         // Newest on top: the freshest posting is the one to read first.
         for shown in notifications.shown.iter().rev() {
@@ -364,6 +367,17 @@ fn sync_objective_chips(
         // list is in the computer", and it leaves when the last chip does.
         stack.spawn(tab_footer(tab_cap.clone()));
     });
+}
+
+/// The keycap the affordance draws: whatever `novaos_toggle` holds NOW, not the
+/// Tab the game ships with. A bare HUD rig carries no registry, and falls back
+/// to the shipped key rather than dropping the picture.
+fn novaos_key_label(bindings: Option<&InputBindings>) -> String {
+    bindings
+        .and_then(|table| table.get("novaos_toggle"))
+        .map(|action| source_label(&action.keyboard))
+        .filter(|label| !label.is_empty())
+        .unwrap_or_else(|| "Tab".to_string())
 }
 
 /// One objective chip: the amber demo-2 chip, diamond + the objective text.

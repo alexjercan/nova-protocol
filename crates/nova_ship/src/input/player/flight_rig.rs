@@ -248,6 +248,28 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
     )
 }
 
+/// Rebuild the rig when the table moves.
+///
+/// [`flight_input_rig`] SNAPSHOTS the registry at the moment the player ship
+/// appears. The only surface that rebinds while a ship exists is the pause
+/// overlay, so without this a remap made in flight would not reach the ship
+/// until the next load - the settings row would move and the ship would keep
+/// answering to the old key.
+pub(super) fn rebuild_flight_input_on_rebind(
+    mut commands: Commands,
+    bindings: Res<InputBindings>,
+    q_rig: Query<Entity, With<FlightInputMarker>>,
+) {
+    if q_rig.is_empty() {
+        return;
+    }
+    trace!("rebuild_flight_input_on_rebind: the table moved");
+    for rig in &q_rig {
+        commands.entity(rig).try_despawn();
+    }
+    commands.spawn(flight_input_rig(&bindings));
+}
+
 pub(super) fn on_player_removed_despawn_flight_input(
     remove: On<Remove, PlayerSpaceshipMarker>,
     mut commands: Commands,
@@ -636,6 +658,73 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "the saved key disengages the autopilot"
+        );
+    }
+
+    /// The other end of the same path: a rebind made while the ship is ALREADY
+    /// flying. The pause overlay is the only rebind surface reachable with a
+    /// live rig, so a rig that only reads the table at spawn would keep the old
+    /// key for the rest of the session.
+    #[test]
+    fn a_rebind_made_in_flight_reaches_the_live_rig() {
+        use bevy::input::InputPlugin;
+        use nova_input::prelude::BindingSpec;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_autopilot_off_input);
+        app.insert_resource(InputBindings::from_actions(
+            crate::input::bindings::flight_bindings(),
+        ));
+        app.add_systems(
+            Update,
+            rebuild_flight_input_on_rebind.run_if(resource_changed::<InputBindings>),
+        );
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+
+        app.world_mut().resource_mut::<InputBindings>().rebind(
+            "autopilot_off",
+            BindingSpec {
+                keyboard: vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyQ)],
+                gamepad: vec![],
+            },
+        );
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyZ);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_some(),
+            "the rig let go of the shipped key"
+        );
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyZ);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyQ);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "and took the new one without a reload"
         );
     }
 

@@ -1,9 +1,15 @@
-//! The Settings panel: the shared body spawned by both the main menu and the
-//! pause overlay, its live controls, and the persistence systems.
+//! The Settings panel: the tab bar and body spawned by both the main menu and
+//! the pause overlay, the rebind capture, and the persistence systems.
+//!
+//! The body is RECONCILED, not built once. Four tabs share one container and
+//! [`refresh_settings_tab`] fills it from the live resources, so a rebind, a
+//! tab press or a loaded store all reach the screen through the same path.
 
 use bevy::{
     prelude::*,
-    ui_widgets::{Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange},
+    ui_widgets::{
+        observe, Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
+    },
 };
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
@@ -16,6 +22,7 @@ use nova_ui::{
         Selected, UiText,
     },
 };
+use serde::{Deserialize, Serialize};
 
 use crate::settings_store::{load_settings, save_settings, PersistedSettings};
 
@@ -59,28 +66,257 @@ pub(crate) fn volume_label(value: f32) -> String {
     format!("{}%", (value.clamp(0.0, 1.0) * 100.0).round() as i32)
 }
 
-// The settings segmented rows use nova_ui's shared `segmented_container` +
-// `segmented_option` (the same helpers the widget_zoo uses); the caller adds the
-// `ButtonValue<T>` + `Selected` that `button_on_setting` drives.
+/// One page of the settings panel.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum SettingsTabKind {
+    /// Master volume.
+    #[default]
+    Audio,
+    /// The quality preset and the window mode.
+    Graphics,
+    /// Every rebindable action, plus the fixed system chords.
+    Controls,
+    /// The UI skin.
+    Interface,
+}
 
-/// Build the shared settings body (audio volume, graphics preset, read-only
-/// keybind reference) under `list`. Used by BOTH the main-menu Settings overlay
-/// and the pause-menu Settings overlay so the two entry points stay one modal
-/// (user note 2026-07-16). Selection highlights are seeded from the current
-/// resource values; presses are handled by the app-global
-/// `button_on_setting::<T>` observers, so this builder spawns no observers.
-pub(crate) fn build_settings_body(
-    list: &mut ChildSpawnerCommands,
-    volume: MasterVolume,
-    quality: GraphicsQuality,
+impl SettingsTabKind {
+    /// The tabs, in bar order.
+    pub(crate) const ALL: [Self; 4] =
+        [Self::Audio, Self::Graphics, Self::Controls, Self::Interface];
+
+    /// What the tab button reads.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Audio => "Audio",
+            Self::Graphics => "Graphics",
+            Self::Controls => "Controls",
+            Self::Interface => "Interface",
+        }
+    }
+}
+
+/// The open tab. Deliberately NOT reset when the panel opens: a player who
+/// came back to move one more keybind lands where they left off.
+#[derive(Resource, Default, PartialEq, Eq)]
+pub(crate) struct SettingsActiveTab(pub(crate) SettingsTabKind);
+
+/// A tab-bar button: the tab it opens.
+#[derive(Component)]
+pub(crate) struct SettingsTab(pub(crate) SettingsTabKind);
+
+/// The container [`refresh_settings_tab`] owns the children of. Both entry
+/// points put it on their scrolling body, so one reconciler fills both.
+#[derive(Component)]
+pub(crate) struct SettingsTabBody;
+
+/// Which half of a settings row a rebind is capturing for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RebindDevice {
+    /// Keyboard and mouse buttons - one column, because they are one hand.
+    Desk,
+    /// Gamepad buttons.
+    Pad,
+}
+
+impl RebindDevice {
+    /// The prompt the armed chip shows.
+    fn prompt(self) -> &'static str {
+        match self {
+            Self::Desk => "PRESS A KEY",
+            Self::Pad => "PRESS A BUTTON",
+        }
+    }
+}
+
+/// A rebind chip: which action and which half of it a click arms.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct RebindChip {
+    /// The registry action name.
+    pub(crate) action: &'static str,
+    /// The column this chip owns.
+    pub(crate) device: RebindDevice,
+}
+
+/// The Reset Defaults button at the foot of the Controls tab.
+#[derive(Component)]
+pub(crate) struct ResetBindings;
+
+/// The armed rebind and the last refusal.
+///
+/// The capture is a resource rather than a component on the chip because it is
+/// exclusive: one chip is armed at a time, and every device surface answers to
+/// it whether or not the pointer is still over the row.
+#[derive(Resource, Default)]
+pub(crate) struct PendingRebind {
+    armed: Option<ArmedRebind>,
+    /// Why the last capture was refused, shown under the rows until the next
+    /// one is armed.
+    refusal: Option<String>,
+}
+
+/// The chip waiting for a press.
+struct ArmedRebind {
+    action: &'static str,
+    device: RebindDevice,
+    /// The click that armed this is still down. Capturing now would take the
+    /// arming press itself, so the capture waits for a clean frame.
+    awaiting_release: bool,
+}
+
+impl PendingRebind {
+    /// Whether this exact chip is the armed one.
+    fn armed_on(&self, action: &str, device: RebindDevice) -> bool {
+        self.armed
+            .as_ref()
+            .is_some_and(|armed| armed.action == action && armed.device == device)
+    }
+}
+
+/// Whether the window fills the screen. Native only: the web build already
+/// fits its canvas, and a browser cannot go fullscreen without a user gesture
+/// the settings row does not carry.
+///
+/// `Resource`-only on purpose: on Bevy 0.19 a `#[derive(Resource)]` type is
+/// component-backed, so this doubles as the `Component` that
+/// `button_on_setting::<WindowModeSetting>` needs, and deriving `Component`
+/// too would conflict.
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowModeSetting {
+    /// A 1024x768 window, what the game has always launched as.
+    #[default]
+    Windowed,
+    /// Borderless, filling the monitor the window is on.
+    Borderless,
+}
+
+impl WindowModeSetting {
+    /// The modes, in row order.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(
+            dead_code,
+            reason = "the row is native-only; the value still persists on the web"
+        )
+    )]
+    const ALL: [Self; 2] = [Self::Windowed, Self::Borderless];
+
+    /// What the option reads.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(
+            dead_code,
+            reason = "the row is native-only; the value still persists on the web"
+        )
+    )]
+    fn label(self) -> &'static str {
+        match self {
+            Self::Windowed => "Windowed",
+            Self::Borderless => "Borderless",
+        }
+    }
+}
+
+/// The tab bar: one segmented row above the scrolling body. Spawned by each
+/// entry point beside its own [`SettingsTabBody`], so a tab press reaches both.
+pub(crate) fn build_settings_tabs(
+    parent: &mut ChildSpawnerCommands,
     skin: UiSkin,
-    bindings: &InputBindings,
+    active: SettingsTabKind,
 ) {
-    // AUDIO - master volume as a draggable slider (bevy's headless `Slider`;
-    // drag handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value
-    // is committed by `slider_self_update` and mirrored to `MasterVolume` by
-    // `on_volume_slider_change`, both registered in the plugin).
-    list.spawn(panel_header("Audio"));
+    parent
+        .spawn((
+            Name::new("Settings Tab Bar"),
+            Node {
+                margin: UiRect::bottom(px(10)),
+                ..default()
+            },
+        ))
+        .with_children(|bar| {
+            bar.spawn((Name::new("Settings Tabs"), segmented_container(skin)))
+                .with_children(|row| {
+                    for tab in SettingsTabKind::ALL {
+                        let mut button = row.spawn((
+                            Name::new(format!("Settings Tab: {}", tab.label())),
+                            segmented_option(tab.label()),
+                            SettingsTab(tab),
+                            observe(on_settings_tab),
+                        ));
+                        if tab == active {
+                            button.insert(Selected);
+                        }
+                    }
+                });
+        });
+}
+
+/// Open the clicked tab and move the `Selected` highlight onto it.
+pub(crate) fn on_settings_tab(
+    activate: On<Activate>,
+    tabs: Query<(Entity, &SettingsTab)>,
+    mut active: ResMut<SettingsActiveTab>,
+    mut rebind: ResMut<PendingRebind>,
+    mut commands: Commands,
+) {
+    let Ok((entity, tab)) = tabs.get(activate.entity) else {
+        return;
+    };
+    if active.0 == tab.0 {
+        return;
+    }
+    active.0 = tab.0;
+    // Leaving Controls with a chip armed would leave the next key press
+    // captured by a row nothing is showing.
+    disarm(&mut rebind);
+    for (other, _) in &tabs {
+        commands.entity(other).remove::<Selected>();
+    }
+    commands.entity(entity).insert(Selected);
+}
+
+/// Whether [`refresh_settings_tab`] has anything to redraw.
+///
+/// Deliberately NOT armed by `MasterVolume`: the slider mutates it every frame
+/// of a drag, and rebuilding the body under the pointer would drop the drag.
+/// The other settings move their own `Selected` highlight through
+/// `button_on_setting`, so they need no rebuild either.
+pub(crate) fn settings_tab_dirty(
+    active: Res<SettingsActiveTab>,
+    bindings: Res<InputBindings>,
+    rebind: Res<PendingRebind>,
+    spawned: Query<(), Added<SettingsTabBody>>,
+) -> bool {
+    active.is_changed() || bindings.is_changed() || rebind.is_changed() || !spawned.is_empty()
+}
+
+/// Fill every [`SettingsTabBody`] with the open tab.
+pub(crate) fn refresh_settings_tab(
+    mut commands: Commands,
+    bodies: Query<Entity, With<SettingsTabBody>>,
+    active: Res<SettingsActiveTab>,
+    volume: Res<MasterVolume>,
+    quality: Res<GraphicsQuality>,
+    skin: Res<UiSkin>,
+    window_mode: Res<WindowModeSetting>,
+    bindings: Res<InputBindings>,
+    rebind: Res<PendingRebind>,
+) {
+    for body in &bodies {
+        commands.entity(body).despawn_related::<Children>();
+        commands.entity(body).with_children(|list| match active.0 {
+            SettingsTabKind::Audio => build_audio_tab(list, *volume, *skin),
+            SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
+            SettingsTabKind::Controls => build_controls_tab(list, &bindings, &rebind),
+            SettingsTabKind::Interface => build_interface_tab(list, *skin),
+        });
+    }
+}
+
+/// AUDIO - master volume as a draggable slider (bevy's headless `Slider`; drag
+/// handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value is
+/// committed by `slider_self_update` and mirrored to `MasterVolume` by
+/// `on_volume_slider_change`, both registered in the plugin).
+fn build_audio_tab(list: &mut ChildSpawnerCommands, volume: MasterVolume, skin: UiSkin) {
     list.spawn((
         Name::new("Volume Row"),
         Node {
@@ -146,12 +382,17 @@ pub(crate) fn build_settings_body(
             },
         ));
     });
+}
 
-    list.spawn(separator());
-
-    // GRAPHICS - the quality preset. Each tier drives the combat juice today; the low-
-    // end mode extends what Low/Medium skip.
-    list.spawn(panel_header("Graphics"));
+/// GRAPHICS - the quality preset (each tier drives the combat juice; the
+/// low-end mode extends what Low/Medium skip) and, on native, the window mode.
+fn build_graphics_tab(
+    list: &mut ChildSpawnerCommands,
+    quality: GraphicsQuality,
+    window_mode: WindowModeSetting,
+    skin: UiSkin,
+) {
+    list.spawn(panel_header("Quality"));
     list.spawn((Name::new("Graphics Row"), segmented_container(skin)))
         .with_children(|row| {
             for tier in GraphicsQuality::ALL {
@@ -166,12 +407,64 @@ pub(crate) fn build_settings_body(
             }
         });
 
-    list.spawn(separator());
+    // The web build fits its canvas already, and a browser will not go
+    // fullscreen without a user gesture this row cannot supply - so the row is
+    // absent there rather than present and inert.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        list.spawn(separator());
+        list.spawn(panel_header("Window"));
+        list.spawn((Name::new("Window Mode Row"), segmented_container(skin)))
+            .with_children(|row| {
+                for mode in WindowModeSetting::ALL {
+                    let mut button = row.spawn((
+                        Name::new(format!("Window {}", mode.label())),
+                        segmented_option(mode.label()),
+                        ButtonValue(mode),
+                    ));
+                    if mode == window_mode {
+                        button.insert(Selected);
+                    }
+                }
+            });
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = window_mode;
+}
 
-    // CONTROLS - a read-only readout of the LIVE bindings table. Every row
-    // that names an enhanced-input action comes from `bindings`, so a remap
-    // moves the readout with it; FIXED_ROWS carries the rest.
-    list.spawn(panel_header("Controls"));
+/// INTERFACE - the UI skin choice. A segmented Phosphor|Hardware control wired
+/// through `ButtonValue<UiSkin>` + the app-global `button_on_setting::<UiSkin>`
+/// observer, exactly like the graphics preset.
+fn build_interface_tab(list: &mut ChildSpawnerCommands, skin: UiSkin) {
+    list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
+        .with_children(|row| {
+            for option in [UiSkin::Phosphor, UiSkin::Hardware] {
+                let label = match option {
+                    UiSkin::Phosphor => "Phosphor",
+                    UiSkin::Hardware => "Hardware",
+                };
+                let mut button = row.spawn((
+                    Name::new(format!("UI Skin {label}")),
+                    segmented_option(label),
+                    ButtonValue(option),
+                ));
+                if option == skin {
+                    button.insert(Selected);
+                }
+            }
+        });
+}
+
+/// CONTROLS - every rebindable action off the LIVE table, then the chords that
+/// are not actions at all.
+///
+/// A shadow row (`radar_clear`) is absent: it moves with the action it
+/// follows, so showing it would offer a second way to break one gesture.
+fn build_controls_tab(
+    list: &mut ChildSpawnerCommands,
+    bindings: &InputBindings,
+    rebind: &PendingRebind,
+) {
     let mut groups = bindings.groups();
     for (group, ..) in FIXED_ROWS {
         if !groups.contains(group) {
@@ -193,13 +486,8 @@ pub(crate) fn build_settings_body(
                 ..default()
             },
         ));
-        for action in bindings.iter().filter(|action| action.group == group) {
-            spawn_keybind_row(
-                list,
-                action.label,
-                &action.keyboard_display(),
-                &action.gamepad_display(),
-            );
+        for action in bindings.rows().filter(|action| action.group == group) {
+            spawn_rebind_row(list, action, rebind);
         }
         for (_, label, keyboard, gamepad) in FIXED_ROWS.iter().filter(|(fixed, ..)| *fixed == group)
         {
@@ -208,29 +496,261 @@ pub(crate) fn build_settings_body(
     }
 
     list.spawn(separator());
-
-    // INTERFACE - the UI skin choice. A segmented Phosphor|Hardware control
-    // wired through `ButtonValue<UiSkin>` + the app-global
-    // `button_on_setting::<UiSkin>` observer, exactly like GRAPHICS above.
-    list.spawn(panel_header("Interface"));
-    list.spawn((Name::new("UI Skin Row"), segmented_container(skin)))
-        .with_children(|row| {
-            for option in [UiSkin::Phosphor, UiSkin::Hardware] {
-                let label = match option {
-                    UiSkin::Phosphor => "Phosphor",
-                    UiSkin::Hardware => "Hardware",
-                };
-                let mut button = row.spawn((
-                    Name::new(format!("UI Skin {label}")),
-                    segmented_option(label),
-                    ButtonValue(option),
-                ));
-                if option == skin {
-                    button.insert(Selected);
-                }
-            }
-        });
+    if let Some(reason) = &rebind.refusal {
+        list.spawn((
+            Name::new("Rebind Refusal"),
+            UiText,
+            Text::new(reason.clone()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(theme::AMBER_NOVA),
+            Node {
+                margin: UiRect::vertical(px(4)),
+                ..default()
+            },
+        ));
+    }
+    list.spawn((
+        Name::new("Reset Bindings"),
+        segmented_option("Reset Defaults"),
+        ResetBindings,
+        observe(on_reset_bindings),
+    ));
 }
+
+/// Put every action back on what it shipped with. The only way out of a remap
+/// a player cannot undo by hand - a row rebound onto a key they can no longer
+/// find is otherwise permanent.
+pub(crate) fn on_reset_bindings(
+    _activate: On<Activate>,
+    mut bindings: ResMut<InputBindings>,
+    mut rebind: ResMut<PendingRebind>,
+) {
+    let names: Vec<&'static str> = bindings.names().collect();
+    for name in names {
+        bindings.reset(name);
+    }
+    disarm(&mut rebind);
+}
+
+/// Arm the clicked chip. The click itself is still down, so the capture waits
+/// for a clean frame before reading a press.
+pub(crate) fn on_rebind_chip(
+    activate: On<Activate>,
+    chips: Query<&RebindChip>,
+    mut rebind: ResMut<PendingRebind>,
+) {
+    let Ok(chip) = chips.get(activate.entity) else {
+        return;
+    };
+    rebind.armed = Some(ArmedRebind {
+        action: chip.action,
+        device: chip.device,
+        awaiting_release: true,
+    });
+    rebind.refusal = None;
+}
+
+/// Take the next press for the armed chip.
+///
+/// Escape cancels - it is the back-out on every capture surface in the game,
+/// which is why no row can bind it. A press something else already holds in
+/// the same live set is REFUSED with the name of what holds it, and the chip
+/// stays armed so the next press is still the rebind.
+pub(crate) fn apply_settings_rebind(
+    sources: InputSources,
+    keys: Res<ButtonInput<KeyCode>>,
+    mut rebind: ResMut<PendingRebind>,
+    mut bindings: ResMut<InputBindings>,
+) {
+    let Some((action, device, awaiting_release)) = rebind
+        .armed
+        .as_ref()
+        .map(|armed| (armed.action, armed.device, armed.awaiting_release))
+    else {
+        return;
+    };
+    if keys.just_pressed(KeyCode::Escape) {
+        disarm(&mut rebind);
+        return;
+    }
+    if awaiting_release {
+        if sources.all_released() {
+            if let Some(armed) = rebind.armed.as_mut() {
+                armed.awaiting_release = false;
+            }
+        }
+        return;
+    }
+
+    let captured = match device {
+        RebindDevice::Desk => sources.captured_desk(),
+        RebindDevice::Pad => sources.captured_pad(),
+    };
+    let Some(source) = captured else {
+        return;
+    };
+    // The pointer's own button is never taken. Every other control on this
+    // screen is clicked with it, so an armed chip would otherwise eat the next
+    // click a player made anywhere - and a game whose main drive is Left Mouse
+    // cannot be un-bound, because the row that would fix it needs a click.
+    if source == InputSource::Mouse(MouseButton::Left) {
+        rebind.refusal = Some("Left Mouse stays the pointer".to_string());
+        return;
+    }
+
+    if let Some(taken_by) = bindings.conflict_for(action, source) {
+        let reason = format!("{} is already {}", source.label(), taken_by.label);
+        rebind.refusal = Some(reason);
+        return;
+    }
+
+    let Some(current) = bindings.get(action) else {
+        disarm(&mut rebind);
+        return;
+    };
+    // The whole column moves, not just its first entry: the chip shows one
+    // column and a player who presses one key means that column is now that
+    // key. `Reset Defaults` is what puts a multi-key default back.
+    let mut spec = current.spec();
+    match device {
+        RebindDevice::Desk => spec.keyboard = vec![source],
+        RebindDevice::Pad => spec.gamepad = vec![source],
+    }
+    bindings.rebind(action, spec);
+    disarm(&mut rebind);
+}
+
+/// Drop the armed chip and the refusal beside it, marking the resource changed
+/// exactly once so the body redraws.
+fn disarm(rebind: &mut ResMut<'_, PendingRebind>) {
+    if rebind.armed.is_some() || rebind.refusal.is_some() {
+        rebind.armed = None;
+        rebind.refusal = None;
+    }
+}
+
+/// One rebindable row: the action, then a chip per device column.
+///
+/// A column with no source of its own is not a chip. `rcs_aim` is raw mouse
+/// motion and `camera_rotate` is motion plus a stick: an action is MOVED here,
+/// never given a button it never had, because a key bound to a `Vec2` action
+/// would read as bound and do nothing.
+fn spawn_rebind_row(
+    list: &mut ChildSpawnerCommands,
+    action: &ActionBinding,
+    rebind: &PendingRebind,
+) {
+    list.spawn((
+        Name::new(format!("Keybind: {}", action.label)),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(12),
+            padding: UiRect::axes(px(2), px(3)),
+            ..default()
+        },
+    ))
+    .with_children(|row| {
+        row.spawn((
+            UiText,
+            Text::new(action.label.to_string()),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::SCREEN_TEXT),
+            // The label takes ALL the leftover width, so the two chip columns
+            // land at the same x on every row. Sized by the label instead, a
+            // long verb pushed its chips right and the column read as ragged.
+            Node {
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                ..default()
+            },
+        ));
+        spawn_chip(
+            row,
+            action,
+            RebindDevice::Desk,
+            !action.keyboard.is_empty(),
+            &action.keyboard_display(),
+            rebind,
+        );
+        spawn_chip(
+            row,
+            action,
+            RebindDevice::Pad,
+            !action.gamepad.is_empty(),
+            &action.gamepad_display(),
+            rebind,
+        );
+    });
+}
+
+/// One device column of a rebind row: a button when the action holds a source
+/// there, plain text when it does not.
+fn spawn_chip(
+    row: &mut ChildSpawnerCommands,
+    action: &ActionBinding,
+    device: RebindDevice,
+    rebindable: bool,
+    display: &str,
+    rebind: &PendingRebind,
+) {
+    let armed = rebind.armed_on(action.name, device);
+    let text = if armed {
+        device.prompt()
+    } else if display.is_empty() {
+        "-"
+    } else {
+        display
+    };
+    // A fixed-width CELL, not a fixed-width chip: `segmented_option` brings its
+    // own `Node` and a second one would replace the button's padding with this.
+    let mut cell = row.spawn((
+        Name::new(format!("Controls Cell: {} {:?}", action.name, device)),
+        Node {
+            width: px(CHIP_WIDTH),
+            ..default()
+        },
+    ));
+    if !rebindable {
+        cell.with_children(|cell| {
+            cell.spawn((
+                UiText,
+                Text::new(text.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(13.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ));
+        });
+        return;
+    }
+    cell.with_children(|cell| {
+        let mut chip = cell.spawn((
+            Name::new(format!("Rebind: {} {:?}", action.name, device)),
+            segmented_option(text),
+            RebindChip {
+                action: action.name,
+                device,
+            },
+            observe(on_rebind_chip),
+        ));
+        if armed {
+            chip.insert(Selected);
+        }
+    });
+}
+
+/// How wide each device column of a Controls row is. Fixed so the two columns
+/// line up down the tab whatever a row happens to be bound to.
+const CHIP_WIDTH: f32 = 132.0;
 
 /// Load the persisted settings once at startup and write them into the live
 /// resources. A missing/corrupt store is a no-op (the resources keep their
@@ -242,6 +762,7 @@ pub(crate) fn load_persisted_settings(
     mut quality: ResMut<GraphicsQuality>,
     mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
+    mut window_mode: ResMut<WindowModeSetting>,
     mut bindings: ResMut<InputBindings>,
 ) {
     let Some(saved) = load_settings() else {
@@ -251,10 +772,36 @@ pub(crate) fn load_persisted_settings(
     *quality = saved.graphics_quality;
     *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
+    *window_mode = saved.window_mode;
     // Before the first rig is built: the flight rig spawns with the player
     // ship, which is a scenario away, so a saved keybind is on the table by
     // the time anything reads it.
     bindings.apply_overrides(&saved.keybinds);
+}
+
+/// Put the chosen window mode on the primary window. Native only - see
+/// [`WindowModeSetting`].
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn apply_window_mode(
+    setting: Res<WindowModeSetting>,
+    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
+) {
+    use bevy::window::{MonitorSelection, WindowMode};
+
+    if !setting.is_changed() {
+        return;
+    }
+    let mode = match *setting {
+        WindowModeSetting::Windowed => WindowMode::Windowed,
+        WindowModeSetting::Borderless => {
+            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
+        }
+    };
+    for mut window in &mut windows {
+        if window.mode != mode {
+            window.mode = mode;
+        }
+    }
 }
 
 /// Idle frames a settings value must hold steady before it is written to disk.
@@ -271,19 +818,10 @@ pub(crate) const SETTINGS_SAVE_DEBOUNCE_FRAMES: u32 = 15;
 /// never arms the debounce and never rewrites the store. `Local` holds the idle
 /// countdown: `None` = nothing pending, `Some(n)` = `n` idle frames so far.
 pub(crate) fn persist_settings_on_change(
-    volume: Res<MasterVolume>,
-    quality: Res<GraphicsQuality>,
-    skin: Res<UiSkin>,
-    monitor: Res<NovaOsMonitorSettings>,
-    bindings: Res<InputBindings>,
+    settings: LiveSettings,
     mut pending: ResMut<PendingSettingsSave>,
 ) {
-    let edited = (volume.is_changed() && !volume.is_added())
-        || (quality.is_changed() && !quality.is_added())
-        || (skin.is_changed() && !skin.is_added())
-        || (monitor.is_changed() && !monitor.is_added())
-        || (bindings.is_changed() && !bindings.is_added());
-    if edited {
+    if settings.edited() {
         // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
         // changes into one pending save.
         pending.idle_frames = Some(0);
@@ -291,13 +829,51 @@ pub(crate) fn persist_settings_on_change(
     }
     if let Some(frames) = pending.idle_frames {
         if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
-            save_settings(&PersistedSettings::from_resources(
-                *volume, *quality, *skin, *monitor, &bindings,
-            ));
+            save_settings(&settings.snapshot());
             pending.idle_frames = None;
         } else {
             pending.idle_frames = Some(frames + 1);
         }
+    }
+}
+
+/// Every resource the store holds, as one system parameter: the two systems
+/// that write the file both need all of them, and a settings added to one and
+/// not the other is how a value silently stops being saved.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct LiveSettings<'w> {
+    volume: Res<'w, MasterVolume>,
+    quality: Res<'w, GraphicsQuality>,
+    skin: Res<'w, UiSkin>,
+    monitor: Res<'w, NovaOsMonitorSettings>,
+    window_mode: Res<'w, WindowModeSetting>,
+    bindings: Res<'w, InputBindings>,
+}
+
+impl LiveSettings<'_> {
+    /// Whether the player moved something this frame. The initial add (startup
+    /// load / `init_resource`) does not count: a launch that changes nothing
+    /// must not rewrite the store.
+    fn edited(&self) -> bool {
+        let moved = |changed: bool, added: bool| changed && !added;
+        moved(self.volume.is_changed(), self.volume.is_added())
+            || moved(self.quality.is_changed(), self.quality.is_added())
+            || moved(self.skin.is_changed(), self.skin.is_added())
+            || moved(self.monitor.is_changed(), self.monitor.is_added())
+            || moved(self.window_mode.is_changed(), self.window_mode.is_added())
+            || moved(self.bindings.is_changed(), self.bindings.is_added())
+    }
+
+    /// The persistable form of what is live right now.
+    fn snapshot(&self) -> PersistedSettings {
+        PersistedSettings::from_resources(
+            *self.volume,
+            *self.quality,
+            *self.skin,
+            *self.monitor,
+            *self.window_mode,
+            &self.bindings,
+        )
     }
 }
 
@@ -317,20 +893,14 @@ pub(crate) struct PendingSettingsSave {
 /// runner drains `AppExit` after.
 pub(crate) fn flush_settings_on_exit(
     mut exits: MessageReader<AppExit>,
-    volume: Res<MasterVolume>,
-    quality: Res<GraphicsQuality>,
-    skin: Res<UiSkin>,
-    monitor: Res<NovaOsMonitorSettings>,
-    bindings: Res<InputBindings>,
+    settings: LiveSettings,
     mut pending: ResMut<PendingSettingsSave>,
 ) {
     if exits.is_empty() || pending.idle_frames.is_none() {
         return;
     }
     exits.clear();
-    save_settings(&PersistedSettings::from_resources(
-        *volume, *quality, *skin, *monitor, &bindings,
-    ));
+    save_settings(&settings.snapshot());
     pending.idle_frames = None;
 }
 
@@ -367,8 +937,8 @@ pub(crate) fn sync_volume_slider(
 }
 
 /// The controls that are not enhanced-input actions, and so are not in the
-/// registry: raw `ButtonInput` chords read by the comms panel and by the pause
-/// and HUD toggles. They stay declared here until someone names them.
+/// registry: raw `ButtonInput` chords read by the pause overlay. They stay
+/// declared here until someone names them.
 const FIXED_ROWS: &[(&str, &str, &str, &str)] = &[("SYSTEM", "Pause / Menu", "Esc", "Start")];
 
 /// One read-only keybind row: the action on the left, the keyboard and gamepad
@@ -403,12 +973,29 @@ pub(crate) fn spawn_keybind_row(
         ));
         row.spawn((
             UiText,
-            Text::new(format!("{keyboard}   ·   {gamepad}")),
+            Text::new(keyboard.to_string()),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
             },
-            TextColor(theme::PHOSPHOR),
+            TextColor(theme::PHOSPHOR_MUTED),
+            Node {
+                width: px(CHIP_WIDTH),
+                ..default()
+            },
+        ));
+        row.spawn((
+            UiText,
+            Text::new(gamepad.to_string()),
+            TextFont {
+                font_size: FontSize::Px(13.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_MUTED),
+            Node {
+                width: px(CHIP_WIDTH),
+                ..default()
+            },
         ));
     });
 }

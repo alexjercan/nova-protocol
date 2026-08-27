@@ -167,6 +167,20 @@ does NOT get an entry - and it is the only place they are written down.
 - Every key in the NOVA OS map and ship viewers is a named action - orbit, pan,
   cycle, GOTO, reload, repair, rebind - and the monitor's footer prints the key
   each one is bound to now.
+- Settings opens on tabs - Audio, Graphics, Controls, Interface - and Controls
+  lists every action with its keyboard and pad binding, from the main menu and
+  the pause overlay alike.
+- A binding moves by pressing its chip and then the key or pad button. A source
+  another action already holds is refused by name, and Reset Defaults puts the
+  whole table back.
+- A rebind made in flight reaches the ship: the flight and camera rigs rebuild
+  on the spot instead of waiting for the next load.
+- Radar hold and tap are one row. Rebinding the gesture moves both halves, so
+  the tap can no longer end up on a different key from the hold.
+- Graphics offers Windowed or Borderless fullscreen, applied at once and
+  remembered, so the window is no longer stuck at the size it was created with.
+- The OBJECTIVES affordance draws the key the NOVA OS is bound to now, not the
+  Tab it ships with.
 
 ### Ships & Sections
 
@@ -204,6 +218,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A driven range presses an action by NAME - `press_action("radar_hold")` - and
   the registry decides which key that is. Twenty-six hardcoded copies of the
   binding table are gone from the fleet.
+- The editor's section-key chip and the NOVA OS ship viewer's read the LIVE
+  binding table rather than the shipped defaults, so a moved verb takes its
+  conflict warning with it.
+- The menu tests read a scratch config root. The fixture was loading the
+  developer's own `settings.ron`, so a keybind saved by playing the game
+  rewrote what they asserted on.
 
 ## [0.11.0] - 2026-08-23
 

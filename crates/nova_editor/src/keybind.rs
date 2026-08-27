@@ -4,7 +4,7 @@
 //! `apply_section_rebind` consumes the next key or mouse-button press.
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use nova_input::prelude::{source_label, InputSource};
+use nova_input::prelude::{source_label, ActionContext, InputBindings, InputSource};
 use nova_ship::prelude::*;
 use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
 
@@ -331,11 +331,10 @@ pub(crate) fn on_rebind_action(
 /// Two SECTIONS may share a source for the same reason: firing two turrets on
 /// one trigger is a loadout choice, and the content lint does not compare
 /// sections to each other either.
-fn binding_conflict(source: InputSource) -> Option<String> {
-    flight_rig_reserved_sources()
-        .into_iter()
-        .find(|(reserved, _)| *reserved == source)
-        .map(|(_, verb)| format!("the flight rig's {verb}"))
+fn binding_conflict(bindings: Option<&InputBindings>, source: InputSource) -> Option<String> {
+    bindings?
+        .holder_in(ActionContext::Flight, source)
+        .map(|action| format!("the flight rig's {}", action.label))
 }
 
 /// Consume the next key or mouse-button press to rebind the armed section (see
@@ -346,6 +345,7 @@ fn binding_conflict(source: InputSource) -> Option<String> {
 pub(crate) fn apply_section_rebind(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Option<Res<InputBindings>>,
     catalog: Option<Res<GameSections>>,
     context: Res<EditContext>,
     mut rebind: ResMut<EditorRebind>,
@@ -398,7 +398,7 @@ pub(crate) fn apply_section_rebind(
 
     // A key the flight rig also drives is TAKEN, and said out loud: both things
     // fire on it, which is a choice a builder is allowed to make.
-    if let Some(taken_by) = binding_conflict(new_binding) {
+    if let Some(taken_by) = binding_conflict(bindings.as_deref(), new_binding) {
         says.note(format!("{} also drives {taken_by}", new_binding.label()));
     }
 
@@ -667,10 +667,11 @@ mod tests {
         let section = turret(&mut world, vec![InputSource::from(MouseButton::Left)]);
         armed(&mut world, section);
         let mut input = ButtonInput::<KeyCode>::default();
-        // Space is the main drive - see `flight_rig_reserved_sources`.
+        // Space is the main drive.
         input.press(KeyCode::Space);
         world.insert_resource(input);
         world.init_resource::<ButtonInput<MouseButton>>();
+        world.insert_resource(InputBindings::from_actions(flight_bindings()));
 
         world.run_system_once(apply_section_rebind).unwrap();
 
@@ -690,15 +691,52 @@ mod tests {
             .expect("a shared key is reported on the line");
         // The verb comes from the registry, not from a word spelled here: a
         // renamed action must move this assertion with it, not break it.
-        let verb = flight_rig_reserved_sources()
-            .into_iter()
-            .find(|(source, _)| *source == InputSource::Keyboard(KeyCode::Space))
-            .map(|(_, verb)| verb)
+        let verb = world
+            .resource::<InputBindings>()
+            .holder_in(ActionContext::Flight, InputSource::from(KeyCode::Space))
+            .map(|action| action.label)
             .expect("the flight rig holds Space");
         assert!(
             line.contains("Space") && line.contains(verb),
             "a builder pressing a key the rig holds is owed the other thing it \
              does; the line read {line:?}"
+        );
+    }
+
+    /// The warning reads the LIVE table, not the shipped one: a player who
+    /// moves the main drive off Space frees it, and the editor must stop
+    /// claiming the rig still drives it.
+    #[test]
+    fn the_shared_key_warning_follows_a_rebind() {
+        let mut world = World::new();
+        let section = turret(&mut world, vec![InputSource::from(MouseButton::Left)]);
+        armed(&mut world, section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::Space);
+        world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
+
+        let mut bindings = InputBindings::from_actions(flight_bindings());
+        bindings.rebind(
+            "main_drive",
+            nova_input::prelude::BindingSpec {
+                keyboard: vec![InputSource::from(KeyCode::KeyJ)],
+                gamepad: vec![],
+            },
+        );
+        world.insert_resource(bindings);
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        assert_eq!(
+            binds_of(&world, section),
+            vec![InputSource::from(KeyCode::Space)],
+            "the key is bound either way"
+        );
+        assert_eq!(
+            world.resource::<crate::config::EditorStatus>().line(),
+            None,
+            "Space is free now, so there is nothing to warn about"
         );
     }
 

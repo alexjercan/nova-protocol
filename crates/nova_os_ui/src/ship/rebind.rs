@@ -1,15 +1,17 @@
 use bevy::prelude::*;
 use nova_events::prelude::EntityId;
-use nova_input::prelude::InputSource;
+use nova_input::prelude::{ActionContext, InputBindings, InputSource};
 use nova_ship::prelude::*;
 
 use super::ShipRuntime;
 
-fn reserved_conflict(source: InputSource) -> Option<String> {
-    flight_rig_reserved_sources()
-        .into_iter()
-        .find(|(reserved, _)| *reserved == source)
-        .map(|(_, verb)| format!("flight control: {verb}"))
+/// What flying the ship already spends `source` on, read off the LIVE table -
+/// a player who rebinds the main drive frees Space for a section, and one who
+/// moves a verb ONTO a section's key must be told here.
+fn reserved_conflict(bindings: &InputBindings, source: InputSource) -> Option<String> {
+    bindings
+        .holder_in(ActionContext::Flight, source)
+        .map(|action| format!("flight control: {}", action.label))
 }
 
 #[expect(
@@ -19,6 +21,7 @@ fn reserved_conflict(source: InputSource) -> Option<String> {
 pub(crate) fn apply_ship_rebind(
     keys: Res<ButtonInput<KeyCode>>,
     mouse: Res<ButtonInput<MouseButton>>,
+    bindings: Res<InputBindings>,
     mut runtime: ResMut<ShipRuntime>,
     mut commands: Commands,
     targets: Query<(
@@ -61,7 +64,7 @@ pub(crate) fn apply_ship_rebind(
         return;
     };
     let ship = parent.parent();
-    if let Some(conflict) = reserved_conflict(source) {
+    if let Some(conflict) = reserved_conflict(&bindings, source) {
         runtime.note = Some((
             format!("{} is already used by {conflict}", source.label()),
             2.5,
@@ -109,6 +112,8 @@ mod tests {
         world.init_resource::<ButtonInput<KeyCode>>();
         world.init_resource::<ButtonInput<MouseButton>>();
         world.init_resource::<Messages<SectionInputBindingChanged>>();
+        // The refusal reads the live table, so a rig with none would fail open.
+        world.insert_resource(InputBindings::from_actions(flight_bindings()));
         let ship = world.spawn_empty().id();
         let target = world
             .spawn((
@@ -149,9 +154,12 @@ mod tests {
     #[test]
     fn reserved_flight_control_remains_blocked() {
         let (mut world, target) = rebind_world();
-        let key = flight_rig_reserved_sources()
-            .into_iter()
-            .find_map(|(source, _)| match source {
+        let key = world
+            .resource::<InputBindings>()
+            .rows()
+            .filter(|action| action.context.overlaps(ActionContext::Flight))
+            .flat_map(|action| action.keyboard.clone())
+            .find_map(|source| match source {
                 InputSource::Keyboard(key) => Some(key),
                 _ => None,
             })

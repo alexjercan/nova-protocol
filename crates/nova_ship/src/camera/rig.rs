@@ -178,42 +178,71 @@ pub(super) fn insert_player_input(
 
     // Spawn a player input controller entity to hold the input from the player
     commands.entity(camera).with_children(|parent| {
-        parent.spawn((
-            Name::new("Player Input Controller"),
-            PlayerInputMarker,
-            actions!(
-                PlayerInputMarker[
-                    (
-                        Name::new("Input: Camera Rotate"),
-                        Action::<CameraInputRotate>::new(),
-                        // The two look axes carry modifiers per binding, so
-                        // they are spawned beside whatever the registry holds.
-                        bindings.bundle_with(
-                            "camera_rotate",
-                            (
-                                Spawn((
-                                    Binding::mouse_motion(),
-                                    Scale::splat(0.001),
-                                    Negate::all(),
-                                )),
-                                Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
-                            ),
+        parent.spawn(player_input_rig(&bindings));
+    });
+}
+
+/// The camera rig bundle, bound from the registry. A named fn so the rebind
+/// rebuild below spawns the SAME rig the observer does, rather than a second
+/// copy that can drift from it.
+fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
+    (
+        Name::new("Player Input Controller"),
+        PlayerInputMarker,
+        actions!(
+            PlayerInputMarker[
+                (
+                    Name::new("Input: Camera Rotate"),
+                    Action::<CameraInputRotate>::new(),
+                    // The two look axes carry modifiers per binding, so
+                    // they are spawned beside whatever the registry holds.
+                    bindings.bundle_with(
+                        "camera_rotate",
+                        (
+                            Spawn((
+                                Binding::mouse_motion(),
+                                Scale::splat(0.001),
+                                Negate::all(),
+                            )),
+                            Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
                         ),
                     ),
-                    (
-                        Name::new("Input: Free Look Mode"),
-                        Action::<FreeLookInput>::new(),
-                        bindings.bundle("free_look"),
-                    ),
-                    (
-                        Name::new("Input: Combat Mode"),
-                        Action::<CombatInput>::new(),
-                        bindings.bundle("combat_stance"),
-                    ),
-                ]
-            ),
-        ));
-    });
+                ),
+                (
+                    Name::new("Input: Free Look Mode"),
+                    Action::<FreeLookInput>::new(),
+                    bindings.bundle("free_look"),
+                ),
+                (
+                    Name::new("Input: Combat Mode"),
+                    Action::<CombatInput>::new(),
+                    bindings.bundle("combat_stance"),
+                ),
+            ]
+        ),
+    )
+}
+
+/// Rebuild the camera rig when the table moves, for the same reason the flight
+/// rig is rebuilt: the rig snapshots the registry when the camera appears, and
+/// the pause overlay rebinds while both already exist.
+pub(super) fn rebuild_player_input_on_rebind(
+    mut commands: Commands,
+    bindings: Res<InputBindings>,
+    q_rig: Query<(Entity, &ChildOf), With<PlayerInputMarker>>,
+) {
+    let cameras: Vec<Entity> = q_rig
+        .iter()
+        .map(|(rig, child_of)| {
+            commands.entity(rig).try_despawn();
+            child_of.parent()
+        })
+        .collect();
+    for camera in cameras {
+        commands.entity(camera).with_children(|parent| {
+            parent.spawn(player_input_rig(&bindings));
+        });
+    }
 }
 
 pub(super) fn destroy_camera_controller(

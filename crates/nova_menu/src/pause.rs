@@ -8,7 +8,6 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
-use nova_input::prelude::InputBindings;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
@@ -20,7 +19,7 @@ use nova_ui::{
 #[cfg(not(target_arch = "wasm32"))]
 use crate::menu_ui::on_exit;
 use crate::{
-    settings::{build_settings_body, PauseSettingsPanel},
+    settings::{build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody},
     widgets::{button, button_variant},
 };
 
@@ -172,10 +171,8 @@ pub(crate) fn force_unpause(
 pub(crate) fn setup_pause_ui(
     mut commands: Commands,
     current: Option<Res<CurrentScenario>>,
-    volume: Res<MasterVolume>,
-    quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
-    bindings: Res<InputBindings>,
+    active_settings_tab: Res<SettingsActiveTab>,
     outcome: Option<Res<CurrentOutcome>>,
 ) {
     // The outcome frame also enters `Paused` (`sync_outcome_pause`) to freeze the sim,
@@ -325,6 +322,7 @@ pub(crate) fn setup_pause_ui(
                             ..default()
                         },
                     ));
+                    build_settings_tabs(parent, *skin, active_settings_tab.0);
                     parent
                         .spawn((
                             Name::new("Pause Settings Body Row"),
@@ -336,14 +334,14 @@ pub(crate) fn setup_pause_ui(
                             },
                         ))
                         .with_children(|row| {
+                            // Empty, like the main menu's: `refresh_settings_tab`
+                            // is the one path that fills either.
                             row.spawn((
                                 Name::new("Pause Settings Body"),
+                                SettingsTabBody,
                                 scroll_column(),
                                 scroll_viewport(),
-                            ))
-                            .with_children(|body| {
-                                build_settings_body(body, *volume, *quality, *skin, &bindings);
-                            });
+                            ));
                             row.spawn((Name::new("Pause Settings Scroll Bar"), scroll_bar(*skin)));
                         });
                     parent.spawn((

@@ -13,6 +13,8 @@ use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
+use crate::settings::WindowModeSetting;
+
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
 /// an older or newer file still loads.
@@ -39,6 +41,10 @@ pub struct PersistedSettings {
     /// NOVA OS SND speaker toggle (default ON).
     #[serde(default = "default_sound_enabled")]
     pub nova_os_sound_enabled: bool,
+    /// Windowed or borderless fullscreen. Written on every platform; only the
+    /// native build has a row that moves it.
+    #[serde(default)]
+    pub window_mode: WindowModeSetting,
     /// Keybinds the player moved, by action name. Only the CHANGED rows are
     /// here, so a default the game later moves reaches a player who never
     /// touched that row.
@@ -72,6 +78,7 @@ impl Default for PersistedSettings {
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
+            window_mode: WindowModeSetting::default(),
             keybinds: BTreeMap::new(),
         }
     }
@@ -84,6 +91,7 @@ impl PersistedSettings {
         quality: GraphicsQuality,
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
+        window_mode: WindowModeSetting,
         bindings: &InputBindings,
     ) -> Self {
         Self {
@@ -93,6 +101,7 @@ impl PersistedSettings {
             nova_os_bright_detent: monitor.bright_detent,
             nova_os_scan_detent: monitor.scan_detent,
             nova_os_sound_enabled: monitor.sound_enabled,
+            window_mode,
             keybinds: bindings.overrides(),
         }
     }
@@ -143,6 +152,7 @@ mod tests {
     use nova_ui::prelude::UiSkin;
 
     use super::{PersistedSettings, KEY};
+    use crate::settings::WindowModeSetting;
 
     fn temp_store(name: &str) -> NativeStorage {
         NativeStorage::at(std::env::temp_dir().join(format!("nova_settings_{name}")))
@@ -173,6 +183,7 @@ mod tests {
             nova_os_bright_detent: 3,
             nova_os_scan_detent: 0,
             nova_os_sound_enabled: false,
+            window_mode: WindowModeSetting::Borderless,
             keybinds: BTreeMap::new(),
         };
         save_to(&store, KEY, &settings);
@@ -240,6 +251,7 @@ mod tests {
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
                 nova_os_scan_detent: NovaOsMonitorSettings::default().scan_detent,
                 nova_os_sound_enabled: NovaOsMonitorSettings::default().sound_enabled,
+                window_mode: WindowModeSetting::default(),
                 keybinds: BTreeMap::new(),
             }),
             "a missing field falls back to its serde default"

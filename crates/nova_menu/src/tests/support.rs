@@ -26,11 +26,28 @@ use crate::{
 pub(crate) const TEST_START_ID: &str = "story_start";
 pub(crate) const TEST_BACKDROP_ID: &str = "test_backdrop";
 
+/// Point the settings store at a scratch directory, once per test process.
+///
+/// `NovaMenuPlugin` loads the persisted settings at Startup. Without this the
+/// fixture reads the DEVELOPER'S real `settings.ron`, so a keybind saved by
+/// playing the game (or by a screenshot run) silently rewrites the table these
+/// tests assert on - which is exactly how it was found.
+fn isolate_the_config_store() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        std::env::set_var(
+            "NOVA_CONFIG_ROOT",
+            std::env::temp_dir().join("nova_menu_test_config"),
+        );
+    });
+}
+
 /// A headless app with just enough for the menu's non-UI wiring: states, the mode
 /// resource, and the plugin itself. Tests that enter MainMenu also run the OnEnter
 /// systems (setup_menu_ui spawns plain components; the HUD level is a plain resource
 /// write), so insert `dummy_scenarios()` first - load_menu_ambience reads GameScenarios.
 pub(crate) fn app() -> App {
+    isolate_the_config_store();
     let mut app = App::new();
     app.add_plugins(StatesPlugin);
     // Seeded so the backdrop draw is deterministic across runs.
@@ -38,7 +55,11 @@ pub(crate) fn app() -> App {
     app.init_state::<GameStates>();
     app.init_state::<PauseStates>();
     app.init_resource::<GameMode>();
+    // Headless: no `InputPlugin`, so the surfaces the rebind capture reads
+    // have to be here. A pad is a component, so there is nothing to init for
+    // it - a fixture with no pad simply has none connected.
     app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
     // The base bundle's declared New Game start (register_bundles writes
     // this in production).
     app.insert_resource(NewGameStart(Some(TEST_START_ID.to_string())));
@@ -56,14 +77,6 @@ pub(crate) fn app() -> App {
     app.register_input_actions(nova_os_ui::bindings::novaos_bindings());
     app.add_plugins(NovaMenuPlugin);
     app
-}
-
-/// Move to `state` and let the transition schedules run.
-pub(crate) fn set_state(app: &mut App, state: GameStates) {
-    app.world_mut()
-        .resource_mut::<NextState<GameStates>>()
-        .set(state);
-    app.update();
 }
 
 pub(crate) fn enter_playing(app: &mut App) {

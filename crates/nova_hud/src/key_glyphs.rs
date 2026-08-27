@@ -296,9 +296,28 @@ mod tests {
             .collect();
         assert!(!bound.is_empty(), "delivery guard: the rig binds keys");
 
-        // Plus the labels the HUD uses that are not a single rig binding.
-        let extra = ["CTRL", "SHIFT", "SCROLL", "Tab", "Backquote"];
-        for key in bound.iter().map(String::as_str).chain(extra) {
+        // The HUD's own chrome keys, taken from the table rather than named
+        // here, so a rebound chrome action is caught by this test too.
+        let chrome: Vec<String> = crate::hud_bindings()
+            .iter()
+            .flat_map(|action| action.keyboard.clone())
+            .filter_map(|source| match source {
+                InputSource::Keyboard(key) => Some(keyboard_label(key)),
+                _ => None,
+            })
+            .collect();
+        // Plus the labels that are NOT a registry binding: the three gesture
+        // pseudo-labels, which stand for a modifier or a wheel rather than a
+        // key, and the NOVA OS affordance's fallback (the toggle lives in
+        // `nova_os_ui`, which depends on this crate and so cannot be named
+        // from here - `novaos_key_label` falls back to Tab without it).
+        let extra = ["CTRL", "SHIFT", "SCROLL", "Tab"];
+        for key in bound
+            .iter()
+            .chain(chrome.iter())
+            .map(String::as_str)
+            .chain(extra)
+        {
             let stem = key_glyph_stem(key)
                 .unwrap_or_else(|| panic!("no keycap glyph mapped for the bound key '{key}'"));
             let path = std::path::Path::new("../../assets")

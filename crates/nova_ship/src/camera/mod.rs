@@ -51,7 +51,8 @@ use self::{
     },
     rig::{
         destroy_camera_controller, insert_camera_controller, insert_camera_freelook,
-        insert_camera_turret, insert_player_input, PlayerInputMarker,
+        insert_camera_turret, insert_player_input, rebuild_player_input_on_rebind,
+        PlayerInputMarker,
     },
 };
 
@@ -90,6 +91,10 @@ impl Plugin for SpaceshipCameraControllerPlugin {
         app.add_observer(insert_camera_freelook);
         app.add_observer(insert_camera_turret);
         app.add_observer(insert_player_input);
+        app.add_systems(
+            Update,
+            rebuild_player_input_on_rebind.run_if(resource_changed::<InputBindings>),
+        );
         app.add_observer(destroy_camera_controller);
 
         app.add_observer(on_autopilot_disengaged);
