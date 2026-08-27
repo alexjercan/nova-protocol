@@ -26,6 +26,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Modding & Mod Portal
 
+- The Ledger (1.25.0 -> 1.26.0): chapter three rewritten onto `once` and
+  `Sequence` - 27 handlers down to 20, and five latch variables gone.
 - A range saved in the editor is an ordinary mod: each built ship a design, the
   range a scenario naming them. Editing a design moves every instance of it.
 - F5 reads every content file off disk behind a loading screen, as does leaving
