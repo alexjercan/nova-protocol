@@ -36,6 +36,22 @@ executable (`target/debug/assets`) and the boot fails before the wire opens.
 Each narrates a transcript and exits non-zero on the first failed check.
 No dependencies beyond the standard library.
 
+## Record the run as a movie
+
+Append `--record <dir>` to any `CMD` above:
+
+```
+CMD="target/debug/nova-protocol --norender --scenario-file $POC/acceptance.content.ron --channel step --record /tmp/nova-rec"
+python3 $POC/drive_flight.py --cmd "$CMD"
+```
+
+Still no window -- but the run swaps the headless assembly for the offscreen
+one (a real GPU, the full visual stack), draws every tick into
+`<dir>/frame_%06d.png`, and `channel.py` stitches them with ffmpeg into
+`<dir>.mp4` on close. One tick is 1/60 s, so the movie plays in real time
+however slowly the driver stepped. Budget roughly 0.5 MB per frame for the
+PNGs.
+
 `channel.py` is the shared client. It owns the tick counter, stamps every
 payload, and wraps the idioms a driver needs (a hold is start / clock /
 stop; a click is move / press / release on separate ticks).

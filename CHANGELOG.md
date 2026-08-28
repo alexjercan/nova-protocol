@@ -209,6 +209,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `--channel` (debug, with `--norender`) plays the real game over stdin/stdout:
   five input lanes by name in, snapshots with the screen as data out, and in
   step mode the clock waits on the driver.
+- `--record <dir>` films a channel run without a window: the GPU draws every
+  tick offscreen into a PNG, and ffmpeg stitches them into a real-time 60 FPS
+  movie however slowly the driver stepped.
 - `nix run` launches the game: the flake packages the binary with its assets,
   the libraries Bevy opens by hand, a desktop entry and an icon, so `nix
   profile install` puts it in the application menu.

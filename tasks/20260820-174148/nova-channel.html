@@ -908,6 +908,61 @@ headless crt: PASS clicked AST-1 through the glass, GOTO engaged</code></pre>
     executable schema reference &mdash; the pointer and NOVA&nbsp;OS
     drivers still run against it without <code>--cmd</code>.
   </p>
+  <h3>The recording round: the run becomes a movie</h3>
+  <p>
+    The branch landed (<code>983d076c</code>), and the hand-test question
+    &mdash; <em>what does a driven run look like?</em> &mdash; got a
+    better answer than a window: <code>--record &lt;dir&gt;</code>
+    (commit <code>0a215e3f</code>). A third assembly,
+    <code>AppBuilder::offscreen()</code>, keeps the headless shape
+    &mdash; no winit, no OS window, the channel&rsquo;s virtual
+    <code>PrimaryWindow</code> &mdash; but arms the GPU and the full
+    visual stack, with pipelined rendering disabled so a stepped
+    <code>update()</code> returns with its frame drawn. The recorder
+    retargets every primary-window camera into one window-sized image,
+    and the runner spawns one <code>Screenshot</code> of it per tick,
+    each with its own numbered <code>save_to_disk</code> observer &mdash;
+    capture completion order cannot scramble frame order. After EOF the
+    runner pumps until the in-flight captures land, and
+    <code>channel.py</code> stitches <code>&lt;dir&gt;.mp4</code> with
+    ffmpeg on close. One tick is 1/60&nbsp;s, so the movie plays in real
+    time however slowly the driver thought between steps.
+  </p>
+  <p>
+    Retargeting surfaced two integration truths, both fixed in the
+    recorder rather than the game. First: with no
+    <code>IsDefaultUiCamera</code> in the world, <code>bevy_ui</code>
+    routes roots to the highest-order camera <em>targeting the primary
+    window</em> &mdash; after retargeting, no camera at all, so the HUD
+    vanished from the frames and every UI hit-test died. The recorder now
+    marks the camera that fallback would have picked and stands down
+    whenever the game marks its own (the menu ambience rig, the
+    render-scale blit). Second: <code>PointerInput::receive</code>
+    re-applies the frame&rsquo;s window-targeted messages onto
+    <code>PointerLocation</code> in <code>PreUpdate</code>, so the
+    pointer&rsquo;s retarget sits between <code>ProcessInput</code> and
+    <code>Backend</code> &mdash; any earlier and it is clobbered on
+    exactly the frames a gesture arrives.
+  </p>
+  <p>
+    The egui half ran as its own lane (commit <code>abec9467</code>): the
+    debug inspector&rsquo;s egui stack now assembles only when
+    <code>WinitPlugin</code> is present, which takes the per-frame
+    <em>&ldquo;Cannot access an underlying winit window&rdquo;</em> WARN
+    from 230 occurrences per headless boot to zero &mdash; and covers the
+    offscreen assembly with the same predicate for free.
+  </p>
+  <p class="sub">
+    Evidence: <code>drive_pointer</code> and <code>drive_flight</code>
+    PASS recorded end to end; 415 gapless PNGs for the 414-tick flight;
+    the frames carry the full HUD &mdash; the burn, the hostile target
+    inspector, the tracer stream, the NEUTRALIZED overlay. The
+    &ldquo;playability runner&rdquo; idea (one command: driver script +
+    scenario in, video out) is deliberately NOT built and NOT
+    <code>nova_probe</code> &mdash; probe asserts expected results, this
+    produces evidence of play. It waits for next sprint&rsquo;s
+    agent-play task; until then the close-time ffmpeg is the pipeline.
+  </p>
   <h3>Still open</h3>
   <ol>
     <li><strong>The gate&rsquo;s owner call.</strong> The spike removed the

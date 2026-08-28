@@ -672,3 +672,53 @@ against it bare; the flight pair refuses without --cmd).
 Still open: only the render-gate owner call (kept un-gated; revisit if
 probe noise matters) and the console vocabulary, which is task
 20260827-120347's scope. The branch stays unlanded until asked.
+
+## The recording round (2026-08-28, commits 0a215e3f + abec9467)
+
+The branch landed first (983d076c squash, 326fa773 changelog entry,
+afdd6cf5 client hardening). Then the round the hand-test asked for:
+
+`--record <dir>` (debug, requires --channel) films a run without a
+window. A third AppBuilder assembly, `offscreen()`, keeps the headless
+shape - no winit, no OS window, channel-spawned virtual PrimaryWindow -
+but arms the GPU and the full visual plugin stack (pipelined rendering
+disabled: a stepped driver wants the frame drawn when update returns).
+nova_channel's recorder retargets every primary-window camera into one
+window-sized image, spawns one Screenshot of it per tick with its own
+numbered save_to_disk observer (completion order cannot scramble frame
+order), and flushes in-flight captures after EOF. channel.py stitches
+`<dir>.mp4` with ffmpeg on close; one tick is 1/60 s, so the movie is
+real time however slowly the driver stepped.
+
+Two integration truths the first recorded runs surfaced, both fixed in
+the recorder rather than the game:
+
+- bevy_ui routes roots to the highest-order camera TARGETING THE PRIMARY
+  WINDOW when no IsDefaultUiCamera exists - retargeting alone left the
+  HUD out of the frames and killed every UI hit-test. The recorder marks
+  the camera that fallback would have picked and stands down whenever the
+  game marks its own (menu ambience, render-scale blit).
+- PointerInput::receive (PreUpdate, ProcessInput) re-applies the frame's
+  window-targeted messages onto PointerLocation, so the pointer retarget
+  must sit between ProcessInput and Backend; in First it is clobbered on
+  exactly the frames a gesture arrives.
+
+The egui half ran as its own lane (opus agent, sprout egui-headless,
+landed abec9467): the inspector's egui stack now assembles only when
+`WinitPlugin` is present, which silences the per-frame "Cannot access an
+underlying winit window" WARN in both windowless shapes - 230
+occurrences to zero on a headless boot, and the offscreen assembly is
+covered by the same predicate for free.
+
+Evidence: drive_pointer and drive_flight PASS recorded end to end; 415
+gapless PNGs for the 414-tick flight (the census under recording now
+carries the full HUD suite); frames show the burn, the hostile target
+inspector, the tracer stream and the NEUTRALIZED overlay; rec4.mp4 is
+6.9 s of real-time movie. Tests: 10 nova_core + 8 nova_channel.
+
+Decided and deferred: the "playability runner" idea (one command that
+takes a driver script and a scenario, runs the game, emits the video) is
+NOT nova_probe - probe asserts expected results, this produces evidence
+of play - and it is not built now either. It belongs to next sprint's
+agent-play task; until then channel.py's close-time ffmpeg is the whole
+pipeline. Agent tooling stays out of scope for this task.
