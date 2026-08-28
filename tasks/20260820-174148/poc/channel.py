@@ -15,10 +15,6 @@ import sys
 from pathlib import Path
 
 
-class ChannelError(RuntimeError):
-    """An error line came back from the game."""
-
-
 def cmd_from_argv() -> list[str] | None:
     """The ``--cmd "nova --norender --channel step"`` a driver was run with,
     split into an argv - or None, which means the mock."""
@@ -61,8 +57,16 @@ class Channel:
         while True:
             line = self.proc.stdout.readline()
             if not line:
-                raise ChannelError("the game closed stdout")
-            obj = json.loads(line)
+                sys.exit(
+                    "channel: the game closed stdout -- it likely failed to "
+                    "boot; its stderr above says why"
+                )
+            if not line.strip():
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                sys.exit(f"channel: not a wire line on stdout: {line.strip()!r}")
             if "error" in obj:
                 self.errors.append(obj)
                 if self.verbose:

@@ -9,27 +9,29 @@ the real binary.
 
 ## Run
 
-Build with `cargo build --features debug`, then from this directory:
+Build with `cargo build --features debug`, then from the REPO ROOT:
 
 ```
+export NOVA_CONFIG_ROOT=/tmp/nova-channel-config   # keep runs off the real config
+export BEVY_ASSET_ROOT=$PWD                        # the bare binary looks for assets/ beside itself
+POC=tasks/20260820-174148/poc
+
 CMD="target/debug/nova-protocol --norender --scenario shakedown_run --channel step"
-python3 drive_pointer.py --cmd "$CMD"   # click Resume by name, then by raw pixels
-python3 drive_novaos.py --cmd "$CMD"    # Tab, type at the prompt, run the map app
+python3 $POC/drive_pointer.py --cmd "$CMD"   # click Resume by name, then by raw pixels
+python3 $POC/drive_novaos.py --cmd "$CMD"    # Tab, type at the prompt, run the map app
+
+CMD="target/debug/nova-protocol --norender --scenario-file $POC/acceptance.content.ron --channel step"
+python3 $POC/drive_flight.py --cmd "$CMD"    # fly, lock, fire -- by name and by section id
+python3 $POC/agent_loop.py --cmd "$CMD"      # observe -> decide -> act on the step clock
 ```
 
-The flight pair needs the acceptance world (`acceptance.content.ron`: one
-armed corvette, one hostile raider on the burn line) instead of a shipped
-scenario -- swap `--scenario shakedown_run` for
-`--scenario-file <absolute path to acceptance.content.ron>`:
-
-```
-python3 drive_flight.py --cmd "$CMD"    # fly, lock, fire -- by name and by section id
-python3 agent_loop.py --cmd "$CMD"      # observe -> decide -> act on the step clock
-```
-
-Isolate `NOVA_CONFIG_ROOT` to a scratch directory so a run never touches the
-real config. Without `--cmd`, the pointer and NOVA OS drivers fall back to
-the mock; the flight pair refuses (their checks read the acceptance world).
+The flight pair plays the acceptance world (`acceptance.content.ron`: one
+armed corvette, one hostile raider on the burn line); the other two run any
+shipped scenario. Without `--cmd`, the pointer and NOVA OS drivers fall back
+to the mock; the flight pair refuses (their checks read the acceptance
+world). `BEVY_ASSET_ROOT` matters: run through the drivers, the binary is
+not launched by cargo, so without it bevy resolves `assets/` next to the
+executable (`target/debug/assets`) and the boot fails before the wire opens.
 
 Each narrates a transcript and exits non-zero on the first failed check.
 No dependencies beyond the standard library.
