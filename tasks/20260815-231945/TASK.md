@@ -39,6 +39,9 @@ art generator. Research that informs it is the most valuable.
   with a short description and a file:// link. Open in a browser.
 - `backlog-ideas.html` - the ideation backlog beyond v0.12.0 (owner round,
   2026-08-24): nine deliberately broad one-liner tasks, same page style.
+- `POLISH-AUDIT.md` - round 5 evidence: the internal polish audit (visuals,
+  editor and in-flight stats coverage, the terminal position).
+- `polish-audit.html` - round 5 presentation: the findings as a design page.
 
 ## Round 2: hull plating shape and greeble placement
 
@@ -184,3 +187,36 @@ Consumed by the v0.12.0 task rewrites of 2026-08-24: `20260812-131912`
 (epic), `20260824-011329`, `20260714-081703`, `20260820-174148`,
 `20260820-223059`, `20260817-090834`, `20260822-204201`, `20260714-001140`,
 and the new tasks the plan lists. `20260812-131901` closed into the plan.
+
+## Round 5: polish audit - the game's own code as the subject
+
+Ran 2026-08-28, owner request, five parallel read-only lanes over master at
+89091f2e. INTERNAL, a deviation from this record's external charter: what
+would make the game feel more polished and careful - visual details, the
+stats the editor and the HUD omit, and whether the NovaOS terminal earns its
+place. `POLISH-AUDIT.md` is the evidence (every claim file:line);
+`polish-audit.html` presents and ranks the same findings.
+
+Headlines:
+
+- The owner's wreck bug is confirmed with a root cause: a dead section's
+  meshes keep `SectionCracks` pointing at a despawned entity, the grader
+  reads the miss as damage 0.0 and swaps the pristine material back on
+  (`damage_cracks.rs:434-450`). The burnt tier is separately unreachable:
+  the kill lands in `FixedPostUpdate` before the `Update` grader ever sees
+  the final damage value.
+- The largest visual lever: no IBL exists at all, and ambient light is the
+  unconfigured Bevy default white - under every authored three-point rig.
+- The editor's inspector never walks `BaseSectionConfig` (health, mass,
+  sockets invisible) and `ShipNode.pilot` has no UI; the turret
+  ammo/reload example is All-Fields-only and unitless.
+- Nine numeric readouts exist in flight while the sim computes and discards
+  turn rate, TTI, aim error, brake accel, whole-ship HP, lock-drop reasons.
+- Terminal position: keep it - it is the identity, not a gimmick; dim the
+  HUD instead of hiding it, add bezel app keys, give it an `eng` app, and
+  let docking (20260824-125943) make NovaOS the game's interaction OS.
+
+Cross-references: round 2's target_inset emissive+unlit defect is FIXED on
+master, but the same defect now lives twice in `nova_editor/src/preview.rs`
+(:143-147, :168-172). Does not repeat 20260822-204201 (particle families),
+20260827-120347 (console), 20260824-125955 (audio), or round 3 (combat mode).

@@ -1,0 +1,646 @@
+<title>Nova Polish Audit</title>
+<style>
+  :root {
+    --bg: #fafaf8; --fg: #1a1a1a; --muted: #6b6b66; --line: #e4e4de;
+    --accent: #2f6f4f; --chip: #eef2ee; --panel: #f3f4ef;
+    --bug: #a8352c; --bug-bg: #f6eae8;
+    --warn: #8a5f14; --warn-bg: #f4eedd;
+    --gap: #2c5f8a; --gap-bg: #e8eff5;
+    --call: #2f6f4f; --call-bg: #e8f0ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14161a; --fg: #e6e4de; --muted: #8f8f88; --line: #2a2d33;
+      --accent: #7fbf9a; --chip: #1e2420; --panel: #191c21;
+      --bug: #ff8478; --bug-bg: #2b1d1a;
+      --warn: #ffc06a; --warn-bg: #2a2315;
+      --gap: #82b8e2; --gap-bg: #182430;
+      --call: #7fbf9a; --call-bg: #1a251e;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14161a; --fg: #e6e4de; --muted: #8f8f88; --line: #2a2d33;
+    --accent: #7fbf9a; --chip: #1e2420; --panel: #191c21;
+    --bug: #ff8478; --bug-bg: #2b1d1a;
+    --warn: #ffc06a; --warn-bg: #2a2315;
+    --gap: #82b8e2; --gap-bg: #182430;
+    --call: #7fbf9a; --call-bg: #1a251e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 50rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  .eyebrow {
+    font: 600 .7rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+    margin: 0 0 .5rem;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 .35rem; text-wrap: balance; }
+  .sub { color: var(--muted); margin: 0; font-size: .92rem; max-width: 42rem; }
+  .sub code, p code, li code, td code {
+    font: .85em ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--chip); padding: .05em .3em; border-radius: 3px;
+  }
+  .tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: .6rem; margin: 1.8rem 0 0;
+  }
+  .tile {
+    border: 1px solid var(--line); border-radius: 6px; padding: .7rem .85rem;
+    background: var(--panel);
+  }
+  .tile b {
+    display: block; font-size: 1.45rem; font-weight: 650;
+    font-variant-numeric: tabular-nums; line-height: 1.15;
+  }
+  .tile span { color: var(--muted); font-size: .78rem; }
+  h2 {
+    font-size: .78rem; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--muted); margin: 3rem 0 .3rem; font-weight: 600;
+  }
+  h2 + p.lead { margin: .2rem 0 1rem; color: var(--fg); max-width: 44rem; }
+  p.lead { font-size: .95rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: .9rem; margin: 1.4rem 0 0;
+            color: var(--muted); font-size: .8rem; align-items: center; }
+  .sev {
+    display: inline-block; flex: none;
+    font: 650 .68rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .06em; border-radius: 4px; padding: .05rem .38rem;
+  }
+  .sev.bug  { color: var(--bug);  background: var(--bug-bg); }
+  .sev.warn { color: var(--warn); background: var(--warn-bg); }
+  .sev.gap  { color: var(--gap);  background: var(--gap-bg); }
+  .sev.call { color: var(--call); background: var(--call-bg); }
+  ul.f { list-style: none; margin: 0; padding: 0; }
+  ul.f > li { padding: .85rem 0; border-top: 1px solid var(--line); }
+  ul.f > li:first-child { border-top: none; }
+  .fr { display: flex; gap: .55rem; align-items: baseline; flex-wrap: wrap; }
+  .fr strong { font-weight: 600; }
+  ul.f p { margin: .3rem 0 0; color: var(--muted); font-size: .9rem; max-width: 46rem; }
+  ul.f p.ev, p.ev {
+    font: .74rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--muted); opacity: .85; margin-top: .35rem;
+    overflow-wrap: anywhere;
+  }
+  .panel {
+    border: 1px solid var(--line); border-left: 3px solid var(--bug);
+    border-radius: 6px; background: var(--panel);
+    padding: 1rem 1.15rem; margin: 1rem 0 1.4rem;
+  }
+  .panel.call-p { border-left-color: var(--accent); }
+  .panel h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .panel p { margin: .4rem 0; font-size: .92rem; }
+  ol.path { list-style: none; margin: .8rem 0 .2rem; padding: 0; }
+  ol.path li {
+    position: relative; padding: 0 0 .75rem 1.6rem; font-size: .9rem;
+  }
+  ol.path li::before {
+    content: ""; position: absolute; left: .42rem; top: .45rem; bottom: -.1rem;
+    width: 2px; background: var(--line);
+  }
+  ol.path li:last-child::before { display: none; }
+  ol.path li::after {
+    content: ""; position: absolute; left: .2rem; top: .3rem;
+    width: .5rem; height: .5rem; border-radius: 50%;
+    background: var(--bug); opacity: .85;
+  }
+  ol.path .ev { margin-top: .1rem; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; min-width: 44rem; }
+  th, td { text-align: left; vertical-align: top; padding: .55rem .7rem;
+           border-top: 1px solid var(--line); }
+  thead th { border-top: none; background: var(--panel); color: var(--muted);
+             font: 600 .7rem/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+             letter-spacing: .07em; text-transform: uppercase; }
+  td.part { font-weight: 600; white-space: nowrap; }
+  td .m { color: var(--muted); }
+  ol.rank { list-style: none; margin: 0; padding: 0; counter-reset: r; }
+  ol.rank > li { counter-increment: r; padding: .8rem 0 .8rem 2.4rem;
+                 border-top: 1px solid var(--line); position: relative; }
+  ol.rank > li:first-child { border-top: none; }
+  ol.rank > li::before {
+    content: counter(r, decimal-leading-zero); position: absolute; left: 0; top: .95rem;
+    font: 650 .78rem/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--accent); font-variant-numeric: tabular-nums;
+  }
+  .home {
+    display: inline-block; font: 650 .64rem/1.5 ui-monospace, monospace;
+    letter-spacing: .06em; border: 1px solid var(--line); border-radius: 4px;
+    padding: .02rem .35rem; color: var(--muted); flex: none;
+  }
+  .facts { display: flex; flex-wrap: wrap; gap: .5rem; margin: .9rem 0 0; }
+  .fact {
+    border: 1px solid var(--line); border-radius: 5px; background: var(--panel);
+    padding: .4rem .65rem; font-size: .82rem; color: var(--muted);
+  }
+  .fact b { color: var(--fg); font-weight: 650; font-variant-numeric: tabular-nums; }
+  blockquote {
+    margin: 1rem 0; padding: .1rem 1.1rem; border-left: 3px solid var(--accent);
+    color: var(--fg); font-size: 1.02rem;
+  }
+  .foot { margin-top: 3rem; border-top: 1px solid var(--line); padding-top: 1rem;
+          color: var(--muted); font-size: .82rem; }
+  .eff {
+    display: inline-block; flex: none;
+    font: 650 .64rem/1.5 ui-monospace, monospace; letter-spacing: .05em;
+    color: var(--muted); border: 1px solid var(--line); border-radius: 4px;
+    padding: .02rem .35rem;
+  }
+  a { color: var(--accent); }
+</style>
+
+<main>
+  <p class="eyebrow">Nova Protocol · research record 20260815-231945 · round 5</p>
+  <h1>Nova Polish Audit</h1>
+  <p class="sub">
+    What would make the game feel carefully made. Five read-only lanes over
+    master at <code>89091f2e</code>, 2026-08-28. The evidence record is
+    <code>POLISH-AUDIT.md</code> beside this page; every claim there carries a
+    file:line reference, and the highlights repeat them here.
+  </p>
+
+  <div class="tiles">
+    <div class="tile"><b>57</b><span>findings across 5 lanes</span></div>
+    <div class="tile"><b>9</b><span>confirmed defects, root-caused</span></div>
+    <div class="tile"><b>9</b><span>readouts to promote into play</span></div>
+    <div class="tile"><b>1</b><span>identity to keep: the terminal</span></div>
+  </div>
+
+  <div class="legend">
+    <span class="sev bug">BUG</span> confirmed defect
+    <span class="sev warn">POLISH</span> works, reads unfinished
+    <span class="sev gap">GAP</span> data exists, surface missing
+    <span class="sev call">CALL</span> a decision for the owner
+  </div>
+
+  <h2>The reported bug, root-caused</h2>
+  <p class="lead">
+    "When a section dies and gets split from the ship, its material resets to
+    the pristine one." Confirmed, and it is two defects stacked.
+  </p>
+
+  <div class="panel">
+    <h3><span class="sev bug">BUG</span> Wrecks reset to pristine — the grader reads a dead section as an undamaged one</h3>
+    <ol class="path">
+      <li>Damage zeroes the section's <code>Health</code>; the destroy cascade fires.
+        <p class="ev">integrity/health.rs:145-150 → integrity/core.rs:179-196</p></li>
+      <li><code>detach_destroyed_body</code> spawns the wreck piece, reparents the
+        section's mesh children onto it — materials intact, exactly as designed —
+        then despawns the section entity.
+        <p class="ev">integrity/explode.rs:326-344, :357-361, :373</p></li>
+      <li>The meshes still carry <code>SectionCracks { section }</code> pointing at
+        the despawned entity. Next <code>Update</code>, the damage lookup misses and
+        <code>map_or(0.0, …)</code> reads the miss as damage 0.0.
+        <p class="ev">damage_cracks.rs:428, :434</p></li>
+      <li>Bucket 0 means "healed": the pristine source material — held as a strong
+        handle precisely so this swap always works — goes back on, and the cracked
+        material comes off.
+        <p class="ev">damage_cracks.rs:443-450, source handle :158-166</p></li>
+      <li>Permanent: nothing ever removes <code>SectionCracks</code>, and the
+        re-mark path excludes meshes that already carry it. The wreck stays
+        textbook-clean for its whole 30 s life.
+        <p class="ev">damage_cracks.rs:324-336; explode.rs:342 (TempEntity 30.0)</p></li>
+    </ol>
+    <p>
+      The module doc claims the opposite behavior ("the cracked material is also
+      what a wreck leaves with", damage_cracks.rs:7-8) and no test covers a
+      despawned section. The codebase already contains the correct pattern for
+      this exact orphan case: the thruster plume grader reads a missing section
+      as "dead drive — plume out" (thruster_section.rs:615-621). Cracks makes
+      the opposite choice with the same 0.0.
+    </p>
+    <p>
+      <strong>Fix shape:</strong> on detach, latch the wreck's meshes at their
+      last bucket — or force the top bucket, which reads as charred wreckage —
+      and remove or retarget <code>SectionCracks</code> so the per-frame grade
+      loop stops iterating dangling entities. Add the missing wreck-material test.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3><span class="sev bug">BUG</span> The burnt tier is unreachable even before the reset</h3>
+    <p>
+      The killing damage lands in <code>FixedPostUpdate</code> and the whole
+      destroy cascade completes in the same command flush — but
+      <code>derive_damage_level</code> and the crack grader run later, in
+      <code>Update</code>. The section is despawned before the final damage value
+      is ever graded, so the wreck's last real bucket is whatever the
+      <em>previous</em> frame reached. The shader's burnt term needs damage
+      ≥ 0.78, which only buckets 6-7 hit — so a section killed from above ~22%
+      health never renders burnt at all, and a one-shot kill leaves a fully
+      pristine wreck. <code>BURNT_COLOR</code>'s own comment describes a state
+      the pipeline cannot currently produce.
+    </p>
+    <p class="ev">rounds.rs:109-113 · erosion.rs:80-107 · section_cracks.wgsl:59-63 · damage_cracks.rs:94-96</p>
+  </div>
+
+  <h2>Damage &amp; wreck fidelity</h2>
+  <p class="lead">A kill should leave evidence. Today the wreck goes quiet, clean, and then pops out of existence.</p>
+  <ul class="f">
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Sparks stop dead at the moment of death</strong></div>
+      <p>The spark thrower queries the section entity, which is despawned — a section
+      sparking at maximum rate goes silent the instant it comes off. A wreck that keeps
+      sparking or smoldering for a few seconds would sell the kill. (Effect-family tuning
+      belongs to 20260822-204201; the wreck as an effect <em>carrier</em> is this finding.)</p>
+      <p class="ev">damage_sparks.rs:170</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Cladding and greebles never show damage</strong></div>
+      <p><code>owning_section</code> stops at a <code>SectionFixture</code>, so a burnt
+      wreck still wears perfectly clean skin plates and greebles.</p>
+      <p class="ev">damage_cracks.rs:283-285 · fixture.rs:15-23</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Wrecks vanish by hard despawn</strong></div>
+      <p><code>TempEntity(30.0)</code> is a hard cut — no fade, shrink, or dissolve.
+      The pop is visible whenever a wreck dies on screen.</p>
+      <p class="ev">explode.rs:342 · lifetime.rs:93-115</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The hit flash is a 2 px wireframe that cannot bloom</strong></div>
+      <p>Impact and destruction feedback is a default-config gizmo ring: 2 px line,
+      z-tested against the hull it just hit, LDR colours under an HDR bloom chain.
+      The module doc names the successor itself — "a true per-section emissive flash
+      is a possible follow-up".</p>
+      <p class="ev">juice.rs:21-23, :599, :641</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong>Docs in this area describe removed or wrong behavior</strong></div>
+      <p><code>fixture.rs:28-31</code> references <code>grade_section_tints</code>, which
+      no longer exists; <code>census.rs:238-241</code> claims cladding gets the cracks
+      material and that the <code>StandardMaterial</code> is always replaced — wrong on
+      both counts.</p>
+      <p class="ev">nova_ship/src/sections/fixture.rs:28-31 · nova_probe/src/capabilities/census.rs:238-241</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong><code>SectionCracks</code> leaks on every wreck</strong></div>
+      <p>Each wreck mesh keeps a strong material handle plus a dangling entity for
+      30 s, and the grader iterates them every frame for nothing.</p>
+      <p class="ev">damage_cracks.rs:158-166, :428</p></li>
+  </ul>
+
+  <h2>Light &amp; atmosphere</h2>
+  <p class="lead">
+    The single largest visual lever in the game is here: the scene has authored
+    three-point rigs sitting on top of unconfigured engine defaults.
+  </p>
+  <ul class="f">
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>No image-based lighting exists — the skybox lights nothing</strong></div>
+      <p>Zero uses of any environment-map light. The 4096 cubemap is backdrop only, and
+      hull styles are authored near-dielectric (metallic 0.0-0.15) — consistent with, and
+      likely a workaround for, real metal rendering black without IBL. Bevy 0.19 ships
+      <code>GeneratedEnvironmentMapLight</code>, which derives IBL from the existing
+      skybox handle; the insertion point is one place.</p>
+      <p class="ev">lifecycle.rs:253-266 · base.content.ron:15,26,327,338,563,574 · shell_skin.rs:928</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong>Ambient light is the Bevy default, contradicting the design</strong></div>
+      <p>Nothing sets ambient, so a flat white 80-lux wash sits under every authored rig —
+      while the code claims "a scene that authors nothing renders black". One line to fix,
+      then the authored lights are the only lights.</p>
+      <p class="ev">lifecycle.rs:268-270 · objects/light.rs:2-3</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The three-point rig is a still-life rig for a flying game</strong></div>
+      <p>Key, rim and fill aim at a fixed world point, so as the player flies, the ship
+      drifts out of the rig — ending up flat-lit or fully backlit. A camera- or
+      ship-relative rim would keep the hero shot everywhere.</p>
+      <p class="ev">objects/light.rs:88-102, :117-142</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The post chain is stock and the exposure is a literal</strong></div>
+      <p><code>TonyMcMapface + Bloom::NATURAL</code> verbatim; no grading, no AO, no AA
+      choice, no fog anywhere. Skybox brightness is the hardcoded 1000.0 in three places,
+      not authorable — though the two shipped cubemaps differ visibly.</p>
+      <p class="ev">camera/post.rs:71-72 · skybox.rs:76 · lifecycle.rs:265 · actions/view.rs:147-160</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Two skyboxes, shipped raw; a tested swap action no content uses</strong></div>
+      <p>Both cubemaps are raw PNG (~402 MB VRAM each uncompressed) though the pipeline
+      accepts ktx2/basis. <code>SetSkybox</code> is finished and e2e-tested, and no shipped
+      scenario calls it. One dusk-lit scenario would pay for both.</p>
+      <p class="ev">mod_refs.rs:314 · actions/view.rs:163-290 · grep SetSkybox assets/ → empty</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Friend-or-foe is a HUD fact, never a world fact</strong></div>
+      <p><code>Allegiance</code> reaches no material system. Two ships in the same style
+      are pixel-identical; only the HUD triangle tells them apart. Even a subtle
+      running-light or trim tint would put the information in the world.</p>
+      <p class="ev">relations.rs:26-44 · edge_indicators.rs:269-273</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong>Two dead <code>emissive + unlit</code> materials in editor previews</strong></div>
+      <p>The beacon preview and the light-bulb marker both set an emissive on an unlit
+      material — the unlit path never reads it, so neither ever glows. This is the exact
+      defect <code>target_inset.rs</code> fixed and documented; the editor copies were
+      never swept. (Round 2 recorded the target_inset instance; that one is now fixed.)</p>
+      <p class="ev">nova_editor/src/preview.rs:143-147, :168-172 · target_inset.rs:249-255</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Placeholder part materials are flat albedo; the "hot red" nozzle never glows</strong></div>
+      <p>Five pure-colour materials with default roughness/metallic. The nozzle is
+      documented as hot but carries no emissive, so it never blooms.</p>
+      <p class="ev">placeholder_art.rs:62, :86-90</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Per-entity material mints, and one rock texture in the whole game</strong></div>
+      <p>One <code>StandardMaterial</code> per salvage crate (all crates pulse on one shared
+      clock); one material per asteroid (only the mesh needs to be unique for carving).
+      Every rock in the game is the same 736×736 texture.</p>
+      <p class="ev">salvage.rs:247-251 · asteroid.rs:409-418 · assets/base/textures/asteroid.png</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Camera shake is white noise resampled per frame</strong></div>
+      <p>Frame-rate-dependent character; reads as buzz, not swing. The code names the
+      problem itself, and the response was to shrink amplitudes rather than switch to
+      smooth (Perlin-style) noise. The drift-free trauma mechanism underneath is good.</p>
+      <p class="ev">shake.rs:309-314 · juice.rs:114-125</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Nothing communicates velocity</strong></div>
+      <p>At 500 m/s the only differences from a standstill are a number and a 3-unit
+      camera lean — framing is deliberately speed-invariant. A cheap camera-local dust
+      layer is the classic fix and does not collide with the vacuum-VFX task's effect
+      families. No ambient parallax, no scale-reference structures.</p>
+      <p class="ev">framing.rs:79-95, :114-117</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>No scene-level fade anywhere</strong></div>
+      <p>Menu → game is a raw state set plus despawns; the menu backdrop's first entry
+      has a documented one-frame blank. The loading screens, by contrast, are finished
+      work — the fade discipline exists, just not at the boundaries.</p>
+      <p class="ev">scenarios.rs:635 · ambience.rs:198-227 · loading_screen.rs:27-72</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Settings were built for binding and never wired</strong></div>
+      <p><code>JuiceSettings</code> carries per-effect <code>enabled</code> flags "so a
+      settings menu can bind to it later"; the Graphics tab has no shake toggle, no HUD
+      scale, no brightness. Cross-ref: settings task 20260824-120527.</p>
+      <p class="ev">juice.rs:31-32, :86, :137 · settings.rs:480-509</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The free-fly camera admits it is unsmoothed</strong></div>
+      <p>"This allows for smoothing in the future if needed" — raw position and yaw/pitch
+      writes, in the camera that frames the menu backdrop and the editor.</p>
+      <p class="ev">wasd.rs:202-210</p></li>
+  </ul>
+
+  <h2>HUD &amp; UI consistency</h2>
+  <ul class="f">
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Every HUD size is a fixed pixel literal; no HUD scale exists</strong></div>
+      <p>A 24 px edge arrow and a 10 px label are the same on 1024×768 and 4K; no
+      <code>UiScale</code> is written anywhere and <code>PersistedSettings</code> has no
+      HUD-scale field. The <code>screen_indicator</code> widget already offers
+      <code>ApparentSize</code>/<code>WorldRadius</code> scaling — most consumers pass
+      <code>Fixed</code>.</p>
+      <p class="ev">edge_indicators.rs:21-36 · allegiance_markers.rs:66-85 · screen_indicator.rs:55-95</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Fixed chip offsets collide under clutter</strong></div>
+      <p>Speed and mode chips sit 24 px apart; marker offsets are constant regardless of
+      range; two hostiles at similar bearing stack their triangles and labels with no
+      de-clutter pass.</p>
+      <p class="ev">flight_status.rs:44-48 · objective_markers.rs:102</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Nine slightly-different combat reds</strong></div>
+      <p>The theme centralizes <code>semantic::THREAT</code> and admits the drift ("the
+      many slightly-different combat reds/ambers intentionally stay local"). Nine reds
+      that are all "combat red" and none the same is a palette pass waiting to happen.</p>
+      <p class="ev">theme.rs:103-106 · component_lock.rs:28 · edge_indicators.rs:39 · turret_lead.rs:51 …</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong>Three bare <code>TextShadow::default()</code> in the editor</strong></div>
+      <p>Exactly the 4 px hard-shadow ghosting the nova_ui policy forbids and tests
+      against — live in plate, keybind and callout rendering.</p>
+      <p class="ev">nova_editor: plate.rs:112 · keybind.rs:150 · callout.rs:81 · policy: button.rs:718-721</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The target inset pays full post on a half-shown texture, against a void</strong></div>
+      <p>512 px RTT displayed at 256 px with bloom + tonemapping; the inset deliberately
+      has no skybox, so targets sit on near-black while the main view shows a nebula.</p>
+      <p class="ev">target_inset.rs:63-66, :565-579</p></li>
+  </ul>
+
+  <h2>The editor's numbers</h2>
+  <p class="lead">
+    The inspector is reflection-driven: <code>walk()</code> flattens a config,
+    <code>curate()</code> picks the first screen. Two structural gaps drive most
+    of the misses — and the turret example is confirmed exactly as reported.
+  </p>
+  <ul class="f">
+    <li><div class="fr"><span class="sev gap">GAP</span><strong><code>BaseSectionConfig</code> is never walked — health, mass and sockets are invisible</strong></div>
+      <p><code>section_rows</code> walks only the kind config; the base — health, collider
+      (mass and footprint), link points, name, description — is unreachable even under
+      All Fields. Only <code>id</code> leaks through as the read-only Part row. The
+      gallery card shows most of it; the inspector none.</p>
+      <p class="ev">inspect.rs:1521-1526 · base_section.rs:249-313 · gallery/catalog.rs:123-212</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Turret ammo and reload are All-Fields-only and unitless</strong></div>
+      <p>The owner's example, confirmed: <code>ammo_capacity</code>,
+      <code>reload.delay</code>, <code>reload.amount</code> are off the first screen, carry
+      no units, and integers drag by 0.1 and snap back. The torpedo bay matches — plus its
+      whole <code>torpedo_type</code> block (name, tint, max speed, weave) is buried too.
+      The inspector and the gallery card are exact complements of each other's gaps.</p>
+      <p class="ev">turret config.rs:190 · ammo.rs:91-93 · torpedo mod.rs:179, :253-306</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>The AI pilot has no UI anywhere</strong></div>
+      <p><code>ShipNode.pilot</code> (patrol, orbit, leash, engage delay/range, PD range,
+      waypoint slack, arrival standoff) is carried through save/load and shown nowhere —
+      while a seeded-hull scenario object exposes the same config through its
+      <code>CONTROLLER</code> pick. An asymmetry, not a policy.</p>
+      <p class="ev">node.rs:153 · spaceship.rs:104-183 · inspect.rs:416, :473</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Derived stats exist as CI formulas and never reach the screen</strong></div>
+      <p>The rail readout already shows Turn / Mass / Thrust / HP / Parts with the
+      limit note — the right register, hidden at the scenario node. DPS, effective range,
+      TTK, tube count are already correct formulas in <code>nova_authoring::balance</code>;
+      thrust-to-mass, total ammo, centre of mass, max speed are one step further.</p>
+      <p class="ev">readout.rs:25-153 · balance.rs:212-217, :411-414</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>Units are inconsistent inside a single panel</strong></div>
+      <p>Thruster <code>magnitude</code> is impulse per fixed tick, labeled with nothing;
+      <code>max_torque</code> unitless while derived Turn is rad/s²; pose rotation is
+      degrees and labeled, config quats are degrees unlabeled, turret joint limits are raw
+      radians unlabeled; <code>mass</code> on anchors/asteroids is actually the
+      gravitational parameter μ (u³/s²) shown as "Mass" — the same word the rail uses for
+      hull mass; turret reach is <code>muzzle_speed × projectile_lifetime</code> and the
+      product is never shown.</p>
+      <p class="ev">thruster_section.rs:474-483 · inspect.rs:388-390 · config.rs:70-82 · anchor.rs:37</p></li>
+    <li><div class="fr"><span class="sev bug">BUG</span><strong>The editor accepts values the spawner rejects</strong></div>
+      <p><code>reload.delay</code> is floored at 0.0 in the inspector, but
+      <code>SectionReload::from_config</code> debug-asserts delay &gt; 0.</p>
+      <p class="ev">inspect.rs:427 · ammo.rs:117-125</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Leftovers with no surface</strong></div>
+      <p><code>SectionNode.modifications</code> (SetHealth, SetAmmo, Rename, DisableVerb —
+      "the editor authors none yet"); <code>ShipHull.collapse_threshold</code> hard-coded
+      to default; the scenario root shows three read-only counts; asteroid/beacon
+      <code>lock_signature</code> buried; a light's Directional/Point kind not switchable.</p>
+      <p class="ev">node.rs:180-182 · scenario.rs:474-481 · inspect.rs:1477-1491, :742-759</p></li>
+  </ul>
+
+  <h3 style="font-size:.95rem; margin:1.6rem 0 .4rem;">Coverage at a glance</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Part</th><th>First screen shows</th><th>Only under All Fields</th><th>Never reachable</th></tr></thead>
+      <tbody>
+        <tr><td class="part">Turret</td>
+          <td>fire rate, muzzle speed, damage, kind, lifetime</td>
+          <td><b>ammo capacity, reload delay/amount</b>, traverse speed/limits (raw rad), joints</td>
+          <td class="m">meshes, sounds, muzzle effect</td></tr>
+        <tr><td class="part">Torpedo bay</td>
+          <td>fire rate, speed, blast dmg/radius, arm time/dist, nav constant, lifetime</td>
+          <td><b>ammo, reload, torpedo type</b> (name/tint/max speed/weave), projectile HP, damping</td>
+          <td class="m">meshes, effects, sounds</td></tr>
+        <tr><td class="part">Thruster</td>
+          <td>magnitude (unitless)</td>
+          <td>exhaust offset/rotation/shape</td>
+          <td class="m">mesh, loop sound</td></tr>
+        <tr><td class="part">Controller</td>
+          <td>steering lag, max torque (unitless)</td>
+          <td>mesh transform</td>
+          <td class="m">mesh, 6 sounds</td></tr>
+        <tr><td class="part">Hull</td>
+          <td class="m">— (Part row only)</td>
+          <td>mesh transform</td>
+          <td class="m">mesh</td></tr>
+        <tr><td class="part">Section base</td>
+          <td class="m">— (id as Part row)</td>
+          <td class="m">—</td>
+          <td><b>health, collider/mass, link points</b>, name, description, damage effects</td></tr>
+        <tr><td class="part">Ship node</td>
+          <td>name, driver, allegiance (ro), pose</td>
+          <td class="m">—</td>
+          <td><b>pilot (8 AI fields)</b>, collapse threshold</td></tr>
+        <tr><td class="part">Scenario root</td>
+          <td class="m">3 read-only counts</td>
+          <td class="m">—</td>
+          <td>events, timers, belts, sky</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>The numbers the game already knows</h2>
+  <p class="lead">
+    Exactly nine numeric readouts exist in flight. The simulation computes far
+    more, every frame, and throws it away. Ranked promotion candidates — each
+    with its authoritative, already-running source:
+  </p>
+  <ol class="rank">
+    <li><div class="fr"><strong>Own-ship integrity</strong><span class="home">HUD</span></div>
+      <p><code>aggregate_ship_health</code> writes a whole-ship <code>Health</code> to the
+      root every frame — and there is no own-ship HP element in the HUD at all. Only the
+      locked <em>target</em> gets a bar.</p>
+      <p class="ev">sections/integrity.rs:623, :706</p></li>
+    <li><div class="fr"><strong>Turn rate, and why it is what it is</strong><span class="home">HUD + OS</span></div>
+      <p><code>ship_turn_rate()</code> is consumed every frame by input slew;
+      <code>AttitudeEnvelope</code> knows the ceiling and <code>AttitudeLimit::label()</code>
+      knows the reason ("torque-limited" / "structure-limited"). <code>None</code> is a
+      first-class ADRIFT state. Written "for a build screen that has to say WHY a number
+      is what it is" — flight deserves the same sentence.</p>
+      <p class="ev">guidance.rs:306-322 · attitude.rs:27-121</p></li>
+    <li><div class="fr"><strong>Time-to-intercept on the lead pip</strong><span class="home">HUD</span></div>
+      <p><code>lead_intercept_point()</code> solves the intercept time <code>t</code> and
+      returns only the point. The TTI chip is free.</p>
+      <p class="ev">turret_section/aim.rs (lead_intercept_point)</p></li>
+    <li><div class="fr"><strong>On-target angle</strong><span class="home">HUD</span></div>
+      <p><code>muzzle_aim_error()</code> runs per tick with a ~0.92° on-target threshold —
+      a firing-solution readout already computed.</p>
+      <p class="ev">aim.rs:47-54</p></li>
+    <li><div class="fr"><strong>Brake distance and flip data</strong><span class="home">HUD</span></div>
+      <p><code>ManeuverTelemetry.brake_accel</code> carries its own doc: "No HUD instrument
+      reads this yet." The arrival curve v = √(2·a·margin·d) gives brake distance.</p>
+      <p class="ev">flight/state.rs:210 · guidance.rs (arrival_speed_limit)</p></li>
+    <li><div class="fr"><strong>Lock-drop reason</strong><span class="home">Comms</span></div>
+      <p><code>CombatLockDropped { reason, idle_secs }</code> is a fully-formed diagnostic
+      the player never sees — TargetGone, OutOfRange, AllegianceFlip, IdleDecay. An ideal
+      comms/log line.</p>
+      <p class="ev">targeting/state.rs:264-284</p></li>
+    <li><div class="fr"><strong>Rated max speed</strong><span class="home">HUD</span></div>
+      <p><code>FlightSpeedCap</code> with its soft taper is a genuine "rated velocity"
+      the player cannot currently see.</p>
+      <p class="ev">flight/state.rs:40 · manual.rs:83-88</p></li>
+    <li><div class="fr"><strong>Gravity magnitude and SOI</strong><span class="home">OS</span></div>
+      <p><code>GravityWell { mu, body_radius, soi_radius }</code> — surfaced today only as
+      a direction sphere. Magnitude and SOI distance are free, and exactly the sciency
+      register the game wants.</p>
+      <p class="ev">gravity.rs:57-89</p></li>
+    <li><div class="fr"><strong>Torpedo armed state</strong><span class="home">HUD</span></div>
+      <p><code>TorpedoArming.is_armed()</code> exists; point-blank duds are currently
+      unexplained to the player. Gameplay legibility, not just flavour.</p>
+      <p class="ev">torpedo_section/mod.rs:608</p></li>
+  </ol>
+  <p class="lead" style="margin-top:1rem;">
+    Two omissions are <em>deliberate</em> and predate this round: closing speed
+    was cut from the destination readout after playtest, and exact ammo counts
+    are pips-only by written policy. Don't steamroll them — route those numbers
+    to NovaOS instead (next section). Implementation notes: the scenario readout
+    strip (<code>nova_hud/src/readout.rs</code>) is the cheapest existing numeric
+    surface, and the chip recipe is
+    <code>nova_ui::hud::chip_node + units + screen_indicator + HudContextGate</code>.
+    <code>nova_info</code>, despite the name, is only the version string.
+  </p>
+
+  <h2>The terminal</h2>
+  <div class="facts">
+    <span class="fact"><b>14</b> commands</span>
+    <span class="fact"><b>5</b> capabilities are terminal-only</span>
+    <span class="fact"><b>2</b> apps, launchable only by typing</span>
+    <span class="fact"><b>~0.8 s</b> first-open boot</span>
+    <span class="fact">hard-pauses the game</span>
+    <span class="fact">hides the entire HUD</span>
+    <span class="fact">gamepad can open it, cannot launch apps</span>
+  </div>
+  <p class="lead" style="margin-top:1rem;">
+    Terminal-only today: autopilot to a contact, section repair/reload,
+    per-section rebinding, the full flight log, the detailed objective list.
+    Known defect: backquote both types into the prompt and cycles HUD
+    visibility (<code>hud_cinematic</code> is <code>Context::Always</code>,
+    nova_hud/src/lib.rs:406-411).
+  </p>
+
+  <div class="panel call-p">
+    <h3><span class="sev call">CALL</span> Keep it. The terminal is the identity, not the gimmick.</h3>
+    <blockquote>
+      The whole UI already speaks NovaOS — phosphor chips, CRT loading screens,
+      the menu footer. What makes it feel "out of context" is not that you type;
+      it is that the game stops and the HUD vanishes, so using the ship's
+      computer feels like <em>leaving the ship</em>. Close the gap between HUD
+      and terminal; don't retire either.
+    </blockquote>
+    <ul class="f">
+      <li><div class="fr"><strong>1 · Own the pause, keep the world</strong></div>
+        <p>Opening the terminal <em>is</em> a tactical pause — fiction-friendly, the pilot
+        looks down at the second seat. Keep it, but dim the HUD instead of hiding it, so
+        the fight you paused stays visible around the screen.</p></li>
+      <li><div class="fr"><strong>2 · Apps without typing</strong></div>
+        <p>MAP / SHIP / LOG / HELP as clickable function keys on the casing chin, and a
+        gamepad app row. <code>enter_app</code> already exists with no production caller.
+        Typing stays the power path; commands stay the fiction.</p></li>
+      <li><div class="fr"><strong>3 · An <code>eng</code> app — the nerd numbers' home</strong></div>
+        <p>The editor's stat block (Turn / Mass / Thrust / HP / Parts + the limit note)
+        rendered live, plus per-section HP, the damage model, gravity, envelope ceilings.
+        This answers the sciency ask <em>and</em> makes the terminal genuinely useful:
+        the HUD gets glanceable chips, NovaOS gets depth. The two deliberate HUD
+        omissions — closing speed, exact ammo — belong exactly here.</p></li>
+      <li><div class="fr"><strong>4 · Echo results out</strong></div>
+        <p>A command's outcome should leave a trace on the HUD after close.
+        <code>map goto</code> already does (the AP chip); make that the pattern.</p></li>
+      <li><div class="fr"><strong>5 · Docking is the payoff</strong></div>
+        <p>The stations task (20260824-125943) needs an interaction surface. NovaOS pages
+        — DOCKING, TRADE — make stations run the same operating system the ship does. The
+        terminal stops being a side feature and becomes the game's interaction OS.</p></li>
+      <li><div class="fr"><strong>6 · Sweep the frictions</strong></div>
+        <p>The backquote conflict; Ctrl-A/E/U/K (swallowed but unimplemented); Home/End;
+        click-to-position; boot skip on first keypress.</p></li>
+    </ul>
+    <p style="margin-top:.6rem;">
+      Distinct from 20260827-120347 (the CSGO-style console): that is
+      out-of-fiction tooling, overlap today is essentially zero, and it should
+      stay that way — though the console can reuse <code>nova_os::shell</code>'s
+      UI-free matcher.
+    </p>
+  </div>
+
+  <h2>Mechanics observations</h2>
+  <ul class="f">
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Closing-speed damage scaling is invisible</strong></div>
+      <p>The player cannot tell that closing faster hits harder. A "kinetic bonus"
+      readout or comms line turns a hidden formula into a play axis.</p>
+      <p class="ev">damage.rs:159, :229</p></li>
+    <li><div class="fr"><span class="sev gap">GAP</span><strong>Point-defence assignment is invisible</strong></div>
+      <p>Which turret is defending against what is decided and never shown — round 3's
+      combat-mode research made mode legibility the central issue; this is the same
+      thread.</p>
+      <p class="ev">point_defense/ownership.rs:57-90</p></li>
+    <li><div class="fr"><span class="sev call">CALL</span><strong>Repair and reload are free and instant</strong></div>
+      <p>Today they are NovaOS actions with no cost. If stations land, they are the
+      obvious first service hook — repair as a docked service, reload as inventory.</p>
+      <p class="ev">nova_os_ui/src/ship/sections.rs:525-560</p></li>
+    <li><div class="fr"><span class="sev call">CALL</span><strong>Finished machinery, no content</strong></div>
+      <p><code>SetSkybox</code> and per-scenario exposure are built and tested with zero
+      authored users. One scenario that changes the sky mid-mission would showcase both.</p>
+      <p class="ev">actions/view.rs:163-290</p></li>
+  </ul>
+
+  <h2>If you fix six things</h2>
+  <ol class="rank">
+    <li><div class="fr"><strong>Latch the wreck material</strong><span class="eff">S</span></div>
+      <p>The reported bug plus the unreachable burnt tier, one change: force or latch the
+      top crack bucket on detach, clean up <code>SectionCracks</code>, add the test.</p></li>
+    <li><div class="fr"><strong>Set ambient, add IBL from the skybox</strong><span class="eff">S–M</span></div>
+      <p>Two lines buy the biggest look upgrade in the game; then the metallic authoring
+      can stop compensating.</p></li>
+    <li><div class="fr"><strong>Replace the gizmo hit rings with emissive flashes</strong><span class="eff">M</span></div>
+      <p>The one placeholder VFX outside the vacuum task's scope, already named as a
+      follow-up in its own module doc.</p></li>
+    <li><div class="fr"><strong>Curate turret/torpedo ammo + reload, label the units</strong><span class="eff">S</span></div>
+      <p>The owner's editor example, plus the rad/deg and per-tick labeling sweep.</p></li>
+    <li><div class="fr"><strong>Own-ship integrity + turn-rate chips</strong><span class="eff">S</span></div>
+      <p>The two highest-value diegetic numbers; both sources already run every frame.</p></li>
+    <li><div class="fr"><strong>Dim, don't hide, the HUD under NovaOS + bezel app keys</strong><span class="eff">M</span></div>
+      <p>The two changes that most move the terminal from "interruption" to "second seat".</p></li>
+  </ol>
+
+  <p class="foot">
+    Round 5 of research record <code>tasks/20260815-231945</code> · evidence in
+    <code>POLISH-AUDIT.md</code> (file:line for every claim) · baseline master
+    <code>89091f2e</code>, 2026-08-28 · does not repeat 20260822-204201 (vacuum
+    VFX), 20260827-120347 (console), 20260824-125955 (audio), or round 3
+    (combat mode).
+  </p>
+</main>
