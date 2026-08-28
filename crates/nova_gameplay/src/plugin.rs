@@ -70,8 +70,12 @@ impl Plugin for NovaGameplayPlugin {
         // render-gated HUD.
         app.init_resource::<crate::objectives::GameObjectives>();
 
-        // Random number generator
-        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        // Random number generator: OS entropy for play, one seed for a
+        // replayable run (`NOVA_SEED`, task 20260820-174148).
+        match crate::settings::seed_from_env() {
+            Some(seed) => app.add_plugins(EntropyPlugin::<WyRand>::with_seed(seed.to_le_bytes())),
+            None => app.add_plugins(EntropyPlugin::<WyRand>::default()),
+        };
 
         // Hanabi particles run on every target: native, and wasm via the WebGPU
         // backend (compute shaders; see nova_core's wasm webgpu feature).

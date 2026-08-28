@@ -107,6 +107,18 @@ environment half exists at all. See
 `NOVA_CAPTURE` set; `NOVA_MUTE=0` forces sound through one. The flag wins over
 both, and a muted run says `nova audio: output muted for this run` once.
 
+## The replay seed
+
+Owned by `nova_gameplay`, next to the entropy plugin it seeds.
+
+| Variable | Gates | For |
+| --- | --- | --- |
+| `NOVA_SEED` | seeds the gameplay RNG with one `u64`, so a driven run replays byte for byte; unset, the OS seeds it and no two runs agree | harness |
+
+A value that does not parse as a `u64` refuses the boot rather than running
+unseeded - a replay that silently lost its seed is the failure the knob exists
+to prevent.
+
 ## Modding, and the settings store
 
 Owned by `nova_assets`. See `/create/publish-a-mod/` for the portal.

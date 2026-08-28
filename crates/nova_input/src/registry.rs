@@ -619,9 +619,22 @@ impl InputBindings {
                 Vec::new()
             }
         };
-        Bindings::spawn((SpawnIter(sources.into_iter()), axes))
+        (
+            ActionName(self.get(name).map_or("", |action| action.name)),
+            Bindings::spawn((SpawnIter(sources.into_iter()), axes)),
+        )
     }
 }
+
+/// The registry name on a rig-built action entity, so a runtime caller - the
+/// process channel echoing an ack - can read a `TriggerState` back BY NAME
+/// instead of by the rig's private marker type.
+///
+/// Stamped by [`InputBindings::bundle`] / [`InputBindings::bundle_with`], which
+/// every rig goes through. Empty for the unregistered-name failure path those
+/// log; readers skip it the way they skip an absent entity.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ActionName(pub &'static str);
 
 /// Whether one of these two actions shadows the other. Not a method on
 /// [`ActionBinding`] because it is symmetric and neither side owns it.

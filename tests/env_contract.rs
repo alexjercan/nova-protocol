@@ -23,7 +23,7 @@ use nova_assets::{
     mod_cache::MOD_CACHE_ROOT_ENV, portal::PORTAL_URL_ENV, storage::CONFIG_ROOT_ENV,
 };
 use nova_autopilot::prelude::*;
-use nova_gameplay::prelude::{HARNESS_ENVS, MUTE_ENV};
+use nova_gameplay::prelude::{HARNESS_ENVS, MUTE_ENV, SEED_ENV};
 use nova_menu::prelude::MENU_BACKDROP_ENV;
 use nova_probe::{
     probe_env, CONTRACT_PARAM, FRAMES_PARAM, INVARIANTS_PARAM, LABEL_PARAM, NORENDER_ENV,
@@ -74,6 +74,13 @@ fn the_measurement_variables_all_carry_the_probe_prefix() {
 fn the_outputs_off_pair_is_norender_and_mute() {
     assert_eq!(NORENDER_ENV, "NOVA_NORENDER");
     assert_eq!(MUTE_ENV, "NOVA_MUTE");
+}
+
+/// The replay seed: one `u64` that makes a driven run deterministic.
+/// Owned by `nova_gameplay`, which owns the entropy plugin it seeds.
+#[test]
+fn the_replay_seed_is_the_documented_one() {
+    assert_eq!(SEED_ENV, "NOVA_SEED");
 }
 
 /// Modding and the settings store. `NOVA_CONFIG_ROOT` is deliberately NOT in
@@ -135,6 +142,8 @@ const ROSTER: &[&str] = &[
     // Outputs off - nova_core and nova_gameplay.
     "NOVA_NORENDER",
     "NOVA_MUTE",
+    // The replay seed - nova_gameplay.
+    "NOVA_SEED",
     // Modding - nova_assets.
     "NOVA_MODDING_CACHE_ROOT",
     "NOVA_MODDING_PORTAL_URL",

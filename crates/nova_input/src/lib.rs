@@ -93,8 +93,8 @@ pub mod prelude {
         dispatch::{DispatchError, DrivenPresses, InputPhase, SynthesizedGamepad},
         poll::InputSources,
         registry::{
-            ActionAxes, ActionBinding, BindingChip, BindingSpec, GamepadStick, InputBindings,
-            WheelDirection,
+            ActionAxes, ActionBinding, ActionName, BindingChip, BindingSpec, GamepadStick,
+            InputBindings, WheelDirection,
         },
         source::{
             binding_source, gamepad_label, key_symbol, keyboard_label, modifier_pair,

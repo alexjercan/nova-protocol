@@ -293,14 +293,22 @@ impl AppBuilder {
         });
 
         // The flight HUD and the NOVA OS cockpit monitor are peers, each its own
-        // crate above gameplay - so the crate that orders them adds them. Both
-        // are render-gated: a headless harness run draws neither. The HUD goes
-        // first, because the monitor orders its own sets against
+        // crate above gameplay - so the crate that orders them adds them. The
+        // HUD goes first, because the monitor orders its own sets against
         // `NovaHudSystems`.
-        if self.render {
-            self.app.add_plugins(nova_hud::NovaHudPlugin);
-            self.app.add_plugins(nova_os_ui::NovaOsUiPlugin);
-        }
+        //
+        // SPIKE (task 20260820-174148, not landed): previously render-gated. A
+        // headless run kept only 15 of the 33 registry actions because both
+        // plugins register their bindings inside `build`, and NOVA OS did not
+        // exist at all off-screen. Everything GPU-side in them is already
+        // guarded by bevy (`UiMaterialPlugin` and friends no-op without a
+        // render sub-app), so the spike adds them unconditionally and lets a
+        // headless boot prove - or refute - that the gate was never load-
+        // bearing. The probe-noise question (headless measurement runs now
+        // carry HUD/monitor CPU systems) is recorded in TASK.md as the open
+        // owner call.
+        self.app.add_plugins(nova_hud::NovaHudPlugin);
+        self.app.add_plugins(nova_os_ui::NovaOsUiPlugin);
 
         if self.use_default_plugins {
             self.app.add_plugins(NovaEditorPlugin);

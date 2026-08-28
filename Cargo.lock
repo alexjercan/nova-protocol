@@ -4507,11 +4507,13 @@ dependencies = [
  "avian3d",
  "bevy",
  "bevy_enhanced_input",
+ "bevy_rand",
  "clap",
  "embed-resource",
  "nova_assets",
  "nova_authoring",
  "nova_autopilot",
+ "nova_channel",
  "nova_core",
  "nova_debug",
  "nova_gameplay",
@@ -4582,6 +4584,21 @@ dependencies = [
  "bevy",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nova_channel"
+version = "0.11.0"
+dependencies = [
+ "bevy",
+ "bevy_enhanced_input",
+ "nova_autopilot",
+ "nova_events",
+ "nova_gameplay",
+ "nova_input",
+ "nova_probe",
+ "nova_ship",
+ "serde_json",
 ]
 
 [[package]]
@@ -4800,6 +4817,7 @@ dependencies = [
  "nova_core",
  "nova_events",
  "nova_gameplay",
+ "nova_os_ui",
  "nova_scenario",
  "nova_ship",
  "serde_json",

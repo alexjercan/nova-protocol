@@ -101,6 +101,32 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
         InputPhase::Press => driven_source(world, name)?,
         InputPhase::Release => held_source(world, name)?,
     };
+    press_source(world, source, phase);
+    match phase {
+        InputPhase::Press => {
+            world
+                .get_resource_or_init::<DrivenPresses>()
+                .0
+                .insert(name.to_string(), source);
+        }
+        InputPhase::Release => {
+            if let Some(mut held) = world.get_resource_mut::<DrivenPresses>() {
+                held.0.remove(name);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Press or release one physical source directly - the injector half of
+/// [`apply`], for a caller that resolved the source itself.
+///
+/// The process channel's `section.<id>` lane is that caller: a hull section
+/// carries its own binding list off the ship, outside this registry, and
+/// pressing it must still reach the synthesized pad when the source is a pad
+/// button. Such a caller owns its own press/release pairing, so nothing here
+/// touches [`DrivenPresses`].
+pub fn press_source(world: &mut World, source: InputSource, phase: InputPhase) {
     match (source, phase) {
         (InputSource::Keyboard(key), InputPhase::Press) => {
             world.resource_mut::<ButtonInput<KeyCode>>().press(key);
@@ -120,20 +146,6 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
         }
         (InputSource::Gamepad(button), phase) => press_pad(world, button, phase),
     }
-    match phase {
-        InputPhase::Press => {
-            world
-                .get_resource_or_init::<DrivenPresses>()
-                .0
-                .insert(name.to_string(), source);
-        }
-        InputPhase::Release => {
-            if let Some(mut held) = world.get_resource_mut::<DrivenPresses>() {
-                held.0.remove(name);
-            }
-        }
-    }
-    Ok(())
 }
 
 /// The source each named action is currently held down through.

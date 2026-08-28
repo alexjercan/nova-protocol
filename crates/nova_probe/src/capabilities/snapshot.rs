@@ -10,9 +10,14 @@
 //!
 //! ## What is in a snapshot
 //!
-//! A header (`schema`, `scenario`, `frame`, `elapsed`, `t_real`, `game_state`,
-//! `reason`), then:
+//! A header (`schema`, `scenario`, `frame`, `elapsed`, `t_real`, `t_game`,
+//! `game_state`, `reason`), then:
 //!
+//! - `ui` - the screen a GUI player sees, as data: the pause rung, the NOVA OS
+//!   terminal model while it owns the screen, every named visible UI rect with
+//!   a button flag, and the CRT glass slice (map contact code -> window px).
+//!   What the process channel's pointer lane resolves against
+//!   (task 20260820-174148).
 //! - `ships` - every [`SpaceshipRootMarker`]: identity, transform, velocity,
 //!   aggregate health, mass, the collapse/defeat/neutralize flags, weapon
 //!   locks, its `skin`, and its `sections`.
@@ -102,7 +107,12 @@ use nova_gameplay::{
         SpaceshipRootMarker, TempEntity, TempEntityState, TorpedoProjectileMarker,
         TurretBulletProjectileMarker,
     },
-    GameStates,
+    GameStates, PauseStates,
+};
+use nova_os_ui::{
+    map::MapContactCode,
+    nova_os::prelude::{NovaOsTerminal, TerminalMode},
+    terminal::nova_os_window_px_showing,
 };
 use nova_scenario::{
     prelude::{
@@ -367,6 +377,10 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         world.resource::<FrameCount>(),
         world.get_resource::<NovaEventWorld>(),
     );
+    // The game clock beside the wall clock: virtual seconds freeze with the
+    // pause states, which is how a reader tells "frozen" from "running" -
+    // `elapsed` (the scenario event clock) runs on its own cadence and cannot.
+    let t_game = world.resource::<Time<Virtual>>().elapsed_secs_f64();
     let scenario = world
         .get_resource::<CurrentScenario>()
         .and_then(|current| current.0.as_ref().map(|config| config.id.clone()));
@@ -394,6 +408,7 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
             .map(|entity| ordnance_record(world, entity))
             .collect(),
     );
+    let ui = ui_block(world);
 
     serde_json::json!({
         "schema": SNAPSHOT_SCHEMA,
@@ -403,9 +418,149 @@ pub fn capture_snapshot(world: &mut World, reason: &str) -> serde_json::Value {
         "frame": frame,
         "elapsed": elapsed,
         "t_real": t_real,
+        "t_game": t_game,
+        "ui": ui,
         "ships": ships,
         "ordnance": ordnance,
     })
+}
+
+/// The screen a GUI player sees, as data: the pause rung, the terminal model
+/// while NOVA OS owns the screen, every named clickable rect, and the CRT
+/// glass slice. This is what makes a driven `pointer to "Resume"` honest -
+/// the driver clicks what it was told exists (task 20260820-174148).
+fn ui_block(world: &mut World) -> serde_json::Value {
+    let pause = world
+        .get_resource::<State<PauseStates>>()
+        .map(|state| format!("{:?}", state.get()));
+    let nova_os_up = world
+        .get_resource::<State<PauseStates>>()
+        .is_some_and(|state| *state.get() == PauseStates::NovaOs);
+    let computer = world
+        .get_resource::<NovaOsTerminal>()
+        .filter(|_| nova_os_up)
+        .map(|terminal| {
+            serde_json::json!({
+                "mode": match terminal.active_mode() {
+                    TerminalMode::Prompt => "prompt".to_string(),
+                    TerminalMode::App { id } => format!("app:{id}"),
+                },
+                "prompt": terminal.prompt(),
+                "cursor": terminal.cursor(),
+                "parse": format!("{:?}", terminal.parse_status()),
+                "hint": terminal.completion_hint(),
+            })
+        });
+    serde_json::json!({
+        "pause": pause,
+        "computer": computer,
+        "targets": ui_targets(world),
+        "glass": glass_census(world),
+    })
+}
+
+/// Every laid-out, visible, named UI node: its logical-pixel rect and whether
+/// it is a button. The same filter `ui_node_rect` applies, so a name in here
+/// is one a pointer gesture can resolve.
+fn ui_targets(world: &mut World) -> Vec<serde_json::Value> {
+    let mut query = world.query::<(
+        Entity,
+        &Name,
+        &ComputedNode,
+        &UiGlobalTransform,
+        &InheritedVisibility,
+    )>();
+    let nodes: Vec<(String, Vec2, Vec2, Entity)> = query
+        .iter(world)
+        .filter(|(_, _, _, _, visibility)| visibility.get())
+        .filter_map(|(entity, name, node, transform, _)| {
+            let scale = node.inverse_scale_factor();
+            let size = node.size() * scale;
+            if size.x <= 0.0 || size.y <= 0.0 {
+                return None;
+            }
+            let min = transform.translation * scale - size * 0.5;
+            Some((name.to_string(), min, size, entity))
+        })
+        .collect();
+    ordered(
+        nodes
+            .into_iter()
+            .map(|(name, min, size, entity)| {
+                let button = world.get::<bevy::ui_widgets::Button>(entity).is_some();
+                let record = serde_json::json!({
+                    "name": name,
+                    "rect": [px(min.x), px(min.y), px(size.x), px(size.y)],
+                    "button": button,
+                });
+                (name, record)
+            })
+            .collect(),
+    )
+}
+
+/// The CRT glass slice: every plotted map contact code with the WINDOW pixels
+/// showing its blip - the blip's image-space centre pushed through the shipped
+/// warp inverse - or null for one the picture does not include. The blips
+/// carry no `Name`, so this is the pointer lane's only address for them.
+fn glass_census(world: &mut World) -> Vec<serde_json::Value> {
+    let mut codes: Vec<String> = world
+        .query::<&MapContactCode>()
+        .iter(world)
+        .map(|code| code.0.clone())
+        .collect();
+    codes.sort();
+    codes.dedup();
+    codes
+        .into_iter()
+        .map(|code| {
+            let shown = blip_labelled(world, &code).and_then(|blip| blip_window_px(world, blip));
+            serde_json::json!({
+                "code": code,
+                "window_px": shown.map(|shown| [px(shown.x), px(shown.y)]),
+            })
+        })
+        .collect()
+}
+
+/// The blip button whose label pill holds `code`, if the map has plotted one:
+/// label `Text` -> pill -> blip, the reverse of how `spawn_blip` builds it.
+fn blip_labelled(world: &mut World, code: &str) -> Option<Entity> {
+    let mut texts = world.query::<(Entity, &Text)>();
+    let label = texts
+        .iter(world)
+        .find(|(_, text)| text.0 == code)
+        .map(|(entity, _)| entity)?;
+    let pill = world.get::<ChildOf>(label)?.parent();
+    let blip = world.get::<ChildOf>(pill)?.parent();
+    world.get::<bevy::ui_widgets::Button>(blip)?;
+    Some(blip)
+}
+
+/// Where the CRT shows `blip`, if it is plotted, visible, and on the picture.
+fn blip_window_px(world: &mut World, blip: Entity) -> Option<Vec2> {
+    if !world.get::<InheritedVisibility>(blip)?.get() {
+        return None;
+    }
+    let node = world.get::<ComputedNode>(blip)?;
+    let scale = node.inverse_scale_factor();
+    if (node.size() * scale).cmple(Vec2::ZERO).any() {
+        return None;
+    }
+    let image_px = world.get::<UiGlobalTransform>(blip)?.translation * scale;
+    nova_os_window_px_showing(world, image_px)
+}
+
+/// A logical-pixel coordinate as the whole number the `ui` block prints.
+/// Sub-pixel layout jitter is not something a pointer can aim at, and whole
+/// numbers keep two snapshots of one screen byte-identical.
+fn px(value: f32) -> i64 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "screen coordinates are far inside i64"
+    )]
+    let rounded = f64::from(value).round() as i64;
+    rounded
 }
 
 /// Sort `records` into a total, value-derived order and drop the keys.

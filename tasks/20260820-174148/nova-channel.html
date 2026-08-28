@@ -1,0 +1,943 @@
+<title>Playing Nova by Wire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #faf9f6; --panel: #fffefb; --fg: #1b1a17; --muted: #6d6a62;
+    --line: #e5e2da; --accent: #9a6a1f; --in: #2f6f4f; --act: #93414f;
+    --chip: #f1ede3; --shade: #f4f1e9;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+      --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+      --chip: #22222a; --shade: #1a1a20;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+    --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+    --chip: #22222a; --shade: #1a1a20;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 400 15px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+
+  .eyebrow {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 .7rem;
+  }
+  h1 {
+    font: 700 1.9rem/1.2 var(--sans); margin: 0 0 .6rem;
+    letter-spacing: -.015em; text-wrap: balance;
+  }
+  .lede { color: var(--muted); font-size: 1.02rem; margin: 0 0 .9rem; max-width: 42rem; }
+  .meta { font: 400 .74rem/1.6 var(--mono); color: var(--muted); margin: 0 0 2.4rem; }
+  .meta span::after { content: "  ·  "; color: var(--line); }
+  .meta span:last-child::after { content: ""; }
+
+  h2 {
+    font: 600 1.12rem/1.3 var(--sans); margin: 3rem 0 .2rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+    letter-spacing: -.01em;
+  }
+  h2 .n {
+    font: 500 .7rem/1 var(--mono); color: var(--accent);
+    letter-spacing: .1em; display: block; margin-bottom: .45rem;
+  }
+  h3 { font: 600 .95rem/1.4 var(--sans); margin: 1.8rem 0 .3rem; }
+  p { margin: .55rem 0; }
+  p.sub { color: var(--muted); margin-top: .1rem; }
+  ul, ol { margin: .55rem 0; padding-left: 1.15rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+  code {
+    font: 400 .86em/1.5 var(--mono); background: var(--chip);
+    padding: .08em .32em; border-radius: 3px; word-break: break-word;
+  }
+  pre {
+    font: 400 .8rem/1.65 var(--mono); background: var(--shade);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto; margin: .9rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cm { color: var(--muted); }
+
+  /* wire lanes, same component as the parent design page */
+  .wire {
+    display: grid; grid-template-columns: 1fr; gap: .8rem;
+    margin: 1.6rem 0 .6rem;
+  }
+  @media (min-width: 44rem) { .wire { grid-template-columns: 1fr 1fr; } }
+  .lane {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    padding: .9rem 1rem 1rem; border-top-width: 3px; border-top-color: var(--in);
+  }
+  .lane h4 {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .14em;
+    text-transform: uppercase; margin: 0 0 .5rem; color: var(--in);
+  }
+  .lane pre { margin: 0 0 .6rem; background: var(--shade); font-size: .74rem; }
+  .lane p { margin: .35rem 0 0; font-size: .86rem; color: var(--muted); }
+  .lane .rule {
+    font: 500 .74rem/1.5 var(--mono); color: var(--fg);
+    display: block; margin-bottom: .35rem;
+  }
+
+  .dec {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-radius: 0 6px 6px 0; padding: .85rem 1.05rem .95rem;
+    margin: 1.1rem 0;
+  }
+  .dec .q {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 .3rem;
+  }
+  .dec .call { font-weight: 600; margin: 0 0 .4rem; }
+  .dec p { margin: .4rem 0 0; font-size: .93rem; }
+  .dec p:first-of-type { margin-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+  .scroll { overflow-x: auto; margin: 1rem 0; }
+  .scroll table { margin: 0; min-width: 40rem; }
+  th {
+    text-align: left; font: 500 .68rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--line); padding: .35rem .6rem .35rem 0;
+  }
+  td {
+    padding: .42rem .6rem .42rem 0; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  td.m, th.m { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr.brk td { border-top: 2px solid var(--line); }
+
+  .tag {
+    font: 500 .68rem/1.5 var(--mono); border-radius: 3px;
+    padding: .05rem .38rem; white-space: nowrap;
+  }
+  .tag.ok { color: var(--in); background: var(--chip); }
+  .tag.no { color: var(--act); background: var(--chip); }
+  .tag.q  { color: var(--accent); background: var(--chip); }
+
+  .note {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+    padding: .8rem 1rem; margin: 1.1rem 0; font-size: .93rem;
+  }
+  .note .h {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); display: block;
+    margin-bottom: .35rem;
+  }
+
+  .foot {
+    margin-top: 3.2rem; border-top: 1px solid var(--line); padding-top: 1.1rem;
+    color: var(--muted); font: 400 .82rem/1.7 var(--mono);
+  }
+</style>
+
+<main>
+  <p class="eyebrow">Task 20260820-174148 &middot; nova_channel &middot; investigation</p>
+  <h1>Playing Nova by wire</h1>
+  <p class="lede">
+    Everything a player does with a keyboard, a mouse and a screen, done over
+    stdin against a <code>--norender</code> process: named actions, axes,
+    typing at the NOVA OS prompt, and clicking buttons that were never drawn.
+    What the tree already provides, what each gap costs, and runnable
+    proof-of-concept drivers against a mock of the wire.
+  </p>
+  <p class="meta">
+    <span>v0.12.0</span><span>steps 4&ndash;5 of the sequence</span><span>PoCs in tasks/20260820-174148/poc/</span><span>written 2026-08-27</span>
+  </p>
+
+  <p>
+    <a href="https://claude.ai/code/artifact/6ce6c4fe-ad19-4f54-9720-ddfb3a68aca0">The
+    process channel</a> settled the shape: one JSON object per line, the
+    <code>input</code> vocabulary only, a reader thread that never blocks the
+    simulation, a step clock for slow drivers.
+    <a href="https://claude.ai/code/artifact/7838fafd-f82a-4c51-a7fc-308449c03b07">The
+    bindings registry</a> shipped the vocabulary and the dispatcher. This round
+    answers the owner&rsquo;s widening question for the crate that does not
+    exist yet: can a driver on stdin do <strong>everything</strong> the GUI
+    player can &mdash; move the mouse, click <span class="m">Resume</span>,
+    type <code>map</code> at the prompt &mdash; and what does the headless
+    assembly have to grow for that to be true rather than aspirational?
+  </p>
+  <p class="sub">
+    Everything below was read off the current tree (bevy 0.19.0,
+    <code>bevy_picking</code> 0.19.0) while writing. Claims that were traced
+    through source but not yet executed were tagged
+    <span class="tag q">spike</span>; later rounds RAN all six spikes
+    against the real app (the section at the end holds the transcripts), and
+    rows they proved now read <span class="tag ok">ran</span>. The crate
+    round then built <code>nova_channel</code> for real: the pointer and
+    NOVA&nbsp;OS drivers pass against the shipping binary over
+    <code>--channel step</code> &mdash; the end of this page holds what
+    shipped and what is still open.
+  </p>
+
+  <h2><span class="n">The ledger</span>Everything the GUI can do, by wire</h2>
+  <p>
+    The bar is parity, so the inventory has to start from the player, not from
+    the protocol. Each row is something a player does in a windowed run; the
+    middle column is how the same gesture travels over the channel; the status
+    says how much of it the tree already proves.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>A player can</th><th>The channel sends</th><th>It lands as</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Hold any of the 33 named actions</td><td class="m">input + phase</td><td><code>dispatch::apply</code> pressing the bound source</td><td><span class="tag ok">shipped</span></td></tr>
+        <tr><td>Fire a turret &mdash; a hull section, not a named action</td><td class="m">input section.&lt;id&gt;</td><td>press the section&rsquo;s own <code>Binding</code> off the ship</td><td><span class="tag q">new</span></td></tr>
+        <tr><td>Sweep the aim, roll the wheel</td><td class="m">aim + delta</td><td><code>apply_axis</code> into the frame&rsquo;s accumulators</td><td><span class="tag ok">shipped</span>, needs its slot</td></tr>
+        <tr><td>Press a pad-only action with no controller</td><td class="m">input + phase</td><td><code>SynthesizedGamepad</code>, both halves written</td><td><span class="tag ok">shipped</span></td></tr>
+        <tr class="brk"><td>Open NOVA OS, orbit the map, run the ship apps</td><td class="m">input novaos_*</td><td>the same dispatcher &mdash; the gate is out, the spike un-gated it</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Type <code>map</code> at the prompt</td><td class="m">text</td><td><code>KeyboardInput</code> with <code>text</code> + <code>logical_key</code></td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Edit the line, submit it, walk history</td><td class="m">key Enter / Backspace / Arrow*</td><td><code>KeyboardInput</code> with the logical key</td><td><span class="tag ok">ran</span> (Enter)</td></tr>
+        <tr><td>Back out of anything with Escape</td><td class="m">key Escape</td><td>both keyboard halves &mdash; the chords poll <code>ButtonInput</code></td><td><span class="tag ok">ran</span></td></tr>
+        <tr class="brk"><td>Move the mouse, hover a chip</td><td class="m">pointer to</td><td><code>WindowEvent::CursorMoved</code> against the virtual window</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Click <span class="m">Resume</span> in the pause menu</td><td class="m">pointer to "Resume" &rarr; press &rarr; release</td><td><code>bevy_picking</code> &rarr; <code>On&lt;Activate&gt;</code>, the same observer a real click fires</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Click a map blip through the CRT glass</td><td class="m">pointer to + press</td><td>the shipped forwarded pointer (<code>crt.rs</code>) &mdash; and the glass EXISTS headless</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Drag a slider, scrub a numeric grip</td><td class="m">pointer press / to&hellip; / release</td><td><code>Pointer&lt;Drag&gt;</code> observers, hits from <code>ui_picking</code></td><td><span class="tag ok">ran</span></td></tr>
+        <tr class="brk"><td>Rebind a key from Settings</td><td class="m">pointer + input / key</td><td>the capture polls <code>ButtonInput</code>, which the lanes already write</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Read the world</td><td class="m">&mdash; (stdout)</td><td><code>capture_snapshot</code>, moved here from <code>nova_probe</code></td><td><span class="tag ok">shipped</span></td></tr>
+        <tr><td>Read the screen &mdash; what is clickable, what the prompt holds</td><td class="m">&mdash; (stdout)</td><td>a new <code>ui</code> block in the snapshot &mdash; shape printed by the spike drivers</td><td><span class="tag ok">ran</span></td></tr>
+        <tr><td>Replay the same session to the same result</td><td class="m">tick-stamped lines</td><td>step clock + <code>NOVA_SEED</code> &mdash; the gap this page found, closed by spike 3</td><td><span class="tag ok">ran</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    Nothing on this list is exotic: every mechanism in the third column is
+    already how the GUI itself works. The workspace has <strong>zero</strong>
+    legacy <code>Interaction</code> polling &mdash; every clickable surface in
+    all five UI crates is <code>bevy_picking</code> observers, mostly
+    <code>Button</code> &rarr; <code>On&lt;Activate&gt;</code> &mdash; so a
+    synthesized pointer that satisfies picking satisfies every menu, chip,
+    slider and blip in the game at once.
+  </p>
+
+  <h2><span class="n">The finding</span>One virtual window buys the whole pointer</h2>
+  <p>
+    The parent page left pointer input as &ldquo;the harder half&rdquo; with a
+    note that the fix is to make the window optional on the helpers. The
+    investigation says the opposite: <strong>make the window exist.</strong>
+    Headless input dies in three independent places, and all three are the same
+    missing entity.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Blocker</th><th>Where</th><th>Effect headless</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Every gesture writer resolves <code>PrimaryWindow</code></td>
+          <td class="m">nova_autopilot/src/input.rs:102-108, 401-409, 527-534</td>
+          <td><code>type_text</code>, <code>press_edit_key</code>, <code>set_cursor</code>, <code>set_mouse_button</code>, <code>turn_wheel</code> all warn and no-op</td>
+        </tr>
+        <tr>
+          <td>No camera ever computes <code>target_info</code></td>
+          <td class="m">bevy_render camera.rs:351-435; bevy_ui update.rs:137-153</td>
+          <td>UI layout gets a 0&times;0 viewport; every node&rsquo;s <code>ComputedNode::size()</code> is zero</td>
+        </tr>
+        <tr>
+          <td><code>ui_picking</code> matches pointers to cameras by render target</td>
+          <td class="m">bevy_ui picking_backend.rs:126-131, 184-186</td>
+          <td>a window-targeted camera never normalizes, and zero-size nodes are skipped anyway &mdash; no hits, ever</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dec">
+    <p class="q">Call &mdash; the virtual primary window</p>
+    <p class="call">When the channel is armed, spawn one ordinary <code>Window</code> + <code>PrimaryWindow</code> entity with a fixed resolution. No winit, no surface, no render &mdash; just the component.</p>
+    <p>
+      This works because none of the three consumers wants a real window; they
+      want the ECS record of one. <code>get_render_target_info</code> reads
+      <code>window.physical_size()</code> and the resolution&rsquo;s scale
+      factor off the component (<code>bevy_render camera.rs:275-284</code>) &mdash;
+      no GPU, no winit. With that one entity: <code>camera_system</code>
+      normalizes <code>WindowRef::Primary</code> and fills
+      <code>target_info</code>; layout gets a real viewport and every
+      percentage-sized menu resolves to real pixels; <code>ui_picking</code>
+      matches the camera; and every <code>nova_autopilot</code> gesture helper
+      &mdash; <code>click_named</code>, <code>move_cursor</code>,
+      <code>type_text</code>, the cursor pin &mdash; comes alive
+      <strong>unchanged</strong>.
+    </p>
+    <p>
+      It is also the established idiom, not an invention:
+      <code>nova_os_ui/src/pointer_rig.rs:240-246</code> spawns exactly this
+      entity to drive the real <code>forward_nova_os_pointer</code> through the
+      real <code>ui_picking</code> in a windowless test app, and
+      <code>nova_autopilot/tests/pointer_pin.rs:105-130</code> does the same
+      for the picking chain. Spike 1
+      (<code>system_headless_pointer</code>) now boots the FULL app that way,
+      and it passes: the pause overlay lays out at 1280&nbsp;&times;&nbsp;720,
+      <span class="m">Resume</span> resolves to a real 238&nbsp;&times;&nbsp;40
+      box, and the click resumes the game through the observer.
+    </p>
+    <p>
+      Rejected: the <code>RenderTarget::None {&nbsp;size&nbsp;}</code> route
+      (retarget every UI camera, write <code>PointerInput</code> by hand) is
+      real &mdash; upstream documents custom pointers as a supported path,
+      <code>bevy_picking input.rs:1-12</code> &mdash; but it touches every
+      camera spawn in five crates to avoid one entity, and it forks the code
+      path between windowed and headless runs. The virtual window keeps them
+      identical, which is the property every &ldquo;a driven test proves a
+      player could do this&rdquo; argument rests on.
+    </p>
+  </div>
+  <p class="sub">
+    Two more facts make the pointer cheap. <code>mouse_pick_events</code>
+    builds picking from <code>WindowEvent</code> messages alone &mdash; it
+    never touches winit (<code>bevy_picking input.rs:121-201</code>) &mdash;
+    and the whole picking stack is already in the headless build:
+    <code>--norender</code> is full <code>DefaultPlugins</code> minus only
+    <code>WinitPlugin</code> (<code>nova_core/src/lib.rs:202-230</code>), so
+    <code>UiPlugin</code>, <code>UiPickingPlugin</code>,
+    <code>UiWidgetsPlugins</code> and <code>PointerInputPlugin</code> are all
+    present and idle, waiting for events that today never come.
+  </p>
+
+  <h2><span class="n">The stance</span>What gets bypassed, and what must not be</h2>
+  <p>
+    The owner&rsquo;s framing question for this round: does the channel have to
+    <em>simulate</em> the GUI, or can it use the in-memory backends the game
+    already keeps and bypass the presentation &mdash; send &ldquo;what happens
+    when you press the button&rdquo;, the way a multiplayer packet would?
+    The answer the tree gives is: the backends already exist, and the wire
+    already speaks at both of the levels that question names.
+  </p>
+  <p>
+    Nothing here simulates graphics. <code>--norender</code> is backendless
+    &mdash; <code>wgpu.backends = None</code>, no render sub-app at all
+    (<code>nova_core/src/lib.rs:520-533</code>) &mdash; and what survives IS
+    the model layer: <code>NovaOsTerminal</code> is a plain resource with
+    <code>prompt()</code> and <code>active_mode()</code>, the pause menu is a
+    tree of taffy rects, the CRT texture nobody draws is only a projection of
+    state that lives in components. The virtual window is not a fake screen;
+    it is a 16-byte size record that makes &ldquo;on screen&rdquo; a
+    well-defined question for the layout that already runs.
+  </p>
+  <p>
+    The <strong>named-input lane is the packet level</strong>:
+    <code>{"input":"flight.main_drive","phase":"start"}</code> goes straight
+    into the dispatcher, no keyboard anywhere, and the context check is the
+    validation &mdash; a verb whose context is not live is refused, not
+    pressed blind. That is &ldquo;apply what the button does&rdquo;, with the
+    server-side rule the multiplayer analogy asks for.
+  </p>
+  <p>
+    The <strong>pointer and text lanes are the human level</strong>, and there
+    bypass is refused on purpose. Triggering a button&rsquo;s
+    <code>Activate</code> observer directly would happily press a button that
+    is hidden, off-screen, or inside a menu that is not open &mdash; a driven
+    test would pass on exactly the broken UI it exists to catch. So
+    <code>pointer to "Resume"</code> works the way Playwright&rsquo;s
+    <code>click(selector)</code> does: resolve the <code>Name</code> to a
+    laid-out, visible, non-zero rect (the shipped
+    <code>ui_node_rect</code> already refuses hidden and degenerate targets
+    and warns on ambiguous names), then synthesize the REAL events at its
+    centre and let picking decide what is under them. Reachability is part of
+    the contract, not an obstacle to route around.
+  </p>
+  <p class="sub">
+    Rule of thumb the ledger follows: anything the game itself models as a
+    named action goes over the packet lane; anything that is genuinely a
+    device gesture &mdash; typing at a prompt, clicking a rect, dragging a
+    slider &mdash; goes over the device lanes through the full pipeline, so
+    the run proves a player could have done it.
+  </p>
+
+  <h2><span class="n">The gate</span>Headless has no NOVA OS to type into</h2>
+  <p>
+    The second finding is blunter: under <code>--norender</code> the computer
+    does not exist. <code>NovaOsUiPlugin</code> and <code>NovaHudPlugin</code>
+    are added only on the render branch
+    (<code>nova_core/src/lib.rs:300-303</code>), and the bindings they own
+    register with them &mdash; so the headless <code>InputBindings</code> table
+    holds <strong>15 of the 33 actions</strong>. <code>novaos_toggle</code>,
+    <code>hud_cinematic</code> and all sixteen viewer verbs come back
+    <code>DispatchError::Unknown</code> in exactly the mode the channel exists
+    for.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Registered by</th><th class="m">where</th><th>Rows</th><th>Headless today</th></tr></thead>
+      <tbody>
+        <tr><td>nova_ship</td><td class="m">input/bindings.rs (14 rows)</td><td>FLIGHT, TARGETING, CAMERA</td><td><span class="tag ok">present</span></td></tr>
+        <tr><td>nova_scenario</td><td class="m">loader/lifecycle.rs:535</td><td>SCENARIO (1)</td><td><span class="tag ok">present</span></td></tr>
+        <tr><td>nova_hud</td><td class="m">lib.rs:300</td><td>hud_cinematic</td><td><span class="tag no">absent</span></td></tr>
+        <tr><td>nova_os_ui</td><td class="m">terminal/mod.rs:184</td><td>novaos_toggle + 16 viewer rows</td><td><span class="tag no">absent</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dec">
+    <p class="q">Call &mdash; the UI plugins go render-aware, not render-gated</p>
+    <p class="call">Give <code>NovaOsUiPlugin</code> and <code>NovaHudPlugin</code> the <code>{ render: bool }</code> shape every other game plugin already has, and add them on both branches.
+    <em>Superseded by spike 2:</em> the run showed neither plugin needs a flag
+    at all &mdash; every GPU-side piece is already bevy-guarded &mdash; so this
+    branch simply removes the gate. Whether headless measurement runs want the
+    flag anyway (probe noise) stays an owner call; see the spikes section.</p>
+    <p>
+      The convention exists precisely for this: <code>NovaGameplayPlugin</code>,
+      <code>NovaShipPlugin</code> and <code>NovaScenarioPlugin</code> all take
+      <code>render</code> and gate their own device-touching pieces
+      internally. The NOVA OS crate is closer to ready than its gate suggests
+      &mdash; its render-dependent systems already carry
+      <code>resource_exists</code> guards (<code>terminal/mod.rs:278, 311,
+      320</code>), the terminal MODEL (<code>nova_os</code>) has no render
+      dependency at all, and the slide animation runs on
+      <code>Time&lt;Real&gt;</code> on purpose. What the spike must prove is
+      the rest: spawning the CRT surfaces and RTT cameras with no GPU behind
+      <code>Assets&lt;Image&gt;</code>.
+    </p>
+    <p>
+      The alternative &mdash; register the bindings unconditionally but keep
+      the systems gated &mdash; is worse than the bug. The table would
+      advertise verbs that do nothing, which is the one kind of lie the
+      registry was built to end.
+    </p>
+  </div>
+  <p class="sub">
+    Related but distinct: with a virtual window present, the two
+    <code>Single&lt;&amp;mut CursorOptions, With&lt;PrimaryWindow&gt;&gt;</code>
+    pause systems (<code>nova_menu/src/pause.rs:108, 130</code>) stop being
+    silently skipped and start operating on the virtual window&rsquo;s cursor
+    options &mdash; harmless, but it belongs in the spike checklist, not in a
+    surprise.
+  </p>
+
+  <h2><span class="n">The wire</span>Five lanes in, acknowledged out</h2>
+  <p>
+    The parent page fixed the envelope &mdash; one JSON object per line,
+    exactly one payload key beside <code>tick</code>, <code>action</code> and
+    <code>command</code> parsed-and-refused. This round fills in the raw lanes
+    it named. A tick is required on every line in step mode (it is the
+    schedule); free-running it is optional and late application is reported.
+  </p>
+
+  <div class="wire">
+    <div class="lane">
+      <h4>input &mdash; a named verb, or a section</h4>
+      <pre><code>{"tick":120,"input":"targeting.radar_hold","phase":"start"}
+{"tick":180,"input":"targeting.radar_hold","phase":"stop"}
+{"tick":200,"input":"section.turret_port","phase":"start"}</code></pre>
+      <span class="rule">dispatch::apply &middot; press and hold across frames</span>
+      <p>
+        Addressed <code>&lt;group&gt;.&lt;name&gt;</code>, resolved against the
+        registry; <code>section.&lt;id&gt;</code> resolves the section&rsquo;s
+        own <code>SpaceshipThrusterInputBinding</code> off the ship instead.
+        One <code>start</code>, one <code>stop</code> &mdash; a hold is two
+        lines, not a line per frame.
+      </p>
+    </div>
+    <div class="lane">
+      <h4>aim &mdash; a delta, not a press</h4>
+      <pre><code>{"tick":121,"aim":{"name":"flight.rcs_aim","delta":[3.0,-1.0]}}</code></pre>
+      <span class="rule">apply_axis &middot; worth exactly one frame</span>
+      <p>
+        Bevy replaces the accumulators every frame, so a sweep is a line per
+        tick. The registry decides which way the wheel turns; the driver only
+        says how far.
+      </p>
+    </div>
+    <div class="lane">
+      <h4>text &mdash; characters into whatever has focus</h4>
+      <pre><code>{"tick":300,"text":"map"}</code></pre>
+      <span class="rule">KeyboardInput per char &middot; text + logical_key + a Released twin</span>
+      <p>
+        The prompt reads <code>event.text</code>; <code>TextField</code> reads
+        <code>Key::Character</code> &mdash; each event carries both, so one
+        lane types into either. Never touches <code>ButtonInput</code>: a
+        character has no <code>KeyCode</code>.
+      </p>
+    </div>
+    <div class="lane">
+      <h4>key &mdash; one literal editing key, as a tap</h4>
+      <pre><code>{"tick":301,"key":"Enter"}
+{"tick":320,"key":"Escape"}</code></pre>
+      <span class="rule">both halves &middot; message and ButtonInput, press then release</span>
+      <p>
+        Enter, Tab, Backspace, Delete, the arrows, the page keys, Space,
+        Escape. Written to both readers because the tree splits them: the
+        prompt and the fields read the message, the mode chords and the rebind
+        capture poll <code>ButtonInput</code>. A held key is not this lane
+        &mdash; holding is what named actions are for.
+      </p>
+    </div>
+    <div class="lane">
+      <h4>pointer &mdash; move, press, release, wheel</h4>
+      <pre><code>{"tick":400,"pointer":{"to":"Resume"}}
+{"tick":401,"pointer":{"press":"left"}}
+{"tick":402,"pointer":{"release":"left"}}
+{"tick":410,"pointer":{"to":[640,360]}}
+{"tick":411,"pointer":{"wheel":-2.0}}</code></pre>
+      <span class="rule">the autopilot pointer helpers against the virtual window</span>
+      <p>
+        <code>to</code> takes a <code>Name</code> &mdash; resolved through the
+        same census the snapshot prints &mdash; or raw logical pixels as the
+        fallback. A click is three lines on three ticks, because
+        <code>Activate</code> fires on release-over and the forwarded pointer
+        documents a frame of lag; the PoC client wraps the idiom.
+      </p>
+    </div>
+    <div class="lane">
+      <h4>tick &mdash; bare, the step instruction</h4>
+      <pre><code>{"tick":500}</code></pre>
+      <span class="rule">stepping: run the clock to here, then snapshot and wait</span>
+      <p>
+        Input lines schedule their own ticks implicitly; a bare tick is
+        &ldquo;nothing more from me until then&rdquo;. Free-running it is a
+        no-op. EOF in step mode is an exit &mdash; the clock could never
+        advance again; free-running, EOF just closes the lane and the game
+        plays on.
+      </p>
+    </div>
+  </div>
+
+  <h3>What comes back</h3>
+  <pre><code>{"schema":1,"reason":"step","frame":181,"scenario":"...","game_state":"Playing","elapsed":3.0,"t_real":3.02,
+ "applied":[{"line":7,"input":"targeting.radar_hold","phase":"stop","state":"Fired"}],
+ "input":{"live":["camera.camera_rotate","flight.main_drive","targeting.radar_hold","..."],"contexts":["always","flight"]},
+ "ui":{"pause":"Unpaused","computer":null,"targets":[{"name":"Resume","rect":[576,312,128,36]}]},
+ "ships":[...],"ordnance":[...]}
+
+{"schema":1,"error":"`action` is reserved; the console vocabulary is task 20260827-120347","line":9}</code></pre>
+  <ul>
+    <li><strong><code>applied</code></strong> &mdash; every line consumed since
+      the last snapshot, echoed with its outcome. For named actions that is the
+      action&rsquo;s <code>TriggerState</code> after the frame evaluated
+      (<code>None</code> / <code>Ongoing</code> / <code>Fired</code>), which is
+      how a driver observes &ldquo;the press did nothing&rdquo; without the
+      channel pretending to know why.</li>
+    <li><strong><code>input.live</code></strong> &mdash;
+      <code>InputBindings::live(&amp;ActiveContexts)</code>, the actions that can
+      fire THIS tick. Pressing outside it is refused by the channel rather than
+      pressed blind, because a dead name still presses a live key &mdash; three
+      actions hold <code>G</code>.</li>
+    <li><strong><code>ui</code></strong> &mdash; the screen a GUI player sees,
+      as data: the pause rung, the terminal model when NOVA OS is up
+      (mode, prompt, cursor, parse status, completion hint &mdash; all already
+      public on <code>NovaOsTerminal</code>, <code>state.rs:265-292</code>), and
+      the pointer census: every <code>Name</code>d node that is visible and
+      non-zero, with its resolved rect &mdash; the same filter
+      <code>ui_node_rect</code> already applies. This is what makes
+      <code>pointer to "Resume"</code> honest: the driver clicks what it was
+      told exists.</li>
+    <li><strong>Errors</strong> &mdash; an unknown name, a malformed line or a
+      reserved lane answers on stdout with the offending line number, and logs.
+      A refused <em>input</em> (not live) is not an error line; it is an
+      <code>applied</code> entry with <code>"state":"refused"</code>, because
+      being told no is part of playing.</li>
+    <li>All of this is additive on the existing snapshot &mdash; the schema
+      policy says new fields need no version bump
+      (<code>snapshot.rs:127-130</code>).</li>
+  </ul>
+
+  <h2><span class="n">The plumbing</span>Two writers, two slots, one clock</h2>
+  <p>
+    The lanes do not share a schedule position, because their readers do not.
+    Getting this wrong is invisible in a demo and fatal in a replay, so it is
+    pinned here as the crate&rsquo;s system layout.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>System</th><th>Slot</th><th>Why there</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="m">channel_pointer_writer</td>
+          <td class="m">First &middot; after(MessageUpdateSystems) .before(PickingSystems::Input)</td>
+          <td><code>mouse_pick_events</code> consumes <code>WindowEvent</code> in <code>First</code>; writing later costs a frame of lag per gesture. This is the exact slot <code>repin_cursor</code> already occupies (<code>input.rs:455-463</code>).</td>
+        </tr>
+        <tr>
+          <td class="m">channel_input_writer</td>
+          <td class="m">PreUpdate &middot; after(InputSystems) .before(EnhancedInputSystems::Prepare)</td>
+          <td>Bevy clears the <code>just_*</code> edges in <code>InputSystems</code>, so a press staged earlier is wiped before <code>Update</code> reads it &mdash; the autopilot&rsquo;s slot, with the axis half of the constraint stated too, because the accumulators are REPLACED in the same set. Keyboard messages for the text/key lanes are written here as well: their readers are <code>Update</code> systems reading the message stream, same frame.</td>
+        </tr>
+        <tr>
+          <td class="m">the runner</td>
+          <td class="m">around app.update()</td>
+          <td>Drains the reader thread&rsquo;s <code>mpsc</code>, gates the clock in step mode, calls <code>capture_snapshot</code> after the frame, writes the line. Installed with <code>app.set_runner()</code> after <code>AppBuilder::build()</code> &mdash; last runner wins, no plugin surgery (<code>ScheduleRunnerPlugin</code> only calls <code>set_runner</code> itself, <code>schedule_runner.rs:73</code>).</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="sub">
+    The freeze model cooperates instead of fighting: pausing stops
+    <code>Time&lt;Virtual&gt;</code> and <code>Time&lt;Physics&gt;</code> but
+    schedules keep running (<code>nova_menu/src/lib.rs:198-200</code> says so
+    in as many words &mdash; it is what keeps the pause overlay interactive).
+    So the channel types into a frozen NOVA OS and clicks a pause menu with no
+    special case: frames advance, the world does not, and the snapshot shows
+    <code>elapsed</code> holding still while <code>frame</code> climbs.
+  </p>
+
+  <h3>Typing has three sharp edges, all found in the tree</h3>
+  <ul>
+    <li><strong>Every synthesized keyboard event needs a Released twin.</strong>
+      <code>keyboard_input_system</code> mirrors the message stream into
+      <code>ButtonInput&lt;KeyCode&gt;</code> / <code>ButtonInput&lt;Key&gt;</code>
+      and nothing ever releases what <code>type_text</code> presses &mdash;
+      today every driven example leaves a trail of permanently-pressed
+      phantom keys. Latent there; a correctness bug in a channel that also
+      polls <code>ButtonInput</code>. The channel emits the twin.</li>
+    <li><strong>Ctrl swallows characters at the prompt</strong>
+      (<code>terminal/input.rs:314</code>) &mdash; so the input lane holding a
+      Ctrl-bound action (<code>radar_hold</code>) while the text lane types is
+      a driver error the doc has to name: the characters go nowhere, exactly
+      as they would for a player holding Ctrl.</li>
+    <li><strong>Home and End do not exist at the prompt</strong> &mdash; the
+      arms are Enter, Tab, Backspace, Delete, arrows, page keys
+      (<code>terminal/input.rs:211-340</code>). <code>TextField</code> handles
+      them (<code>text_field.rs:346-347</code>). The key lane passes both
+      through and promises nothing the reader does not.</li>
+  </ul>
+
+  <h2><span class="n">The clock</span>Step mode, and the seed that is not there</h2>
+  <p>
+    The runner shape is settled on the parent page &mdash; reader thread owns
+    the blocking <code>read_line</code>, the game only ever
+    <code>try_recv</code>s, stepping gates the clock with
+    <code>TimeUpdateStrategy::ManualDuration</code> and a warm-up update.
+    The investigation adds two facts to it.
+  </p>
+  <p>
+    <strong>Manual time is greenfield in the shipping app.</strong> All ~24
+    <code>ManualDuration</code> uses in the tree are inside test modules; no
+    example and no binary path steps time manually today. The runner is the
+    first, which is why the PoCs mock it rather than pretending a flag exists.
+  </p>
+  <div class="note">
+    <span class="h">Correction to the parent page &mdash; determinism is not free yet</span>
+    <p>
+      The replay argument leans on &ldquo;composes with the seeded-<code>bevy_rand</code>
+      rule&rdquo;. The shipping app is NOT seeded:
+      <code>EntropyPlugin::&lt;WyRand&gt;::default()</code>
+      (<code>nova_gameplay/src/plugin.rs:74</code>) seeds from OS entropy, and
+      every <code>with_seed</code> in the tree is a test rig. Same-input
+      same-result needs a seed knob on <code>NovaGameplayPlugin</code> wired to
+      a channel parameter &mdash; small, but load-bearing, and it did not
+      exist on anyone&rsquo;s list until now.
+      <em>Closed by spike 3:</em> the knob is <code>NOVA_SEED</code>
+      (owned by <code>nova_gameplay::settings</code>, on the env contract, a
+      non-<code>u64</code> value refuses the boot), and the replay range
+      proved two seeded runs digest the world byte for byte.
+    </p>
+  </div>
+  <p class="sub">
+    Housekeeping with teeth, found the same way: any <code>NOVA_*</code>
+    variable the channel adds (arming, step mode, the seed) must be registered
+    in <code>tests/env_contract.rs</code> and
+    <code>docs/environment-variables.md</code> or CI fails the build; and the
+    <code>SyncWorldPlugin</code> queue still leaks ~24 bytes per synced spawn
+    and removal headless (<code>nova_core/src/lib.rs:212-229</code>), so
+    sessions stay bounded with the cost documented &mdash; unchanged call,
+    now the channel&rsquo;s to carry.
+  </p>
+
+  <h2><span class="n">The proof</span>Four drivers against a mock of the wire</h2>
+  <p>
+    <code>tasks/20260820-174148/poc/</code> holds a working model of this
+    whole page: <code>mock_game.py</code> implements the wire contract &mdash;
+    the five lanes, the reserved refusals, contexts and the live set, the
+    step clock, the freeze, the pointer census &mdash; over a toy world, and
+    four drivers play it over real pipes. Every schema line above is pasted
+    from their transcripts, not invented. When the crate exists, the drivers
+    point at <code>nova --norender</code> instead via <code>--cmd</code> and
+    the mock retires into a schema reference.
+  </p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="m">script</th><th>Proves, end to end</th></tr></thead>
+      <tbody>
+        <tr><td class="m">drive_flight.py</td><td>The play loop: burn toward a hostile by name, hold the radar past the latch threshold (a real hold &mdash; a short tap observably clears instead), raise the stance, fire a SECTION by id, watch the hull drop in the snapshot.</td></tr>
+        <tr><td class="m">drive_novaos.py</td><td>The mode ladder: toggle NOVA OS, type <code>map</code>, Enter, drive viewer verbs &mdash; and the context rule: <code>flight.autopilot_goto</code> is refused while the viewer owns the screen, then Escape walks back out and it fires.</td></tr>
+        <tr><td class="m">drive_pointer.py</td><td>The pointer lane: Escape to the pause menu, read <code>ui.targets</code>, click <span class="m">Resume</span> by name (move / press / release across ticks), then the raw-pixel fallback on the same button.</td></tr>
+        <tr><td class="m">agent_loop.py</td><td>The third payoff: an observe&ndash;decide&ndash;act loop with a pluggable policy in the LLM&rsquo;s slot, blocking on the step clock &mdash; the world moves only when the driver has spoken.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre><code>$ python3 poc/drive_flight.py
+tick   122  main_drive held    vel=80.67
+tick   134  radar tapped       lock=None
+tick   165  radar_hold         state=Ongoing  lock=None
+tick   205  radar_hold         lock=raider_1
+tick   269  turret_port firing raider_1 hull 62.0 -&gt; 40.65
+PASS  combat lock through a driven hold, section fired by id</code></pre>
+  <p class="sub">
+    The mock is deliberately honest about the rules that matter &mdash; the
+    radar hold has a threshold, Ctrl at the prompt swallows text, a click is
+    release-over, refused inputs come back in <code>applied</code> &mdash; and
+    deliberately toy about everything else. It exists to make the contract
+    executable before the Rust does, which is also what keeps this page from
+    quietly specifying something unimplementable.
+  </p>
+
+  <h2><span class="n">Ran</span>Six spikes against the real app</h2>
+  <p>
+    All six spikes now exist as ranges on this branch
+    (<code>examples/systems/system_headless_*.rs</code>) and all six pass
+    against the real headless app &mdash; no display server, no GPU, real
+    scenario, real events. Excerpts below are pasted from their runs
+    (timestamps trimmed).
+  </p>
+  <p>
+    <strong>1 &middot; The virtual window</strong>
+    (<code>system_headless_pointer</code>): boot
+    <code>--norender --scenario shakedown_run</code>, spawn the
+    <code>Window</code>+<code>PrimaryWindow</code> entity, ESC to the pause
+    overlay, resolve <span class="m">Resume</span> by name, click it with
+    real pointer events. The census is real layout, and the click goes
+    through <code>bevy_picking</code> to the observer:
+  </p>
+  <pre><code>headless pointer: reached Playing with no renderer
+headless pointer: ESC opened the pause overlay
+headless pointer: pause census
+  Pause Overlay: centre (640, 360) size 1280 x 720
+  Pause Panel: centre (640, 360) size 280 x 311
+  Resume Button: centre (640, 279) size 238 x 40
+headless pointer: PASS clicked Resume with no renderer</code></pre>
+  <p>
+    <strong>2 &middot; NOVA OS off-screen</strong>
+    (<code>system_headless_novaos</code>): the render gate in
+    <code>nova_core</code> is REMOVED on this branch &mdash; not flagged.
+    Everything GPU-side in the HUD and the monitor turned out to be
+    bevy-guarded already (<code>UiMaterialPlugin</code> no-ops without a
+    render sub-app), so the gate was never load-bearing:
+  </p>
+  <pre><code>headless novaos: registry holds 33 actions
+headless novaos: Tab opened the monitor
+headless novaos: the prompt holds "map"
+headless novaos: PASS typed into NOVA OS with no renderer</code></pre>
+  <p>
+    <strong>3 &middot; The seed and the clock</strong>
+    (<code>system_headless_replay</code>): <code>NOVA_SEED</code> is real
+    (registered in the env contract and the dev book), the frame is pinned to
+    1/64&nbsp;s with <code>TimeUpdateStrategy::ManualDuration</code>, and two
+    seeded runs digest the probe snapshot identically &mdash; every ship,
+    every projectile, byte for byte. A different seed leaves the passive
+    world identical (nothing consumes entropy before combat; the belt
+    scatter runs on scenario-authored seeds) but moves the stream the
+    turrets will draw from, which the range proves with one draw:
+  </p>
+  <pre><code>[a42] headless replay: digest bed90101044a6e0e over 3651 bytes at played frame 599
+[a42] headless replay: entropy draw ca71d87c76983988
+[b42] headless replay: digest bed90101044a6e0e over 3651 bytes at played frame 598
+[b42] headless replay: entropy draw ca71d87c76983988
+[c43] headless replay: digest bed90101044a6e0e over 3651 bytes at played frame 598
+[c43] headless replay: entropy draw c5f6a4ec53287507</code></pre>
+  <p class="sub">
+    The 599-vs-598 in that transcript is itself a finding: an outside
+    observer counting frames from &ldquo;I saw Playing&rdquo; races the
+    scenario start by one frame, so the first digest attempt disagreed by
+    exactly one 1/64&nbsp;s tick of <code>elapsed</code> &mdash; and by
+    NOTHING else. The fix is the channel&rsquo;s own design: anchor on the
+    world&rsquo;s clock (the range digests at scenario-elapsed 8.0&nbsp;s
+    exactly), which the step clock does by construction since tick 0 is a
+    defined instant. Two warts for the crate&rsquo;s log filter:
+    <code>bevy_egui</code> warns every frame that the virtual window has no
+    winit backing, and <code>bevy_gltf</code> notes the missing
+    <code>CompressedImageFormatSupport</code> once at boot.
+  </p>
+  <p>
+    <strong>4 &middot; The rebind</strong>
+    (<code>system_headless_rebind</code>): the whole Settings walk by
+    <code>Name</code> &mdash; ESC, <span class="m">Settings</span>, the
+    <span class="m">Controls</span> tab, the <span class="m">FLIGHT</span>
+    group, arm the <code>main_drive</code> desk chip, press J &mdash; against
+    a config store isolated with <code>NOVA_CONFIG_ROOT</code> so the run
+    cannot touch the developer&rsquo;s real <code>settings.ron</code>. The
+    capture polls <code>ButtonInput</code>, which the key lane writes, and
+    the REGISTRY answers:
+  </p>
+  <pre><code>click: aim at Pause Settings Button blocked; the pointer is over ["Scenario Loading Screen"]
+headless rebind: FLIGHT rows are up; arming main_drive
+headless rebind: PASS the registry took J for main_drive
+headless rebind: keyboard column is now [Keyboard(KeyJ)] (W and Space are gone)</code></pre>
+  <p class="sub">
+    The blocked line is the round&rsquo;s best finding. The scenario loading
+    screen fades out OVER the freshly opened pause overlay and eats every
+    pick for about a second &mdash; so a driver that presses on a frame count
+    clicks the fade, not the button, and the first version of this range
+    stalled exactly there. A resolvable rect is NOT yet a clickable one. The
+    fix is the Playwright rule the stance section asked for, made concrete:
+    the pointer lane presses only after the pick map reports the aim landed
+    on the named widget, re-aiming every frame while an occluder or a reflow
+    keeps it off &mdash; and a blocked aim NAMES its occluder.
+  </p>
+  <p>
+    <strong>5 &middot; The slider drag</strong>
+    (<code>system_headless_drag</code>): hover the volume track, press
+    (<code>TrackClick::Snap</code> sets the value at the pointer &mdash; the
+    baseline is read after the snap), two cursor legs 60&nbsp;px right along
+    the 428&nbsp;px track, release. <code>Pointer&lt;Drag&gt;</code>
+    observers fire off the same pointer lane, and the resource and the
+    widget&rsquo;s own <code>SliderValue</code> agree at the end:
+  </p>
+  <pre><code>headless drag: press snapped the volume to 0.5
+headless drag: PASS the drag moved MasterVolume 0.5 -> 0.6401869</code></pre>
+  <p>
+    The same range prints the <code>ui</code> block the wire section
+    proposes for the snapshot &mdash; taken with the settings modal open,
+    50 named nodes with logical rects and a button flag, plus the mode rungs
+    and the terminal model. Trimmed:
+  </p>
+  <pre><code>headless drag: ui census {"game_state":"Playing","pause":"Paused","screen":[
+  {"button":true,  "name":"Resume Button",          "rect":[521,259,238,40]},
+  {"button":true,  "name":"Pause Settings Button",  "rect":[521,355,238,40]},
+  {"button":true,  "name":"Settings Tab: Controls", "rect":[491,150,74,29]},
+  {"button":false, "name":"Volume Slider Track",    "rect":[433,202,428,14]},
+  ...46 more...],"terminal":{"mode":"Prompt","prompt":""}}</code></pre>
+  <p>
+    <strong>6 &middot; The blip through the glass</strong>
+    (<code>system_headless_crt</code>): the row&rsquo;s open fear was that
+    headless has no glass to click through. It does:
+    <code>UiMaterialPlugin</code> registers the CRT material asset BEFORE its
+    render-app check, so <code>setup_nova_os</code> takes the RTT arm in
+    <code>--norender</code> and every link is CPU math &mdash; the reconciler
+    sizes the target image, the offscreen camera reads its size back, the map
+    lays out against it, and the forwarded pointer un-warps window px into
+    image px. Only the raster&rsquo;s PICTURE needs a GPU, and nothing here
+    needs the picture. The walk mixes the two wire levels on purpose: the
+    packet lane cycles the selection ring onto the target
+    (<code>novaos_next</code>, key resolved from the registry) and re-frames
+    the camera on it (<code>novaos_reframe</code>), the ring is cycled OFF
+    again so the click still has something to prove, and then the human lane
+    clicks the blip through the warp inverse:
+  </p>
+  <pre><code>headless crt: the target is AST-1
+headless crt: novaos_next cycled the ring onto the target
+headless crt: novaos_reframe put the target on the picture
+headless crt: aiming via window px Vec2(1179.5, 284.7)
+headless crt: glass census [{"code":"AST-1","window_px":[1179,285]},
+  {"code":"AST-10","window_px":[664,339]}, {"code":"AST-11","window_px":[389,305]}, ...]
+headless crt: the forwarded pointer reached the blip
+headless crt: the click selected the blip
+headless crt: PASS clicked AST-1 through the glass, GOTO engaged</code></pre>
+  <p class="sub">
+    Three verdicts ride in that transcript: the FORWARDED pointer reached the
+    blip while the window mouse pointer did not (so the widget really lives
+    behind the image camera); the click restored the selection ring the walk
+    had deliberately moved away; and G engaged
+    <code>Autopilot::Goto</code> on exactly the contact whose blip was
+    clicked &mdash; the verdict read off the ship, far from the pointer path.
+    Two findings along the way. The shakedown belt sits outside even the max
+    wheel zoom, a scenario truth no code trace surfaced &mdash; the map&rsquo;s
+    own vocabulary (select, then re-frame) is the wire&rsquo;s answer, not a
+    bigger zoom. And a driver that advances on a world change can skip its own
+    key RELEASE: a key that stays down never counts as just_pressed again, so
+    the next &ldquo;press&rdquo; of the same action silently does nothing
+    &mdash; the channel&rsquo;s key lane must pair every press with its
+    release the way these beats now do. The glass census doubles as the
+    <code>ui</code> block&rsquo;s CRT slice: what can be clicked ON the
+    monitor, by code, at the window px the warp currently shows it.
+  </p>
+  <h3>The crate round: shipped</h3>
+  <p>
+    <code>crates/nova_channel</code> exists (commit <code>f5708bd1</code>):
+    the protocol parser with the mock&rsquo;s refusal texts as unit tests,
+    the five lanes applied by two writer systems in the pinned slots, the
+    stdin reader thread, and the step/free runners behind a boot gate
+    &mdash; asset loading is wall-clock IO, so the runner holds the wire
+    until <code>GameStates::Loading</code> ends plus two settle frames, and
+    tick&nbsp;0 is the world, ready. The binary arms it with
+    <code>--channel step|free</code> (debug-only, requires
+    <code>--norender</code>), installed after the builder so its runner
+    wins. Each action entity now carries an <code>ActionName</code> tag out
+    of <code>InputBindings::bundle</code>, which is what lets the ack read
+    the named action&rsquo;s <code>TriggerState</code> after the frame.
+    The <code>ui</code> census moved out of the drivers into
+    <code>capture_snapshot</code> as designed (pause rung + gated terminal
+    model + named rects with the button flag + the CRT glass slice), and
+    the header grew <code>t_game</code> &mdash; virtual seconds, the one
+    clock that freezes with the pause states; <code>elapsed</code> is the
+    scenario event clock and runs on its own cadence (it stalls through the
+    shakedown&rsquo;s opening beats, a scenario truth, not a channel one).
+  </p>
+  <p>
+    Acceptance so far: <code>drive_pointer.py</code> and
+    <code>drive_novaos.py</code> PASS against the real binary and the mock
+    alike, same script, only <code>--cmd</code> added. The real world
+    corrected the mock in five places, each now folded back: the pause
+    button is <code>Resume&nbsp;Button</code>; the <code>NOVA OS</code>
+    group lowercases with an underscore (<code>nova_os.*</code> wire
+    names); the terminal close is a 0.22&nbsp;s CRT drawer, not a flag
+    flip, so the driver steps through the slide; the press-to-pause
+    transition spends two real frames before <code>t_game</code> freezes;
+    and a press/release pair yields two acks, so &ldquo;did it fire&rdquo;
+    reads the <code>start</code> ack, not the latest. A 120-tick
+    <code>flight.main_drive</code> hold moved the real ship from rest to
+    15&nbsp;m/s on &minus;Z with the ack walking
+    <code>Fired&nbsp;&rarr;&nbsp;None</code>.
+  </p>
+  <h3>The acceptance round: all four drivers pass</h3>
+  <p>
+    The flight pair got its world (commit <code>46530b9a</code>):
+    <code>acceptance.content.ron</code>, a loose
+    <code>--scenario-file</code> beside the drivers &mdash; one armed
+    corvette, one hostile <code>raider_1</code> parked 280&nbsp;u down the
+    burn line under a long engage grace, each turret on its own free key so
+    <code>section.&lt;id&gt;</code> presses one mount and never its
+    neighbour. <code>drive_flight.py</code> and <code>agent_loop.py</code>
+    now play the real binary against it, checks said in 3-D, and refuse to
+    run without <code>--cmd</code>. Getting them green surfaced two real
+    gesture rules the mock never knew: the radar sweep commits into the
+    COMBAT slot only while weapons are raised (stance-down it banks a
+    travel lock), and the lock is not the 0.25&nbsp;s threshold alone
+    &mdash; an acquisition dwell (0.6&nbsp;s base, range-scaled) must
+    charge on the candidate under the boresight, so the aim beat moved
+    after combat and the hold grew to 90 ticks. The agent hunted the
+    raider down in eleven half-second rounds: burn while far, stance up,
+    sweep, both turrets on the lock; the raider ended
+    <code>defeated</code> and <code>neutralized</code> with the player
+    untouched. Free mode&rsquo;s <code>late</code> flag is real too:
+    a passed-tick line lands in <code>ChannelFrame::late_lines</code> and
+    its ack says <code>late</code>, unit-tested at the ack funnel. The poc
+    README now retires <code>mock_game.py</code> into the wire&rsquo;s
+    executable schema reference &mdash; the pointer and NOVA&nbsp;OS
+    drivers still run against it without <code>--cmd</code>.
+  </p>
+  <h3>Still open</h3>
+  <ol>
+    <li><strong>The gate&rsquo;s owner call.</strong> The spike removed the
+      render gate on the NOVA OS / HUD plugins outright; headless
+      measurement runs now carry those systems&rsquo; CPU cost. Kept as-is;
+      if probe noise ever matters, the alternative is arming the two
+      plugins from the channel instead of unconditionally.</li>
+    <li><strong>The console vocabulary.</strong> <code>action</code> /
+      <code>command</code> lines stay reserved and refused with the
+      follow-up task id &mdash; task <code>20260827-120347</code>&rsquo;s
+      scope, not this one&rsquo;s.</li>
+  </ol>
+  <p class="sub">
+    The pointer-synthesis home resolved itself: <code>nova_channel</code>
+    depends on <code>nova_autopilot</code> and reuses <code>input.rs</code>
+    whole. The release-build worry was empty &mdash; the crate is optional
+    behind the root <code>debug</code> feature, exactly like
+    <code>nova_probe</code>, so nothing new ships in release.
+  </p>
+
+  <p class="foot">
+    Sources read while writing: nova_core lib.rs assemble/build &middot;
+    nova_input (registry, dispatch, poll, context) &middot;
+    nova_autopilot input.rs + tests/pointer_pin.rs &middot;
+    nova_os_ui terminal (input, mod, crt, pointer_rig) + nova_os shell/state &middot;
+    nova_menu (pause, settings capture) &middot; nova_ui text_field &middot;
+    nova_probe snapshot.rs &middot; bevy_picking 0.19 (input, pointer, lib) &middot;
+    bevy_ui 0.19 (picking_backend, update, layout) &middot; bevy_render camera.rs &middot;
+    bevy_input keyboard.rs &middot; bevy_app schedule_runner.rs.
+    Companion pages: <a href="https://claude.ai/code/artifact/6ce6c4fe-ad19-4f54-9720-ddfb3a68aca0">the process channel</a> &middot;
+    <a href="https://claude.ai/code/artifact/7838fafd-f82a-4c51-a7fc-308449c03b07">the bindings registry</a>.
+  </p>
+</main>

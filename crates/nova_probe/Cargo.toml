@@ -39,6 +39,10 @@ nova_ship = { path = "../nova_ship" }
 nova_events = { path = "../nova_events" }
 # ... and snapshot-diffs NovaEventWorld's variables.
 nova_scenario = { path = "../nova_scenario" }
+# The snapshot's `ui` block reads the terminal model (NovaOsTerminal, via
+# nova_os_ui's re-export) and the CRT glass slice (map contact codes pushed
+# through the shipped warp inverse) - the screen a GUI player sees, as data.
+nova_os_ui = { path = "../nova_os_ui" }
 # Timeline entries carry the events' serde_json payloads (GameEventInfo::data),
 # so the JSONL sink serializes with serde_json rather than hand-rolling.
 serde_json = { version = "1" }

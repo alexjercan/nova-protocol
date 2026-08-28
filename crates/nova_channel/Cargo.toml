@@ -1,0 +1,32 @@
+[package]
+name = "nova_channel"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The process channel: named inputs on stdin, world snapshots on stdout (dev tools)"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+# The applied echo reads TriggerState off the rig-built action entities.
+bevy_enhanced_input = { version = "0.26.0" }
+# One JSON object per line, both directions.
+serde_json = { version = "1" }
+# The named-action lookup, the dispatcher the input/aim lanes press through,
+# and the live set the snapshot advertises.
+nova_input = { path = "../nova_input" }
+# The pointer gestures and the cursor pin - reused whole, not duplicated (the
+# design page's owner call: the channel is debug-gated in the binary, so this
+# does not put the autopilot into release builds).
+nova_autopilot = { path = "../nova_autopilot" }
+# The player-ship root the `section.<id>` lane resolves sections off.
+nova_gameplay = { path = "../nova_gameplay" }
+# Sections carry their binding lists in nova_ship's components.
+nova_ship = { path = "../nova_ship" }
+# The scenario ids sections and ships answer to.
+nova_events = { path = "../nova_events" }
+# The snapshot serializer the runner calls after every stepped frame.
+nova_probe = { path = "../nova_probe" }
+
+[lints]
+workspace = true

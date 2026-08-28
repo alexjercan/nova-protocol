@@ -39,6 +39,14 @@ struct Cli {
     #[cfg(feature = "debug")]
     #[arg(long)]
     mute: bool,
+    /// Speak the process channel: named inputs on stdin, world snapshots on
+    /// stdout, one JSON object per line. `step` gates the clock on the
+    /// driver's ticks; `free` lets the app run and applies lines as they
+    /// arrive. Needs `--norender`: the channel's runner replaces the headless
+    /// one, and a winit window loop cannot be stepped from stdin.
+    #[cfg(feature = "debug")]
+    #[arg(long, value_name = "MODE", requires = "norender")]
+    channel: Option<nova_channel::ChannelMode>,
 }
 
 /// The dev tools behind the game binary. Each variant forwards its raw
@@ -114,6 +122,13 @@ fn main() -> ExitCode {
     if cli.debugdump {
         debugdump(&mut app);
         return ExitCode::SUCCESS;
+    }
+
+    // LAST, so its runner wins over the headless ScheduleRunner one and its
+    // writer systems see every plugin's sets already registered.
+    #[cfg(feature = "debug")]
+    if let Some(mode) = cli.channel {
+        app.add_plugins(nova_channel::NovaChannelPlugin { mode });
     }
 
     run_app(&mut app)

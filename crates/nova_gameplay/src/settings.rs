@@ -38,8 +38,8 @@ use crate::juice::prelude::JuiceSettings;
 /// Glob-import surface: `use nova_gameplay::settings::prelude::*`.
 pub mod prelude {
     pub use super::{
-        GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume, NovaSettingsPlugin,
-        HARNESS_ENVS, MUTE_ENV,
+        seed_from_env, GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume,
+        NovaSettingsPlugin, HARNESS_ENVS, MUTE_ENV, SEED_ENV,
     };
 }
 
@@ -90,6 +90,30 @@ impl MasterVolume {
 /// and each lives in the crate that owns the device it turns off. Set to
 /// anything but `"0"` to mute; `"0"` forces sound even under a harness.
 pub const MUTE_ENV: &str = "NOVA_MUTE";
+
+/// Environment variable that SEEDS the gameplay RNG, for replayable runs.
+///
+/// Unset, the entropy plugin seeds from the OS and no two runs agree - the
+/// right default for play. Set to a `u64` (decimal), every `bevy_rand` fork in
+/// the session derives from that one seed, which is what lets a driven run
+/// (task 20260820-174148: `nova_channel`, and any scripted harness run) be
+/// replayed byte for byte. It lives here because the entropy plugin is
+/// gameplay's, the way the mute knob lives with the audio output.
+///
+/// A value that does not parse is REFUSED at boot (panic naming the variable),
+/// never silently ignored: a replay that quietly ran unseeded is the exact
+/// failure the knob exists to prevent.
+pub const SEED_ENV: &str = "NOVA_SEED";
+
+/// Read [`SEED_ENV`]: `None` when unset, the parsed seed when set, a refusal
+/// when set to something that is not a `u64`.
+pub fn seed_from_env() -> Option<u64> {
+    let raw = std::env::var(SEED_ENV).ok()?;
+    match raw.parse::<u64>() {
+        Ok(seed) => Some(seed),
+        Err(error) => panic!("{SEED_ENV}={raw:?} is not a u64 seed ({error})"),
+    }
+}
 
 /// Zero audio output for scripted runs - nobody listens to an autopilot run, and
 /// Xvfb hides the window but not the speakers. Resolved from the environment

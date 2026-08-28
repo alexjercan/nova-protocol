@@ -241,6 +241,30 @@ path = "examples/systems/bug_menu_picker.rs"
 name = "system_nova_os"
 path = "examples/systems/system_nova_os.rs"
 
+[[example]]
+name = "system_headless_pointer"
+path = "examples/systems/system_headless_pointer.rs"
+
+[[example]]
+name = "system_headless_novaos"
+path = "examples/systems/system_headless_novaos.rs"
+
+[[example]]
+name = "system_headless_replay"
+path = "examples/systems/system_headless_replay.rs"
+
+[[example]]
+name = "system_headless_rebind"
+path = "examples/systems/system_headless_rebind.rs"
+
+[[example]]
+name = "system_headless_drag"
+path = "examples/systems/system_headless_drag.rs"
+
+[[example]]
+name = "system_headless_crt"
+path = "examples/systems/system_headless_crt.rs"
+
 # And the STRESS ranges: the same correctness shape - exact counts, a
 # clear-and-drain assertion, a teardown that leaves nothing - staged at a scale
 # no content will ever reach, with a frame-time capture riding along. One file
@@ -440,10 +464,17 @@ nova_probe_cli = { path = "crates/nova_probe_cli", optional = true }
 # binary itself and the binary has to carry the collectors. Every capability is
 # env-gated: an ordinary `cargo run --features debug` wires nothing.
 nova_probe = { path = "crates/nova_probe", optional = true }
+# The process channel (`--channel`, debug-only): named inputs on stdin, world
+# snapshots on stdout. Optional for the same reason as the probe - release
+# builds never carry it, which is also what keeps nova_autopilot out of them.
+nova_channel = { path = "crates/nova_channel", optional = true }
 
 [dev-dependencies]
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
+# The headless replay spike (task 20260820-174148) draws one sample from the
+# global entropy to prove `NOVA_SEED` reaches the stream the game plays from.
+bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
 # The stress ranges and the baseline use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # in-game half of the run-harness, not shipped with the game binary; the host
@@ -602,6 +633,7 @@ debug = [
   "dep:nova_probe_cli",
   "nova_probe_cli?/debug",
   "dep:nova_probe",
+  "dep:nova_channel",
 ]
 dev = ["debug"]
 # The automatic PROFILED pass: bevy's per-system spans are
@@ -636,6 +668,9 @@ members = [
   # nova_assets stays the runtime asset stack, authoring stays one crate.
   "crates/nova_authoring",
   "crates/nova_autopilot",
+  # The process channel: named inputs on stdin, snapshots on stdout
+  # (task 20260820-174148).
+  "crates/nova_channel",
   "crates/nova_core",
   "crates/nova_debug",
   "crates/nova_editor",

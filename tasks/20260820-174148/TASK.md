@@ -435,3 +435,240 @@ height is a standing instruction, so the clipped FLIGHT row is a layout call.
 fix for starved portrait art, grew all 26 letter caps two pixels - they measure
 0.92. `keybind_dock`'s sizing tests caught it; the rule now starts below the
 keycaps and `only_portrait_art_is_sized_by_its_width` pins it.
+
+### Step 4 investigation - `nova_channel` at full GUI parity (branch `channel-design`, NOT landed)
+
+Owner's bar for the crate that does not exist yet: everything the GUI player
+can do - mouse moves, button clicks, typing into NOVA OS - must work over
+stdin against `--norender`. Investigated against the tree; nothing shipped.
+On the `channel-design` sprout by request, deliberately unlanded.
+
+**Design record.** `tasks/20260820-174148/nova-channel.html`, published as
+<https://claude.ai/code/artifact/4e65b957-8cd0-4eb5-90fd-570b5712533f>: the
+parity ledger (16 player capabilities, each with its mechanism and status),
+the wire schema for the raw lanes, the crate's system slots, and the spike
+list in build order.
+
+**The finding: one virtual window buys the whole pointer.** Headless input
+dies in three independent places - every `nova_autopilot` gesture writer
+resolves `PrimaryWindow` and no-ops (`input.rs:102-108, 401-409, 527-534`),
+no camera ever computes `target_info` so UI layout collapses to 0x0
+(`bevy_ui update.rs:137-153`), and `ui_picking` matches no camera
+(`picking_backend.rs:126-131`). All three are the same missing ENTITY:
+`get_render_target_info` reads the `Window` component, not the GPU
+(`bevy_render camera.rs:275-284`), so spawning one ordinary
+`Window`+`PrimaryWindow` with a fixed resolution revives layout, picking and
+every existing gesture helper unchanged. `pointer_rig.rs:240-246` and
+`tests/pointer_pin.rs` already use the idiom in miniature. This SUPERSEDES
+the design page's "make the window optional on the helpers" note. Helping
+fact: `--norender` is full `DefaultPlugins` minus only `WinitPlugin`, so the
+whole picking stack is already present and idle; and the workspace has ZERO
+legacy `Interaction` polling - every clickable surface is `bevy_picking`
+observers, so one synthesized pointer serves all of them.
+
+**The gate: headless has no NOVA OS.** `NovaOsUiPlugin` and `NovaHudPlugin`
+are render-gated (`nova_core/src/lib.rs:300-303`) and their bindings register
+with them, so the headless table holds 15 of 33 actions and `novaos_toggle`
+is `Unknown` in exactly the channel's mode. Call: both plugins take the
+`{ render: bool }` shape every other game plugin has. Registering bindings
+without systems was rejected - a table advertising dead verbs is the lie the
+registry exists to end.
+
+**Corrections found.** (1) Determinism is not free: the shipping app seeds
+from OS entropy (`EntropyPlugin::<WyRand>::default()`,
+`nova_gameplay/src/plugin.rs:74`); every `with_seed` in the tree is a test
+rig. Replay needs a seed knob. (2) Synthesized `KeyboardInput` needs a
+`Released` twin or `keyboard_input_system` leaves phantom keys pressed
+forever - latent in `type_text` today. (3) The prompt reads `event.text`
+while `TextField` reads `Key::Character`, so the text lane writes both; the
+key lane writes message AND `ButtonInput`, because the mode chords and the
+rebind capture poll. (4) Any new `NOVA_*` env var must be registered in
+`tests/env_contract.rs` and `docs/environment-variables.md` or CI fails.
+
+**Wire, settled.** Five lanes in - `input` (+`phase`), `aim`, `text`, `key`,
+`pointer`, plus a bare `tick` as the step instruction; `action`/`command`
+parsed and refused naming 20260827-120347. Out: the snapshot grows `applied`
+(per-line acks carrying `TriggerState` or `refused`), `input.live`/`contexts`,
+and a `ui` block (pause rung, terminal model, pointer census of visible
+`Name`d rects) - all additive, no schema bump (`snapshot.rs:127-130`).
+
+**PoCs.** `tasks/20260820-174148/poc/`: `mock_game.py` implements the wire
+over a toy world; `channel.py` is the driver client; `drive_flight.py`,
+`drive_novaos.py`, `drive_pointer.py`, `agent_loop.py` all PASS over real
+pipes - the radar tap/hold distinction, the context refusal on the map's `G`,
+a release-over click on a census-advertised `Resume`, and an agent loop with
+the clock gated on the driver. Rerunning them against the real binary via
+`Channel(cmd=[...])` is the crate's acceptance test.
+
+**Spikes, in build order.** (1) boot the full headless app with the virtual
+window, assert `click_named("Resume")` fires the real observer; (2) NOVA OS
+with `render: false` - the RTT/CRT surfaces with no GPU are the risk;
+(3) the seed knob plus a byte-for-byte replay test; (4) the crate: reader
+thread, two writer systems (`First` before `PickingSystems::Input` for the
+pointer, `PreUpdate` after `InputSystems` before
+`EnhancedInputSystems::Prepare` for buttons and axes), the runner via
+`app.set_runner()` after `AppBuilder::build()`, `capture_snapshot` moved out
+of `nova_probe`. Pointer synthesis home needs an owner call: depend on
+`nova_autopilot` (bevy-only, env-inert, but starts shipping in release) or
+move `input.rs` to a shared home; reuse is the recommendation.
+
+### Step 4.1 spikes - the three risks, run against the real app (branch `channel-design`, NOT landed)
+
+The owner's framing question for this round: does the channel have to
+simulate the GUI, or can it use the in-memory backends the game already
+keeps? Answer, now recorded in the design page's "The stance" section: the
+backends exist (`NovaOsTerminal` is a resource, the pause menu is taffy
+rects, the CRT is a projection), and the wire speaks at both levels - the
+named-input lane is the multiplayer-packet level (dispatcher + context
+validation, no keyboard), the pointer/text lanes are the human level where
+bypass is refused on purpose (Playwright-style: resolve the `Name` to a
+laid-out visible rect, then real events, so unreachable UI FAILS the run).
+
+Spikes 1-3 from the build order now exist as ranges and all PASS headless -
+no display, no GPU (`examples/systems/system_headless_{pointer,novaos,replay}.rs`):
+
+1. **The virtual window holds.** `system_headless_pointer` boots
+   `--norender --scenario shakedown_run`, spawns the `Window`+`PrimaryWindow`
+   entity, ESC to the pause overlay, census (`Pause Overlay 1280x720`,
+   `Resume Button 238x40 at (640,279)` - real taffy), clicks Resume through
+   `bevy_picking` -> `On<Activate>`, game resumes. Exit 0.
+2. **The render gate was never load-bearing.** Spike 2 REMOVES the gate on
+   `NovaHudPlugin`/`NovaOsUiPlugin` outright (no `{render: bool}` flag -
+   every GPU piece is bevy-guarded; `UiMaterialPlugin` no-ops without a
+   render sub-app, `ui_material_pipeline.rs:55`). Headless registry now
+   holds 33/33 actions; Tab opens the monitor, `type_text` lands `map` in
+   the `NovaOsTerminal` resource, Enter launches the map app.
+   OPEN owner call: headless measurement runs now carry HUD/monitor CPU
+   systems - if probe noise matters, arm the plugins from the channel
+   instead of unconditionally.
+3. **Seed + pinned clock replay byte for byte.** `NOVA_SEED` added to
+   `nova_gameplay::settings` (env contract + dev book rows; non-u64 refuses
+   boot), `EntropyPlugin::with_seed` when set. With
+   `TimeUpdateStrategy::ManualDuration(1/64 s)`, two seed-42 runs digest the
+   probe snapshot identically (`bed90101044a6e0e`) and draw the same
+   entropy sample; seed 43 draws differently (the passive world is
+   RNG-free - the belt scatter uses scenario-authored seeds, entropy's
+   consumers are combat-time). FINDING on the way: the first digest attempt
+   diverged by exactly one 1/64 s tick of `elapsed` and NOTHING else - an
+   outside observer counting from "I saw Playing" races the scenario start
+   by one frame. Anchor on the world's own clock; the channel's step clock
+   has no such race by construction.
+
+Warts for the crate's log filter: `bevy_egui` warns every frame that the
+virtual window has no winit backing; `bevy_gltf` notes missing
+`CompressedImageFormatSupport` once at boot.
+
+Still open: spike 4 (the crate itself; PoC drivers rerun via `--cmd` as
+acceptance), the CRT blip click and slider drag (traced, not yet driven),
+the gate owner call above, and the pointer-synthesis home call
+(depend on `nova_autopilot` vs move `input.rs`).
+
+### Step 4.2 spikes - the remaining ledger rows, run against the real app (branch channel-design, NOT landed)
+
+Spikes 4-6 close the last three interaction rows headless
+(`examples/systems/system_headless_{rebind,drag,crt}.rs`, all exit 0,
+`--norender`, no display):
+
+4. **The rebind by wire.** Full Settings walk by `Name` through the
+   reconciled body (ESC -> Settings -> Controls tab -> FLIGHT group -> arm
+   the `main_drive` Desk chip -> J), `NOVA_CONFIG_ROOT` pointed at a scratch
+   dir BEFORE the app builds so the exit flush cannot touch the real
+   settings.ron. The registry takes the override: keyboard column becomes
+   `[Keyboard(KeyJ)]`, `overrides()` carries `main_drive`.
+   FINDING (the round's best): the scenario loading screen fades out OVER
+   the fresh pause overlay and eats every pick for ~1 s. A resolvable rect
+   is NOT yet clickable - the first version pressed on a frame count and
+   clicked the fade. The pointer lane's rule is now concrete: press only
+   after the pick map reports the aim landed on the named widget, re-aim
+   every frame while blocked, and a blocked aim NAMES its occluder
+   (`the pointer is over ["Scenario Loading Screen"]`).
+5. **The slider drag.** Volume track: press snaps (`TrackClick::Snap`) to
+   0.5 at centre, two cursor legs +60 px along the 428 px track raise
+   `MasterVolume` to 0.640 (predicted +0.14), release commits; the widget's
+   `SliderValue` and the resource agree. The range also prints the proposed
+   snapshot `ui` block with the modal open: 50 named nodes, logical rects,
+   button flag, mode rungs, terminal model.
+6. **The blip through the glass, no GPU anywhere.** The feared fallback
+   never happens: `UiMaterialPlugin` registers the CRT material asset
+   BEFORE its render-app check, so `--norender` takes the RTT arm and the
+   whole chain is CPU (reconciler sizes the image, offscreen camera reads
+   it, map lays out against it, forwarder un-warps window px -> image px).
+   The walk mixes lanes: packet lane `novaos_next`/`novaos_reframe` (keys
+   resolved from the registry) puts the ring on AST-1, frames it, cycles
+   the ring OFF; human lane clicks through the warp inverse. Verdicts: the
+   FORWARDED pointer hovers the blip and the window mouse does not, the
+   click restores the ring, G engages `Autopilot::Goto` on exactly that
+   contact. FINDINGS: the shakedown belt sits outside even max wheel zoom
+   (scenario truth no trace surfaced; select+reframe is the wire's answer),
+   and a driver that advances on a world change can skip its own key
+   RELEASE - a held key never counts as just_pressed again, so the key
+   lane must pair every press with its release.
+
+Still open after this round: the crate itself (spike "the crate" with
+`--cmd` acceptance), the `ui` block's real home in `capture_snapshot`
+(census is driver-side today), the render-gate owner call, and the
+pointer-synthesis home call.
+
+## The crate round (2026-08-28, commit f5708bd1)
+
+`crates/nova_channel` is real: protocol parser (mock refusal texts as unit
+tests), five lanes behind two writer systems in the pinned slots (`First`
+after MessageUpdateSystems / before PickingSystems::Input for the pointer,
+`PreUpdate` after InputSystems / before EnhancedInputSystems::Prepare for
+the rest), stdin reader thread, step/free runners with a boot gate (hold
+the wire through `GameStates::Loading` + 2 settle frames; tick 0 = world
+ready). Armed by `--channel step|free` (debug-only, requires `--norender`),
+installed after the builder so its runner wins. `InputBindings::bundle` now
+tags every action entity `ActionName`, which is what the ack reads its
+`TriggerState` through after the frame. The `ui` census moved into
+`nova_probe::capture_snapshot`; the header grew `t_game` (virtual seconds,
+freezes with pause - `elapsed` is the scenario event clock and stalls
+through the shakedown opening on its own cadence).
+
+Acceptance: `drive_pointer.py` and `drive_novaos.py` PASS against the real
+binary (`--cmd ".../nova-protocol --norender --scenario shakedown_run
+--channel step"`, NOVA_CONFIG_ROOT isolated) and the mock alike. The real
+world corrected the mock in five places, folded back into mock+drivers:
+Resume Button (real Name), `nova_os.*` (group lowercases with underscore),
+the 0.22 s CRT close drawer (driver steps through the slide), two real
+frames of `t_game` between press and pause engaging, and press/release =
+two acks (read the `start` ack, not the latest). Smoke: 120-tick
+`flight.main_drive` hold took the real ship 0 -> 15 m/s on -Z, ack
+Fired -> None. Tests: 6 + 36 + 80 pass on the touched crates.
+
+Still open: the flight acceptance pair (drive_flight/agent_loop encode
+mock facts - raider_1, 1-D kinematics, vel > 50; needs a purpose-built
+loose --scenario-file and 3-D checks - owner call on scope), the
+render-gate owner call (kept un-gated; revisit only if probe noise
+matters), free mode's `late` flag (field rides every ack, runner never
+sets it; step mode refuses past ticks so nothing lies), and retiring the
+mock into the schema reference once the flight pair passes.
+
+## The acceptance round (2026-08-28, commit 46530b9a)
+
+All four drivers now PASS against the real binary. The flight pair got
+`poc/acceptance.content.ron` - a loose --scenario-file, never installed:
+one armed corvette (`player`), one hostile `raider_1` at 280 u down the
+burn line under `engage_delay: 600`, each turret on its own free key
+(U / I) so `section.<id>` presses one mount only. drive_flight and
+agent_loop rewrote their checks in 3-D and refuse to run without --cmd.
+
+Two real gesture rules the mock never knew, found while going green: the
+radar sweep commits a COMBAT lock only while weapons are raised
+(stance-down it banks a travel lock), and the latch is threshold PLUS an
+acquisition dwell (lock_dwell_base 0.6 s, range-scaled) charged on the
+candidate under the boresight - so stance moved before the sweep, the aim
+beat after combat, and the hold grew to 90 ticks. The agent's kill is
+real: raider `defeated` + `neutralized`, hull 907 -> 227, player
+untouched, turret transcript on_target with 455 rounds spent (damage
+lands in a late burst after bullet flight, past the loop's last print).
+
+Also closed: free mode's `late` flag (passed-tick lines land in
+`ChannelFrame::late_lines`; the ack funnel stamps them; 2 unit tests at
+the funnel, 8 crate tests total), and the poc README retires mock_game.py
+into the wire's executable schema reference (pointer/novaos still run
+against it bare; the flight pair refuses without --cmd).
+
+Still open: only the render-gate owner call (kept un-gated; revisit if
+probe noise matters) and the console vocabulary, which is task
+20260827-120347's scope. The branch stays unlanded until asked.
