@@ -1,0 +1,1206 @@
+<title>nova_input Findings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+
+<style>
+  /* Dark-first: :root carries the complete dark palette, and the two light
+     blocks below redefine only tokens. */
+  :root {
+    --ground: #090D0B;
+    --surface: #101714;
+    --surface-2: #16201C;
+    --raised: #1C2823;
+    --ink: #DDE7E1;
+    --ink-mid: #A2B0A9;
+    --ink-dim: #76857E;
+    --rule: #24302A;
+    --rule-soft: #1B241F;
+    --accent: #4ADE80;
+    --accent-dim: #2E9257;
+    --blocker: #FF6F5E;
+    --blocker-bg: #2A1310;
+    --major: #F0A830;
+    --major-bg: #251A08;
+    --minor: #7FB0D4;
+    --minor-bg: #101C25;
+    --ok: #4ADE80;
+    --shadow: 0 1px 0 rgba(255,255,255,0.03), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ground: #EEF1EE;
+      --surface: #FFFFFF;
+      --surface-2: #F5F8F5;
+      --raised: #EAF0EB;
+      --ink: #141C18;
+      --ink-mid: #47554E;
+      --ink-dim: #6B7972;
+      --rule: #D5DED8;
+      --rule-soft: #E4EAE5;
+      --accent: #12703A;
+      --accent-dim: #3E9A63;
+      --blocker: #B5372A;
+      --blocker-bg: #FBECEA;
+      --major: #8A5B00;
+      --major-bg: #FBF2E0;
+      --minor: #2F6188;
+      --minor-bg: #EBF2F8;
+      --ok: #12703A;
+      --shadow: 0 1px 2px rgba(20,28,24,0.06), 0 8px 20px rgba(20,28,24,0.06);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground: #EEF1EE;
+    --surface: #FFFFFF;
+    --surface-2: #F5F8F5;
+    --raised: #EAF0EB;
+    --ink: #141C18;
+    --ink-mid: #47554E;
+    --ink-dim: #6B7972;
+    --rule: #D5DED8;
+    --rule-soft: #E4EAE5;
+    --accent: #12703A;
+    --accent-dim: #3E9A63;
+    --blocker: #B5372A;
+    --blocker-bg: #FBECEA;
+    --major: #8A5B00;
+    --major-bg: #FBF2E0;
+    --minor: #2F6188;
+    --minor-bg: #EBF2F8;
+    --ok: #12703A;
+    --shadow: 0 1px 2px rgba(20,28,24,0.06), 0 8px 20px rgba(20,28,24,0.06);
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: 3rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+
+  h1, h2, h3 {
+    font-family: "Chakra Petch", ui-sans-serif, system-ui, sans-serif;
+    text-wrap: balance;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+  h1 { font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 700; line-height: 1.1; }
+  h2 { font-size: 1.45rem; font-weight: 600; }
+  h3 { font-size: 1.05rem; font-weight: 600; }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  code {
+    font-size: 0.86em;
+    background: var(--surface-2);
+    border: 1px solid var(--rule-soft);
+    border-radius: 3px;
+    padding: 0.08em 0.34em;
+    color: var(--accent);
+    word-break: break-word;
+  }
+
+  p { margin: 0; }
+  a { color: var(--accent); }
+
+  /* ---- masthead ---- */
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .masthead { display: flex; flex-direction: column; gap: 0.9rem; }
+  .lede { font-size: 1.12rem; color: var(--ink-mid); max-width: 42em; }
+  .range {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.82rem;
+    color: var(--ink-dim);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+  }
+  .range b { color: var(--ink-mid); font-weight: 500; }
+
+  /* ---- verdict ---- */
+  .verdict {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--blocker);
+    border-radius: 4px;
+    padding: 1.5rem 1.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .verdict-head {
+    font-family: "Chakra Petch", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--blocker);
+  }
+  .tally { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+    background: var(--surface-2);
+  }
+  .count .n {
+    font-family: "Chakra Petch", sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .count .l {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .count.b { background: var(--blocker-bg); border-color: var(--blocker); }
+  .count.b .n { color: var(--blocker); }
+  .count.m { background: var(--major-bg); }
+  .count.m .n { color: var(--major); }
+  .count.n { background: var(--minor-bg); }
+  .count.n .n { color: var(--minor); }
+
+  /* ---- sections ---- */
+  section { display: flex; flex-direction: column; gap: 1.2rem; }
+  .sec-head { display: flex; flex-direction: column; gap: 0.4rem; }
+  .sec-head p { color: var(--ink-mid); max-width: 48em; }
+
+  /* ---- findings ---- */
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .f-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.85rem 1.1rem;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .sev {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    padding: 0.24em 0.6em;
+    border-radius: 2px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .sev.b { background: var(--blocker); color: var(--ground); }
+  .sev.m { background: var(--major); color: var(--ground); }
+  .sev.n { background: var(--minor); color: var(--ground); }
+  .sev.done { background: transparent; color: var(--ok); border: 1px solid var(--accent-dim); }
+  .sev.held { background: transparent; color: var(--major); border: 1px solid var(--major); }
+
+  /* ---- disposition ---- */
+  .stands {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 1.4rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .stands h2 { font-size: 1.25rem; }
+  .stands p { color: var(--ink-mid); max-width: 52em; }
+  .lands { display: flex; flex-direction: column; gap: 0.55rem; }
+  .land {
+    display: grid;
+    grid-template-columns: 7.5rem 1fr;
+    gap: 0.9rem;
+    align-items: baseline;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .land:last-child { border-bottom: none; padding-bottom: 0; }
+  .land b { font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; color: var(--ink); }
+  .land span { color: var(--ink-mid); font-size: 0.94rem; }
+  @media (max-width: 34rem) { .land { grid-template-columns: 1fr; gap: 0.25rem; } }
+  .f-title { font-family: "Chakra Petch", sans-serif; font-weight: 600; font-size: 1.02rem; }
+  .f-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 0.85rem; }
+  .f-body p { color: var(--ink-mid); }
+  .site {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem;
+    color: var(--ink-dim);
+    padding: 0.5rem 0.7rem;
+    background: var(--surface-2);
+    border-left: 2px solid var(--accent-dim);
+    border-radius: 0 3px 3px 0;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    display: block;
+    margin-bottom: 0.25rem;
+  }
+  pre.term {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    background: var(--ground);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 0.8rem 0.9rem;
+    overflow-x: auto;
+    margin: 0;
+    color: var(--ink-mid);
+  }
+  pre.term .fail { color: var(--blocker); }
+  pre.term .good { color: var(--ok); }
+  .verified {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .verified::before { content: "\2713"; font-weight: 700; }
+
+  /* ---- theme clusters ---- */
+  .cluster {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .c-head {
+    padding: 0.9rem 1.1rem;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--rule-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+  .c-head h3 { color: var(--ink); }
+  .c-head p { font-size: 0.9rem; color: var(--ink-dim); }
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: grid;
+    grid-template-columns: 4.6rem 1fr;
+    gap: 0.9rem;
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--rule-soft);
+    align-items: start;
+  }
+  .row:last-child { border-bottom: none; }
+  .row .what { display: flex; flex-direction: column; gap: 0.3rem; }
+  .row .what b { font-weight: 600; color: var(--ink); }
+  .row .what span { color: var(--ink-mid); font-size: 0.93rem; }
+  .row .what .at {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    color: var(--ink-dim);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  /* ---- tables ---- */
+  .scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; min-width: 34rem; }
+  th, td { padding: 0.6rem 0.85rem; text-align: left; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    background: var(--surface-2);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  td { color: var(--ink-mid); }
+  tr:last-child td { border-bottom: none; }
+  td.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+  td.mono { font-family: "IBM Plex Mono", monospace; font-size: 0.8rem; }
+
+  /* ---- notes ---- */
+  .note {
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent-dim);
+    background: var(--surface);
+    border-radius: 0 4px 4px 0;
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .note.warn { border-left-color: var(--major); }
+  .note h3 { font-size: 0.95rem; }
+  .note p { color: var(--ink-mid); font-size: 0.94rem; }
+
+  ul.plain { margin: 0; padding-left: 1.15rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  ul.plain li { color: var(--ink-mid); }
+  ul.plain li::marker { color: var(--ink-dim); }
+
+  hr.rule { border: none; border-top: 1px solid var(--rule); margin: 0; }
+
+  footer {
+    color: var(--ink-dim);
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  @media (max-width: 34rem) {
+    .row { grid-template-columns: 1fr; gap: 0.5rem; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="eyebrow">Nova Review &middot; six lanes &middot; play</span>
+    <h1>nova_input Findings</h1>
+    <p class="lede">
+      The named-action work reviewed end to end: a new leaf crate, a rebind
+      Settings screen, keycap and pad art, and every binding surface converted to
+      speak one vocabulary. The design holds and the frame is clean. The screen
+      that fronts it is not ready.
+    </p>
+    <div class="range">
+      <span><b>Range</b> e0a5092a..HEAD (155afa73)</span>
+      <span><b>Commits</b> 25</span>
+      <span><b>Code diff</b> 11,404 lines</span>
+      <span><b>Reviewed</b> 27 Aug 2026</span>
+    </div>
+  </header>
+
+  <div class="verdict">
+    <div class="verdict-head">Does not ship as-is</div>
+    <p>
+      Two of the three blockers are red test runs, reproduced in the review
+      session rather than taken on report. The third needs no test: it is a
+      player clicking Back.
+    </p>
+    <div class="tally">
+      <div class="count b"><span class="n">3</span><span class="l">Blocker</span></div>
+      <div class="count m"><span class="n">22</span><span class="l">Major</span></div>
+      <div class="count n"><span class="n">30</span><span class="l">Minor</span></div>
+    </div>
+    <p>
+      Nothing found in the architecture. <code>nova_input</code> is a real leaf,
+      the context rule is sound under audit, the registry hot path is
+      <code>HashMap</code> lookups, and the frame is render-bound with the whole
+      main world at about 5&nbsp;ms. Every blocker and most majors sit in the
+      surfaces built on top of it.
+    </p>
+  </div>
+
+  <div class="stands">
+    <h2>Where it stands, 28 Aug</h2>
+    <p>
+      Every blocker and all twenty-two majors are fixed, and ten of the thirty
+      minors with them, across five commits on master. What is left is listed
+      below with the reason it is left - none of it is outstanding work nobody
+      decided on.
+    </p>
+    <div class="lands">
+      <div class="land">
+        <b>9d224349</b>
+        <span>The armed capture stops outliving the screen that armed it.</span>
+      </div>
+      <div class="land">
+        <b>1a79bf21</b>
+        <span>One capture rule at every rebind surface, and the answer - the
+        refusal, the group you are on - kept on screen.</span>
+      </div>
+      <div class="land">
+        <b>819d5f06</b>
+        <span>A rebind reaches the flight, camera and scenario rigs and the HUD
+        dock, and the table cannot go inconsistent on load.</span>
+      </div>
+      <div class="land">
+        <b>489e68ab</b>
+        <span>The wiki and the dev book say what the keys do now that a player
+        can move them.</span>
+      </div>
+      <div class="land">
+        <b>7df3e75d</b>
+        <span>A release lets up the source its press pushed; a stored spec the
+        rebind screen could not have produced is refused; the stick is
+        drivable; the glyph coverage test walks every source of every owner;
+        three colliding row names are apart; the Controls tab gets a
+        screenshot.</span>
+      </div>
+    </div>
+    <p>
+      <b>Held for the playtest.</b> The RCS stick deadzone and the Left Thumb
+      pairing below are untouched, on the owner's call: the controller defaults
+      are being reconsidered as a set. Left Thumb now answers both RCS fine
+      adjust and the editor's Sandbox return - this range created that, and it
+      belongs to the same question.
+    </p>
+    <p>
+      <b>Held for the owner.</b> The fixed 560&nbsp;px panel height is a
+      standing instruction, not an oversight, so the clipped FLIGHT row is a
+      layout call rather than a defect to fix around. The pad column's optical
+      weight is a colour call on pad art, which waits with the rest of it.
+    </p>
+    <p>
+      <b>Measured and accepted.</b> The seven per-frame hint strings
+      (16.73&nbsp;&micro;s, pre-existing) stay: the labels are owned as
+      <code>String</code> all the way into <code>nova_hud</code>, so caching
+      saves the lookups alone. The keycap alpha scan runs behind the loading
+      screen.
+    </p>
+    <p>
+      One regression was made and caught while fixing this list: sizing every
+      cap by its short axis, which is what the mouse glyphs need, grew all 26
+      letter caps by two pixels - they measure 0.92, a hair taller than wide.
+      The rule now starts below the keycaps and a test pins it where the rule
+      lives.
+    </p>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <h2>Blockers</h2>
+      <p>All three reproduced in this session. Each carries the command or the
+      code path that shows it.</p>
+    </div>
+
+    <article class="finding">
+      <div class="f-top">
+        <span class="sev b">Blocker</span>
+        <span class="sev done">Fixed</span>
+        <span class="f-title">A pinned readout test is red on master</span>
+      </div>
+      <div class="f-body">
+        <div class="site">crates/nova_ship/src/input/bindings.rs:255</div>
+        <p>
+          The tip commit gave <code>rcs_aim</code> a left stick and did not move
+          the expectation with it. The test exists to catch a readout regression
+          and is now itself the regression. One word.
+        </p>
+        <pre class="term">cargo test -p nova_ship --lib the_shipped_readout_columns_are_pinned
+<span class="fail">  left:  ("RCS Aim", "Mouse", "Left Stick")
+  right: ("RCS Aim", "Mouse", "Unbound")
+test result: FAILED. 0 passed; 1 failed</span></pre>
+        <span class="verified">Reproduced. Found independently by three lanes.</span>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="f-top">
+        <span class="sev b">Blocker</span>
+        <span class="sev done">Fixed</span>
+        <span class="f-title">An armed rebind outlives the panel and takes the next key you press</span>
+      </div>
+      <div class="f-body">
+        <div class="site">crates/nova_menu/src/lib.rs:130 &middot; crates/nova_menu/src/settings.rs:50, :629</div>
+        <p>
+          <code>apply_settings_rebind</code> is registered in <code>Update</code>
+          with no run condition and no state gate &mdash; its own comment says
+          &ldquo;Ungated by menu state&rdquo;. <code>on_settings_back</code> only
+          flips <code>Visibility::Hidden</code>. All six <code>disarm</code> call
+          sites are a tab press, a group press, Escape, Reset Defaults, or a
+          successful capture. Not one is a close handler.
+        </p>
+        <div>
+          <span class="label">What a player does</span>
+          <p>
+            Arm the Main Drive chip. Change your mind, click Back. The click is
+            Left Mouse, which the capture refuses without disarming, so the arm
+            survives with nothing on screen to say so. Start a game. Press
+            <code>A</code>. <code>conflict_for</code> clears it &mdash; the only
+            other holder of <code>A</code> is <code>novaos_pan_left</code>, whose
+            <code>Viewer</code> context does not overlap <code>Flight</code>
+            &mdash; so <code>main_drive</code> becomes <code>A</code>, W and Space
+            stop burning, and <code>persist_settings_on_change</code> writes it to
+            disk. The only route back is Reset Defaults.
+          </p>
+        </div>
+        <p>
+          The same live arm reaches the NOVA OS: typing <code>map</code> at the
+          terminal prompt captures <code>m</code>.
+        </p>
+        <span class="verified">Code path confirmed line by line. Found independently by two lanes.</span>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="f-top">
+        <span class="sev b">Blocker</span>
+        <span class="sev done">Fixed</span>
+        <span class="f-title">One test un-isolates the config store for the rest of the process</span>
+      </div>
+      <div class="f-body">
+        <div class="site">crates/nova_menu/src/tests/settings.rs:358 &middot; crates/nova_menu/src/tests/support.rs:35</div>
+        <p>
+          <code>isolate_the_config_store</code> sets <code>NOVA_CONFIG_ROOT</code>
+          inside a <code>std::sync::Once</code>.
+          <code>a_setting_edited_just_before_quitting_is_still_saved</code> calls
+          <code>remove_var</code> on it when it finishes. The
+          <code>Once</code> has already fired, so nothing restores it: every later
+          fixture loads the developer's real
+          <code>~/.config/nova-protocol/settings.ron</code>.
+        </p>
+        <pre class="term">cargo test -p nova_menu --lib -- --test-threads=1
+<span class="fail">tests::settings::the_window_row_drives_the_primary_window ... FAILED
+  left: Windowed   right: BorderlessFullscreen(Current)
+test result: FAILED. 95 passed; 1 failed</span></pre>
+        <p>
+          Green on a clean <code>HOME</code>, which is why CI has not caught it.
+          The wider hazard is the one the round-one fix was written to close:
+          after that test runs, the whole rebind suite asserts against whatever
+          keybinds the developer last saved by playing.
+        </p>
+        <span class="verified">Reproduced, and the mechanism confirmed against the local settings file.</span>
+      </div>
+    </article>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>Majors, by what they have in common</h2>
+      <p>
+        Grouped by shape rather than by lane, because the shapes repeat. Six
+        clusters account for all twenty-two, and three of them are the same
+        omission made at three different surfaces.
+      </p>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>The capture has no owner</h3>
+        <p>Nothing scopes an armed rebind to the thing that armed it.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Escape cancels the capture and closes the pause overlay in one press</b>
+            <span>The capture reads the Escape edge but claims nothing, and <code>toggle_pause</code> reads the same edge in the same schedule with no ordering between them. Both other capture surfaces in the tree already raise <code>EscapeOwner</code>; this one does not.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:642</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The refusal is rendered below the fold</b>
+            <span>Pressing a taken key produces no visible change at all. The message is spawned after every row and a separator, which in the FLIGHT group is off-screen. A player rebinds, presses a taken key, sees nothing, and concludes the screen is broken &mdash; on the primary interaction of a brand-new screen.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:566</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The ship viewer captures Left Mouse on a click-driven surface</b>
+            <span>Settings refuses Left Mouse with a recorded reason. <code>apply_ship_rebind</code> has no such exclusion and skips its arm for exactly one frame instead of waiting for release, so the next click on a blip binds the section to the shipped turret trigger.</span>
+            <span class="at">crates/nova_os_ui/src/ship/rebind.rs:53</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b><code>captured_pad()</code> hands out Start, the fixed pause chord</b>
+            <span><code>captured_desk()</code> filters Escape because it is the fixed back-out. The pad half of that same chord is not a registry action, so <code>conflict_for</code> cannot see it and the read-only row that names it cannot undo it.</span>
+            <span class="at">crates/nova_input/src/poll.rs:103</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Two older captures pick an arbitrary key out of a HashSet</b>
+            <span>Both use <code>get_just_pressed().find(...)</code>. Press W and D on one frame and the binding is either one, run to run. <code>InputSources::captured_desk</code> takes <code>.min()</code> for exactly this reason and says so in its docstring; the range introduced the shared helper and left three copies behind.</span>
+            <span class="at">crates/nova_editor/src/keybind.rs:385 &middot; crates/nova_os_ui/src/ship/rebind.rs:49</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>The table can go inconsistent behind your back</h3>
+        <p>The conflict guard is the only detection this design has, and three paths route around it.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The guard never sees live section bindings</b>
+            <span><code>conflict_for</code> walks registry actions only; turret and thruster triggers live on section entities. The check is one-directional &mdash; section&nbsp;&rarr;&nbsp;flight is guarded at two surfaces, flight&nbsp;&rarr;&nbsp;section nowhere. Every base scenario binds turrets to <code>Gamepad(RightTrigger2)</code>, so binding Main Drive to that trigger is accepted and one pull then burns and fires.</span>
+            <span class="at">crates/nova_input/src/registry.rs:459</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b><code>apply_overrides</code> runs no conflict check on load</b>
+            <span>The store keeps only changed rows, deliberately, so a moved default reaches a player who never touched it. That guarantees the collision: rebind X to J, ship a release that moves Y's default onto J, and both fire with <code>consume_input: false</code>. Live-verified &mdash; a store with two actions on J boots, reaches Playing and logs nothing.</span>
+            <span class="at">crates/nova_input/src/registry.rs:381</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The whole-table guard covers 32 of 33 actions</b>
+            <span>The one it misses is the cross-owner case its own comment names. <code>scenario_bindings()</code> is <code>pub(crate)</code> and unreachable from the test crate, and <code>scenario_advance</code> declares <code>Flight</code>, so it shares a live set with all fourteen flight actions. No collision today; the detector is blind to a whole crate.</span>
+            <span class="at">crates/nova_menu/src/tests/settings.rs:847 &middot; crates/nova_scenario/src/loader/lifecycle.rs:379</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The editor's pad capture reads a resource Bevy 0.19 does not register</b>
+            <span>The range swept this exact defect out of four other files and left this one. Every editor-built ship saves an <code>input_mapping</code> with no gamepad half, so a published creator ship cannot be thrust or fired on a controller. The Sandbox return chord is dead the same way, and the wiki documents it as working. Pre-existing, not introduced here.</span>
+            <span class="at">crates/nova_editor/src/placement.rs:106, :127, :352, :785</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>A rebind does not reach everything</h3>
+        <p>Four consumers still answer to a value the player has moved.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Three HUD dock rows print fixed strings</b>
+            <span><code>component_cycle</code>, <code>radar</code> and <code>rcs</code> are literals; the four autopilot rows read the live rig and follow a rebind. Move Radar to K: the Controls row shows K, the rig fires on K, the dock still draws Ctrl. The task's own round-four finding names this and converted only the four.</span>
+            <span class="at">crates/nova_ship/src/input/player/hints.rs:192, :204, :212</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>An autopilot verb bound to a mouse button loses its HUD chip entirely</b>
+            <span><code>label()</code> matches only keyboard bindings and falls through to the default. The capture accepts Middle, Back and Forward. Bind GOTO to Middle Mouse and the action still fires, but the chip and its anchored cue vanish with no way back except rebinding to a key.</span>
+            <span class="at">crates/nova_ship/src/input/player/hints.rs:113</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The scenario rig is never rebuilt on a rebind</b>
+            <span>Flight and camera both rebuild on <code>resource_changed</code>. The scenario rig, spawned once per load, does not. Move Advance off Enter and the row updates, the game does not &mdash; Enter still skips the beat until a reload.</span>
+            <span class="at">crates/nova_scenario/src/loader/lifecycle.rs:272</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The rebuild despawns rigs without releasing them</b>
+            <span>A despawned action emits no <code>Complete</code>. Hold the burn key, pause, hit Reset Defaults, release: the ship burns at full throttle with nothing held until you press and release the new binding. Same shape for <code>RcsActive</code> and for section inputs through the viewer rebind.</span>
+            <span class="at">crates/nova_ship/src/input/player/flight_rig.rs:277</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The OBJECTIVES affordance has no text fallback</b>
+            <span><code>key_glyphs</code> states the invariant: &ldquo;unmapped labels resolve to <code>None</code>, and every consumer falls back to a TEXT chip.&rdquo; This consumer sets <code>Display::None</code> instead. The capture accepts <code>Comma</code>, <code>Period</code>, <code>Backslash</code>, every <code>Numpad</code> key &mdash; none of which the pack draws. Bind NOVA OS to <code>.</code> and the affordance shows no key, permanently.</span>
+            <span class="at">crates/nova_hud/src/objective_stack.rs:474</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>The wrong vocabulary reaches the player</h3>
+        <p>Two label sets exist for good reason. The refusal path picks the one meant for art lookup.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Refusals print raw <code>KeyCode</code> variant names</b>
+            <span>Captured on screen: <code>BracketRight is already Lock / Component Next</code> and <code>ControlLeft is already Radar (hold / tap)</code>. <code>readout_label</code> yields <code>]</code> and <code>Left Ctrl</code> and is what the NOVA OS footer already uses. Four player-facing sites leak the art vocabulary. The sentence is also ungrammatical &mdash; &ldquo;J is already Main Drive&rdquo; wants &ldquo;already bound to&rdquo;.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:672 &middot; crates/nova_os_ui/src/ship/rebind.rs:69, :99 &middot; crates/nova_editor/src/keybind.rs:402</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>The art is drawn but never judged</h3>
+        <p>All three were invisible to code review and obvious on a captured frame.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Read-only rows look exactly as changeable as live ones</b>
+            <span><code>spawn_binding_chips</code> takes a <code>text_color</code> and applies it only on the text-fallback branch; the keycap branch spawns the image untinted. Both read-only paths pass the muted colour and it does nothing. The Escape row draws a full-brightness keycap beside greyed-out <em>text</em> &mdash; one row making two different claims about itself.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:850</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Glyph height is pinned, so portrait art becomes a speck</b>
+            <span><code>CHIP_GLYPH_PX = 20.0</code> sets height and lets width follow the aspect. A landscape keycap reads fine at 20&nbsp;px; a mouse glyph gets about 13&nbsp;px of width. On the captured frame the scroll-up and scroll-down mouse glyphs are indistinguishable, and RCS Aim's chip is a dark smudge on a dark cell.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:879 &middot; crates/nova_hud/src/key_glyphs.rs:290</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The group tab bar is inside the scrolling body</b>
+            <span>It scrolls away. The outer tabs stay pinned, so on the two long groups what a player sees is &ldquo;Controls&rdquo; and then an unlabelled list &mdash; the level you are on disappears exactly when you have the most rows to read. Confirmed on the captured frame.</span>
+            <span class="at">crates/nova_menu/src/settings.rs:539</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cluster">
+      <div class="c-head">
+        <h3>The record disagrees with the code</h3>
+        <p>Four documents describe a state the range moved past.</p>
+      </div>
+      <div class="rows">
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The player wiki still teaches two deleted keys</b>
+            <span>The V and B comms shortcuts were retired in this range and both pages still list them &mdash; and B now means rebind inside the ship viewer, so the stale instruction is actively misleading. The same page leaves the RCS gamepad cell empty, still calls Controls view-only, and quotes a refusal string that no longer exists. <code>docs/keeping-docs-in-sync.md</code> makes this mandatory.</span>
+            <span class="at">web/src/wiki/keybinds.md:3, :74, :281 &middot; web/src/wiki/hud.md:80 &middot; web/src/wiki/nova-os.md:280</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The dev book has no <code>nova_input</code> row</b>
+            <span>A new leaf crate landed that ten crates depend on, and the crate map, the dependency graph and the tour table are all unchanged. Two entries are wrong rather than missing: <code>nova_ship</code> is still credited with &ldquo;the <code>reference</code> keybind table&rdquo;, deleted here, and the Settings modal is still described as a read-only keybind reference. <code>grep -rn nova_input docs/ web/</code> returns nothing.</span>
+            <span class="at">docs/architecture.md:16, :19, :47 &middot; docs/project-tour.md:35, :46</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The design record contradicts the code in 15 of 33 rows</b>
+            <span>Twelve viewer rows read <code>unbound</code> and now carry pad buttons, <code>rcs_aim</code> is documented as having &ldquo;genuinely nothing to bind&rdquo;, and one label is stale. Its sibling page has all 33 correct, so the two design pages disagree &mdash; and the stale one is the one the task body links as primary.</span>
+            <span class="at">tasks/20260820-174148/design.html:358, :471</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev m">Major</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>A docstring says the viewer actions carry no pad binding</b>
+            <span>Twenty lines below, all twelve of them do. A later commit appended a section saying the opposite instead of deleting the paragraph, so the first thing a reader sees in the item's own doc is the reverse of the truth.</span>
+            <span class="at">crates/nova_os_ui/src/bindings.rs:24</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>The pad question <span class="sev held">Held</span></h2>
+      <p>Rated Major, and separated because it is the one finding nobody could
+      test. It is now the one finding deliberately left standing: the controller
+      defaults are being reconsidered as a set, after a playtest.</p>
+    </div>
+    <div class="note warn">
+      <h3>The RCS stick has no deadzone, and its modifier is the stick's own click</h3>
+      <p>
+        The magnitude story is right. <code>RCS_STICK_SCALE</code> cancels the
+        observer's mouse gain exactly, so full lean lands full intent and the burn
+        model then takes about 1.3&nbsp;s to reach the cap. That is a translation,
+        not a twitch &mdash; the correct call.
+      </p>
+      <p>
+        The binding is hand-built from <code>Scale</code> and <code>Negate</code>,
+        so it does not carry the <code>DeadZone</code> that
+        <code>Axial::left_stick()</code>'s preset would have brought. The observer
+        sets intent from the value every frame and the decay can never bleed it
+        off while the stick is fired, so a worn stick resting 4% off centre applies
+        a constant 4% thruster for as long as RCS is held. A held-position device
+        needs the deadzone a delta device does not.
+      </p>
+      <p>
+        And <code>rcs_modifier</code> is <code>LeftThumb</code> &mdash; clicking
+        the stick in. Pressing a stick down physically deflects it, so on a pad the
+        gesture that <em>enters</em> RCS injects a spike into the axis that steers
+        it, at the moment the player wants a null. The binding comment calls the
+        pairing a virtue; mechanically it is the one pairing that guarantees a
+        nudge on entry.
+      </p>
+      <p>
+        There is no controller on this machine. This is reasoned from the code and
+        the burn model, and it is the finding most worth confirming by hand.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>Minors worth folding in</h2>
+      <p>Thirty in total. The ones with a reason beyond tidiness:</p>
+    </div>
+
+    <div class="cluster">
+      <div class="rows">
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Press and release each re-resolve the action name</b>
+            <span>Move a binding between the two calls and the release lands on the new source while the pressed one stays down forever &mdash; on the pad half with <code>analog</code> still at 1.0, so a rig keeps firing. Only the debug harness reaches this today. It becomes load-bearing the moment <code>nova_channel</code> drives actions in the same app as the Settings screen.</span>
+            <span class="at">crates/nova_input/src/dispatch.rs:96</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b><code>ActionAxes.stick</code> is display-only</b>
+            <span><code>apply_axis</code> handles mouse motion and the wheel and returns <code>NoAxis</code> otherwise, so the stick is never written. <code>rcs_aim</code> survives only because it also declares mouse motion and that branch wins. A driven range cannot exercise the new stick path at all.</span>
+            <span class="at">crates/nova_input/src/registry.rs:64 &middot; crates/nova_input/src/dispatch.rs:217</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>A stored binding is not checked against the column it is in</b>
+            <span>Live-verified: a gamepad source in the keyboard column loads clean, draws as a pad glyph in the keyboard column, is invisible to the desk poller but visible to the pad one, and binds anyway. Giving axis-only <code>rcs_aim</code> a keyboard source turns its read-only chip into a live rebind row.</span>
+            <span class="at">crates/nova_input/src/registry.rs:100</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The glyph coverage test walks keyboard sources only, and two of four owners</b>
+            <span>Give a new action a pad default with no art entry and the row silently draws text while the suite stays green. All sixteen currently-bound pad buttons check out by hand, so this is latent.</span>
+            <span class="at">crates/nova_hud/src/key_glyphs.rs:433</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev held">Held</span>
+          <div class="what">
+            <b>The fixed 560&nbsp;px panel clips one group and strands 460&nbsp;px on another</b>
+            <span>FLIGHT's last row is sliced in half directly above Back and reads as a rendering glitch rather than a scroll cue; SCENARIO and Audio leave most of the card empty. Long groups scroll cleanly &mdash; the mechanism is fine, the fixed height is what hurts.</span>
+            <span class="at">crates/nova_menu/src/menu_ui.rs:167 &middot; crates/nova_menu/src/pause.rs:305</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev held">Held</span>
+          <div class="what">
+            <b>The pad column optically dominates the desk column</b>
+            <span>Dark keycaps with white legends beside white outlined pad shapes on a near-black cell. The eye goes to the pad column first on every row, which is backwards for a game whose players are mostly on a desk. One value: tint the pad art toward the phosphor palette.</span>
+            <span class="at">crates/nova_menu/src/settings.rs</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The Controls screen has no shipped screenshot</b>
+            <span>The walk opens Settings and shoots the default Audio tab, so the wiki image for a range whose headline is the rebind screen is one volume slider and 380&nbsp;px of empty panel. One extra click and a second shot.</span>
+            <span class="at">examples/screenshots/screenshot_menu.rs:102</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Three naming collisions a player would notice</b>
+            <span>Two rows are called Aim (<code>camera_rotate</code> and <code>rcs_aim</code>) in different groups. &ldquo;NOVA OS&rdquo; is both a row inside SYSTEM and a sibling group tab, stacked one above the other. &ldquo;Lock / Component Next&rdquo; and &ldquo;Prev&rdquo; are visually identical apart from a bracket, and a player who has never locked a target does not know what a Component is.</span>
+            <span class="at">crates/nova_ship/src/input/bindings.rs:64, :86, :100</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">1 of 3</span>
+          <div class="what">
+            <b>Three per-frame costs, all measured, none a stutter</b>
+            <span><code>sync_nova_os_contexts</code> builds a fresh <code>Vec</code> every frame for an answer fixed at startup (8.85&nbsp;&micro;s). <code>update_flight_verb_hints</code> allocates seven strings per frame before its own change check discards them (16.73&nbsp;&micro;s, pre-existing). The keycap alpha scan grew from 13 images to 101 &mdash; 1.65&nbsp;M <code>get_color_at</code> calls, 17.26&nbsp;ms in one frame, behind the loading screen.</span>
+            <span class="at">crates/nova_os_ui/src/terminal/mod.rs:163 &middot; crates/nova_ship/src/input/player/hints.rs:113 &middot; crates/nova_hud/src/key_glyphs.rs:337</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Documentation drift inside the new crate</b>
+            <span>The registry header says <code>register</code> &ldquo;refuses a duplicate loudly&rdquo;; it logs and replaces, and a test pins the replacement. <code>primary_source</code> is public with one caller and justified by a caller that does not exist. The harness says a pad-only name is an error and no press; the range made it press. <code>key_glyphs</code> still says 83 keycaps and 720&nbsp;K; it is 101 and 796&nbsp;K. The crate calls itself &ldquo;bevy and <code>bevy_enhanced_input</code>, nothing else&rdquo; and also carries an optional <code>serde</code>.</span>
+            <span class="at">crates/nova_input/src/registry.rs:5 &middot; crates/nova_input/src/dispatch.rs:195 &middot; crates/nova_debug/src/harness.rs:540</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>Two changelog entries against a baseline that never shipped</b>
+            <span>One entry contrasts against &ldquo;waiting for the next load&rdquo;, a state that only existed between commits inside this cycle. The RCS pad change is written twice, once in Interface and once in Fixes. Both are the rules in <code>AGENTS.md</code> rather than taste.</span>
+            <span class="at">CHANGELOG.md:158, :185, :189</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n">Minor</span>
+          <span class="sev done">Fixed</span>
+          <div class="what">
+            <b>The crate that defines the SystemParam does not own its requirement</b>
+            <span><code>InputSources</code> takes bevy's input resources as non-optional, so a consumer plugin inserts them to stop a panic &mdash; and a second consumer that also uses it does not, leaving its tests to do it by hand.</span>
+            <span class="at">crates/nova_hud/src/lib.rs:298 &middot; crates/nova_input/src/poll.rs:32</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>What actually held up</h2>
+      <p>Attacked and not broken. Worth recording, because it is where the design earns its keep.</p>
+    </div>
+    <div class="cluster">
+      <div class="rows">
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>Context isolation</b>
+            <span><code>Viewer</code> never overlaps <code>Flight</code>, audited against all 33 shipped actions with no missed or wrongly-flagged pair. Driven live: both viewers walked through the real keyboard with the NOVA OS open in flight, and not one burn or autopilot line appeared. W at the terminal prompt is a character.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>Hostile save files</b>
+            <span>Truncated mid-value, naming an action that does not exist, two actions on one key, a source of the wrong kind &mdash; all four reached Playing and exited 0. An unknown name warns by name and is skipped. The user's real settings file was backed up and is byte-identical after every run.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>Escape as the universal back-out</b>
+            <span>Never capturable, filtered at the poller. No path strands it, including a rebind armed on a section that has since despawned.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>The save format</b>
+            <span>Two serde-defaulted fields added, nothing renamed or retyped: a 0.11.0 file loads here and a file written here loads in 0.11.0. No break is owed and none is claimed. The content RON is unchanged &mdash; the old and new wire enums share variant spellings &mdash; and <code>content lint</code> exits 0 across 13 scenarios.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>The crate is a real leaf</b>
+            <span>Zero <code>nova_*</code> dependencies, ten crates above it, and the plugin order matches what <code>AGENTS.md</code> states.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>The asset-drift guard closed the hole it was written for</b>
+            <span>All 242 <code>#[asset]</code> path entries verified to exist on disk, and the mirror-const test genuinely reads the attributes out of <code>include_str!</code> rather than comparing a copy to a copy.</span>
+          </div>
+        </div>
+        <div class="row">
+          <span class="sev n" style="background:var(--ok)">Held</span>
+          <div class="what">
+            <b>The armed-chip state itself</b>
+            <span>Inverted, glowing, &ldquo;PRESS A KEY&rdquo; fitting the cell cleanly. The best moment in the screen, and unambiguous.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>What was measured</h2>
+      <p>One lane held the GPU at a time. Absolute numbers, not a delta &mdash; no A/B against the base was built.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Reading</th><th>Value</th><th>Note</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mean frame</td><td class="num">22.88 ms</td><td>43.7 fps, 5/5 captures admitted, refresh cap not suspected</td></tr>
+          <tr><td>p99</td><td class="num">31.52 ms</td><td>spread 0.081</td></tr>
+          <tr><td>Submit + present</td><td class="num">17.42 ms</td><td>73.6% of frame &mdash; render-bound</td></tr>
+          <tr><td>Whole main world</td><td class="num">~5 ms</td><td><code>Update</code> 0.77 ms, <code>PreUpdate</code> 0.478 ms</td></tr>
+          <tr><td>Keycap decode, 101 images</td><td class="num">12.21 ms</td><td>against 434 ms total asset load; the cubemap alone is 285.6 ms</td></tr>
+          <tr><td>Keycap alpha scan</td><td class="num">17.26 ms</td><td>one frame, behind the loading screen, n=1</td></tr>
+          <tr><td>Rig rebuilds</td><td class="num">1 each</td><td>in a 392-frame capture &mdash; correctly gated, no archetype churn</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <h3>The screen most worth measuring was never measured</h3>
+      <p>
+        The flight example carries no <code>nova_menu</code>, so the Controls tab
+        produced zero spans and was never drawn on a GPU by the measuring lane.
+        The reconciler verdict &mdash; that switching a group tab rebuilds once
+        rather than every frame &mdash; is reasoned from the change-detection
+        gates, not observed. The batching cost of twenty distinct 128&nbsp;px
+        textures in one list is unknown.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>Coverage, and what a skip means</h2>
+      <p>A skip is not a pass. Every lane named its own.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr><th>Lane</th><th>Ran</th><th>Did not reach</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">Craft</td>
+            <td>Read the new crate whole; four crate test suites; every <code>#[expect]</code> and test name in the range; 77 changelog entries measured</td>
+            <td>Anything rendered; six crates never built or tested</td>
+          </tr>
+          <tr>
+            <td class="mono">Correctness</td>
+            <td>Five lib suites run and two failures root-caused; all 242 asset paths verified; the context rule audited across all 33 actions; the RCS sign convention traced end to end</td>
+            <td>No rendered run &mdash; the pad, the stick and the art unverified on screen; four crate suites</td>
+          </tr>
+          <tr>
+            <td class="mono">Contracts</td>
+            <td>Save-format compatibility both directions; <code>content lint</code> clean over 13 scenarios; all 33 rows of the current design page checked cell by cell; credits against the shipped art</td>
+            <td>Ran no tests at all; no wasm check; no rendered run</td>
+          </tr>
+          <tr>
+            <td class="mono">Performance</td>
+            <td>Build clean; 5-repeat gated frame capture; per-system decomposition from a 1.84&nbsp;M-span trace</td>
+            <td>No A/B against the base; the Settings screen never rendered; no release profile; no wasm</td>
+          </tr>
+          <tr>
+            <td class="mono">Red team</td>
+            <td>Four hostile save files driven live; both viewers walked; every capture surface read; the real settings file backed up and restored</td>
+            <td>No live confirmation of its own blocker &mdash; each needs a test it may not write; no real gamepad; no wasm</td>
+          </tr>
+          <tr>
+            <td class="mono">Feel</td>
+            <td>Six of eight groups captured at native and 2x; the live rebind interaction driven, including four refusal cases; both viewer footers; the flight dock</td>
+            <td>MAP and SHIP groups never opened; the pause copy of the panel never captured; Reset Defaults never clicked; no gamepad; keyboard navigation untested</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">
+      <h3>Skipped by house rule, in every lane</h3>
+      <p>
+        The workspace test suite and Clippy. The suite exhausts memory on this
+        machine and CI owns both &mdash; so the per-crate runs above are the only
+        test evidence here, and two of them are red.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <div class="sec-head">
+      <h2>One thing that happened during the review</h2>
+    </div>
+    <div class="note warn">
+      <h3>The tip commit was amended from outside this session</h3>
+      <p>
+        <code>2fd69df1</code> became <code>155afa73</code> between two commands,
+        and the amend swept four uncommitted RCS-stick files into it. The range
+        therefore does cover the stick work &mdash; but the commit carrying it
+        still reads <em>Record the icon, group-tab and pad-synthesis round on the
+        settings task</em>, which is not what those files are.
+      </p>
+      <p>
+        Another job is working in this same checkout. Worth knowing before the
+        next commit lands on top of it.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p>Six lanes over <span class="mono">e0a5092a..HEAD</span>. Findings adjudicated in session; every blocker re-derived rather than taken on report.</p>
+    <p>Read-only run &mdash; nothing was edited, staged or committed. The working tree is clean.</p>
+  </footer>
+
+</div>

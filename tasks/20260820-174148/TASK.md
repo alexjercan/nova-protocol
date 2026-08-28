@@ -393,3 +393,45 @@ deliberately outside the table, and the queue - a capture UI (the Controls list
 is still read-only), a rebind conflict guard, gamepad synthesis, whether
 section weapons join the table, and the last hand-written half of the keycap
 glyph coverage.
+
+### Round 5 review, and the fixes it produced
+
+Fixed in `9d224349`, `1a79bf21`, `819d5f06`, `489e68ab` and `7df3e75d`.
+
+Six lanes over `e0a5092a..155afa73` with `--play`: 3 blockers, 22 majors, 30
+minors, and nothing in the architecture. Every blocker and every major is
+fixed, with ten of the minors. Disposition per finding is `REVIEW.md`; the
+reasoning is `findings.html`, published as
+<https://claude.ai/code/artifact/4c67ebc2-8ffe-4bff-b174-6834e0a20f81>.
+
+**Three shapes accounted for most of it.** The capture had no owner - Escape
+answered the capture AND the pause overlay, the refusal drew below the fold,
+and three surfaces each picked an arbitrary key out of a `HashSet`. The table
+could go inconsistent - the guard could not see live section bindings and the
+load ran no conflict check at all. And a rebind did not reach everything - the
+scenario rig, the HUD dock and a verb on a mouse button all kept the key they
+shipped with.
+
+**Two rules the table now keeps for itself.** `apply_overrides` applies every
+stored row and THEN reconciles the whole table, so two rows trading keys load
+and a stored row that a moved default landed on is put back. And `rebind`
+refuses a spec the rebind screen could not have produced: a source in the wrong
+device column, or a column the action ships empty.
+
+**A release lets up what its press pushed.** `dispatch::apply` records the
+source per name (`DrivenPresses`). Resolving the name twice let a rebind
+between the halves strand the pressed source down for the rest of the run - on
+the pad half with analog still at 1.0. `apply_stick` lands beside it, so the
+declared stick is drivable rather than display-only.
+
+**Deferred, by the owner.** The RCS stick's missing `DeadZone` and the Left
+Thumb pairing are untouched: the controller defaults are being reconsidered as
+a set after a playtest. Taking Left Trigger 2 off `rcs_modifier` put it on Left
+Thumb, which the editor's Sandbox-return chord also reads - this range created
+that collision, and it belongs to the same question. The fixed 560 px panel
+height is a standing instruction, so the clipped FLIGHT row is a layout call.
+
+**One regression made and caught.** Sizing every keycap by its short axis, the
+fix for starved portrait art, grew all 26 letter caps two pixels - they measure
+0.92. `keybind_dock`'s sizing tests caught it; the rule now starts below the
+keycaps and `only_portrait_art_is_sized_by_its_width` pins it.
