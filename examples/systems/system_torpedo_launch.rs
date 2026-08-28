@@ -156,7 +156,7 @@ fn main() -> bevy::app::AppExit {
         // its NOVA_PROBE_* env): run timeline + engine-bound invariants +
         // frame-time capture, so `probe run` can measure this example.
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(nova_screenshot(torpedo_script()));
     }
 

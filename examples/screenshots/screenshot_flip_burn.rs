@@ -53,7 +53,7 @@ fn main() -> bevy::app::AppExit {
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 // Wait for the ship to EXIST rather than for a guessed load

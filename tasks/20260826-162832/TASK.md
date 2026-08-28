@@ -1,8 +1,8 @@
 # Loop capture takes a LoopProfile: resolution, fps, quality, frame cap
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 35
-- TAGS: v0.12.0,autopilot,tooling,capture
+- TAGS: v0.12.0, autopilot, tooling, capture
 
 ## Outcome
 
@@ -95,3 +95,53 @@ Run only affected checks per `AGENTS.md`. If practical, arm one short portrait c
 Do not add showcase-specific policy, caption behavior, or project manifests to Nova. Nova owns the configurable deterministic recorder. `nova-showcase` will select the production portrait profile from its v0.12 capture capsule.
 
 For the frozen Nova v0.11 capsule, `nova-showcase` will carry a local backport. Do not retrofit or migrate v0.11 as part of this task.
+
+## Decision
+
+`LoopProfile` is a plain `Resource` struct with five public fields
+(`window_resolution`, `output_resolution`, `fps`, `crf`, `frame_cap`), all in
+integer pixels/frames. A caller writes the whole struct, so a profile reads as
+one complete answer rather than a default plus edits;
+`LoopCapturePlugin::default()` carries exactly the documented docs-loop values
+and the `LOOP_FPS` / `LOOP_CRF` / `LOOP_FRAME_CAP` / `LOOP_RESOLUTION`
+constants remain, now documented as that default's field list.
+
+Window integration: the plugin inserts the profile **before** its arming gate,
+during plugin build. `force_capture_resolution` takes it as
+`Option<Res<LoopProfile>>` and falls back to `CAPTURE_RESOLUTION`. Because a
+plugin build runs before any `Startup` system, no `Startup` ordering decides
+the window size, and the smoke path renders the same framing the capture will.
+
+`CAPTURE_RESOLUTION` changed from `(f32, f32)` to `(u32, u32)` so the fleet
+default and the profile field share one type; the single f32 cast now lives in
+`force_capture_resolution`.
+
+Validation is `LoopProfile::validate()` (zero dimension, zero fps, zero cap),
+called from `Plugin::build` where an invalid profile panics with the field
+name. Nothing else is bounded - 4K60 is a cost decision, and the frame cap
+already fails a runaway loop.
+
+`encode_args` omits the `-vf scale` step entirely when output equals window, so
+a native-resolution master is never resampled through itself.
+
+## Proof
+
+- `cargo test -p nova_autopilot --lib loops::` - 16 passed, including the
+  default-profile, portrait-args, frame-duration, profile-frame-cap,
+  zero-value-validation, invalid-profile-panic and unarmed-no-op tests.
+- `cargo test -p nova_autopilot --doc` - 7 passed (the module's
+  `LoopCapturePlugin::new` example compiles).
+- `cargo check -p nova_autopilot --all-targets`, `cargo check -p nova_debug
+  --all-targets`, `cargo check --examples --features debug` - all clean.
+- `cargo fmt --all -- --check` clean.
+- Live portrait capture: `loop_cockpit` temporarily pointed at
+  `LoopProfile { (1080,1920), (1080,1920), 60, 18, 1200 }`, run armed under
+  `xvfb-run -s "-screen 0 1080x1920x24"`. 443 frames, "7.4s at 60 fps".
+  `ffprobe`: `vp9 1080x1920 r_frame_rate=60/1 duration=7.384 size=3998662`.
+  The temporary patch was reverted; no generated media committed.
+- Live default capture (regression): same example on
+  `LoopCapturePlugin::default()`, `xvfb-run -s "-screen 0 1920x1080x24"`. 231
+  frames, "7.7s at 30 fps". `ffprobe`: `vp9 1280x720 r_frame_rate=30/1
+  duration=7.700 size=221451` - the shipped docs-loop behaviour unchanged.
+
+Not run: the full workspace test suite and Clippy, by standing instruction.

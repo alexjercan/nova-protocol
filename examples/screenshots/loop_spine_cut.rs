@@ -76,7 +76,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(
             nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
                 .step("load the range")

@@ -127,8 +127,8 @@ pub mod prelude {
             type_text, ui_node_centre, ui_node_rect,
         },
         loops::{
-            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopRecorder, LOOP_CAPTURE,
-            LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+            loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopProfile, LoopRecorder,
+            LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
         },
         predicate::{
             and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_pressed,

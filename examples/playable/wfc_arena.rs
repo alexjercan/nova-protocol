@@ -409,7 +409,7 @@ fn main() -> bevy::app::AppExit {
         // The media recorder extends the same driven walk below. It is inert on
         // probe and hand runs; adding a second autopilot would be a duplicate
         // driver rather than another camera.
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         // NO freeze_bodies here, unlike wfc_ships: the whole point is that
         // these bodies fly.
         app.add_plugins(arena_script(capture_loop, capture_thumbnail));

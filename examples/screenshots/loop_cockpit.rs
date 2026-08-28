@@ -31,7 +31,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_plugins(cockpit_script());
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
     }

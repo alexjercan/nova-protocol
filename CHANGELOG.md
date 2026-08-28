@@ -206,6 +206,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- Loop capture takes a `LoopProfile` - window size, encoded size, fps, CRF and
+  frame cap in one value - so a recorder can film a 1080x1920 60 fps master
+  instead of the docs fleet's 720p30.
 - `--channel` (debug, with `--norender`) plays the real game over stdin/stdout:
   five input lanes by name in, snapshots with the screen as data out, and in
   step mode the clock waits on the driver.

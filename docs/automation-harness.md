@@ -382,9 +382,33 @@ per-example splits that preceded it were each carrying the write latency on top
 of the stillness, which is why they disagreed.
 
 The scene dressing is separate from the steps and lives in `nova_debug::harness`
-too: `force_capture_resolution` (a known 16:9 for every shot in the fleet),
+too: `force_capture_resolution` (a known framing for every shot in the fleet),
 `hide_dev_overlays` / `hide_hud`, and `freeze_bodies` for a posed set that must
 not drift between framings.
+
+A moving figure is the same idiom on a longer beat: `loop_start` / `loop_end`
+around the action, `loop_written` to hold the closing step, and
+`LoopCapturePlugin` next to the script. Every size and rate that recorder uses
+is ONE value, `LoopProfile` - the window it renders into, the resolution it
+encodes to, the frame clock, the CRF and the frame cap:
+
+```rust
+app.add_plugins(LoopCapturePlugin::default());          // 1920x1080 -> 720p30
+app.add_plugins(LoopCapturePlugin::new(LoopProfile {    // a portrait master
+    window_resolution: (1080, 1920),
+    output_resolution: (1080, 1920),
+    fps: 60,
+    crf: 18,
+    frame_cap: 1200,
+}));
+```
+
+`LoopCapturePlugin::default()` is what the docs fleet captures with; a
+production caller passes its own profile and changes nothing else.
+`force_capture_resolution` reads the profile the plugin publishes (armed or
+not), so the window, the frame clock and the encode cannot disagree about the
+framing - and a profile whose output equals its window encodes with no scale
+filter at all, rather than resampling a master through itself.
 
 Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot

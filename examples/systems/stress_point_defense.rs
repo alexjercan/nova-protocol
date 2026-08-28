@@ -380,7 +380,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.init_resource::<Peaks>();
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         app.add_systems(Update, (track_peaks, trace_the_census).chain());
         app.add_systems(FixedUpdate, track_trigger_duty);
         app.add_observer(count_intercepts);

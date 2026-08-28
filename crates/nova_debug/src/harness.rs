@@ -90,7 +90,9 @@ pub use nova_autopilot::{
     // loop_end are the step calls, LoopCapturePlugin is the recorder an
     // example adds next to its autopilot, and the knobs are what the capture
     // script sizes its budget against.
-    loops::{loop_end, loop_start, LoopCapturePlugin, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP},
+    loops::{
+        loop_end, loop_start, LoopCapturePlugin, LoopProfile, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP,
+    },
     // `not` reaches the examples HERE rather than through the prelude: the
     // name collides with `bevy::prelude::not`, which every example globs, so
     // it must stay a qualified call. The examples' package does not depend on
@@ -557,14 +559,22 @@ pub fn scenario_camera_present() -> Arc<Predicate> {
     any_entity::<With<ScenarioCameraMarker>>()
 }
 
-/// Force the primary window to [`CAPTURE_RESOLUTION`] and pin it there, so
-/// every shot in the fleet lands at the same known 16:9 the web figures use.
+/// Force the primary window to the capture size and pin it there, so every
+/// shot in the fleet lands at the same known framing the web figures use.
 /// A `Startup` system; non-resizable so a tiling WM cannot reflow it mid-run.
-pub fn force_capture_resolution(mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+///
+/// The size is [`LoopProfile::window_resolution`] when a
+/// [`LoopCapturePlugin`] published a profile - armed or not, it inserts one
+/// during plugin build, so it is already there when this runs and no `Startup`
+/// ordering decides the answer. An example with no loop recorder at all keeps
+/// [`CAPTURE_RESOLUTION`], the fleet's 16:9.
+pub fn force_capture_resolution(
+    mut windows: Query<&mut Window, With<PrimaryWindow>>,
+    profile: Option<Res<LoopProfile>>,
+) {
+    let (width, height) = profile.map_or(CAPTURE_RESOLUTION, |profile| profile.window_resolution);
     if let Ok(mut window) = windows.single_mut() {
-        window
-            .resolution
-            .set(CAPTURE_RESOLUTION.0, CAPTURE_RESOLUTION.1);
+        window.resolution.set(width as f32, height as f32);
         window.resizable = false;
     }
 }
@@ -763,8 +773,8 @@ pub mod prelude {
         editor_placement_refused, editor_placement_solved, editor_tool_is,
         force_capture_resolution, freeze_bodies, hide_dev_overlays, hide_hud, nova_autopilot,
         nova_screenshot, player_ship_present, pose_camera, scenario_camera_present,
-        scenario_variable_is, script_reports_done, section_gone, shoot, ScenarioLoadedAssertPlugin,
-        NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP, NOVA_SCREENSHOT_PATH, REACHED_PLAYING,
-        SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+        scenario_variable_is, script_reports_done, section_gone, shoot, LoopCapturePlugin,
+        LoopProfile, ScenarioLoadedAssertPlugin, NOVA_AUTOPILOT_SECS, NOVA_AUTOPILOT_STEP,
+        NOVA_SCREENSHOT_PATH, REACHED_PLAYING, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
     };
 }

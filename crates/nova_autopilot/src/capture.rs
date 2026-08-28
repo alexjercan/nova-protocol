@@ -39,9 +39,12 @@ pub const CAPTURE_ENV: &str = "NOVA_CAPTURE";
 /// under. Unset (or empty), a relative path stays relative to the CWD.
 pub const CAPTURE_DIR_ENV: &str = "NOVA_CAPTURE_DIR";
 
-/// Default capture resolution: 1920x1080, the 16:9 the web figures and
-/// thumbnails use (thumbnails share this capture and are sized down in CSS).
-pub const CAPTURE_RESOLUTION: (f32, f32) = (1920.0, 1080.0);
+/// Default capture resolution in pixels: 1920x1080, the 16:9 the web figures
+/// and thumbnails use (thumbnails share this capture and are sized down in
+/// CSS). A run that wants another framing selects it through
+/// [`LoopProfile::window_resolution`](crate::loops::LoopProfile) rather than
+/// by editing this.
+pub const CAPTURE_RESOLUTION: (u32, u32) = (1920, 1080);
 
 /// Whether this run is on the capture path ([`CAPTURE_ENV`] is set).
 ///

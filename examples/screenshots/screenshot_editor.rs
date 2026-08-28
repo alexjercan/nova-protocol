@@ -68,7 +68,7 @@ fn main() -> bevy::app::AppExit {
         // walk is a sequence of posed framings with no steady-state window,
         // so a captured fps would measure the script, not the engine.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin);
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
             // Turn command errors (despawned-entity targets on the menu/editor
             // teardown) into panics so the run fails loudly on them.

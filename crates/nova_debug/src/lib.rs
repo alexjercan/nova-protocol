@@ -81,7 +81,7 @@ pub mod prelude {
             loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,
             pose_camera, press_action, release_action, scenario_camera_present,
             scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
-            LoopCapturePlugin, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+            LoopCapturePlugin, LoopProfile, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
         },
         DebugPlugin,
     };

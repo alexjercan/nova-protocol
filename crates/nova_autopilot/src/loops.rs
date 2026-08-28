@@ -17,17 +17,46 @@
 //! with ffmpeg and acks `<name>.webm` into
 //! [`CaptureLog`](crate::capture::CaptureLog) only once the file is on disk.
 //!
+//! ## One profile holds every size and rate
+//!
+//! The capture window, the encoded resolution, the frame clock, the quality
+//! and the frame cap are ONE value: [`LoopProfile`]. The docs fleet takes
+//! [`LoopCapturePlugin::default`] (the profile the [`LOOP_FPS`] family
+//! documents); a production caller that needs another framing - a portrait
+//! short, say - passes its own to [`LoopCapturePlugin::new`] and changes
+//! nothing else:
+//!
+//! ```no_run
+//! # use bevy::prelude::*;
+//! # use nova_autopilot::loops::{LoopCapturePlugin, LoopProfile};
+//! # fn add(app: &mut App) {
+//! app.add_plugins(LoopCapturePlugin::new(LoopProfile {
+//!     window_resolution: (1080, 1920),
+//!     output_resolution: (1080, 1920),
+//!     fps: 60,
+//!     crf: 18,
+//!     frame_cap: 1200,
+//! }));
+//! # }
+//! ```
+//!
+//! The profile is inserted as a resource ARMED OR NOT, because the capture
+//! window is dressing rather than recording: the harness system that sizes the
+//! primary window reads it, so the smoke path renders the framing the capture
+//! will. Only the recording itself and the frame clock are behind the arming
+//! gate.
+//!
 //! ## Cadence: the armed run is frame-clocked
 //!
 //! An armed run pins [`TimeUpdateStrategy::ManualDuration`] to `1 /
-//! [`LOOP_FPS`]` seconds, so every rendered frame IS `1/30` of game time and
-//! the encoded webm plays back at real speed whatever the capture host's
-//! render rate was. Without the pin a software renderer would stretch one
-//! sim-second over a handful of frames and the loop would play back several
-//! times too fast. The pin also makes re-capture deterministic: the same
-//! script produces the same frames. 30 fps rather than 60 on purpose - it
-//! halves the readback and encode cost, gives [`LOOP_FRAME_CAP`] a 20-second
-//! runway, and a web docs loop does not need more.
+//! [`LoopProfile::fps`]` seconds, so every rendered frame IS one profile frame
+//! of game time and the encoded webm plays back at real speed whatever the
+//! capture host's render rate was. Without the pin a software renderer would
+//! stretch one sim-second over a handful of frames and the loop would play
+//! back several times too fast. The pin also makes re-capture deterministic:
+//! the same script produces the same frames. The default is 30 fps rather than
+//! 60 on purpose - it halves the readback and encode cost, gives the default
+//! frame cap a 20-second runway, and a web docs loop does not need more.
 //!
 //! ## Failing loudly
 //!
@@ -35,8 +64,8 @@
 //!
 //! - a run whose collectors all finish while a loop is still open (the script
 //!   forgot [`loop_end`]) error-exits naming the loop;
-//! - a loop that exceeds [`LOOP_FRAME_CAP`] recorded frames error-exits naming
-//!   the loop and the cap, rather than clipping the webm;
+//! - a loop that exceeds the profile's frame cap error-exits naming the loop
+//!   and the cap, rather than clipping the webm;
 //! - a missing ffmpeg binary or a nonzero encode exit error-exits with
 //!   ffmpeg's own output.
 //!
@@ -63,27 +92,107 @@ use crate::{
 /// Collector name the loop recorder registers under.
 pub const LOOP_CAPTURE: &str = "loop_capture";
 
-/// Frames per second a loop is recorded and encoded at. The armed run's frame
-/// clock is pinned to `1 / LOOP_FPS`, so this is the capture cadence AND the
-/// playback rate - see the module docs on why 30.
+/// Default frames per second a loop is recorded and encoded at. The armed
+/// run's frame clock is pinned to `1 / fps`, so this is the capture cadence
+/// AND the playback rate - see the module docs on why 30.
 pub const LOOP_FPS: u32 = 30;
 
-/// Hard per-loop frame cap: 600 frames is 20 seconds at [`LOOP_FPS`], well
+/// Default per-loop frame cap: 600 frames is 20 seconds at [`LOOP_FPS`], well
 /// over the 4-8 seconds a docs loop wants. EXCEEDING IT FAILS THE RUN - a
 /// loop that long is an authoring bug (a missed end condition), and a
 /// silently truncated webm would hide it.
 pub const LOOP_FRAME_CAP: u32 = 600;
 
-/// Resolution the webm is scaled to at encode time. Capture happens at the
-/// window's own size (the fleet pins 1920x1080); 720p is plenty for an
+/// Default resolution the webm is scaled to at encode time. Capture happens at
+/// the profile's window size (the fleet pins 1920x1080); 720p is plenty for an
 /// inline docs figure and roughly quarters the bitrate.
 pub const LOOP_RESOLUTION: (u32, u32) = (1280, 720);
 
-/// libvpx-vp9 constant-quality CRF. At 720p30 a 4-8 second space scene lands
-/// far under the 2-3 MB budget here (the pilots measured ~200 KB at CRF 40,
-/// so this spends some of that headroom on quality); raise it if a busier
+/// Default libvpx-vp9 constant-quality CRF. At 720p30 a 4-8 second space scene
+/// lands far under the 2-3 MB budget here (the pilots measured ~200 KB at CRF
+/// 40, so this spends some of that headroom on quality); raise it if a busier
 /// loop ever crowds the budget.
 pub const LOOP_CRF: u32 = 34;
+
+/// Every size and rate one loop capture runs at: the window it renders into,
+/// the resolution it encodes to, the frame clock, the quality and the cap.
+///
+/// [`LoopProfile::default`] is the documentation-loop profile the example
+/// fleet captures with - the [`LOOP_FPS`] family IS its field list. A caller
+/// selects another framing by building the whole struct, so a profile is
+/// always readable as one complete answer rather than a default plus edits.
+///
+/// The plugin inserts it as a resource armed or not (see the module docs), so
+/// the harness sizes the primary window from the same value the encoder reads.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LoopProfile {
+    /// Pixel size the primary capture window is pinned to, and therefore the
+    /// size every readback arrives at.
+    pub window_resolution: (u32, u32),
+    /// Pixel size the webm is encoded at. Equal to `window_resolution` the
+    /// encode carries no scale filter at all.
+    pub output_resolution: (u32, u32),
+    /// Frames per second: the manual frame clock AND the encoded cadence.
+    pub fps: u32,
+    /// libvpx-vp9 constant-quality CRF. Lower is better and bigger.
+    pub crf: u32,
+    /// Recorded frames one loop may reach before the run ABORTS.
+    pub frame_cap: u32,
+}
+
+impl Default for LoopProfile {
+    fn default() -> Self {
+        Self {
+            window_resolution: capture::CAPTURE_RESOLUTION,
+            output_resolution: LOOP_RESOLUTION,
+            fps: LOOP_FPS,
+            crf: LOOP_CRF,
+            frame_cap: LOOP_FRAME_CAP,
+        }
+    }
+}
+
+impl LoopProfile {
+    /// Check the invariants a recorder cannot work around: a zero dimension,
+    /// a zero frame clock or a zero cap. The error NAMES the field, because
+    /// this is read while a caller is writing the profile.
+    ///
+    /// Nothing else is bounded here. A production caller choosing 4K60 is
+    /// making a cost decision, not a mistake, and the frame cap is the knob
+    /// that already fails a runaway loop.
+    pub fn validate(&self) -> Result<(), String> {
+        let zero = |(width, height): (u32, u32)| width == 0 || height == 0;
+        if zero(self.window_resolution) {
+            return Err(format!(
+                "window_resolution {:?} has a zero dimension",
+                self.window_resolution
+            ));
+        }
+        if zero(self.output_resolution) {
+            return Err(format!(
+                "output_resolution {:?} has a zero dimension",
+                self.output_resolution
+            ));
+        }
+        if self.fps == 0 {
+            return Err("fps is zero - a loop needs a frame clock".to_string());
+        }
+        if self.frame_cap == 0 {
+            return Err("frame_cap is zero - no loop could record a frame".to_string());
+        }
+        Ok(())
+    }
+
+    /// The manual frame duration an armed run pins its clock to.
+    pub fn frame_duration(&self) -> Duration {
+        Duration::from_secs_f64(1.0 / f64::from(self.fps))
+    }
+
+    /// Seconds `frames` of this profile play back as.
+    fn seconds(&self, frames: u32) -> f32 {
+        frames as f32 / self.fps as f32
+    }
+}
 
 /// The webm file name a loop acks and writes: `<name>.webm`.
 pub fn loop_file_name(name: &str) -> String {
@@ -193,34 +302,56 @@ impl LoopRecorder {
     }
 }
 
-/// Env-gated recorder plugin. A loop-capturing example adds it
-/// unconditionally; unarmed (no `NOVA_CAPTURE`) it adds NOTHING, so the smoke
-/// path pays nothing and keeps real time.
+/// Env-gated recorder plugin, carrying the [`LoopProfile`] the whole capture
+/// runs at. A loop-capturing example adds it unconditionally; unarmed (no
+/// `NOVA_CAPTURE`) it records NOTHING and keeps real time, so the smoke path
+/// pays only the window sizing.
 ///
 /// Armed, it pins the frame clock (see the module docs), registers the
 /// [`LOOP_CAPTURE`] completion collector and adds the per-frame driver. It
 /// expects a scripted autopilot in the same run: "the run is complete" is
 /// read from the completion protocol's other collectors.
-pub struct LoopCapturePlugin;
+#[derive(Default)]
+pub struct LoopCapturePlugin {
+    profile: LoopProfile,
+}
+
+impl LoopCapturePlugin {
+    /// Record at `profile` instead of the documentation-loop default.
+    pub fn new(profile: LoopProfile) -> Self {
+        Self { profile }
+    }
+}
 
 impl Plugin for LoopCapturePlugin {
     fn build(&self, app: &mut App) {
+        // A bad profile is a build-time authoring error, and the run it would
+        // produce is unusable (a zero dimension is not an encodable frame), so
+        // it stops the app here rather than at the first readback.
+        if let Err(error) = self.profile.validate() {
+            panic!("loop capture: invalid LoopProfile: {error}");
+        }
+        // Inserted before the gate: the window size is dressing the smoke path
+        // wants too, and being a plugin-build insert it is already there when
+        // any `Startup` system reads it.
+        app.insert_resource(self.profile);
         if !capture::capturing() {
             return;
         }
-        arm_loop_capture(app);
+        arm_loop_capture(app, self.profile);
         // One rendered frame = one loop frame. Pinned only on the ARMED run:
         // the smoke path keeps wall time.
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(
-            1.0 / f64::from(LOOP_FPS),
-        )));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            self.profile.frame_duration(),
+        ));
     }
 }
 
 /// The armed wiring, split from the env gate so the driver is testable
 /// without mutating the process environment (which would race the other
 /// tests in this binary).
-fn arm_loop_capture(app: &mut App) {
+fn arm_loop_capture(app: &mut App, profile: LoopProfile) {
+    app.insert_resource(profile);
     app.init_resource::<LoopRecorder>();
     app.init_resource::<CaptureLog>();
     completion::register(app, LOOP_CAPTURE);
@@ -315,14 +446,17 @@ fn loop_capture_drive(world: &mut World) {
                 );
                 return;
             }
+            let profile = *world.resource::<LoopProfile>();
             let requested = world.resource::<LoopRecorder>().requested;
-            if requested >= LOOP_FRAME_CAP {
+            if requested >= profile.frame_cap {
+                let cap = profile.frame_cap;
                 fail(
                     world,
                     &format!(
-                        "loop capture: loop `{name}` exceeded the {LOOP_FRAME_CAP}-frame cap \
-                         ({} seconds at {LOOP_FPS} fps) - shorten the loop, do not raise the cap",
-                        LOOP_FRAME_CAP / LOOP_FPS
+                        "loop capture: loop `{name}` exceeded the {cap}-frame cap \
+                         ({} seconds at {} fps) - shorten the loop, do not raise the cap",
+                        cap / profile.fps,
+                        profile.fps
                     ),
                 );
                 return;
@@ -346,10 +480,11 @@ fn loop_capture_drive(world: &mut World) {
             if written < requested {
                 return;
             }
+            let profile = *world.resource::<LoopProfile>();
             let staging = world.resource::<LoopRecorder>().staging.clone();
             let file = loop_file_name(&name);
             let output = capture::capture_path(&file);
-            match encode_frames("ffmpeg", &staging, &output) {
+            match encode_frames("ffmpeg", &profile, &staging, &output) {
                 Ok(()) => {
                     if let Err(error) = std::fs::remove_dir_all(&staging) {
                         warn!("loop capture: could not clean staging {staging:?}: {error}");
@@ -358,8 +493,9 @@ fn loop_capture_drive(world: &mut World) {
                     world.resource_mut::<LoopRecorder>().phase = LoopPhase::Idle;
                     info!(
                         "loop capture: `{name}` written: {requested} frames -> {output:?} \
-                         ({:.1}s at {LOOP_FPS} fps)",
-                        requested as f32 / LOOP_FPS as f32
+                         ({:.1}s at {} fps)",
+                        profile.seconds(requested),
+                        profile.fps
                     );
                 }
                 Err(message) => {
@@ -396,29 +532,39 @@ fn request_frame(world: &mut World, path: PathBuf) {
 }
 
 /// The full ffmpeg argument list for one loop encode: numbered staging PNGs
-/// in, a VP9 webm at [`LOOP_RESOLUTION`] / [`LOOP_CRF`] out. Split from
+/// in, a VP9 webm at the profile's output resolution and CRF out. Split from
 /// [`encode_frames`] so the command line is assertable without running
 /// anything.
-fn encode_args(staging: &Path, output: &Path) -> Vec<std::ffi::OsString> {
+///
+/// A profile whose output matches its window carries NO scale filter: the
+/// frames are already that size, and resampling them to themselves would only
+/// soften a source that is meant to be the master.
+fn encode_args(profile: &LoopProfile, staging: &Path, output: &Path) -> Vec<std::ffi::OsString> {
     let input = staging.join("frame_%05d.png");
-    [
+    let mut args: Vec<std::ffi::OsString> = vec![
         "-y".into(),
         "-framerate".into(),
-        LOOP_FPS.to_string().into(),
+        profile.fps.to_string().into(),
         "-start_number".into(),
         "1".into(),
         "-i".into(),
         input.into_os_string(),
-        "-vf".into(),
-        format!(
-            "scale={}:{}:flags=lanczos",
-            LOOP_RESOLUTION.0, LOOP_RESOLUTION.1
-        )
-        .into(),
+    ];
+    if profile.output_resolution != profile.window_resolution {
+        args.push("-vf".into());
+        args.push(
+            format!(
+                "scale={}:{}:flags=lanczos",
+                profile.output_resolution.0, profile.output_resolution.1
+            )
+            .into(),
+        );
+    }
+    args.extend([
         "-c:v".into(),
         "libvpx-vp9".into(),
         "-crf".into(),
-        LOOP_CRF.to_string().into(),
+        profile.crf.to_string().into(),
         "-b:v".into(),
         "0".into(),
         "-row-mt".into(),
@@ -431,14 +577,19 @@ fn encode_args(staging: &Path, output: &Path) -> Vec<std::ffi::OsString> {
         "yuv420p".into(),
         "-an".into(),
         output.as_os_str().to_os_string(),
-    ]
-    .into()
+    ]);
+    args
 }
 
 /// Run `ffmpeg` over the staging frames, blocking until it exits. A launch
 /// failure (the binary is not on PATH) and a nonzero exit are both errors
 /// carrying ffmpeg's own output; so is an exit that left no file behind.
-fn encode_frames(ffmpeg: &str, staging: &Path, output: &Path) -> Result<(), String> {
+fn encode_frames(
+    ffmpeg: &str,
+    profile: &LoopProfile,
+    staging: &Path,
+    output: &Path,
+) -> Result<(), String> {
     if let Some(parent) = output.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent)
@@ -446,7 +597,7 @@ fn encode_frames(ffmpeg: &str, staging: &Path, output: &Path) -> Result<(), Stri
         }
     }
     let result = Command::new(ffmpeg)
-        .args(encode_args(staging, output))
+        .args(encode_args(profile, staging, output))
         .output()
         .map_err(|error| format!("could not run `{ffmpeg}`: {error} (is ffmpeg installed?)"))?;
     if !result.status.success() {
@@ -482,13 +633,31 @@ mod tests {
     /// `arm_loop_capture` gives a real armed run, executing on this thread so
     /// the log capture sees the driver.
     fn armed_app() -> App {
+        armed_app_with(LoopProfile::default())
+    }
+
+    /// The same rig at a chosen profile, for the tests that assert a
+    /// production caller's settings reach the driver.
+    fn armed_app_with(profile: LoopProfile) -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
-        arm_loop_capture(&mut app);
+        arm_loop_capture(&mut app, profile);
         app.edit_schedule(Last, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
         app
+    }
+
+    /// The portrait short `nova-showcase` captures with: a real 9:16 master,
+    /// no scale step, twice the cadence and twice the runway.
+    fn portrait() -> LoopProfile {
+        LoopProfile {
+            window_resolution: (1080, 1920),
+            output_resolution: (1080, 1920),
+            fps: 60,
+            crf: 18,
+            frame_cap: 1200,
+        }
     }
 
     fn exits(app: &mut App) -> Vec<AppExit> {
@@ -639,6 +808,85 @@ mod tests {
         );
     }
 
+    /// ...and the cap it enforces is the PROFILE's, not the default: a
+    /// production loop with a longer runway records past 600 frames and aborts
+    /// at its own number.
+    #[test]
+    fn the_frame_cap_enforced_is_the_profile_cap() {
+        let (observed, logs) = capturing_logs(|| {
+            let mut app = armed_app_with(portrait());
+            completion::register(&mut app, completion::AUTOPILOT);
+            open_loop(&mut app, "short", "profile-cap");
+
+            app.world_mut().resource_mut::<LoopRecorder>().requested = LOOP_FRAME_CAP;
+            app.update();
+            let past_the_default = exits(&mut app).is_empty();
+
+            app.world_mut().resource_mut::<LoopRecorder>().requested = portrait().frame_cap;
+            app.update();
+            (past_the_default, exits(&mut app))
+        });
+        assert!(
+            observed.0,
+            "the default cap does not stop a profile that raised it"
+        );
+        assert_eq!(observed.1.len(), 1);
+        assert_ne!(observed.1[0], AppExit::Success);
+        assert!(
+            logs.contains("short") && logs.contains("1200-frame cap") && logs.contains("60 fps"),
+            "the failure names the profile's cap and cadence; logged: {logs}"
+        );
+    }
+
+    /// An invalid profile stops the app while it is being BUILT, not at the
+    /// first readback of a run that already spent minutes getting there.
+    #[test]
+    #[should_panic(expected = "fps is zero")]
+    fn an_invalid_profile_panics_the_plugin_build() {
+        App::new().add_plugins(LoopCapturePlugin::new(LoopProfile {
+            fps: 0,
+            ..LoopProfile::default()
+        }));
+    }
+
+    /// The unarmed path stays a smoke walk: the plugin publishes the profile
+    /// (the window dressing wants it) and nothing else - no recorder, no
+    /// manual clock, and the step calls write no frames.
+    #[test]
+    fn an_unarmed_run_publishes_the_profile_and_records_nothing() {
+        // The test binary never sets `NOVA_CAPTURE`, so this IS the unarmed
+        // branch by construction.
+        assert!(
+            !capture::capturing(),
+            "the test binary must not arm capture"
+        );
+
+        let mut app = App::new();
+        app.add_plugins(LoopCapturePlugin::new(portrait()));
+        assert_eq!(
+            *app.world().resource::<LoopProfile>(),
+            portrait(),
+            "the window resolution is available to the smoke path too"
+        );
+        assert!(
+            app.world().get_resource::<LoopRecorder>().is_none(),
+            "an unarmed run has no recorder"
+        );
+        assert!(
+            app.world().get_resource::<TimeUpdateStrategy>().is_none(),
+            "an unarmed run keeps wall time"
+        );
+
+        loop_start(app.world_mut(), "quiet");
+        loop_end(app.world_mut(), "quiet");
+        let requests = app
+            .world_mut()
+            .query::<&Screenshot>()
+            .iter(app.world())
+            .count();
+        assert_eq!(requests, 0, "an unarmed loop spawns no readback");
+    }
+
     /// Failure (c), the launch half: a missing ffmpeg binary is an error
     /// carrying the binary's name, not a hang or a bare unwrap.
     #[test]
@@ -647,6 +895,7 @@ mod tests {
         std::fs::create_dir_all(&staging).unwrap();
         let error = encode_frames(
             "/nonexistent/ffmpeg-for-the-loop-test",
+            &LoopProfile::default(),
             &staging,
             &staging.join("out.webm"),
         )
@@ -658,19 +907,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(&staging);
     }
 
+    fn command_line(profile: &LoopProfile) -> String {
+        encode_args(
+            profile,
+            Path::new("/stage/torpedo"),
+            Path::new("/shots/torpedo.webm"),
+        )
+        .iter()
+        .map(|arg| arg.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(" ")
+    }
+
     /// The encode command is the documented one: numbered PNGs at the loop
     /// cadence in, scaled constant-quality VP9 out.
     #[test]
     fn the_encode_command_pins_cadence_scale_and_quality() {
-        let args = encode_args(
-            Path::new("/stage/torpedo"),
-            Path::new("/shots/torpedo.webm"),
-        );
-        let rendered: Vec<String> = args
-            .iter()
-            .map(|arg| arg.to_string_lossy().into_owned())
-            .collect();
-        let line = rendered.join(" ");
+        let line = command_line(&LoopProfile::default());
         assert!(line.contains(&format!("-framerate {LOOP_FPS}")));
         assert!(line.contains("/stage/torpedo/frame_%05d.png"));
         assert!(line.contains(&format!(
@@ -680,6 +933,109 @@ mod tests {
         assert!(line.contains("libvpx-vp9"));
         assert!(line.contains(&format!("-crf {LOOP_CRF} -b:v 0")));
         assert!(line.ends_with("/shots/torpedo.webm"));
+    }
+
+    /// The default profile IS the documented docs-loop capture, so a fleet
+    /// example that names nothing still records 1080p -> 720p30 at CRF 34.
+    #[test]
+    fn the_default_profile_is_the_documentation_loop_capture() {
+        let profile = LoopProfile::default();
+        assert_eq!(profile.window_resolution, (1920, 1080));
+        assert_eq!(profile.output_resolution, (1280, 720));
+        assert_eq!(profile.fps, 30);
+        assert_eq!(profile.crf, 34);
+        assert_eq!(profile.frame_cap, 600);
+        assert_eq!(profile, LoopCapturePlugin::default().profile);
+    }
+
+    /// A production profile reaches ffmpeg whole: its cadence, its quality,
+    /// and - because the window already IS the output - no scale filter to
+    /// resample a master through.
+    #[test]
+    fn a_portrait_profile_encodes_at_its_own_size_without_a_scale_step() {
+        let line = command_line(&portrait());
+        assert!(
+            line.contains("-framerate 60"),
+            "the profile's cadence: {line}"
+        );
+        assert!(
+            line.contains("-crf 18 -b:v 0"),
+            "the profile's quality: {line}"
+        );
+        assert!(
+            !line.contains("scale="),
+            "window == output must not resample: {line}"
+        );
+
+        let downscaled = LoopProfile {
+            output_resolution: (540, 960),
+            ..portrait()
+        };
+        assert!(
+            command_line(&downscaled).contains("scale=540:960:flags=lanczos"),
+            "a different output resolution still scales"
+        );
+    }
+
+    /// The armed frame clock comes from the profile, so a 60 fps capture
+    /// advances game time in 60ths and plays back at real speed.
+    #[test]
+    fn the_manual_frame_duration_comes_from_the_profile_fps() {
+        assert_eq!(
+            LoopProfile::default().frame_duration(),
+            Duration::from_secs_f64(1.0 / 30.0)
+        );
+        assert_eq!(
+            portrait().frame_duration(),
+            Duration::from_secs_f64(1.0 / 60.0)
+        );
+    }
+
+    /// Validation names the field a caller got wrong, and every zero is a
+    /// rejection rather than a division or an unencodable frame later on.
+    #[test]
+    fn a_zero_valued_profile_is_rejected_by_name() {
+        LoopProfile::default()
+            .validate()
+            .expect("the documented default is valid");
+        portrait()
+            .validate()
+            .expect("a production profile is valid");
+
+        let cases = [
+            (
+                LoopProfile {
+                    window_resolution: (0, 1080),
+                    ..LoopProfile::default()
+                },
+                "window_resolution",
+            ),
+            (
+                LoopProfile {
+                    output_resolution: (1280, 0),
+                    ..LoopProfile::default()
+                },
+                "output_resolution",
+            ),
+            (
+                LoopProfile {
+                    fps: 0,
+                    ..LoopProfile::default()
+                },
+                "fps",
+            ),
+            (
+                LoopProfile {
+                    frame_cap: 0,
+                    ..LoopProfile::default()
+                },
+                "frame_cap",
+            ),
+        ];
+        for (profile, field) in cases {
+            let error = profile.validate().unwrap_err();
+            assert!(error.contains(field), "the error names `{field}`: {error}");
+        }
     }
 
     /// The collector negotiates: idle at run completion reports done exactly
@@ -706,10 +1062,10 @@ mod tests {
     }
 }
 
-/// The loop calls, their plugin, and the loop encode knobs.
+/// The loop calls, their plugin, the capture profile and its defaults.
 pub mod prelude {
     pub use super::{
-        loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopRecorder, LOOP_CAPTURE,
-        LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
+        loop_end, loop_file_name, loop_start, LoopCapturePlugin, LoopProfile, LoopRecorder,
+        LOOP_CAPTURE, LOOP_CRF, LOOP_FPS, LOOP_FRAME_CAP, LOOP_RESOLUTION,
     };
 }
