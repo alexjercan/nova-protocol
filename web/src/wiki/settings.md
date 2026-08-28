@@ -10,7 +10,7 @@ on the web.
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu: the master volume slider, the Low/Medium/High graphics preset selector, and the keybind reference panel.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu: the master volume slider, the Low/Medium/High graphics preset selector, and the Controls tab's rebindable keycap rows.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
@@ -45,10 +45,27 @@ win is small, so Low is a knob for the low end rather than a general speed-up.
 
 </details>
 
-## Controls reference
+## Controls
 
-The **Controls** panel is a read-only reference of the current keyboard and
-gamepad bindings - flight, targeting, camera and pause - the same reference laid
-out on the [Keybinds](../keybinds/) page. It is there to check a binding without
-leaving the game; the bindings themselves are fixed (weapon fire is the one thing
-you assign, per section, in the editor).
+The **Controls** tab is where you REBIND. It shows one binding group at a time -
+FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, NOVA OS and the two viewer apps -
+with the keyboard and gamepad columns side by side, drawn as the keycaps and pad
+glyphs you actually press. The same table is laid out on the
+[Keybinds](../keybinds/) page.
+
+Click a chip and it prompts `PRESS A KEY`; the next key, mouse button or pad
+button you press becomes that column's whole binding. <kbd>Esc</kbd> backs out,
+which is why no row can be bound to it, and **Reset Defaults** puts the whole
+table back.
+
+A press something else could answer at the same instant is refused by name -
+`W is already bound to Main Drive` - and the chip stays armed for another try.
+Sharing a key across screens is fine and deliberate: <kbd>G</kbd> is GO TO in
+flight and the mates overlay in the ship computer, and only one of them is ever
+listening.
+
+Two rows are read-only, drawn greyed: <kbd>Esc</kbd> and the pad's pause chord.
+They are the way out of every other screen, including this one.
+
+A section's weapon or thruster trigger is not here - that is per ship, assigned
+in the editor or in the ship computer's SHIP app.

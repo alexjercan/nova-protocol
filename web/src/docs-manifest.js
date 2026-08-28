@@ -152,7 +152,7 @@ const WIKI_PAGES = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad.",
+            "The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad - and all of it rebindable under Settings > Controls.",
         related: [
             "flight-autopilot",
             "targeting-radar",
@@ -204,9 +204,9 @@ const WIKI_PAGES = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the read-only keybind reference - reachable from the main menu and the pause menu, remembered across restarts.",
+            "The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts.",
         related: ["keybinds", "hud", "flight-autopilot"],
-        headings: ["Audio", "Graphics quality", "Controls reference"],
+        headings: ["Audio", "Graphics quality", "Controls"],
     },
     {
         slug: "flight-autopilot",

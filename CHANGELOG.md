@@ -170,9 +170,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The NOVA OS viewers answer a pad: orbit, pan, cycle, GOTO and reload reuse
   the flight rig's buttons, which the context rule keeps from ever being live
   beside them.
-- RCS answers a pad too: click the left stick to engage it, push that same
-  stick to translate. A held deflection is full authority, not the mouse's
-  per-frame nudge.
+- The pad's left stick translates under RCS: a held deflection is full
+  authority in that direction, where the mouse only nudges per frame.
 - Settings opens on tabs - Audio, Graphics, Controls, Interface - and Controls
   lists one binding group at a time, from the main menu and the pause overlay
   alike.
@@ -180,10 +179,11 @@ does NOT get an entry - and it is the only place they are written down.
   glyph, and a key that cannot move, like Escape, wears the same chip greyed
   rather than plain text.
 - A binding moves by pressing its chip and then the key or pad button. A source
-  another action already holds is refused by name, and Reset Defaults puts the
-  whole table back.
-- A rebind made in flight reaches the ship: the flight and camera rigs rebuild
-  on the spot instead of waiting for the next load.
+  another action or a live ship section already holds is refused by name, and
+  Reset Defaults puts the whole table back.
+- A rebind made in flight reaches everything that answers it: the flight,
+  camera and scenario rigs rebuild on the spot, and the HUD dock redraws on the
+  new key instead of the one it shipped with.
 - Radar hold and tap are one row. Rebinding the gesture moves both halves, so
   the tap can no longer end up on a different key from the hold.
 - Graphics offers Windowed or Borderless fullscreen, applied at once and
@@ -198,9 +198,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Fixes
 
-- The gamepad shortcuts outside the flight rig fire again: pause on Start, the
-  HUD cycle on Select, the NOVA OS on the right-stick click. All three read a
-  resource bevy no longer has.
+- The gamepad shortcuts outside the flight rig fire again: pause, the HUD
+  cycle, the NOVA OS, and the editor's place and Sandbox-return chords. Every
+  one read a resource bevy no longer has.
 - RCS fine adjust moves off the pad's left trigger onto the left stick click:
   it shared the trigger with Raise Weapons, so one pull did both at once.
 

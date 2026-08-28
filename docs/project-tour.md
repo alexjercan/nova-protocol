@@ -43,6 +43,7 @@ for responsibilities and the dependency graph.
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
 | `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
 | `nova_menu` | Main menu + the ESC pause overlay; hands off to `Playing`. |
+| `nova_input` | The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface. |
 | `nova_ui` | Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (`nova_gameplay`, `nova_hud`, `nova_os_ui`, `nova_menu`, `nova_editor`, `nova_assets`) draws from it. |
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |

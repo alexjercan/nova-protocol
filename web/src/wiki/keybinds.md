@@ -1,6 +1,6 @@
 # Keybinds
 
-The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. The same bindings are viewable in-game under **Settings > Controls**, reachable from both the main menu and the pause menu.
+The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. Every one of these is REBINDABLE in-game under **Settings > Controls**, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and `Reset Defaults` puts the whole table back.
 
 A dash means the action has no binding on that device.
 
@@ -86,7 +86,19 @@ A dash means the action has no binding on that device.
                     aria-label="Scroll wheel"
                 ></span>
             </td>
-            <td>-</td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-stick-left"
+                    role="img"
+                    aria-label="Left stick"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
@@ -277,16 +289,6 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
                     aria-label="Right stick click"
                 ></span>
             </td>
-        </tr>
-        <tr>
-            <td>Dismiss oldest visible comms card</td>
-            <td><kbd>V</kbd></td>
-            <td>-</td>
-        </tr>
-        <tr>
-            <td>Skip queued comms backlog into view</td>
-            <td><kbd>B</kbd></td>
-            <td>-</td>
         </tr>
         <tr>
             <td>Pause menu</td>

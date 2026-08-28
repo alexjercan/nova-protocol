@@ -77,7 +77,7 @@ Scenarios talk to you through a **comms stack**: speaker-attributed story cards 
 <details class="explain">
 <summary>Show explanation</summary>
 
-Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss. Press <kbd>V</kbd> to dismiss the oldest visible card, or <kbd>B</kbd> to pull queued backlog into view once the visible stack is full.
+Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss.
 
 An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the gold **objective markers** on the targets themselves are the lasting "go here" cue. A **completed** objective ghosts green as it fades. Everything clears with the scenario rather than lingering over the menu.
 

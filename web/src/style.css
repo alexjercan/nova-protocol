@@ -1046,12 +1046,15 @@ main {
 .pf-shoulder-right::before {
     content: "\2199";
 }
-/* Analog: mouse (for mouse-motion aim) and the right stick. */
+/* Analog: mouse (for mouse-motion aim) and the two sticks. */
 .pf-mouse-device::before {
     content: "\243E";
 }
 .pf-stick-right::before {
     content: "\21CC";
+}
+.pf-stick-left::before {
+    content: "\21CB";
 }
 .pf-stick-left-click::before {
     content: "\21BA";
