@@ -33,8 +33,8 @@ pub(crate) use clock::tick_scenario_timers;
 pub use lifecycle::ScenarioCameraMarker;
 use lifecycle::{
     configure_scenario_gating, on_load_scenario, on_next_input, on_player_spaceship_destroyed,
-    on_player_spaceship_spawned, register_scenario_scoping, scenario_bindings, unload_scenario,
-    ScenarioInputMarker,
+    on_player_spaceship_spawned, rebuild_scenario_input_on_rebind, register_scenario_scoping,
+    scenario_bindings, unload_scenario, ScenarioInputMarker,
 };
 use preload::register_scenario_preload;
 use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
@@ -44,10 +44,10 @@ pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        preload::prelude::*, scenario_is_live, CampaignConfig, CampaignId, ContentIssues,
-        CurrentScenario, GameCampaigns, GameScenarios, LoadScenario, NewGameStart,
-        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
-        ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
+        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CampaignConfig,
+        CampaignId, ContentIssues, CurrentScenario, GameCampaigns, GameScenarios, LoadScenario,
+        NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId,
+        ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
         ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
     };
 }
@@ -498,6 +498,10 @@ impl Plugin for ScenarioLoaderPlugin {
 
         app.register_input_actions(scenario_bindings());
         app.add_input_context::<ScenarioInputMarker>();
+        app.add_systems(
+            Update,
+            rebuild_scenario_input_on_rebind.run_if(resource_changed::<InputBindings>),
+        );
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
 

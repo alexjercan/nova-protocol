@@ -376,13 +376,43 @@ pub(super) struct NextScenarioInput;
 /// player flies, and the key goes quiet with the rest of the rig when the
 /// NOVA OS takes the screen. Sharing the context is also what lets the
 /// conflict check see Enter against the flight keys.
-pub(crate) fn scenario_bindings() -> Vec<ActionBinding> {
+pub fn scenario_bindings() -> Vec<ActionBinding> {
     vec![
         ActionBinding::new("scenario_advance", "SCENARIO", "Advance")
             .context(ActionContext::Flight)
             .keyboard([InputSource::Keyboard(KeyCode::Enter)])
             .gamepad([InputSource::Gamepad(GamepadButton::DPadDown)]),
     ]
+}
+
+/// Rebuild the scenario rig when the table moves, for the same reason the
+/// flight and camera rigs are rebuilt: the rig SNAPSHOTS the registry at load,
+/// and the pause overlay rebinds while a run is live. Without this, Advance
+/// moved off Enter in the settings row and the game kept skipping the beat on
+/// Enter until the next load.
+///
+/// `scenario_advance` is a press with no held state, so there is nothing to
+/// release before the swap.
+pub(crate) fn rebuild_scenario_input_on_rebind(
+    mut commands: Commands,
+    bindings: Res<InputBindings>,
+    q_rig: Query<(Entity, &Name), With<ScenarioInputMarker>>,
+) {
+    for (rig, name) in &q_rig {
+        commands.entity(rig).try_despawn();
+        commands.spawn((
+            ScenarioScopedMarker,
+            name.clone(),
+            ScenarioInputMarker,
+            actions!(
+                ScenarioInputMarker[(
+                    Name::new("Input: Next Scenario"),
+                    Action::<NextScenarioInput>::new(),
+                    bindings.bundle("scenario_advance")
+                )]
+            ),
+        ));
+    }
 }
 
 /// What the scenario-advance input does, given the current state. Extracted
@@ -492,6 +522,8 @@ pub(super) fn on_player_spaceship_destroyed(
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::system::RunSystemOnce;
+
     use super::*;
     use crate::loader::fixtures::*;
 
@@ -740,6 +772,55 @@ mod tests {
         assert!(
             installed.is_none(),
             "no eager SkyboxConfig: the skybox observer runs once and would give up on an unloaded image"
+        );
+    }
+
+    /// The rig snapshots the table at load, so a rebind made mid-run has to
+    /// rebuild it. Without this the settings row moved Advance and the game
+    /// kept answering on Enter until the next load.
+    #[test]
+    fn a_rebind_made_mid_run_reaches_the_scenario_rig() {
+        let mut app = App::new();
+        let shipped = InputBindings::from_actions(scenario_bindings());
+        app.world_mut().spawn((
+            Name::new("Scenario Input Context: test"),
+            ScenarioInputMarker,
+            actions!(
+                ScenarioInputMarker[(
+                    Name::new("Input: Next Scenario"),
+                    Action::<NextScenarioInput>::new(),
+                    shipped.bundle("scenario_advance")
+                )]
+            ),
+        ));
+        app.insert_resource(shipped);
+        app.world_mut().flush();
+
+        app.world_mut().resource_mut::<InputBindings>().rebind(
+            "scenario_advance",
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyP)],
+                gamepad: vec![],
+            },
+        );
+        app.world_mut()
+            .run_system_once(rebuild_scenario_input_on_rebind)
+            .unwrap();
+        app.world_mut().flush();
+
+        let keys: Vec<KeyCode> = app
+            .world_mut()
+            .query::<&Binding>()
+            .iter(app.world())
+            .filter_map(|binding| match binding {
+                Binding::Keyboard { key, .. } => Some(*key),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            keys,
+            vec![KeyCode::KeyP],
+            "the rebuilt rig answers the new key and only that one"
         );
     }
 

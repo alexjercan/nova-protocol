@@ -6,16 +6,14 @@ use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
-use super::flight_rig::{
-    AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput, AutopilotStopInput,
-};
+use super::flight_rig::AutopilotStopInput;
 use crate::prelude::*;
 
 /// One flight verb's hint state, for the keybind-hint HUD.
 #[derive(Clone, Debug, Default, PartialEq, Reflect)]
 pub struct VerbHint {
-    /// The verb's keyboard label ("X", "G"...), read from the live bindings
-    /// of the flight rig; empty until the rig exists.
+    /// The verb's keycap label ("X", "G"...), read from the LIVE bindings
+    /// table; empty until the flight rig exists.
     pub key: String,
     /// Whether pressing the key right now would do something.
     pub available: bool,
@@ -45,18 +43,18 @@ pub struct FlightVerbHints {
     pub orbit: VerbHint,
     /// The CANCEL verb hint (disengage the autopilot, resume manual).
     pub cancel: VerbHint,
-    /// Component fine-lock cycle (plain scroll). The key label is the fixed
-    /// string "SCROLL" - a wheel binding has no keyboard label to read.
+    /// Component fine-lock cycle. The label stays the fixed string "SCROLL":
+    /// the wheel half of `component_next` is part of the action rather than
+    /// its spec, so no rebind can move it and no table read would tell the
+    /// player anything the wheel does not already do.
     pub component_cycle: VerbHint,
-    /// The radar gesture (hold CTRL = radar, tap = clear). Fixed "CTRL" label
-    /// like the wheel rows (the binding spans both Control keys plus a pad
-    /// button); available while the computer grants Lock (CTRL was missing
-    /// from the cluster entirely).
+    /// The radar gesture (hold = radar, tap = clear), labelled off
+    /// `radar_hold`; available while the computer grants Lock.
     pub radar: VerbHint,
-    /// The RCS fine-adjust modifier (hold SHIFT). Fixed "SHIFT" label like
-    /// the wheel/CTRL rows; available while the computer grants the `Rcs`
-    /// verb, so the row shows only where RCS is enabled - the same opt-out
-    /// the mainline campaign uses while RCS is off pending rework.
+    /// The RCS fine-adjust modifier, labelled off `rcs_modifier`; available
+    /// while the computer grants the `Rcs` verb, so the row shows only where
+    /// RCS is enabled - the same opt-out the mainline campaign uses while RCS
+    /// is off pending rework.
     pub rcs: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
@@ -64,8 +62,8 @@ pub struct FlightVerbHints {
     pub engaged: bool,
 }
 
-/// The fixed label of a wheel-gesture hint, empty while the flight rig is
-/// missing so the rows vanish with the other verbs'.
+/// The fixed label of the wheel-gesture hint, empty while the flight rig is
+/// missing so the row vanishes with the other verbs'.
 fn cycle_label(label: &str, rig_exists: bool) -> String {
     if rig_exists {
         label.to_string()
@@ -78,8 +76,8 @@ fn cycle_label(label: &str, rig_exists: bool) -> String {
 /// state the input observers AND the autopilot gate on (lock, dominant
 /// well, engagement, and a flyable ship - a live flight computer plus at
 /// least one live engine, else autopilot_system strips the maneuver on its
-/// next tick and a lit hint would be a lie), labels from the flight rig's
-/// actual `Bindings` so a future remap screen cannot desync the hints.
+/// next tick and a lit hint would be a lie), labels from the LIVE bindings
+/// table so a rebind cannot desync the hints.
 #[expect(clippy::type_complexity, reason = "one query per private action type")]
 pub(super) fn update_flight_verb_hints(
     mut hints: ResMut<FlightVerbHints>,
@@ -104,20 +102,26 @@ pub(super) fn update_flight_verb_hints(
         ),
     >,
     q_thruster: Query<&ChildOf, (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>)>,
-    q_stop: Query<&Bindings, With<Action<AutopilotStopInput>>>,
-    q_goto: Query<&Bindings, With<Action<AutopilotGotoInput>>>,
-    q_orbit: Query<&Bindings, With<Action<AutopilotOrbitInput>>>,
-    q_off: Query<&Bindings, With<Action<AutopilotOffInput>>>,
-    q_binding: Query<&Binding>,
+    q_rig: Query<(), With<Action<AutopilotStopInput>>>,
+    bindings: Option<Res<InputBindings>>,
 ) {
-    let label = |bindings: Option<&Bindings>| -> String {
+    // The rig is the gate, not the source: a row is drawn only while the rig
+    // that answers it exists, so all seven vanish together on a ship with no
+    // flight computer.
+    let rig_exists = !q_rig.is_empty();
+    // The keycap an action draws, off the LIVE table. Reading the rig's own
+    // `Bindings` matched KEYBOARD entries only, so a verb moved onto a mouse
+    // button still fired and lost its chip with no way back except rebinding
+    // to a key.
+    let label = |action: &str| -> String {
+        if !rig_exists {
+            return String::new();
+        }
         bindings
-            .into_iter()
-            .flatten()
-            .find_map(|entity| match q_binding.get(entity) {
-                Ok(Binding::Keyboard { key, .. }) => Some(keyboard_label(*key)),
-                _ => None,
-            })
+            .as_deref()
+            .and_then(|table| table.get(action))
+            .and_then(|action| action.sources().next())
+            .map(|source| source.glyph_label())
             .unwrap_or_default()
     };
 
@@ -161,17 +165,17 @@ pub(super) fn update_flight_verb_hints(
 
     let next = FlightVerbHints {
         stop: VerbHint {
-            key: label(q_stop.single().ok()),
+            key: label("autopilot_stop"),
             available: flyable && verb_granted(FlightVerb::Stop),
             anchor: None,
         },
         goto: VerbHint {
-            key: label(q_goto.single().ok()),
+            key: label("autopilot_goto"),
             available: flyable && verb_granted(FlightVerb::Goto) && travel.is_some(),
             anchor: travel,
         },
         orbit: VerbHint {
-            key: label(q_orbit.single().ok()),
+            key: label("autopilot_orbit"),
             available: flyable
                 && verb_granted(FlightVerb::Orbit)
                 && dominant.is_some()
@@ -179,17 +183,18 @@ pub(super) fn update_flight_verb_hints(
             anchor: dominant.map(|well| **well),
         },
         cancel: VerbHint {
-            key: label(q_off.single().ok()),
+            key: label("autopilot_off"),
             // Z always answers while engaged, even on a crippled ship.
             available: engaged,
             anchor: None,
         },
-        // The wheel gesture carries a fixed label (no keyboard key to read),
-        // gated on the rig existing to keep the "no rig, no keys, no hints"
-        // invariant. Component cycling needs the COMBAT focus dwell complete
-        // and at least two attached sections to step between.
+        // The one row that stays a literal: the wheel belongs to the ACTION,
+        // not its spec, so no rebind can move it. Gated on the rig existing to
+        // keep the "no rig, no keys, no hints" invariant. Component cycling
+        // needs the COMBAT focus dwell complete and at least two attached
+        // sections to step between.
         component_cycle: VerbHint {
-            key: cycle_label("SCROLL", q_stop.single().is_ok()),
+            key: cycle_label("SCROLL", rig_exists),
             available: combat.is_some_and(|target| {
                 focus.is_some_and(|focus| focus.focused_on(target))
                     && q_sections
@@ -201,15 +206,13 @@ pub(super) fn update_flight_verb_hints(
             anchor: None,
         },
         radar: VerbHint {
-            key: cycle_label("CTRL", q_stop.single().is_ok()),
+            key: label("radar_hold"),
             available: verb_granted(FlightVerb::Lock),
             anchor: None,
         },
         rcs: VerbHint {
-            // Fixed "SHIFT" label (a modifier binding, no keyboard key to read),
-            // gated on the rig existing like the wheel/CTRL rows; shown only
-            // while the computer grants RCS.
-            key: cycle_label("SHIFT", q_stop.single().is_ok()),
+            // Shown only while the computer grants RCS.
+            key: label("rcs_modifier"),
             available: verb_granted(FlightVerb::Rcs),
             anchor: None,
         },
@@ -244,6 +247,45 @@ mod tests {
         assert_eq!(hints.cancel.key, "Z");
     }
 
+    /// The dock follows a rebind. It read the rig's own `Bindings` before, so
+    /// a row the player had moved kept drawing the old keycap.
+    #[test]
+    fn a_rebound_verb_redraws_the_dock_on_the_new_key() {
+        let mut world = hint_world();
+        spawn_flyable_ship(&mut world);
+        world.resource_mut::<InputBindings>().rebind(
+            "radar_hold",
+            BindingSpec {
+                keyboard: vec![InputSource::from(KeyCode::KeyK)],
+                gamepad: vec![],
+            },
+        );
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+
+        assert_eq!(world.resource::<FlightVerbHints>().radar.key, "K");
+    }
+
+    /// A verb moved onto a mouse button still fires, so its chip must still be
+    /// drawn: the old reader matched keyboard entries only and left the player
+    /// no way back except rebinding blind.
+    #[test]
+    fn a_verb_on_a_mouse_button_keeps_its_chip() {
+        let mut world = hint_world();
+        spawn_flyable_ship(&mut world);
+        world.resource_mut::<InputBindings>().rebind(
+            "autopilot_goto",
+            BindingSpec {
+                keyboard: vec![InputSource::from(MouseButton::Middle)],
+                gamepad: vec![],
+            },
+        );
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+
+        assert_eq!(world.resource::<FlightVerbHints>().goto.key, "MMB");
+    }
+
     /// The RCS hint carries the fixed "SHIFT" label and is available only while
     /// the controller grants the `Rcs` verb - so the cluster row shows only when
     /// RCS is enabled (the mainline campaign, which withholds it, never shows it).
@@ -254,7 +296,7 @@ mod tests {
 
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>();
-        assert_eq!(hints.rcs.key, "SHIFT");
+        assert_eq!(hints.rcs.key, "ShiftLeft");
         assert!(hints.rcs.available, "granted RCS lights the SHIFT hint");
 
         // Withhold RCS (the mainline path): the hint goes unavailable and the

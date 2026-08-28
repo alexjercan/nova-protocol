@@ -12,10 +12,14 @@ use bevy::{
         observe, Activate, Slider, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
     },
 };
+use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::*;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
+use nova_ship::prelude::{
+    SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+};
 use nova_ui::{
     prelude::UiSkin,
     theme,
@@ -696,6 +700,7 @@ pub(crate) fn apply_settings_rebind(
     mut rebind: ResMut<PendingRebind>,
     mut bindings: ResMut<InputBindings>,
     panels: Query<&Visibility, Or<(With<SettingsPanel>, With<PauseSettingsPanel>)>>,
+    sections: SectionBindings,
 ) {
     // A capture belongs to the row that armed it, and this system is ungated by
     // menu state on purpose - the pause overlay shows the same body. So the arm
@@ -753,6 +758,13 @@ pub(crate) fn apply_settings_rebind(
         rebind.refusal = Some(reason);
         return;
     }
+    if let Some(taken_by) = section_conflict(bindings.get(action), source, &sections) {
+        rebind.refusal = Some(format!(
+            "{} is already bound to {taken_by}",
+            source.readout_label()
+        ));
+        return;
+    }
 
     let Some(current) = bindings.get(action) else {
         disarm(&mut rebind);
@@ -768,6 +780,59 @@ pub(crate) fn apply_settings_rebind(
     }
     bindings.rebind(action, spec);
     disarm(&mut rebind);
+}
+
+/// Every live section that carries a player trigger, with the stable id the
+/// refusal names it by.
+type SectionBindings<'w, 's> = Query<
+    'w,
+    's,
+    (
+        &'static EntityId,
+        Option<&'static SpaceshipThrusterInputBinding>,
+        Option<&'static SpaceshipTurretInputBinding>,
+        Option<&'static SpaceshipTorpedoInputBinding>,
+    ),
+    Or<(
+        With<SpaceshipThrusterInputBinding>,
+        With<SpaceshipTurretInputBinding>,
+        With<SpaceshipTorpedoInputBinding>,
+    )>,
+>;
+
+/// What a LIVE ship section already spends `source` on.
+///
+/// A section's trigger is not a registry action - it lives on the section
+/// entity, authored per ship - so [`InputBindings::conflict_for`] cannot see
+/// it and the guard was one-directional: the ship viewer refuses a section
+/// binding a flight verb holds, and nothing refused a flight verb landing on
+/// a section's trigger. Every base scenario arms its turrets on the right
+/// trigger, so Main Drive could be bound to it and one pull would burn AND
+/// fire.
+///
+/// Only actions that can be live WITH the ship are checked, for the same
+/// reason `conflict_for` checks contexts: a NOVA OS verb on the turret
+/// trigger is not a collision, because the flight rig is down while the
+/// computer holds the screen.
+fn section_conflict(
+    action: Option<&ActionBinding>,
+    source: InputSource,
+    sections: &SectionBindings,
+) -> Option<String> {
+    if !action?.context.overlaps(ActionContext::Flight) {
+        return None;
+    }
+    sections
+        .iter()
+        .find(|(_, thruster, turret, torpedo)| {
+            let held = |binds: Option<&Vec<InputSource>>| {
+                binds.is_some_and(|binds| binds.contains(&source))
+            };
+            held(thruster.map(|b| &b.0))
+                || held(turret.map(|b| &b.0))
+                || held(torpedo.map(|b| &b.0))
+        })
+        .map(|(id, ..)| format!("the ship's {} section", id.0))
 }
 
 /// Drop the armed chip and the refusal beside it, marking the resource changed

@@ -21,10 +21,6 @@ use nova_input::prelude::*;
 /// on the subject are per-app - and `map_goto` and `ship_mates` may share a key
 /// for the same reason, because only one app owns the screen at a time.
 ///
-/// The viewer actions carry no pad binding. They never had one: the monitor is
-/// a keyboard surface, and inventing pad buttons here would reserve them
-/// against the flight rig for a gesture nobody asked for.
-///
 /// Three firing contexts, and the split is what makes the shared keys legal.
 /// `novaos_toggle` is `Always` - it has to open the monitor from wherever the
 /// player is. The orbit and cycle verbs are `Viewer`: live while ANY app owns

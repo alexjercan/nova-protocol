@@ -76,12 +76,13 @@ pub(crate) fn app() -> App {
     app.insert_resource(Time::<Physics>::default());
     // The rig defaults the settings readout renders. In production the owning
     // plugins register these - `SpaceshipPlayerInputPlugin`,
-    // `SpaceshipCameraControllerPlugin`, `NovaHudPlugin`, `NovaOsPlugin` - and
-    // a menu-only harness adds none of them.
+    // `SpaceshipCameraControllerPlugin`, `NovaHudPlugin`, `NovaOsPlugin`,
+    // `ScenarioLoaderPlugin` - and a menu-only harness adds none of them.
     app.register_input_actions(flight_bindings());
     app.register_input_actions(camera_bindings());
     app.register_input_actions(nova_hud::hud_bindings());
     app.register_input_actions(nova_os_ui::bindings::novaos_bindings());
+    app.register_input_actions(nova_scenario::prelude::scenario_bindings());
     app.add_plugins(NovaMenuPlugin);
     app
 }

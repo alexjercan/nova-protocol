@@ -651,7 +651,7 @@ fn a_taken_key_is_refused_by_name_and_the_chip_stays_armed() {
     assert!(
         all_texts(&mut app)
             .iter()
-            .any(|t| t == "X is already Autopilot: Stop"),
+            .any(|t| t == "X is already bound to Autopilot: Stop"),
         "the refusal names what holds the key"
     );
     assert!(
@@ -668,6 +668,49 @@ fn a_taken_key_is_refused_by_name_and_the_chip_stays_armed() {
             .expect("registered")
             .keyboard,
         vec![InputSource::Keyboard(KeyCode::KeyJ)]
+    );
+}
+
+/// The other direction of the same guard. A section's trigger is authored on
+/// the ship, not registered as an action, so the table cannot see it - and
+/// every base scenario arms its turrets on the right trigger. Binding Main
+/// Drive there would make one pull burn AND fire.
+#[test]
+fn a_key_a_live_ship_section_holds_is_refused_too() {
+    use nova_events::prelude::EntityId;
+    use nova_ship::prelude::SpaceshipTurretInputBinding;
+
+    let mut app = mods_app();
+    app.world_mut().spawn((
+        EntityId::new("turret_dorsal"),
+        SpaceshipTurretInputBinding(vec![InputSource::Gamepad(GamepadButton::RightTrigger2)]),
+    ));
+    open_tab(&mut app, SettingsTabKind::Controls);
+    arm_chip(&mut app, "Rebind: main_drive Pad");
+
+    let pad = app.world_mut().spawn(Gamepad::default()).id();
+    app.world_mut()
+        .entity_mut(pad)
+        .get_mut::<Gamepad>()
+        .expect("just spawned")
+        .digital_mut()
+        .press(GamepadButton::RightTrigger2);
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .resource::<InputBindings>()
+            .get("main_drive")
+            .expect("registered")
+            .gamepad,
+        vec![InputSource::Gamepad(GamepadButton::RightTrigger)],
+        "the capture is refused, not written"
+    );
+    assert!(
+        all_texts(&mut app)
+            .iter()
+            .any(|t| t == "Right Trigger 2 is already bound to the ship's turret_dorsal section"),
+        "and the row says which section holds it"
     );
 }
 
@@ -902,7 +945,9 @@ fn the_pause_overlay_settings_body_tabs_too() {
 
 /// The whole shipped table, which exists in one place only here: `nova_menu`
 /// is the crate that renders every group, so it is the only one that can see
-/// all four owners' actions at once.
+/// all five owners' actions at once. `scenario_advance` is the one the guard
+/// used to miss: it declares `Flight`, so it shares a live set with every
+/// flight action, and its owner sat one crate away from the check.
 ///
 /// A key held by two actions is normal and deliberate - `G` is go-to in
 /// flight, GOTO in the map viewer and the mates overlay in the ship viewer,
@@ -920,6 +965,7 @@ fn no_two_actions_that_can_be_live_together_share_a_source() {
         .into_iter()
         .chain(nova_hud::hud_bindings())
         .chain(nova_os_ui::bindings::novaos_bindings())
+        .chain(nova_scenario::prelude::scenario_bindings())
     {
         table.register(action);
     }

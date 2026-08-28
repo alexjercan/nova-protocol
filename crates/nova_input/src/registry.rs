@@ -377,10 +377,52 @@ impl InputBindings {
     }
 
     /// Apply saved [`overrides`](Self::overrides). Names this build does not
-    /// have are skipped with a warning.
+    /// have are skipped with a warning, and a stored row that lands on top of
+    /// another action is put back - see [`Self::drop_stored_conflicts`].
     pub fn apply_overrides(&mut self, overrides: &BTreeMap<String, BindingSpec>) {
         for (name, spec) in overrides {
             self.rebind(name, spec.clone());
+        }
+        self.drop_stored_conflicts(overrides);
+    }
+
+    /// Put back any STORED row that collides with the table it landed in.
+    ///
+    /// A store holds only the rows the player MOVED, deliberately, so a
+    /// shipped default that shifts onto a stored key reaches a player who
+    /// never touched either row. The rebind screen refuses that collision; a
+    /// load has to refuse it too, or both actions fire on one press
+    /// (`consume_input: false`) with nothing in the game saying so.
+    ///
+    /// The STORED row is the one that yields. Resetting the other would be a
+    /// no-op - it is already on the default it just moved to - and the whole
+    /// table is checked AFTER every override is in, so a legitimate swap (two
+    /// rows trading keys) is left alone rather than being refused row by row
+    /// against a default the next line was about to clear.
+    fn drop_stored_conflicts(&mut self, overrides: &BTreeMap<String, BindingSpec>) {
+        // Each pass resets one stored row, and a reset row is never restored,
+        // so the number of stored rows bounds the loop.
+        for _ in 0..overrides.len() {
+            let collision = self
+                .conflicts()
+                .into_iter()
+                .find_map(|(one, other, source)| {
+                    if overrides.contains_key(one.name) {
+                        Some((one.name, other.name, source))
+                    } else if overrides.contains_key(other.name) {
+                        Some((other.name, one.name, source))
+                    } else {
+                        None
+                    }
+                });
+            let Some((stored, holder, source)) = collision else {
+                return;
+            };
+            warn!(
+                "InputBindings::apply_overrides: stored `{stored}` on {} collides with `{holder}`; restoring its default",
+                source.readout_label()
+            );
+            self.reset(stored);
         }
     }
 
@@ -651,6 +693,85 @@ mod tests {
                 InputSource::Keyboard(KeyCode::BracketRight)
             )],
             "a named app runs INSIDE the shared viewer set, so both hear the key"
+        );
+    }
+
+    /// The store keeps only the rows a player MOVED, so a shipped default that
+    /// shifts onto a stored key reaches a player who never touched either row.
+    /// The rebind screen refuses that collision; the load has to as well.
+    #[test]
+    fn a_stored_row_that_a_moved_default_landed_on_is_put_back() {
+        // The player moved `fire` to J. The next build moves `burn`'s DEFAULT
+        // to J as well - a row they never touched, so the store says nothing
+        // about it.
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("burn", "FLIGHT", "Burn")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyJ)]),
+            ActionBinding::new("fire", "FLIGHT", "Fire")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyF)]),
+        ]);
+        let mut store = BTreeMap::new();
+        store.insert(
+            "fire".to_string(),
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+                gamepad: vec![],
+            },
+        );
+
+        table.apply_overrides(&store);
+
+        assert!(
+            table.conflicts().is_empty(),
+            "one press must not drive both"
+        );
+        assert_eq!(
+            table.get("fire").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyF)],
+            "the STORED row yields - resetting the other would put it right back"
+        );
+        assert_eq!(
+            table.get("burn").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            "and the shipped default this build chose is kept"
+        );
+    }
+
+    /// The check runs on the WHOLE table once every row is in, not row by row:
+    /// two rows trading keys are each stored on the other's default, and a
+    /// per-row refusal would reject the first against a default the second
+    /// line was about to clear.
+    #[test]
+    fn two_rows_that_traded_keys_both_load() {
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("burn", "FLIGHT", "Burn")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyW)]),
+            ActionBinding::new("fire", "FLIGHT", "Fire")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyF)]),
+        ]);
+        let spec = |key: KeyCode| BindingSpec {
+            keyboard: vec![InputSource::Keyboard(key)],
+            gamepad: vec![],
+        };
+        let store = BTreeMap::from([
+            ("burn".to_string(), spec(KeyCode::KeyF)),
+            ("fire".to_string(), spec(KeyCode::KeyW)),
+        ]);
+
+        table.apply_overrides(&store);
+
+        assert_eq!(
+            table.get("burn").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyF)]
+        );
+        assert_eq!(
+            table.get("fire").expect("registered").keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyW)],
+            "the swap survives the load"
         );
     }
 

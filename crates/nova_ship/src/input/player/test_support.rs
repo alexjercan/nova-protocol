@@ -29,6 +29,9 @@ pub(crate) fn spawn_flight_rig_from(app: &mut App, bindings: InputBindings) -> E
 pub(super) fn hint_world() -> World {
     let mut world = World::new();
     world.init_resource::<FlightVerbHints>();
+    // The hints read their LABELS off this table and their EXISTENCE off the
+    // rig below, so a fixture missing either draws nothing.
+    world.insert_resource(InputBindings::from_actions(flight_bindings()));
     world.spawn((
         Action::<AutopilotStopInput>::new(),
         bindings![KeyCode::KeyX, GamepadButton::East],

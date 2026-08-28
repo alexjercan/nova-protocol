@@ -278,11 +278,28 @@ pub(super) fn rebuild_flight_input_on_rebind(
     mut commands: Commands,
     bindings: Res<InputBindings>,
     q_rig: Query<Entity, With<FlightInputMarker>>,
+    mut q_player: Query<
+        (Entity, &mut FlightIntent, Option<&mut RcsIntent>),
+        With<PlayerSpaceshipMarker>,
+    >,
 ) {
     if q_rig.is_empty() {
         return;
     }
     trace!("rebuild_flight_input_on_rebind: the table moved");
+    // A despawned action emits no `Complete`, so a gesture held ACROSS the
+    // rebuild is stranded down: hold the burn key, open the pause overlay, hit
+    // Reset Defaults, release - the ship burned at full throttle with nothing
+    // pressed until the new binding was pressed and released. Every modal
+    // state the old rig owns is released here, and the new rig starts at rest.
+    for (ship, mut intent, rcs) in &mut q_player {
+        intent.burn = 0.0;
+        if let Some(mut rcs) = rcs {
+            rcs.0 = Vec3::ZERO;
+        }
+        commands.entity(ship).remove::<RcsActive>();
+        commands.entity(ship).remove::<RadarState>();
+    }
     for rig in &q_rig {
         commands.entity(rig).try_despawn();
     }
@@ -754,6 +771,77 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "and took the new one without a reload"
+        );
+    }
+
+    /// The rebuild despawns the rig, and a despawned action emits no
+    /// `Complete`. Held gestures have to be released BY the rebuild, or the
+    /// ship keeps burning with nothing pressed.
+    #[test]
+    fn a_rebuild_releases_the_gesture_that_was_held_through_it() {
+        use bevy::input::InputPlugin;
+        use nova_input::prelude::BindingSpec;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_flight_burn_input);
+        app.add_observer(on_flight_burn_input_completed);
+        app.insert_resource(InputBindings::from_actions(
+            crate::input::bindings::flight_bindings(),
+        ));
+        app.add_systems(
+            Update,
+            rebuild_flight_input_on_rebind.run_if(resource_changed::<InputBindings>),
+        );
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        app.world_mut().entity_mut(ship).insert((
+            FlightIntent::default(),
+            RcsActive,
+            RcsIntent(Vec3::X),
+        ));
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+
+        // W held: the drive is commanded.
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        assert!(
+            app.world().get::<FlightIntent>(ship).unwrap().burn > 0.0,
+            "the held key commands the drive"
+        );
+
+        // Reset Defaults under the held key: the rig is torn down and rebuilt.
+        app.world_mut().resource_mut::<InputBindings>().rebind(
+            "autopilot_off",
+            BindingSpec {
+                keyboard: vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyQ)],
+                gamepad: vec![],
+            },
+        );
+        app.update();
+
+        assert_eq!(
+            app.world().get::<FlightIntent>(ship).unwrap().burn,
+            0.0,
+            "the drive is released, not stranded at full throttle"
+        );
+        assert!(
+            app.world().get::<RcsActive>(ship).is_none(),
+            "and so is the RCS modal"
+        );
+        assert_eq!(
+            app.world().get::<RcsIntent>(ship).unwrap().0,
+            Vec3::ZERO,
+            "with its held offset nulled"
         );
     }
 

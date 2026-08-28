@@ -365,7 +365,7 @@ fn sync_objective_chips(
         }
         // One TAB affordance for the whole stack, riding it: it says "the full
         // list is in the computer", and it leaves when the last chip does.
-        stack.spawn(tab_footer(tab_cap.clone()));
+        stack.spawn(tab_footer(&key, tab_cap.clone()));
     });
 }
 
@@ -455,9 +455,15 @@ fn chip_alpha(factor: f32) -> Color {
     text.with_alpha(text.alpha() * factor)
 }
 
-/// The stack's TAB footer: the keycap (or the word, on a rig with no glyphs)
-/// plus a muted hint that the full list lives in the computer.
-fn tab_footer(cap: Option<KeyCap>) -> impl Bundle {
+/// The stack's TAB footer: the keycap plus a muted hint that the full list
+/// lives in the computer.
+///
+/// A key the pack does not draw falls back to its NAME, the invariant
+/// `key_glyphs` states for every consumer. The capture accepts `Comma`,
+/// `Period`, `Backslash` and every numpad key, none of which the pack has, and
+/// hiding the node instead left the affordance with no key at all - permanently
+/// and with nothing on screen to say why.
+fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
     (
         Name::new("ObjectiveStackTab"),
         ObjectiveStackTabMarker,
@@ -471,7 +477,7 @@ fn tab_footer(cap: Option<KeyCap>) -> impl Bundle {
         children![
             (
                 Name::new("ObjectiveStackTabKey"),
-                match cap {
+                match &cap {
                     // One shared sizing path with the dock and the cues: the
                     // cap decides its own box from TAB_GLYPH_PX.
                     Some(cap) => cap.node(TAB_GLYPH_PX),
@@ -482,6 +488,27 @@ fn tab_footer(cap: Option<KeyCap>) -> impl Bundle {
                             ..default()
                         },
                     ),
+                },
+                Pickable::IGNORE,
+            ),
+            (
+                // The dock's two-child shape: image and word side by side,
+                // exactly one of them displayed.
+                Name::new("ObjectiveStackTabKeyText"),
+                Text::new(if cap.is_some() {
+                    String::new()
+                } else {
+                    key.to_string()
+                }),
+                TextFont::from_font_size(TAB_FONT_PX),
+                TextColor(ChipTone::Amber.unit()),
+                Node {
+                    display: if cap.is_some() {
+                        Display::None
+                    } else {
+                        Display::Flex
+                    },
+                    ..default()
                 },
                 Pickable::IGNORE,
             ),
@@ -974,6 +1001,7 @@ mod tests {
 mod tab_footer_sizing_tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_gameplay::objectives::Objective;
+    use nova_input::prelude::{ActionBinding, InputSource};
 
     use super::*;
     use crate::{
@@ -985,6 +1013,61 @@ mod tab_footer_sizing_tests {
     /// with `magick T_Tab_Key_Alt.png -alpha extract -threshold 0 -format '%@'
     /// info:` -> `112x74+8+32`.
     const MEASURED_TAB_CAP: [f32; 4] = [8.0, 32.0, 120.0, 106.0];
+
+    /// A key the pack does not draw falls back to its NAME. The capture
+    /// accepts `Period` and every numpad key, none of which the pack has, and
+    /// the affordance used to hide the node and show no key at all.
+    #[test]
+    fn a_key_with_no_art_falls_back_to_its_name() {
+        let mut app = chip_layout_app();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<ObjectiveNotifications>();
+        // A pack that draws Tab and nothing else, with NOVA OS moved onto a
+        // key it has no art for.
+        let tab = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/T_Tab_Key_Alt.png"));
+        let mut key_glyphs =
+            KeyGlyphs::from_stems(|stem| (stem == "T_Tab_Key_Alt").then(|| tab.clone()));
+        key_glyphs.measure_caps(app.world().resource::<Assets<Image>>());
+        app.insert_resource(NovaHudAssets {
+            key_glyphs,
+            ..default()
+        });
+        // `novaos_toggle` is owned one crate up, so the table is built here
+        // the way `nova_os_ui` registers it - moved onto a key the pack has no
+        // art for, which is what the capture lets a player do.
+        app.insert_resource(InputBindings::from_actions([ActionBinding::new(
+            "novaos_toggle",
+            "SYSTEM",
+            "NOVA OS",
+        )
+        .keyboard([InputSource::Keyboard(KeyCode::Period)])]));
+
+        app.world_mut().spawn(objective_stack_hud());
+        app.world_mut()
+            .resource_mut::<GameObjectives>()
+            .objectives
+            .push(Objective::new("salvage", "Salvage the wreck"));
+        app.world_mut()
+            .run_system_once(post_objective_notifications)
+            .unwrap();
+        app.world_mut()
+            .run_system_once(sync_objective_chips)
+            .unwrap();
+        settle(&mut app);
+
+        let words: Vec<String> = app
+            .world_mut()
+            .query::<(&Name, &Text)>()
+            .iter(app.world())
+            .filter(|(name, _)| name.as_str() == "ObjectiveStackTabKeyText")
+            .map(|(_, text)| text.0.clone())
+            .collect();
+        assert_eq!(
+            words,
+            vec!["Period".to_string()],
+            "the unmapped key is spelled out instead of vanishing"
+        );
+    }
 
     #[test]
     fn the_footer_keycap_renders_at_tabs_art_aspect() {
