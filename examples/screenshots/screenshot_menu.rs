@@ -1,6 +1,7 @@
 //! screenshot_menu: the main menu over the ambience backdrop
-//! (`tutorial-menu.png`) and the Settings panel open over it
-//! (`wiki-settings.png`), driven through the shipped app (`editor_app`).
+//! (`tutorial-menu.png`), the Settings panel open over it
+//! (`wiki-settings.png`) and its Controls tab (`wiki-controls.png`), driven
+//! through the shipped app (`editor_app`).
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - walk the menu, exit clean,
@@ -69,7 +70,7 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The driven walk: menu -> Settings, one shot per state.
+/// The driven walk: menu -> Settings -> Controls, one shot per state.
 #[cfg(feature = "debug")]
 fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     // The HUD chrome is dropped right before every shot rather than once at
@@ -113,6 +114,18 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .step("capture the settings panel")
         .on_enter(shot("wiki-settings.png"))
         .until(shot_written("wiki-settings.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        // The panel opens on Audio, so the tab the range exists for - the
+        // rebindable keycap rows - is one click further in and needs its own
+        // shot. The wiki's Controls section reads on that picture.
+        .click("open the Controls tab", "Settings Tab: Controls")
+        .step("settle the controls tab")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the controls tab")
+        .on_enter(shot("wiki-controls.png"))
+        .until(shot_written("wiki-controls.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         .click("close Settings", "Settings Back Button")

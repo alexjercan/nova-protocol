@@ -44,11 +44,12 @@
 
 use bevy::{
     input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit},
+    platform::collections::HashMap,
     prelude::*,
 };
 
 use crate::{
-    registry::{InputBindings, WheelDirection},
+    registry::{GamepadStick, InputBindings, WheelDirection},
     source::InputSource,
 };
 
@@ -92,9 +93,15 @@ impl std::error::Error for DispatchError {}
 /// Press or release whatever `name` is bound to, writing the button state a
 /// game polls.
 ///
-/// [`driven_source`] picks which source that is.
+/// [`driven_source`] picks which source a PRESS goes to. A release lets up the
+/// source that press actually pushed down ([`DrivenPresses`]), not whatever
+/// the name resolves to now.
 pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), DispatchError> {
-    match (driven_source(world, name)?, phase) {
+    let source = match phase {
+        InputPhase::Press => driven_source(world, name)?,
+        InputPhase::Release => held_source(world, name)?,
+    };
+    match (source, phase) {
         (InputSource::Keyboard(key), InputPhase::Press) => {
             world.resource_mut::<ButtonInput<KeyCode>>().press(key);
         }
@@ -113,7 +120,45 @@ pub fn apply(world: &mut World, name: &str, phase: InputPhase) -> Result<(), Dis
         }
         (InputSource::Gamepad(button), phase) => press_pad(world, button, phase),
     }
+    match phase {
+        InputPhase::Press => {
+            world
+                .get_resource_or_init::<DrivenPresses>()
+                .0
+                .insert(name.to_string(), source);
+        }
+        InputPhase::Release => {
+            if let Some(mut held) = world.get_resource_mut::<DrivenPresses>() {
+                held.0.remove(name);
+            }
+        }
+    }
     Ok(())
+}
+
+/// The source each named action is currently held down through.
+///
+/// A press and its release are two calls, and a rebind can land between them.
+/// Resolving the name twice would then let up a source nothing is holding and
+/// leave the pressed one down for the rest of the run - on the pad half with
+/// its analog value still at 1.0, so a rig keeps firing with no key held. The
+/// press records what it pushed, and the release lets up exactly that.
+///
+/// Only [`apply`] writes this. A caller pressing a source itself - the pointer
+/// helpers, which need a window - owns its own release.
+#[derive(Resource, Debug, Default)]
+pub struct DrivenPresses(HashMap<String, InputSource>);
+
+/// The source a release lets up: the one the press recorded, falling back to
+/// [`driven_source`] for a release with no press before it.
+fn held_source(world: &World, name: &str) -> Result<InputSource, DispatchError> {
+    match world
+        .get_resource::<DrivenPresses>()
+        .and_then(|held| held.0.get(name))
+    {
+        Some(&source) => Ok(source),
+        None => driven_source(world, name),
+    }
 }
 
 /// The pad this module presses when an action reaches no desk button.
@@ -179,12 +224,12 @@ pub fn driven_source(world: &World, name: &str) -> Result<InputSource, DispatchE
 /// The one source `name` is driven through: the first keyboard or mouse button
 /// it is bound to.
 ///
-/// Split out because a caller with a WINDOW wants more than [`apply`] writes.
-/// `nova_autopilot`'s pointer helpers also send the `MouseButtonInput` message
-/// and its `WindowEvent` wrapper, which is what `bevy_picking` builds a click
-/// from - so a driven UI run resolves the source here and presses it through
-/// those, while a headless one calls [`apply`] and writes the button state
-/// alone.
+/// Public as the seam for a caller with a WINDOW, which wants more than
+/// [`apply`] writes: `bevy_picking` builds a click from the `MouseButtonInput`
+/// message and its `WindowEvent` wrapper, so a driven UI run would resolve the
+/// source here and press it through `nova_autopilot`'s pointer helpers. No
+/// such caller exists yet - every driven action today is read through
+/// `bevy_enhanced_input`, which the button state alone satisfies.
 ///
 /// The FIRST bound source wins: an action on several keys is driven by one of
 /// them, because pressing all of them is a gesture no player performs. A
@@ -239,12 +284,44 @@ pub fn apply_axis(world: &mut World, name: &str, delta: Vec2) -> Result<(), Disp
     Err(DispatchError::NoAxis(label))
 }
 
+/// Deflect the STICK `name` declares, by `delta` in the -1..=1 a pad reports.
+///
+/// Separate from [`apply_axis`] rather than another branch inside it, because
+/// the two are different devices and an action can declare both: `rcs_aim` and
+/// `camera_rotate` are each mouse motion AND a stick, and a caller driving one
+/// is not driving the other.
+///
+/// Absolute, not additive: a stick reports where it IS, and it reports that
+/// every frame. So a deflection HOLDS until it is written back to zero - the
+/// press/release rule of this module, in analog.
+pub fn apply_stick(world: &mut World, name: &str, delta: Vec2) -> Result<(), DispatchError> {
+    let Some(action) = world.resource::<InputBindings>().get(name) else {
+        return Err(DispatchError::Unknown(name.to_string()));
+    };
+    let (label, stick) = (action.name, action.axes.stick);
+    let Some(stick) = stick else {
+        return Err(DispatchError::NoAxis(label));
+    };
+    let (x, y) = match stick {
+        GamepadStick::Left => (GamepadAxis::LeftStickX, GamepadAxis::LeftStickY),
+        GamepadStick::Right => (GamepadAxis::RightStickX, GamepadAxis::RightStickY),
+    };
+    let pad = synthesized_pad(world);
+    let mut pad = world.entity_mut(pad);
+    let mut gamepad = pad
+        .get_mut::<Gamepad>()
+        .expect("the synthesized pad is spawned with one");
+    gamepad.analog_mut().set(x, delta.x.clamp(-1.0, 1.0));
+    gamepad.analog_mut().set(y, delta.y.clamp(-1.0, 1.0));
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 
     use super::*;
-    use crate::registry::{ActionBinding, GamepadStick};
+    use crate::registry::{ActionBinding, BindingSpec, GamepadStick};
 
     fn world() -> World {
         let mut world = World::new();
@@ -475,6 +552,53 @@ mod tests {
         assert_eq!(
             world.resource::<AccumulatedMouseMotion>().delta,
             Vec2::new(4.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn a_release_lets_up_the_source_the_press_pushed_down() {
+        let mut world = world();
+        apply(&mut world, "main_drive", InputPhase::Press).unwrap();
+
+        world.resource_mut::<InputBindings>().rebind(
+            "main_drive",
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyD)],
+                gamepad: vec![InputSource::Gamepad(GamepadButton::RightTrigger)],
+            },
+        );
+        apply(&mut world, "main_drive", InputPhase::Release).unwrap();
+
+        let keys = world.resource::<ButtonInput<KeyCode>>();
+        assert!(
+            !keys.pressed(KeyCode::KeyW),
+            "the key the press pushed comes back up, not the one the name means now"
+        );
+        assert!(
+            !keys.pressed(KeyCode::KeyD),
+            "and the new key was never pressed, so the release does not strand IT down"
+        );
+    }
+
+    #[test]
+    fn a_stick_deflection_writes_the_pad_axes_the_action_declares() {
+        let mut world = world();
+        apply_stick(&mut world, "camera_rotate", Vec2::new(0.5, -1.0)).unwrap();
+
+        let mut pads = world.query_filtered::<&Gamepad, With<SynthesizedGamepad>>();
+        let pad = pads.iter(&world).next().expect("a pad was connected");
+        assert_eq!(pad.get(GamepadAxis::RightStickX), Some(0.5));
+        assert_eq!(pad.get(GamepadAxis::RightStickY), Some(-1.0));
+        assert_eq!(
+            pad.get(GamepadAxis::LeftStickX),
+            Some(0.0),
+            "the action declares the RIGHT stick; the other one stays at rest"
+        );
+
+        assert_eq!(
+            apply_stick(&mut world, "main_drive", Vec2::X),
+            Err(DispatchError::NoAxis("main_drive")),
+            "an action with no stick is refused by name rather than doing nothing"
         );
     }
 }

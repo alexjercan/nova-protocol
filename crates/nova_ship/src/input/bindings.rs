@@ -61,11 +61,11 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
                 Keyboard(KeyCode::ControlRight),
             ])
             .gamepad([Gamepad(GamepadButton::DPadUp)]),
-        ActionBinding::new("component_next", "TARGETING", "Lock / Component Next")
+        ActionBinding::new("component_next", "TARGETING", "Lock Next Component")
             .keyboard([Keyboard(KeyCode::BracketRight)])
             .gamepad([Gamepad(GamepadButton::DPadRight)])
             .wheel(WheelDirection::Up),
-        ActionBinding::new("component_prev", "TARGETING", "Lock / Component Prev")
+        ActionBinding::new("component_prev", "TARGETING", "Lock Previous Component")
             .keyboard([Keyboard(KeyCode::BracketLeft)])
             .gamepad([Gamepad(GamepadButton::DPadLeft)])
             .wheel(WheelDirection::Down),
@@ -97,7 +97,7 @@ pub fn camera_bindings() -> Vec<ActionBinding> {
     use InputSource::{Gamepad, Keyboard, Mouse};
     vec![
         // Mouse motion plus the right stick: both axes, neither reservable.
-        ActionBinding::new("camera_rotate", "CAMERA", "Aim")
+        ActionBinding::new("camera_rotate", "CAMERA", "Camera Aim")
             .mouse_motion()
             .stick(GamepadStick::Right),
         ActionBinding::new("free_look", "CAMERA", "Free Look")
@@ -249,11 +249,11 @@ mod tests {
                 ("Autopilot: Off", "Z", "X"),
                 ("Radar (hold / tap)", "Ctrl", "D-Pad Up"),
                 ("Radar (tap clear)", "Ctrl", "D-Pad Up"),
-                ("Lock / Component Next", "] / Scroll Up", "D-Pad Right"),
-                ("Lock / Component Prev", "[ / Scroll Down", "D-Pad Left"),
+                ("Lock Next Component", "] / Scroll Up", "D-Pad Right"),
+                ("Lock Previous Component", "[ / Scroll Down", "D-Pad Left"),
                 ("RCS Fine Adjust", "Shift", "Left Thumb"),
                 ("RCS Aim", "Mouse", "Left Stick"),
-                ("Aim", "Mouse", "Right Stick"),
+                ("Camera Aim", "Mouse", "Right Stick"),
                 ("Free Look", "Left Alt", "Left Trigger"),
                 ("Raise Weapons", "Right Mouse", "Left Trigger 2"),
             ]

@@ -186,7 +186,7 @@ fn settings_panel_builds_one_tab_at_a_time() {
     );
     open_group(&mut app, "SYSTEM");
     let texts = all_texts(&mut app);
-    for row in ["Pause / Menu", "NOVA OS", "HUD (On / Cinematic)"] {
+    for row in ["Pause / Menu", "Open NOVA OS", "HUD (On / Cinematic)"] {
         assert!(
             texts.iter().any(|t| t == row),
             "the {row} row is missing from the SYSTEM group"
@@ -443,7 +443,7 @@ fn pressing_a_controls_group_swaps_the_rows() {
     assert_eq!(app.world().resource::<SettingsControlsGroup>().0, "SYSTEM");
     let texts = all_texts(&mut app);
     assert!(
-        texts.iter().any(|t| t == "NOVA OS"),
+        texts.iter().any(|t| t == "Open NOVA OS"),
         "the SYSTEM rows are up"
     );
     assert!(
@@ -960,13 +960,8 @@ fn the_pause_overlay_settings_body_tabs_too() {
 /// key on purpose and this test carries no exemption list.
 #[test]
 fn no_two_actions_that_can_be_live_together_share_a_source() {
-    let mut table = InputBindings::from_actions(nova_ship::input::bindings::flight_bindings());
-    for action in nova_ship::input::bindings::camera_bindings()
-        .into_iter()
-        .chain(nova_hud::hud_bindings())
-        .chain(nova_os_ui::bindings::novaos_bindings())
-        .chain(nova_scenario::prelude::scenario_bindings())
-    {
+    let mut table = InputBindings::default();
+    for action in every_owners_actions() {
         table.register(action);
     }
 
@@ -985,6 +980,39 @@ fn no_two_actions_that_can_be_live_together_share_a_source() {
         })
         .collect();
     assert!(found.is_empty(), "{}", found.join("; "));
+}
+
+/// Every source the WHOLE table ships bound has a picture, pad buttons and
+/// mouse buttons included.
+///
+/// `nova_hud` owns the glyph table and checks the two owners' lists it can
+/// reach; the other three depend on it, so they are only visible from here -
+/// the same reason the conflict check above lives in this crate. Without this,
+/// a new pad default with no art draws plain text in a picture column and the
+/// suite stays green.
+#[test]
+fn every_source_the_table_ships_bound_has_a_glyph() {
+    let unmapped: Vec<String> = every_owners_actions()
+        .flat_map(|action| {
+            action
+                .sources()
+                .map(|source| source.glyph_label())
+                .collect::<Vec<_>>()
+        })
+        .filter(|label| nova_hud::key_glyphs::key_glyph_stem(label).is_none())
+        .collect();
+    assert!(unmapped.is_empty(), "no glyph for {}", unmapped.join(", "));
+}
+
+/// Every action every owner registers, in one iterator. The five lists that
+/// make up the shipped table.
+fn every_owners_actions() -> impl Iterator<Item = ActionBinding> {
+    nova_ship::input::bindings::flight_bindings()
+        .into_iter()
+        .chain(nova_ship::input::bindings::camera_bindings())
+        .chain(nova_hud::hud_bindings())
+        .chain(nova_os_ui::bindings::novaos_bindings())
+        .chain(nova_scenario::prelude::scenario_bindings())
 }
 
 /// The reason the shared keys are legal, stated as a test: exactly one of the

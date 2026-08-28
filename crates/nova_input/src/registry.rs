@@ -2,9 +2,9 @@
 //! every rig, rebind screen and dispatcher reads.
 //!
 //! An action's NAME is its stable identity - `radar_hold`, `main_drive`. It is
-//! a runtime string, so [`InputBindings::register`] refuses a duplicate loudly
-//! and `nova_input`'s consumers pin their own name lists with tests; nothing
-//! else in the workspace type-checks them.
+//! a runtime string, so [`InputBindings::register`] logs a duplicate loudly and
+//! replaces it, and `nova_input`'s consumers pin their own name lists with
+//! tests; nothing else in the workspace type-checks them.
 
 use std::collections::BTreeMap;
 
@@ -66,7 +66,10 @@ pub struct ActionAxes {
     pub mouse_motion: bool,
     /// The wheel drives it, in this direction.
     pub wheel: Option<WheelDirection>,
-    /// A gamepad stick drives it.
+    /// A gamepad stick drives it. Written by
+    /// [`dispatch::apply_stick`](crate::dispatch::apply_stick), not by
+    /// `apply_axis`: an action that declares a stick usually declares mouse
+    /// motion too, and the two are different devices.
     pub stick: Option<GamepadStick>,
 }
 
@@ -329,14 +332,19 @@ impl InputBindings {
         self.actions.push(action);
     }
 
-    /// Bind an action to something else. Unknown names are refused loudly and
-    /// return `false`: a store written by a build that had an action this one
-    /// does not must not take the whole load down with it.
+    /// Bind an action to something else. Unknown names and specs the rebind
+    /// screen would not have produced are refused loudly and return `false`: a
+    /// store written by a build that had an action this one does not, or hand
+    /// edited, must not take the whole load down with it.
     pub fn rebind(&mut self, name: &str, spec: BindingSpec) -> bool {
         let Some(&at) = self.index.get(name) else {
             warn!("InputBindings::rebind: no action named `{name}`; ignoring the binding");
             return false;
         };
+        if let Some(reason) = self.refuse_spec(at, &spec) {
+            warn!("InputBindings::rebind: `{name}` {reason}; ignoring the binding");
+            return false;
+        }
         let followers: Vec<usize> = self
             .actions
             .iter()
@@ -351,6 +359,39 @@ impl InputBindings {
         self.actions[at].keyboard = spec.keyboard;
         self.actions[at].gamepad = spec.gamepad;
         true
+    }
+
+    /// Why `spec` cannot be what the action at `at` holds, if it cannot.
+    ///
+    /// Two rules the rebind SCREEN keeps and a stored file did not. A source
+    /// belongs to the column of its own device: a pad button among the
+    /// keyboard sources loads clean, draws a pad glyph in the desk column, and
+    /// is then invisible to the desk poller and pressed by the pad one. And a
+    /// column the action ships EMPTY stays empty, because that is the column
+    /// the screen draws disabled - `rcs_aim` is mouse motion, and a stored key
+    /// would turn its dead chip into a live row for a button no rig reads.
+    fn refuse_spec(&self, at: usize, spec: &BindingSpec) -> Option<String> {
+        let pad = |source: &&InputSource| matches!(source, InputSource::Gamepad(_));
+        if let Some(source) = spec.keyboard.iter().find(pad) {
+            return Some(format!(
+                "was given the pad button {} in its keyboard column",
+                source.readout_label()
+            ));
+        }
+        if let Some(source) = spec.gamepad.iter().find(|source| !pad(source)) {
+            return Some(format!(
+                "was given {} in its gamepad column",
+                source.readout_label()
+            ));
+        }
+        let default = &self.defaults[at];
+        if default.keyboard.is_empty() && !spec.keyboard.is_empty() {
+            return Some("ships with no keyboard button, so there is none to move".to_string());
+        }
+        if default.gamepad.is_empty() && !spec.gamepad.is_empty() {
+            return Some("ships with no pad button, so there is none to move".to_string());
+        }
+        None
     }
 
     /// Put one action back on what it was registered with.
@@ -773,6 +814,69 @@ mod tests {
             vec![InputSource::Keyboard(KeyCode::KeyW)],
             "the swap survives the load"
         );
+    }
+
+    /// A hand-edited or stale store can hold a spec the rebind screen could
+    /// never have produced. The table keeps the screen's own two rules, so
+    /// what loads is what a player could have bound.
+    #[test]
+    fn a_spec_the_rebind_screen_could_not_produce_is_refused() {
+        let mut table = InputBindings::from_actions([
+            ActionBinding::new("burn", "FLIGHT", "Burn")
+                .context(ActionContext::Flight)
+                .keyboard([InputSource::Keyboard(KeyCode::KeyW)])
+                .gamepad([InputSource::Gamepad(GamepadButton::South)]),
+            ActionBinding::new("rcs_aim", "FLIGHT", "RCS Aim")
+                .context(ActionContext::Flight)
+                .mouse_motion(),
+        ]);
+
+        assert!(
+            !table.rebind(
+                "burn",
+                BindingSpec {
+                    keyboard: vec![InputSource::Gamepad(GamepadButton::North)],
+                    gamepad: vec![],
+                },
+            ),
+            "a pad button in the keyboard column would draw in the desk column \
+             and be pressed by the pad poller"
+        );
+        assert!(
+            !table.rebind(
+                "burn",
+                BindingSpec {
+                    keyboard: vec![],
+                    gamepad: vec![InputSource::Keyboard(KeyCode::KeyD)],
+                },
+            ),
+            "and a key in the gamepad column is the same crossing the other way"
+        );
+        assert_eq!(
+            table.get("burn").expect("registered").spec(),
+            BindingSpec {
+                keyboard: vec![InputSource::Keyboard(KeyCode::KeyW)],
+                gamepad: vec![InputSource::Gamepad(GamepadButton::South)],
+            },
+            "a refused rebind leaves the row exactly as it was"
+        );
+
+        assert!(
+            !table.rebind(
+                "rcs_aim",
+                BindingSpec {
+                    keyboard: vec![InputSource::Keyboard(KeyCode::KeyR)],
+                    gamepad: vec![],
+                },
+            ),
+            "an axis action ships no button, its chip is drawn disabled, and a \
+             store must not turn that into a live row for a key no rig reads"
+        );
+        assert!(table
+            .get("rcs_aim")
+            .expect("registered")
+            .keyboard
+            .is_empty());
     }
 
     /// One gesture the rig reads two ways is ONE thing to a player: it shares

@@ -292,11 +292,9 @@ impl Plugin for NovaHudPlugin {
             emphasis::drive_hud_emphasis.before(bevy::ui::UiSystems::Layout),
         );
         // The cycle key is gameplay-only (the menu drives the resource
-        // itself). The resources are ours to guarantee: a headless HUD app
-        // carries no `InputPlugin`, and the comms panel used to init the
-        // keyboard one as a side effect.
-        app.init_resource::<ButtonInput<KeyCode>>();
-        app.init_resource::<ButtonInput<MouseButton>>();
+        // itself). `register_input_actions` brings the button resources
+        // `InputSources` reads with it, so a headless HUD app with no
+        // `InputPlugin` still polls.
         app.register_input_actions(hud_bindings());
         app.add_systems(
             Update,

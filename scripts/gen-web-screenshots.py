@@ -81,9 +81,11 @@ FIGURES = [
     # modules are mounted by content. Used by the v0.10.0 release post.
     ("parts-viewer-racer-exploded.png", "parts_viewer"),
     ("tutorial-menu.png",               "screenshot_menu"),
-    # The other two menu states: the Settings panel over the menu, and the
-    # Scenarios picker with a campaign's chapters indented under its header.
+    # The other menu states: the Settings panel over the menu, its Controls
+    # tab, and the Scenarios picker with a campaign's chapters indented under
+    # its header.
     ("wiki-settings.png",               "screenshot_menu"),
+    ("wiki-controls.png",               "screenshot_menu"),
     ("news-090-scenario-campaigns.png", "screenshot_scenario_picker"),
     ("wiki-first-scenario-picker.png",  "screenshot_scenario_picker"),
     # The Rock hollow combat set, one producer per beat.

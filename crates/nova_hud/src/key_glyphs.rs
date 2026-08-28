@@ -16,9 +16,9 @@
 //! The table covers the WHOLE pack, not just what the flight rig ships bound.
 //! A settings rebind can put any key on any row, and a lazily loaded glyph
 //! would arrive after the row that wanted it was drawn - and would have to be
-//! alpha-scanned on some later frame to be sized. Preloading 83 tiny keycaps
-//! (720K on disk) buys a rebind to any key its picture, on the first frame,
-//! on wasm too.
+//! alpha-scanned on some later frame to be sized. Preloading the 101 tiny
+//! keycaps and pad glyphs (226K on disk) buys a rebind to any key its picture,
+//! on the first frame, on wasm too.
 //!
 //! Keys are addressed by their DISPLAY LABEL - the string
 //! [`nova_input::prelude::InputSource::label`] produces (`"X"`, `"Space"`,
@@ -168,6 +168,15 @@ pub const KEY_GLYPH_FILES: &[(&str, &str)] = &[
 /// row it appeared in.
 const MAX_PORTRAIT_GROWTH: f32 = 1.6;
 
+/// Narrower than this and a glyph is drawn as PORTRAIT art rather than a
+/// keycap.
+///
+/// The pack's letter caps measure 0.92 - a hair taller than wide, and every
+/// one of them the same - while the mouse glyphs measure 0.59. Sizing by the
+/// short axis with no threshold caught the letters too and grew every chip in
+/// the dock by two pixels, so the rule starts BELOW the keycaps.
+const PORTRAIT_ASPECT: f32 = 0.8;
+
 /// Where the gamepad prompt art lives, relative to `assets/`. The SAME pack as
 /// the keycaps ([`KEY_GLYPH_DIR`]) and the same `Alt` style, so a pad glyph and
 /// a keycap sitting in one row are drawn by one hand.
@@ -292,19 +301,19 @@ impl KeyCap {
             .map_or(1.0, |cap| cap.width() / cap.height())
     }
 
-    /// The on-screen node box for this cap at `height_px` - THE sizing rule:
-    /// the cap's SHORT axis is the site's constant, and the long one follows
-    /// the art.
+    /// The on-screen node box for this cap at `height_px`: the HEIGHT is the
+    /// site's constant, and the width follows the art - except for genuinely
+    /// portrait art ([`PORTRAIT_ASPECT`]), which is sized by its width instead
+    /// so it stays legible.
     ///
-    /// Height alone used to be the constant, which suits a keycap (square or
-    /// wider) and starves a portrait one: against a 20px `W` the mouse caps came
-    /// out about 13px wide, and the scroll-up and scroll-down chips could not be
-    /// told apart on the Controls rows. A tall cap is bounded in turn by
-    /// [`MAX_PORTRAIT_GROWTH`], so one odd piece of art cannot stretch the row
-    /// it sits in.
+    /// Height alone starves a portrait glyph: against a 20px `W` the mouse
+    /// caps came out about 12px wide, and the scroll-up and scroll-down chips
+    /// could not be told apart on the Controls rows. A grown cap is bounded in
+    /// turn by [`MAX_PORTRAIT_GROWTH`], so one odd piece of art cannot stretch
+    /// the row it sits in.
     pub fn node_size(&self, height_px: f32) -> Vec2 {
         let aspect = self.aspect();
-        if aspect >= 1.0 {
+        if aspect >= PORTRAIT_ASPECT {
             return Vec2::new(height_px * aspect, height_px);
         }
         let height = (height_px / aspect).min(height_px * MAX_PORTRAIT_GROWTH);
@@ -439,39 +448,39 @@ impl KeyGlyphs {
 
 #[cfg(test)]
 mod tests {
-    use nova_input::prelude::{keyboard_label, InputSource};
+    use nova_input::prelude::InputSource;
     use nova_ship::prelude::flight_rig_reserved_sources;
 
     use super::*;
 
-    /// DoD 2, half one: every key the flight rig actually binds resolves to a
-    /// keycap file that EXISTS on disk (this pins the upstream `Crtl` typo and
-    /// the `Brackets_L/R` names), and so do the fixed gesture pseudo-labels and
-    /// the HUD chrome keys. The other half - that every mapped path is in the
-    /// preload collection - lives in `nova_assets` where the collection is.
+    /// DoD 2, half one: every source the flight rig and the HUD actually bind
+    /// resolves to a glyph file that EXISTS on disk (this pins the upstream
+    /// `Crtl` typo and the `Brackets_L/R` names), and so do the fixed gesture
+    /// pseudo-labels. The other half - that every mapped path is in the preload
+    /// collection - lives in `nova_assets` where the collection is.
+    ///
+    /// EVERY source, not the keyboard ones: a pad default with no art draws
+    /// text in a picture column, and the pad half of the table is where new
+    /// bindings are landing. The other three owners' lists are unreachable
+    /// from here (they depend on this crate), so `nova_menu` - which sees all
+    /// of them, as it does for the conflict check - walks the whole table.
     #[test]
-    fn every_bound_key_maps_to_an_existing_glyph_asset() {
-        // The rig's real keyboard bindings, labelled by the PRODUCTION labeller
-        // the hints use - a local reimplementation would keep this green while
-        // a change to the real labels broke the runtime lookup.
+    fn every_bound_source_maps_to_an_existing_glyph_asset() {
+        // Labelled by the PRODUCTION labeller the chips use - a local
+        // reimplementation would keep this green while a change to the real
+        // labels broke the runtime lookup.
         let bound: Vec<String> = flight_rig_reserved_sources()
             .into_iter()
-            .filter_map(|(source, _)| match source {
-                InputSource::Keyboard(key) => Some(keyboard_label(key)),
-                _ => None,
-            })
+            .map(|(source, _)| source.glyph_label())
             .collect();
-        assert!(!bound.is_empty(), "delivery guard: the rig binds keys");
+        assert!(!bound.is_empty(), "delivery guard: the rig binds sources");
 
         // The HUD's own chrome keys, taken from the table rather than named
         // here, so a rebound chrome action is caught by this test too.
         let chrome: Vec<String> = crate::hud_bindings()
             .iter()
-            .flat_map(|action| action.keyboard.clone())
-            .filter_map(|source| match source {
-                InputSource::Keyboard(key) => Some(keyboard_label(key)),
-                _ => None,
-            })
+            .flat_map(|action| action.sources())
+            .map(|source| source.glyph_label())
             .collect();
         // Plus the labels that are NOT a registry binding: the three gesture
         // pseudo-labels, which stand for a modifier or a wheel rather than a
@@ -486,14 +495,14 @@ mod tests {
             .chain(extra)
         {
             let stem = key_glyph_stem(key)
-                .unwrap_or_else(|| panic!("no keycap glyph mapped for the bound key '{key}'"));
-            let path = std::path::Path::new("../../assets")
-                .join(KEY_GLYPH_DIR)
-                .join(format!("{stem}.png"));
+                .unwrap_or_else(|| panic!("no glyph mapped for the bound source '{key}'"));
+            let path = key_glyph_asset_paths()
+                .into_iter()
+                .find(|path| path.ends_with(&format!("/{stem}.png")))
+                .unwrap_or_else(|| panic!("'{key}' maps to {stem}, which is not preloaded"));
             assert!(
-                path.exists(),
-                "keycap glyph missing on disk: {}",
-                path.display()
+                std::path::Path::new("../../assets").join(&path).exists(),
+                "glyph missing on disk: {path}"
             );
         }
     }
@@ -575,6 +584,43 @@ mod tests {
                 "no keycap glyph for '{label}'"
             );
         }
+    }
+
+    /// A letter keycap keeps the site's height; only genuinely portrait art is
+    /// sized by its width instead.
+    ///
+    /// The regression this pins: sizing every cap by its SHORT axis, which is
+    /// what a mouse glyph needs, caught the 26 letter caps too - they measure
+    /// 0.92, a hair taller than wide - and grew every chip in the dock by two
+    /// pixels. `keybind_dock`'s own sizing tests caught it; the rule lives
+    /// here, so its guard belongs here.
+    #[test]
+    fn only_portrait_art_is_sized_by_its_width() {
+        let cap = |width: f32, height: f32| KeyCap {
+            image: Handle::default(),
+            cap: Some(Rect::new(0.0, 0.0, width, height)),
+        };
+
+        assert_eq!(
+            cap(120.0, 130.0).node_size(20.0),
+            Vec2::new(120.0 / 130.0 * 20.0, 20.0),
+            "a letter cap (0.92) is a keycap: the height is the site's constant"
+        );
+        assert_eq!(
+            cap(200.0, 130.0).node_size(20.0),
+            Vec2::new(200.0 / 130.0 * 20.0, 20.0),
+            "and so is a wide one"
+        );
+
+        let mouse = cap(76.0, 128.0).node_size(20.0);
+        assert!(
+            mouse.x > 18.0 && mouse.y > 20.0,
+            "a mouse glyph (0.59) is sized by its WIDTH instead, got {mouse:?}"
+        );
+        assert!(
+            mouse.y <= 20.0 * MAX_PORTRAIT_GROWTH,
+            "bounded, so one tall glyph cannot set the height of its row"
+        );
     }
 
     /// An unmapped key resolves to nothing, which is the text-chip fallback -

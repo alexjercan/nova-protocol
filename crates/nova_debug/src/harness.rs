@@ -537,9 +537,11 @@ pub fn release_action(name: impl Into<String>) -> impl Fn(&mut World) + Send + S
 /// `bevy_picking` a synthetic press each frame would add event churn to the
 /// stress ranges for nothing.
 ///
-/// An unknown or pad-only name is an error in the log and no press. The beat
-/// then stalls on its own predicate and the deadline watcher names it - a
-/// better report than a panic inside a step closure.
+/// A pad-only name presses a synthesized pad - `dispatch` connects one. An
+/// unknown name, or an axis-only one with no button anywhere, is an error in
+/// the log and no press: the beat then stalls on its own predicate and the
+/// deadline watcher names it, a better report than a panic inside a step
+/// closure.
 pub fn drive_action(world: &mut World, name: &str, phase: InputPhase) {
     if let Err(error) = dispatch::apply(world, name, phase) {
         error!("nova harness: {error}");

@@ -2,7 +2,8 @@
 //! player actions exist, what each is called on screen, and which physical
 //! sources it occupies.
 //!
-//! It is a LEAF on purpose - bevy and `bevy_enhanced_input`, nothing else. The
+//! It is a LEAF on purpose - bevy, `bevy_enhanced_input` and, behind the
+//! `serde` feature the save file needs, serde. The
 //! rigs (`nova_ship`, `nova_scenario`) are BUILT FROM it, and every rebind
 //! surface (`nova_menu`, `nova_editor`, `nova_os_ui`) reads it, so it has to
 //! sit below all of them. A crate that also held the process channel would
@@ -39,9 +40,22 @@ pub struct NovaInputPlugin;
 
 impl Plugin for NovaInputPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<InputBindings>();
-        app.init_resource::<ActiveContexts>();
+        install(app);
     }
+}
+
+/// The resources every entry point installs.
+///
+/// [`poll::InputSources`] takes bevy's two button resources as NON-optional,
+/// and this crate defines that parameter, so this crate guarantees they are
+/// there: a headless app carries no `InputPlugin`, and leaving the guarantee
+/// to consumers had one of them inserting the resources for the whole tree
+/// while the next one's tests did it by hand.
+fn install(app: &mut App) {
+    app.init_resource::<InputBindings>();
+    app.init_resource::<ActiveContexts>();
+    app.init_resource::<ButtonInput<KeyCode>>();
+    app.init_resource::<ButtonInput<MouseButton>>();
 }
 
 /// Register actions into [`InputBindings`] from a plugin's `build`.
@@ -61,8 +75,7 @@ impl RegisterInputActions for App {
         &mut self,
         actions: impl IntoIterator<Item = registry::ActionBinding>,
     ) -> &mut Self {
-        self.init_resource::<InputBindings>();
-        self.init_resource::<ActiveContexts>();
+        install(self);
         let mut table = self.world_mut().resource_mut::<InputBindings>();
         for action in actions {
             table.register(action);
@@ -77,7 +90,7 @@ pub mod prelude {
     pub use super::{
         context::{ActionContext, ActiveContexts},
         dispatch,
-        dispatch::{DispatchError, InputPhase, SynthesizedGamepad},
+        dispatch::{DispatchError, DrivenPresses, InputPhase, SynthesizedGamepad},
         poll::InputSources,
         registry::{
             ActionAxes, ActionBinding, BindingChip, BindingSpec, GamepadStick, InputBindings,

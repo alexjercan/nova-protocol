@@ -10,7 +10,7 @@ on the web.
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu: the master volume slider, the Low/Medium/High graphics preset selector, and the Controls tab's rebindable keycap rows.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the master volume slider and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
@@ -46,6 +46,16 @@ win is small, so Low is a knob for the low end rather than a general speed-up.
 </details>
 
 ## Controls
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-controls.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/wiki-controls.png</span>
+        <span class="figure__placeholder-note">The Controls tab open on the FLIGHT group: one row per action, with the keyboard keycap and the pad glyph in their own columns.</span>
+    </div>
+    <figcaption class="figure__caption">One group at a time, drawn as the buttons you press.</figcaption>
+</figure>
 
 The **Controls** tab is where you REBIND. It shows one binding group at a time -
 FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, NOVA OS and the two viewer apps -

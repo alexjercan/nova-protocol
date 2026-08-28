@@ -45,7 +45,7 @@ pub fn novaos_bindings() -> Vec<ActionBinding> {
     vec![
         // RightThumb, and only RightThumb: this is `Always`, so it collides
         // with every context at once.
-        ActionBinding::new("novaos_toggle", "SYSTEM", "NOVA OS")
+        ActionBinding::new("novaos_toggle", "SYSTEM", "Open NOVA OS")
             .context(ActionContext::Always)
             .keyboard([Keyboard(KeyCode::Tab)])
             .gamepad([Gamepad(GamepadButton::RightThumb)]),

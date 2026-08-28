@@ -153,17 +153,29 @@ pub(crate) fn sync_nova_os_contexts(
     terminal: Res<NovaOsTerminal>,
     bindings: Res<InputBindings>,
     mut active: ResMut<ActiveContexts>,
+    mut apps: Local<Vec<&'static str>>,
 ) {
+    // Which app contexts EXIST is settled once every plugin has registered,
+    // and this runs every frame, so the walk over the table happens on a
+    // rebind and at startup rather than 60 times a second.
+    if bindings.is_changed() {
+        *apps = bindings
+            .contexts()
+            .into_iter()
+            .filter_map(|context| match context {
+                ActionContext::ViewerApp(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+    }
     let open = pause.is_some_and(|state| *state.get() == PauseStates::NovaOs);
     let live = match (open, terminal.active_mode()) {
         (true, TerminalMode::App { id }) => Some(id),
         _ => None,
     };
     ActiveContexts::sync(&mut active, ActionContext::Viewer, live.is_some());
-    for context in bindings.contexts() {
-        if let ActionContext::ViewerApp(id) = context {
-            ActiveContexts::sync(&mut active, context, live == Some(id));
-        }
+    for &id in apps.iter() {
+        ActiveContexts::sync(&mut active, ActionContext::ViewerApp(id), live == Some(id));
     }
 }
 
