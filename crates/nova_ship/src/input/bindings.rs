@@ -252,7 +252,7 @@ mod tests {
                 ("Lock / Component Next", "] / Scroll Up", "D-Pad Right"),
                 ("Lock / Component Prev", "[ / Scroll Down", "D-Pad Left"),
                 ("RCS Fine Adjust", "Shift", "Left Thumb"),
-                ("RCS Aim", "Mouse", "Unbound"),
+                ("RCS Aim", "Mouse", "Left Stick"),
                 ("Aim", "Mouse", "Right Stick"),
                 ("Free Look", "Left Alt", "Left Trigger"),
                 ("Raise Weapons", "Right Mouse", "Left Trigger 2"),

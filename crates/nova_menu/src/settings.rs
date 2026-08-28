@@ -631,7 +631,19 @@ pub(crate) fn apply_settings_rebind(
     keys: Res<ButtonInput<KeyCode>>,
     mut rebind: ResMut<PendingRebind>,
     mut bindings: ResMut<InputBindings>,
+    panels: Query<&Visibility, Or<(With<SettingsPanel>, With<PauseSettingsPanel>)>>,
 ) {
+    // A capture belongs to the row that armed it, and this system is ungated by
+    // menu state on purpose - the pause overlay shows the same body. So the arm
+    // has to be dropped HERE when the surface goes away: Back and the pause
+    // toggle only flip `Visibility`, and a state exit despawns the panel
+    // outright, so neither runs a handler that could lower it. An arm that
+    // outlived its own screen would silently take the next key the player
+    // pressed anywhere, write it to the table, and persist it.
+    if !panels.iter().any(|vis| *vis == Visibility::Visible) {
+        disarm(&mut rebind);
+        return;
+    }
     let Some((action, device, awaiting_release)) = rebind
         .armed
         .as_ref()

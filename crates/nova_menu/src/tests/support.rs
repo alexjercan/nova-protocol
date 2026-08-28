@@ -35,11 +35,18 @@ pub(crate) const TEST_BACKDROP_ID: &str = "test_backdrop";
 fn isolate_the_config_store() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        std::env::set_var(
-            "NOVA_CONFIG_ROOT",
-            std::env::temp_dir().join("nova_menu_test_config"),
-        );
+        std::env::set_var("NOVA_CONFIG_ROOT", shared_config_root());
     });
+}
+
+/// The scratch root [`isolate_the_config_store`] points the store at.
+///
+/// A test that needs a store of its OWN must put this back when it is done: the
+/// `Once` above fires exactly once per process, so a test that removes
+/// `NOVA_CONFIG_ROOT` instead of restoring it leaves every later fixture
+/// reading the developer's real `settings.ron`.
+pub(crate) fn shared_config_root() -> std::path::PathBuf {
+    std::env::temp_dir().join("nova_menu_test_config")
 }
 
 /// A headless app with just enough for the menu's non-UI wiring: states, the mode

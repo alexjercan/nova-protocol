@@ -16,17 +16,48 @@ use nova_ui::{
     },
 };
 
-use super::support::{all_texts, entity_by_name, mods_app};
+use super::support::{all_texts, entity_by_name, mods_app, shared_config_root};
 use crate::settings::{
-    SettingsActiveTab, SettingsControlsGroup, SettingsTab, SettingsTabKind, VolumeLabel,
-    VolumeSlider, WindowModeSetting,
+    SettingsActiveTab, SettingsControlsGroup, SettingsPanel, SettingsTab, SettingsTabKind,
+    VolumeLabel, VolumeSlider, WindowModeSetting,
 };
 
 /// Open a settings tab and let the body reconcile. The tab BUTTON is exercised
 /// by `pressing_a_tab_swaps_the_body`; every other test only wants the page.
 fn open_tab(app: &mut App, tab: SettingsTabKind) {
+    show_settings_panel(app);
     app.world_mut().resource_mut::<SettingsActiveTab>().0 = tab;
     app.update();
+}
+
+/// Put the Settings overlay on screen, the way the Settings button does.
+///
+/// The capture refuses to run without a visible panel, so a fixture that only
+/// set the tab resource would arm a chip nothing could reach - which is the
+/// production bug that gate exists to stop.
+fn show_settings_panel(app: &mut App) {
+    let panel = app
+        .world_mut()
+        .query_filtered::<Entity, With<SettingsPanel>>()
+        .iter(app.world())
+        .next()
+        .expect("the menu spawns a Settings panel");
+    *app.world_mut()
+        .get_mut::<Visibility>(panel)
+        .expect("a panel is a UI node") = Visibility::Visible;
+}
+
+/// Close it again, the way Back does: `Visibility` only, no handler.
+fn hide_settings_panel(app: &mut App) {
+    let panel = app
+        .world_mut()
+        .query_filtered::<Entity, With<SettingsPanel>>()
+        .iter(app.world())
+        .next()
+        .expect("the menu spawns a Settings panel");
+    *app.world_mut()
+        .get_mut::<Visibility>(panel)
+        .expect("a panel is a UI node") = Visibility::Hidden;
 }
 
 /// Open one Controls group. The tab shows a single binding group at a time, so
@@ -331,6 +362,7 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
     let _ = std::fs::remove_dir_all(&store);
     // SAFETY-BY-CONVENTION: the only test in this binary that writes the
     // settings store, and it must not touch the developer's real one.
+    let shared_store = shared_config_root();
     unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &store) };
 
     let mut app = mods_app();
@@ -355,7 +387,10 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
         saved.master_volume
     );
 
-    unsafe { std::env::remove_var(nova_assets::storage::CONFIG_ROOT_ENV) };
+    // RESTORE, do not remove: `isolate_the_config_store` sets this behind a
+    // `Once`, so a removal here is permanent and every later fixture in this
+    // binary would read the developer's real settings.ron.
+    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &shared_store) };
     let _ = std::fs::remove_dir_all(&store);
 }
 
@@ -661,6 +696,41 @@ fn escape_backs_out_of_an_armed_rebind() {
             InputSource::Keyboard(KeyCode::Space)
         ],
         "and nothing moved"
+    );
+}
+
+/// Closing the panel with a chip armed must drop the capture.
+///
+/// The capture is ungated by menu state - the pause overlay shows the same body
+/// - and Back only flips `Visibility`, so nothing else lowers the arm. Left
+/// unfixed, a player who armed a chip and changed their mind had the next key
+/// they pressed in flight written into the table and persisted to disk, with no
+/// prompt on screen and Reset Defaults the only way back.
+#[test]
+fn closing_the_panel_drops_an_armed_rebind() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    arm_chip(&mut app, "Rebind: main_drive Desk");
+
+    hide_settings_panel(&mut app);
+    app.update();
+
+    // `A` is free in FLIGHT: only `novaos_pan_left` holds it, and Viewer does
+    // not overlap Flight, so the capture would have ACCEPTED it.
+    tap_key(&mut app, KeyCode::KeyA);
+    app.update();
+
+    assert_eq!(
+        app.world()
+            .resource::<InputBindings>()
+            .get("main_drive")
+            .expect("registered")
+            .keyboard,
+        vec![
+            InputSource::Keyboard(KeyCode::KeyW),
+            InputSource::Keyboard(KeyCode::Space)
+        ],
+        "the key pressed after the panel closed is not captured"
     );
 }
 
