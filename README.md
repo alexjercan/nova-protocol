@@ -18,6 +18,19 @@ Project and gameplay documentation lives on the published site:
 
 ## Quick start
 
+### Play
+
+The flake packages the game, so playing it needs no checkout and no toolchain:
+
+```sh
+nix run github:alexjercan/nova-protocol
+```
+
+`nix profile install github:alexjercan/nova-protocol` keeps it, and adds a
+desktop entry with an icon to the application menu.
+
+### Set up
+
 The Nix development shell provides the pinned Rust toolchain, Bevy system
 dependencies, Node.js, and Trunk.
 

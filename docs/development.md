@@ -9,6 +9,9 @@
   those yourself. Bare `cargo` is not on PATH under Nix: run every cargo/rust
   command via `nix develop --command <cmd>` (the commands below assume you are
   inside `nix develop`).
+- **Playing it**, as opposed to working on it: `nix run` builds and launches
+  the packaged game with no checkout and no development shell. See
+  [The nix package](#the-nix-package).
 
 ## Everyday commands
 
@@ -864,6 +867,71 @@ parsing HTML.
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.
 - `nova_info::APP_VERSION` comes from the `APP_VERSION` env var via `build.rs`.
 - Packaging assets (icons, installer, .app) live under `build/`.
+
+### The nix package
+
+The flake packages the game as well as the development shell, so a player
+needs neither a checkout nor a toolchain:
+
+```sh
+nix run github:alexjercan/nova-protocol         # build it and play
+nix profile install github:alexjercan/nova-protocol
+nix build .#default                             # ./result/bin/nova-protocol
+```
+
+Three outputs, and which one you want depends on what you are doing:
+
+| output | what it is |
+|-|-|
+| `packages.default` | the wrapped game - the one to install |
+| `packages.nova-protocol` | the same derivation, under its own name |
+| `packages.nova-protocol-unwrapped` | the bare cargo binary |
+
+The unwrapped binary finds no assets and opens no window on its own. It is
+split out so that editing the desktop entry, the icon or the asset wiring
+costs a second instead of a fat-LTO relink of the whole Bevy graph. The
+wrapper is what makes it a game:
+
+- `assets/` and `credits/` are installed under `share/nova-protocol`, and
+  `BEVY_ASSET_ROOT` points bevy's reader at them. Without it the reader falls
+  back to the directory the executable sits in, which in the store holds the
+  binary and nothing else. It is set as a DEFAULT, so a modder can still point
+  a packaged build at a working tree.
+- The libraries Bevy opens with `dlopen` - vulkan, wayland, X11, xkbcommon,
+  alsa, udev - go on `LD_LIBRARY_PATH`. The linker never records them, so a
+  packaged binary finds none of them without this. It is the same list the
+  development shell exports, shared in `flake.nix` rather than written twice.
+
+The package builds with `--profile dist`, the profile
+`.github/workflows/release.yaml` ships, so `nix run` gets the binary a player
+gets. Fat LTO and one codegen unit: budget half an hour for a cold build.
+
+`webmods/` is NOT in the package. Those are the portal's development fixtures,
+served by `scripts/serve-mods.sh`; the `mods://` source reads installed mods
+out of the player's data directory (`~/.local/share/nova-protocol/mods`), which
+no store path can hold.
+
+The package's toolchain is `rust-project.toolchain`, set to the same
+`rustNightly` value the development shell uses. Left alone, rust-flake resolves
+its own from `rust-toolchain.toml`, and the package and the shell could drift
+apart on a `nix flake update` - so there is still ONE pin in `flake.nix`, the
+one the comment beside it names.
+
+### The desktop entry
+
+`nix profile install` also installs
+`share/applications/nova-protocol.desktop` and the icon into the hicolor
+theme, so `rofi -show drun`, wofi, and the GTK and KDE menus list "Nova
+Protocol" with its mark. `~/.nix-profile/share` is already on `XDG_DATA_DIRS`,
+so nothing else has to be wired; `nix run` and `nix build` do not install it,
+because neither adds anything to a profile.
+
+The icon is rendered from `web/src/favicon.svg`, the site's brand mark, into
+the eight hicolor sizes plus the scalable SVG. A launcher resolves
+`Icon=nova-protocol` by name against the theme, so the sizes have to exist as
+files: an icon theme with no `scalable` support finds nothing otherwise. The
+art under `build/` is still bevy_game_template's placeholder bird and is
+deliberately not used.
 
 ### Cutting a release
 

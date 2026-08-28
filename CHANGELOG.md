@@ -206,6 +206,12 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- `nix run` launches the game: the flake packages the binary with its assets,
+  the libraries Bevy opens by hand, a desktop entry and an icon, so `nix
+  profile install` puts it in the application menu.
+- `nix flake check` stops building the world. The flake wired a package, a doc
+  build and an all-features clippy run for each of the 24 library crates, and
+  nothing at all for the game.
 - Every named action declares WHEN it can fire, so the three actions bound to G
   never listen at once, and one check across the whole table catches two that
   can.
