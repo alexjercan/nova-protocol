@@ -1,6 +1,6 @@
 # The game as a process: named inputs, an input channel, and state on stdout
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.12.0, tooling, input, autopilot
 
