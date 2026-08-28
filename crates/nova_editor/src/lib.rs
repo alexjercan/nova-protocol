@@ -707,13 +707,17 @@ fn escape_backs_out(
 
 fn switch_scene_editor(
     keys: Res<ButtonInput<KeyCode>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    gamepads: Query<&Gamepad>,
     mut state: ResMut<NextState<ExampleStates>>,
     mut commands: Commands,
 ) {
-    let pad = gamepad
-        .map(|g| g.just_pressed(GamepadButton::LeftThumb))
-        .unwrap_or(false);
+    // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
+    // `ButtonInput<GamepadButton>` resource, so the `Option<Res<..>>` this used
+    // to ask for was `None` on every real run and L3 never returned anybody to
+    // the editor.
+    let pad = gamepads
+        .iter()
+        .any(|pad| pad.digital().just_pressed(GamepadButton::LeftThumb));
     if keys.just_pressed(KeyCode::F1) || pad {
         debug!("switch_scene_editor: F1/L3 pressed, switching to Editor state.");
         state.set(ExampleStates::Editor);

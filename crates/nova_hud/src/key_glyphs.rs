@@ -161,6 +161,13 @@ pub const KEY_GLYPH_FILES: &[(&str, &str)] = &[
     ("Scroll Down", "T_Mouse_Scroll_Down_Key_Dark_Key_Alt"),
 ];
 
+/// How much taller than the site's constant a portrait cap may be drawn.
+///
+/// [`KeyCap::node_size`] sizes a tall-narrow cap by its width so it stays
+/// legible; without a bound, one very tall glyph would set the height of every
+/// row it appeared in.
+const MAX_PORTRAIT_GROWTH: f32 = 1.6;
+
 /// Where the gamepad prompt art lives, relative to `assets/`. The SAME pack as
 /// the keycaps ([`KEY_GLYPH_DIR`]) and the same `Alt` style, so a pad glyph and
 /// a keycap sitting in one row are drawn by one hand.
@@ -286,9 +293,22 @@ impl KeyCap {
     }
 
     /// The on-screen node box for this cap at `height_px` - THE sizing rule:
-    /// height is the site's constant, width follows the art.
+    /// the cap's SHORT axis is the site's constant, and the long one follows
+    /// the art.
+    ///
+    /// Height alone used to be the constant, which suits a keycap (square or
+    /// wider) and starves a portrait one: against a 20px `W` the mouse caps came
+    /// out about 13px wide, and the scroll-up and scroll-down chips could not be
+    /// told apart on the Controls rows. A tall cap is bounded in turn by
+    /// [`MAX_PORTRAIT_GROWTH`], so one odd piece of art cannot stretch the row
+    /// it sits in.
     pub fn node_size(&self, height_px: f32) -> Vec2 {
-        Vec2::new(height_px * self.aspect(), height_px)
+        let aspect = self.aspect();
+        if aspect >= 1.0 {
+            return Vec2::new(height_px * aspect, height_px);
+        }
+        let height = (height_px / aspect).min(height_px * MAX_PORTRAIT_GROWTH);
+        Vec2::new(height * aspect, height)
     }
 
     /// Point an existing image node at this cap, sized for `height_px`. The one

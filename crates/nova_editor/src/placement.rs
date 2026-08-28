@@ -99,11 +99,17 @@ where
 }
 
 /// The bindings a freshly placed section gets: the button the player pressed as
-/// they clicked, else the kind's default. A missing input resource (headless)
-/// contributes no binding at all.
+/// they clicked, else the kind's default. A missing keyboard resource
+/// (headless) contributes no desk binding at all.
+///
+/// The pad half is ALWAYS written. It used to be gated on an
+/// `Option<Res<ButtonInput<GamepadButton>>>`, which bevy 0.19 does not register
+/// at all - so the gate was never open, and every ship built in the editor
+/// saved an `input_mapping` with no gamepad source. A creator's published ship
+/// could not be thrust or fired on a controller.
 fn placement_binds(
     keyboard: Option<&ButtonInput<KeyCode>>,
-    gamepad: Option<&ButtonInput<GamepadButton>>,
+    pad_held: Option<GamepadButton>,
     default_key: InputSource,
     default_pad: InputSource,
 ) -> Vec<InputSource> {
@@ -113,10 +119,19 @@ fn placement_binds(
             capture_binding(keyboard, &EDITOR_CAMERA_KEYS).map_or(default_key, InputSource::from),
         );
     }
-    if let Some(gamepad) = gamepad {
-        binds.push(capture_binding(gamepad, &[]).map_or(default_pad, InputSource::from));
-    }
+    binds.push(pad_held.map_or(default_pad, InputSource::from));
     binds
+}
+
+/// The lowest pad button held across every connected controller, if any.
+///
+/// Bevy 0.19 keeps digital button state on the [`Gamepad`] COMPONENT, so this
+/// is a query rather than a resource read.
+fn pad_held(gamepads: &Query<&Gamepad>) -> Option<GamepadButton> {
+    gamepads
+        .iter()
+        .flat_map(|pad| pad.digital().get_just_pressed().copied())
+        .min()
 }
 
 /// The bindings a section of this kind takes when placed. Hull and controller
@@ -124,19 +139,19 @@ fn placement_binds(
 fn default_binds_for(
     kind: &SectionKind,
     keyboard: Option<&ButtonInput<KeyCode>>,
-    gamepad: Option<&ButtonInput<GamepadButton>>,
+    pad_held: Option<GamepadButton>,
 ) -> Vec<InputSource> {
     match kind {
         SectionKind::Hull(_) | SectionKind::Controller(_) => vec![],
         SectionKind::Thruster(_) => placement_binds(
             keyboard,
-            gamepad,
+            pad_held,
             KeyCode::Space.into(),
             GamepadButton::RightTrigger.into(),
         ),
         SectionKind::Turret(_) | SectionKind::Torpedo(_) => placement_binds(
             keyboard,
-            gamepad,
+            pad_held,
             MouseButton::Left.into(),
             GamepadButton::RightTrigger2.into(),
         ),
@@ -349,7 +364,7 @@ pub(crate) fn put_armed_part_down(_activate: On<Activate>, mut choice: ResMut<Se
 pub(crate) fn found_empty_ship(
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    gamepads: Query<&Gamepad>,
     q_pointer: Query<&PointerInteraction>,
     q_windows: Query<(), With<bevy::window::Window>>,
     selection: Res<SectionChoice>,
@@ -384,7 +399,7 @@ pub(crate) fn found_empty_ship(
     let Some(config) = required_section(&sections, id) else {
         return;
     };
-    let binds = default_binds_for(&config.kind, keyboard.as_deref(), gamepad.as_deref());
+    let binds = default_binds_for(&config.kind, keyboard.as_deref(), pad_held(&gamepads));
     spawn_section_node(
         &mut commands,
         &mut ordinals,
@@ -782,7 +797,7 @@ pub(crate) fn on_click_spaceship_section(
     context: Res<EditContext>,
     selection: Res<SectionChoice>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    gamepad: Option<Res<ButtonInput<GamepadButton>>>,
+    gamepads: Query<&Gamepad>,
     sections: Res<GameSections>,
     preview: Res<PlacementPreview>,
     mut ordinals: Query<&mut NextChildOrdinal>,
@@ -868,7 +883,7 @@ pub(crate) fn on_click_spaceship_section(
                 return;
             };
 
-            let binds = default_binds_for(&config.kind, keyboard.as_deref(), gamepad.as_deref());
+            let binds = default_binds_for(&config.kind, keyboard.as_deref(), pad_held(&gamepads));
             spawn_section_node(
                 &mut commands,
                 &mut ordinals,
@@ -1997,8 +2012,11 @@ mod tests {
         );
         assert_eq!(
             binds,
-            vec![InputSource::from(MouseButton::Left)],
-            "W drives the camera, so the turret keeps its default"
+            vec![
+                InputSource::from(MouseButton::Left),
+                InputSource::from(GamepadButton::RightTrigger2)
+            ],
+            "W drives the camera, so the turret keeps its defaults on both devices"
         );
     }
 }

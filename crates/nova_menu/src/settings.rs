@@ -125,6 +125,17 @@ pub(crate) struct ControlsGroupTab(pub(crate) &'static str);
 #[derive(Component)]
 pub(crate) struct SettingsTabBody;
 
+/// The fixed strip between the tab bar and the scrolling body.
+///
+/// The Controls group bar and the rebind refusal live here rather than in the
+/// body because the body SCROLLS: with both inside it, the group tabs left the
+/// screen exactly when a long group gave a player the most rows to read, and
+/// the refusal - the whole answer to "why did nothing happen when I pressed
+/// that key" - was rendered below the fold, eight rows from the chip that
+/// raised it.
+#[derive(Component)]
+pub(crate) struct SettingsControlsHeader;
+
 /// Which half of a settings row a rebind is capturing for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RebindDevice {
@@ -180,6 +191,13 @@ struct ArmedRebind {
 }
 
 impl PendingRebind {
+    /// Whether any chip is waiting for a press.
+    ///
+    /// Read by `toggle_pause`, which must let an armed chip answer Escape first.
+    pub(crate) fn is_armed(&self) -> bool {
+        self.armed.is_some()
+    }
+
     /// Whether this exact chip is the armed one.
     fn armed_on(&self, action: &str, device: RebindDevice) -> bool {
         self.armed
@@ -263,6 +281,15 @@ pub(crate) fn build_settings_tabs(
                     }
                 });
         });
+    parent.spawn((
+        Name::new("Settings Controls Header"),
+        SettingsControlsHeader,
+        Node {
+            flex_direction: FlexDirection::Column,
+            margin: UiRect::bottom(px(6)),
+            ..default()
+        },
+    ));
 }
 
 /// Open the clicked tab and move the `Selected` highlight onto it.
@@ -337,6 +364,7 @@ pub(crate) fn settings_tab_dirty(
 pub(crate) fn refresh_settings_tab(
     mut commands: Commands,
     bodies: Query<Entity, With<SettingsTabBody>>,
+    headers: Query<Entity, With<SettingsControlsHeader>>,
     active: Res<SettingsActiveTab>,
     group: Res<SettingsControlsGroup>,
     volume: Res<MasterVolume>,
@@ -350,13 +378,23 @@ pub(crate) fn refresh_settings_tab(
     hud_assets: Option<Res<NovaHudAssets>>,
 ) {
     let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
+    // The fixed strip above the body. Emptied on every tab so a group bar left
+    // over from Controls cannot sit above the Audio page.
+    for strip in &headers {
+        commands.entity(strip).despawn_related::<Children>();
+        if active.0 == SettingsTabKind::Controls {
+            commands.entity(strip).with_children(|strip| {
+                build_controls_header(strip, &bindings, &rebind, group.0, *skin);
+            });
+        }
+    }
     for body in &bodies {
         commands.entity(body).despawn_related::<Children>();
         commands.entity(body).with_children(|list| match active.0 {
             SettingsTabKind::Audio => build_audio_tab(list, *volume, *skin),
             SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
             SettingsTabKind::Controls => {
-                build_controls_tab(list, &bindings, &rebind, group.0, glyphs, *skin);
+                build_controls_tab(list, &bindings, &rebind, group.0, glyphs);
             }
             SettingsTabKind::Interface => build_interface_tab(list, *skin),
         });
@@ -506,6 +544,80 @@ fn build_interface_tab(list: &mut ChildSpawnerCommands, skin: UiSkin) {
         });
 }
 
+/// The group bar and the refusal, in the strip that does NOT scroll.
+///
+/// Split out of [`build_controls_tab`] so the two things a player needs while
+/// they work - which group they are on, and why a press was refused - stay on
+/// screen however far down the rows they are.
+fn build_controls_header(
+    strip: &mut ChildSpawnerCommands,
+    bindings: &InputBindings,
+    rebind: &PendingRebind,
+    open_group: &str,
+    skin: UiSkin,
+) {
+    let groups = controls_groups(bindings);
+    let Some(open) = open_group_of(&groups, open_group) else {
+        return;
+    };
+    strip
+        .spawn((
+            Name::new("Controls Group Bar"),
+            segmented_container_wrapping(skin),
+        ))
+        .with_children(|bar| {
+            for group in &groups {
+                let mut button = bar.spawn((
+                    Name::new(format!("Controls Group: {group}")),
+                    segmented_option_fit(group),
+                    ControlsGroupTab(group),
+                    observe(on_controls_group_tab),
+                ));
+                if *group == open {
+                    button.insert(Selected);
+                }
+            }
+        });
+    if let Some(reason) = &rebind.refusal {
+        strip.spawn((
+            Name::new("Rebind Refusal"),
+            UiText,
+            Text::new(reason.clone()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(theme::AMBER_NOVA),
+            Node {
+                margin: UiRect::top(px(6)),
+                ..default()
+            },
+        ));
+    }
+}
+
+/// Every group the Controls tab can open: the table's own, plus any group that
+/// exists only as a fixed row.
+fn controls_groups(bindings: &InputBindings) -> Vec<&'static str> {
+    let mut groups = bindings.groups();
+    for (group, ..) in FIXED_ROWS {
+        if !groups.contains(group) {
+            groups.push(group);
+        }
+    }
+    groups
+}
+
+/// A group the table no longer carries falls back to the first, so a store
+/// written before a group was renamed opens on something rather than blank.
+fn open_group_of(groups: &[&'static str], open_group: &str) -> Option<&'static str> {
+    groups
+        .iter()
+        .copied()
+        .find(|group| *group == open_group)
+        .or_else(|| groups.first().copied())
+}
+
 /// CONTROLS - one binding GROUP at a time, off the LIVE table, then the chords
 /// in that group that are not actions at all.
 ///
@@ -517,43 +629,11 @@ fn build_controls_tab(
     rebind: &PendingRebind,
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
-    skin: UiSkin,
 ) {
-    let mut groups = bindings.groups();
-    for (group, ..) in FIXED_ROWS {
-        if !groups.contains(group) {
-            groups.push(group);
-        }
-    }
-    // A group the table no longer carries falls back to the first, so a store
-    // written before a group was renamed opens on something rather than blank.
-    let Some(open) = groups
-        .iter()
-        .copied()
-        .find(|group| *group == open_group)
-        .or_else(|| groups.first().copied())
-    else {
+    let groups = controls_groups(bindings);
+    let Some(open) = open_group_of(&groups, open_group) else {
         return;
     };
-
-    list.spawn((
-        Name::new("Controls Group Bar"),
-        segmented_container_wrapping(skin),
-    ))
-    .with_children(|bar| {
-        for group in &groups {
-            let mut button = bar.spawn((
-                Name::new(format!("Controls Group: {group}")),
-                segmented_option_fit(group),
-                ControlsGroupTab(group),
-                observe(on_controls_group_tab),
-            ));
-            if *group == open {
-                button.insert(Selected);
-            }
-        }
-    });
-    list.spawn(separator());
 
     for action in bindings.rows().filter(|action| action.group == open) {
         spawn_rebind_row(list, action, rebind, glyphs);
@@ -563,22 +643,6 @@ fn build_controls_tab(
     }
 
     list.spawn(separator());
-    if let Some(reason) = &rebind.refusal {
-        list.spawn((
-            Name::new("Rebind Refusal"),
-            UiText,
-            Text::new(reason.clone()),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(theme::AMBER_NOVA),
-            Node {
-                margin: UiRect::vertical(px(4)),
-                ..default()
-            },
-        ));
-    }
     list.spawn((
         Name::new("Reset Bindings"),
         segmented_option("Reset Defaults"),
@@ -681,7 +745,11 @@ pub(crate) fn apply_settings_rebind(
     }
 
     if let Some(taken_by) = bindings.conflict_for(action, source) {
-        let reason = format!("{} is already {}", source.label(), taken_by.label);
+        let reason = format!(
+            "{} is already bound to {}",
+            source.readout_label(),
+            taken_by.label
+        );
         rebind.refusal = Some(reason);
         return;
     }
@@ -810,7 +878,13 @@ fn spawn_chip(
                 InteractionDisabled,
             ))
             .with_children(|slot| {
-                spawn_binding_chips(slot, chips, glyphs, theme::PHOSPHOR_MUTED);
+                spawn_binding_chips(
+                    slot,
+                    chips,
+                    glyphs,
+                    theme::PHOSPHOR_MUTED,
+                    theme::PHOSPHOR_MUTED,
+                );
             });
         });
         return;
@@ -829,7 +903,7 @@ fn spawn_chip(
             chip.insert(Selected);
         } else {
             chip.with_children(|slot| {
-                spawn_binding_chips(slot, chips, glyphs, theme::SCREEN_TEXT);
+                spawn_binding_chips(slot, chips, glyphs, theme::SCREEN_TEXT, Color::WHITE);
             });
         }
     });
@@ -846,6 +920,7 @@ fn spawn_binding_chips(
     chips: &[BindingChip],
     glyphs: Option<&KeyGlyphs>,
     text_color: Color,
+    glyph_tint: Color,
 ) {
     if chips.is_empty() {
         slot.spawn((
@@ -864,7 +939,14 @@ fn spawn_binding_chips(
             glyphs.and_then(|glyphs| chip.glyph.as_deref().and_then(|label| glyphs.get(label)));
         match cap {
             Some(cap) => {
-                let (image, node) = cap.node(CHIP_GLYPH_PX);
+                let (mut image, node) = cap.node(CHIP_GLYPH_PX);
+                // The PICTURE carries the disabled paint too, not only the text
+                // fallback. While the tint reached the text branch alone, a row
+                // that cannot be changed - Escape, Aim - drew a full-brightness
+                // keycap indistinguishable from the rebindable row under it, and
+                // the Pause row disagreed with itself: a bright Esc cap beside
+                // greyed-out `Start` text.
+                image.color = glyph_tint;
                 slot.spawn((Name::new(format!("Keycap: {}", chip.text)), image, node));
             }
             None => {
@@ -1137,7 +1219,13 @@ pub(crate) fn spawn_keybind_row(
                     InteractionDisabled,
                 ))
                 .with_children(|slot| {
-                    spawn_binding_chips(slot, &[chip], glyphs, theme::PHOSPHOR_MUTED);
+                    spawn_binding_chips(
+                        slot,
+                        &[chip],
+                        glyphs,
+                        theme::PHOSPHOR_MUTED,
+                        theme::PHOSPHOR_MUTED,
+                    );
                 });
             });
         }

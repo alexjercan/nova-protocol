@@ -140,8 +140,9 @@ pub(crate) struct ShipRuntime {
     pub(crate) panel_rebind_enabled: bool,
     /// Section waiting for a replacement keyboard or mouse binding.
     pub(crate) rebinding: Option<Entity>,
-    /// Skips the key or click that armed the capture.
-    pub(crate) rebind_just_armed: bool,
+    /// Holds the capture until every button is up, so the key or click that
+    /// ARMED it is not the one captured.
+    pub(crate) rebind_awaiting_release: bool,
     /// Whether the structural mate overlay is visible.
     pub(crate) show_mates: bool,
 }
@@ -179,7 +180,7 @@ pub(crate) fn manage_ship_scene(
         runtime.selected = None;
         runtime.note = None;
         runtime.rebinding = None;
-        runtime.rebind_just_armed = false;
+        runtime.rebind_awaiting_release = false;
         runtime.show_mates = false;
         return;
     }
@@ -488,7 +489,7 @@ pub(crate) fn ship_input(
                 .is_some_and(|view| view.bindings.is_some())
         {
             runtime.rebinding = Some(sel);
-            runtime.rebind_just_armed = true;
+            runtime.rebind_awaiting_release = true;
             runtime.note = None;
             return;
         }
@@ -756,7 +757,7 @@ pub(crate) fn on_ship_rebind_button(_activate: On<Activate>, mut runtime: ResMut
         return;
     }
     runtime.rebinding = runtime.selected;
-    runtime.rebind_just_armed = runtime.rebinding.is_some();
+    runtime.rebind_awaiting_release = runtime.rebinding.is_some();
     runtime.note = None;
 }
 

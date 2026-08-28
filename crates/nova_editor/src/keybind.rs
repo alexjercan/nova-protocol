@@ -4,7 +4,7 @@
 //! `apply_section_rebind` consumes the next key or mouse-button press.
 
 use bevy::{prelude::*, ui_widgets::Activate};
-use nova_input::prelude::{source_label, ActionContext, InputBindings, InputSource};
+use nova_input::prelude::{source_label, ActionContext, InputBindings, InputSource, InputSources};
 use nova_ship::prelude::*;
 use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
 
@@ -343,8 +343,8 @@ fn binding_conflict(bindings: Option<&InputBindings>, source: InputSource) -> Op
 /// preserved) on the section NODE - the one place the binds live, and what the
 /// scenario hand-off reads.
 pub(crate) fn apply_section_rebind(
+    sources: InputSources,
     keys: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
     bindings: Option<Res<InputBindings>>,
     catalog: Option<Res<GameSections>>,
     context: Res<EditContext>,
@@ -374,32 +374,27 @@ pub(crate) fn apply_section_rebind(
     // Armed by a mouse click: wait for that click to release before reading a
     // press, so the arming LMB is not captured as the new binding.
     if rebind.awaiting_release {
-        if mouse.get_pressed().next().is_none() {
+        if sources.all_released() {
             rebind.awaiting_release = false;
         }
         return;
     }
 
-    // The next key or mouse button pressed becomes the binding (keyboard wins a
-    // same-frame tie, arbitrary but stable).
-    let new_binding = keys
-        .get_just_pressed()
-        .find(|k| **k != KeyCode::Escape)
-        .map(|k| InputSource::Keyboard(*k))
-        .or_else(|| {
-            mouse
-                .get_just_pressed()
-                .next()
-                .map(|b| InputSource::Mouse(*b))
-        });
-    let Some(new_binding) = new_binding else {
+    // The next key or mouse button pressed becomes the binding. The registry's
+    // own capture decides which one, so this row breaks a same-frame tie the
+    // way every other rebind surface does - `ButtonInput` iterates a `HashSet`,
+    // and picking the first would bind either of two keys pressed together.
+    let Some(new_binding) = sources.captured_desk() else {
         return;
     };
 
     // A key the flight rig also drives is TAKEN, and said out loud: both things
     // fire on it, which is a choice a builder is allowed to make.
     if let Some(taken_by) = binding_conflict(bindings.as_deref(), new_binding) {
-        says.note(format!("{} also drives {taken_by}", new_binding.label()));
+        says.note(format!(
+            "{} also drives {taken_by}",
+            new_binding.readout_label()
+        ));
     }
 
     // Replace the PRIMARY input (keyboard OR mouse button), keep gamepad binds.
@@ -591,6 +586,30 @@ mod tests {
             binds_of(&world, section),
             vec![InputSource::from(KeyCode::Space)],
             "and the key that was pressed bound nothing"
+        );
+    }
+
+    /// Two keys down in one frame must bind the SAME one every run. The row
+    /// reads the registry's capture for this: `ButtonInput` iterates a
+    /// `HashSet`, so a row that took the first just-pressed key would bind
+    /// either of them.
+    #[test]
+    fn two_keys_in_one_frame_bind_the_lower_one() {
+        let mut world = World::new();
+        let section = turret(&mut world, vec![InputSource::from(KeyCode::Space)]);
+        armed(&mut world, section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyW);
+        input.press(KeyCode::KeyD);
+        world.insert_resource(input);
+        world.init_resource::<ButtonInput<MouseButton>>();
+
+        world.run_system_once(apply_section_rebind).unwrap();
+
+        assert_eq!(
+            binds_of(&world, section),
+            vec![InputSource::from(KeyCode::KeyD)],
+            "the lower keycode wins, not whichever the set yielded first"
         );
     }
 

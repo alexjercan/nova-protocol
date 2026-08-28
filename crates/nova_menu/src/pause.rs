@@ -33,6 +33,7 @@ pub(crate) fn toggle_pause(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
     escape_owner: Option<Res<EscapeOwner>>,
+    rebind: Option<Res<crate::settings::PendingRebind>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -44,6 +45,14 @@ pub(crate) fn toggle_pause(
     // overlay must not stack on top of that answer. Optional so a headless rig
     // without the gameplay plugin keeps the plain toggle.
     if escape_owner.is_some_and(|owner| owner.0) {
+        return;
+    }
+    // A chip waiting for a key answers Escape itself, as the cancel. Both
+    // systems read the same edge in the same schedule, so without this rung one
+    // press would cancel the capture AND close the overlay the capture was
+    // shown in - losing the screen the player was working on. The next press
+    // closes it, because the chip is no longer armed.
+    if rebind.is_some_and(|rebind| rebind.is_armed()) {
         return;
     }
     // A shown outcome frame is its own paused modal (`sync_outcome_pause` holds the app

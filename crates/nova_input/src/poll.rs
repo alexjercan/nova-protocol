@@ -100,10 +100,17 @@ impl InputSources<'_, '_> {
 
     /// The same for the pad, across every connected one: a player with two
     /// controllers binds with whichever is to hand.
+    ///
+    /// `Start` is withheld for the same reason [`Self::captured_desk`] withholds
+    /// Escape: it is the fixed pause chord, read straight off the pad rather
+    /// than through the table, so no conflict check can see it and the settings
+    /// row that names it is read-only. A row that took it could not be undone
+    /// except by Reset Defaults.
     pub fn captured_pad(&self) -> Option<InputSource> {
         self.gamepads
             .iter()
             .flat_map(|pad| pad.digital().get_just_pressed().copied())
+            .filter(|button| *button != GamepadButton::Start)
             .min()
             .map(InputSource::Gamepad)
     }
@@ -316,6 +323,26 @@ mod tests {
         assert!(
             !app.world().resource::<Captured>().all_released,
             "a held pad button is not a released one"
+        );
+    }
+
+    /// Start is the fixed pause chord, read straight off the pad rather than
+    /// through the table. A row that took it could not be undone from the pad,
+    /// so the capture never offers it - the same rung Escape gets on the desk.
+    #[test]
+    fn a_capture_never_takes_the_pause_button() {
+        let mut app = app();
+        app.init_resource::<Captured>();
+        app.add_systems(Update, capture);
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::Start);
+        pad.digital_mut().press(GamepadButton::North);
+        app.world_mut().spawn(pad);
+        app.update();
+        assert_eq!(
+            app.world().resource::<Captured>().pad,
+            Some(InputSource::Gamepad(GamepadButton::North)),
+            "the other button pressed in the same frame is taken instead"
         );
     }
 

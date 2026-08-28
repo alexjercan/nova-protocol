@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use nova_events::prelude::EntityId;
-use nova_input::prelude::{ActionContext, InputBindings, InputSource};
+use nova_input::prelude::{ActionContext, InputBindings, InputSource, InputSources};
 use nova_ship::prelude::*;
 
 use super::ShipRuntime;
@@ -19,8 +19,8 @@ fn reserved_conflict(bindings: &InputBindings, source: InputSource) -> Option<St
     reason = "one filtered query over the rebind rows"
 )]
 pub(crate) fn apply_ship_rebind(
+    sources: InputSources,
     keys: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
     bindings: Res<InputBindings>,
     mut runtime: ResMut<ShipRuntime>,
     mut commands: Commands,
@@ -38,27 +38,33 @@ pub(crate) fn apply_ship_rebind(
     };
     if keys.just_pressed(KeyCode::Escape) {
         runtime.rebinding = None;
-        runtime.rebind_just_armed = false;
+        runtime.rebind_awaiting_release = false;
         runtime.note = Some(("Rebind cancelled".to_string(), 2.5));
         return;
     }
-    if runtime.rebind_just_armed {
-        runtime.rebind_just_armed = false;
+    // Wait for a CLEAN frame, not merely the next one. This capture is armed by
+    // a click on the panel button or by a key, and one frame's grace let the
+    // arming press itself through whenever it was still held.
+    if runtime.rebind_awaiting_release {
+        if sources.all_released() {
+            runtime.rebind_awaiting_release = false;
+        }
         return;
     }
-    let source = keys
-        .get_just_pressed()
-        .find(|key| **key != KeyCode::Escape)
-        .map(|key| InputSource::Keyboard(*key))
-        .or_else(|| {
-            mouse
-                .get_just_pressed()
-                .next()
-                .map(|button| InputSource::Mouse(*button))
-        });
-    let Some(source) = source else {
+    // The shared capture, not a hand-rolled one: `ButtonInput` iterates a
+    // `HashSet`, so picking the FIRST just-pressed key bound either of two keys
+    // pressed on one frame, run to run.
+    let Some(source) = sources.captured_desk() else {
         return;
     };
+    // The pointer's own button is never taken, for the reason the settings
+    // screen refuses it: this panel is driven ENTIRELY by clicks, so an armed
+    // capture would otherwise eat the next click on a blip - and bind the
+    // section to the button every shipped turret already fires on.
+    if source == InputSource::Mouse(MouseButton::Left) {
+        runtime.note = Some(("Left Mouse stays the pointer".to_string(), 2.5));
+        return;
+    }
     let Ok((parent, id, thruster, turret, torpedo)) = targets.get(target) else {
         runtime.rebinding = None;
         return;
@@ -66,7 +72,7 @@ pub(crate) fn apply_ship_rebind(
     let ship = parent.parent();
     if let Some(conflict) = reserved_conflict(&bindings, source) {
         runtime.note = Some((
-            format!("{} is already used by {conflict}", source.label()),
+            format!("{} is already used by {conflict}", source.readout_label()),
             2.5,
         ));
         return;
@@ -96,7 +102,7 @@ pub(crate) fn apply_ship_rebind(
         bindings,
     });
     runtime.rebinding = None;
-    runtime.note = Some((format!("Bound {} to {}", id.0, source.label()), 2.5));
+    runtime.note = Some((format!("Bound {} to {}", id.0, source.readout_label()), 2.5));
 }
 
 #[cfg(test)]
@@ -134,8 +140,29 @@ mod tests {
         world.spawn((
             ChildOf(ship),
             SectionCode("TRB-1".to_string()),
-            SpaceshipTorpedoInputBinding(vec![MouseButton::Left.into()]),
+            SpaceshipTorpedoInputBinding(vec![MouseButton::Middle.into()]),
         ));
+        {
+            let mut runtime = world.resource_mut::<ShipRuntime>();
+            runtime.rebinding = Some(target);
+        }
+        world
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Middle);
+
+        world.run_system_once(apply_ship_rebind).unwrap();
+
+        let target_bindings = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
+        assert_eq!(target_bindings[0], InputSource::Mouse(MouseButton::Middle));
+        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+    }
+
+    /// This panel is driven entirely by clicks, so an armed capture that took
+    /// the pointer would bind the section to the next blip a player clicked -
+    /// and Left Mouse is the button every shipped turret already fires on.
+    #[test]
+    fn the_pointers_own_button_is_never_captured() {
+        let (mut world, target) = rebind_world();
         {
             let mut runtime = world.resource_mut::<ShipRuntime>();
             runtime.rebinding = Some(target);
@@ -146,9 +173,15 @@ mod tests {
 
         world.run_system_once(apply_ship_rebind).unwrap();
 
-        let target_bindings = &world.get::<SpaceshipTurretInputBinding>(target).unwrap().0;
-        assert_eq!(target_bindings[0], InputSource::Mouse(MouseButton::Left));
-        assert!(world.resource::<ShipRuntime>().rebinding.is_none());
+        assert_eq!(
+            world.get::<SpaceshipTurretInputBinding>(target).unwrap().0,
+            vec![InputSource::Keyboard(KeyCode::KeyF)],
+            "the section keeps what it had"
+        );
+        assert!(
+            world.resource::<ShipRuntime>().rebinding.is_some(),
+            "and the capture stays armed for a real press"
+        );
     }
 
     #[test]
