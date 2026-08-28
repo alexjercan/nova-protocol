@@ -8,7 +8,7 @@
 //! hands the cursor back while the panel is up.
 
 use avian3d::prelude::*;
-use bevy::{camera::RenderTarget, prelude::*};
+use bevy::{camera::RenderTarget, prelude::*, winit::WinitPlugin};
 use bevy_inspector_egui::{
     bevy_egui,
     bevy_egui::{
@@ -33,27 +33,17 @@ pub struct DebugEnabled(pub bool);
 ///
 /// The inspector window behaves similarly to the WorldInspectorPlugin
 /// but is driven by a custom UI system.
+///
+/// The egui half is added only when [`WinitPlugin`] is present; see
+/// [`add_egui_inspector`]. The avian gizmos and diagnostics are added
+/// unconditionally.
 pub struct InspectorDebugPlugin;
 
 impl Plugin for InspectorDebugPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(DebugEnabled(true));
 
-        app.add_plugins(EguiPlugin::default());
-        app.add_plugins(DefaultInspectorConfigPlugin);
-
-        app.add_systems(
-            EguiPrimaryContextPass,
-            inspector_ui.run_if(resource_equals(DebugEnabled(true))),
-        );
-
-        // Auto-creation stays off - `keep_inspector_on_window_camera`
-        // owns primary-context placement, and both would fight over it.
-        app.insert_resource(bevy_egui::EguiGlobalSettings {
-            auto_create_primary_context: false,
-            ..Default::default()
-        });
-        app.add_systems(Update, keep_inspector_on_window_camera);
+        add_egui_inspector(app);
 
         app.add_plugins((
             avian3d::prelude::PhysicsDebugPlugin,
@@ -63,6 +53,38 @@ impl Plugin for InspectorDebugPlugin {
 
         app.add_systems(Update, (enable_physics_gizmos, enable_physics_ui));
     }
+}
+
+/// Add `bevy_egui` and everything that consumes it - the inspector panel and
+/// its primary-context placement - to an app that has a winit event loop.
+///
+/// Winit is the precondition, not rendering: egui takes its input from the
+/// winit window behind each `Window` entity. `AppBuilder::headless` disables
+/// `WinitPlugin` while a virtual `(Window, PrimaryWindow)` entity still
+/// exists, so an assembled `bevy_egui` warns once per window per frame
+/// ("Cannot access an underlying winit window") and drives a panel nobody can
+/// see. Keying on winit also covers an offscreen run that has a GPU but no
+/// window.
+fn add_egui_inspector(app: &mut App) {
+    if !app.is_plugin_added::<WinitPlugin>() {
+        return;
+    }
+
+    app.add_plugins(EguiPlugin::default());
+    app.add_plugins(DefaultInspectorConfigPlugin);
+
+    app.add_systems(
+        EguiPrimaryContextPass,
+        inspector_ui.run_if(resource_equals(DebugEnabled(true))),
+    );
+
+    // Auto-creation stays off - `keep_inspector_on_window_camera`
+    // owns primary-context placement, and both would fight over it.
+    app.insert_resource(bevy_egui::EguiGlobalSettings {
+        auto_create_primary_context: false,
+        ..Default::default()
+    });
+    app.add_systems(Update, keep_inspector_on_window_camera);
 }
 
 /// Draws the inspector UI when debug mode is enabled.
@@ -185,6 +207,28 @@ mod tests {
 
     fn rtt_target() -> RenderTarget {
         RenderTarget::Image(Handle::default().into())
+    }
+
+    /// The headless regression: `AppBuilder::headless` disables `WinitPlugin`
+    /// but still carries a virtual `Window` entity, so an assembled
+    /// `bevy_egui` warns about the winit window it cannot reach on every
+    /// frame. Only the winit-less direction is pinned here - `WinitPlugin`
+    /// builds a real event loop, which a test has no display for.
+    #[test]
+    fn an_app_without_winit_never_assembles_egui() {
+        let mut app = App::new();
+        add_egui_inspector(&mut app);
+
+        assert!(
+            !app.is_plugin_added::<EguiPlugin>(),
+            "a winit-less app must not assemble bevy_egui"
+        );
+        assert!(
+            app.world()
+                .get_resource::<bevy_egui::EguiGlobalSettings>()
+                .is_none(),
+            "nothing that configures egui may land either"
+        );
     }
 
     /// The regression the first-camera-wins observer was replaced for: a
