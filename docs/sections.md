@@ -124,7 +124,10 @@ the unit-cube defaults:
   before colliders were authorable. `base_section` hands avian a density of 1,
   so this shape's volume IS the section's mass and a larger collider is a
   heavier one. The render mesh never contributes; a section masses its authored
-  box.
+  box. An integral cuboid at least one unit wide on every axis also derives a
+  `SectionFootprint` of those dimensions. `read_structure` expands that one
+  entity across every occupied cell, and clearance emits one exit lane from
+  every cell on its exhaust face. Other collider shapes remain one-cell parts.
 
 ## Building a ship
 

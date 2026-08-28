@@ -464,8 +464,10 @@ fn resolved_link_point<'a>(
 ///
 /// Tight primitive colliders conservatively overlap where semantic meshes interlock. An
 /// authored mate makes that interface intentional. Unmated overlap still catches accidental
-/// duplicate or embedded parts. Rotation is intentionally ignored, so this remains a
-/// conservative broad-phase authoring check rather than physical narrow-phase geometry.
+/// duplicate or embedded parts. Rotated AABBs make this a broad-phase authoring check rather
+/// than physical narrow-phase geometry.
+const OVERLAP_EPSILON: f32 = 1e-3;
+
 fn check_section_overlaps(
     ship_id: &str,
     ship_sections: &[SpaceshipSectionConfig],
@@ -518,10 +520,11 @@ fn check_section_overlaps(
         for j in (i + 1)..ship_sections.len() {
             let (a, b) = (&ship_sections[i], &ship_sections[j]);
             let d = a.position - b.position;
-            let sum = resolved[i].0.aabb_half_extents() + resolved[j].0.aabb_half_extents();
-            if d.x.abs() < sum.x
-                && d.y.abs() < sum.y
-                && d.z.abs() < sum.z
+            let sum = resolved[i].0.rotated_aabb_half_extents(a.rotation)
+                + resolved[j].0.rotated_aabb_half_extents(b.rotation);
+            if d.x.abs() + OVERLAP_EPSILON < sum.x
+                && d.y.abs() + OVERLAP_EPSILON < sum.y
+                && d.z.abs() + OVERLAP_EPSILON < sum.z
                 && !direct_mates.contains(&(i, j))
             {
                 issues.push(LintIssue::error(
@@ -997,6 +1000,42 @@ mod tests {
                 .count(),
             1,
             "oversized cubes clip: {issues:?}"
+        );
+
+        // Capital-like 5x5x3 boxes mounted along Y are only three units deep
+        // on that axis. Four units between their centres leaves one hull cell
+        // between them; using unrotated extents falsely treated them as five
+        // units deep and rejected this sandwich.
+        let capital = Some(SectionCollider::Cuboid {
+            size: Vec3::new(5.0, 5.0, 3.0),
+        });
+        let mut a = inline("a", Vec3::Y * 2.0, capital);
+        let mut b = inline("b", Vec3::NEG_Y * 2.0, capital);
+        a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+        b.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+        let s = scenario(vec![ship(a, b)], vec![]);
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        assert!(
+            issues
+                .iter()
+                .all(|issue| !issue.message.contains("overlap")),
+            "rotated capital boxes leave room for the middle hull: {issues:?}"
+        );
+
+        // Quarter-turned unit cubes can produce extents just over 0.5 due to
+        // quaternion arithmetic. Grid neighbours that meet at an edge remain
+        // flush rather than becoming a microscopic overlap.
+        let mut a = inline("a", Vec3::ZERO, cube(1.0));
+        let mut b = inline("b", Vec3::new(1.0, 1.0, 0.0), cube(1.0));
+        a.rotation = Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+        b.rotation = Quat::from_rotation_y(std::f32::consts::FRAC_PI_2);
+        let s = scenario(vec![ship(a, b)], vec![]);
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        assert!(
+            issues
+                .iter()
+                .all(|issue| !issue.message.contains("overlap")),
+            "rotated grid neighbours are flush within epsilon: {issues:?}"
         );
     }
 

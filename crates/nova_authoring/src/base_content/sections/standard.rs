@@ -290,6 +290,81 @@ fn pdc_turret_prototype(
     }
 }
 
+fn drive_mount_points(cells: UVec3) -> Vec<LinkPoint> {
+    let half = (cells.as_vec3() - Vec3::ONE) * 0.5;
+    let mut points: Vec<LinkPoint> = (0..cells.x)
+        .flat_map(|x| (0..cells.y).map(move |y| (x, y)))
+        .map(|(x, y)| LinkPoint {
+            id: format!("base_{x}_{y}"),
+            position: Vec3::new(
+                x as f32 - half.x,
+                y as f32 - half.y,
+                -(cells.z as f32) * 0.5,
+            ),
+            normal: Vec3::NEG_Z,
+        })
+        .collect();
+    points.sort_by_key(|point| {
+        let radial = point.position.x * point.position.x + point.position.y * point.position.y;
+        ((radial * 4.0).round() as i32, point.id.clone())
+    });
+    points
+}
+
+struct LargeDriveSpec<'a> {
+    id: &'a str,
+    name: &'a str,
+    description: &'a str,
+    cells: UVec3,
+    health: f32,
+    magnitude: f32,
+    mesh: &'a AssetRef<WorldAsset>,
+    exhaust_offset: f32,
+    exhaust_radius: f32,
+    exhaust_inner_radius: f32,
+    exhaust_height: f32,
+}
+
+fn large_thruster_prototype(meshes: &BaseContentAssets, spec: LargeDriveSpec<'_>) -> SectionConfig {
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: spec.id.to_string(),
+            name: spec.name.to_string(),
+            description: spec.description.to_string(),
+            health: spec.health,
+            impact_sound: Some(meshes.section_impact_sound.clone()),
+            destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            collider: Some(SectionCollider::Cuboid {
+                size: spec.cells.as_vec3(),
+            }),
+            link_points: drive_mount_points(spec.cells),
+            hide_in_editor: false,
+            damage_effects: DamageEffects(vec![
+                DamageEffect::Cracks,
+                DamageEffect::Sparks,
+                DamageEffect::Plume,
+            ]),
+        },
+        kind: SectionKind::Thruster(ThrusterSectionConfig {
+            magnitude: spec.magnitude,
+            render_mesh: Some(spec.mesh.clone()),
+            render_mesh_transform: None,
+            loop_sound: Some(meshes.thruster_loop_sound.clone()),
+            exhaust: Some(ThrusterExhaust {
+                offset: Vec3::new(0.0, 0.0, spec.exhaust_offset),
+                shape: ThrusterExhaustConfig {
+                    exhaust_height: spec.exhaust_height,
+                    exhaust_radius: spec.exhaust_radius,
+                    exhaust_inner_height: spec.exhaust_height * 0.5,
+                    exhaust_inner_radius: spec.exhaust_inner_radius,
+                    ..default()
+                },
+                ..default()
+            }),
+        }),
+    }
+}
+
 /// The section catalog, built against `meshes` for its render-mesh refs. The
 /// single source of truth for the built-in sections; both the production
 /// registry and the RON generator go through here.
@@ -333,12 +408,10 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
                 collider: None,
-                // ONE socket, on the mounting face. The default thruster has no
-                // authored mesh: the runtime builds a barrel and a nozzle bell
-                // on the Z axis (`insert_thruster_section_render`), the bell
-                // opens toward +Z and the plume fires out of it. So the flat
-                // forward end is the only structure on the part - the other
-                // five faces are drive and exhaust. Six sockets offered them
+                // ONE socket, on the mounting face. The authored bell opens
+                // toward +Z and the plume fires out of it. So the flat forward
+                // end is the only structure on the part - the other five faces
+                // are drive and exhaust. Six sockets offered them
                 // all as mating surfaces, and a builder would bolt a hull slab
                 // onto the barrel or plate one across the nozzle.
                 link_points: vec![LinkPoint {
@@ -350,12 +423,55 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
-                render_mesh: None,
+                render_mesh: Some(meshes.thruster_bell.clone()),
                 render_mesh_transform: None,
                 loop_sound: Some(meshes.thruster_loop_sound.clone()),
-                exhaust: None,
+                exhaust: Some(ThrusterExhaust {
+                    offset: Vec3::new(0.0, 0.0, 0.51),
+                    shape: ThrusterExhaustConfig {
+                        exhaust_radius: 0.24,
+                        exhaust_inner_radius: 0.07,
+                        ..default()
+                    },
+                    ..default()
+                }),
             }),
         },
+        // Large-drive mass stays physical collider volume, but thrust follows
+        // exhaust-face area and health follows a compressed, surface-like curve.
+        // Linear volume scaling made the arena capital too fast and too durable.
+        large_thruster_prototype(
+            meshes,
+            LargeDriveSpec {
+                id: "vector_thruster_section",
+                name: "Vector Thruster Section",
+                description: "A 3x3x2 vectoring drive for larger ships.",
+                cells: UVec3::new(3, 3, 2),
+                health: 480.0,
+                magnitude: 9.0,
+                mesh: &meshes.thruster_vector,
+                exhaust_offset: 0.886,
+                exhaust_radius: 0.58,
+                exhaust_inner_radius: 0.18,
+                exhaust_height: 0.3,
+            },
+        ),
+        large_thruster_prototype(
+            meshes,
+            LargeDriveSpec {
+                id: "capital_thruster_section",
+                name: "Capital Thruster Section",
+                description: "A 5x5x3 capital drive for the largest ships.",
+                cells: UVec3::new(5, 5, 3),
+                health: 1250.0,
+                magnitude: 25.0,
+                mesh: &meshes.thruster_capital,
+                exhaust_offset: 1.51,
+                exhaust_radius: 1.1,
+                exhaust_inner_radius: 0.35,
+                exhaust_height: 0.5,
+            },
+        ),
         SectionConfig {
             base: BaseSectionConfig {
                 id: BASIC_CONTROLLER_SECTION_ID.to_string(),
@@ -679,11 +795,42 @@ mod tests {
         }
     }
 
+    #[test]
+    fn large_drives_use_face_thrust_and_surface_scaled_health() {
+        let catalog = crate::generation::build_section_catalog();
+        for (id, cells, health, magnitude) in [
+            ("vector_thruster_section", UVec3::new(3, 3, 2), 480.0, 9.0),
+            (
+                "capital_thruster_section",
+                UVec3::new(5, 5, 3),
+                1250.0,
+                25.0,
+            ),
+        ] {
+            let drive = catalog
+                .iter()
+                .find(|section| section.base.id == id)
+                .unwrap_or_else(|| panic!("`{id}` is in the catalog"));
+            assert_eq!(drive.base.health, health);
+            assert_eq!(drive.base.link_points.len(), (cells.x * cells.y) as usize);
+            assert_eq!(
+                drive.base.collider,
+                Some(SectionCollider::Cuboid {
+                    size: cells.as_vec3(),
+                })
+            );
+            let SectionKind::Thruster(config) = &drive.kind else {
+                panic!("`{id}` has the wrong section kind");
+            };
+            assert_eq!(config.magnitude, magnitude);
+            assert!(config.render_mesh.is_some());
+        }
+    }
+
     /// The drive bolts on by its forward end and by nothing else.
     ///
-    /// The default thruster is built from primitives, not from authored art:
-    /// the barrel and the nozzle bell lie on the Z axis and the bell opens
-    /// toward +Z, so the mounting end is -Z - NOT the -Y a turret stands on.
+    /// The authored bell lies on the Z axis and opens toward +Z, so the
+    /// mounting end is -Z - NOT the -Y a turret stands on.
     /// Six sockets made the barrel and the open nozzle mating surfaces too, and
     /// a generator would plate a hull slab across the exhaust.
     #[test]
@@ -704,6 +851,24 @@ mod tests {
             Vec3::NEG_Z * 0.5,
             "the socket sits on that face, not inside the part"
         );
+    }
+
+    #[test]
+    fn the_basic_thruster_exhaust_fits_its_bell() {
+        let drive = crate::generation::build_section_catalog()
+            .into_iter()
+            .find(|section| section.base.id == "basic_thruster_section")
+            .expect("the basic thruster is in the catalog");
+        let SectionKind::Thruster(config) = drive.kind else {
+            panic!("the basic thruster has the wrong section kind");
+        };
+        let exhaust = config
+            .exhaust
+            .expect("the basic thruster authors its exhaust");
+        assert_eq!(exhaust.offset, Vec3::new(0.0, 0.0, 0.51));
+        assert_eq!(exhaust.shape.geometry, ThrusterExhaustShape::Cone);
+        assert_eq!(exhaust.shape.exhaust_radius, 0.24);
+        assert_eq!(exhaust.shape.exhaust_inner_radius, 0.07);
     }
 
     #[test]

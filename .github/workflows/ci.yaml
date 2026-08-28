@@ -57,6 +57,11 @@ jobs:
       - name: Formatting
         run: cargo fmt --check
 
+      - name: Generated art is deterministic
+        run: |
+          python3 scripts/gen-greebles.py --check
+          python3 scripts/gen-thruster-shells.py --check
+
       # The probe job shards by naming its categories, so a NEW examples/<dir>
       # would never run and nothing would say so - the sweep would still report
       # all green over the categories it knows. Compare the directories against

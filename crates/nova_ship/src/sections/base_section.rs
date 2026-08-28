@@ -29,7 +29,7 @@ use super::prelude::*;
 pub mod prelude {
     pub use super::{
         base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
-        RenderMeshTransform, SectionCollider, SectionConfig, SectionKind,
+        RenderMeshTransform, SectionCollider, SectionConfig, SectionFootprint, SectionKind,
         SectionRenderMeshTransform, SectionRenderOf,
     };
 }
@@ -95,9 +95,7 @@ impl SectionCollider {
         }
     }
 
-    /// Half-extents of the axis-aligned bounding box, ignoring rotation. The
-    /// section-overlap lint is rotation-agnostic by design (all shipped content
-    /// uses quarter-turns), so an AABB is the right, conservative primitive.
+    /// Half-extents of the axis-aligned bounding box in collider-local space.
     pub fn aabb_half_extents(self) -> Vec3 {
         match self {
             Self::Cuboid { size } => size * 0.5,
@@ -105,6 +103,37 @@ impl SectionCollider {
             Self::Capsule { radius, length } => Vec3::new(radius, radius + length * 0.5, radius),
             Self::Cylinder { radius, height } => Vec3::new(radius, height * 0.5, radius),
         }
+    }
+
+    /// Half-extents of the collider's axis-aligned box after `rotation`.
+    pub fn rotated_aabb_half_extents(self, rotation: Quat) -> Vec3 {
+        let basis = Mat3::from_quat(rotation);
+        Mat3::from_cols(basis.x_axis.abs(), basis.y_axis.abs(), basis.z_axis.abs())
+            * self.aabb_half_extents()
+    }
+}
+
+/// Cell dimensions occupied by one section in its local frame.
+///
+/// Exact integral cuboid colliders span that many cells. Other collider shapes
+/// remain one-cell sections. Keeping this as a runtime component lets the skin,
+/// clearance, editor, and probes share one footprint reading without adding a
+/// second authored size that can disagree with physics.
+#[derive(Component, Clone, Copy, Debug, Deref, Reflect, PartialEq, Eq)]
+#[reflect(Component)]
+pub struct SectionFootprint(pub UVec3);
+
+impl SectionFootprint {
+    /// Derive the occupied cell box from an authored collider.
+    pub fn from_collider(collider: SectionCollider) -> Self {
+        let SectionCollider::Cuboid { size } = collider else {
+            return Self(UVec3::ONE);
+        };
+        let rounded = size.round();
+        if size.cmplt(Vec3::ONE).any() || (size - rounded).abs().max_element() > 0.001 {
+            return Self(UVec3::ONE);
+        }
+        Self(rounded.as_uvec3())
     }
 }
 
@@ -368,6 +397,7 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // can build its schematic blocks from exact authored extents
         // (`aabb_half_extents`) without decoding the avian collider.
         collider,
+        SectionFootprint::from_collider(collider),
         // Density 1, never authorable: a section is solid ship, so its mass IS
         // the volume of the authored collider above. Exactly, not roughly - the
         // shape is the authored box, never the render mesh - so nothing can
@@ -409,6 +439,7 @@ pub fn preview_section(config: BaseSectionConfig) -> impl Bundle {
         // placement needs those extents for its overlap refusal, and reading
         // them back out of an avian collider is not the same number.
         collider,
+        SectionFootprint::from_collider(collider),
         Visibility::Inherited,
     )
 }
@@ -461,6 +492,31 @@ mod tests {
             }
             .aabb_half_extents(),
             Vec3::new(0.5, 1.5, 0.5)
+        );
+        assert!(SectionCollider::Cuboid {
+            size: Vec3::new(5.0, 5.0, 3.0),
+        }
+        .rotated_aabb_half_extents(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2,))
+        .abs_diff_eq(Vec3::new(2.5, 1.5, 2.5), 1e-5));
+    }
+
+    #[test]
+    fn integral_cuboids_define_multi_cell_footprints() {
+        assert_eq!(
+            *SectionFootprint::from_collider(SectionCollider::Cuboid {
+                size: Vec3::new(3.0, 3.0, 2.0),
+            }),
+            UVec3::new(3, 3, 2),
+        );
+        assert_eq!(
+            *SectionFootprint::from_collider(SectionCollider::Cuboid {
+                size: Vec3::splat(0.8),
+            }),
+            UVec3::ONE,
+        );
+        assert_eq!(
+            *SectionFootprint::from_collider(SectionCollider::Sphere { radius: 2.0 }),
+            UVec3::ONE,
         );
     }
 

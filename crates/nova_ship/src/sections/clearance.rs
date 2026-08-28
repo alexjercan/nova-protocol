@@ -45,7 +45,7 @@ use crate::sections::{
 /// `placement_blocks_an_exit`.
 pub mod prelude {
     pub use super::{
-        blocked_exits, exit_lanes, exit_normal, placement_blocks_an_exit, BlockedExit,
+        blocked_exits, exit_lanes, exit_normal, placement_blocks_an_exit, ship_exits, BlockedExit,
         BlockedExitReason, SectionExit, ShipExit,
     };
 }
@@ -205,15 +205,26 @@ pub fn blocked_exits(structure: &SkinStructure, exits: &[ShipExit]) -> Vec<Block
 /// ship the same way or they are arguing about different ships.
 fn read_ship(parts: &[PlacedPart], phase: Vec3) -> (SkinStructure, Vec<ShipExit>) {
     let (structure, cells) = read_cells(parts, phase);
-    let exits = parts
-        .iter()
-        .zip(cells)
-        .filter_map(|(part, cell)| {
-            let out = super::shell_skin::face_index(part.rotation * part.exit?)?;
-            Some(ShipExit { cell, out })
-        })
-        .collect();
+    let exits = ship_exits(parts, &cells);
     (structure, exits)
+}
+
+/// Expand each part's exit across the boundary cells of its occupied footprint.
+pub fn ship_exits(parts: &[PlacedPart], occupied: &[Vec<IVec3>]) -> Vec<ShipExit> {
+    parts
+        .iter()
+        .zip(occupied)
+        .flat_map(|(part, cells)| {
+            let out = part
+                .exit
+                .and_then(|exit| super::shell_skin::face_index(part.rotation * exit));
+            let edge = out.and_then(|face| cells.iter().map(|cell| cell.dot(FACES[face])).max());
+            cells.iter().copied().filter_map(move |cell| {
+                let out = out?;
+                (cell.dot(FACES[out]) == edge?).then_some(ShipExit { cell, out })
+            })
+        })
+        .collect()
 }
 
 /// Whether adding `part` to `ship` would leave something unable to fire.
@@ -252,6 +263,7 @@ mod tests {
             position,
             rotation: Quat::IDENTITY,
             link_points: POINTS.get_or_init(unit_cube_link_points),
+            footprint: UVec3::ONE,
             exit: None,
         }
     }
@@ -270,8 +282,25 @@ mod tests {
                     normal: Vec3::NEG_Y,
                 }]
             }),
+            footprint: UVec3::ONE,
             exit: Some(Vec3::Y),
         }
+    }
+
+    #[test]
+    fn a_large_drive_clears_every_cell_across_its_exhaust_face() {
+        let drive = PlacedPart {
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            link_points: &[],
+            footprint: UVec3::new(5, 5, 3),
+            exit: Some(Vec3::Z),
+        };
+        let (_, _, cells) = super::super::shell_skin::read_structure(std::slice::from_ref(&drive));
+        assert_eq!(cells[0].len(), 75);
+        let exits = ship_exits(&[drive], &cells);
+        assert_eq!(exits.len(), 25);
+        assert!(exits.iter().all(|exit| exit.cell.z == 1));
     }
 
     /// A slab in front of a muzzle is refused, and the same slab behind it is

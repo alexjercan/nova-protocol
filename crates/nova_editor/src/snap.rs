@@ -161,10 +161,11 @@ fn natural_source(part_link_points: &[LinkPoint], target_normal: Vec3) -> usize 
         .iter()
         .enumerate()
         .max_by(|(_, a), (_, b)| {
-            let score = |point: &LinkPoint| point.normal.dot(-target_normal);
-            score(a)
-                .partial_cmp(&score(b))
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let facing = |point: &LinkPoint| point.normal.dot(-target_normal);
+            let radial = |point: &LinkPoint| point.position.cross(point.normal).length_squared();
+            facing(a)
+                .total_cmp(&facing(b))
+                .then_with(|| radial(b).total_cmp(&radial(a)))
         })
         .map_or(0, |(index, _)| index)
 }
@@ -277,6 +278,7 @@ fn clearing(section: &PlacedSection) -> PlacedPart<'_> {
         position: section.position,
         rotation: section.rotation,
         link_points: &section.link_points,
+        footprint: *SectionFootprint::from_collider(section.collider),
         exit: section.exit,
     }
 }
@@ -289,11 +291,15 @@ fn placed(section: &PlacedSection) -> PlacedSectionLinkPoints<'_> {
     }
 }
 
-/// Rotation-agnostic AABB interpenetration, the conservative broad-phase the
-/// ship lint uses.
+/// AABB interpenetration after each local collider is turned into ship space.
+/// Editor placement uses quarter turns, so the absolute rotation basis exactly
+/// permutes cuboid extents instead of conservatively widening them on the wrong
+/// axes.
 fn overlaps(a: &PlacedSection, b: &PlacedSection) -> bool {
+    let half_extents =
+        |section: &PlacedSection| section.collider.rotated_aabb_half_extents(section.rotation);
     let distance = (a.position - b.position).abs();
-    let sum = a.collider.aabb_half_extents() + b.collider.aabb_half_extents();
+    let sum = half_extents(a) + half_extents(b);
     distance.x + OVERLAP_EPSILON < sum.x
         && distance.y + OVERLAP_EPSILON < sum.y
         && distance.z + OVERLAP_EPSILON < sum.z
@@ -378,6 +384,82 @@ mod tests {
             .transform
             .translation
             .abs_diff_eq(Vec3::NEG_Z, 1e-5));
+    }
+
+    #[test]
+    fn a_multi_cell_drive_mounts_by_its_central_forward_socket() {
+        let ship = [cube(Vec3::ZERO)];
+        let mut mounts = vec![LinkPoint {
+            id: "base_1_1".to_string(),
+            position: Vec3::new(0.0, 0.0, -1.0),
+            normal: Vec3::NEG_Z,
+        }];
+        for x in [-1.0, 0.0, 1.0] {
+            for y in [-1.0, 0.0, 1.0] {
+                if x == 0.0 && y == 0.0 {
+                    continue;
+                }
+                mounts.push(LinkPoint {
+                    id: format!("base_{x}_{y}"),
+                    position: Vec3::new(x, y, -1.0),
+                    normal: Vec3::NEG_Z,
+                });
+            }
+        }
+        let placement = solve(
+            &ship,
+            0,
+            Vec3::Z * 0.5,
+            &mounts,
+            SectionCollider::Cuboid {
+                size: Vec3::new(3.0, 3.0, 2.0),
+            },
+            Some(Vec3::Z),
+            0,
+            0,
+        );
+        assert_eq!(placement.refusal, None);
+        assert!(placement
+            .transform
+            .translation
+            .abs_diff_eq(Vec3::Z * 1.5, 1e-5));
+    }
+
+    #[test]
+    fn one_hull_separates_two_capital_drives_mounted_along_x() {
+        let collider = SectionCollider::Cuboid {
+            size: Vec3::new(5.0, 5.0, 3.0),
+        };
+        let mount = vec![LinkPoint {
+            id: "base".to_string(),
+            position: Vec3::NEG_Z * 1.5,
+            normal: Vec3::NEG_Z,
+        }];
+        let ship = [
+            cube(Vec3::ZERO),
+            PlacedSection {
+                position: Vec3::X * 2.0,
+                rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+                link_points: mount.clone(),
+                collider,
+                exit: Some(Vec3::Z),
+            },
+        ];
+        let placement = solve(
+            &ship,
+            0,
+            Vec3::NEG_X * 0.5,
+            &mount,
+            collider,
+            Some(Vec3::Z),
+            0,
+            0,
+        );
+        assert_eq!(placement.refusal, None);
+        assert!(placement
+            .transform
+            .translation
+            .abs_diff_eq(Vec3::NEG_X * 2.0, 1e-5));
     }
 
     /// A socket that already carries a neighbour is refused: the ship it would

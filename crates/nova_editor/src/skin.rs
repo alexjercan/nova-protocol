@@ -113,6 +113,9 @@ pub(crate) fn sync_editor_skin(
                 position: transform.translation,
                 rotation: transform.rotation,
                 link_points: config.base.link_points.as_slice(),
+                footprint: *SectionFootprint::from_collider(
+                    config.base.collider.unwrap_or_default(),
+                ),
                 exit: exit_normal(&config.kind),
             })
         })
@@ -255,6 +258,7 @@ fn ghost_section<'a>(
         position: placement.solve.transform.translation,
         rotation: placement.solve.transform.rotation,
         link_points: part.base.link_points.as_slice(),
+        footprint: *SectionFootprint::from_collider(part.base.collider.unwrap_or_default()),
         exit: exit_normal(&part.kind),
     })
 }
@@ -276,6 +280,9 @@ fn signature(root: Entity, placed: &[PlacedPart]) -> u64 {
         part.rotation.y.to_bits().hash(&mut hasher);
         part.rotation.z.to_bits().hash(&mut hasher);
         part.rotation.w.to_bits().hash(&mut hasher);
+        part.footprint.x.hash(&mut hasher);
+        part.footprint.y.hash(&mut hasher);
+        part.footprint.z.hash(&mut hasher);
         // The sockets and the exit, not the part: two parts with the same
         // footprint, the same sockets and the same muzzle are the same thing to
         // the skin.

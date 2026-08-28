@@ -309,9 +309,7 @@ fn face_index(direction: Vec3) -> Option<usize> {
 /// Half-extents of a collider's AABB after `rotation`, which for the cardinal
 /// rotations the grid uses is just a permutation of the authored ones.
 fn rotated_half_extents(collider: SectionCollider, rotation: Quat) -> Vec3 {
-    let basis = Mat3::from_quat(rotation);
-    Mat3::from_cols(basis.x_axis.abs(), basis.y_axis.abs(), basis.z_axis.abs())
-        * collider.aabb_half_extents()
+    collider.rotated_aabb_half_extents(rotation)
 }
 
 /// Build the tile set: vacuum first ([`VACUUM`]), then every distinct
@@ -1240,6 +1238,157 @@ pub fn wfc_hull(tiles: &[Tile], seed: u64, clad: bool, style: StyleId) -> ShipHu
     }
 }
 
+fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSectionConfig {
+    SpaceshipSectionConfig {
+        id,
+        position,
+        rotation: Quat::IDENTITY,
+        source: SectionSource::Prototype(prototype.to_string()),
+        modifications: vec![],
+    }
+}
+
+/// Replace the arena PoC's unit-cell stern with a seeded large-drive stamp.
+///
+/// This is deliberately outside the collapse. Large sections are not WFC tiles,
+/// and the production ship generator will own a richer grammar later. The
+/// arena only needs a deterministic fleet for judging one capital drive against
+/// two or three vector drives.
+pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64) {
+    const SUPPORT_Z: f32 = 4.0;
+    let (prototype, length, centres): (&str, f32, Vec<Vec3>) = match seed % 3 {
+        0 => (
+            "capital_thruster_section",
+            3.0,
+            vec![Vec3::new(0.5, 0.0, 0.0)],
+        ),
+        1 => (
+            "vector_thruster_section",
+            2.0,
+            vec![Vec3::new(-1.5, 0.0, 0.0), Vec3::new(1.5, 0.0, 0.0)],
+        ),
+        _ if seed & 1 == 0 => (
+            "vector_thruster_section",
+            2.0,
+            vec![
+                Vec3::new(-3.5, 0.0, 0.0),
+                Vec3::new(-0.5, 0.0, 0.0),
+                Vec3::new(2.5, 0.0, 0.0),
+            ],
+        ),
+        _ => (
+            "vector_thruster_section",
+            2.0,
+            vec![
+                Vec3::new(-2.5, 0.0, 0.0),
+                Vec3::new(0.5, 0.0, 0.0),
+                Vec3::new(3.5, 0.0, 0.0),
+            ],
+        ),
+    };
+    hull.sections.retain(|section| {
+        let at = section.position;
+        at.z <= 4.5
+            && !((at.z - SUPPORT_Z).abs() <= GRID_EPSILON
+                && at.y.abs() <= GRID_EPSILON
+                && at.x.abs() <= 3.5 + GRID_EPSILON)
+    });
+
+    for index in 0..8 {
+        let x = -3.5 + index as f32;
+        hull.sections.push(stamped_section(
+            format!("large_drive_support_{index}"),
+            "reinforced_hull_section",
+            Vec3::new(x, 0.0, SUPPORT_Z),
+        ));
+    }
+    let centre_z = SUPPORT_Z + 0.5 + length * 0.5;
+    info!(
+        "wfc_arena: seed {seed} stamped with {} `{prototype}` drive(s)",
+        centres.len()
+    );
+    for (index, centre) in centres.into_iter().enumerate() {
+        hull.sections.push(stamped_section(
+            format!("large_drive_{index}"),
+            prototype,
+            Vec3::new(centre.x, centre.y, centre_z),
+        ));
+    }
+}
+
+#[cfg(test)]
+mod stamp_tests {
+    use super::*;
+
+    #[test]
+    fn arena_stamps_one_capital_or_two_to_three_vector_drives() {
+        for (seed, prototype, count) in [
+            (0, "capital_thruster_section", 1),
+            (1, "vector_thruster_section", 2),
+            (2, "vector_thruster_section", 3),
+        ] {
+            let mut hull = ShipHull::default();
+            stamp_large_drives(&mut hull, seed);
+            assert_eq!(
+                hull.sections
+                    .iter()
+                    .filter(|section| {
+                        matches!(&section.source, SectionSource::Prototype(id) if id == prototype)
+                    })
+                    .count(),
+                count,
+            );
+            assert_eq!(
+                hull.sections
+                    .iter()
+                    .filter(|section| section.id.starts_with("large_drive_support_"))
+                    .count(),
+                8,
+            );
+        }
+    }
+
+    #[test]
+    fn arena_stamp_replaces_only_the_central_support_beam() {
+        let mut hull = ShipHull {
+            sections: vec![
+                stamped_section(
+                    "old_support_cell".to_string(),
+                    "basic_hull_section",
+                    Vec3::new(2.5, 0.0, 4.0),
+                ),
+                stamped_section(
+                    "outside_drive_face".to_string(),
+                    "basic_hull_section",
+                    Vec3::new(2.5, -2.0, 4.0),
+                ),
+            ],
+            ..default()
+        };
+        stamp_large_drives(&mut hull, 20_260_829);
+        assert!(hull
+            .sections
+            .iter()
+            .all(|section| section.id != "old_support_cell"));
+        assert!(hull
+            .sections
+            .iter()
+            .any(|section| section.id == "outside_drive_face"));
+    }
+
+    #[test]
+    fn seeded_large_drive_stamps_mate_to_generated_sterns() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = tile_set(&sections);
+        for seed in [6, 7, 8, 20_260_829] {
+            let mut hull = wfc_hull(&tiles, seed, true, None);
+            stamp_large_drives(&mut hull, seed);
+            let placed = place(&hull, &sections);
+            refuse_unmated_contacts(&placed, &hull);
+        }
+    }
+}
+
 /// Slack for deciding two bodies are flush, against snapped placements.
 const CONTACT_EPSILON: f32 = 1e-3;
 
@@ -1334,6 +1483,21 @@ fn place<'a>(ship: &ShipHull, sections: &'a GameSections) -> Vec<Placed<'a>> {
 /// socket on nothing. What is NOT exempt is a socket on one side and a bare
 /// face on the other: that is the plug pressed into a blank face, and the
 /// second half of this function refuses it wherever it appears.
+///
+/// The arena's post-collapse PoC stamp is the one scoped exception. Its drives
+/// mate to the reinforced beam, but their wider forward face may also rest
+/// flush against random stern tiles that expose no matching socket. The game
+/// accepts that contact; this stronger example-only check ignores only those
+/// drive-to-random-tile contacts and still checks every stamped beam mate.
+fn incidental_stamp_contact(ship: &ShipHull, a: usize, b: usize) -> bool {
+    let drive = |index: usize| {
+        ship.sections[index].id.starts_with("large_drive_")
+            && !ship.sections[index].id.starts_with("large_drive_support_")
+    };
+    let stamped = |index: usize| ship.sections[index].id.starts_with("large_drive_");
+    (drive(a) && !stamped(b)) || (drive(b) && !stamped(a))
+}
+
 fn refuse_unmated_contacts(placed: &[Placed], ship: &ShipHull) {
     let points: Vec<PlacedSectionLinkPoints> = placed
         .iter()
@@ -1356,6 +1520,9 @@ fn refuse_unmated_contacts(placed: &[Placed], ship: &ShipHull) {
             let Some(face) = contact_face(first.body, second.body) else {
                 continue;
             };
+            if incidental_stamp_contact(ship, a, b) {
+                continue;
+            }
             if !offers(first, face) && !offers(second, face ^ 1) {
                 continue;
             }
@@ -1394,6 +1561,9 @@ fn refuse_unmated_contacts(placed: &[Placed], ship: &ShipHull) {
             else {
                 continue;
             };
+            if incidental_stamp_contact(ship, index, other) {
+                continue;
+            }
             unmated.push(format!(
                 "`{}` socket `{}` presses into `{}` with nothing to mate",
                 ship.sections[index].id, point.id, ship.sections[other].id

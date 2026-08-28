@@ -124,10 +124,10 @@ use nova_scenario::{
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
     skin_summary, AITarget, CombatLock, GameStyles, PlacedPart, PlateReport, PointDefenseMount,
-    SectionAmmo, SectionExit, SectionFixture, SectionLinkPoints, SectionReload, ShipDecorMarker,
-    ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming,
-    TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType,
-    TravelLock, TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput,
+    SectionAmmo, SectionExit, SectionFixture, SectionFootprint, SectionLinkPoints, SectionReload,
+    ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker,
+    TorpedoArming, TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition,
+    TorpedoType, TravelLock, TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput,
     TurretSectionMuzzleEntity, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
     TURRET_ON_TARGET_RAD,
 };
@@ -716,7 +716,12 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
     if !world.get::<ShipSkin>(root).is_some_and(|skin| skin.0) {
         return None;
     }
-    let sections: Vec<(&Transform, &SectionLinkPoints, Option<&SectionExit>)> = world
+    let sections: Vec<(
+        &Transform,
+        &SectionLinkPoints,
+        Option<&SectionExit>,
+        Option<&SectionFootprint>,
+    )> = world
         .get::<Children>(root)?
         .iter()
         .filter(|child| world.get::<SectionMarker>(*child).is_some())
@@ -725,15 +730,17 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
                 world.get::<Transform>(child)?,
                 world.get::<SectionLinkPoints>(child)?,
                 world.get::<SectionExit>(child),
+                world.get::<SectionFootprint>(child),
             ))
         })
         .collect();
     let placed: Vec<PlacedPart> = sections
         .iter()
-        .map(|(pose, sockets, exit)| PlacedPart {
+        .map(|(pose, sockets, exit, footprint)| PlacedPart {
             position: pose.translation,
             rotation: pose.rotation,
             link_points: sockets.as_slice(),
+            footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
             exit: exit.map(|exit| exit.0),
         })
         .collect();

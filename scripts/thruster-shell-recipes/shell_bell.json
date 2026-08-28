@@ -1,5 +1,6 @@
 {
-  "_comment": "SHELL CANDIDATE: the exposed engine bell - the required cylinder, and the classic rocket read. A flat mount plate forward (the face it bolts on by), a dark turbopump drum, a machined collar, then the wide expansion bell with one proud stiffening ring. Heat discoloration ring just inside the lip, dark throat core. Reads mechanical because every piece is a machining operation: plate, drum, collar, cone, ring.",
+  "_comment": "SHELL CANDIDATE: the 1x1x1 exposed engine bell - the required cylinder, and the classic rocket read. A full-cell flat mount plate forward (the face it bolts on by), a dark turbopump drum, a machined collar, then the wide expansion bell with one proud stiffening ring. Heat discoloration ring just inside the lip, dark throat core. Reads mechanical because every piece is a machining operation: plate, drum, collar, cone, ring.",
+  "cells": [1, 1, 1],
   "materials": {
     "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
     "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
@@ -8,7 +9,7 @@
   },
   "material": "shell_steel",
   "parts": [
-    { "primitive": "box", "size": [0.92, 0.92, 0.08], "at": [0.0, 0.0, -0.46] },
+    { "primitive": "box", "size": [1.0, 1.0, 0.08], "at": [0.0, 0.0, -0.46] },
     {
       "primitive": "cylinder",
       "radius": 0.26,
@@ -50,7 +51,7 @@
       "thickness": 0.012,
       "sides": 16,
       "rotate": [90.0, 0.0, 0.0],
-      "at": [0.0, 0.0, 0.478],
+      "at": [0.0, 0.0, 0.487],
       "material": "shell_heat"
     },
     {
@@ -59,7 +60,7 @@
       "thickness": 0.012,
       "sides": 16,
       "rotate": [90.0, 0.0, 0.0],
-      "at": [0.0, 0.0, 0.485],
+      "at": [0.0, 0.0, 0.494],
       "material": "shell_throat"
     }
   ]

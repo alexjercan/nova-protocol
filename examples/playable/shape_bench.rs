@@ -408,22 +408,6 @@ fn bench_row(
     scenario
 }
 
-/// The six cardinal faces, in the order `ShipExit` indexes them (`nova_ship`'s
-/// `FACES`).
-const FACES: [Vec3; 6] = [
-    Vec3::X,
-    Vec3::NEG_X,
-    Vec3::Y,
-    Vec3::NEG_Y,
-    Vec3::Z,
-    Vec3::NEG_Z,
-];
-
-/// The index in [`FACES`] of the cardinal `direction` points along.
-fn face_index(direction: Vec3) -> Option<usize> {
-    FACES.iter().position(|face| face.dot(direction) > 0.999)
-}
-
 /// Refuse a subject whose fittings cannot fire where they stand, through the
 /// same reading and the same rule the game uses (`read_structure` +
 /// `blocked_exits`). A bench subject with a blocked exit is a broken subject,
@@ -442,6 +426,7 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
             position: cell.as_vec3(),
             rotation: Quat::IDENTITY,
             link_points: &hull.base.link_points,
+            footprint: UVec3::ONE,
             exit: None,
         })
         .collect();
@@ -451,19 +436,13 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
             position: fitting.cell.as_vec3() + fitting.offset,
             rotation: fitting.rotation,
             link_points: &config.base.link_points,
+            footprint: *SectionFootprint::from_collider(config.base.collider.unwrap_or_default()),
             exit: exit_normal(&config.kind),
         });
     }
 
     let (structure, _, cells) = read_structure(&placed);
-    let exits: Vec<ShipExit> = placed
-        .iter()
-        .zip(&cells)
-        .filter_map(|(part, cell)| {
-            let out = face_index(part.rotation * part.exit?)?;
-            Some(ShipExit { cell: *cell, out })
-        })
-        .collect();
+    let exits = ship_exits(&placed, &cells);
     let blocked = blocked_exits(&structure, &exits);
     assert!(
         blocked.is_empty(),
@@ -716,6 +695,7 @@ fn report_skins(
                 position: pose.translation,
                 rotation: pose.rotation,
                 link_points: sockets.as_slice(),
+                footprint: UVec3::ONE,
                 exit: exit.map(|exit| exit.0),
             })
             .collect();

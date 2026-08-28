@@ -20,6 +20,12 @@ pub struct BaseContentAssets {
     pub asteroid_texture: AssetRef<Image>,
     /// Standard hull mesh.
     pub hull: AssetRef<WorldAsset>,
+    /// Exposed bell body used by the basic thruster section.
+    pub thruster_bell: AssetRef<WorldAsset>,
+    /// Vectoring body used by the 3x3x2 drive.
+    pub thruster_vector: AssetRef<WorldAsset>,
+    /// Vectoring body used by the 5x5x3 capital drive.
+    pub thruster_capital: AssetRef<WorldAsset>,
     pub turret_yaw: AssetRef<WorldAsset>,
     pub turret_pitch: AssetRef<WorldAsset>,
     pub turret_barrel: AssetRef<WorldAsset>,
@@ -127,6 +133,9 @@ impl BaseContentAssets {
             cubemap_alt: AssetRef::from("self://textures/cubemap_alt.png".to_string()),
             asteroid_texture: AssetRef::from("self://textures/asteroid.png".to_string()),
             hull: AssetRef::from("self://gltf/hull-01.glb#Scene0".to_string()),
+            thruster_bell: AssetRef::from("self://gltf/shell_bell.glb#Scene0".to_string()),
+            thruster_vector: AssetRef::from("self://gltf/shell_vector.glb#Scene0".to_string()),
+            thruster_capital: AssetRef::from("self://gltf/shell_capital.glb#Scene0".to_string()),
             turret_yaw: AssetRef::from("self://gltf/turret-yaw-01.glb#Scene0".to_string()),
             turret_pitch: AssetRef::from("self://gltf/turret-pitch-01.glb#Scene0".to_string()),
             turret_barrel: AssetRef::from("self://gltf/turret-barrel-01.glb#Scene0".to_string()),

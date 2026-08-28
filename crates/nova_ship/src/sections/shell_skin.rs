@@ -43,6 +43,7 @@ use nova_gameplay::prelude::{
 };
 
 use crate::sections::{
+    base_section::prelude::SectionFootprint,
     clearance::prelude::SectionExit,
     fixture::prelude::SectionFixture,
     integrity::build_ship_integrity_graph,
@@ -662,7 +663,15 @@ fn spawn_ship_skin(
     q_added: Query<&ChildOf, (With<SectionMarker>, Added<SectionLinkPoints>)>,
     q_clad: Query<(&ShipSkin, Option<&ShipStyle>), With<SpaceshipRootMarker>>,
     q_children: Query<&Children>,
-    q_sections: Query<(&Transform, &SectionLinkPoints, Option<&SectionExit>), With<SectionMarker>>,
+    q_sections: Query<
+        (
+            &Transform,
+            &SectionLinkPoints,
+            Option<&SectionExit>,
+            Option<&SectionFootprint>,
+        ),
+        With<SectionMarker>,
+    >,
     styles: Option<Res<GameStyles>>,
 ) {
     let roots: BTreeSet<Entity> = q_added
@@ -678,7 +687,7 @@ fn spawn_ship_skin(
         let mut entities: Vec<Entity> = Vec::new();
         let mut placed: Vec<PlacedPart> = Vec::new();
         for section in children.iter() {
-            let Ok((transform, link_points, exit)) = q_sections.get(section) else {
+            let Ok((transform, link_points, exit, footprint)) = q_sections.get(section) else {
                 continue;
             };
             entities.push(section);
@@ -686,6 +695,7 @@ fn spawn_ship_skin(
                 position: transform.translation,
                 rotation: transform.rotation,
                 link_points: link_points.as_slice(),
+                footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
                 exit: exit.map(|exit| exit.0),
             });
         }
@@ -697,14 +707,9 @@ fn spawn_ship_skin(
             .into_iter()
             .zip(entities)
             .zip(&placed)
-            .map(|((cell, entity), part)| {
-                (
-                    cell,
-                    (
-                        entity,
-                        Transform::from_translation(part.position).with_rotation(part.rotation),
-                    ),
-                )
+            .flat_map(|((cells, entity), part)| {
+                let pose = Transform::from_translation(part.position).with_rotation(part.rotation);
+                cells.into_iter().map(move |cell| (cell, (entity, pose)))
             })
             .collect();
 
@@ -801,6 +806,8 @@ pub struct PlacedPart<'a> {
     pub rotation: Quat,
     /// The sockets it carries, in its OWN frame.
     pub link_points: &'a [LinkPoint],
+    /// Number of occupied cells along each local axis.
+    pub footprint: UVec3,
     /// The direction it fires, launches or exhausts, in its OWN frame, or
     /// `None` for a part whose whole surface is structure. See
     /// [`crate::sections::clearance::exit_normal`], which is where a kind is
@@ -815,7 +822,7 @@ pub struct PlacedPart<'a> {
 /// sections, the editor reads the build state plus the part under the pointer.
 /// Two readings would put the lattice in two places and clad the same ship two
 /// ways - and the editor's whole claim is that what it shows is what flies.
-pub fn read_structure(placed: &[PlacedPart]) -> (SkinStructure, Vec3, Vec<IVec3>) {
+pub fn read_structure(placed: &[PlacedPart]) -> (SkinStructure, Vec3, Vec<Vec<IVec3>>) {
     let phase = lattice_phase(placed.iter().map(|part| part.position));
     let (structure, cells) = read_cells(placed, phase);
     (structure, phase, cells)
@@ -826,21 +833,49 @@ pub fn read_structure(placed: &[PlacedPart]) -> (SkinStructure, Vec3, Vec<IVec3>
 /// The clearance rule asks TWICE about one ship - with a part and without it -
 /// and both readings have to land in the same cells, or the difference it
 /// measures is about the bucketing rather than about the placement.
-pub(crate) fn read_cells(placed: &[PlacedPart], phase: Vec3) -> (SkinStructure, Vec<IVec3>) {
+pub(crate) fn read_cells(placed: &[PlacedPart], phase: Vec3) -> (SkinStructure, Vec<Vec<IVec3>>) {
     let mut structure = SkinStructure::default();
-    let mut cells = Vec::with_capacity(placed.len());
+    let mut occupied = Vec::with_capacity(placed.len());
     for part in placed {
-        let cell = section_cell(part.position, phase);
-        structure.insert_section(
-            cell,
-            part.link_points
+        let half = (part.footprint.as_vec3() - Vec3::ONE) * 0.5;
+        let mut cells = Vec::with_capacity(part.footprint.element_product() as usize);
+        for x in 0..part.footprint.x {
+            for y in 0..part.footprint.y {
+                for z in 0..part.footprint.z {
+                    let local = Vec3::new(x as f32, y as f32, z as f32) - half;
+                    cells.push(section_cell(part.position + part.rotation * local, phase));
+                }
+            }
+        }
+        cells.sort_unstable_by_key(|cell| (cell.x, cell.y, cell.z));
+        cells.dedup();
+
+        let exit = part.exit.map(|exit| part.rotation * exit);
+        let out = exit.and_then(face_index);
+        let edge = out.map(|face| {
+            cells
                 .iter()
-                .map(|point| part.rotation * point.normal),
-            part.exit.map(|exit| part.rotation * exit),
-        );
-        cells.push(cell);
+                .map(|cell| cell.dot(FACES[face]))
+                .max()
+                .unwrap_or_default()
+        });
+        for &cell in &cells {
+            let fires = out
+                .zip(edge)
+                .is_some_and(|(face, edge)| cell.dot(FACES[face]) == edge)
+                .then_some(exit)
+                .flatten();
+            structure.insert_section(
+                cell,
+                part.link_points
+                    .iter()
+                    .map(|point| part.rotation * point.normal),
+                fires,
+            );
+        }
+        occupied.push(cells);
     }
-    (structure, cells)
+    (structure, occupied)
 }
 
 /// Where the cell lattice a ship's sections stand on has its origin, per axis.

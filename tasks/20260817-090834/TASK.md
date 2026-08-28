@@ -1,29 +1,36 @@
 # Promote the thruster shells: check the candidates, ship the picks
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.12.0,art,ship,content
 
 Rewritten 2026-08-24 for v0.12.0. Audit:
 `tasks/20260815-231945/CONTENT-AND-ART.md` section 1. The multi-cell
 question this task used to defer is now OPEN as `20260824-120531`; this task
-stays 1x1-only and lands early - it is mechanical and independent.
+stays 1x1-only and lands early - it is mechanical and independent. Owner
+decision 2026-08-25: ship `shell_bell` as the 1x1x1 basic thruster. Promote
+`shell_vector` to a 3x3x2 upgrade in the multi-cell task and keep
+`shell_capital` there at 5x5x3. Drop the other shell candidates.
 
 ## Goal
 
-Promote the 1x1 thruster shell candidates from `art/part-candidates/shells/`
-to real thruster looks, each candidate CHECKED before promotion. Close the
+Promote `shell_bell` from `art/part-candidates/shells/` as the real look for
+the existing 1x1x1 basic thruster. Check it before promotion. Close the
 determinism-gate CI gap while touching the generator.
 
 ## The candidates
 
-Five 1x1x1: `shell_bell`, `shell_gimbal`, `shell_twin`, `shell_paddle`,
-`shell_vector`. Owner review already happened once: `20260817-013639`
-closure records bell + vector KEPT (the gallery labels agree,
-screenshot_thruster_gallery.rs:232, :272). Re-confirm the picks from the
-gallery rather than assuming them; gimbal/twin/paddle are candidates too.
-The large `shell_bank` (3x3x1) and `shell_capital` (5x5x3) belong to
-`20260824-120531`, not here.
+The owner picked `shell_bell` at 1x1x1. `shell_gimbal`, `shell_twin`, and
+`shell_paddle` are rejected. The original 1x1x1 `shell_vector` is replaced by
+a 3x3x2 version in `20260824-120531`. `shell_bank` is rejected.
+`shell_capital` stays in that multi-cell task at 5x5x3.
+
+## Owner pick evidence
+
+The selected-family capture is stored with the linked multi-cell task at
+[`thruster-shell-picks.png`](../20260824-120531/thruster-shell-picks.png).
+The bell recipe now declares `[1, 1, 1]` and its measured mesh bounds are
+exactly 1.000x1.000x1.000.
 
 ## The checks (per candidate, before any promotion)
 
@@ -37,7 +44,7 @@ The large `shell_bank` (3x3x1) and `shell_capital` (5x5x3) belong to
 
 ## The promotion path (audited, mechanical)
 
-1. Move the picked .glb(s) to `assets/base/gltf/` (the greeble pattern -
+1. Move `shell_bell.glb` to `assets/base/gltf/` (the greeble pattern -
    assets/base/gltf/greebles/README.md), recipe stays the source, --check
    points at the new path.
 2. Register an `AssetRef<WorldAsset>` in
@@ -62,9 +69,27 @@ not touch them.
 `20260817-013639`). Add the check line so the byte-reproducibility gate
 actually gates.
 
+## Promotion evidence
+
+![The shipped shell bell on an editor-built ship](shipped-shell-bell-editor.png)
+
+The basic thruster catalog entry now references
+`self://gltf/shell_bell.glb#Scene0`; the base bundle ships that resource. Its
+round exhaust starts just beyond the bell lip (`Z = 0.51`) with outer radius 0.24 and
+inner radius 0.07. The editor build path loaded it through generated content
+and rendered it on a real five-section ship with the existing socket and
+plume. Verification:
+
+- `cargo run content lint`: 0 errors, 0 warnings, 0 findings.
+- focused `nova_authoring` thruster socket and exhaust-fit tests: pass.
+- greeble and thruster-shell deterministic checks: pass; shell self-test: pass.
+- `screenshot_editor` capture: clean completion; promoted bell visible on ship.
+- web `npm run ci`: format, lint, tests, and production build pass.
+
+Owner playtest remains before closure.
+
 ## Done when
 
-- Owner has picked from the gallery; picked shells fly on real ships in a
-  render; checks recorded per candidate here.
+- `shell_bell` flies on real ships in a render; its checks are recorded here.
 - The determinism gates run in CI.
 - Large formats live in `20260824-120531`, explicitly not here.

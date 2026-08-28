@@ -16,8 +16,8 @@
 //!   art. The real parts would be recipe-generated (see THRUSTERS.md in the
 //!   task folder); these mocks exist to judge silhouette and scale only.
 //! - CANDIDATES: the committed part-candidate `.glb` files, decoded straight
-//!   off disk: the PROPOSED SHELLS (recipe-generated drive shells, 1x1 plus
-//!   two large display formats, in the cross-faction mechanical voice,
+//!   off disk: the selected recipe-generated shell family and rejected shell
+//!   studies, in the cross-faction mechanical voice,
 //!   `scripts/gen-thruster-shells.py`, task 20260817-013639) and the pack
 //!   conversions with an engine or thruster silhouette (Fertile Soil blocks
 //!   pack, Kenney cast cuts, Quaternius cuts - all CC0, provenance in
@@ -150,18 +150,12 @@ struct Item {
 
 /// The gallery, row by row. Every case is deliberate:
 ///
-/// - the first row holds TODAY next to the small shells, so the "drive,
-///   grown" claim is judged against the thing it grows from;
-/// - the second row holds the two big shells the owner named (5x5x1, 5x5x3);
-/// - the third row is the PROPOSED SHELLS: recipe-generated 1x1 candidates
-///   (`scripts/gen-thruster-shells.py`, task 20260817-013639) in the
-///   cross-faction mechanical voice. All five share the bell anatomy the
-///   owner kept from the first pass (plate, drum, cone, heat ring, dark
-///   throat), three of them with visible articulation in the vector
-///   candidate's language (pivots, hinges, petals);
-/// - the fourth row is the LARGE proposed shells - 3x3x1 and 5x5x3
-///   proportions in the same voice, display candidates only (multi-cell
-///   sections stay parked in THRUSTERS.md 4.3);
+/// - the first row is the selected recipe-generated shell family: bell at
+///   1x1x1, vector at 3x3x2, and capital at 5x5x3;
+/// - the second row holds TODAY next to the small mocked shells, so the
+///   "drive, grown" claim is judged against the thing it grows from;
+/// - the third row holds the two large mocked shells (5x5x1, 5x5x3);
+/// - the fourth row keeps the other proposed shell studies visible;
 /// - the fifth row is the Fertile Soil blocks pack's whole propulsion
 ///   family - purpose-built thruster and hyperdrive blocks;
 /// - the sixth row is the engines CUT from the cast ships (Kenney corvette
@@ -170,7 +164,42 @@ struct Item {
 fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
     vec![
         (
-            "today + small shells",
+            "selected shells (recipes)",
+            vec![
+                Item {
+                    id: "shell_bell",
+                    look: Look::Candidate {
+                        dir: "../../assets/base/gltf",
+                        file: "shell_bell.glb",
+                        yaw: 0.0,
+                        fit: 1.0,
+                    },
+                    note: "1x1x1 basic drive",
+                },
+                Item {
+                    id: "shell_vector",
+                    look: Look::Candidate {
+                        dir: "../../assets/base/gltf",
+                        file: "shell_vector.glb",
+                        yaw: 0.0,
+                        fit: 3.0,
+                    },
+                    note: "3x3x2 vectoring drive, one bell",
+                },
+                Item {
+                    id: "shell_capital",
+                    look: Look::Candidate {
+                        dir: "../../assets/base/gltf",
+                        file: "shell_capital.glb",
+                        yaw: 0.0,
+                        fit: 5.0,
+                    },
+                    note: "5x5x3 capital drive",
+                },
+            ],
+        ),
+        (
+            "mocked size studies: small",
             vec![
                 Item {
                     id: "basic_thruster (today)",
@@ -200,7 +229,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
             ],
         ),
         (
-            "big shells",
+            "mocked size studies: large",
             vec![
                 Item {
                     id: "shell 5x5x1",
@@ -215,18 +244,8 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
             ],
         ),
         (
-            "proposed shells (recipes)",
+            "proposed shell studies",
             vec![
-                Item {
-                    id: "shell_bell",
-                    look: Look::Candidate {
-                        dir: "shells",
-                        file: "shell_bell.glb",
-                        yaw: 0.0,
-                        fit: CANDIDATE_FIT,
-                    },
-                    note: "exposed ringed bell (kept)",
-                },
                 Item {
                     id: "shell_gimbal",
                     look: Look::Candidate {
@@ -258,21 +277,6 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                     note: "2D thrust paddles on hinges",
                 },
                 Item {
-                    id: "shell_vector",
-                    look: Look::Candidate {
-                        dir: "shells",
-                        file: "shell_vector.glb",
-                        yaw: 0.0,
-                        fit: CANDIDATE_FIT,
-                    },
-                    note: "petal vectoring shroud (kept)",
-                },
-            ],
-        ),
-        (
-            "proposed shells: large (recipes)",
-            vec![
-                Item {
                     id: "shell_bank",
                     look: Look::Candidate {
                         dir: "shells",
@@ -280,17 +284,7 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                         yaw: 0.0,
                         fit: 4.4,
                     },
-                    note: "3x3x1 bell bank (art only)",
-                },
-                Item {
-                    id: "shell_capital",
-                    look: Look::Candidate {
-                        dir: "shells",
-                        file: "shell_capital.glb",
-                        yaw: 0.0,
-                        fit: 5.2,
-                    },
-                    note: "5x5x3 vectoring drive (art only)",
+                    note: "3x3x1 nine-bell bank",
                 },
             ],
         ),
@@ -862,24 +856,21 @@ fn frame_stand(world: &mut World) {
     pose_camera(world, camera_position(), CAMERA_TARGET);
 }
 
-/// Pose the harness camera on the size family (the first two rows).
+/// Pose the harness camera on the two mocked size rows.
 #[cfg(feature = "debug")]
 fn frame_sizes(world: &mut World) {
     let rows = gallery_rows().len();
-    // The z of the midpoint between row 0 and row 1.
-    let target = Vec3::new(0.0, 0.0, (0.5 - (rows as f32 - 1.0) * 0.5) * ROW_SPACING);
+    // The z of the midpoint between row 1 and row 2.
+    let target = Vec3::new(0.0, 0.0, (1.5 - (rows as f32 - 1.0) * 0.5) * ROW_SPACING);
     pose_camera(world, target + Vec3::new(0.0, 12.0, 21.0), target);
 }
 
-/// Pose the harness camera on the two proposed shell rows (row indices 2 and
-/// 3), close enough that a candidate's silhouette and its nameplate both
-/// read, far enough that the five-column row fits with margin.
+/// Pose the harness camera on the selected first row.
 #[cfg(feature = "debug")]
 fn frame_shells(world: &mut World) {
     let rows = gallery_rows().len();
-    // The z of the midpoint between row 2 and row 3.
-    let target = Vec3::new(0.0, 0.0, (2.5 - (rows as f32 - 1.0) * 0.5) * ROW_SPACING);
-    pose_camera(world, target + Vec3::new(0.0, 12.0, 24.0), target);
+    let target = Vec3::new(0.0, 0.0, -(rows as f32 - 1.0) * 0.5 * ROW_SPACING);
+    pose_camera(world, target + Vec3::new(0.0, 9.0, 18.0), target);
 }
 
 /// The driven walk: load the gallery, frame it, shoot it, then step in on

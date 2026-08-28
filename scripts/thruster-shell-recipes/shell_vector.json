@@ -1,5 +1,6 @@
 {
-  "_comment": "SHELL CANDIDATE: the vectoring shroud - an octagonal shroud drum (faceted deliberately: eight flats read as plate armour around the engine), an inner bell, and a ring of eight vectoring petals flared 28 degrees around the exit with two actuator housings on the shroud flats. The petals are what make it mechanical: a nozzle that visibly ARTICULATES. Heat ring and dark throat inside the petal ring. Petal ring at radius 0.385 so every tip stays inside the cell.",
+  "_comment": "SHELL CANDIDATE, LARGE: the 3x3x2 vectoring drive - one large bell inside a deep octagonal shroud, ringed by eight vectoring petals and two actuator housings. This preserves the 1x1 vector candidate as a larger upgrade rather than turning it into a bank of small nozzles. Heat ring and dark throat sit inside the petal ring. ART ONLY until multi-cell sections ship.",
+  "cells": [3, 3, 2],
   "materials": {
     "shell_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
     "shell_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
@@ -8,92 +9,92 @@
   },
   "material": "shell_steel",
   "parts": [
-    { "primitive": "box", "size": [0.95, 0.95, 0.06], "at": [0.0, 0.0, -0.47] },
+    { "primitive": "box", "size": [2.85, 2.85, 0.12], "at": [0.0, 0.0, -0.94] },
     {
       "primitive": "cylinder",
-      "radius": 0.47,
-      "height": 0.72,
+      "radius": 1.41,
+      "height": 1.44,
       "sides": 8,
       "rotate": [90.0, 0.0, 22.5],
-      "at": [0.0, 0.0, -0.09],
+      "at": [0.0, 0.0, -0.18],
       "material": "shell_gunmetal"
     },
     {
       "primitive": "taper",
-      "radius_bottom": 0.13,
-      "radius_top": 0.33,
-      "height": 0.34,
+      "radius_bottom": 0.39,
+      "radius_top": 0.99,
+      "height": 0.68,
       "sides": 16,
       "rotate": [90.0, 0.0, 0.0],
-      "at": [0.0, 0.0, 0.25]
+      "at": [0.0, 0.0, 0.5]
     },
     {
       "primitive": "disc",
-      "radius": 0.29,
-      "thickness": 0.012,
+      "radius": 0.87,
+      "thickness": 0.024,
       "sides": 16,
       "rotate": [90.0, 0.0, 0.0],
-      "at": [0.0, 0.0, 0.426],
+      "at": [0.0, 0.0, 0.852],
       "material": "shell_heat"
     },
     {
       "primitive": "disc",
-      "radius": 0.21,
-      "thickness": 0.012,
+      "radius": 0.63,
+      "thickness": 0.024,
       "sides": 16,
       "rotate": [90.0, 0.0, 0.0],
-      "at": [0.0, 0.0, 0.432],
+      "at": [0.0, 0.0, 0.864],
       "material": "shell_throat"
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 0.0],
-      "at": [0.0, 0.385, 0.33]
+      "at": [0.0, 1.155, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 45.0],
-      "at": [-0.272236, 0.272236, 0.33]
+      "at": [-0.816708, 0.816708, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 90.0],
-      "at": [-0.385, 0.0, 0.33]
+      "at": [-1.155, 0.0, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 135.0],
-      "at": [-0.272236, -0.272236, 0.33]
+      "at": [-0.816708, -0.816708, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 180.0],
-      "at": [0.0, -0.385, 0.33]
+      "at": [0.0, -1.155, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 225.0],
-      "at": [0.272236, -0.272236, 0.33]
+      "at": [0.816708, -0.816708, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 270.0],
-      "at": [0.385, 0.0, 0.33]
+      "at": [1.155, 0.0, 0.66]
     },
     {
       "primitive": "box",
-      "size": [0.17, 0.02, 0.22],
+      "size": [0.51, 0.06, 0.44],
       "rotate": [-28.0, 0.0, 315.0],
-      "at": [0.272236, 0.272236, 0.33]
+      "at": [0.816708, 0.816708, 0.66]
     },
-    { "primitive": "box", "size": [0.14, 0.06, 0.3], "at": [0.0, 0.46, -0.05] },
-    { "primitive": "box", "size": [0.14, 0.06, 0.3], "at": [0.0, -0.46, -0.05] }
+    { "primitive": "box", "size": [0.42, 0.18, 0.6], "at": [0.0, 1.38, -0.1] },
+    { "primitive": "box", "size": [0.42, 0.18, 0.6], "at": [0.0, -1.38, -0.1] }
   ]
 }

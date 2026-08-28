@@ -193,6 +193,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Ships & Sections
 
+- The basic thruster now wears an authored exposed bell with its exhaust fitted to the nozzle instead of the placeholder barrel and plume.
+- Real 3x3x2 vector and 5x5x3 capital drives join the editor, with full-size mass, mounting faces, thrust, skin footprints and exhaust clearance.
+- Large WFC arena ships fly with a seeded stern stamp: one capital drive or a bank of two to three vector drives.
 - Sections keep a stable name for as long as they exist, so a ship read back
   after a trip out to flight is the ship that was built.
 

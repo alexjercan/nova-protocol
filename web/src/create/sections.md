@@ -69,6 +69,13 @@ at a density of 1, so its mass is the volume of this shape and a bigger box is
 a heavier part. There is no density knob - a section is solid ship, and the
 render mesh never counts.
 
+An integral cuboid of at least one cell on every axis is also the section's cell
+footprint. For example, `Cuboid(size: (3.0, 3.0, 2.0))` occupies 18 cells as one
+machine. Skin and clearance read every occupied cell. Put mounting sockets at
+the centres of the cells on each face that can attach; collider contact alone
+never creates structure. Non-integral cuboids and non-cuboid shapes remain
+one-cell footprints.
+
 ### Damage effects
 
 What a section LOOKS like as it takes damage, authored as a list:

@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """Generate thruster SHELL candidates (.glb) from JSON recipes.
 
-Art candidates for the thruster-shell spike (tasks/20260816-200255/THRUSTERS.md
-section 2.5; candidates task 20260817-013639): recipe-generated drive shells
-(1x1 and larger display formats) in the cross-faction mechanical voice,
-judged in the `screenshot_thruster_gallery` example. CANDIDATES ONLY - the output lands under
-`art/part-candidates/shells/` (never shipped, like every other candidate);
-promotion into `assets/` with a `render_mesh` on the prototype is the
-follow-up, not this script.
+Recipe-generated drive shells in the cross-faction mechanical voice, judged
+in the `screenshot_thruster_gallery` example. Selected shells map to shipped
+paths under `assets/base/gltf/`; studies remain under
+`art/part-candidates/shells/`. The recipe remains the source in both cases.
 
 A sibling of `gen-greebles.py` rather than more greeble recipes, because the
 FRAME is different while the doctrine is the same. A greeble is a half-cell
@@ -41,14 +38,19 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 RECIPE_DIR = os.path.join(SCRIPT_DIR, "thruster-shell-recipes")
 OUT_DIR = os.path.join(REPO_ROOT, "art", "part-candidates", "shells")
+PROMOTED_OUTPUTS = {
+    "shell_bell": os.path.join(REPO_ROOT, "assets", "base", "gltf", "shell_bell.glb"),
+    "shell_vector": os.path.join(REPO_ROOT, "assets", "base", "gltf", "shell_vector.glb"),
+    "shell_capital": os.path.join(REPO_ROOT, "assets", "base", "gltf", "shell_capital.glb"),
+}
 
 GENERATOR = "gen-thruster-shells"
 
 # A shell fills a WxHxL box of cells (default one), centred on the origin,
 # exhaust at +Z. Nothing may leave the box - a proud lip would collide with
 # the neighbour cell the skin expects to own. A recipe names a bigger box
-# with `"cells": [w, h, l]`; the big formats are ART CANDIDATES only
-# (multi-cell sections are parked in THRUSTERS.md section 4.3).
+# with `"cells": [w, h, l]`; formats that need multi-cell sections remain
+# art candidates until that runtime support ships.
 CELL = 1.0
 
 # A drive shell renders once per drive, not scattered like a greeble, so it
@@ -133,9 +135,14 @@ def run(recipe_dir, out_dir, check):
     if not check:
         os.makedirs(out_dir, exist_ok=True)
     stale = []
+    use_promoted_layout = os.path.abspath(out_dir) == os.path.abspath(OUT_DIR)
     for name, recipe in recipes:
         blob, triangles = build_shell(recipe, name)
-        path = os.path.join(out_dir, name + ".glb")
+        path = (
+            PROMOTED_OUTPUTS.get(name, os.path.join(out_dir, name + ".glb"))
+            if use_promoted_layout
+            else os.path.join(out_dir, name + ".glb")
+        )
         rel = os.path.relpath(path, REPO_ROOT)
         lo, hi = gg.bounds(triangles)
         size = tuple(hi[k] - lo[k] for k in range(3))
@@ -166,10 +173,7 @@ def run(recipe_dir, out_dir, check):
         print("\n%d shell(s) match a fresh build (byte for byte)." % len(recipes))
         return 0
 
-    print(
-        "\n%d shell(s) written to %s/"
-        % (len(recipes), os.path.relpath(out_dir, REPO_ROOT))
-    )
+    print("\n%d shell(s) written to their configured output paths." % len(recipes))
     return 0
 
 
