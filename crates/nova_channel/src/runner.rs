@@ -89,10 +89,13 @@ pub fn channel_runner(mode: ChannelMode) -> impl FnOnce(App) -> AppExit {
         if let Some(exit) = boot(&mut app) {
             return exit;
         }
-        match mode {
-            ChannelMode::Step => run_stepped(app, &lines),
-            ChannelMode::Free => run_free(app, &lines),
-        }
+        let exit = match mode {
+            ChannelMode::Step => run_stepped(&mut app, &lines),
+            ChannelMode::Free => run_free(&mut app, &lines),
+        };
+        // A recording session has captures still in flight at EOF.
+        crate::record::flush_captures(&mut app);
+        exit
     }
 }
 
@@ -131,7 +134,7 @@ fn boot(app: &mut App) -> Option<AppExit> {
     None
 }
 
-fn run_stepped(mut app: App, lines: &Receiver<(usize, String)>) -> AppExit {
+fn run_stepped(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
     let mut scheduled: BTreeMap<u64, Vec<(usize, Lane)>> = BTreeMap::new();
     let mut applied: Vec<serde_json::Value> = Vec::new();
     let mut tick: u64 = 0;
@@ -169,15 +172,16 @@ fn run_stepped(mut app: App, lines: &Receiver<(usize, String)>) -> AppExit {
             None => {
                 // The step instruction: run the clock to the target.
                 while tick < target {
-                    stage(&mut app, scheduled.remove(&(tick + 1)).unwrap_or_default());
+                    crate::record::record_frame(app);
+                    stage(app, scheduled.remove(&(tick + 1)).unwrap_or_default());
                     app.update();
                     tick += 1;
-                    collect(&mut app, &mut applied);
+                    collect(app, &mut applied);
                     if let Some(exit) = app.should_exit() {
                         return exit;
                     }
                 }
-                if !emit(&snapshot(&mut app, "step", &mut applied)) {
+                if !emit(&snapshot(app, "step", &mut applied)) {
                     return AppExit::Success;
                 }
             }
@@ -185,7 +189,7 @@ fn run_stepped(mut app: App, lines: &Receiver<(usize, String)>) -> AppExit {
     }
 }
 
-fn run_free(mut app: App, lines: &Receiver<(usize, String)>) -> AppExit {
+fn run_free(app: &mut App, lines: &Receiver<(usize, String)>) -> AppExit {
     let mut scheduled: BTreeMap<u64, Vec<(usize, Lane)>> = BTreeMap::new();
     let mut applied: Vec<serde_json::Value> = Vec::new();
     let mut late: std::collections::HashSet<usize> = std::collections::HashSet::new();
@@ -235,14 +239,15 @@ fn run_free(mut app: App, lines: &Receiver<(usize, String)>) -> AppExit {
         // A late line is always due on the very next frame, so the set only
         // ever holds lines this frame is about to consume.
         app.world_mut().resource_mut::<ChannelFrame>().late_lines = std::mem::take(&mut late);
-        stage(&mut app, due);
+        crate::record::record_frame(app);
+        stage(app, due);
         app.update();
         tick += 1;
-        collect(&mut app, &mut applied);
+        collect(app, &mut applied);
         if let Some(exit) = app.should_exit() {
             return exit;
         }
-        if consumed && !emit(&snapshot(&mut app, "applied", &mut applied)) {
+        if consumed && !emit(&snapshot(app, "applied", &mut applied)) {
             return AppExit::Success;
         }
     }

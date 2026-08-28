@@ -28,6 +28,7 @@
 
 pub mod apply;
 pub mod protocol;
+pub mod record;
 pub mod runner;
 
 use bevy::{
@@ -69,6 +70,11 @@ impl std::str::FromStr for ChannelMode {
 pub struct NovaChannelPlugin {
     /// How the clock is gated.
     pub mode: ChannelMode,
+    /// `Some(dir)` arms the frame recorder: every tick is drawn offscreen and
+    /// saved as `dir/frame_%06d.png`. Needs the offscreen assembly
+    /// (`AppBuilder::offscreen`) - on the plain headless one there is no GPU
+    /// and the screenshots have nothing to read.
+    pub record: Option<std::path::PathBuf>,
 }
 
 /// The channel's writer systems, for anything that must order against them.
@@ -97,6 +103,11 @@ impl Plugin for NovaChannelPlugin {
                 },
                 PrimaryWindow,
             ));
+        }
+
+        // AFTER the window: the recorder sizes its image to it.
+        if let Some(dir) = &self.record {
+            record::setup(app, dir.clone());
         }
 
         // The pointer lane rides the picking backend's own slot - the one the
@@ -132,6 +143,7 @@ pub mod prelude {
     pub use crate::{
         apply::{AckState, AppliedEntry, ChannelAck, ChannelFrame},
         protocol::{parse_line, Envelope, Lane, PointerCmd, PointerTarget},
+        record::ChannelRecorder,
         ChannelMode, NovaChannelPlugin, NovaChannelSystems,
     };
 }

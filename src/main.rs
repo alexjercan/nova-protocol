@@ -47,6 +47,14 @@ struct Cli {
     #[cfg(feature = "debug")]
     #[arg(long, value_name = "MODE", requires = "norender")]
     channel: Option<nova_channel::ChannelMode>,
+    /// With `--channel`: draw every tick offscreen and save it as
+    /// `DIR/frame_%06d.png`. Still no window - but unlike plain `--norender`
+    /// the GPU is armed, so the frames are the real render. Stitch them with
+    /// `ffmpeg -framerate 60 -i DIR/frame_%06d.png -pix_fmt yuv420p out.mp4`
+    /// for a real-time movie however slowly the driver stepped.
+    #[cfg(feature = "debug")]
+    #[arg(long, value_name = "DIR", requires = "channel")]
+    record: Option<std::path::PathBuf>,
 }
 
 /// The dev tools behind the game binary. Each variant forwards its raw
@@ -97,6 +105,15 @@ fn main() -> ExitCode {
     #[cfg(target_arch = "wasm32")]
     let startup_scenario = None;
 
+    // `--record` swaps the headless assembly for the offscreen one: same
+    // windowless shape, but with the GPU the frame capture reads.
+    #[cfg(feature = "debug")]
+    let mut app = if cli.record.is_some() {
+        offscreen_app(startup_scenario)
+    } else {
+        editor_app(render, startup_scenario)
+    };
+    #[cfg(not(feature = "debug"))]
     let mut app = editor_app(render, startup_scenario);
 
     // AFTER the builder: `NovaSettingsPlugin` resolves `HarnessMute` from the
@@ -128,7 +145,10 @@ fn main() -> ExitCode {
     // writer systems see every plugin's sets already registered.
     #[cfg(feature = "debug")]
     if let Some(mode) = cli.channel {
-        app.add_plugins(nova_channel::NovaChannelPlugin { mode });
+        app.add_plugins(nova_channel::NovaChannelPlugin {
+            mode,
+            record: cli.record.clone(),
+        });
     }
 
     run_app(&mut app)

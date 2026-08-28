@@ -63,7 +63,7 @@ pub mod prelude {
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
 
-    pub use super::{editor_app, run_app, AppBuilder, StartupScenario};
+    pub use super::{editor_app, offscreen_app, run_app, AppBuilder, StartupScenario};
 }
 
 /// Build the editor application - the exact app the `nova_protocol` binary runs.
@@ -86,6 +86,19 @@ pub fn editor_app(render: bool, startup: Option<StartupScenario>) -> App {
         AppBuilder::headless()
     };
     builder.with_startup_scenario(startup).build()
+}
+
+/// Build the editor application offscreen - the binary's `--record` shape.
+///
+/// Same app as [`editor_app`] with `render: false`, except the GPU stays: no
+/// winit and no OS window, but a real wgpu device and the full visual plugin
+/// stack. Nothing reaches the screen on its own - the cameras keep targeting
+/// the surfaceless virtual window until a consumer (the channel's recorder)
+/// retargets them into an image it reads back.
+pub fn offscreen_app(startup: Option<StartupScenario>) -> App {
+    AppBuilder::offscreen()
+        .with_startup_scenario(startup)
+        .build()
 }
 
 /// What the app boots into instead of the main menu.
@@ -121,6 +134,19 @@ pub fn run_app(app: &mut App) -> ExitCode {
         AppExit::Success => ExitCode::SUCCESS,
         AppExit::Error(code) => ExitCode::from(code.get()),
     }
+}
+
+/// The three shapes [`AppBuilder`] assembles, fixed by the constructor. Only
+/// [`Assembly::Headless`] runs without a wgpu device; only
+/// [`Assembly::Windowed`] runs winit and opens a window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Assembly {
+    /// [`AppBuilder::new`]: winit, a window, the GPU.
+    Windowed,
+    /// [`AppBuilder::headless`]: no winit, no window, no GPU.
+    Headless,
+    /// [`AppBuilder::offscreen`]: no winit, no window, the GPU.
+    Offscreen,
 }
 
 /// Composition root that assembles the full plugin stack into a runnable [`App`].
@@ -160,7 +186,11 @@ impl AppBuilder {
     /// command line of its own. `headless()` stays unconditional, so the two
     /// read as "render unless told otherwise" and "never render".
     pub fn new() -> Self {
-        Self::assemble(std::env::var_os(NORENDER_ENV).is_none())
+        Self::assemble(if std::env::var_os(NORENDER_ENV).is_none() {
+            Assembly::Windowed
+        } else {
+            Assembly::Headless
+        })
     }
 
     /// Start a builder that draws NOTHING: no wgpu device, no window, no winit
@@ -180,10 +210,24 @@ impl AppBuilder {
     /// Unconditional: unlike [`new`](Self::new), no environment variable can
     /// turn this back into a rendering app.
     pub fn headless() -> Self {
-        Self::assemble(false)
+        Self::assemble(Assembly::Headless)
     }
 
-    fn assemble(render: bool) -> Self {
+    /// Start a builder with the GPU but without the screen: no winit and no OS
+    /// window like [`headless`](Self::headless), yet a real wgpu device, a
+    /// render sub-app and the full visual plugin stack like
+    /// [`new`](Self::new).
+    ///
+    /// On its own this draws nothing anyone can see: the cameras target the
+    /// (surfaceless) virtual window and are skipped. It exists for a consumer
+    /// that retargets them into an image and reads that back - the channel's
+    /// `--record` frame capture. Like `headless()`, the app needs a driver to
+    /// ever end, and no environment variable selects or deselects this.
+    pub fn offscreen() -> Self {
+        Self::assemble(Assembly::Offscreen)
+    }
+
+    fn assemble(assembly: Assembly) -> Self {
         let mut app = App::new();
         single_thread_the_fixed_loop(&mut app);
         // The `mods://` source must be registered BEFORE AssetPlugin lands
@@ -195,12 +239,24 @@ impl AppBuilder {
         let plugins = DefaultPlugins
             .build()
             .set(assets_plugin())
-            .set(log_plugin(render))
-            .set(window_plugin(render))
-            .set(render_plugin(render));
+            .set(log_plugin(assembly))
+            .set(window_plugin(assembly))
+            .set(render_plugin(assembly));
 
-        if render {
+        if assembly == Assembly::Windowed {
             app.add_plugins(plugins);
+        } else if assembly == Assembly::Offscreen {
+            // Winit goes for the same reason as in the headless arm below; the
+            // render stack stays. Pipelined rendering goes too: a stepped
+            // driver wants each `app.update()` to have finished drawing the
+            // frame it just simulated, not to be a frame behind on a render
+            // thread.
+            app.add_plugins(
+                plugins
+                    .disable::<bevy::winit::WinitPlugin>()
+                    .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>(),
+            );
+            app.add_plugins(bevy::app::ScheduleRunnerPlugin::default());
         } else {
             // `WinitPlugin::build` constructs the event loop, which needs a
             // display server whether or not a window is ever opened - so a run
@@ -232,7 +288,9 @@ impl AppBuilder {
         Self {
             app,
             use_default_plugins: true,
-            render,
+            // Offscreen counts as rendering: the visual game plugins assemble,
+            // because the whole point is to draw the frames somewhere.
+            render: assembly != Assembly::Headless,
             startup_scenario: None,
         }
     }
@@ -483,8 +541,10 @@ pub const PROBE_ENV: &str = "NOVA_PROBE";
 /// catch a hand-run someone is playing.
 pub const MEASURE_WINDOW_CLASS: &str = "nova-measure";
 
-fn window_plugin(render: bool) -> WindowPlugin {
-    if !render {
+fn window_plugin(assembly: Assembly) -> WindowPlugin {
+    if assembly != Assembly::Windowed {
+        // Offscreen included: the channel spawns its virtual `PrimaryWindow`
+        // itself, so both windowless shapes start with none and one owner.
         return WindowPlugin {
             primary_window: None,
             // With no window, the default `OnAllClosed` is satisfied on the
@@ -525,13 +585,13 @@ fn window_plugin(render: bool) -> WindowPlugin {
 /// readback to every frame, which is part of the thing being measured.
 pub const RENDER_DIAG_ENV: &str = "NOVA_PROBE_RENDER_DIAG";
 
-fn render_plugin(render: bool) -> RenderPlugin {
+fn render_plugin(assembly: Assembly) -> RenderPlugin {
     // Timestamp queries are Vulkan/DX12-only in wgpu, and asking for a feature
     // the adapter lacks fails device creation - so this is a request the probe
     // then verifies: `render/*/elapsed_gpu` is simply absent on a backend that
     // cannot serve it.
     let mut wgpu = bevy::render::settings::WgpuSettings::default();
-    if !render {
+    if assembly == Assembly::Headless {
         // No backend means `RenderPlugin` never asks wgpu for an adapter, so it
         // builds no device and no render sub-app at all - no extract, no
         // prepare, no queue (bevy_render-0.19.0/src/lib.rs:357). Everything
@@ -559,10 +619,10 @@ fn render_plugin(render: bool) -> RenderPlugin {
     }
 }
 
-fn log_plugin(render: bool) -> LogPlugin {
+fn log_plugin(assembly: Assembly) -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
-        filter: log_filter_str(render),
+        filter: log_filter_str(assembly),
         ..default()
     }
 }
@@ -592,8 +652,13 @@ const THIRD_PARTY_FILTER: &str = "wgpu=error,bevy_ecs=warn,bevy_time=warn,naga=w
 const HEADLESS_FILTER: &str =
     "bevy_render::extract_resource=off,bevy_render::texture=off,bevy_gizmos_render=error";
 
-/// Build the `EnvFilter` string for a run. `render` is false for
-/// [`AppBuilder::headless`], which earns the extra clamps above.
+/// The one INFO line an offscreen recording provokes by construction, once per
+/// captured tick: `save_to_disk`'s "Screenshot saved to ..". The clamp is to
+/// `warn`, so the same module's save FAILURES still reach the terminal.
+const OFFSCREEN_FILTER: &str = "bevy_render::view::window::screenshot=warn";
+
+/// Build the `EnvFilter` string for a run. [`Assembly::Headless`] earns the
+/// extra clamps above.
 ///
 /// THE RULE FOR A NEW CRATE: there is nothing to do. `EnvFilter` matches a
 /// directive against the target by PREFIX, not by equality
@@ -607,7 +672,7 @@ const HEADLESS_FILTER: &str =
 /// the two busiest, among them - silently sat at the INFO default while their
 /// neighbours were at DEBUG. That failure is invisible from the console: a line
 /// that never prints looks exactly like a line that never ran.
-fn log_filter_str(render: bool) -> String {
+fn log_filter_str(assembly: Assembly) -> String {
     let nova = if cfg!(feature = "debug") {
         if std::env::var("RUST_LOG")
             .unwrap_or_default()
@@ -632,9 +697,13 @@ fn log_filter_str(render: bool) -> String {
         filter.push(',');
         filter.push_str(nova);
     }
-    if !render {
+    if assembly == Assembly::Headless {
         filter.push(',');
         filter.push_str(HEADLESS_FILTER);
+    }
+    if assembly == Assembly::Offscreen {
+        filter.push(',');
+        filter.push_str(OFFSCREEN_FILTER);
     }
     filter
 }
@@ -740,7 +809,7 @@ mod tests {
 
     #[test]
     fn the_filter_covers_every_nova_crate_with_one_prefix_directive() {
-        let filter = log_filter_str(true);
+        let filter = log_filter_str(Assembly::Windowed);
         assert!(
             filter.contains("nova=") || !cfg!(feature = "debug"),
             "the nova prefix directive is what covers all 22 crates: {filter}"
@@ -752,7 +821,7 @@ mod tests {
         // A `nova_<crate>=` directive is the drift this design removed: it
         // covers the crates somebody remembered and silently leaves out the
         // rest. Prefix matching makes naming one both unnecessary and a bug.
-        let filter = log_filter_str(true);
+        let filter = log_filter_str(Assembly::Windowed);
         assert!(
             !filter.contains("nova_"),
             "per-crate directives reintroduce the allowlist drift: {filter}"
@@ -761,16 +830,27 @@ mod tests {
 
     #[test]
     fn a_rendering_run_keeps_the_bevy_targets_a_headless_run_clamps() {
-        let filter = log_filter_str(true);
+        let filter = log_filter_str(Assembly::Windowed);
         assert!(!filter.contains("bevy_render::extract_resource"));
         assert!(!filter.contains("bevy_gizmos_render"));
     }
 
     #[test]
     fn a_headless_run_clamps_the_three_diagnostics_it_provokes_by_construction() {
-        let filter = log_filter_str(false);
+        let filter = log_filter_str(Assembly::Headless);
         assert!(filter.contains("bevy_render::extract_resource=off"));
         assert!(filter.contains("bevy_render::texture=off"));
         assert!(filter.contains("bevy_gizmos_render=error"));
+    }
+
+    #[test]
+    fn an_offscreen_run_clamps_the_per_tick_screenshot_save_line_only() {
+        let filter = log_filter_str(Assembly::Offscreen);
+        assert!(filter.contains("bevy_render::view::window::screenshot=warn"));
+        assert!(
+            !filter.contains("bevy_render::extract_resource"),
+            "offscreen has a render sub-app; the headless clamps do not apply"
+        );
+        assert!(!log_filter_str(Assembly::Windowed).contains("screenshot"));
     }
 }

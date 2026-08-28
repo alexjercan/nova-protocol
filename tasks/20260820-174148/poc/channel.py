@@ -32,6 +32,7 @@ class Channel:
         if cmd is None:
             mock = Path(__file__).parent / "mock_game.py"
             cmd = [sys.executable, str(mock), "--step"]
+        self.cmd = cmd
         self.proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -149,7 +150,31 @@ class Channel:
     def close(self) -> None:
         if self.proc.stdin is not None:
             self.proc.stdin.close()
-        self.proc.wait(timeout=5)
+        # A recording run flushes its last in-flight captures after EOF.
+        self.proc.wait(timeout=30)
+        self._stitch_recording()
+
+    def _stitch_recording(self) -> None:
+        """A ``--record <dir>`` run leaves one PNG per tick; stitch them into
+        a real-time 60 FPS movie beside the directory."""
+        if "--record" not in self.cmd:
+            return
+        frames = Path(self.cmd[self.cmd.index("--record") + 1])
+        out = frames.with_suffix(".mp4")
+        command = [
+            "ffmpeg", "-y", "-loglevel", "error", "-framerate", "60",
+            "-i", str(frames / "frame_%06d.png"), "-pix_fmt", "yuv420p",
+            str(out),
+        ]
+        try:
+            subprocess.run(command, check=True)
+        except FileNotFoundError:
+            print(f"  no ffmpeg; stitch by hand: {' '.join(command)}")
+            return
+        except subprocess.CalledProcessError:
+            print(f"  ffmpeg could not stitch {frames}")
+            return
+        print(f"  video: {out}")
 
 
 def check(condition: bool, label: str) -> None:
