@@ -67,17 +67,19 @@ pub(crate) struct FilterNode {
 
 /// What a [`FilterNode`] is.
 ///
-/// The three leaf arms carry their config; the three COMBINATOR arms carry
-/// nothing, because what they combine are child filter nodes. That is the same
-/// split `Sequence` gets one level up, and for the same reason: a
-/// `Box<EventFilterConfig>` inside the node would be an operand the tree cannot
-/// show.
+/// The two leaf arms carry their config; the three COMBINATOR arms carry
+/// nothing, because what they combine are child filter nodes, and `Expression`
+/// carries nothing because its comparison is a child too. That is the same
+/// split `Sequence` gets one level up, and for the same reason: an operand
+/// inside the node would be an operand the tree cannot show.
 #[derive(Debug, Clone)]
 pub(crate) enum FilterKind {
     /// Match the event's entities by id or type name.
     Entity(EntityFilterConfig),
-    /// Compare scenario variables.
-    Expression(ExpressionFilterConfig),
+    /// Compare scenario variables. Carries nothing: the comparison is its
+    /// child expression node, the same way a combinator's operands are its
+    /// child filters.
+    Expression,
     /// Match a timer event by key.
     Timer(TimerFilterConfig),
     /// Invert the one filter inside it.
@@ -86,6 +88,63 @@ pub(crate) enum FilterKind {
     And,
     /// Pass when either filter inside it passes.
     Or,
+}
+
+/// One node of an expression: an operator whose operands are its children, or
+/// a leaf that is typed.
+///
+/// THE OPERATOR IS THE NODE. Read as one line, `picket_warden_awake == false`
+/// hides its own shape - the `==` is somewhere in the middle and the two things
+/// it compares are found by reading outwards from it. As nodes the operator is
+/// the row you land on and its operands hang under it, which is the shape the
+/// comparison has.
+///
+/// A LEAF IS STILL TEXT. `4`, `"act_two"`, `beat`, `entity("courier").speed`
+/// are one row each either way, and a tree that spent a node on every literal
+/// would bury the operators this exists to show. The leaf holds a whole
+/// expression, so anything the grammar can hold can still be typed into one
+/// row - see [`crate::event::ExprChoice::Value`].
+#[derive(Component, Debug, Clone)]
+pub(crate) struct ExpressionNode {
+    /// Which operator it is, or the value it holds.
+    pub(crate) kind: ExprKind,
+}
+
+/// What an [`ExpressionNode`] is.
+///
+/// The comparisons are the root of a CONDITION and the rest are the root of a
+/// VALUE, which is the same split the grammar has: a filter compares, and what
+/// it compares are expressions.
+#[derive(Debug, Clone)]
+pub(crate) enum ExprKind {
+    /// `left == right`.
+    Equal,
+    /// `left < right`.
+    LessThan,
+    /// `left > right`.
+    GreaterThan,
+    /// `left + right`.
+    Add,
+    /// `left - right`.
+    Subtract,
+    /// `left * right`.
+    Multiply,
+    /// `left / right`.
+    Divide,
+    /// A typed operand: a literal, a variable, a query, or any expression that
+    /// fits one row.
+    Value(ValueOperand),
+}
+
+/// A leaf operand, as the one row it fits on.
+///
+/// The field is the authored expression itself, which reflects as an opaque
+/// leaf and therefore edits as TEXT through `syntax.rs` - the same box, the
+/// same parse and the same refusal a condition had before it was a tree.
+#[derive(Debug, Clone, Reflect)]
+pub(crate) struct ValueOperand {
+    /// The operand.
+    pub(crate) value: VariableExpressionNode,
 }
 
 /// One action of a handler or of a sequence step.
@@ -234,14 +293,146 @@ impl FilterChoice {
     pub(crate) fn stock(self) -> FilterKind {
         match self {
             FilterChoice::Entity => FilterKind::Entity(EntityFilterConfig::default()),
-            FilterChoice::Expression => FilterKind::Expression(ExpressionFilterConfig(
-                VariableConditionNode::new_equals(number(0.0), number(0.0)),
-            )),
+            FilterChoice::Expression => FilterKind::Expression,
             FilterChoice::Timer => FilterKind::Timer(TimerFilterConfig { key: String::new() }),
             FilterChoice::Not => FilterKind::Not,
             FilterChoice::And => FilterKind::And,
             FilterChoice::Or => FilterKind::Or,
         }
+    }
+}
+
+/// The operator kinds an expression node can be switched to, in the order the
+/// panel lists them: the comparisons first, because a condition's root is one
+/// of those and that is the row a builder lands on.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExprChoice {
+    /// Equality.
+    Equal,
+    /// Less than.
+    LessThan,
+    /// Greater than.
+    GreaterThan,
+    /// Sum.
+    Add,
+    /// Difference.
+    Subtract,
+    /// Product.
+    Multiply,
+    /// Quotient.
+    Divide,
+    /// A typed operand.
+    Value,
+}
+
+impl ExprChoice {
+    /// Every operator, and the leaf.
+    pub(crate) const ALL: [ExprChoice; 8] = [
+        ExprChoice::Equal,
+        ExprChoice::LessThan,
+        ExprChoice::GreaterThan,
+        ExprChoice::Add,
+        ExprChoice::Subtract,
+        ExprChoice::Multiply,
+        ExprChoice::Divide,
+        ExprChoice::Value,
+    ];
+
+    /// The row label: the SYMBOL, not the word for it.
+    ///
+    /// `==` is what the grammar spells and what the file holds, and a column of
+    /// symbols is a column the eye can pick an operator out of - which is the
+    /// whole reason these are nodes.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            ExprChoice::Equal => "==",
+            ExprChoice::LessThan => "<",
+            ExprChoice::GreaterThan => ">",
+            ExprChoice::Add => "+",
+            ExprChoice::Subtract => "-",
+            ExprChoice::Multiply => "*",
+            ExprChoice::Divide => "/",
+            ExprChoice::Value => "value",
+        }
+    }
+
+    /// The stem a minted id is named after. Words, not symbols: an id is typed
+    /// into a filter field and read in a file.
+    pub(crate) fn stem(self) -> &'static str {
+        match self {
+            ExprChoice::Equal => "equal",
+            ExprChoice::LessThan => "less",
+            ExprChoice::GreaterThan => "greater",
+            ExprChoice::Add => "add",
+            ExprChoice::Subtract => "subtract",
+            ExprChoice::Multiply => "multiply",
+            ExprChoice::Divide => "divide",
+            ExprChoice::Value => "value",
+        }
+    }
+
+    /// How many operands the kind takes. Every operator is binary; a value
+    /// takes none.
+    pub(crate) fn operands(self) -> usize {
+        match self {
+            ExprChoice::Value => 0,
+            _ => 2,
+        }
+    }
+
+    /// Whether this kind compares - and so may only ever be a condition's root.
+    pub(crate) fn compares(self) -> bool {
+        matches!(
+            self,
+            ExprChoice::Equal | ExprChoice::LessThan | ExprChoice::GreaterThan
+        )
+    }
+
+    /// A fresh node of this kind. A value arrives as `0`, which is a whole
+    /// expression that evaluates - an empty box would be a condition that
+    /// cannot be read until it is finished.
+    pub(crate) fn stock(self) -> ExprKind {
+        match self {
+            ExprChoice::Equal => ExprKind::Equal,
+            ExprChoice::LessThan => ExprKind::LessThan,
+            ExprChoice::GreaterThan => ExprKind::GreaterThan,
+            ExprChoice::Add => ExprKind::Add,
+            ExprChoice::Subtract => ExprKind::Subtract,
+            ExprChoice::Multiply => ExprKind::Multiply,
+            ExprChoice::Divide => ExprKind::Divide,
+            ExprChoice::Value => ExprKind::Value(ValueOperand { value: number(0.0) }),
+        }
+    }
+}
+
+/// Which operator a node holds, as a choice.
+pub(crate) fn expr_choice(kind: &ExprKind) -> ExprChoice {
+    match kind {
+        ExprKind::Equal => ExprChoice::Equal,
+        ExprKind::LessThan => ExprChoice::LessThan,
+        ExprKind::GreaterThan => ExprChoice::GreaterThan,
+        ExprKind::Add => ExprChoice::Add,
+        ExprKind::Subtract => ExprChoice::Subtract,
+        ExprKind::Multiply => ExprChoice::Multiply,
+        ExprKind::Divide => ExprChoice::Divide,
+        ExprKind::Value(_) => ExprChoice::Value,
+    }
+}
+
+/// The config an expression node carries, for reading. `None` for an operator,
+/// which carries none: what it operates on are its children.
+pub(crate) fn expr_config(kind: &ExprKind) -> Option<&dyn PartialReflect> {
+    match kind {
+        ExprKind::Value(operand) => Some(operand),
+        _ => None,
+    }
+}
+
+/// The same config, for writing.
+pub(crate) fn expr_config_mut(kind: &mut ExprKind) -> Option<&mut dyn PartialReflect> {
+    match kind {
+        ExprKind::Value(operand) => Some(operand),
+        _ => None,
     }
 }
 
@@ -256,7 +447,7 @@ fn number(value: f64) -> VariableExpressionNode {
 pub(crate) fn filter_choice(kind: &FilterKind) -> FilterChoice {
     match kind {
         FilterKind::Entity(_) => FilterChoice::Entity,
-        FilterKind::Expression(_) => FilterChoice::Expression,
+        FilterKind::Expression => FilterChoice::Expression,
         FilterKind::Timer(_) => FilterChoice::Timer,
         FilterKind::Not => FilterChoice::Not,
         FilterKind::And => FilterChoice::And,
@@ -264,14 +455,13 @@ pub(crate) fn filter_choice(kind: &FilterKind) -> FilterChoice {
     }
 }
 
-/// The config a filter node carries, for reading. `None` for a combinator,
-/// which carries none.
+/// The config a filter node carries, for reading. `None` for a filter whose
+/// content is its children: a combinator, or the comparison.
 pub(crate) fn filter_config(kind: &FilterKind) -> Option<&dyn PartialReflect> {
     match kind {
         FilterKind::Entity(config) => Some(config),
-        FilterKind::Expression(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
-        FilterKind::Not | FilterKind::And | FilterKind::Or => None,
+        FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
 
@@ -279,9 +469,8 @@ pub(crate) fn filter_config(kind: &FilterKind) -> Option<&dyn PartialReflect> {
 pub(crate) fn filter_config_mut(kind: &mut FilterKind) -> Option<&mut dyn PartialReflect> {
     match kind {
         FilterKind::Entity(config) => Some(config),
-        FilterKind::Expression(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
-        FilterKind::Not | FilterKind::And | FilterKind::Or => None,
+        FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
 
@@ -832,18 +1021,20 @@ fn lift_filter(
     ordinal: u32,
     filter: EventFilterConfig,
 ) -> Entity {
-    let (kind, operands) = match filter {
-        EventFilterConfig::Entity(config) => (FilterKind::Entity(config), Vec::new()),
-        EventFilterConfig::Expression(config) => (FilterKind::Expression(config), Vec::new()),
-        EventFilterConfig::Timer(config) => (FilterKind::Timer(config), Vec::new()),
+    let (kind, operands, condition) = match filter {
+        EventFilterConfig::Entity(config) => (FilterKind::Entity(config), Vec::new(), None),
+        EventFilterConfig::Expression(ExpressionFilterConfig(condition)) => {
+            (FilterKind::Expression, Vec::new(), Some(condition))
+        }
+        EventFilterConfig::Timer(config) => (FilterKind::Timer(config), Vec::new(), None),
         EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
-            (FilterKind::Not, vec![*inner])
+            (FilterKind::Not, vec![*inner], None)
         }
         EventFilterConfig::Conditional(ConditionalFilterConfig::And(left, right)) => {
-            (FilterKind::And, vec![*left, *right])
+            (FilterKind::And, vec![*left, *right], None)
         }
         EventFilterConfig::Conditional(ConditionalFilterConfig::Or(left, right)) => {
-            (FilterKind::Or, vec![*left, *right])
+            (FilterKind::Or, vec![*left, *right], None)
         }
     };
     let id = format!("{}_{ordinal}", filter_choice(&kind).stem());
@@ -852,15 +1043,130 @@ fn lift_filter(
             EditorNode,
             FilterNode { kind },
             NodeId(id.clone()),
-            counter(operands.len()),
+            counter(operands.len() + usize::from(condition.is_some())),
             Name::new(format!("Filter Node {id}")),
             ChildOf(parent),
         ))
         .id();
+    if let Some(condition) = condition {
+        lift_condition(commands, node, 1, condition);
+    }
     for (index, operand) in operands.into_iter().enumerate() {
         lift_filter(commands, node, ordinal_at(index), operand);
     }
     node
+}
+
+/// A condition, as the node tree that shows its shape.
+fn lift_condition(
+    commands: &mut Commands,
+    parent: Entity,
+    ordinal: u32,
+    condition: VariableConditionNode,
+) -> Entity {
+    let (kind, left, right) = match condition {
+        VariableConditionNode::Equal(left, right) => (ExprKind::Equal, left, right),
+        VariableConditionNode::LessThan(left, right) => (ExprKind::LessThan, left, right),
+        VariableConditionNode::GreaterThan(left, right) => (ExprKind::GreaterThan, left, right),
+    };
+    let node = spawn_expression(commands, parent, ordinal, kind, 2);
+    lift_expression(commands, node, 1, *left);
+    lift_expression(commands, node, 2, *right);
+    node
+}
+
+/// A value expression, as nodes.
+///
+/// A `Parens` is DROPPED on the way in: the tree draws the grouping the
+/// brackets were there to say, and the lowering puts them back wherever the
+/// authored form needs them. What comes back is the same tree; what does not
+/// survive is a bracket that was never doing anything.
+fn lift_expression(
+    commands: &mut Commands,
+    parent: Entity,
+    ordinal: u32,
+    expression: VariableExpressionNode,
+) -> Entity {
+    match expression {
+        VariableExpressionNode::Add(left, right) => {
+            let node = spawn_expression(commands, parent, ordinal, ExprKind::Add, 2);
+            lift_term(commands, node, 1, *left);
+            lift_expression(commands, node, 2, *right);
+            node
+        }
+        VariableExpressionNode::Subtract(left, right) => {
+            let node = spawn_expression(commands, parent, ordinal, ExprKind::Subtract, 2);
+            lift_term(commands, node, 1, *left);
+            lift_expression(commands, node, 2, *right);
+            node
+        }
+        VariableExpressionNode::Term(term) => lift_term(commands, parent, ordinal, term),
+    }
+}
+
+fn lift_term(
+    commands: &mut Commands,
+    parent: Entity,
+    ordinal: u32,
+    term: VariableTermNode,
+) -> Entity {
+    match term {
+        VariableTermNode::Multiply(left, right) => {
+            let node = spawn_expression(commands, parent, ordinal, ExprKind::Multiply, 2);
+            lift_factor(commands, node, 1, *left);
+            lift_term(commands, node, 2, *right);
+            node
+        }
+        VariableTermNode::Divide(left, right) => {
+            let node = spawn_expression(commands, parent, ordinal, ExprKind::Divide, 2);
+            lift_factor(commands, node, 1, *left);
+            lift_term(commands, node, 2, *right);
+            node
+        }
+        VariableTermNode::Factor(factor) => lift_factor(commands, parent, ordinal, factor),
+    }
+}
+
+fn lift_factor(
+    commands: &mut Commands,
+    parent: Entity,
+    ordinal: u32,
+    factor: VariableFactorNode,
+) -> Entity {
+    match factor {
+        VariableFactorNode::Parens(inner) => lift_expression(commands, parent, ordinal, *inner),
+        leaf => {
+            let value = VariableExpressionNode::new_term(VariableTermNode::new_factor(leaf));
+            spawn_expression(
+                commands,
+                parent,
+                ordinal,
+                ExprKind::Value(ValueOperand { value }),
+                0,
+            )
+        }
+    }
+}
+
+/// One expression node, with room for the operands it is about to be given.
+fn spawn_expression(
+    commands: &mut Commands,
+    parent: Entity,
+    ordinal: u32,
+    kind: ExprKind,
+    operands: usize,
+) -> Entity {
+    let id = format!("{}_{ordinal}", expr_choice(&kind).stem());
+    commands
+        .spawn((
+            EditorNode,
+            ExpressionNode { kind },
+            NodeId(id.clone()),
+            counter(operands),
+            Name::new(format!("Expression Node {id}")),
+            ChildOf(parent),
+        ))
+        .id()
 }
 
 fn lift_action(
@@ -964,6 +1270,7 @@ pub(crate) struct ScriptNodes<'w, 's> {
     actions: Query<'w, 's, &'static ActionNode>,
     steps: Query<'w, 's, &'static StepNode>,
     gates: Query<'w, 's, &'static GateNode>,
+    operands: Query<'w, 's, &'static ExpressionNode>,
     open: Query<'w, 's, (), With<Expanded>>,
 }
 
@@ -982,12 +1289,17 @@ impl ScriptNodes<'_, '_> {
     }
 
     /// Whether `node` is part of the script at all.
+    ///
+    /// The operands count: an Add pressed while an operator is marked has to
+    /// climb out of the condition to the handler that holds it, and a node the
+    /// climb does not recognise stops it before it starts.
     pub(crate) fn holds(&self, node: Entity) -> bool {
         self.events.contains(node)
             || self.filters.contains(node)
             || self.actions.contains(node)
             || self.steps.contains(node)
             || self.gates.contains(node)
+            || self.operands.contains(node)
     }
 
     /// The node `node` hangs from.
@@ -1021,8 +1333,24 @@ impl ScriptNodes<'_, '_> {
     }
 
     /// The gate `node` is, if it is one.
+    /// The expression node `node` is, if it is one.
+    pub(crate) fn expression(&self, node: Entity) -> Option<&ExpressionNode> {
+        self.operands.get(node).ok()
+    }
+
     pub(crate) fn gate(&self, node: Entity) -> Option<&GateNode> {
         self.gates.get(node).ok()
+    }
+
+    /// The condition under `node`, in the text form the grammar spells it in,
+    /// or `None` where the nodes do not make one.
+    ///
+    /// For the tree row of the filter that HOLDS it: shut, the row still says
+    /// what it compares, which is the one thing a builder scanning a handler
+    /// needs from it. Open, the same condition is the rows underneath.
+    pub(crate) fn condition_text(&self, node: Entity) -> Option<String> {
+        let root = self.operands_of(node).into_iter().next()?;
+        Some(self.lower_condition(root)?.to_string())
     }
 
     /// The children of `node` that hold `T`, in AUTHORED order.
@@ -1064,6 +1392,12 @@ impl ScriptNodes<'_, '_> {
     /// The steps of a sequence action.
     pub(crate) fn steps_of(&self, node: Entity) -> Vec<Entity> {
         self.ordered(node, &self.steps)
+    }
+
+    /// The operands under `node`, in left-to-right order: an operator's two,
+    /// an expression filter's one condition, a value's none.
+    pub(crate) fn operands_of(&self, node: Entity) -> Vec<Entity> {
+        self.ordered(node, &self.operands)
     }
 
     /// A step's gate, if it waits for one.
@@ -1138,7 +1472,9 @@ impl ScriptNodes<'_, '_> {
         let mut operands = self.filters_of(node).into_iter();
         Some(match &filter.kind {
             FilterKind::Entity(config) => EventFilterConfig::Entity(config.clone()),
-            FilterKind::Expression(config) => EventFilterConfig::Expression(config.clone()),
+            FilterKind::Expression => EventFilterConfig::Expression(ExpressionFilterConfig(
+                self.lower_condition(self.operands_of(node).into_iter().next()?)?,
+            )),
             FilterKind::Timer(config) => EventFilterConfig::Timer(config.clone()),
             // A combinator with an operand missing is DROPPED rather than
             // guessed at: `Not` of nothing is not `Not` of anything, and a
@@ -1155,6 +1491,80 @@ impl ScriptNodes<'_, '_> {
                 self.lower_filter(operands.next()?)?,
                 self.lower_filter(operands.next()?)?,
             )),
+        })
+    }
+
+    /// A condition node, back as the comparison it draws.
+    ///
+    /// Only a comparison can be a condition's root: an `+` where a `<` belongs
+    /// is not a condition that is nearly right, so it lowers to nothing and
+    /// takes its filter with it - the same refusal a combinator missing an
+    /// operand makes.
+    fn lower_condition(&self, node: Entity) -> Option<VariableConditionNode> {
+        let expression = self.expression(node)?;
+        let mut operands = self.operands_of(node).into_iter();
+        let mut side = || self.lower_expression(operands.next()?);
+        let (left, right) = (side()?, side()?);
+        Some(match expression.kind {
+            ExprKind::Equal => VariableConditionNode::new_equals(left, right),
+            ExprKind::LessThan => VariableConditionNode::new_less_than(left, right),
+            ExprKind::GreaterThan => VariableConditionNode::new_greater_than(left, right),
+            _ => return None,
+        })
+    }
+
+    /// A value node, back as an expression.
+    fn lower_expression(&self, node: Entity) -> Option<VariableExpressionNode> {
+        let expression = self.expression(node)?;
+        let mut operands = self.operands_of(node).into_iter();
+        Some(match expression.kind {
+            ExprKind::Add => VariableExpressionNode::new_add(
+                self.lower_term(operands.next()?)?,
+                self.lower_expression(operands.next()?)?,
+            ),
+            ExprKind::Subtract => VariableExpressionNode::new_subtract(
+                self.lower_term(operands.next()?)?,
+                self.lower_expression(operands.next()?)?,
+            ),
+            ExprKind::Value(ref operand) => operand.value.clone(),
+            _ => VariableExpressionNode::new_term(self.lower_term(node)?),
+        })
+    }
+
+    /// The same node where a TERM belongs.
+    ///
+    /// A sum in a product's place is bracketed on the way out: the tree said
+    /// `(a + b) * c` by hanging the sum under the product, and the grammar says
+    /// it with the brackets the lifting dropped.
+    fn lower_term(&self, node: Entity) -> Option<VariableTermNode> {
+        let expression = self.expression(node)?;
+        let mut operands = self.operands_of(node).into_iter();
+        Some(match expression.kind {
+            ExprKind::Multiply => VariableTermNode::new_multiply(
+                self.lower_factor(operands.next()?)?,
+                self.lower_term(operands.next()?)?,
+            ),
+            ExprKind::Divide => VariableTermNode::new_divide(
+                self.lower_factor(operands.next()?)?,
+                self.lower_term(operands.next()?)?,
+            ),
+            _ => VariableTermNode::new_factor(self.lower_factor(node)?),
+        })
+    }
+
+    /// The same node where a FACTOR belongs.
+    fn lower_factor(&self, node: Entity) -> Option<VariableFactorNode> {
+        let expression = self.expression(node)?;
+        Some(match expression.kind {
+            // A leaf holds a whole expression because a builder may type one
+            // into it, so it needs the brackets too - unless it is the single
+            // factor it usually is, which would only gain a pair that says
+            // nothing.
+            ExprKind::Value(ValueOperand {
+                value: VariableExpressionNode::Term(VariableTermNode::Factor(ref factor)),
+            }) => factor.clone(),
+            ExprKind::Value(ref operand) => VariableFactorNode::new_parens(operand.value.clone()),
+            _ => VariableFactorNode::new_parens(self.lower_expression(node)?),
         })
     }
 
@@ -1359,6 +1769,14 @@ fn named_action(label: &str) -> Option<ActionChoice> {
         .find(|choice| choice.label() == label)
 }
 
+/// A named expression kind, for the panel row that switches between them. The
+/// label is the SYMBOL, which is what the row shows.
+fn named_expression(label: &str) -> Option<ExprChoice> {
+    ExprChoice::ALL
+        .into_iter()
+        .find(|choice| choice.label() == label)
+}
+
 /// Make `node` the filter or action `label` names.
 ///
 /// Through the WORLD rather than a system's queries: the swap reads a node's
@@ -1376,6 +1794,12 @@ pub(crate) fn retype_script_node(world: &mut World, node: Entity, label: &str) {
         if let Some(choice) = named_action(label) {
             retype_action(world, node, choice);
         }
+        return;
+    }
+    if world.get::<ExpressionNode>(node).is_some() {
+        if let Some(choice) = named_expression(label) {
+            retype_expression(world, node, choice);
+        }
     }
 }
 
@@ -1389,12 +1813,89 @@ fn retype_filter(world: &mut World, node: Entity, choice: FilterChoice) {
     let Some(mut filter) = world.get_mut::<FilterNode>(node) else {
         return;
     };
-    if filter_choice(&filter.kind) == choice {
+    let was = filter_choice(&filter.kind);
+    if was == choice {
         return;
     }
     filter.kind = choice.stock();
     rename(world, node, "Filter", choice.stem());
+    // A CONDITION is not an operand: an expression filter's one child is a
+    // tree of its own, and neither the kind it came from nor the one it is
+    // going to can hold it. Either side of that line keeps nothing.
+    let expression = was == FilterChoice::Expression || choice == FilterChoice::Expression;
+    drop_children(world, node, if expression { 0 } else { choice.operands() });
+    if choice == FilterChoice::Expression {
+        let stock = VariableConditionNode::new_equals(number(0.0), number(0.0));
+        let mut commands = world.commands();
+        lift_condition(&mut commands, node, 1, stock);
+        world.flush();
+        open_up(world, node);
+        open_down(world, node);
+    }
+}
+
+/// Switch an expression node to another operator, or to a value.
+///
+/// The operands are KEPT where the new kind still takes them - `==` to `<` is
+/// the same two sides compared differently - and a kind that takes operands it
+/// has not got is given fresh ones, so an operator always has something to
+/// lower. Switching to a value drops them: what a value holds is its own text.
+fn retype_expression(world: &mut World, node: Entity, choice: ExprChoice) {
+    let Some(mut expression) = world.get_mut::<ExpressionNode>(node) else {
+        return;
+    };
+    if expr_choice(&expression.kind) == choice {
+        return;
+    }
+    expression.kind = choice.stock();
+    rename(world, node, "Expression", choice.stem());
     drop_children(world, node, choice.operands());
+    let held = expression_children(world, node).len();
+    if held == choice.operands() {
+        return;
+    }
+    let mut commands = world.commands();
+    for ordinal in held..choice.operands() {
+        lift_expression(&mut commands, node, ordinal_at(ordinal), number(0.0));
+    }
+    world.flush();
+    open_up(world, node);
+}
+
+/// Open `node` and every operand under it, so a condition just minted arrives
+/// as the rows it is made of rather than as one shut caret.
+fn open_down(world: &mut World, node: Entity) {
+    world.entity_mut(node).insert(Expanded);
+    for child in expression_children(world, node) {
+        open_down(world, child);
+    }
+}
+
+/// Open `node` and everything above it, so children just minted have rows.
+///
+/// The same rule the Add menu keeps: a node the tree cannot draw is a node the
+/// selection drops, and a condition that appears folded up inside the row that
+/// was just switched reads as the switch having done nothing.
+fn open_up(world: &mut World, node: Entity) {
+    let mut open = Some(node);
+    while let Some(at) = open {
+        world.entity_mut(at).insert(Expanded);
+        open = world.get::<ChildOf>(at).map(ChildOf::parent);
+    }
+}
+
+/// The children of `node` that are expression nodes, in authored order.
+fn expression_children(world: &World, node: Entity) -> Vec<Entity> {
+    let Some(children) = world.get::<Children>(node) else {
+        return Vec::new();
+    };
+    let mut found: Vec<(u64, Entity)> = children
+        .iter()
+        .filter(|child| world.get::<ExpressionNode>(*child).is_some())
+        .filter_map(|child| Some((id_order(&world.get::<NodeId>(child)?.0).1, child)))
+        .collect();
+    found.sort_unstable();
+    found.into_iter().map(|(_, child)| child).collect()
 }
 
 /// Switch an action to another kind.

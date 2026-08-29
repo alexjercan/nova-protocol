@@ -124,6 +124,12 @@ pub(crate) const ACTION: &str = "\u{2192}";
 pub(crate) const SEQUENCE: &str = "\u{21d2}";
 /// One beat of a sequence. BULLET.
 pub(crate) const STEP: &str = "\u{2022}";
+/// An operator of a condition. WHITE DIAMOND - a junction, which is what an
+/// operator is: two sides meet at it.
+pub(crate) const OPERATOR: &str = "\u{25c7}";
+/// A value under an operator. WHITE SMALL SQUARE - one box holding one thing,
+/// small because it is the end of the branch.
+pub(crate) const OPERAND: &str = "\u{25ab}";
 /// The event a step waits for. BOX DRAWINGS DOUBLE VERTICAL - a shut gate.
 pub(crate) const GATE: &str = "\u{2551}";
 

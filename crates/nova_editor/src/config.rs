@@ -104,11 +104,18 @@ impl LastClick {
     }
 }
 
-/// Which half of the document the rail's tree is showing.
+/// Which half of the document the rail's tree is showing - and, with it, WHICH
+/// EDITOR the screen is.
 ///
 /// One tree and two tabs rather than two stacked trees: a range holds twenty
 /// objects and a script holds as many handlers, and a 150px rail cannot show
 /// both at once without the half you came for being off the bottom edge.
+///
+/// The tab is a MODE, not a filter on a list. [`RailTab::Scene`] is the stage
+/// with its panels either side of it, and the panels are narrow because the
+/// placement raycast goes through the middle of the screen. Nothing is placed
+/// in [`RailTab::Events`], so that constraint does not exist there and the
+/// script gets the whole window instead - see `crate::ui::sync_editor_mode`.
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub(crate) enum RailTab {
     /// The world: the range, the ships on it and the objects around them.
@@ -117,6 +124,27 @@ pub(crate) enum RailTab {
     /// The script: the handlers, their filters and what they do.
     Events,
 }
+
+impl RailTab {
+    /// Whether the screen is the events editor rather than the stage.
+    pub(crate) fn is_events(self) -> bool {
+        self == RailTab::Events
+    }
+}
+
+/// The left rail's own node, so the mode can widen it.
+#[derive(Component)]
+pub(crate) struct EditorRail;
+
+/// The foot: the placement verdict and the key legend. Both are about the
+/// STAGE, so the mode hides them where there is no stage.
+#[derive(Component)]
+pub(crate) struct EditorFoot;
+
+/// The Inspector's header text, which says which panel this is: the inspector
+/// beside the stage, or the events editor that replaced it.
+#[derive(Component)]
+pub(crate) struct InspectorHeader;
 
 /// One tab of the rail's tree header, carrying the half it switches to.
 #[derive(Component, Clone, Copy)]

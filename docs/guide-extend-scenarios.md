@@ -331,7 +331,7 @@ SpawnScenarioObject(ScenarioObjectConfig(
 
 ## Two surfaces author the vocabulary
 
-A RON file is one way to write a handler; the editor's EVENTS tab is the other,
+A RON file is one way to write a handler; the editor's EVENTS mode is the other,
 and it draws every row it shows by REFLECTION off the same config structs. So a
 config that is not `Reflect` is a construct the editor cannot show, and a string
 field with no [`Names`](scenario-system.md#the-vocabulary-and-who-documents-it)

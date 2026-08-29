@@ -257,6 +257,10 @@ const DELETE_KEY: KeyCode = KeyCode::Delete;
 /// One alias rather than the same filter written out at each of the places
 /// that ask - the menu row, the row trash, the key and the verb they share -
 /// because a kind missing from ONE of them is a row whose trash does nothing.
+///
+/// A condition's OPERANDS are not among them. An operator with one side left
+/// is not a condition, and the filter holding it would be dropped by the next
+/// save - so a side is switched to something else, never taken away.
 pub(crate) type DeletableNode = Or<(
     With<ShipNode>,
     With<ObjectNode>,

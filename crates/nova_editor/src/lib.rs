@@ -1,6 +1,12 @@
 //! The spaceship editor: a scene where you build a ship out of sections and then
 //! hand it off to a scenario simulation.
 //!
+//! TWO MODES, on one screen: SCENE lays the range out on a stage with the
+//! Inspector docked beside it, and EVENTS gives the whole window to the script.
+//! The tabs above the rail switch between them (`ui::sync_editor_mode`), because
+//! the panel widths only exist to keep the stage's centre clickable - and there
+//! is no stage to click in the half of the document that is a script.
+//!
 //! Structure:
 //! - `readout`   - what the hull under construction weighs, pushes and turns like
 //! - `node`      - the document: the node tree and the edit context
@@ -18,7 +24,8 @@
 //! - `stage`     - the ground plane the range is laid out on
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
-//! - `event`     - the script as nodes: a handler, its filters, its actions, its beats
+//! - `event`     - the script as nodes: a handler, its filters and actions, its
+//!                 beats, and a condition down to its operators
 //! - `bundle`    - the document as a saved mod bundle, and the read back out of one
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above
@@ -103,9 +110,9 @@ use ui::{
     },
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
-    sync_rail_tabs, sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle,
-    sync_status_line, sync_style_list,
+    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_editor_mode, sync_key_legend,
+    sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash, sync_scene_list,
+    sync_skin_toggle, sync_status_line, sync_style_list,
     window::{
         close_confirm_window, on_colour_slider, on_destructive_item, sync_colour_windows,
         sync_ref_windows,
@@ -448,6 +455,10 @@ fn editor_plugin(app: &mut App) {
             // only because a flat tuple would pass Bevy's arity limit.
             (
                 sync_rail_tabs,
+                // Before the tree and the panel: both are laid out inside the
+                // widths this decides, and a rail that widens a frame after
+                // its rows are built shows one frame of the old crop.
+                sync_editor_mode,
                 sync_scene_list,
                 // After the rows: a hint is positioned from the row it
                 // describes, and a rebuilt list has no laid-out rows yet. The

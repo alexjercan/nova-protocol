@@ -153,9 +153,10 @@ make the query unavailable. Expressions fail closed. Missing is not zero.
 ## The typed form (in the editor)
 
 The RON above is the authored form, and it is the one the file holds. The
-in-game editor's Inspector shows the same tree as ONE LINE of text and parses
-what you type back into it, because a nest of `Add(Term(Factor(...` does not fit
-a 300px row:
+in-game editor's EVENTS screen shows a condition as NODES: the operator is the
+row you land on and the two things it compares hang under it, which is the shape
+the comparison has. Each leaf is one row holding one value, and that value is
+typed in the short form below rather than as a nest of `Add(Term(Factor(...`:
 
 | you type | the file holds |
 |---|---|
@@ -184,6 +185,11 @@ rewrite a condition you did not touch. `a - b - c` still groups RIGHTWARD, as
 
 A line that does not parse is REFUSED: the field says why (`'&' is not part of
 an expression`, `unterminated string`) and the config keeps the value it had.
+
+Typing a whole expression into one leaf is allowed - `(a + b) * 2` in a single
+row reads exactly as it does here - so the tree is how deep you want it to be.
+The brackets come back on the way out wherever the shape needs them: a sum
+hanging under a product is written `(a + b) * 2`, never `a + b * 2`.
 
 ## Recipes
 

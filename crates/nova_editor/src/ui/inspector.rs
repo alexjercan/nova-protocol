@@ -33,19 +33,19 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{EditorOverlays, EditorSays, SelectedNode},
+    config::{EditorOverlays, EditorSays, InspectorHeader, RailTab, SelectedNode},
     event::{
-        action_config_mut, filter_config_mut, retype_script_node, ActionNode, EventNode,
-        FilterNode, GateNode, StepNode,
+        action_config_mut, expr_config_mut, filter_config_mut, retype_script_node, ActionNode,
+        EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
     },
     gizmo::GizmoAxis,
     inspect::{
         action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
-        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
-        object_config_mut, object_rows, parse_colour, rotation_degrees, rotation_from_degrees,
-        scenario_rows, script_name, section_config_mut, section_rows, ship_rows, step_rows,
-        toggle_field, write_field, DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow,
-        NodeKinds, PathStep, RowValue, ScriptNames, GRIP_GONE,
+        driver_label, editable_config, event_rows, expression_rows, filter_rows, gate_rows,
+        inspected, nudge_field, object_config_mut, object_rows, parse_colour, rotation_degrees,
+        rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
+        ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
+        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -56,9 +56,12 @@ use crate::{
     ui::window::{on_open_colour_window, on_open_ref_window},
 };
 
-/// Panel width. Wider than the rail because every row is a name AND a value
-/// side by side; still narrow enough to leave the stage its centre, which is
-/// where the placement raycast goes.
+/// Panel width IN SCENE MODE. Wider than the rail because every row is a name
+/// AND a value side by side; still narrow enough to leave the stage its centre,
+/// which is where the placement raycast goes.
+///
+/// The events editor is not bound by that - it has no stage to keep clickable -
+/// and takes whatever the rail leaves instead. See `crate::ui::sync_editor_mode`.
 pub(crate) const PANEL_W: f32 = 300.0;
 /// The name column. Fixed rather than proportional so the value boxes of every
 /// row line up, which is what makes a column of numbers readable. Wide enough
@@ -261,6 +264,12 @@ pub(crate) struct InspectorChoice {
 pub(crate) struct Document<'w, 's> {
     catalog: Option<Res<'w, GameSections>>,
     context: Res<'w, EditContext>,
+    /// Which editor the screen is. The panel reads it to decide whether it may
+    /// go away when nothing is selected - see [`Document::is_events`].
+    ///
+    /// Optional like the catalog: the editor's plugin puts it in, and a fixture
+    /// that runs the panel without the rest of the editor is the Inspector.
+    tab: Option<Res<'w, RailTab>>,
     overlays: Res<'w, EditorOverlays>,
     selected: Res<'w, SelectedNode>,
     kinds: NodeKinds<'w, 's>,
@@ -274,10 +283,27 @@ pub(crate) struct Document<'w, 's> {
     actions: Query<'w, 's, &'static ActionNode>,
     steps: Query<'w, 's, &'static StepNode>,
     gates: Query<'w, 's, &'static GateNode>,
+    expressions: Query<'w, 's, &'static ExpressionNode>,
+    parents: Query<'w, 's, &'static ChildOf>,
     names: ScriptNames<'w, 's>,
 }
 
 impl Document<'_, '_> {
+    /// Whether the panel is the events editor rather than the stage's
+    /// Inspector.
+    pub(crate) fn is_events(&self) -> bool {
+        self.tab.as_deref().copied().is_some_and(RailTab::is_events)
+    }
+
+    /// Whether `node` stands where a COMPARISON belongs: at the root of a
+    /// condition, which is the child of the filter that holds it. Everything
+    /// under one is a value.
+    fn compares(&self, node: Entity) -> bool {
+        self.parents
+            .get(node)
+            .is_ok_and(|parent| !self.expressions.contains(parent.parent()))
+    }
+
     /// The node the panel is on and the rows it wants, or `None` with nothing
     /// to inspect.
     pub(crate) fn inspection(&self) -> Option<(InspectTarget, Vec<InspectorRow>)> {
@@ -319,6 +345,9 @@ impl Document<'_, '_> {
             InspectTarget::Action(node) => action_rows(self.actions.get(node).ok()?),
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
+            InspectTarget::Expression(node) => {
+                expression_rows(self.expressions.get(node).ok()?, self.compares(node))
+            }
         };
         Some((target, rows))
     }
@@ -447,7 +476,10 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
         },
         panel(skin),
         children![
-            panel_header("Inspector"),
+            // The header says which panel this is, and the mode rewrites it:
+            // beside the stage it is the Inspector, and filling the screen it
+            // is the events editor.
+            (panel_header("Inspector"), InspectorHeader),
             (
                 Name::new("Inspector Title"),
                 InspectorTitle,
@@ -669,6 +701,67 @@ fn spawn_choice_row(
             TextColor(theme::PHOSPHOR_MUTED),
         ));
         spawn_choice_options(block, &row.label, field, slot, options, chosen, skin);
+    });
+}
+
+/// The driver row, in the same block shape a three-option choice gets.
+///
+/// It IS a choice of three wearing another name, and three labels in the value
+/// column is three labels clipped: `Player` came out as `Play`, and the option
+/// a builder was looking for was the one they could not read.
+fn spawn_driver_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    node: Entity,
+    slot: usize,
+    driver: ShipDriver,
+    skin: UiSkin,
+    step: f32,
+) {
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block.spawn((
+            Text::new(row.label.clone()),
+            TextLayout {
+                linebreak: LineBreak::NoWrap,
+                ..default()
+            },
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_MUTED),
+        ));
+        block
+            .spawn((Name::new("Inspector Driver"), segmented_container(skin)))
+            .with_children(|options| {
+                for option in [ShipDriver::Player, ShipDriver::Ai, ShipDriver::Adrift] {
+                    let label = driver_label(option);
+                    let mut entity = options.spawn((
+                        Name::new(format!("Inspector Driver {label}")),
+                        InspectorSlot(slot),
+                        InspectorDriver {
+                            ship: node,
+                            driver: option,
+                        },
+                        segmented_option(label),
+                        observe(on_inspector_driver),
+                    ));
+                    if option == driver {
+                        entity.insert(Selected);
+                    }
+                }
+            });
     });
 }
 
@@ -911,6 +1004,10 @@ fn build_rows(
                 continue;
             }
         }
+        if let RowValue::Driver(driver) = &row.value {
+            spawn_driver_row(list, row, node, slot, *driver, skin, step);
+            continue;
+        }
         list.spawn((
             Name::new(format!("Inspector Row {}", row.label)),
             Node {
@@ -1028,32 +1125,10 @@ fn build_rows(
                             observe(on_inspector_flag),
                         ));
                     }
-                    RowValue::Driver(driver) => {
-                        value
-                            .spawn((Name::new("Inspector Driver"), segmented_container(skin)))
-                            .with_children(|options| {
-                                for option in
-                                    [ShipDriver::Player, ShipDriver::Ai, ShipDriver::Adrift]
-                                {
-                                    let label = driver_label(option);
-                                    let mut entity = options.spawn((
-                                        Name::new(format!("Inspector Driver {label}")),
-                                        InspectorSlot(slot),
-                                        InspectorDriver {
-                                            ship: node,
-                                            driver: option,
-                                        },
-                                        segmented_option(label),
-                                        observe(on_inspector_driver),
-                                    ));
-                                    if option == *driver {
-                                        entity.insert(Selected);
-                                    }
-                                }
-                            });
-                    }
-                    // Spawned whole above, before the row shell exists.
-                    RowValue::Axes(_) => {}
+                    // Both spawned whole above, before the row shell exists:
+                    // three axis boxes and three driver options each need the
+                    // panel's width, not the value column's share of it.
+                    RowValue::Axes(_) | RowValue::Driver(_) => {}
                     RowValue::Key(binding) => {
                         // The ROW is the button. A binding named on one surface
                         // and armed from another - the top bar's Rebind - left
@@ -1126,6 +1201,34 @@ pub(crate) struct ShownInspector {
     shape: Option<(Entity, Vec<(String, FieldRoot, Vec<PathStep>)>)>,
 }
 
+/// The events editor with nothing picked: the panel stays, and says so.
+///
+/// `Entity::PLACEHOLDER` as the remembered shape is what keeps this to one
+/// pass - it is a node no row can carry, so the next frame reads the state as
+/// unchanged and the list is not cleared again.
+fn empty_editor(
+    commands: &mut Commands,
+    lists: &Query<Entity, With<InspectorList>>,
+    titles: &mut Query<&mut Text, With<InspectorTitle>>,
+    node_ids: &mut Query<&mut TextSpan, With<InspectorId>>,
+    shown: &mut ShownInspector,
+) {
+    let waiting = (Entity::PLACEHOLDER, Vec::new());
+    if shown.shape.as_ref() == Some(&waiting) {
+        return;
+    }
+    for mut text in titles {
+        text.0 = "pick a row in the script".to_string();
+    }
+    for mut span in node_ids {
+        span.0.clear();
+    }
+    if let Ok(list) = lists.single() {
+        commands.entity(list).despawn_related::<Children>();
+    }
+    shown.shape = Some(waiting);
+}
+
 /// Show the inspected node: rebuild the rows when WHICH rows exist changes,
 /// and repaint their values otherwise.
 ///
@@ -1185,8 +1288,13 @@ pub(crate) fn sync_inspector(
         shown.shape = None;
     }
     let inspection = document.inspection();
+    // In Scene the panel is a detail view of a selection and goes away with it;
+    // in Events it is the editor the mode put on the screen, so it STAYS and
+    // says what it is waiting for. A screen that empties to the stage the
+    // moment a row is deselected would be the mode switching itself back.
+    let events = document.is_events();
     for mut node in &mut panels {
-        let display = if inspection.is_some() {
+        let display = if inspection.is_some() || events {
             Display::Flex
         } else {
             Display::None
@@ -1196,7 +1304,17 @@ pub(crate) fn sync_inspector(
         }
     }
     let Some((target, rows)) = inspection else {
-        shown.shape = None;
+        if events {
+            empty_editor(
+                &mut commands,
+                &lists,
+                &mut titles,
+                &mut node_ids,
+                &mut shown,
+            );
+        } else {
+            shown.shape = None;
+        }
         return;
     };
     let title = document.title(target);
@@ -1448,6 +1566,7 @@ pub(crate) struct EditTargets<'w, 's> {
     actions: Query<'w, 's, &'static mut ActionNode>,
     steps: Query<'w, 's, &'static mut StepNode>,
     gates: Query<'w, 's, &'static mut GateNode>,
+    expressions: Query<'w, 's, &'static mut ExpressionNode>,
     poses: Query<'w, 's, &'static mut Transform>,
     stale: MessageWriter<'w, ObjectBodyStale>,
 }
@@ -1565,6 +1684,7 @@ impl EditTargets<'_, '_> {
             || self.actions.contains(node)
             || self.steps.contains(node)
             || self.gates.contains(node)
+            || self.expressions.contains(node)
     }
 
     /// Hand `edit` a SCRIPT node's config.
@@ -1591,6 +1711,13 @@ impl EditTargets<'_, '_> {
             return if_it_took(&mut filter, |filter| {
                 let config = filter_config_mut(&mut filter.kind)
                     .ok_or_else(|| "nothing to author".to_string())?;
+                edit(config, &field.path, field.optional)
+            });
+        }
+        if let Ok(mut expression) = self.expressions.get_mut(field.node) {
+            return if_it_took(&mut expression, |expression| {
+                let config = expr_config_mut(&mut expression.kind)
+                    .ok_or_else(|| "an operator holds its operands, not a value".to_string())?;
                 edit(config, &field.path, field.optional)
             });
         }

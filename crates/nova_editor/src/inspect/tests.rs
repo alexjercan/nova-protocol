@@ -19,8 +19,9 @@ use nova_ship::prelude::{
 use super::*;
 use crate::{
     event::{
-        action_config_mut, filter_config_mut, ActionChoice, ActionKind, ActionNode, EventNode,
-        FilterChoice, FilterKind, FilterNode, ScriptNode, SequenceHead, StepNode,
+        action_config_mut, expr_config_mut, ActionChoice, ActionKind, ActionNode, EventNode,
+        ExprChoice, ExpressionNode, FilterChoice, FilterKind, FilterNode, ScriptNode, SequenceHead,
+        StepNode,
     },
     node::{
         EditorNode, NextChildOrdinal, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipDriver,
@@ -1368,40 +1369,87 @@ fn a_sequence_shows_its_key_and_not_its_steps() {
     assert_eq!(rows.len(), 2, "and nothing else: {rows:?}");
 }
 
-/// The variables DSL is a LEAF, not a struct to be taken apart: it is authored
-/// as the text a RON file carries, so the row is that text and typing another
-/// expression into it parses.
+/// An expression filter has no config of its own: its condition is the nodes
+/// under it, and a row holding a second copy is a second place to edit it.
+#[test]
+fn an_expression_filter_is_switched_and_nothing_else() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterChoice::Expression.stock(),
+    });
+
+    assert_eq!(row(&rows, "Filter").value.reading(), "Expression");
+    assert_eq!(rows.len(), 1, "the condition is the tree: {rows:?}");
+}
+
+/// The variables DSL is a LEAF, not a struct to be taken apart: a value node is
+/// authored as the text a RON file carries, and typing another expression into
+/// it parses.
 #[test]
 fn an_expression_is_authored_as_its_own_syntax() {
-    let mut node = FilterNode {
-        kind: FilterChoice::Expression.stock(),
+    let mut node = ExpressionNode {
+        kind: ExprChoice::Value.stock(),
     };
-    let rows = filter_rows(&node);
-    assert_eq!(text_of(&rows, "Condition"), "0 == 0");
+    assert_eq!(text_of(&expression_rows(&node, false), "Value"), "0");
 
-    let config = filter_config_mut(&mut node.kind).expect("an expression has a config");
-    write_field(config, &[PathStep::Slot(0)], false, "scenario.elapsed > 30")
-        .expect("the condition takes");
+    let config = expr_config_mut(&mut node.kind).expect("a value has a config");
+    write_field(
+        config,
+        &[PathStep::Field("value".to_string())],
+        false,
+        "scenario.elapsed",
+    )
+    .expect("the expression takes");
 
     assert_eq!(
-        text_of(&filter_rows(&node), "Condition"),
-        "scenario.elapsed > 30"
+        text_of(&expression_rows(&node, false), "Value"),
+        "scenario.elapsed"
     );
 }
 
-/// And a condition the grammar cannot read is refused with the reason, rather
+/// And an expression the grammar cannot read is refused with the reason, rather
 /// than silently leaving the old one in place.
 #[test]
 fn an_unreadable_expression_says_why() {
-    let mut node = FilterNode {
-        kind: FilterChoice::Expression.stock(),
+    let mut node = ExpressionNode {
+        kind: ExprChoice::Value.stock(),
     };
-    let config = filter_config_mut(&mut node.kind).expect("an expression has a config");
+    let config = expr_config_mut(&mut node.kind).expect("a value has a config");
 
-    let refused = write_field(config, &[PathStep::Slot(0)], false, "scenario.elapsed >");
+    let refused = write_field(
+        config,
+        &[PathStep::Field("value".to_string())],
+        false,
+        "scenario.elapsed +",
+    );
 
-    assert!(refused.is_err(), "an unfinished comparison is not a filter");
-    assert_eq!(text_of(&filter_rows(&node), "Condition"), "0 == 0");
+    assert!(refused.is_err(), "an unfinished sum is not an expression");
+    assert_eq!(text_of(&expression_rows(&node, false), "Value"), "0");
+}
+
+/// The operator row offers what BELONGS where the node stands: a comparison at
+/// the root of a condition, arithmetic and values under one.
+#[test]
+fn an_operator_is_offered_the_kinds_its_place_allows() {
+    let node = ExpressionNode {
+        kind: ExprChoice::Equal.stock(),
+    };
+
+    let compared = expression_rows(&node, true);
+    let RowValue::Choice { options, chosen } = &row(&compared, "Operator").value else {
+        panic!("the operator row is a choice");
+    };
+    assert_eq!(options, &["==", "<", ">"], "a condition compares");
+    assert_eq!(*chosen, 0);
+
+    let valued = expression_rows(&node, false);
+    let RowValue::Choice { options, .. } = &row(&valued, "Operator").value else {
+        panic!("the operator row is a choice");
+    };
+    assert_eq!(
+        options,
+        &["+", "-", "*", "/", "value"],
+        "and what it compares are values"
+    );
 }
 
 /// An asset reference is a leaf too: the path under `assets/`, which is what a

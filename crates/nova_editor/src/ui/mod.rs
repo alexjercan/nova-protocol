@@ -42,14 +42,14 @@ use nova_ui::{
 use crate::{
     bundle::ask_to_save,
     config::{
-        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorKeyLegend, EditorOverlays,
-        EditorStatus, LastClick, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton,
-        SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote,
-        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
+        EditorRail, EditorStatus, InspectorHeader, LastClick, PlacementStatus, PlayButton, RailTab,
+        RailTabButton, RebindButton, SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout,
+        ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
-        action_choice, add_script_node, event_label, filter_choice, ActionChoice, ActionKind,
-        Expanded, ScriptAdd, ScriptNodes,
+        action_choice, add_script_node, event_label, expr_choice, filter_choice, ActionChoice,
+        ActionKind, Expanded, ExprChoice, ExprKind, FilterChoice, ScriptAdd, ScriptNodes,
     },
     frame::{
         ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
@@ -58,7 +58,8 @@ use crate::{
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     glyph::{
         category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
-        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, SCENARIO, SEQUENCE, SHIP_AI, SHUT, STEP,
+        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, OPERAND, OPERATOR, SCENARIO, SEQUENCE,
+        SHIP_AI, SHUT, STEP,
     },
     keybind::{on_rebind_action, EditorRebind},
     node::{
@@ -71,7 +72,7 @@ use crate::{
     },
     ui::{
         callout::placement_callout,
-        inspector::{inspector_panel, PANEL_W as INSPECTOR_W},
+        inspector::{inspector_panel, InspectorPanel, PANEL_W as INSPECTOR_W},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
             on_menu_scrim, toggle_all_fields, toggle_ids, toggle_key_legend, toggle_link_points,
@@ -689,8 +690,15 @@ pub(crate) fn setup_editor_scene(
                 content
                     .spawn((
                         Name::new("Editor Rail"),
+                        EditorRail,
                         Node {
                             width: px(RAIL_W),
+                            // The rail KEEPS its width. Beside it sits a panel
+                            // whose natural width is its widest control - a
+                            // wrapping bar of twenty-six actions - and a
+                            // shrinkable rail hands that pressure its own
+                            // columns, which is the tree clipping again.
+                            flex_shrink: 0.0,
                             flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Stretch,
                             padding: UiRect::all(px(10)),
@@ -889,6 +897,7 @@ pub(crate) fn setup_editor_scene(
             // verdict is about.
             root.spawn((
                 Name::new("Editor Foot"),
+                EditorFoot,
                 Pickable {
                     should_block_lower: false,
                     is_hoverable: false,
@@ -1063,6 +1072,12 @@ struct WantedRow {
     /// What the row's icon MEANS, in one word. Read back by the hover hint,
     /// which is where a builder finds out what `%` was.
     kind: String,
+    /// Whether the label is drawn LARGE: an operator, and nothing else.
+    ///
+    /// `==` is two characters in a tree of words, and the shape of a condition
+    /// is which operator is where. Size is what makes them findable without a
+    /// second colour, which the rail spends on selection.
+    accent: bool,
 }
 
 /// What a node reads as in a 150px rail: (label, trail).
@@ -1105,6 +1120,18 @@ fn label_budget(depth: usize) -> usize {
     const PER_STEP: usize = 1;
 
     AT_ROOT.saturating_sub(depth * PER_STEP)
+}
+
+/// The same question for a SCRIPT row, which is drawn in a wider rail.
+///
+/// Events mode gives the tree [`EVENTS_RAIL_W`] instead of [`RAIL_W`], and a
+/// budget cut for the narrow one elides a condition that has room to be read -
+/// which is the whole reason the mode widens the rail.
+fn script_budget(depth: usize) -> usize {
+    /// What a root row of the wide rail fits beside its mark and its trail.
+    const AT_ROOT: usize = 36;
+
+    AT_ROOT.saturating_sub(depth)
 }
 
 /// `label` shortened to fit, with the cut marked.
@@ -1191,6 +1218,85 @@ pub(crate) fn sync_rail_tabs(
     }
 }
 
+/// Left rail width in the events editor.
+///
+/// Wider than [`RAIL_W`] because a script is DEEP where a range is wide:
+/// scenario, handler, sequence, step, action is five levels, and every level is
+/// charged to the row's left padding before its label gets any.
+pub(crate) const EVENTS_RAIL_W: f32 = 300.0;
+
+/// Lay the screen out for the mode the tabs chose.
+///
+/// SCENE is the stage with a panel either side, and both panels are narrow for
+/// one reason: the placement raycast goes through the middle of the window, so
+/// chrome over the centre is chrome that eats the click that puts a part down.
+///
+/// EVENTS places nothing. There is no raycast to keep clear, so the rail widens
+/// and the Inspector stops being a docked panel and becomes the EDITOR - it
+/// fills everything the rail leaves, opaque, over a stage that is still there
+/// and no longer in the way. The stage's own labels sit below the chrome rung
+/// (see [`crate::ui::layer`]), so covering it takes no extra hiding; the foot
+/// does need it, because the placement verdict and the key legend are both
+/// about a stage this mode is not showing.
+///
+/// Compared before writing rather than gated on [`Res::is_changed`], for the
+/// same reason as [`sync_rail_tabs`]: the panels are spawned on entering the
+/// editor, which need not be a frame the tab changed on.
+pub(crate) fn sync_editor_mode(
+    tab: Res<RailTab>,
+    mut rails: Query<
+        &mut Node,
+        (
+            With<EditorRail>,
+            Without<InspectorPanel>,
+            Without<EditorFoot>,
+        ),
+    >,
+    mut panels: Query<&mut Node, (With<InspectorPanel>, Without<EditorFoot>)>,
+    mut feet: Query<&mut Node, With<EditorFoot>>,
+    mut headers: Query<&mut Text, With<InspectorHeader>>,
+) {
+    let events = tab.is_events();
+    let rail = px(if events { EVENTS_RAIL_W } else { RAIL_W });
+    for mut node in &mut rails {
+        if node.width != rail {
+            node.width = rail;
+        }
+    }
+    // `flex_grow` is what makes the pane the editor: the rail takes its fixed
+    // width out of the row and the panel takes the rest, whatever the window
+    // is. In Scene the panel is fixed and the auto margin pushes it right,
+    // which leaves the gap in the middle that the stage shows through.
+    let (width, grow, margin) = if events {
+        (Val::Auto, 1.0, UiRect::ZERO)
+    } else {
+        (px(INSPECTOR_W), 0.0, UiRect::left(Val::Auto))
+    };
+    for mut node in &mut panels {
+        if node.width != width {
+            node.width = width;
+        }
+        if node.flex_grow != grow {
+            node.flex_grow = grow;
+        }
+        if node.margin != margin {
+            node.margin = margin;
+        }
+    }
+    let foot = if events { Display::None } else { Display::Flex };
+    for mut node in &mut feet {
+        if node.display != foot {
+            node.display = foot;
+        }
+    }
+    let header = if events { "EVENTS" } else { "INSPECTOR" };
+    for mut text in &mut headers {
+        if text.0 != header {
+            text.0 = header.to_string();
+        }
+    }
+}
+
 /// What the Scene tree is showing, so a frame that changed nothing costs one
 /// comparison instead of a respawned list - and, more to the point, so hover
 /// and selection survive a frame in which the document did not change.
@@ -1272,6 +1378,7 @@ fn wanted_rows(
                 (false, 1) => format!("{kind} - 1 PART"),
                 (false, parts) => format!("{kind} - {parts} PARTS"),
             },
+            accent: false,
         });
         if entered != Some(ship) {
             continue;
@@ -1291,6 +1398,7 @@ fn wanted_rows(
                 label: elide(&label, label_budget(2)),
                 trail,
                 kind: kind.to_string(),
+                accent: false,
             });
         }
     }
@@ -1321,9 +1429,10 @@ fn wanted_rows(
             label: elide(&label, label_budget(1)),
             trail,
             kind: kind.to_string(),
+            accent: false,
         });
     }
-    show_ids(&mut rows, ids);
+    show_ids(&mut rows, ids, label_budget);
     rows
 }
 
@@ -1339,6 +1448,7 @@ fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
         label: elide(&label, label_budget(0)),
         trail,
         kind: "SCENARIO".to_string(),
+        accent: false,
     }
 }
 
@@ -1348,12 +1458,12 @@ fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
 /// The trail goes with the name - the ordinal it holds is the tail of the id
 /// now in the label - except the mark that says which ship you are inside,
 /// which no id carries.
-fn show_ids(rows: &mut [WantedRow], ids: bool) {
+fn show_ids(rows: &mut [WantedRow], ids: bool, budget: fn(usize) -> usize) {
     if !ids {
         return;
     }
     for row in rows {
-        row.label = elide(&row.id, label_budget(row.depth));
+        row.label = elide(&row.id, budget(row.depth));
         if row.trail != INSIDE {
             row.trail = String::new();
         }
@@ -1403,7 +1513,7 @@ fn script_rows(
             action_rows(script, handler, 2, &mut rows);
         }
     }
-    show_ids(&mut rows, ids);
+    show_ids(&mut rows, ids, script_budget);
     rows
 }
 
@@ -1414,20 +1524,64 @@ fn filter_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
             continue;
         };
         let choice = filter_choice(&filter.kind);
-        let nests = choice.operands() > 0;
+        let condition = choice == FilterChoice::Expression;
+        let nests = choice.operands() > 0 || condition;
         let ordinal = ordinal_of(script, node);
         let open = (nests && has_children(script, node)).then(|| script.expanded(node));
+        // An expression filter READS AS ITS CONDITION: `Expression` is the
+        // name of a kind, and what a builder scanning a handler needs from the
+        // row is which comparison it makes.
+        let text = condition.then(|| script.condition_text(node)).flatten();
         rows.push(script_row(
             script,
             node,
             depth,
             &tree_lead(open, if nests { COMBINATOR } else { FILTER }),
-            choice.label(),
+            text.as_deref().unwrap_or(choice.label()),
             &ordinal,
             &format!("FILTER - {}", choice.label().to_uppercase()),
         ));
         if open == Some(true) {
+            expression_rows(script, node, depth + 1, rows);
             filter_rows(script, node, depth + 1, rows);
+        }
+    }
+}
+
+/// The condition under a filter, or the operands under an operator.
+///
+/// The OPERATOR is the row and its two sides hang under it, which is the shape
+/// the comparison has. A value is a leaf reading as the expression it holds -
+/// `entity("courier").speed` is one row here and one field in the panel.
+fn expression_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
+    for node in script.operands_of(owner) {
+        let Some(expression) = script.expression(node) else {
+            continue;
+        };
+        let choice = expr_choice(&expression.kind);
+        let operator = choice != ExprChoice::Value;
+        let open = operator.then(|| script.expanded(node));
+        let label = match &expression.kind {
+            ExprKind::Value(operand) => operand.value.to_string(),
+            _ => choice.label().to_string(),
+        };
+        let mut row = script_row(
+            script,
+            node,
+            depth,
+            &tree_lead(open, if operator { OPERATOR } else { OPERAND }),
+            &label,
+            &ordinal_of(script, node),
+            &format!(
+                "{} - {}",
+                if operator { "OPERATOR" } else { "VALUE" },
+                label.to_uppercase()
+            ),
+        );
+        row.accent = operator;
+        rows.push(row);
+        if open == Some(true) {
+            expression_rows(script, node, depth + 1, rows);
         }
     }
 }
@@ -1510,6 +1664,7 @@ fn has_children(script: &ScriptNodes, node: Entity) -> bool {
     !script.filters_of(node).is_empty()
         || !script.actions_of(node).is_empty()
         || !script.steps_of(node).is_empty()
+        || !script.operands_of(node).is_empty()
         || script.gate_of(node).is_some()
 }
 
@@ -1540,9 +1695,10 @@ fn script_row(
         depth,
         lead: lead.to_string(),
         id: script.id(node).unwrap_or_default().to_string(),
-        label: elide(label, label_budget(depth)),
+        label: elide(label, script_budget(depth)),
         trail: trail.to_string(),
         kind: kind.to_string(),
+        accent: false,
     }
 }
 
@@ -1628,7 +1784,9 @@ pub(crate) fn sync_scene_list(
                     // find a row by the node's own key, whatever the rail has
                     // room to print.
                     Name::new(format!("Scene Row {}", row.id)),
-                    scene_row(row.depth, &row.lead, &row.label, &row.trail, marked, *skin),
+                    scene_row(
+                        row.depth, &row.lead, &row.label, &row.trail, marked, row.accent, *skin,
+                    ),
                     SceneRow(row.node),
                     // What a hover reveals: the kind the icon stands for, and
                     // the id the 150px row had to clip.
@@ -2557,8 +2715,10 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_scenario::prelude::{
         AIControllerConfig, DebugMessageActionConfig, EntityFilterConfig, EventActionConfig,
-        EventConfig, EventFilterConfig, ScenarioEventConfig, SectionSource, SequenceActionConfig,
-        SequenceGateConfig, SequenceStepConfig, SpaceshipConfig, SpaceshipController,
+        EventConfig, EventFilterConfig, ExpressionFilterConfig, ScenarioEventConfig, SectionSource,
+        SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SpaceshipConfig,
+        SpaceshipController, VariableConditionNode, VariableExpressionNode, VariableFactorNode,
+        VariableLiteral, VariableTermNode,
     };
     use nova_ship::prelude::ShipStyleConfig;
 
@@ -2843,6 +3003,50 @@ mod tests {
         }
     }
 
+    /// The mode widens the rail, so the tree spends the width: a condition that
+    /// the Scene rail would have cut reads whole in the Events one.
+    #[test]
+    fn a_condition_reads_whole_in_the_events_rail() {
+        const CONDITION: &str = "picket_warden_awake == false";
+
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![ScenarioEventConfig {
+                name: EventConfig::OnUpdate,
+                once: false,
+                filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                    VariableConditionNode::new_equals(
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_name("picket_warden_awake"),
+                        )),
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
+                        )),
+                    ),
+                ))],
+                actions: vec![],
+            }],
+        );
+        open_events(&mut app);
+        open_everything(&mut app);
+
+        let labels: Vec<String> = row_columns(&mut app)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect();
+        assert!(
+            CONDITION.chars().count() > label_budget(2),
+            "the Scene rail would have elided this"
+        );
+        assert!(
+            labels.iter().any(|label| label == CONDITION),
+            "the filter row reads its whole condition: {labels:?}"
+        );
+    }
+
     /// The two halves are separate lists over the same document: the world's
     /// objects are not in the script, and the script is not in the world.
     #[test]
@@ -3079,6 +3283,83 @@ mod tests {
             .expect("a minted id")
             .0
             .clone()
+    }
+
+    /// The three nodes the mode lays out, in an app that runs nothing else.
+    fn mode_app() -> (App, Entity, Entity, Entity) {
+        let mut app = App::new();
+        app.init_resource::<RailTab>();
+        app.add_systems(Update, sync_editor_mode);
+        let rail = app
+            .world_mut()
+            .spawn((
+                EditorRail,
+                Node {
+                    width: px(RAIL_W),
+                    ..default()
+                },
+            ))
+            .id();
+        let panel = app
+            .world_mut()
+            .spawn((
+                InspectorPanel,
+                Node {
+                    width: px(INSPECTOR_W),
+                    margin: UiRect::left(Val::Auto),
+                    ..default()
+                },
+            ))
+            .id();
+        let foot = app.world_mut().spawn((EditorFoot, Node::default())).id();
+        (app, rail, panel, foot)
+    }
+
+    /// Events is a MODE, not a filter on a list: the stage is not being placed
+    /// on, so the script takes the width the raycast was being left.
+    #[test]
+    fn the_events_tab_gives_the_script_the_whole_window() {
+        let (mut app, rail, panel, foot) = mode_app();
+        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Node>(rail).map(|node| node.width),
+            Some(px(EVENTS_RAIL_W)),
+            "the rail widens for a deep tree"
+        );
+        let pane = app.world().get::<Node>(panel).expect("the panel");
+        assert_eq!(pane.flex_grow, 1.0, "and the panel takes what is left");
+        assert_eq!(pane.margin, UiRect::ZERO, "with nothing pushing it right");
+        assert_eq!(
+            app.world().get::<Node>(foot).map(|node| node.display),
+            Some(Display::None),
+            "the foot is about a stage this mode is not showing"
+        );
+    }
+
+    /// And back: the stage's centre is where the placement raycast goes, so
+    /// Scene has to give it up again.
+    #[test]
+    fn the_scene_tab_leaves_the_stage_its_centre() {
+        let (mut app, rail, panel, foot) = mode_app();
+        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        app.update();
+        *app.world_mut().resource_mut::<RailTab>() = RailTab::Scene;
+        app.update();
+
+        assert_eq!(
+            app.world().get::<Node>(rail).map(|node| node.width),
+            Some(px(RAIL_W))
+        );
+        let pane = app.world().get::<Node>(panel).expect("the panel");
+        assert_eq!(pane.width, px(INSPECTOR_W));
+        assert_eq!(pane.flex_grow, 0.0);
+        assert_eq!(pane.margin, UiRect::left(Val::Auto), "docked right again");
+        assert_eq!(
+            app.world().get::<Node>(foot).map(|node| node.display),
+            Some(Display::Flex)
+        );
     }
 
     /// Switching tabs drops the mark: a node marked in one half is not in the

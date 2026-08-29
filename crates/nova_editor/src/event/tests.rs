@@ -8,9 +8,10 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::{
-    CurrentOutcome, NovaEventWorld, ObjectiveActionConfig, ObjectiveCompleteActionConfig,
-    OutcomeActionConfig, ScenarioOutcomeKind, TimerFilterConfig, TimerStartActionConfig,
-    VariableExpressionNode, VariableFactorNode, VariableLiteral, VariableTermNode,
+    CurrentOutcome, ExpressionFilterConfig, NovaEventWorld, ObjectiveActionConfig,
+    ObjectiveCompleteActionConfig, OutcomeActionConfig, ScenarioOutcomeKind, TimerFilterConfig,
+    TimerStartActionConfig, VariableConditionNode, VariableExpressionNode, VariableFactorNode,
+    VariableLiteral, VariableTermNode,
 };
 
 use super::*;
@@ -170,6 +171,121 @@ fn a_nested_condition_round_trips_through_operand_nodes() {
     }];
 
     assert_eq!(spelled(&round_trip(script.clone())), spelled(&script));
+}
+
+/// The operators of a condition are nodes too, and the brackets the grammar
+/// needs come back where the tree's shape says they belong.
+#[test]
+fn an_expression_filter_round_trips_through_operator_nodes() {
+    let two = || VariableTermNode::new_factor(VariableFactorNode::new_literal(literal(2.0)));
+    let sum = VariableExpressionNode::new_add(
+        two(),
+        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_literal(literal(3.0)),
+        )),
+    );
+    let script = vec![ScenarioEventConfig {
+        name: EventConfig::OnStart,
+        once: false,
+        filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+            VariableConditionNode::new_greater_than(
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_name("beat"),
+                )),
+                VariableExpressionNode::new_term(VariableTermNode::new_multiply(
+                    VariableFactorNode::new_parens(sum),
+                    VariableTermNode::new_factor(VariableFactorNode::new_literal(literal(4.0))),
+                )),
+            ),
+        ))],
+        actions: vec![message("late")],
+    }];
+
+    assert_eq!(spelled(&round_trip(script.clone())), spelled(&script));
+}
+
+/// A filter switched to an expression arrives with a condition already in it:
+/// an operator with nothing under it is a filter the save would drop.
+#[test]
+fn a_filter_switched_to_an_expression_arrives_with_a_condition() {
+    let mut world = World::new();
+    let scenario = seeded(
+        &mut world,
+        vec![ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![named("player")],
+            actions: vec![],
+        }],
+    );
+    let handler = handlers(&mut world, scenario)[0];
+    let filter = under(&mut world, handler).0[0];
+
+    retype_script_node(&mut world, filter, "Expression");
+
+    let script = lowered(&mut world, scenario);
+    let EventFilterConfig::Expression(ExpressionFilterConfig(condition)) = &script[0].filters[0]
+    else {
+        panic!("the filter is an expression");
+    };
+    assert_eq!(condition.to_string(), "0 == 0");
+}
+
+/// Switching an operator to a value drops the sides it no longer has, and the
+/// condition it stands in still lowers.
+#[test]
+fn an_operator_switched_to_a_value_drops_its_operands() {
+    let mut world = World::new();
+    let scenario = seeded(
+        &mut world,
+        vec![ScenarioEventConfig {
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                VariableConditionNode::new_equals(
+                    VariableExpressionNode::new_add(
+                        VariableTermNode::new_factor(VariableFactorNode::new_name("beat")),
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_literal(literal(1.0)),
+                        )),
+                    ),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(literal(4.0)),
+                    )),
+                ),
+            ))],
+            actions: vec![],
+        }],
+    );
+    let handler = handlers(&mut world, scenario)[0];
+    let filter = under(&mut world, handler).0[0];
+    let root = operands(&mut world, filter)[0];
+    let sum = operands(&mut world, root)[0];
+
+    retype_script_node(&mut world, sum, "value");
+
+    assert!(
+        operands(&mut world, sum).is_empty(),
+        "a value holds no operands"
+    );
+    let script = lowered(&mut world, scenario);
+    let EventFilterConfig::Expression(ExpressionFilterConfig(condition)) = &script[0].filters[0]
+    else {
+        panic!("the filter is still an expression");
+    };
+    assert_eq!(condition.to_string(), "0 == 4");
+}
+
+/// A number, as the grammar's literal.
+fn literal(value: f64) -> VariableLiteral {
+    VariableLiteral::Number(value)
+}
+
+/// The operand nodes under `node`, in authored order.
+fn operands(world: &mut World, node: Entity) -> Vec<Entity> {
+    world
+        .run_system_once(move |script: ScriptNodes| script.operands_of(node))
+        .expect("the walk runs")
 }
 
 /// A handler that places something and then points at it names both sides,

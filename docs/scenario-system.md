@@ -14,10 +14,10 @@ event handlers; each pairs an event with filters (all must pass) and actions
 `nova_events`; nova_scenario provides `NovaEventWorld` and the enums below.
 
 Three surfaces write that list: a RON file, a Rust builder under
-`nova_authoring`, and the editor's EVENTS tab, which lifts a handler into nodes
-you select and inspect and lowers them back on save
-(`crates/nova_editor/src/event.rs`). All three produce the same
-`ScenarioEventConfig`, so nothing below cares which one wrote it.
+`nova_authoring`, and the editor's EVENTS mode, which lifts a handler into nodes
+you select and inspect - a condition included, down to its operators - and
+lowers them back on save (`crates/nova_editor/src/event.rs`). All three produce
+the same `ScenarioEventConfig`, so nothing below cares which one wrote it.
 
 ## Scenario structure
 
@@ -283,12 +283,20 @@ expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 
 The tree has a TEXT form (`syntax.rs`): `Display` renders it as
 `scenario.elapsed > 90` and `FromStr` parses that back. The authored form is
-still the RON nest - the text is what a 300px inspector row can hold, where
-reflection would draw one row per node. Round trip is the contract in both
-directions, parse-of-render and render-of-parse, which is what lets a panel own
-a condition without a save quietly rewriting it. The syntax spells the grammar
-and nothing more: no operator the crate cannot evaluate, and `a - b - c`
-parses rightward because `Subtract(Term, Expression)` nests that way.
+still the RON nest - the text is what one editor row can hold, and what a tree
+row reads as when it is shut. Round trip is the contract in both directions,
+parse-of-render and render-of-parse, which is what lets a panel own a condition
+without a save quietly rewriting it. The syntax spells the grammar and nothing
+more: no operator the crate cannot evaluate, and `a - b - c` parses rightward
+because `Subtract(Term, Expression)` nests that way.
+
+The editor takes a condition APART along the same grammar: each operator is one
+document node with its two sides as children, and a leaf holds whatever fits one
+row of the text form. `Parens` is dropped on the way in - the nesting says what
+the brackets said - and put back on the way out wherever the position needs it,
+so a sum under a product lowers as `(a + b) * 2`. What a switched operator
+cannot hold it does not keep: an operand a value has no place for is dropped
+rather than left hanging where no row would show it.
 
 ### Two clocks pace a transition
 

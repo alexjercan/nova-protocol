@@ -138,6 +138,14 @@ const INDENT_STEP: f32 = 9.0;
 /// can show before it clips.
 const ROW_TEXT: f32 = 11.0;
 
+/// The label size of an ACCENTED row - an operator of a condition.
+///
+/// Bigger rather than another colour: the rail spends colour on selection and
+/// on hover, and a third one competing with those would say something about
+/// state that this is not about. `==` at this size is findable down a column
+/// of eleven-pixel words.
+const ACCENT_TEXT: f32 = 15.0;
+
 /// One tab of the tree header: the half of the document it switches to.
 ///
 /// A `ListRow` like the rows under it, so the shared reconciler paints the
@@ -208,12 +216,17 @@ pub(crate) fn rail_tab_strip() -> Node {
 /// Indentation is what the eye reads a tree by, and it costs no width in a
 /// 150px rail: `|- ` in front of every child ate 18px of the label on every
 /// row, and a minted id is exactly the thing that then ran out of room.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one row's whole shape, and every argument is one column of it"
+)]
 pub(crate) fn scene_row(
     depth: usize,
     lead: &str,
     label: &str,
     trail: &str,
     selected: bool,
+    accent: bool,
     skin: UiSkin,
 ) -> impl Bundle {
     let (background, border) = list_row_colors(selected, false, skin);
@@ -282,7 +295,10 @@ pub(crate) fn scene_row(
                     UiText,
                     Text::new(label.to_string()),
                     one_line,
-                    row_font.clone(),
+                    TextFont {
+                        font_size: FontSize::Px(if accent { ACCENT_TEXT } else { ROW_TEXT }),
+                        ..default()
+                    },
                     TextColor(theme::PHOSPHOR),
                 )],
             ),

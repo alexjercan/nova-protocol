@@ -33,8 +33,9 @@ use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 use crate::{
     config::SelectedNode,
     event::{
-        action_choice, action_config, event_label, filter_choice, filter_config, ActionChoice,
-        ActionNode, EventNode, FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
+        action_choice, action_config, event_label, expr_choice, expr_config, filter_choice,
+        filter_config, ActionChoice, ActionNode, EventNode, ExprChoice, ExpressionNode,
+        FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
     },
     node::{
         objects_of, EditContext, EditorNode, ObjectNode, ObjectNodes, ScenarioNode, SectionNode,
@@ -58,6 +59,7 @@ pub(crate) type NodeKinds<'w, 's> = Query<
         Has<ActionNode>,
         Has<StepNode>,
         Has<GateNode>,
+        Has<ExpressionNode>,
     ),
     With<EditorNode>,
 >;
@@ -83,6 +85,8 @@ pub(crate) enum InspectTarget {
     Step(Entity),
     /// The event one beat waits for.
     Gate(Entity),
+    /// One node of a condition: an operator, or the value under one.
+    Expression(Entity),
 }
 
 impl InspectTarget {
@@ -97,7 +101,8 @@ impl InspectTarget {
             | InspectTarget::Filter(node)
             | InspectTarget::Action(node)
             | InspectTarget::Step(node)
-            | InspectTarget::Gate(node) => node,
+            | InspectTarget::Gate(node)
+            | InspectTarget::Expression(node) => node,
         }
     }
 
@@ -113,6 +118,7 @@ impl InspectTarget {
             InspectTarget::Action(_) => "ACTION",
             InspectTarget::Step(_) => "STEP",
             InspectTarget::Gate(_) => "GATE",
+            InspectTarget::Expression(_) => "EXPRESSION",
         }
     }
 }
@@ -130,7 +136,7 @@ pub(crate) fn inspected(
     kinds: &NodeKinds,
 ) -> Option<InspectTarget> {
     let node = selected.0.or_else(|| context.current())?;
-    let (scenario, ship, section, object, event, filter, action, step, gate) =
+    let (scenario, ship, section, object, event, filter, action, step, gate, expression) =
         kinds.get(node).ok()?;
     if scenario {
         return Some(InspectTarget::Scenario(node));
@@ -156,7 +162,10 @@ pub(crate) fn inspected(
     if step {
         return Some(InspectTarget::Step(node));
     }
-    gate.then_some(InspectTarget::Gate(node))
+    if gate {
+        return Some(InspectTarget::Gate(node));
+    }
+    expression.then_some(InspectTarget::Expression(node))
 }
 
 /// Which of a node's parts a row edits. The reflection path is relative to
@@ -1774,6 +1783,30 @@ pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
     rows
 }
 
+/// The rows one node of a condition shows: which operator it is, and - for a
+/// value - the expression it holds.
+///
+/// `compares` narrows the kind row to the operators that BELONG here. A
+/// condition's root is a comparison and everything under it is a value, which
+/// is the grammar's own split: offering `+` where a `<` has to stand would let
+/// a builder author a condition that is not one.
+pub(crate) fn expression_rows(expression: &ExpressionNode, compares: bool) -> Vec<InspectorRow> {
+    let choice = expr_choice(&expression.kind);
+    let offered: Vec<ExprChoice> = ExprChoice::ALL
+        .into_iter()
+        .filter(|kind| kind.compares() == compares)
+        .collect();
+    let mut rows = vec![kind_row(
+        "Operator",
+        offered.iter().copied().map(ExprChoice::label),
+        offered.iter().position(|kind| *kind == choice),
+    )];
+    if let Some(config) = expr_config(&expression.kind) {
+        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+    }
+    rows
+}
+
 /// The rows one beat of a sequence shows: how long after the beat before it,
 /// and how long it may wait before the run is declared stuck.
 pub(crate) fn step_rows(step: &StepNode) -> Vec<InspectorRow> {
@@ -1916,6 +1949,11 @@ pub(crate) fn script_name(target: InspectTarget, kinds: &ScriptNames) -> String 
             .gates
             .get(node)
             .map_or_else(|_| String::new(), |gate| event_label(gate.name).to_string()),
+        InspectTarget::Expression(node) => kinds
+            .expressions
+            .get(node)
+            .map_or("", |expression| expr_choice(&expression.kind).label())
+            .to_string(),
         _ => String::new(),
     }
 }
@@ -1929,6 +1967,7 @@ pub(crate) struct ScriptNames<'w, 's> {
     filters: Query<'w, 's, &'static FilterNode>,
     actions: Query<'w, 's, &'static ActionNode>,
     gates: Query<'w, 's, &'static GateNode>,
+    expressions: Query<'w, 's, &'static ExpressionNode>,
 }
 
 /// What the Key row reads when the section fires on nothing.

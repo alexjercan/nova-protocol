@@ -94,17 +94,17 @@ does NOT get an entry - and it is the only place they are written down.
   config back.
 - The Inspector says a node's id under its title, and View > Ids reads the whole
   tree as ids rather than names: what an event's filter will name them by.
-- The left rail has two tabs. SCENE is the world; EVENTS is the script - the
-  scenario at the root, a row per handler, and its filters, actions,
-  sequence steps and gates under it.
+- SCENE and EVENTS are two modes of one screen: the world beside the Inspector,
+  or the whole window given to the script - the scenario, its handlers, and
+  their filters, actions, steps and gates.
 - The Inspector edits a handler like a rock: what it fires on, whether it
   retires, and every field of every filter and action, read off the config
   by reflection.
 - A filter or an action is switched to any other kind from its own row, and
   keeps the operands the new kind can hold.
-- A condition is typed, not nested: an expression row reads and writes
-  `scenario.elapsed > 90`, and a line that will not parse says why under the
-  field.
+- A condition is nodes: the operator is the row, drawn large, with its two sides
+  under it, and a leaf holds any expression as text - refusing, with the reason,
+  what will not parse.
 - Add builds the script: Handler, Filter, Action, Step and Gate land under
   the marked node, and Delete removes any of them.
 - A row that names an object opens a picker of the ids the document actually
