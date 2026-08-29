@@ -24,7 +24,10 @@ use nova_ship::prelude::{
 
 use super::*;
 use crate::{
-    event::{ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice, FilterKind, FilterNode},
+    event::{
+        ActionChoice, ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice, FilterKind,
+        FilterNode,
+    },
     node::{EditorNode, NextChildOrdinal, ScenarioNode},
 };
 
@@ -1331,6 +1334,53 @@ fn a_condition_is_one_page_of_the_filter_that_holds_it() {
         leaf_text(&app, left),
         "scenario.elapsed",
         "the row wrote to its OWN node, not to the filter the panel is on"
+    );
+}
+
+/// The value a `VariableSet` writes gets the SAME page a condition does: the
+/// key, and then a row per node of the value's own tree.
+///
+/// The action's field is an expression, not a literal - the engine evaluates
+/// it - and typed into one box the grammar was a string a builder had to
+/// already know. As rows it is the shape it has, and the operators are picked
+/// rather than spelled.
+#[test]
+fn a_variable_set_writes_a_value_its_own_page_builds() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let action = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ActionNode {
+                kind: ActionChoice::VariableSet.stock(),
+            },
+            NodeId("set_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    let root = operand(&mut app, action, "add_1", ExprChoice::Add);
+    let left = operand(&mut app, root, "value_2", ExprChoice::Value);
+    operand(&mut app, root, "value_3", ExprChoice::Value);
+    select(&mut app, action);
+
+    assert_eq!(
+        chip_of(&mut app, "Key"),
+        Some(Offers::Named(Names::Variable)),
+        "the key is still the action's own field, and still picks a variable"
+    );
+    assert_eq!(
+        operand_names(&mut app),
+        ["Writes", "Left", "Right"],
+        "and every node of the value is a row, named by its place"
+    );
+
+    submit(&mut app, "Left", "beat");
+
+    assert_eq!(
+        leaf_text(&app, left),
+        "beat",
+        "the row wrote to its OWN node, not to the action the panel is on"
     );
 }
 

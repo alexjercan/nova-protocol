@@ -60,7 +60,7 @@ fn text_of(rows: &[InspectorRow], label: &str) -> String {
 
 /// What a value node HOLDS, read off the row the condition page draws it in.
 fn leaf(node: &ExpressionNode) -> String {
-    match operand_row(Entity::PLACEHOLDER, node, "Left", false, 1).value {
+    match operand_row(Entity::PLACEHOLDER, node, "Left", Operand::TestSide, 1).value {
         RowValue::Operand {
             text: Some(text), ..
         } => text,
@@ -1491,7 +1491,7 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
         kind: ExprChoice::Equal.stock(),
     };
 
-    let compared = operand_row(Entity::PLACEHOLDER, &node, "Compare", true, 0);
+    let compared = operand_row(Entity::PLACEHOLDER, &node, "Compare", Operand::Test, 0);
     let RowValue::Operand {
         options, chosen, ..
     } = &compared.value
@@ -1501,7 +1501,7 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
     assert_eq!(options, &["==", "<", ">"], "a condition compares");
     assert_eq!(*chosen, 0);
 
-    let valued = operand_row(Entity::PLACEHOLDER, &node, "Left", false, 1);
+    let valued = operand_row(Entity::PLACEHOLDER, &node, "Left", Operand::TestSide, 1);
     let RowValue::Operand { options, .. } = &valued.value else {
         panic!("an operand row offers its kinds");
     };
@@ -1510,6 +1510,16 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
         &["+", "-", "*", "/", "value"],
         "and what it compares are values"
     );
+
+    // What an action WRITES is a value too, all the way to its root: the
+    // grammar has no way to spell a comparison into a variable.
+    let written = operand_row(Entity::PLACEHOLDER, &node, "Writes", Operand::Value, 0);
+    let RowValue::Operand { options, .. } = &written.value else {
+        panic!("an operand row offers its kinds");
+    };
+    assert_eq!(options, &["+", "-", "*", "/", "value"]);
+    assert_eq!(compared.group, ["Condition"], "and each page is headed");
+    assert_eq!(written.group, ["Value"]);
 }
 
 /// An asset reference is a leaf too: the path under `assets/`, which is what a

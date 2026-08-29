@@ -160,20 +160,34 @@ pub(crate) struct ActionNode {
     pub(crate) kind: ActionKind,
 }
 
-/// What an [`ActionNode`] is: an action with nothing nested in it, or the head
-/// of a sequence whose steps are its children.
+/// What an [`ActionNode`] is: an action the config holds whole, or the head of
+/// one whose innards are its children.
+///
+/// The two headed arms are the two actions that CONTAIN something the tree can
+/// show - a chain of beats, and an expression - and each keeps the fields left
+/// over once that something is a child. See the module note.
 #[derive(Debug, Clone)]
 pub(crate) enum ActionKind {
     /// An action the config holds whole.
     Leaf(EventActionConfig),
     /// A `Sequence`: the key lives here, the steps are children.
     Sequence(SequenceHead),
+    /// A `VariableSet`: the key lives here, the value is a child expression.
+    VariableSet(VariableSetHead),
 }
 
 /// A sequence's own fields, minus the steps.
 #[derive(Component, Debug, Clone, Default, Reflect)]
 pub(crate) struct SequenceHead {
     /// Scenario-local key the engine files the cursor under.
+    pub(crate) key: String,
+}
+
+/// A variable set's own field, minus the expression.
+#[derive(Component, Debug, Clone, Default, Reflect)]
+pub(crate) struct VariableSetHead {
+    /// The scenario variable this action writes.
+    #[reflect(@Names::Variable)]
     pub(crate) key: String,
 }
 
@@ -496,6 +510,7 @@ pub(crate) fn filter_config_mut(kind: &mut FilterKind) -> Option<&mut dyn Partia
 pub(crate) fn action_config(kind: &ActionKind) -> Option<&dyn PartialReflect> {
     match kind {
         ActionKind::Sequence(head) => Some(head),
+        ActionKind::VariableSet(head) => Some(head),
         ActionKind::Leaf(action) => leaf_config(action),
     }
 }
@@ -504,6 +519,7 @@ pub(crate) fn action_config(kind: &ActionKind) -> Option<&dyn PartialReflect> {
 pub(crate) fn action_config_mut(kind: &mut ActionKind) -> Option<&mut dyn PartialReflect> {
     match kind {
         ActionKind::Sequence(head) => Some(head),
+        ActionKind::VariableSet(head) => Some(head),
         ActionKind::Leaf(action) => leaf_config_mut(action),
     }
 }
@@ -868,10 +884,9 @@ impl ActionChoice {
             ActionChoice::TimerCancel => {
                 EventActionConfig::TimerCancel(TimerCancelActionConfig { key: String::new() })
             }
-            ActionChoice::VariableSet => EventActionConfig::VariableSet(VariableSetActionConfig {
-                key: String::new(),
-                expression: number(0.0),
-            }),
+            // The second arm whose innards are children: the value is an
+            // expression node beside the key, not a field inside it.
+            ActionChoice::VariableSet => return ActionKind::VariableSet(VariableSetHead::default()),
             ActionChoice::DebugMessage => {
                 EventActionConfig::DebugMessage(DebugMessageActionConfig {
                     message: String::new(),
@@ -909,6 +924,7 @@ fn stock_object() -> ScenarioObjectConfig {
 pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
     match kind {
         ActionKind::Sequence(_) => ActionChoice::Sequence,
+        ActionKind::VariableSet(_) => ActionChoice::VariableSet,
         ActionKind::Leaf(action) => match action {
             EventActionConfig::DebugMessage(_) => ActionChoice::DebugMessage,
             EventActionConfig::VariableSet(_) => ActionChoice::VariableSet,
@@ -1191,12 +1207,18 @@ fn lift_action(
     ordinal: u32,
     action: EventActionConfig,
 ) -> Entity {
-    let (kind, steps) = match action {
+    let (kind, steps, value) = match action {
         EventActionConfig::Sequence(config) => (
             ActionKind::Sequence(SequenceHead { key: config.key }),
             config.steps,
+            None,
         ),
-        leaf => (ActionKind::Leaf(leaf), Vec::new()),
+        EventActionConfig::VariableSet(config) => (
+            ActionKind::VariableSet(VariableSetHead { key: config.key }),
+            Vec::new(),
+            Some(config.expression),
+        ),
+        leaf => (ActionKind::Leaf(leaf), Vec::new(), None),
     };
     let id = format!("{}_{ordinal}", action_choice(&kind).stem());
     let node = commands
@@ -1204,11 +1226,16 @@ fn lift_action(
             EditorNode,
             ActionNode { kind },
             NodeId(id.clone()),
-            counter(steps.len()),
+            counter(steps.len() + usize::from(value.is_some())),
             Name::new(format!("Action Node {id}")),
             ChildOf(parent),
         ))
         .id();
+    // Steps and a value never meet - a sequence has no expression and a
+    // variable set has no beats - so both start the ordinal space at one.
+    if let Some(value) = value {
+        lift_expression(commands, node, 1, value);
+    }
     for (index, step) in steps.into_iter().enumerate() {
         lift_step(commands, node, ordinal_at(index), step);
     }
@@ -1367,6 +1394,25 @@ impl ScriptNodes<'_, '_> {
     pub(crate) fn condition_text(&self, node: Entity) -> Option<String> {
         let root = self.operands_of(node).into_iter().next()?;
         Some(self.lower_condition(root)?.to_string())
+    }
+
+    /// What a `VariableSet` action WRITES, spelled the way the grammar spells
+    /// it, or `None` where the nodes do not make an assignment yet.
+    ///
+    /// For the same reason the expression filter's row reads as its condition:
+    /// `Variable Set` is the name of a kind, and `beat = beat + 1` is what the
+    /// action does. An unnamed key has nothing to assign TO, so the row falls
+    /// back to the kind.
+    pub(crate) fn assignment_text(&self, node: Entity) -> Option<String> {
+        let ActionKind::VariableSet(head) = &self.action(node)?.kind else {
+            return None;
+        };
+        let key = head.key.trim();
+        if key.is_empty() {
+            return None;
+        }
+        let root = self.operands_of(node).into_iter().next()?;
+        Some(format!("{key} = {}", self.lower_expression(root)?))
     }
 
     /// The children of `node` that hold `T`, in AUTHORED order.
@@ -1535,6 +1581,11 @@ impl ScriptNodes<'_, '_> {
         let expression = self.expression(node)?;
         let mut operands = self.operands_of(node).into_iter();
         Some(match expression.kind {
+            // A COMPARISON is not a value. The panel never offers one where a
+            // value belongs, so this is a state nothing can author - but the
+            // three lowerings pass a kind none of them knows on to each other,
+            // and a kind all three refuse would go round for ever.
+            ExprKind::Equal | ExprKind::LessThan | ExprKind::GreaterThan => return None,
             ExprKind::Add => VariableExpressionNode::new_add(
                 self.lower_term(operands.next()?)?,
                 self.lower_expression(operands.next()?)?,
@@ -1596,6 +1647,16 @@ impl ScriptNodes<'_, '_> {
         let action = self.actions.get(node).ok()?;
         Some(match &action.kind {
             ActionKind::Leaf(config) => config.clone(),
+            // A value that does not lower takes its action with it, the same
+            // refusal a combinator missing an operand makes: an assignment
+            // with no right-hand side is not an assignment.
+            ActionKind::VariableSet(head) => {
+                EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: head.key.clone(),
+                    expression: self
+                        .lower_expression(self.operands_of(node).into_iter().next()?)?,
+                })
+            }
             ActionKind::Sequence(head) => EventActionConfig::Sequence(SequenceActionConfig {
                 key: head.key.clone(),
                 steps: self
@@ -1917,8 +1978,9 @@ fn expression_children(world: &World, node: Entity) -> Vec<Entity> {
 
 /// Switch an action to another kind.
 ///
-/// Only a `Sequence` has children, so leaving one drops its beats: the steps
-/// were the sequence, and a leaf action has nowhere to hang them.
+/// NOTHING survives the switch. A sequence's beats were the sequence and a
+/// variable set's expression was the value it wrote, so neither means anything
+/// to the kind arriving - and the kind arriving brings the children it needs.
 fn retype_action(world: &mut World, node: Entity, choice: ActionChoice) {
     let Some(mut action) = world.get_mut::<ActionNode>(node) else {
         return;
@@ -1928,8 +1990,14 @@ fn retype_action(world: &mut World, node: Entity, choice: ActionChoice) {
     }
     action.kind = choice.stock();
     rename(world, node, "Action", choice.stem());
-    if choice != ActionChoice::Sequence {
-        drop_children(world, node, 0);
+    drop_children(world, node, 0);
+    // A variable set arrives WRITING something, for the reason an expression
+    // filter arrives comparing something: an assignment with no value is an
+    // action the next save would drop.
+    if choice == ActionChoice::VariableSet {
+        let mut commands = world.commands();
+        lift_expression(&mut commands, node, 1, number(0.0));
+        world.flush();
     }
 }
 

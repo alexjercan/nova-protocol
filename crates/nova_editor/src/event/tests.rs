@@ -11,7 +11,7 @@ use nova_scenario::prelude::{
     CurrentOutcome, ExpressionFilterConfig, NovaEventWorld, ObjectiveActionConfig,
     ObjectiveCompleteActionConfig, OutcomeActionConfig, ScenarioOutcomeKind, TimerFilterConfig,
     TimerStartActionConfig, VariableConditionNode, VariableExpressionNode, VariableFactorNode,
-    VariableLiteral, VariableTermNode,
+    VariableLiteral, VariableSetActionConfig, VariableTermNode,
 };
 
 use super::*;
@@ -279,6 +279,122 @@ fn an_operator_switched_to_a_value_drops_its_operands() {
         panic!("the filter is still an expression");
     };
     assert_eq!(condition.to_string(), "0 == 4");
+}
+
+/// A `VariableSet` writes an EXPRESSION, so its value is operand nodes like a
+/// condition's - and the brackets the grammar needs come back where the tree's
+/// shape says they belong.
+#[test]
+fn a_variable_set_round_trips_through_operator_nodes() {
+    let script = vec![ScenarioEventConfig {
+        label: None,
+        name: EventConfig::OnUpdate,
+        once: false,
+        filters: vec![],
+        actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "score".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_multiply(
+                    VariableFactorNode::new_name("kills"),
+                    VariableTermNode::new_factor(VariableFactorNode::new_literal(literal(10.0))),
+                ),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_name("bonus"),
+                )),
+            ),
+        })],
+    }];
+
+    assert_eq!(spelled(&round_trip(script.clone())), spelled(&script));
+}
+
+/// An action switched to a variable set arrives WRITING something, and one
+/// switched away takes the value with it: an assignment with no value is an
+/// action the next save would drop, and a value under a debug message is a
+/// node with no row and no way back to one.
+#[test]
+fn an_action_switched_to_a_variable_set_arrives_writing_a_value() {
+    let mut world = World::new();
+    let scenario = seeded(
+        &mut world,
+        vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: vec![message("noted")],
+        }],
+    );
+    let handler = handlers(&mut world, scenario)[0];
+    let action = under(&mut world, handler).1[0];
+
+    retype_script_node(&mut world, action, "Variable Set");
+
+    let script = lowered(&mut world, scenario);
+    let EventActionConfig::VariableSet(config) = &script[0].actions[0] else {
+        panic!("the action is a variable set");
+    };
+    assert_eq!(config.expression.to_string(), "0");
+
+    retype_script_node(&mut world, action, "Debug Message");
+
+    assert!(
+        operands(&mut world, action).is_empty(),
+        "the value went with the kind that held it"
+    );
+}
+
+/// The tree row of a variable set READS AS ITS ASSIGNMENT, and falls back to
+/// the kind while there is no variable to assign to.
+#[test]
+fn a_variable_set_reads_as_the_assignment_it_makes() {
+    let mut world = World::new();
+    let scenario = seeded(
+        &mut world,
+        vec![ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnUpdate,
+            once: false,
+            filters: vec![],
+            actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: String::new(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name("beat")),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(literal(1.0)),
+                    )),
+                ),
+            })],
+        }],
+    );
+    let handler = handlers(&mut world, scenario)[0];
+    let action = under(&mut world, handler).1[0];
+
+    assert_eq!(
+        assignment(&mut world, action),
+        None,
+        "an unnamed key has nothing to assign to"
+    );
+
+    let Some(ActionKind::VariableSet(head)) = world
+        .get_mut::<ActionNode>(action)
+        .map(|node| &mut node.into_inner().kind)
+    else {
+        panic!("the action is a variable set");
+    };
+    head.key = "beat".to_string();
+
+    assert_eq!(
+        assignment(&mut world, action).as_deref(),
+        Some("beat = beat + 1")
+    );
+}
+
+/// What a variable set's tree row reads as.
+fn assignment(world: &mut World, node: Entity) -> Option<String> {
+    world
+        .run_system_once(move |script: ScriptNodes| script.assignment_text(node))
+        .expect("the walk runs")
 }
 
 /// A number, as the grammar's literal.

@@ -160,6 +160,12 @@ leaf holds one value, typed in the short form below rather than as a nest of
 `Add(Term(Factor(...`. A leaf that names a variable can PICK one instead of
 spelling it: the chip beside the box lists what the scenario declares.
 
+A `VariableSet` action opens the SAME page under its `Key`, headed `Value`
+instead of `Condition`: what it writes is an expression, so `Writes` sits where
+`Compare` does and takes the operators a value may have - `+ - * /` and a leaf,
+never a comparison. The tree row of that action reads as the assignment it
+makes, `beat = beat + 1`.
+
 | you type | the file holds |
 |---|---|
 | `4` | `Term(Factor(Literal(Number(4.0))))` |

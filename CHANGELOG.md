@@ -106,6 +106,9 @@ does NOT get an entry - and it is the only place they are written down.
   every leaf on its own row, offered the kinds its place in the grammar allows.
   A leaf takes any expression as text, or picks one of the scenario's
   variables.
+- A `Variable Set` action builds the value it writes on that same page, and its
+  tree row reads as the assignment - `beat = beat + 1` - rather than as the
+  name of a kind.
 - A handler can be named, and the tree reads both - `On Enter - picket warden
   wakes` - so six handlers on one trigger are six different rows.
 - Add builds the script: Handler, Filter, Action, Sequence, Step and Gate land

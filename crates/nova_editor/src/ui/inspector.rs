@@ -46,7 +46,8 @@ use crate::{
         object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
         rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
         ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
-        InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue, ScriptNames, GRIP_GONE,
+        InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames,
+        GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -335,27 +336,27 @@ impl Document<'_, '_> {
         found.into_iter().map(|(_, child)| child).collect()
     }
 
-    /// The condition under a filter, as ONE PAGE: a row per node of the tree,
-    /// each writing to its own entity.
+    /// The expression under a filter or an action, as ONE PAGE: a row per node
+    /// of the tree, each writing to its own entity.
     ///
-    /// A page rather than a branch of the rail because a condition is not part
-    /// of the document's shape - it is one field of one filter, written in a
+    /// A page rather than a branch of the rail because an expression is not
+    /// part of the document's shape - it is one field of one node, written in a
     /// grammar that happens to have a shape of its own. The tree says
-    /// `Expression` and stops; everything below it is here.
-    fn condition_rows(
+    /// `Expression` or `Variable Set` and stops; everything below it is here.
+    fn operand_rows(
         &self,
         node: Entity,
         place: &str,
-        compares: bool,
+        role: Operand,
         depth: usize,
         rows: &mut Vec<InspectorRow>,
     ) {
         let Ok(expression) = self.expressions.get(node) else {
             return;
         };
-        rows.push(operand_row(node, expression, place, compares, depth));
+        rows.push(operand_row(node, expression, place, role, depth));
         for (side, operand) in SIDES.into_iter().zip(self.operands_of(node)) {
-            self.condition_rows(operand, side, false, depth + 1, rows);
+            self.operand_rows(operand, side, role.inside(), depth + 1, rows);
         }
     }
 
@@ -399,11 +400,20 @@ impl Document<'_, '_> {
             InspectTarget::Filter(node) => {
                 let mut rows = filter_rows(self.filters.get(node).ok()?);
                 if let Some(root) = self.operands_of(node).into_iter().next() {
-                    self.condition_rows(root, COMPARE, true, 0, &mut rows);
+                    self.operand_rows(root, COMPARE, Operand::Test, 0, &mut rows);
                 }
                 rows
             }
-            InspectTarget::Action(node) => action_rows(self.actions.get(node).ok()?),
+            // A `VariableSet` gets the same page under its key: the value it
+            // writes is an expression, and an expression is a tree whether it
+            // is one number or a sum of four.
+            InspectTarget::Action(node) => {
+                let mut rows = action_rows(self.actions.get(node).ok()?);
+                if let Some(root) = self.operands_of(node).into_iter().next() {
+                    self.operand_rows(root, WRITES, Operand::Value, 0, &mut rows);
+                }
+                rows
+            }
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
         };
@@ -793,7 +803,7 @@ fn indent(depth: usize) -> f32 {
 /// column and its value box at opposite ends of the screen.
 const MEASURE_W: f32 = 640.0;
 
-/// How far one level of a CONDITION steps in. Wider than a config's indent
+/// How far one level of an EXPRESSION steps in. Wider than a config's indent
 /// because the page IS the tree: these steps are the only thing drawing its
 /// shape, where a walked config already said where its rows sit in its
 /// headings.
@@ -916,6 +926,9 @@ const PICK_CHOICE: usize = 7;
 /// What a condition's root is to the filter holding it: the comparison the
 /// filter tests.
 const COMPARE: &str = "Compare";
+
+/// What a value's root is to the action holding it: what the action writes.
+const WRITES: &str = "Writes";
 
 /// What an operand is to the operator above it. The grammar has exactly two
 /// sides, and naming them is what lets the page label a node at all - an

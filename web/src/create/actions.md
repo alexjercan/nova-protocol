@@ -671,6 +671,11 @@ VariableSet((
 | `key` | string | required | mutable variable to write (overwrites); writing a watched variable is a lint ERROR |
 | `expression` | expression node | required | see the [expression grammar](../expressions/); an evaluation error skips the write |
 
+In the in-game editor the expression is not a text field: the action opens a
+`Value` page under its `Key`, a row per node, exactly as an expression filter
+opens its condition. See
+[the typed form](../expressions/#the-typed-form-in-the-editor).
+
 </details>
 
 ### DebugMessage

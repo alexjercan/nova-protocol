@@ -1966,8 +1966,66 @@ pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
     rows
 }
 
-/// The heading the condition page stands under.
-pub(crate) const CONDITION: &str = "Condition";
+/// What an expression node IS to the thing above it.
+///
+/// Two facts in one word: WHICH page the node belongs to, and whether it is
+/// that page's root. Between them they decide everything a row cannot read off
+/// the node - the heading it stands under, the operators it may be switched
+/// to, and the line explaining the place rather than the operator.
+///
+/// Only a root COMPARES, because the grammar compares at the top of a
+/// condition and nowhere inside one - and a value expression, which is what an
+/// action writes, never compares at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Operand {
+    /// The comparison a filter tests.
+    Test,
+    /// One side of an operator inside a condition.
+    TestSide,
+    /// The value an action writes.
+    Value,
+    /// One side of an operator inside a value.
+    ValueSide,
+}
+
+impl Operand {
+    /// The heading the page stands under, which every row of it shares.
+    pub(crate) fn heading(self) -> &'static str {
+        match self {
+            Operand::Test | Operand::TestSide => "Condition",
+            Operand::Value | Operand::ValueSide => "Value",
+        }
+    }
+
+    /// Whether the place takes a comparison rather than arithmetic.
+    fn compares(self) -> bool {
+        self == Operand::Test
+    }
+
+    /// What an operand of this one is: the same page, one level in.
+    pub(crate) fn inside(self) -> Self {
+        match self {
+            Operand::Test | Operand::TestSide => Operand::TestSide,
+            Operand::Value | Operand::ValueSide => Operand::ValueSide,
+        }
+    }
+
+    /// The line under the row: what BELONGS in this place.
+    fn hint(self) -> &'static str {
+        match self {
+            Operand::Test => "The test this filter makes: it passes when the comparison holds.",
+            Operand::TestSide => {
+                "One side of the comparison: a variable, a number, or another operator."
+            }
+            Operand::Value => {
+                "The value written into the variable: a number, a variable, or a sum of them."
+            }
+            Operand::ValueSide => {
+                "One side of the operator above: a variable, a number, or another operator."
+            }
+        }
+    }
+}
 
 /// Where a LEAF's text is written back: the one field a value operand has.
 ///
@@ -1977,32 +2035,33 @@ pub(crate) fn operand_path() -> Vec<PathStep> {
     vec![PathStep::Field("value".to_string())]
 }
 
-/// ONE row of the condition page: which operator this node is, and - for a
+/// ONE row of an expression page: which operator this node is, and - for a
 /// leaf - the expression it holds.
 ///
 /// `place` is what the node IS to its parent, which is the only name it has:
-/// the comparison a filter tests, or the left and right of the operator above
-/// it. `compares` narrows the operators offered to the ones that BELONG there.
-/// A condition's root is a comparison and everything under it is arithmetic,
-/// which is the grammar's own split: offering `+` where a `<` has to stand
-/// would let a builder author a condition that is not one.
+/// the comparison a filter tests, the value an action writes, or the left and
+/// right of the operator above it. `role` narrows the operators offered to the
+/// ones that BELONG there - offering `+` where a `<` has to stand would let a
+/// builder author a condition that is not one, and offering `==` where a value
+/// belongs would let them write a comparison into a variable the grammar has
+/// no way to spell.
 pub(crate) fn operand_row(
     owner: Entity,
     expression: &ExpressionNode,
     place: &str,
-    compares: bool,
+    role: Operand,
     depth: usize,
 ) -> InspectorRow {
     let choice = expr_choice(&expression.kind);
     let offered: Vec<ExprChoice> = ExprChoice::ALL
         .into_iter()
-        .filter(|kind| kind.compares() == compares)
+        .filter(|kind| kind.compares() == role.compares())
         .collect();
     InspectorRow {
         root: FieldRoot::Kind,
         path: Vec::new(),
         optional: false,
-        group: vec![CONDITION.to_string()],
+        group: vec![role.heading().to_string()],
         label: place.to_string(),
         unit: "",
         nudge: 0.0,
@@ -2023,12 +2082,7 @@ pub(crate) fn operand_row(
                 _ => None,
             },
         },
-        hint: if compares {
-            "The test this filter makes: it passes when the comparison holds."
-        } else {
-            "One side of the comparison: a variable, a number, or another operator."
-        }
-        .to_string(),
+        hint: role.hint().to_string(),
         names: None,
         asset: None,
         owner: Some(owner),

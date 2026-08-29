@@ -1576,8 +1576,12 @@ fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
         // tells two sequences apart.
         let trail = match &action.kind {
             ActionKind::Sequence(head) => head.key.clone(),
-            ActionKind::Leaf(_) => ordinal,
+            ActionKind::Leaf(_) | ActionKind::VariableSet(_) => ordinal,
         };
+        // A variable set READS AS ITS ASSIGNMENT, for the reason an expression
+        // filter reads as its condition: `Variable Set` names a kind, and
+        // `beat = beat + 1` says what this one does.
+        let text = script.assignment_text(node);
         let beats = script.steps_of(node);
         let open = (!beats.is_empty()).then(|| script.expanded(node));
         rows.push(script_row(
@@ -1592,7 +1596,7 @@ fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
                     ACTION
                 },
             ),
-            choice.label(),
+            text.as_deref().unwrap_or(choice.label()),
             &trail,
             &format!("ACTION - {}", choice.label().to_uppercase()),
         ));
@@ -2695,7 +2699,7 @@ mod tests {
         EventConfig, EventFilterConfig, ExpressionFilterConfig, ScenarioEventConfig, SectionSource,
         SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SpaceshipConfig,
         SpaceshipController, VariableConditionNode, VariableExpressionNode, VariableFactorNode,
-        VariableLiteral, VariableTermNode,
+        VariableLiteral, VariableSetActionConfig, VariableTermNode,
     };
     use nova_ship::prelude::ShipStyleConfig;
 
@@ -3062,6 +3066,45 @@ mod tests {
         assert!(
             labels.iter().any(|label| label == CONDITION),
             "the filter row reads its whole condition: {labels:?}"
+        );
+    }
+
+    /// A variable set's row says what it WRITES, the same way an expression
+    /// filter's row says what it compares. `Variable Set` names a kind, and a
+    /// handler with three of them would be three copies of one row.
+    #[test]
+    fn a_variable_set_row_reads_as_what_it_writes() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnUpdate,
+                once: false,
+                filters: vec![],
+                actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
+                    key: "beat".to_string(),
+                    expression: VariableExpressionNode::new_add(
+                        VariableTermNode::new_factor(VariableFactorNode::new_name("beat")),
+                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                            VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                        )),
+                    ),
+                })],
+            }],
+        );
+        open_events(&mut app);
+        open_everything(&mut app);
+
+        let labels: Vec<String> = row_columns(&mut app)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect();
+        assert!(
+            labels.iter().any(|label| label == "beat = beat + 1"),
+            "the action row reads as its assignment: {labels:?}"
         );
     }
 
