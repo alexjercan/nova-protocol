@@ -143,7 +143,6 @@ pub(crate) fn insert_preview_object(
             let material = art.materials.add(StandardMaterial {
                 base_color: beacon.color,
                 emissive: beacon.color.to_linear() * 4.0,
-                unlit: true,
                 ..default()
             });
             sphere_body(entity, art, radius, material);
@@ -168,7 +167,6 @@ pub(crate) fn insert_preview_object(
             let material = art.materials.add(StandardMaterial {
                 base_color: colour,
                 emissive: colour.to_linear() * 6.0,
-                unlit: true,
                 ..default()
             });
             sphere_body(entity, art, MIN_OBJECT_RADIUS, material);

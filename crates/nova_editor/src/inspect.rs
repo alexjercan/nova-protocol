@@ -620,6 +620,25 @@ const FIRE_RATE: FieldSpec = floored("fire_rate", "/s", 0.05);
 const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "u/s", 0.5);
 const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
 const BULLET_KIND: FieldSpec = plain("bullet_kind");
+const AMMO_CAPACITY: FieldSpec = FieldSpec {
+    name: "ammo_capacity",
+    unit: "rounds",
+    limit: Limit::AtLeast(1.0),
+    step: 1.0,
+};
+const RELOAD: FieldSpec = plain("reload");
+const RELOAD_DELAY: FieldSpec = FieldSpec {
+    name: "delay",
+    unit: "s",
+    limit: Limit::AtLeast(0.02),
+    step: 0.02,
+};
+const RELOAD_AMOUNT: FieldSpec = FieldSpec {
+    name: "amount",
+    unit: "rounds",
+    limit: Limit::AtLeast(1.0),
+    step: 1.0,
+};
 const PROJECTILE_LIFETIME: FieldSpec = floored("projectile_lifetime", "s", 0.05);
 const SPAWNER_SPEED: FieldSpec = floored("spawner_speed", "u/s", 0.5);
 const BLAST_DAMAGE: FieldSpec = floored("blast_damage", "hp", 0.5);
@@ -681,6 +700,8 @@ const TURRET_PICKS: &[FieldSpec] = &[
     MUZZLE_SPEED,
     BULLET_DAMAGE,
     BULLET_KIND,
+    AMMO_CAPACITY,
+    RELOAD,
     PROJECTILE_LIFETIME,
 ];
 const TORPEDO_PICKS: &[FieldSpec] = &[
@@ -691,6 +712,8 @@ const TORPEDO_PICKS: &[FieldSpec] = &[
     ARM_TIME,
     ARM_DISTANCE,
     NAV_CONSTANT,
+    AMMO_CAPACITY,
+    RELOAD,
     PROJECTILE_LIFETIME,
 ];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
@@ -744,6 +767,16 @@ fn leaf_name(path: &[PathStep]) -> Option<&str> {
 /// something `*radius` does not.
 fn field_spec(path: &[PathStep]) -> Option<FieldSpec> {
     let name = leaf_name(path)?;
+    let under_reload = path
+        .iter()
+        .any(|step| matches!(step, PathStep::Field(parent) if parent == RELOAD.name));
+    if under_reload {
+        match name {
+            "delay" => return Some(RELOAD_DELAY),
+            "amount" => return Some(RELOAD_AMOUNT),
+            _ => {}
+        }
+    }
     let declared = || DECLARED.iter().copied().flatten();
     declared()
         .find(|spec| spec.is_named(name))

@@ -371,9 +371,17 @@ fn resolve_pending_cracks(
         &PendingSectionCracks,
     )>,
     q_level: Query<&DamageLevel, With<SectionMarker>>,
+    q_section: Query<(), With<SectionMarker>>,
 ) {
     for (entity, material, pending) in &q_pending {
-        let bucket = crack_bucket(q_level.get(pending.section).map_or(0.0, |level| level.0));
+        let (bucket, orphaned) = match q_level.get(pending.section) {
+            Ok(level) => (crack_bucket(level.0), false),
+            Err(_) if q_section.get(pending.section).is_ok() => {
+                // DamageLevel has not been derived for this new section yet.
+                continue;
+            }
+            Err(_) => (SECTION_CRACK_BUCKETS - 1, true),
+        };
 
         // Pristine: capture it, but leave it on its own material. Nothing is
         // built and nothing is swapped, so this does not wait on the source
@@ -397,18 +405,20 @@ fn resolve_pending_cracks(
             continue;
         };
 
-        // Same despawn race as `mark_section_meshes`.
-        commands
-            .entity(entity)
-            .try_insert((
-                MeshMaterial3d(handle.clone()),
-                SectionCracks {
-                    section: pending.section,
-                    source: material.0.clone(),
-                    bucket,
-                    material: Some(handle),
-                },
-            ))
+        // An orphan is wreck art whose section was destroyed before this async
+        // material resolved. Burn it once and leave no dead section reference
+        // for the per-frame grader.
+        let mut entity = commands.entity(entity);
+        entity.try_insert(MeshMaterial3d(handle.clone()));
+        if !orphaned {
+            entity.try_insert(SectionCracks {
+                section: pending.section,
+                source: material.0.clone(),
+                bucket,
+                material: Some(handle),
+            });
+        }
+        entity
             .try_remove::<MeshMaterial3d<StandardMaterial>>()
             .try_remove::<PendingSectionCracks>();
     }
@@ -427,13 +437,22 @@ fn grade_section_cracks(
     mut registry: ResMut<SectionCracksMaterials>,
     mut q_cracks: Query<(Entity, &mut SectionCracks)>,
     q_level: Query<&DamageLevel, With<SectionMarker>>,
+    q_section: Query<(), With<SectionMarker>>,
 ) {
     for (entity, mut cracks) in &mut q_cracks {
         // The SAME level the carve reads, so a section's surface and its shape
-        // cannot disagree about how far gone it is.
-        let damage = q_level.get(cracks.section).map_or(0.0, |level| level.0);
-        let bucket = crack_bucket(damage);
+        // cannot disagree about how far gone it is. A missing section means
+        // this mesh left as wreck art: latch it burnt instead of reading the
+        // missing health as pristine.
+        let (bucket, orphaned) = match q_level.get(cracks.section) {
+            Ok(level) => (crack_bucket(level.0), false),
+            Err(_) if q_section.get(cracks.section).is_ok() => continue,
+            Err(_) => (SECTION_CRACK_BUCKETS - 1, true),
+        };
         if bucket == cracks.bucket {
+            if orphaned {
+                commands.entity(entity).try_remove::<SectionCracks>();
+            }
             continue;
         }
 
@@ -466,6 +485,9 @@ fn grade_section_cracks(
         }
         cracks.bucket = bucket;
         cracks.material = Some(handle);
+        if orphaned {
+            entity.try_remove::<SectionCracks>();
+        }
     }
 }
 
@@ -921,6 +943,52 @@ mod tests {
                 .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
                 .is_none(),
             "and stops paying the extended pipeline"
+        );
+    }
+
+    /// Wreck art is latched at the burnt tier when its section leaves, and the
+    /// dead section reference is removed so grading has no permanent orphan.
+    #[test]
+    fn wreck_art_stays_burnt_after_its_section_is_despawned() {
+        let mut app = cracks_app();
+        let shared = app
+            .world_mut()
+            .resource_mut::<Assets<StandardMaterial>>()
+            .add(StandardMaterial::default());
+        let (section, mesh) = section_with_mesh(&mut app, &shared);
+
+        app.update();
+        app.update();
+        assert_eq!(app.world().get::<SectionCracks>(mesh).unwrap().bucket, 0);
+
+        let wreck = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(mesh).insert(ChildOf(wreck));
+        app.world_mut().entity_mut(section).despawn();
+        app.update();
+
+        assert!(
+            app.world().get::<SectionCracks>(mesh).is_none(),
+            "a latched wreck carries no dangling section reference"
+        );
+        assert!(
+            app.world()
+                .get::<MeshMaterial3d<StandardMaterial>>(mesh)
+                .is_none(),
+            "the pristine material stays off the wreck"
+        );
+        let material = app
+            .world()
+            .get::<MeshMaterial3d<SectionCracksMaterial>>(mesh)
+            .expect("the wreck draws through the cracks material");
+        assert_eq!(
+            app.world()
+                .resource::<Assets<SectionCracksMaterial>>()
+                .get(&material.0)
+                .expect("the burnt material exists")
+                .extension
+                .damage,
+            1.0,
+            "even a one-shot kill leaves burnt wreckage"
         );
     }
 

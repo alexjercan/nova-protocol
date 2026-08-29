@@ -148,7 +148,6 @@ pub(crate) fn sync_section_keybind_labels(
                     ..default()
                 },
                 TextColor(nova_ui::theme::AMBER_NOVA),
-                TextShadow::default(),
                 Node {
                     position_type: PositionType::Absolute,
                     // Pill padding + rounded corners so the background

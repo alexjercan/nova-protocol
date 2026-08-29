@@ -248,6 +248,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The editor reads in the game's own typeface. Its text went out unmarked and
   rendered in bevy's built-in face, which has none of the line art the panel is
   drawn with: every picker chip was an empty box.
+- Destroyed sections keep burnt damage on detached wreckage instead of reverting
+  to pristine, and wreck meshes no longer retain dead grading references.
+- Editor section key chips no longer carry Bevy's 4 px default text shadow.
 
 ### Internals & Tooling
 

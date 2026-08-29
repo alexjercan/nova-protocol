@@ -235,10 +235,10 @@ fn take_census(world: &mut World) -> Census {
     let mut mesh_instances = 0_u32;
     let mut per_origin: BTreeMap<String, (u32, HashSet<AssetId<Mesh>>, HashSet<UntypedAssetId>)> =
         BTreeMap::new();
-    // Two material components, not one. Every section mesh - cladding
-    // included - has its `StandardMaterial` REMOVED and replaced by the shared
-    // cracks material (`damage_cracks`), so a census that reads only the
-    // standard one reports the SOURCE palette and not what is drawn.
+    // Two material components, not one. A damaged section mesh swaps its
+    // `StandardMaterial` for the shared cracks material (`damage_cracks`),
+    // while pristine sections and fixture cladding keep the standard path.
+    // The census must read both to report what is actually drawn.
     let mut drawables = world.query::<(
         Entity,
         &Mesh3d,

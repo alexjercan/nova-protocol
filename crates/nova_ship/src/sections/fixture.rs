@@ -22,13 +22,13 @@ pub mod prelude {
 /// cost the ship something it can do, it is a section, not a fixture. Cladding
 /// costs the ship nothing but the cladding, so it is a fixture.
 ///
-/// The marker earns its place because three systems read `SectionMarker` and
-/// every one of them takes a fixture for structure without it:
+/// The marker earns its place because three systems must distinguish a fixture
+/// from structure:
 ///
-/// - `grade_section_tints` reads `(&Health, Has<SectionInactiveMarker>)` off
-///   anything marked a section, so a plate would redden and burn as its own
-///   health fell. A fixture's damage feedback is that it COMES OFF, and a
-///   reddening plate says the ship is hurt when only its paint is.
+/// - `damage_cracks::owning_section` stops its ancestor walk at a fixture, so
+///   cladding keeps its authored material instead of wearing the hull's damage.
+///   A fixture's damage feedback is that it COMES OFF, and cracked cladding says
+///   the ship is hurt when only its skin is.
 /// - `build_ship_integrity_graph` derives connectivity from the link points of
 ///   everything marked a section, so a run of cladding would bridge two halves
 ///   of a ship that combat had already cut apart.

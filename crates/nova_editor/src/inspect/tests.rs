@@ -12,9 +12,9 @@ use nova_scenario::prelude::{
     TimerFilterConfig,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, ThrusterExhaust,
-    ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig, TurretJoint,
-    TurretSectionConfig,
+    BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, SectionReloadConfig,
+    ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig,
+    TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
 };
 
 use super::*;
@@ -561,6 +561,73 @@ fn a_turret_opens_on_what_it_does_not_on_its_joint_tree() {
         assert!(
             !labels.contains(&buried.to_string()),
             "{buried:?} is joint plumbing and is not on the first screen: {labels:?}"
+        );
+    }
+}
+
+/// Magazine pacing is a first-screen weapon decision, with controls that move
+/// in whole rounds and cannot author values the runtime rejects.
+#[test]
+fn weapons_open_on_valid_ammo_and_reload_controls() {
+    let mut node = turret_with_muzzle(4.0);
+    let SectionSource::Inline(config) = &mut node.source else {
+        panic!("the fixture is inline");
+    };
+    let SectionKind::Turret(turret) = &mut config.kind else {
+        panic!("the fixture is a turret");
+    };
+    turret.ammo_capacity = Some(12);
+    turret.reload = Some(SectionReloadConfig {
+        delay: 1.5,
+        amount: 3,
+    });
+
+    let rows = curated_section_rows(&node, None);
+    let capacity = row(&rows, "Ammo Capacity");
+    assert_eq!(capacity.unit, "rounds");
+    assert_eq!(capacity.nudge, 1.0);
+    assert_eq!(capacity.limit, Limit::AtLeast(1.0));
+    let delay = row(&rows, "Delay");
+    assert_eq!(delay.unit, "s");
+    assert_eq!(delay.nudge, 0.02);
+    assert_eq!(delay.limit, Limit::AtLeast(0.02));
+    let amount = row(&rows, "Amount");
+    assert_eq!(amount.unit, "rounds");
+    assert_eq!(amount.nudge, 1.0);
+    assert_eq!(amount.limit, Limit::AtLeast(1.0));
+
+    let mut config = node.resolve(None).expect("an inline section").clone();
+    let refused = write_field(
+        section_config_mut(&mut config.kind),
+        &delay.path,
+        false,
+        "0",
+    );
+    assert_eq!(refused, Err("min 0.02".to_string()));
+
+    let bay = SectionNode {
+        source: SectionSource::Inline(SectionConfig {
+            base: BaseSectionConfig {
+                id: "torpedo".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Torpedo(TorpedoSectionConfig {
+                ammo_capacity: Some(6),
+                reload: Some(SectionReloadConfig {
+                    delay: 10.0,
+                    amount: 1,
+                }),
+                ..default()
+            }),
+        }),
+        modifications: vec![],
+        binds: vec![],
+    };
+    let bay_rows = curated_section_rows(&bay, None);
+    for label in ["Ammo Capacity", "Delay", "Amount"] {
+        assert!(
+            bay_rows.iter().any(|row| row.label == label),
+            "a torpedo bay exposes {label} on its first screen"
         );
     }
 }

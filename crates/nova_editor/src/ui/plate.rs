@@ -13,7 +13,7 @@
 //! surface earns an anchor when the reader has to be LOOKING at the thing
 //! while they read it.
 
-use bevy::{color::Mix, picking::Pickable, prelude::*, ui::widget::TextShadow};
+use bevy::{color::Mix, picking::Pickable, prelude::*};
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
     prelude::{clear_of, hang_at, Hang, UiSkin, UiText},
@@ -107,9 +107,6 @@ fn plate(label: &str, marked: bool, skin: UiSkin) -> impl Bundle {
             } else {
                 theme::PHOSPHOR_MUTED
             }),
-            // The stage behind a plate is whatever the camera is pointed at,
-            // so the type carries its own contrast rather than trusting it.
-            TextShadow::default(),
         )],
     )
 }

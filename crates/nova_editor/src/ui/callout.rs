@@ -4,7 +4,7 @@
 //! part rather than at the foot of the screen, so a builder watching a ghost
 //! snap around a hull reads the answer where they are already looking.
 
-use bevy::{picking::Pickable, prelude::*, ui::widget::TextShadow};
+use bevy::{picking::Pickable, prelude::*};
 use nova_ship::prelude::{GameSections, SectionConfig};
 use nova_ui::{
     prelude::{hang_at, panel, Hang, UiSkin, UiText},
@@ -78,7 +78,6 @@ pub(crate) fn placement_callout(skin: UiSkin) -> impl Bundle {
                     ..default()
                 },
                 TextColor(theme::RED),
-                TextShadow::default(),
                 Node {
                     display: Display::None,
                     ..default()
