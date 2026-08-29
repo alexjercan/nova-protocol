@@ -43,9 +43,13 @@ use crate::{
     bundle::ask_to_save,
     config::{
         ContextBreadcrumb, CrumbSelection, CrumbStep, EditorKeyLegend, EditorOverlays,
-        EditorStatus, LastClick, PlacementStatus, PlayButton, RebindButton, SceneList, SceneRow,
-        SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote, ShipSettings,
-        SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        EditorStatus, LastClick, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton,
+        SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote,
+        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+    },
+    event::{
+        action_choice, add_script_node, event_label, filter_choice, ActionChoice, ActionKind,
+        Expanded, ScriptAdd, ScriptNodes,
     },
     frame::{
         ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
@@ -53,7 +57,8 @@ use crate::{
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     glyph::{
-        category_mark, choice_mark, object_mark, section_mark, ship_mark, INSIDE, SCENARIO, SHIP_AI,
+        category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
+        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, SCENARIO, SEQUENCE, SHIP_AI, SHUT, STEP,
     },
     keybind::{on_rebind_action, EditorRebind},
     node::{
@@ -62,7 +67,7 @@ use crate::{
     },
     placement::{
         continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
-        deletable, delete_selected_node, put_armed_part_down, roll_armed_part,
+        deletable, delete_selected_node, put_armed_part_down, roll_armed_part, DeletableNode,
     },
     ui::{
         callout::placement_callout,
@@ -74,7 +79,10 @@ use crate::{
             MenuId, MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         plate::plate_layer,
-        rail::{scene_row, scene_tooltip, skin_toggle_row, style_row, SceneRowHint, SceneRowTrash},
+        rail::{
+            rail_tab, rail_tab_strip, scene_row, scene_tooltip, skin_toggle_row, style_row,
+            SceneRowHint, SceneRowTrash,
+        },
         window::{window_layer, DestructiveVerb},
     },
     ExampleStates,
@@ -292,6 +300,24 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                         skin,
                     ),
                     observe(create_scenario_object),
+                ));
+            }
+            // The SCRIPT palette, on the same menu as the world's. Add means
+            // "one more node here", and the EVENTS tab is a different here:
+            // these five rows are live there and greyed on the SCENE tab,
+            // exactly as the world rows grey inside a ship.
+            items.spawn(separator());
+            for add in ScriptAdd::ALL {
+                items.spawn((
+                    Name::new(format!("Add {}", add.label())),
+                    add,
+                    menu_item_row(
+                        add.label(),
+                        MenuLead::Glyph(script_mark(add)),
+                        MenuTail::None,
+                        skin,
+                    ),
+                    observe(add_script_node),
                 ));
             }
             items.spawn(separator());
@@ -693,8 +719,23 @@ pub(crate) fn setup_editor_scene(
                                 .with_children(|rail| {
                                     // The document, as a tree. The rows are built by
                                     // `sync_scene_list`, because what is expanded depends
-                                    // on which node the editor is inside.
-                                    rail.spawn(panel_header("Scenario"));
+                                    // on which node the editor is inside - and on which
+                                    // half of the document the tabs above are showing.
+                                    rail.spawn((Name::new("Rail Tabs"), rail_tab_strip()))
+                                        .with_children(|strip| {
+                                            for (tab, label) in RAIL_TABS {
+                                                strip.spawn((
+                                                    Name::new(format!("Rail Tab {label}")),
+                                                    rail_tab(
+                                                        tab,
+                                                        label,
+                                                        tab == RailTab::default(),
+                                                        skin,
+                                                    ),
+                                                    observe(on_rail_tab),
+                                                ));
+                                            }
+                                        });
                                     rail.spawn((
                                         Name::new("Scene List"),
                                         SceneList,
@@ -1103,6 +1144,53 @@ fn section_name(section: &SectionNode, catalog: Option<&GameSections>) -> Option
     (!name.is_empty()).then(|| name.to_string())
 }
 
+/// The tabs the tree header offers, in the order they are drawn.
+const RAIL_TABS: [(RailTab, &str); 2] = [(RailTab::Scene, "Scene"), (RailTab::Events, "Events")];
+
+/// Switch the tree to the half the pressed tab stands for.
+///
+/// The SELECTION goes with it: a node marked on one tab is not in the other's
+/// list, and a mark the tree cannot draw is one the Inspector would still be
+/// reporting from a panel nothing on screen points at.
+pub(crate) fn on_rail_tab(
+    activate: On<Activate>,
+    tabs: Query<&RailTabButton>,
+    mut tab: ResMut<RailTab>,
+    mut selected: ResMut<SelectedNode>,
+) {
+    let Ok(RailTabButton(pressed)) = tabs.get(activate.entity) else {
+        return;
+    };
+    if *tab == *pressed {
+        return;
+    }
+    *tab = *pressed;
+    selected.0 = None;
+}
+
+/// Mark the tab whose half the tree is showing.
+///
+/// Compared before writing rather than gated on a change, for the same reason
+/// as [`sync_style_list`]: the tabs are spawned on entering the editor, which
+/// need not be a frame the tab changed on.
+pub(crate) fn sync_rail_tabs(
+    mut commands: Commands,
+    tab: Res<RailTab>,
+    tabs: Query<(Entity, &RailTabButton, Has<Selected>)>,
+) {
+    for (entity, RailTabButton(this), marked) in &tabs {
+        match (*this == *tab, marked) {
+            (true, false) => {
+                commands.entity(entity).insert(Selected);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<Selected>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// What the Scene tree is showing, so a frame that changed nothing costs one
 /// comparison instead of a respawned list - and, more to the point, so hover
 /// and selection survive a frame in which the document did not change.
@@ -1141,16 +1229,7 @@ fn wanted_rows(
     let Ok(root_id) = q_scenarios.get(scenario) else {
         return Vec::new();
     };
-    let (root_label, root_trail) = tree_text("", &root_id.0);
-    let mut rows = vec![WantedRow {
-        node: scenario,
-        depth: 0,
-        lead: SCENARIO.to_string(),
-        id: root_id.0.clone(),
-        label: elide(&root_label, label_budget(0)),
-        trail: root_trail,
-        kind: "SCENARIO".to_string(),
-    }];
+    let mut rows = vec![scenario_row(scenario, &root_id.0)];
 
     let entered = context.ship();
     let mut ships: Vec<_> = q_ships
@@ -1244,20 +1323,235 @@ fn wanted_rows(
             kind: kind.to_string(),
         });
     }
-    // View > Ids, applied to the finished list rather than threaded through
-    // every arm above: the id is the same string whatever built the row. The
-    // trail goes with the name - the ordinal it holds is the tail of the id
-    // now in the label - except the mark that says which ship you are inside,
-    // which no id carries.
-    if ids {
-        for row in &mut rows {
-            row.label = elide(&row.id, label_budget(row.depth));
-            if row.trail != INSIDE {
-                row.trail = String::new();
-            }
+    show_ids(&mut rows, ids);
+    rows
+}
+
+/// The document root, which both halves of the tree are hung under: it is the
+/// row that says which range this is, and the way back out of a ship.
+fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
+    let (label, trail) = tree_text("", id);
+    WantedRow {
+        node: scenario,
+        depth: 0,
+        lead: SCENARIO.to_string(),
+        id: id.to_string(),
+        label: elide(&label, label_budget(0)),
+        trail,
+        kind: "SCENARIO".to_string(),
+    }
+}
+
+/// View > Ids, applied to the finished list rather than threaded through every
+/// arm that built one: the id is the same string whatever made the row.
+///
+/// The trail goes with the name - the ordinal it holds is the tail of the id
+/// now in the label - except the mark that says which ship you are inside,
+/// which no id carries.
+fn show_ids(rows: &mut [WantedRow], ids: bool) {
+    if !ids {
+        return;
+    }
+    for row in rows {
+        row.label = elide(&row.id, label_budget(row.depth));
+        if row.trail != INSIDE {
+            row.trail = String::new();
         }
     }
+}
+
+/// The SCRIPT as a tree: the root, then every handler, then what each one
+/// listens for and what it does.
+///
+/// The nesting is the document's own - a filter's operands, a sequence's steps,
+/// a step's gate - so nothing here decides what is under what. The tab shows
+/// the whole script whichever node the editor is standing on: a handler belongs
+/// to the range, not to the ship a builder happens to be inside, and hiding the
+/// script while a hull is open would hide the reason the hull is there.
+fn script_rows(
+    context: &EditContext,
+    q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
+    script: &ScriptNodes,
+    ids: bool,
+) -> Vec<WantedRow> {
+    let Some(scenario) = context.scenario() else {
+        return Vec::new();
+    };
+    let Ok(root_id) = q_scenarios.get(scenario) else {
+        return Vec::new();
+    };
+    let mut rows = vec![scenario_row(scenario, &root_id.0)];
+    for handler in script.events_of(scenario) {
+        let Some(event) = script.event(handler) else {
+            continue;
+        };
+        let ordinal = ordinal_of(script, handler);
+        let open = has_children(script, handler).then(|| script.expanded(handler));
+        rows.push(script_row(
+            script,
+            handler,
+            1,
+            &tree_lead(open, HANDLER),
+            event_label(event.name),
+            // ONCE is the one fact about a handler its label cannot hold, and
+            // it is the difference between a beat and a rule.
+            if event.once { "1x" } else { &ordinal },
+            &format!("HANDLER - {}", event_label(event.name).to_uppercase()),
+        ));
+        if open == Some(true) {
+            filter_rows(script, handler, 2, &mut rows);
+            action_rows(script, handler, 2, &mut rows);
+        }
+    }
+    show_ids(&mut rows, ids);
     rows
+}
+
+/// The filters under a handler or a gate, combinators walked into.
+fn filter_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
+    for node in script.filters_of(owner) {
+        let Some(filter) = script.filter(node) else {
+            continue;
+        };
+        let choice = filter_choice(&filter.kind);
+        let nests = choice.operands() > 0;
+        let ordinal = ordinal_of(script, node);
+        let open = (nests && has_children(script, node)).then(|| script.expanded(node));
+        rows.push(script_row(
+            script,
+            node,
+            depth,
+            &tree_lead(open, if nests { COMBINATOR } else { FILTER }),
+            choice.label(),
+            &ordinal,
+            &format!("FILTER - {}", choice.label().to_uppercase()),
+        ));
+        if open == Some(true) {
+            filter_rows(script, node, depth + 1, rows);
+        }
+    }
+}
+
+/// The actions under a handler or a step, sequences opened into their beats.
+fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
+    for node in script.actions_of(owner) {
+        let Some(action) = script.action(node) else {
+            continue;
+        };
+        let choice = action_choice(&action.kind);
+        let ordinal = ordinal_of(script, node);
+        // A sequence's KEY in the trail: it is what a gate elsewhere in the
+        // script names to talk to this chain, so it is the one thing that
+        // tells two sequences apart.
+        let trail = match &action.kind {
+            ActionKind::Sequence(head) => head.key.clone(),
+            ActionKind::Leaf(_) => ordinal,
+        };
+        let beats = script.steps_of(node);
+        let open = (!beats.is_empty()).then(|| script.expanded(node));
+        rows.push(script_row(
+            script,
+            node,
+            depth,
+            &tree_lead(
+                open,
+                if choice == ActionChoice::Sequence {
+                    SEQUENCE
+                } else {
+                    ACTION
+                },
+            ),
+            choice.label(),
+            &trail,
+            &format!("ACTION - {}", choice.label().to_uppercase()),
+        ));
+        if open != Some(true) {
+            continue;
+        }
+        for step in beats {
+            let ordinal = ordinal_of(script, step);
+            let open = has_children(script, step).then(|| script.expanded(step));
+            rows.push(script_row(
+                script,
+                step,
+                depth + 1,
+                &tree_lead(open, STEP),
+                "Step",
+                &ordinal,
+                "STEP",
+            ));
+            if open != Some(true) {
+                continue;
+            }
+            if let Some(gate) = script.gate_of(step) {
+                let name = script.gate(gate).map(|gate| gate.name);
+                let label = name.map_or("Gate", event_label);
+                let open = has_children(script, gate).then(|| script.expanded(gate));
+                rows.push(script_row(
+                    script,
+                    gate,
+                    depth + 2,
+                    &tree_lead(open, GATE),
+                    label,
+                    "",
+                    &format!("GATE - {}", label.to_uppercase()),
+                ));
+                if open == Some(true) {
+                    filter_rows(script, gate, depth + 3, rows);
+                }
+            }
+            action_rows(script, step, depth + 2, rows);
+        }
+    }
+}
+
+/// Whether anything hangs under `node` in the tree.
+fn has_children(script: &ScriptNodes, node: Entity) -> bool {
+    !script.filters_of(node).is_empty()
+        || !script.actions_of(node).is_empty()
+        || !script.steps_of(node).is_empty()
+        || script.gate_of(node).is_some()
+}
+
+/// A container's mark, behind the caret saying which way it opens.
+///
+/// A leaf keeps the column anyway: the marks of a handler and of the action
+/// under it have to line up, or the indentation stops reading as depth.
+fn tree_lead(open: Option<bool>, mark: &str) -> String {
+    match open {
+        Some(true) => format!("{OPEN}{mark}"),
+        Some(false) => format!("{SHUT}{mark}"),
+        None => format!(" {mark}"),
+    }
+}
+
+/// One row of the script tree, named by the node's own minted id.
+fn script_row(
+    script: &ScriptNodes,
+    node: Entity,
+    depth: usize,
+    lead: &str,
+    label: &str,
+    trail: &str,
+    kind: &str,
+) -> WantedRow {
+    WantedRow {
+        node,
+        depth,
+        lead: lead.to_string(),
+        id: script.id(node).unwrap_or_default().to_string(),
+        label: elide(label, label_budget(depth)),
+        trail: trail.to_string(),
+        kind: kind.to_string(),
+    }
+}
+
+/// Which one of its siblings a script node is, off its minted id.
+fn ordinal_of(script: &ScriptNodes, node: Entity) -> String {
+    script
+        .id(node)
+        .map(|id| split_ordinal(id).1.to_string())
+        .unwrap_or_default()
 }
 
 /// Rebuild the Scene tree when the document or the context changes, and mark
@@ -1275,10 +1569,12 @@ pub(crate) fn sync_scene_list(
     catalog: Option<Res<GameSections>>,
     overlays: Res<EditorOverlays>,
     mut selected: ResMut<SelectedNode>,
+    tab: Res<RailTab>,
     q_scenarios: Query<&NodeId, With<ScenarioNode>>,
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
     nodes: SectionNodes,
+    script: ScriptNodes,
     lists: Query<Entity, With<SceneList>>,
     fresh: Query<(), Added<SceneList>>,
     rows: Query<(Entity, &SceneRow, Has<Selected>)>,
@@ -1291,15 +1587,18 @@ pub(crate) fn sync_scene_list(
     if !fresh.is_empty() {
         shown.rows.clear();
     }
-    let wanted = wanted_rows(
-        &context,
-        &q_scenarios,
-        &q_ships,
-        &q_objects,
-        &nodes,
-        catalog.as_deref(),
-        overlays.ids,
-    );
+    let wanted = match *tab {
+        RailTab::Scene => wanted_rows(
+            &context,
+            &q_scenarios,
+            &q_ships,
+            &q_objects,
+            &nodes,
+            catalog.as_deref(),
+            overlays.ids,
+        ),
+        RailTab::Events => script_rows(&context, &q_scenarios, &script, overlays.ids),
+    };
     // A selection cannot outlive its row: a section of a ship that was left is
     // not in the tree, so there is nothing left to carry the mark.
     if selected
@@ -1386,7 +1685,7 @@ pub(crate) fn sync_scene_list(
 pub(crate) fn sync_row_trash(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
-    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: Query<(), DeletableNode>,
     rows: Query<(&SceneRow, &Hovered, &Children)>,
     mut trash: Query<&mut Node, With<SceneRowTrash>>,
 ) {
@@ -1414,7 +1713,7 @@ pub(crate) fn on_row_trash(
     mut commands: Commands,
     mut selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
-    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: Query<(), DeletableNode>,
     parents: Query<&ChildOf>,
     rows: Query<&SceneRow>,
 ) {
@@ -1450,9 +1749,12 @@ pub(crate) fn on_row_trash(
 /// did nothing"). It does something now: it frames.
 pub(crate) fn on_scene_row(
     activate: On<Activate>,
+    mut commands: Commands,
     rows: Query<&SceneRow>,
     ships: Query<(), With<ShipNode>>,
+    script: ScriptNodes,
     scenarios: Query<(), With<ScenarioNode>>,
+    placed: Query<(), With<Transform>>,
     time: Res<Time<Real>>,
     mut last: ResMut<LastClick>,
     mut selected: ResMut<SelectedNode>,
@@ -1484,8 +1786,24 @@ pub(crate) fn on_scene_row(
         request.node = None;
         return;
     }
+    // The script's own "go in": a second click OPENS a container rather than
+    // entering it. A handler is not a place the editor can stand - there is no
+    // camera to put on it and no breadcrumb to come back by - so what the
+    // gesture means here is showing what is under it.
+    if double && script.holds(*node) {
+        if script.expanded(*node) {
+            commands.entity(*node).remove::<Expanded>();
+        } else {
+            commands.entity(*node).insert(Expanded);
+        }
+    }
     selected.0 = Some(*node);
-    ask_for(&mut request, Some(*node));
+    // A handler is not SOMEWHERE. The script's nodes carry no pose, so their
+    // rows select and leave the camera where the builder put it, rather than
+    // raising a request the framing pass can only throw away.
+    if placed.contains(*node) {
+        ask_for(&mut request, Some(*node));
+    }
 }
 
 /// Paint whatever the editor is currently saying onto its one status line.
@@ -2236,15 +2554,19 @@ fn write_legend_cell(
 mod tests {
     use std::time::Duration;
 
+    use bevy::ecs::system::RunSystemOnce;
     use nova_scenario::prelude::{
-        AIControllerConfig, SectionSource, SpaceshipConfig, SpaceshipController,
+        AIControllerConfig, DebugMessageActionConfig, EntityFilterConfig, EventActionConfig,
+        EventConfig, EventFilterConfig, ScenarioEventConfig, SectionSource, SequenceActionConfig,
+        SequenceGateConfig, SequenceStepConfig, SpaceshipConfig, SpaceshipController,
     };
     use nova_ship::prelude::ShipStyleConfig;
 
     use super::*;
     use crate::{
+        event::EventNode,
         glyph::{SHIP_AI, SHIP_PLAYER},
-        node::{NextChildOrdinal, ObjectChoice, ShipDriver},
+        node::{EditorNode, NextChildOrdinal, ObjectChoice, ShipDriver},
     };
 
     /// The narrowest window the editor is built for. The driven walks run at
@@ -2275,6 +2597,7 @@ mod tests {
         app.insert_resource(UiSkin::default());
         app.init_resource::<SelectedNode>();
         app.init_resource::<EditorOverlays>();
+        app.init_resource::<RailTab>();
         app.init_resource::<LastClick>();
         app.init_resource::<FrameRequest>();
         // No `TimePlugin`: the clock is driven by hand below, so a "click" and
@@ -2312,6 +2635,10 @@ mod tests {
                 },
                 NodeId(id.to_string()),
                 NextChildOrdinal::default(),
+                // A ship node stands somewhere - the lowering reads its pose -
+                // so the fixture gives it one: a row's framing asks whether the
+                // node it names is placed at all.
+                Transform::default(),
                 ChildOf(scenario),
             ))
             .id()
@@ -2469,6 +2796,325 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// Lift `events` under `scenario` as the document's script.
+    fn script(app: &mut App, scenario: Entity, events: Vec<ScenarioEventConfig>) {
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                crate::event::lift(&mut commands, scenario, events.clone());
+            })
+            .expect("the lift runs");
+    }
+
+    /// Show the script half of the tree.
+    fn open_events(app: &mut App) {
+        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        app.update();
+    }
+
+    /// Open every container in the script, the way a builder walking down it
+    /// with the caret would. The tree opens COLLAPSED, so a test about what the
+    /// nesting draws has to say it is looking at an opened one.
+    fn open_everything(app: &mut App) {
+        let nodes: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, With<EditorNode>>()
+            .iter(app.world())
+            .collect();
+        for node in nodes {
+            app.world_mut().entity_mut(node).insert(Expanded);
+        }
+        app.update();
+    }
+
+    /// A handler with one filter and one action.
+    fn handler(name: EventConfig, id: &str) -> ScenarioEventConfig {
+        ScenarioEventConfig {
+            name,
+            once: false,
+            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                id: Some(id.to_string()),
+                ..default()
+            })],
+            actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
+                message: id.to_string(),
+            })],
+        }
+    }
+
+    /// The two halves are separate lists over the same document: the world's
+    /// objects are not in the script, and the script is not in the world.
+    #[test]
+    fn the_tabs_show_two_halves_of_one_document() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        script(
+            &mut app,
+            scenario,
+            vec![handler(EventConfig::OnDestroyed, "ship_1")],
+        );
+
+        app.update();
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "ship_1"],
+            "the Scene tab is the world, script or no script"
+        );
+
+        open_events(&mut app);
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "event_1"],
+            "the Events tab opens on the handlers, not on everything under them"
+        );
+
+        open_everything(&mut app);
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "event_1", "entity_1", "debug_2"],
+            "opened, a handler is what it waits for and what it does"
+        );
+    }
+
+    /// A sequence is the one action that holds more script, and the tree opens
+    /// it the whole way down: the steps, the event each waits for, the filters
+    /// that qualify it, and what the step then does.
+    #[test]
+    fn a_sequence_opens_into_its_beats() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                once: true,
+                filters: vec![],
+                actions: vec![EventActionConfig::Sequence(SequenceActionConfig {
+                    key: "briefing".to_string(),
+                    steps: vec![SequenceStepConfig {
+                        until: Some(SequenceGateConfig {
+                            name: EventConfig::OnEnter,
+                            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+                                id: Some("gate_area".to_string()),
+                                ..default()
+                            })],
+                        }),
+                        deadline: Some(30.0),
+                        actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
+                            message: "there".to_string(),
+                        })],
+                        ..default()
+                    }],
+                })],
+            }],
+        );
+
+        open_events(&mut app);
+        open_everything(&mut app);
+        assert_eq!(
+            row_names(&mut app),
+            vec![
+                "scenario",
+                "event_1",
+                "sequence_1",
+                "step_1",
+                "gate_1",
+                "entity_1",
+                "debug_2"
+            ],
+            "the nesting drawn is the nesting the document holds"
+        );
+        assert_eq!(
+            row_indents(&mut app),
+            vec![8.0, 17.0, 26.0, 35.0, 44.0, 53.0, 44.0],
+            "the gate and what the step does are siblings under it, and only \
+             the gate's own filters go a rung deeper"
+        );
+    }
+
+    /// The trail is the one fact the label cannot hold: a handler that retires
+    /// says so, and a sequence wears the key its gates name it by.
+    #[test]
+    fn a_script_row_trails_what_its_label_cannot_say() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                once: true,
+                filters: vec![],
+                actions: vec![EventActionConfig::Sequence(SequenceActionConfig {
+                    key: "briefing".to_string(),
+                    steps: vec![],
+                })],
+            }],
+        );
+
+        open_events(&mut app);
+        open_everything(&mut app);
+        assert_eq!(
+            row_columns(&mut app),
+            vec![
+                ("scenario".to_string(), String::new()),
+                ("On Start".to_string(), "1x".to_string()),
+                ("Sequence".to_string(), "briefing".to_string()),
+            ]
+        );
+    }
+
+    /// Two clicks OPEN a handler, and two more shut it again. The script has no
+    /// place to stand inside, so the gesture that enters a ship is the one that
+    /// shows what a handler holds.
+    #[test]
+    fn two_clicks_open_a_handler_and_two_more_shut_it() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![handler(EventConfig::OnDestroyed, "ship_1")],
+        );
+        open_events(&mut app);
+        let node = app
+            .world_mut()
+            .query_filtered::<Entity, With<EventNode>>()
+            .single(app.world())
+            .expect("one handler");
+
+        let row = row_for(&mut app, node);
+        double_press(&mut app, row);
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "event_1", "entity_1", "debug_2"],
+            "opened, the handler shows what it waits for and what it does"
+        );
+
+        let row = row_for(&mut app, node);
+        double_press(&mut app, row);
+        assert_eq!(
+            row_names(&mut app),
+            vec!["scenario", "event_1"],
+            "and shuts again"
+        );
+    }
+
+    /// The caret says which way a row opens, and a row with nothing under it
+    /// says so by having none - while still holding the column, so the marks
+    /// down the tree stay in line.
+    #[test]
+    fn a_container_row_wears_the_caret_and_a_leaf_wears_none() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![handler(EventConfig::OnDestroyed, "ship_1")],
+        );
+        open_events(&mut app);
+
+        assert_eq!(
+            row_leads(&mut app),
+            vec![SCENARIO.to_string(), format!("{SHUT}{HANDLER}")],
+            "a shut handler points at itself"
+        );
+
+        open_everything(&mut app);
+
+        assert_eq!(
+            row_leads(&mut app),
+            vec![
+                SCENARIO.to_string(),
+                format!("{OPEN}{HANDLER}"),
+                format!(" {FILTER}"),
+                format!(" {ACTION}"),
+            ],
+            "an open one points down at the rows it put there, and its leaves              keep the column"
+        );
+    }
+
+    /// A node added into a shut container is still the node the panel is on, so
+    /// the tree opens the way down to it: a beat that vanished the moment it
+    /// was made would read as the Add row having done nothing.
+    #[test]
+    fn adding_into_a_shut_handler_opens_the_way_to_it() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![handler(EventConfig::OnDestroyed, "ship_1")],
+        );
+        open_events(&mut app);
+        let node = app
+            .world_mut()
+            .query_filtered::<Entity, With<EventNode>>()
+            .single(app.world())
+            .expect("one handler");
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+        let add = app
+            .world_mut()
+            .spawn((ScriptAdd::Action, observe(add_script_node)))
+            .id();
+
+        app.world_mut().trigger(Activate { entity: add });
+        app.update();
+
+        let marked = app.world().resource::<SelectedNode>().0;
+        assert!(
+            marked.is_some_and(|node| row_names(&mut app).contains(&script_id(&mut app, node))),
+            "the new action has a row: {:?}",
+            row_names(&mut app)
+        );
+    }
+
+    /// The minted id of a script node, which is what its row is called.
+    fn script_id(app: &mut App, node: Entity) -> String {
+        app.world()
+            .get::<NodeId>(node)
+            .expect("a minted id")
+            .0
+            .clone()
+    }
+
+    /// Switching tabs drops the mark: a node marked in one half is not in the
+    /// other's list, and the Inspector would otherwise be reporting a node
+    /// nothing on screen points at.
+    #[test]
+    fn switching_tabs_drops_a_selection_the_other_half_cannot_show() {
+        let mut app = scene_app();
+        app.add_systems(Update, sync_rail_tabs);
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
+        script(
+            &mut app,
+            scenario,
+            vec![handler(EventConfig::OnDestroyed, "ship_1")],
+        );
+        let tab = app
+            .world_mut()
+            .spawn((
+                RailTabButton(RailTab::Events),
+                Name::new("Rail Tab Events"),
+                observe(on_rail_tab),
+            ))
+            .id();
+        app.update();
+
+        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        app.world_mut().trigger(Activate { entity: tab });
+        app.update();
+
+        assert_eq!(*app.world().resource::<RailTab>(), RailTab::Events);
+        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert!(
+            app.world().get::<Selected>(tab).is_some(),
+            "and the tab that was pressed is the one marked"
+        );
     }
 
     /// At the scenario node the tree is the whole DOCUMENT: the root and every

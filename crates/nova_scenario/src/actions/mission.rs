@@ -14,10 +14,11 @@ use crate::prelude::*;
 /// this scenario-action wrapper stays nova-local because it implements the (foreign)
 /// `EventAction` trait - which the orphan rule forbids implementing on the foreign
 /// `Objective` type directly.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveActionConfig {
     /// Opaque identifier, used to complete/remove the objective later.
+    #[reflect(@Names::Objective)]
     pub id: String,
     /// The text shown in the objectives HUD.
     pub message: String,
@@ -46,7 +47,7 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
 /// "Strip it clean."))`. Optionally add `dwell: Some(12.0)` for a longer hold
 /// and `icon: Some("self://icons/alpha.png")` for a speaker image. Strict RON
 /// uses `Some`; omit the field for the HUD fallback icon.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StoryMessageActionConfig {
     /// Who says it (the panel renders it as the line's prefix).
@@ -85,7 +86,7 @@ impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
 /// the two halves distinguishable: nova_core globs both crates' preludes, so a
 /// shared name would be an ambiguous glob re-export and force the sync to reach
 /// for the render enum by its full path.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum HudReadoutFormatConfig {
     /// One decimal place, e.g. `12.3`.
@@ -128,7 +129,7 @@ impl From<HudReadoutFormatConfig> for HudReadoutFormat {
 /// RON: `HudReadout((slot: "timer", variable: "scenario_elapsed", format: Time,
 /// label: Some("TIME")))`; clear with `HudReadout((slot: "timer", variable:
 /// "scenario_elapsed", visible: false))`.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HudReadoutActionConfig {
     /// The readout's stable id: shows/updates/clears this one slot, and lets a
@@ -136,6 +137,7 @@ pub struct HudReadoutActionConfig {
     pub slot: String,
     /// The scenario variable whose value the readout shows (e.g.
     /// `"scenario_elapsed"`). Read live off the event world every frame.
+    #[reflect(@Names::Variable)]
     pub variable: String,
     /// How the value renders. Omit for the default ([`HudReadoutFormatConfig::Number`]).
     #[cfg_attr(feature = "serde", serde(default))]
@@ -179,10 +181,11 @@ impl EventAction<NovaEventWorld> for HudReadoutActionConfig {
 }
 
 /// Action that completes (removes) the HUD objective with the given id.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveCompleteActionConfig {
     /// The id of the objective to complete.
+    #[reflect(@Names::Objective)]
     pub id: String,
 }
 
@@ -197,10 +200,11 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
 /// HUD's objective-markers observer grows the chip. Scoped-only lookup, same
 /// rule as DespawnScenarioObject. Attaching to an already-marked entity just
 /// updates the label.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerAttachActionConfig {
     /// The `EntityId` of the scoped object the marker chip attaches to.
+    #[reflect(@Names::Object)]
     pub target_id: String,
     /// The short name the marker chip shows next to the distance.
     pub label: String,
@@ -256,10 +260,11 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerAttachActionConfig {
 /// matches `target_id` (no-op with a warning when nothing matches; a
 /// marker whose entity despawned is already detached - the chip died with
 /// it).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ObjectiveMarkerDetachActionConfig {
     /// The `EntityId` of the scoped object to detach the marker chip from.
+    #[reflect(@Names::Object)]
     pub target_id: String,
 }
 
@@ -312,7 +317,7 @@ impl EventAction<NovaEventWorld> for ObjectiveMarkerDetachActionConfig {
 /// verb REVEALS its chip and pulses it in the dim band - that is how a tutorial
 /// points at a key before it lights up. Emphasis is still a spotlight, never a
 /// grant: it does not make the verb pressable.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisSetActionConfig {
     /// The keybind-dock chip to emphasize (one of `DOCK_VERBS`).
@@ -349,7 +354,7 @@ impl EventAction<NovaEventWorld> for HintEmphasisSetActionConfig {
 }
 
 /// Drop the emphasis on one keybind-dock chip (see [`HintEmphasisSetActionConfig`]).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct HintEmphasisClearActionConfig {
     /// The keybind-dock chip to clear (one of `DOCK_VERBS`).

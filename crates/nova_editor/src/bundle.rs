@@ -6,13 +6,18 @@
 //! designs by id. Nothing is written twice - edit a design and every instance
 //! of it changes, and "export my ship" is the file you already saved.
 //!
-//! THE LOWERING CONVENTION, both ways. The editor owns the LAYOUT: the objects
-//! spawned on start, and the ships among them. It does not own the SCRIPT - the
-//! rock belts, the trip spheres, the wake handlers and the outcome are the
-//! range's own (see [`crate::scenario`]), so a save writes them out of the same
-//! constants that authored them and a load steps over them. The document
-//! round-trips exactly; a hand edit to the script does not survive a re-save,
-//! which is the same thing as saying the editor does not edit the script yet.
+//! THE LOWERING CONVENTION, both ways. The LAYOUT is derived: the unfiltered
+//! `OnStart` handler that spawns the board is written out of the object nodes
+//! and read back into them, so the tree and the spawn list can never disagree.
+//! Every other handler is the SCRIPT, and the document holds it as nodes too
+//! (see [`crate::event`]) - a save lowers them, a load lifts them back, and a
+//! handler edited in the panel survives the file like a rock moved on the
+//! stage.
+//!
+//! The one thing that does not come back as it went is an authored handler
+//! that is INDISTINGUISHABLE from the layout: an unfiltered `OnStart` that
+//! does nothing but spawn is read back as world objects, because that is what
+//! it does. The range plays the same either way.
 //!
 //! An AI ship's key bindings are not written, because a spawned AI ship has no
 //! input mapping to carry them: the ship you FLY keeps its keys, an escort's
@@ -28,21 +33,25 @@ use nova_modding::prelude::Content;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
-    AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioObjectConfig,
-    ScenarioObjectKind, SectionId, ShipConfig, ShipSource, SpaceshipController,
-    SpaceshipSectionConfig,
+    AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
+    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipConfig, ShipSource,
+    SpaceshipController, SpaceshipSectionConfig,
 };
 use nova_ship::prelude::GameSections;
 use nova_ui::theme;
 
 use crate::{
     config::{EditorStatus, SelectedNode},
+    event::ScriptNodes,
     node::{
         found_empty_document, insert_lifted_section, insert_object_node, insert_ship_node,
         resume_ordinals, EditContext, NextChildOrdinal, NodeId, ObjectNodes, ScenarioNode,
         SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
-    scenario::{lower_fleet, ship_hull, world_objects, HullForm, LoweredFleet, Range, DEFAULT_SKY},
+    scenario::{
+        lower_fleet, ship_hull, world_objects, world_script, HullForm, LoweredFleet, Range,
+        DEFAULT_SKY,
+    },
 };
 
 /// The mod id a save installs under: the cache directory, the enable key and
@@ -83,6 +92,7 @@ pub(crate) const SAVED_RANGE: Range<'static> = Range {
 pub(crate) fn document_content(
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
+    script: Vec<ScenarioEventConfig>,
 ) -> Vec<Content> {
     let mut items: Vec<Content> = fleet
         .designs()
@@ -99,6 +109,7 @@ pub(crate) fn document_content(
         SAVED_RANGE,
         world,
         fleet,
+        script,
     )));
     items
 }
@@ -155,6 +166,8 @@ pub(crate) struct LiftedShip {
 pub(crate) struct LiftedDocument {
     pub(crate) objects: Vec<ScenarioObjectConfig>,
     pub(crate) ships: Vec<LiftedShip>,
+    /// Every handler that is not the layout, in file order.
+    pub(crate) script: Vec<ScenarioEventConfig>,
 }
 
 /// Read a saved file back into a document.
@@ -174,7 +187,14 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
         Content::Scenario(scenario) => Some(scenario),
         _ => None,
     })?;
-    Some(lift_objects(spawned_on_start(scenario).cloned(), &designs))
+    let mut lifted = lift_objects(spawned_in_layout(scenario).cloned(), &designs);
+    lifted.script = scenario
+        .events
+        .iter()
+        .filter(|event| !is_layout(event))
+        .cloned()
+        .collect();
+    Some(lifted)
 }
 
 /// Split authored spawns into the two things a document is made of.
@@ -200,21 +220,36 @@ pub(crate) fn lift_objects(
     lifted
 }
 
-/// Every object the range spawns on start.
-///
-/// The layout half of the convention: a spawn in an OnStart handler is where
-/// something STANDS, and every other action in that handler - and every other
-/// handler - is script the editor does not read.
-fn spawned_on_start(scenario: &ScenarioConfig) -> impl Iterator<Item = &ScenarioObjectConfig> {
+/// Every object the range's LAYOUT handler puts on the board.
+fn spawned_in_layout(scenario: &ScenarioConfig) -> impl Iterator<Item = &ScenarioObjectConfig> {
     scenario
         .events
         .iter()
-        .filter(|event| matches!(event.name, EventConfig::OnStart))
+        .filter(|event| is_layout(event))
         .flat_map(|event| &event.actions)
         .filter_map(|action| match action {
             EventActionConfig::SpawnScenarioObject(object) => Some(object),
             _ => None,
         })
+}
+
+/// Whether this handler is the LAYOUT: an unfiltered `OnStart` that does
+/// nothing but spawn.
+///
+/// A PROPERTY rather than a position, so a hand-written mod is read the same
+/// way an editor-written one is. It is exactly the handler
+/// `crate::scenario::range_events` derives, so a file the editor wrote lifts
+/// its world back out of the same place it put it - and a handler that spawns
+/// reinforcements beside a story beat stays script, because it has filters or
+/// company.
+fn is_layout(event: &ScenarioEventConfig) -> bool {
+    matches!(event.name, EventConfig::OnStart)
+        && !event.once
+        && event.filters.is_empty()
+        && event
+            .actions
+            .iter()
+            .all(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))
 }
 
 /// The ship node this spawn stands for, or `None` if it is not a hull the
@@ -439,6 +474,7 @@ pub(crate) fn apply_file_request(
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    script: ScriptNodes,
     roots: Query<Entity, With<ScenarioNode>>,
 ) {
     let asked = std::mem::take(&mut *request);
@@ -449,6 +485,7 @@ pub(crate) fn apply_file_request(
             let items = document_content(
                 world_objects(&context, &q_objects),
                 &lower_fleet(&q_ships, &nodes),
+                world_script(&context, &script),
             );
             match write_save(&items) {
                 Ok(()) => {
@@ -529,6 +566,7 @@ fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) 
                 ship,
             ));
         }
+        crate::event::lift(&mut commands, scenario, document.script);
     }
     world.flush();
 

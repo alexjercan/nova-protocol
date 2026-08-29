@@ -104,6 +104,24 @@ impl LastClick {
     }
 }
 
+/// Which half of the document the rail's tree is showing.
+///
+/// One tree and two tabs rather than two stacked trees: a range holds twenty
+/// objects and a script holds as many handlers, and a 150px rail cannot show
+/// both at once without the half you came for being off the bottom edge.
+#[derive(Resource, Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub(crate) enum RailTab {
+    /// The world: the range, the ships on it and the objects around them.
+    #[default]
+    Scene,
+    /// The script: the handlers, their filters and what they do.
+    Events,
+}
+
+/// One tab of the rail's tree header, carrying the half it switches to.
+#[derive(Component, Clone, Copy)]
+pub(crate) struct RailTabButton(pub(crate) RailTab);
+
 /// The Scene block's row container, emptied and refilled by
 /// `crate::ui::sync_scene_list`.
 #[derive(Component)]

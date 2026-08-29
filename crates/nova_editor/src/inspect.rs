@@ -20,16 +20,27 @@ use bevy::{
     reflect::{
         enums::{DynamicEnum, DynamicVariant, VariantInfo},
         tuple::DynamicTuple,
-        ReflectMut, ReflectRef, TypeInfo,
+        NamedField, ReflectMut, ReflectRef, TypeInfo,
     },
 };
+use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::source_label;
-use nova_scenario::prelude::{ScenarioObjectKind, SectionSource};
+use nova_scenario::prelude::{
+    Names, ScenarioObjectKind, SectionSource, VariableConditionNode, VariableExpressionNode,
+};
 use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
 use crate::{
     config::SelectedNode,
-    node::{EditContext, EditorNode, ObjectNode, ScenarioNode, SectionNode, ShipDriver, ShipNode},
+    event::{
+        action_choice, action_config, event_label, filter_choice, filter_config, ActionChoice,
+        ActionNode, EventNode, FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
+    },
+    node::{
+        objects_of, EditContext, EditorNode, ObjectNode, ObjectNodes, ScenarioNode, SectionNode,
+        ShipDriver, ShipNode, ShipNodes,
+    },
+    scenario::PLAYER_ID,
 };
 
 /// The document nodes the inspector can be pointed at, so one `get` answers
@@ -42,6 +53,11 @@ pub(crate) type NodeKinds<'w, 's> = Query<
         Has<ShipNode>,
         Has<SectionNode>,
         Has<ObjectNode>,
+        Has<EventNode>,
+        Has<FilterNode>,
+        Has<ActionNode>,
+        Has<StepNode>,
+        Has<GateNode>,
     ),
     With<EditorNode>,
 >;
@@ -57,6 +73,16 @@ pub(crate) enum InspectTarget {
     Section(Entity),
     /// One non-ship thing in the world.
     Object(Entity),
+    /// One handler of the script.
+    Event(Entity),
+    /// One filter of a handler or of a gate.
+    Filter(Entity),
+    /// One action of a handler or of a step.
+    Action(Entity),
+    /// One beat of a sequence.
+    Step(Entity),
+    /// The event one beat waits for.
+    Gate(Entity),
 }
 
 impl InspectTarget {
@@ -66,7 +92,12 @@ impl InspectTarget {
             InspectTarget::Scenario(node)
             | InspectTarget::Ship(node)
             | InspectTarget::Section(node)
-            | InspectTarget::Object(node) => node,
+            | InspectTarget::Object(node)
+            | InspectTarget::Event(node)
+            | InspectTarget::Filter(node)
+            | InspectTarget::Action(node)
+            | InspectTarget::Step(node)
+            | InspectTarget::Gate(node) => node,
         }
     }
 
@@ -77,6 +108,11 @@ impl InspectTarget {
             InspectTarget::Ship(_) => "SHIP",
             InspectTarget::Section(_) => "SECTION",
             InspectTarget::Object(_) => "OBJECT",
+            InspectTarget::Event(_) => "HANDLER",
+            InspectTarget::Filter(_) => "FILTER",
+            InspectTarget::Action(_) => "ACTION",
+            InspectTarget::Step(_) => "STEP",
+            InspectTarget::Gate(_) => "GATE",
         }
     }
 }
@@ -94,7 +130,8 @@ pub(crate) fn inspected(
     kinds: &NodeKinds,
 ) -> Option<InspectTarget> {
     let node = selected.0.or_else(|| context.current())?;
-    let (scenario, ship, section, object) = kinds.get(node).ok()?;
+    let (scenario, ship, section, object, event, filter, action, step, gate) =
+        kinds.get(node).ok()?;
     if scenario {
         return Some(InspectTarget::Scenario(node));
     }
@@ -104,7 +141,22 @@ pub(crate) fn inspected(
     if section {
         return Some(InspectTarget::Section(node));
     }
-    object.then_some(InspectTarget::Object(node))
+    if object {
+        return Some(InspectTarget::Object(node));
+    }
+    if event {
+        return Some(InspectTarget::Event(node));
+    }
+    if filter {
+        return Some(InspectTarget::Filter(node));
+    }
+    if action {
+        return Some(InspectTarget::Action(node));
+    }
+    if step {
+        return Some(InspectTarget::Step(node));
+    }
+    gate.then_some(InspectTarget::Gate(node))
 }
 
 /// Which of a node's parts a row edits. The reflection path is relative to
@@ -125,6 +177,13 @@ pub(crate) enum FieldRoot {
     /// The node's display name, which is a field of the node and not of the
     /// kind config. Ships and objects both have one.
     Label,
+    /// WHICH filter or action the node is.
+    ///
+    /// Its own root because the value is not a field of anything: switching it
+    /// replaces the config the other rows are walked from, and drops the
+    /// children the old kind owned. See
+    /// [`retype_script_node`](crate::event::retype_script_node).
+    Kind,
 }
 
 /// One step of a reflection path.
@@ -258,6 +317,39 @@ pub(crate) struct InspectorRow {
     pub(crate) limit: Limit,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
+    /// What this row's string NAMES, where the config said so.
+    ///
+    /// Read off the [`Names`] attribute at the source rather than from a list
+    /// of field names kept here: a reference row that has to be registered
+    /// twice is one the editor stops drawing the day the vocabulary grows.
+    pub(crate) names: Option<Names>,
+}
+
+/// The row a filter or an action is SWITCHED on: every kind it could be, and
+/// which one it is.
+///
+/// A choice rather than a reading, because the vocabulary is forty-eight kinds
+/// and the Add menu offers five: this row is where the other forty-three are.
+fn kind_row(
+    label: &str,
+    options: impl Iterator<Item = &'static str>,
+    chosen: Option<usize>,
+) -> InspectorRow {
+    InspectorRow {
+        root: FieldRoot::Kind,
+        path: Vec::new(),
+        optional: false,
+        group: Vec::new(),
+        label: label.to_string(),
+        unit: "",
+        nudge: 0.0,
+        limit: Limit::Free,
+        value: RowValue::Choice {
+            options: options.map(str::to_string).collect(),
+            chosen: chosen.unwrap_or_default(),
+        },
+        names: None,
+    }
 }
 
 /// A read-only row.
@@ -272,6 +364,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         nudge: 0.0,
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
+        names: None,
     }
 }
 
@@ -300,6 +393,7 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         nudge,
         limit,
         value,
+        names: None,
     }
 }
 
@@ -706,17 +800,33 @@ fn walk(
     }
     match value.reflect_ref() {
         ReflectRef::Struct(fields) => {
+            // The field's own DECLARATION is where "this string is an object
+            // id" is written, so the rows it produces carry it: the panel
+            // offers the ids a reference could name and paints one that names
+            // nothing, without a list of field names of its own.
+            let info = match value.get_represented_type_info() {
+                Some(TypeInfo::Struct(info)) => Some(info),
+                _ => None,
+            };
             for index in 0..fields.field_len() {
                 let (Some(name), Some(field)) = (fields.name_at(index), fields.field_at(index))
                 else {
                     continue;
                 };
+                let names = info
+                    .and_then(|info| info.field_at(index))
+                    .and_then(NamedField::get_attribute::<Names>)
+                    .copied();
+                let first = out.len();
                 walk(
                     field,
                     root,
                     step(&path, PathStep::Field(name.to_string())),
                     out,
                 );
+                for row in &mut out[first..] {
+                    row.names = names;
+                }
             }
         }
         ReflectRef::TupleStruct(fields) => {
@@ -864,6 +974,9 @@ fn number_type(type_path: &str) -> bool {
 /// Whether the parser has a leaf for this type, which is what decides between
 /// an editable row and a readout.
 fn leaf_type(type_path: &str) -> bool {
+    if authored_type(type_path) {
+        return true;
+    }
     matches!(
         type_path,
         "bool"
@@ -883,6 +996,45 @@ fn leaf_type(type_path: &str) -> bool {
             | "glam::Vec3"
             | "glam::Quat"
     )
+}
+
+/// The leaves nova declares rather than borrows: the variables DSL, which is
+/// authored as the text a RON file carries, and an asset reference, which is
+/// authored as the path under `assets/`.
+///
+/// Both are `#[reflect(opaque)]`, so the walker cannot take them apart and
+/// would otherwise show them as debug text. They are not values a builder
+/// cannot author - they are values with a SYNTAX, and the syntax is the leaf.
+fn authored_type(type_path: &str) -> bool {
+    type_path == VariableExpressionNode::type_path()
+        || type_path == VariableConditionNode::type_path()
+        || asset_type(type_path)
+}
+
+/// Whether the type is one of the asset references a scenario config holds.
+///
+/// Named one by one rather than by prefix: a parse has to BUILD the value, and
+/// only a concrete `AssetRef<A>` can be built.
+fn asset_type(type_path: &str) -> bool {
+    type_path == AssetRef::<Image>::type_path()
+        || type_path == AssetRef::<AudioSource>::type_path()
+        || type_path == AssetRef::<WorldAsset>::type_path()
+}
+
+/// The path an asset reference holds, whichever asset it points at.
+///
+/// A reference already RESOLVED to a handle has no path to show: it came from
+/// code rather than from a file, and a builder cannot retype it.
+fn asset_text(value: &dyn PartialReflect) -> Option<String> {
+    macro_rules! asset {
+        ($($kind:ty),*) => {
+            $(if let Some(reference) = value.try_downcast_ref::<AssetRef<$kind>>() {
+                return Some(reference.path().unwrap_or_default().to_string());
+            })*
+        };
+    }
+    asset!(Image, AudioSource, WorldAsset);
+    None
 }
 
 /// A leaf's canonical text, or `None` when it is not a leaf.
@@ -907,6 +1059,15 @@ fn leaf_text(value: &dyn PartialReflect) -> Option<String> {
     integer!(i32, i64, u8, u16, u32, u64, usize);
     if let Some(text) = value.try_downcast_ref::<String>() {
         return Some(text.clone());
+    }
+    if let Some(expression) = value.try_downcast_ref::<VariableExpressionNode>() {
+        return Some(expression.to_string());
+    }
+    if let Some(condition) = value.try_downcast_ref::<VariableConditionNode>() {
+        return Some(condition.to_string());
+    }
+    if let Some(path) = asset_text(value) {
+        return Some(path);
     }
     if let Some(colour) = any_colour(value) {
         return Some(colour_text(colour));
@@ -987,6 +1148,26 @@ fn parse_leaf(type_path: &str, text: &str) -> Result<Box<dyn PartialReflect>, St
                 .map_err(|_| format!("not a {}", stringify!($kind)))
         };
     }
+    if type_path == VariableExpressionNode::type_path() {
+        return text
+            .parse::<VariableExpressionNode>()
+            .map(|node| Box::new(node) as Box<dyn PartialReflect>)
+            .map_err(|error| error.message().to_string());
+    }
+    if type_path == VariableConditionNode::type_path() {
+        return text
+            .parse::<VariableConditionNode>()
+            .map(|node| Box::new(node) as Box<dyn PartialReflect>)
+            .map_err(|error| error.message().to_string());
+    }
+    macro_rules! asset {
+        ($($kind:ty),*) => {
+            $(if type_path == AssetRef::<$kind>::type_path() {
+                return Ok(Box::new(AssetRef::<$kind>::from(text)));
+            })*
+        };
+    }
+    asset!(Image, AudioSource, WorldAsset);
     match type_path {
         "bool" => text
             .parse::<bool>()
@@ -1451,6 +1632,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             nudge: 0.0,
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
+            names: None,
         },
         fixed(
             FieldRoot::Config,
@@ -1513,6 +1695,7 @@ pub(crate) fn section_rows(
             } else {
                 binding
             }),
+            names: None,
         });
     }
     let Some(config) = node.resolve(catalog) else {
@@ -1537,6 +1720,217 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
     rows
 }
 
+/// The rows a handler shows: what it listens for, and whether it retires.
+///
+/// Walked off [`EventNode`] itself rather than listed here: the node IS the
+/// authored handler minus its children, so the trigger becomes a choice and
+/// `once` a checkbox without this module naming either.
+pub(crate) fn event_rows(event: &EventNode) -> Vec<InspectorRow> {
+    let mut rows = Vec::new();
+    walk(event, FieldRoot::Config, Vec::new(), &mut rows);
+    rows
+}
+
+/// The rows a filter shows: which filter it is, then its own config.
+///
+/// A combinator has no config - what it combines are its child rows in the
+/// tree - so it shows the kind and nothing else, which is the whole truth
+/// about it.
+pub(crate) fn filter_rows(filter: &FilterNode) -> Vec<InspectorRow> {
+    let choice = filter_choice(&filter.kind);
+    let mut rows = vec![kind_row(
+        "Filter",
+        FilterChoice::ALL.into_iter().map(FilterChoice::label),
+        FilterChoice::ALL.iter().position(|kind| *kind == choice),
+    )];
+    if let Some(config) = filter_config(&filter.kind) {
+        let first = rows.len();
+        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+        // The expression filter IS its condition: a newtype whose one slot has
+        // no name for the walker to read, so it would be called "Kind".
+        if choice == FilterChoice::Expression {
+            if let Some(row) = rows.get_mut(first) {
+                row.label = "Condition".to_string();
+            }
+        }
+    }
+    rows
+}
+
+/// The rows an action shows: which action it is, then its own config.
+///
+/// A sequence shows its KEY and not its steps: the steps are rows of the tree,
+/// and a panel listing them would be a second place they could be edited.
+pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
+    let choice = action_choice(&action.kind);
+    let mut rows = vec![kind_row(
+        "Action",
+        ActionChoice::ALL.into_iter().map(ActionChoice::label),
+        ActionChoice::ALL.iter().position(|kind| *kind == choice),
+    )];
+    if let Some(config) = action_config(&action.kind) {
+        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+    }
+    rows
+}
+
+/// The rows one beat of a sequence shows: how long after the beat before it,
+/// and how long it may wait before the run is declared stuck.
+pub(crate) fn step_rows(step: &StepNode) -> Vec<InspectorRow> {
+    let mut rows = Vec::new();
+    walk(step, FieldRoot::Config, Vec::new(), &mut rows);
+    rows
+}
+
+/// The rows a gate shows: the event the beat waits for. Its filters are rows
+/// of the tree, like a handler's.
+pub(crate) fn gate_rows(gate: &GateNode) -> Vec<InspectorRow> {
+    let mut rows = Vec::new();
+    walk(gate, FieldRoot::Config, Vec::new(), &mut rows);
+    rows
+}
+
+/// What the document has to offer a row that names something, and what it
+/// takes for that row to RESOLVE.
+///
+/// One answer for the panel and the picker: the chip lists these and the fault
+/// paint asks the same set, so a field can never be offered an id that the row
+/// beside it would then call unknown.
+#[derive(Debug, Default)]
+pub(crate) struct DocumentNames {
+    /// Every id the document puts on the board: the world's nodes, the fleet,
+    /// and the ids the script itself spawns.
+    objects: Vec<String>,
+    /// The prefixes a scatter stands for. A reference starting with one
+    /// resolves against the field it names.
+    prefixes: Vec<String>,
+    variables: Vec<String>,
+    timers: Vec<String>,
+    objectives: Vec<String>,
+    scenarios: Vec<String>,
+}
+
+impl DocumentNames {
+    /// What a field of this kind could name, in id order and without repeats.
+    pub(crate) fn offers(&self, names: Names) -> Vec<String> {
+        let mut offered = match names {
+            // A DECLARATION is not offered the ids that already exist: an id
+            // is unique, and picking a taken one would be picking a collision.
+            Names::NewObject => Vec::new(),
+            Names::Object => self.objects.clone(),
+            Names::Variable => self.variables.clone(),
+            Names::Timer => self.timers.clone(),
+            Names::Objective => self.objectives.clone(),
+            Names::Scenario => self.scenarios.clone(),
+        };
+        offered.sort_unstable();
+        offered.dedup();
+        offered
+    }
+
+    /// Whether `text` names something this document holds.
+    ///
+    /// Only an OBJECT reference can be wrong here, and that is the same rule
+    /// the lowering drops a handler by (see
+    /// [`following_the_objects`](crate::scenario)): a variable or a timer is
+    /// made by the handler that first writes it, so any key is a key.
+    pub(crate) fn resolves(&self, names: Names, text: &str) -> bool {
+        if names != Names::Object || text.is_empty() {
+            return true;
+        }
+        self.objects.iter().any(|id| id == text)
+            || self
+                .prefixes
+                .iter()
+                .any(|prefix| !prefix.is_empty() && text.starts_with(prefix))
+    }
+}
+
+/// The document, read for the names it holds.
+///
+/// The world half and the script half both: a handler names the rock the tree
+/// put on the board as readily as one another handler spawns.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct DocumentIds<'w, 's> {
+    context: Res<'w, EditContext>,
+    objects: ObjectNodes<'w, 's>,
+    ships: ShipNodes<'w, 's>,
+    script: ScriptNodes<'w, 's>,
+}
+
+impl DocumentIds<'_, '_> {
+    /// Everything this document names.
+    pub(crate) fn names(&self) -> DocumentNames {
+        let Some(scenario) = self.context.scenario() else {
+            return DocumentNames::default();
+        };
+        let ids = self.script.names(scenario);
+        let mut names = DocumentNames {
+            objects: ids.declared,
+            prefixes: ids.prefixes,
+            variables: ids.variables,
+            timers: ids.timers,
+            objectives: ids.objectives,
+            scenarios: ids.scenarios,
+        };
+        names.objects.extend(
+            objects_of(scenario, &self.objects)
+                .into_iter()
+                .map(|(_, id, ..)| id.0.clone()),
+        );
+        // A ship lowers under its NODE id, except the flown one, which lowers
+        // under the id the range gives the player's hull however it was named.
+        names
+            .objects
+            .extend(self.ships.iter().map(|(_, _, id, ship)| {
+                if ship.driver == ShipDriver::Player {
+                    PLAYER_ID.to_string()
+                } else {
+                    id.0.clone()
+                }
+            }));
+        names
+    }
+}
+
+/// What a script node is CALLED on the panel's title line: the word its tree
+/// row wears, so the panel and the row that opened it read alike.
+pub(crate) fn script_name(target: InspectTarget, kinds: &ScriptNames) -> String {
+    match target {
+        InspectTarget::Event(node) => kinds.events.get(node).map_or_else(
+            |_| String::new(),
+            |event| event_label(event.name).to_string(),
+        ),
+        InspectTarget::Filter(node) => kinds
+            .filters
+            .get(node)
+            .map_or("", |filter| filter_choice(&filter.kind).label())
+            .to_string(),
+        InspectTarget::Action(node) => kinds
+            .actions
+            .get(node)
+            .map_or("", |action| action_choice(&action.kind).label())
+            .to_string(),
+        InspectTarget::Step(_) => "Step".to_string(),
+        InspectTarget::Gate(node) => kinds
+            .gates
+            .get(node)
+            .map_or_else(|_| String::new(), |gate| event_label(gate.name).to_string()),
+        _ => String::new(),
+    }
+}
+
+/// The script components a title reads. Its own param so the panel's
+/// [`Document`](crate::ui::inspector::Document) does not carry five more
+/// queries that only the title line uses.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct ScriptNames<'w, 's> {
+    events: Query<'w, 's, &'static EventNode>,
+    filters: Query<'w, 's, &'static FilterNode>,
+    actions: Query<'w, 's, &'static ActionNode>,
+    gates: Query<'w, 's, &'static GateNode>,
+}
+
 /// What the Key row reads when the section fires on nothing.
 pub(crate) const UNBOUND: &str = "unbound";
 
@@ -1553,6 +1947,7 @@ fn name_row(name: String) -> InspectorRow {
         nudge: 0.0,
         limit: Limit::Free,
         value: RowValue::Text(name),
+        names: None,
     }
 }
 
@@ -1628,6 +2023,7 @@ fn axes_row(
         nudge,
         limit,
         value: axes_of(value),
+        names: None,
     }
 }
 

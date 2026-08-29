@@ -11,10 +11,11 @@ use crate::prelude::*;
 /// Set or clear the manual [`FlightSpeedCap`] on a scenario ship by id
 /// (the shakedown training governor releases at beacon 1; playtest round
 /// 2 finding 3). Scoped-only lookup, same rule as DespawnScenarioObject.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetSpeedCapActionConfig {
     /// The `EntityId` of the scoped ship to cap.
+    #[reflect(@Names::Object)]
     pub id: String,
     /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
     #[cfg_attr(
@@ -62,10 +63,11 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
 /// and never changed; this is the missing primitive for "neutral until
 /// provoked" encounters (a Neutral ship stays a bystander until a trigger fires
 /// this action to make it Enemy). Scoped-only lookup, same rule as SetSpeedCap.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetAllegianceActionConfig {
     /// The `EntityId` of the scoped ship to re-align.
+    #[reflect(@Names::Object)]
     pub id: String,
     /// The allegiance to overwrite the ship's `Allegiance` component with.
     pub allegiance: Allegiance,
@@ -103,10 +105,11 @@ impl EventAction<NovaEventWorld> for SetAllegianceActionConfig {
 /// until the first objective is complete. Scoped-only lookup, same rule as
 /// SetSpeedCap; writes every controller section on the ship so the union the
 /// input layer reads matches.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetControllerVerbActionConfig {
     /// The `EntityId` of the scoped ship whose controller sections to edit.
+    #[reflect(@Names::Object)]
     pub id: String,
     /// The flight verb (STOP/GOTO/ORBIT/LOCK/RCS/POINT DEFENSE) to toggle.
     pub verb: FlightVerb,
@@ -186,12 +189,14 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
 /// scripted commit locks the ordnance so hostile point defense can engage
 /// it. A missing target skips the launch entirely (no dumb-fire duds from a
 /// mid-respawn window). Scoped-only lookup, same rule as SetSpeedCap.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ForceTorpedoLaunchActionConfig {
     /// The `EntityId` of the scoped ship whose bays launch.
+    #[reflect(@Names::Object)]
     pub id: String,
     /// The `EntityId` of the scoped ship the ordnance homes on.
+    #[reflect(@Names::Object)]
     pub target: String,
 }
 

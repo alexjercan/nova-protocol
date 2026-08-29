@@ -13,6 +13,12 @@ event handlers; each pairs an event with filters (all must pass) and actions
 (run in order). It builds on `GameEventsPlugin`/`EventWorld` from
 `nova_events`; nova_scenario provides `NovaEventWorld` and the enums below.
 
+Three surfaces write that list: a RON file, a Rust builder under
+`nova_authoring`, and the editor's EVENTS tab, which lifts a handler into nodes
+you select and inspect and lowers them back on save
+(`crates/nova_editor/src/event.rs`). All three produce the same
+`ScenarioEventConfig`, so nothing below cares which one wrote it.
+
 ## Scenario structure
 
 - `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox), `events`.
@@ -112,6 +118,17 @@ event's exact firing condition, every filter field, every action's RON and
 defaults are the authored CONTRACT and have to be exact; a second copy here
 would be nobody's job to update, and a reader would have no way to tell which
 one was true. This chapter covers what the enums do not show.
+
+A config is held together by STRINGS, and to the type system every one of them
+is a `String`: `SetAllegiance` names a ship, `TimerCancel` names a timer,
+`NextScenario` names a scenario. `Names` (`names.rs`) puts the difference on the
+field as a reflect attribute - `#[reflect(@Names::Object)]` and its
+`NewObject` / `Variable` / `Timer` / `Objective` / `Scenario` siblings - so
+anything walking a config by reflection can offer the ids in scope and mark one
+that resolves against nothing. The editor's inspector is the reader that exists;
+a surface keeping its own list of which field names what goes stale the day an
+action is added, which is the failure the attribute removes. A new string field
+that refers to something declares what, or it is a blank box.
 
 Events carry identity, not payload-by-position: entities wear
 `EntityId(String)` and `EntityTypeName(String)`, and every PAIR event has the
@@ -263,6 +280,15 @@ Variables are typed literals (`String`, `Number`, `Boolean`) with a small
 expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
 (multiply/divide), `VariableFactorNode` (literal/name/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
+
+The tree has a TEXT form (`syntax.rs`): `Display` renders it as
+`scenario.elapsed > 90` and `FromStr` parses that back. The authored form is
+still the RON nest - the text is what a 300px inspector row can hold, where
+reflection would draw one row per node. Round trip is the contract in both
+directions, parse-of-render and render-of-parse, which is what lets a panel own
+a condition without a save quietly rewriting it. The syntax spells the grammar
+and nothing more: no operator the crate cannot evaluate, and `a - b - c`
+parses rightward because `Subtract(Term, Expression)` nests that way.
 
 ### Two clocks pace a transition
 
@@ -700,7 +726,11 @@ them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
   `EventFilterConfig` - `crates/nova_scenario/src/filters.rs`;
   `EventActionConfig` - `crates/nova_scenario/src/actions/mod.rs`.
 - The state seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`;
-  variables and expressions - `crates/nova_scenario/src/variables.rs`.
+  variables and expressions - `crates/nova_scenario/src/variables.rs`; their
+  text form: `crates/nova_scenario/src/syntax.rs`.
+- What an authored string names: `Names` -
+  `crates/nova_scenario/src/names.rs`; the editor that reads it -
+  `crates/nova_editor/src/event.rs` (the script as nodes).
 - Loading and scoping: `ScenarioLoaderPlugin`, `ScenarioScopedMarker`,
   `scenario_is_live` - `crates/nova_scenario/src/loader/mod.rs`; the glTF
   warm-up: `ScenarioPreload`, `scenario_render_meshes` -

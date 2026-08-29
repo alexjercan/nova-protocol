@@ -12,7 +12,7 @@
 //! handle for the same path), so an `AssetRef` keeps its authorable path for its
 //! whole life and can be re-serialized (e.g. by the editor's scenario save).
 
-use bevy::prelude::*;
+use bevy::{prelude::*, reflect::impl_reflect_opaque};
 
 /// The `AssetRef` handle-or-path asset reference.
 pub mod prelude {
@@ -133,9 +133,31 @@ impl<'de, A: Asset> serde::Deserialize<'de> for AssetRef<A> {
     }
 }
 
+// OPAQUE, not a reflected enum: the `Handle` arm holds a type the reflection
+// walk has no leaf for, and a config's asset ref is ONE authorable string to
+// whoever is looking at it. Opaque keeps that promise - an inspector reads the
+// path off the value and writes a new `Path` back, and nothing walks into the
+// handle. The editor's `asset_path` leaf is the only reader.
+impl_reflect_opaque!((in nova_gameplay::asset_ref) AssetRef<A: Asset>(Clone, Debug, PartialEq, Default));
+
 #[cfg(test)]
 mod tests {
+    use bevy::reflect::{PartialReflect, ReflectRef};
+
     use super::*;
+
+    #[test]
+    fn a_path_ref_reflects_as_one_opaque_value() {
+        let by_path: AssetRef<Image> = "textures/rock.png".into();
+        let reflected: &dyn PartialReflect = &by_path;
+        assert!(matches!(reflected.reflect_ref(), ReflectRef::Opaque(_)));
+        assert_eq!(
+            reflected
+                .try_downcast_ref::<AssetRef<Image>>()
+                .and_then(AssetRef::path),
+            Some("textures/rock.png")
+        );
+    }
 
     #[test]
     fn from_str_is_a_path_and_from_handle_is_a_handle() {

@@ -154,6 +154,15 @@ pass. Everything lives in `crates/nova_scenario/src/filters.rs`.
 3. Export the config struct from the module `prelude` (the `pub use super::{...}`
    block at the top of `filters.rs`).
 
+4. Make it authorable in the editor (see [Two surfaces author the
+   vocabulary](#two-surfaces-author-the-vocabulary)): derive `Reflect` on the
+   config, tag any string that names something with the [`Names`
+   attribute](scenario-system.md#the-vocabulary-and-who-documents-it), and add
+   the `FilterChoice` variant in `crates/nova_editor/src/event.rs` -
+   `ALL`, `label`, `stem`, `operands`, `stock`, plus the `filter_choice`,
+   `filter_config` and `filter_config_mut` arms. The matches are exhaustive, so
+   the compiler names every one of them.
+
 ## Recipe 3: add an event action
 
 An action runs when a handler passes, in order. Everything lives in
@@ -201,6 +210,12 @@ for what it touches (`view.rs`, `flow.rs`, `mission.rs`, `sequence.rs`,
    ```
 
 3. Export the config struct from the `actions/mod.rs` `prelude` block.
+
+4. Make it authorable in the editor, as in recipe 2: derive `Reflect`, tag the
+   naming strings, and add the `ActionChoice` variant in
+   `crates/nova_editor/src/event.rs` - `ALL`, `label`, `stem`, `stock`, plus the
+   `action_choice`, `leaf_config` and `leaf_config_mut` arms. Only `Sequence`
+   holds children; a new leaf action needs nothing from the tree.
 
 Templates: the tests at the bottom of the `actions/` submodules are the
 pattern to copy -
@@ -314,13 +329,37 @@ SpawnScenarioObject(ScenarioObjectConfig(
 ))
 ```
 
+## Two surfaces author the vocabulary
+
+A RON file is one way to write a handler; the editor's EVENTS tab is the other,
+and it draws every row it shows by REFLECTION off the same config structs. So a
+config that is not `Reflect` is a construct the editor cannot show, and a string
+field with no [`Names`](scenario-system.md#the-vocabulary-and-who-documents-it)
+attribute is a blank box where the panel could have offered the ids the document
+actually spawns.
+
+What each of the four recipes owes the editor:
+
+| Recipe | What the editor needs |
+| --- | --- |
+| Event kind | Nothing. `EventConfig` is a `Reflect` enum of unit variants and the handler's trigger row is walked off it, so a new event appears in the list. |
+| Filter | `Reflect` + `Names` on the config, and a `FilterChoice` variant with its `stock` value. |
+| Action | `Reflect` + `Names` on the config, and an `ActionChoice` variant with its `stock` value. |
+| Object kind | `Reflect` + `Names` on the config, an `ObjectChoice` variant in `crates/nova_editor/src/node.rs` to place it with, and the arms the compiler then asks for (`glyph`, `preview`, `stage`, `inspect`). |
+
+`stock` is what the kind switch puts on a node the moment it is switched TO -
+a valid config with empty ids, never a `Default` that lowers into something the
+lint refuses.
+
 ## Checklist
 
 Whichever recipe you follow, the change is done when: the config struct derives
-`Clone`, `Debug`, and the serde pair; the dispatch enum has the variant; the
+`Clone`, `Debug`, `Reflect` and the serde pair; every string that names
+something carries its `Names` attribute; the dispatch enum has the variant; the
 trait impl has the delegating arm; the type is exported from its module prelude;
-and (for an event) something fires it. Then it is reachable both from code-built
-scenarios and from a RON data file.
+the editor has the choice variant (events excepted); and (for an event)
+something fires it. Then it is reachable from code-built scenarios, from a RON
+data file, and from the editor.
 
 ## Find it in the code
 
@@ -332,5 +371,8 @@ scenarios and from a RON data file.
 - Objects: `ScenarioObjectKind` - `crates/nova_scenario/src/actions/spawn.rs`;
   kind modules under `crates/nova_scenario/src/objects/`.
 - The seam: `NovaEventWorld` - `crates/nova_scenario/src/world.rs`.
+- What a string names: `Names` - `crates/nova_scenario/src/names.rs`; the
+  editor's choices: `FilterChoice`, `ActionChoice` -
+  `crates/nova_editor/src/event.rs`.
 - API detail: `cargo doc --open -p nova_scenario` (event engine:
   `-p nova_events`).

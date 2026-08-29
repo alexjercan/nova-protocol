@@ -27,11 +27,15 @@ pub mod filters;
 pub mod lint;
 /// Parse, register, and load/unload scenario bundles at runtime.
 pub mod loader;
+/// What an authored string in a config names.
+pub mod names;
 /// Spawnable scenario entities (asteroids, ships, beacons, salvage crates).
 pub mod objects;
 /// Typed read-only scenario queries and continuously sampled watches.
 pub mod queries;
 pub mod render_scale;
+/// The text form of the variables grammar.
+pub mod syntax;
 /// Driving a rig's scenario to live, for tests in this crate and the crates
 /// whose content walks the same pipeline.
 #[cfg(any(test, feature = "test-support"))]
@@ -46,8 +50,9 @@ pub mod world;
 pub mod prelude {
     pub use super::{
         actions::prelude::*, events::prelude::*, filters::prelude::*, lint::prelude::*,
-        loader::prelude::*, objects::prelude::*, queries::prelude::*, render_scale::prelude::*,
-        variables::prelude::*, world::prelude::*, NovaScenarioPlugin,
+        loader::prelude::*, names::prelude::*, objects::prelude::*, queries::prelude::*,
+        render_scale::prelude::*, syntax::prelude::*, variables::prelude::*, world::prelude::*,
+        NovaScenarioPlugin,
     };
 }
 
@@ -81,3 +86,6 @@ impl Plugin for NovaScenarioPlugin {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -6,10 +6,11 @@ use nova_events::prelude::*;
 use crate::prelude::*;
 
 /// Start or restart a keyed scenario timer.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TimerStartActionConfig {
     /// Scenario-local timer key.
+    #[reflect(@Names::Timer)]
     pub key: String,
     /// Positive finite duration in seconds.
     pub seconds: VariableExpressionNode,
@@ -47,10 +48,11 @@ impl EventAction<NovaEventWorld> for TimerStartActionConfig {
 }
 
 /// Cancel a keyed scenario timer if it is running.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TimerCancelActionConfig {
     /// Scenario-local timer key.
+    #[reflect(@Names::Timer)]
     pub key: String,
 }
 

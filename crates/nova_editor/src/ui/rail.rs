@@ -10,7 +10,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch},
+    config::{RailTab, RailTabButton, SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch},
     ui::layer,
 };
 
@@ -137,6 +137,63 @@ const INDENT_STEP: f32 = 9.0;
 /// minted ids in 150px, and every point of size is a character of id the row
 /// can show before it clips.
 const ROW_TEXT: f32 = 11.0;
+
+/// One tab of the tree header: the half of the document it switches to.
+///
+/// A `ListRow` like the rows under it, so the shared reconciler paints the
+/// active tab and its hover out of the same table the tree uses - the tab and
+/// the row it reveals then cannot disagree about what "marked" looks like.
+/// Wider than tall and side by side, which is what says these two are one
+/// choice rather than two more things in the column.
+pub(crate) fn rail_tab(tab: RailTab, label: &str, selected: bool, skin: UiSkin) -> impl Bundle {
+    let (background, border) = list_row_colors(selected, false, skin);
+    (
+        ListRow,
+        RailTabButton(tab),
+        Button,
+        Hovered::default(),
+        Node {
+            flex_grow: 1.0,
+            flex_basis: px(0),
+            min_width: px(0),
+            min_height: px(22),
+            padding: UiRect::axes(px(4), px(2)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            overflow: Overflow::clip(),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![(
+            UiText,
+            Text::new(label.to_uppercase()),
+            TextLayout {
+                linebreak: LineBreak::NoWrap,
+                ..default()
+            },
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR),
+        )],
+    )
+}
+
+/// The strip the two tabs sit in, in place of the block's header.
+pub(crate) fn rail_tab_strip() -> Node {
+    Node {
+        width: percent(100),
+        margin: UiRect::bottom(px(8)),
+        column_gap: px(4),
+        flex_direction: FlexDirection::Row,
+        align_items: AlignItems::Stretch,
+        ..default()
+    }
+}
 
 /// One row of the Scene tree: the scenario root, a ship, or a section of the
 /// entered ship.

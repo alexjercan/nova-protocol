@@ -579,14 +579,7 @@ pub(crate) fn sync_menu_delete(
     mut commands: Commands,
     selected: Res<SelectedNode>,
     context: Res<crate::node::EditContext>,
-    nodes: Query<
-        (),
-        Or<(
-            With<crate::node::ShipNode>,
-            With<crate::node::ObjectNode>,
-            With<crate::node::SectionNode>,
-        )>,
-    >,
+    nodes: Query<(), crate::placement::DeletableNode>,
     items: Query<(Entity, Has<InteractionDisabled>), With<MenuDeleteItem>>,
 ) {
     let armable = selected
@@ -665,6 +658,40 @@ pub(crate) fn sync_scenario_menu(
                 commands.entity(entity).insert(InteractionDisabled);
             }
             (false, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Grey a script Add row unless the EVENTS tab is showing and the marked node
+/// can take what the row makes.
+///
+/// The SAME question the verb asks, so the rows say what the tree already
+/// says: Gate greys the moment a beat has one, and Step is live only while a
+/// sequence is marked. Both halves of the palette stay on show, because the
+/// menu is where a builder reads what the other tab would add.
+pub(crate) fn sync_script_menu(
+    mut commands: Commands,
+    tab: Res<crate::config::RailTab>,
+    context: Res<crate::node::EditContext>,
+    marked: Res<crate::config::SelectedNode>,
+    script: crate::event::ScriptNodes,
+    items: Query<(Entity, &crate::event::ScriptAdd, Has<InteractionDisabled>)>,
+) {
+    let events = *tab == crate::config::RailTab::Events;
+    for (entity, add, greyed) in &items {
+        let live = events
+            && context
+                .scenario()
+                .and_then(|scenario| crate::event::add_parent(*add, marked.0, &script, scenario))
+                .is_some();
+        match (live, greyed) {
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            (true, true) => {
                 commands.entity(entity).remove::<InteractionDisabled>();
             }
             _ => {}
@@ -914,5 +941,71 @@ mod tests {
             .run_system_once(sync_scenario_menu)
             .expect("the sync runs");
         assert!(world.entity(row).contains::<InteractionDisabled>());
+    }
+
+    /// The script palette answers to the TAB, which is the other half of the
+    /// same rule: Add means "one more node here", and the EVENTS tab is a
+    /// different here.
+    #[test]
+    fn the_script_palette_is_greyed_off_the_events_tab() {
+        use crate::{
+            config::{RailTab, SelectedNode},
+            event::{lift, ScriptAdd},
+            node::{EditContext, ScenarioNode},
+        };
+
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        world.init_resource::<RailTab>();
+        world.init_resource::<SelectedNode>();
+        let scenario = world.spawn(ScenarioNode).id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        world
+            .run_system_once(move |mut commands: Commands| {
+                lift(&mut commands, scenario, Vec::new());
+            })
+            .expect("the script exists");
+        let row = world.spawn(ScriptAdd::Handler).id();
+
+        world
+            .run_system_once(sync_script_menu)
+            .expect("the sync runs");
+        assert!(
+            world.entity(row).contains::<InteractionDisabled>(),
+            "the SCENE tab adds to the world"
+        );
+
+        *world.resource_mut::<RailTab>() = RailTab::Events;
+        world
+            .run_system_once(sync_script_menu)
+            .expect("the sync runs");
+        assert!(!world.entity(row).contains::<InteractionDisabled>());
+    }
+
+    /// Edit > Delete arms on a handler the same way it arms on a rock: the
+    /// script is nodes, and the one gesture that removes a node removes those
+    /// too.
+    #[test]
+    fn delete_arms_on_a_script_node() {
+        use crate::{
+            config::SelectedNode,
+            event::EventNode,
+            node::{EditContext, ScenarioNode},
+        };
+
+        let mut world = World::new();
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+        let scenario = world.spawn(ScenarioNode).id();
+        world.resource_mut::<EditContext>().path = vec![scenario];
+        let handler = world.spawn(EventNode::default()).id();
+        world.resource_mut::<SelectedNode>().0 = Some(handler);
+        let row = world.spawn(MenuDeleteItem).id();
+
+        world
+            .run_system_once(sync_menu_delete)
+            .expect("the sync runs");
+
+        assert!(!world.entity(row).contains::<InteractionDisabled>());
     }
 }

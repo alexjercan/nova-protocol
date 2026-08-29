@@ -18,6 +18,7 @@
 //! - `stage`     - the ground plane the range is laid out on
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
+//! - `event`     - the script as nodes: a handler, its filters, its actions, its beats
 //! - `bundle`    - the document as a saved mod bundle, and the read back out of one
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above
@@ -39,6 +40,7 @@ use nova_ui::prelude::{
 
 mod bundle;
 mod config;
+mod event;
 mod frame;
 mod gallery;
 mod gizmo;
@@ -60,7 +62,7 @@ mod ui;
 use bundle::{apply_file_request, save_key, FileRequest};
 use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
-    PlacementPose, PlacementPreview, SectionChoice, SelectedNode,
+    PlacementPose, PlacementPreview, RailTab, SectionChoice, SelectedNode,
 };
 use frame::{
     apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, FrameRequest,
@@ -90,18 +92,24 @@ use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     callout::sync_placement_callout,
-    inspector::{apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector},
+    inspector::{
+        apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
+        sync_reference_faults,
+    },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
-        sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_ship_menu, sync_view_menu_marks,
-        OpenMenu,
+        sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_script_menu, sync_ship_menu,
+        sync_view_menu_marks, OpenMenu,
     },
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
     setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_key_legend, sync_play_button,
-    sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
-    sync_style_list,
-    window::{close_confirm_window, on_colour_slider, on_destructive_item, sync_colour_windows},
+    sync_rail_tabs, sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle,
+    sync_status_line, sync_style_list,
+    window::{
+        close_confirm_window, on_colour_slider, on_destructive_item, sync_colour_windows,
+        sync_ref_windows,
+    },
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -157,6 +165,7 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<HoveredNode>();
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
+    app.init_resource::<RailTab>();
     // The one line the editor speaks through - the placement readout and every
     // verb that has something to say both write it. See `EditorStatus`.
     app.init_resource::<EditorStatus>();
@@ -422,6 +431,7 @@ fn editor_plugin(app: &mut App) {
                     sync_menu_delete,
                     sync_ship_menu,
                     sync_scenario_menu,
+                    sync_script_menu,
                     sync_armed_menu,
                     sync_frame_item,
                 )
@@ -437,6 +447,7 @@ fn editor_plugin(app: &mut App) {
             // together with the rest of the rail's readouts. An inner group
             // only because a flat tuple would pass Bevy's arity limit.
             (
+                sync_rail_tabs,
                 sync_scene_list,
                 // After the rows: a hint is positioned from the row it
                 // describes, and a rebuilt list has no laid-out rows yet. The
@@ -447,7 +458,12 @@ fn editor_plugin(app: &mut App) {
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is
                 // already at Bevy's tuple arity.
-                (sync_inspector, sync_colour_windows, paint_field_reasons).chain(),
+                (
+                    sync_inspector,
+                    (sync_colour_windows, sync_ref_windows, sync_reference_faults),
+                    paint_field_reasons,
+                )
+                    .chain(),
                 paint_swatch_hover,
                 sync_context_panels,
                 sync_breadcrumb,

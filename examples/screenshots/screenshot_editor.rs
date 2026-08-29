@@ -30,7 +30,7 @@ use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
 // The pointer gestures, shared with the other menu walks. Script-only, so the
 // whole module sits behind one gate here.
@@ -53,6 +53,26 @@ struct Cli;
 const EDITOR_LOOP: &str = "landing-editor-build";
 #[cfg(feature = "debug")]
 const EDITOR_SKIN_LOOP: &str = "news-0110-editor-skin";
+
+/// What the inspector's Id row is showing.
+///
+/// The claim the picker beat rests on: `click_named` warns and continues when a
+/// widget is missing, so a walk that only PRESSED the option would pass with
+/// nothing written.
+#[cfg(feature = "debug")]
+fn the_id_row_reads(id: &'static str) -> std::sync::Arc<Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query::<(&Name, &nova_ui::prelude::TextFieldValue)>()
+            .and_then(|mut fields| {
+                fields
+                    .iter(world)
+                    .find(|(named, _)| named.as_str() == "Inspector Field Id")
+                    .map(|(_, value)| value.0 == id)
+            })
+            .unwrap_or(false)
+    })
+}
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -285,6 +305,32 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // steps out of the ship through the tree's root row first: one click
         // on a row you are inside is the way back out.
         .click("leave the ship for the hand-off", "Scene Row scenario")
+        // The script half of the document, authored the way a builder does it:
+        // a handler off the Add menu, a filter under it, and the ship named
+        // through the picker rather than typed. The walk asserts the picked id
+        // landed, because a chip that opens a list and writes nothing is the
+        // failure this whole path is built to make impossible.
+        .click("show the events half of the tree", "Rail Tab Events")
+        .click("open the Add menu for a handler", "Add Menu Button")
+        .click("add a handler", "Add Handler")
+        .click("open the Add menu for a filter", "Add Menu Button")
+        .click("scope the handler to one ship", "Add Filter")
+        .click("open the id picker", "Inspector Ref Id")
+        .click(
+            "name the ship the document holds",
+            "Ref Option player_spaceship",
+        )
+        .step("the id row took the ship that was picked")
+        .until(the_id_row_reads("player_spaceship"))
+        .deadline(STEP_DEADLINE_SECS)
+        .add()
+        .click("open the Add menu for an action", "Add Menu Button")
+        .click("give the handler something to do", "Add Action")
+        .step("capture the authored script")
+        .on_enter(shot("feature-editor-events.png"))
+        .until(shot_written("feature-editor-events.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         .step("Play is reachable")
         .until(the_editor_can_play())
         .deadline(STEP_DEADLINE_SECS)

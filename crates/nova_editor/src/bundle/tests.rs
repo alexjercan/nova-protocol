@@ -4,8 +4,9 @@ use bevy::ecs::system::RunSystemOnce;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
 use nova_scenario::prelude::{
-    AnchorConfig, BaseScenarioObjectConfig, PlayerControllerConfig, ScenarioEventConfig,
-    SectionSource, ShipHull, SpaceshipConfig,
+    AnchorConfig, BaseScenarioObjectConfig, EntityFilterConfig, EventConfig, EventFilterConfig,
+    ObjectiveActionConfig, OutcomeActionConfig, PlayerControllerConfig, ScenarioEventConfig,
+    ScenarioOutcomeKind, SectionSource, ShipHull, SpaceshipConfig,
 };
 
 use super::*;
@@ -154,18 +155,24 @@ fn an_inline_hull_opens_and_a_hull_this_file_lacks_stays_an_object() {
     assert_eq!(lifted.objects[0].base.id, "foreign");
 }
 
-/// The script is not layout: only the spawns come back, and a handler that is
-/// not OnStart is not read at all.
+/// Layout is a handler that does nothing but place objects. A handler that
+/// spawns and then talks is a beat of the script, and it keeps its spawn.
 #[test]
-fn only_the_start_handlers_spawns_are_layout() {
+fn only_a_pure_start_spawn_handler_is_layout() {
     let items = vec![Content::Scenario(ScenarioConfig {
         events: vec![
             ScenarioEventConfig {
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
+                actions: vec![spawn(object("anchor_1"))],
+            },
+            ScenarioEventConfig {
+                name: EventConfig::OnStart,
+                once: false,
+                filters: vec![],
                 actions: vec![
-                    spawn(object("anchor_1")),
+                    spawn(object("mixed_1")),
                     EventActionConfig::DebugMessage(
                         nova_scenario::prelude::DebugMessageActionConfig {
                             message: "script".to_string(),
@@ -191,6 +198,14 @@ fn only_the_start_handlers_spawns_are_layout() {
 
     assert_eq!(lifted.objects.len(), 1);
     assert_eq!(lifted.objects[0].base.id, "anchor_1");
+    assert_eq!(lifted.script.len(), 2, "the other two handlers are script");
+    assert!(
+        lifted.script.iter().all(|event| event
+            .actions
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))),
+        "and neither of them lost the object it spawns"
+    );
 }
 
 /// A content file with nothing but designs is a legal mod and not a document.
@@ -303,10 +318,12 @@ fn lower(world: &mut World) -> Vec<Content> {
             |context: Res<EditContext>,
              nodes: SectionNodes,
              q_objects: ObjectNodes,
+             script: ScriptNodes,
              q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>| {
                 document_content(
                     world_objects(&context, &q_objects),
                     &lower_fleet(&q_ships, &nodes),
+                    world_script(&context, &script),
                 )
             },
         )
@@ -607,5 +624,88 @@ fn editing_a_design_leaves_its_instances_untouched() {
         range(&after),
         "an instance names its design and carries no copy of it, so the range \
          is byte-identical across an edit to the design it points at"
+    );
+}
+
+/// The objective set of the task's own example, as the editor holds it: a
+/// handler that retires, scoped to the ship the document flies, that posts an
+/// objective and declares the outcome.
+///
+/// The ship is named by the id the RANGE gives it - the flown hull spawns as
+/// `player_spaceship` however its node is called - which is the id the
+/// inspector's picker offers and the one the drop below is judged against.
+fn authored_script(id: &str) -> Vec<ScenarioEventConfig> {
+    vec![ScenarioEventConfig {
+        name: EventConfig::OnDestroyed,
+        once: true,
+        filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some(id.to_string()),
+            ..default()
+        })],
+        actions: vec![
+            EventActionConfig::Objective(ObjectiveActionConfig::new("kill", "Destroy the escort")),
+            EventActionConfig::Outcome(OutcomeActionConfig::new(
+                ScenarioOutcomeKind::Victory,
+                "Escort down",
+            )),
+        ],
+    }]
+}
+
+/// A document holding the authored script, lifted into nodes the way an opened
+/// file arrives.
+fn world_with_script(id: &str) -> World {
+    let mut world = world_with_document();
+    let scenario = world
+        .query_filtered::<Entity, With<crate::node::ScenarioNode>>()
+        .single(&world)
+        .expect("one scenario node");
+    {
+        let mut commands = world.commands();
+        crate::event::lift(&mut commands, scenario, authored_script(id));
+    }
+    world.flush();
+    world
+}
+
+/// The SCRIPT survives the file, objectives and outcome included: the same
+/// property the layout has, for the half of the document the editor learned to
+/// author last.
+///
+/// Through the nodes both ways - lifted in, lowered out - because that is what
+/// a builder's save actually is: the tree, written down.
+#[test]
+fn a_script_the_editor_wrote_survives_the_file() {
+    let mut world = world_with_script("player_spaceship");
+
+    let lifted = lift_content(&lower(&mut world)).expect("the file carries a range");
+
+    assert_eq!(
+        lifted.script.len(),
+        1,
+        "the derived layout handler is the world, not the script"
+    );
+    assert_eq!(
+        format!("{:?}", lifted.script[0]),
+        format!("{:?}", authored_script("player_spaceship")[0]),
+        "the handler comes back as it was authored"
+    );
+}
+
+/// A handler naming an id the document does not spawn does not reach the file.
+///
+/// The loader REFUSES a scenario over a dangling reference, so the lowering
+/// drops the handler rather than writing a range that cannot be opened - which
+/// is why the panel paints that row as a fault while it is still being typed.
+#[test]
+fn a_handler_naming_nothing_the_document_spawns_is_dropped() {
+    let mut world = world_with_script("ship_9");
+
+    let lifted = lift_content(&lower(&mut world)).expect("the file carries a range");
+
+    assert!(
+        lifted.script.is_empty(),
+        "nothing in the document is called ship_9: {:?}",
+        lifted.script
     );
 }

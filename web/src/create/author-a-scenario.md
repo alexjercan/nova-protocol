@@ -8,6 +8,14 @@ This page teaches one happy path. Use the
 [modding reference](../reference/) when you need the complete list of events,
 filters, actions, objects, and expression nodes.
 
+There is a second way in. Sandbox, on the main menu, opens the editor: its SCENE
+tab lays out the range and its EVENTS tab holds the same script this page
+writes by hand - a row per handler, its filters and actions under it, each one
+edited in the Inspector. Save writes it as an ordinary mod. The editor owns one
+save slot (the `editor_save` mod) and never writes a hand-authored mod like the
+one below, so the two paths do not fight over a file. Read on for what the rows
+mean either way.
+
 ## 1. Start with the working example
 
 The repository includes a playable starter at `assets/mods/example/`. It

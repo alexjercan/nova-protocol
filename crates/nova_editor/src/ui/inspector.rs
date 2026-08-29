@@ -19,14 +19,14 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::PrimaryWindow,
 };
-use nova_scenario::prelude::ScenarioObjectKind;
+use nova_scenario::prelude::{Names, ScenarioObjectKind};
 use nova_ship::prelude::GameSections;
 use nova_ui::{
     prelude::{
         panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
-        segmented_container, segmented_option, text_field, ButtonLabel, ButtonVariant, Selected,
-        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue,
-        ThemedButton, UiSkin,
+        segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
+        text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
+        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin,
     },
     theme,
     widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
@@ -34,13 +34,18 @@ use nova_ui::{
 
 use crate::{
     config::{EditorOverlays, EditorSays, SelectedNode},
+    event::{
+        action_config_mut, filter_config_mut, retype_script_node, ActionNode, EventNode,
+        FilterNode, GateNode, StepNode,
+    },
     gizmo::GizmoAxis,
     inspect::{
-        axis_step, choose_field, curated_object_rows, curated_section_rows, driver_label,
-        editable_config, inspected, nudge_field, object_config_mut, object_rows, parse_colour,
-        rotation_degrees, rotation_from_degrees, scenario_rows, section_config_mut, section_rows,
-        ship_rows, toggle_field, write_field, DragRule, FieldRoot, InspectTarget, InspectorRow,
-        NodeKinds, PathStep, RowValue, GRIP_GONE,
+        action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
+        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
+        object_config_mut, object_rows, parse_colour, rotation_degrees, rotation_from_degrees,
+        scenario_rows, script_name, section_config_mut, section_rows, ship_rows, step_rows,
+        toggle_field, write_field, DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow,
+        NodeKinds, PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -48,7 +53,7 @@ use crate::{
         ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
-    ui::window::on_open_colour_window,
+    ui::window::{on_open_colour_window, on_open_ref_window},
 };
 
 /// Panel width. Wider than the rail because every row is a name AND a value
@@ -100,6 +105,59 @@ pub(crate) struct InspectorField {
     root: FieldRoot,
     path: Vec<PathStep>,
     optional: bool,
+}
+
+/// The chip that opens the picker on a row that NAMES something, and what
+/// kind of name it is.
+///
+/// Beside the box rather than instead of it: an id can be typed, including one
+/// for an object the builder is about to add, and the picker is the shortcut
+/// for the ones that already exist.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorRef {
+    /// The row's label, for the window's title.
+    pub(crate) label: String,
+    /// What the field names, which decides what the picker lists.
+    pub(crate) names: Names,
+}
+
+/// A reference row whose text names nothing this document holds.
+///
+/// On the UNIT, which is the slot a row already borrows to say what is wrong
+/// with it - the same place a refused edit puts its reason.
+#[derive(Component)]
+pub(crate) struct InspectorFault;
+
+/// What the unit slot of an unresolved reference reads.
+///
+/// The lowering DROPS a handler that names an id nothing spawns, so this word
+/// is the warning before the drop.
+const UNRESOLVED: &str = "unknown";
+
+/// The picker chip: a caret in a box the width of a swatch.
+fn ref_chip() -> impl Bundle {
+    (
+        Node {
+            width: px(22),
+            height: px(22),
+            flex_shrink: 0.0,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+        BackgroundColor(Color::NONE),
+        children![(
+            Text::new(crate::glyph::PICK),
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_MUTED),
+        )],
+    )
 }
 
 /// The unit beside a row's value, and what that slot says when the value is
@@ -211,6 +269,12 @@ pub(crate) struct Document<'w, 's> {
     ships: Query<'w, 's, (&'static ShipNode, &'static Transform)>,
     sections: Query<'w, 's, &'static SectionNode>,
     objects: Query<'w, 's, (&'static ObjectNode, &'static Transform)>,
+    events: Query<'w, 's, &'static EventNode>,
+    filters: Query<'w, 's, &'static FilterNode>,
+    actions: Query<'w, 's, &'static ActionNode>,
+    steps: Query<'w, 's, &'static StepNode>,
+    gates: Query<'w, 's, &'static GateNode>,
+    names: ScriptNames<'w, 's>,
 }
 
 impl Document<'_, '_> {
@@ -247,6 +311,14 @@ impl Document<'_, '_> {
                     curated_object_rows(node, pose)
                 }
             }
+            // The script's nodes are NEVER curated: a handler has four fields
+            // between it and its children, and a curated action would hide the
+            // one field the builder came to set.
+            InspectTarget::Event(node) => event_rows(self.events.get(node).ok()?),
+            InspectTarget::Filter(node) => filter_rows(self.filters.get(node).ok()?),
+            InspectTarget::Action(node) => action_rows(self.actions.get(node).ok()?),
+            InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
+            InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
         };
         Some((target, rows))
     }
@@ -335,7 +407,16 @@ impl Document<'_, '_> {
             }
             target => target.tag(),
         };
-        format!("{tag}  {}", self.name_of(target.node()))
+        // A script node is named by what it IS - `On Start`, `Entity`,
+        // `Sequence` - because its minted id is plumbing, and the tree row
+        // that opened the panel shows the same word.
+        let name = script_name(target, &self.names);
+        let name = if name.is_empty() {
+            self.name_of(target.node())
+        } else {
+            name
+        };
+        format!("{tag}  {name}")
     }
 }
 
@@ -498,6 +579,13 @@ fn spawn_choice_options(
     // its content: as a flex item of a row it shrinks to the width it is given
     // and its options share it, and without one a three-option control simply
     // runs off the panel edge.
+    //
+    // WIDE choices WRAP, and their options are sized to their own labels: the
+    // enum decides how many there are, and an event name has sixteen. A single
+    // line put twelve of them past the panel edge where nothing could click
+    // them, and full-width options in a wrapping bar put every one on a line of
+    // its own. A short choice keeps the even share it reads best in.
+    let wide = options.len() > WIDE_CHOICE;
     parent
         .spawn(Node {
             width: percent(100),
@@ -506,11 +594,13 @@ fn spawn_choice_options(
             ..default()
         })
         .with_children(|line| {
-            line.spawn((
-                Name::new(format!("Inspector Choice {label}")),
-                segmented_container(skin),
-            ))
-            .with_children(|segments| {
+            let mut control = line.spawn(Name::new(format!("Inspector Choice {label}")));
+            if wide {
+                control.insert(segmented_container_wrapping(skin));
+            } else {
+                control.insert(segmented_container(skin));
+            }
+            control.with_children(|segments| {
                 for (index, option) in options.iter().enumerate() {
                     let mut entity = segments.spawn((
                         Name::new(format!("Inspector Choice {label} {option}")),
@@ -519,9 +609,13 @@ fn spawn_choice_options(
                             variant: option.clone(),
                         },
                         field.clone(),
-                        segmented_option(option),
                         observe(on_inspector_choice),
                     ));
+                    if wide {
+                        entity.insert(segmented_option_fit(option));
+                    } else {
+                        entity.insert(segmented_option(option));
+                    }
                     if index == chosen {
                         entity.insert(Selected);
                     }
@@ -529,6 +623,10 @@ fn spawn_choice_options(
             });
         });
 }
+
+/// How many options a choice may have before its control wraps. Three fit
+/// across the value column at the panel's width; a fourth clips.
+const WIDE_CHOICE: usize = 3;
 
 /// A wide choice: the name on its own line and the options under it, across
 /// the panel rather than squeezed into the value column.
@@ -866,6 +964,24 @@ fn build_rows(
                                     text_field(spec),
                                 ));
                             });
+                        // The picker, for a row the config said names
+                        // something: what the document holds is a list only
+                        // the document can write.
+                        if let Some(names) = row.names {
+                            value.spawn((
+                                Name::new(format!("Inspector Ref {}", row.label)),
+                                InspectorSlot(slot),
+                                InspectorRef {
+                                    label: row.label.clone(),
+                                    names,
+                                },
+                                field.clone(),
+                                Button,
+                                Hovered::default(),
+                                ref_chip(),
+                                observe(on_open_ref_window),
+                            ));
+                        }
                         value.spawn(unit_text(&row.label, row.unit, slot));
                     }
                     RowValue::Colour(text) => {
@@ -1226,22 +1342,75 @@ pub(crate) fn sync_inspector(
 /// corrected, and the reason has to keep with it.
 pub(crate) fn paint_field_reasons(
     refused: Query<(&InspectorSlot, &TextFieldError)>,
-    mut units: Query<(&InspectorSlot, &InspectorUnit, &mut Text, &mut TextColor)>,
+    mut units: Query<(
+        &InspectorSlot,
+        &InspectorUnit,
+        Has<InspectorFault>,
+        &mut Text,
+        &mut TextColor,
+    )>,
 ) {
-    for (slot, unit, mut text, mut colour) in &mut units {
+    for (slot, unit, unresolved, mut text, mut colour) in &mut units {
         let reason = refused
             .iter()
             .find(|(refused, _)| refused.0 == slot.0)
             .map(|(_, error)| error.0.as_str());
-        let (wanted, tint) = match reason {
-            Some(reason) => (reason, theme::semantic::THREAT),
-            None => (unit.0, theme::PHOSPHOR_DIM),
+        // A refusal FIRST: it is about what was just typed, and the reference
+        // it names nothing is the state that was already there.
+        let (wanted, tint) = match (reason, unresolved) {
+            (Some(reason), _) => (reason, theme::semantic::THREAT),
+            (None, true) => (UNRESOLVED, theme::semantic::THREAT),
+            (None, false) => (unit.0, theme::PHOSPHOR_DIM),
         };
         if text.0 != wanted {
             text.0 = wanted.to_string();
         }
         if colour.0 != tint {
             colour.0 = tint;
+        }
+    }
+}
+
+/// Mark the reference rows whose text names nothing the document holds.
+///
+/// Its own system, and not part of the repaint, because the answer changes
+/// from OUTSIDE the panel: an object deleted on the stage makes a handler on
+/// another node wrong without a row of it moving.
+pub(crate) fn sync_reference_faults(
+    mut commands: Commands,
+    ids: DocumentIds,
+    refs: Query<(&InspectorSlot, &InspectorRef)>,
+    boxes: Query<(&InspectorSlot, &TextFieldValue)>,
+    units: Query<(Entity, &InspectorSlot, Has<InspectorFault>), With<InspectorUnit>>,
+) {
+    if refs.is_empty() {
+        // The panel is on a node with no references at all, which is most of
+        // them: nothing to name, so nothing to look up.
+        for (entity, _, faulted) in &units {
+            if faulted {
+                commands.entity(entity).remove::<InspectorFault>();
+            }
+        }
+        return;
+    }
+    let names = ids.names();
+    for (entity, slot, faulted) in &units {
+        let wrong = refs
+            .iter()
+            .find(|(row, _)| row.0 == slot.0)
+            .and_then(|(_, chip)| {
+                let text = boxes.iter().find(|(row, _)| row.0 == slot.0)?;
+                Some(!names.resolves(chip.names, &text.1 .0))
+            })
+            .unwrap_or(false);
+        match (wrong, faulted) {
+            (true, false) => {
+                commands.entity(entity).insert(InspectorFault);
+            }
+            (false, true) => {
+                commands.entity(entity).remove::<InspectorFault>();
+            }
+            _ => {}
         }
     }
 }
@@ -1274,6 +1443,11 @@ pub(crate) struct EditTargets<'w, 's> {
     ships: Query<'w, 's, &'static mut ShipNode>,
     sections: Query<'w, 's, &'static mut SectionNode>,
     objects: Query<'w, 's, &'static mut ObjectNode>,
+    events: Query<'w, 's, &'static mut EventNode>,
+    filters: Query<'w, 's, &'static mut FilterNode>,
+    actions: Query<'w, 's, &'static mut ActionNode>,
+    steps: Query<'w, 's, &'static mut StepNode>,
+    gates: Query<'w, 's, &'static mut GateNode>,
     poses: Query<'w, 's, &'static mut Transform>,
     stale: MessageWriter<'w, ObjectBodyStale>,
 }
@@ -1346,7 +1520,13 @@ impl EditTargets<'_, '_> {
                     Ok(())
                 })
             }
+            // Handled before the routing: a kind is swapped on the node, not
+            // written through a path. See [`on_inspector_choice`].
+            FieldRoot::Kind => Err("not a field".to_string()),
             FieldRoot::Config => {
+                if self.is_script(field.node) {
+                    return self.edit_script(field, edit);
+                }
                 if let Ok(mut section) = self.sections.get_mut(field.node) {
                     return if_it_took(&mut section, |section| {
                         let config = editable_config(section, self.catalog.as_deref())
@@ -1376,6 +1556,53 @@ impl EditTargets<'_, '_> {
                 took
             }
         }
+    }
+
+    /// Whether `node` belongs to the script rather than to the world.
+    fn is_script(&self, node: Entity) -> bool {
+        self.events.contains(node)
+            || self.filters.contains(node)
+            || self.actions.contains(node)
+            || self.steps.contains(node)
+            || self.gates.contains(node)
+    }
+
+    /// Hand `edit` a SCRIPT node's config.
+    ///
+    /// Its own arm because the five kinds share nothing with the world's nodes:
+    /// no pose to keep, no body to rebuild, and no catalog entry to copy before
+    /// writing. A handler, a step and a gate ARE their config; a filter and an
+    /// action carry one inside the kind they hold.
+    fn edit_script(
+        &mut self,
+        field: &InspectorField,
+        edit: impl FnOnce(&mut dyn PartialReflect, &[PathStep], bool) -> Result<(), String>,
+    ) -> Result<(), String> {
+        if let Ok(mut event) = self.events.get_mut(field.node) {
+            return if_it_took(&mut event, |event| edit(event, &field.path, field.optional));
+        }
+        if let Ok(mut step) = self.steps.get_mut(field.node) {
+            return if_it_took(&mut step, |step| edit(step, &field.path, field.optional));
+        }
+        if let Ok(mut gate) = self.gates.get_mut(field.node) {
+            return if_it_took(&mut gate, |gate| edit(gate, &field.path, field.optional));
+        }
+        if let Ok(mut filter) = self.filters.get_mut(field.node) {
+            return if_it_took(&mut filter, |filter| {
+                let config = filter_config_mut(&mut filter.kind)
+                    .ok_or_else(|| "nothing to author".to_string())?;
+                edit(config, &field.path, field.optional)
+            });
+        }
+        let mut action = self
+            .actions
+            .get_mut(field.node)
+            .map_err(|_| GRIP_GONE.to_string())?;
+        if_it_took(&mut action, |action| {
+            let config = action_config_mut(&mut action.kind)
+                .ok_or_else(|| "nothing to author".to_string())?;
+            edit(config, &field.path, field.optional)
+        })
     }
 }
 
@@ -1530,6 +1757,7 @@ pub(crate) fn on_inspector_flag(
 /// value is not parsed out of text, it is one of a set the row already knows.
 pub(crate) fn on_inspector_choice(
     activate: On<Activate>,
+    mut commands: Commands,
     options: Query<(&InspectorField, &InspectorChoice)>,
     mut targets: EditTargets,
     mut says: EditorSays,
@@ -1537,6 +1765,14 @@ pub(crate) fn on_inspector_choice(
     let Ok((field, option)) = options.get(activate.entity) else {
         return;
     };
+    // The KIND row is not a field of anything: it replaces the config the rest
+    // of the panel is walked from, so it is a swap on the node rather than a
+    // write through a path.
+    if field.root == FieldRoot::Kind {
+        let (node, kind) = (field.node, option.variant.clone());
+        commands.queue(move |world: &mut World| retype_script_node(world, node, &kind));
+        return;
+    }
     let chosen = targets.edit(field, |root, path, _| {
         choose_field(root, path, &option.variant)
     });

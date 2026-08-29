@@ -23,6 +23,7 @@ use crate::{
         PlacementPose, PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker,
         SelectedNode,
     },
+    event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
     frame::{ask_for, FrameRequest},
     keybind::EditorRebind,
     node::{
@@ -250,6 +251,23 @@ fn in_front_of(camera: &GlobalTransform) -> Vec3 {
 /// The key that deletes the selection.
 const DELETE_KEY: KeyCode = KeyCode::Delete;
 
+/// Every node kind the editor can remove: the world's three, and the five the
+/// script is made of.
+///
+/// One alias rather than the same filter written out at each of the places
+/// that ask - the menu row, the row trash, the key and the verb they share -
+/// because a kind missing from ONE of them is a row whose trash does nothing.
+pub(crate) type DeletableNode = Or<(
+    With<ShipNode>,
+    With<ObjectNode>,
+    With<SectionNode>,
+    With<EventNode>,
+    With<FilterNode>,
+    With<ActionNode>,
+    With<StepNode>,
+    With<GateNode>,
+)>;
+
 /// Can `node` be deleted?
 ///
 /// Everything a context LISTS can go - a ship, an object, a part - except the
@@ -259,7 +277,7 @@ const DELETE_KEY: KeyCode = KeyCode::Delete;
 pub(crate) fn deletable(
     node: Entity,
     context: &EditContext,
-    nodes: &Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: &Query<(), DeletableNode>,
 ) -> bool {
     nodes.contains(node) && !context.path.contains(&node)
 }
@@ -273,7 +291,7 @@ pub(crate) fn delete_selected_node(
     commands: Commands,
     selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
-    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: Query<(), DeletableNode>,
 ) {
     delete_selection(commands, selected, &context, &nodes);
 }
@@ -287,7 +305,7 @@ pub(crate) fn delete_key(
     commands: Commands,
     selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
-    nodes: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: Query<(), DeletableNode>,
 ) {
     if !keys.just_pressed(DELETE_KEY) {
         return;
@@ -304,7 +322,7 @@ fn delete_selection(
     mut commands: Commands,
     mut selected: ResMut<SelectedNode>,
     context: &EditContext,
-    nodes: &Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
+    nodes: &Query<(), DeletableNode>,
 ) {
     let Some(node) = selected.0 else {
         return;

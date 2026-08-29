@@ -167,7 +167,8 @@ impl VariableTermNode {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
+#[reflect(opaque)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// An expression in the variables DSL: terms joined by addition or subtraction
 /// (the top precedence level, the root of a value expression).
@@ -242,7 +243,8 @@ impl VariableExpressionNode {
 /// counts - all small - so an absolute tolerance is the right shape.
 pub const EQUAL_EPSILON: f64 = 1e-6;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
+#[reflect(opaque)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A boolean condition in the variables DSL: two expressions compared, the
 /// predicate a scenario event filter or gate evaluates.

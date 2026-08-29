@@ -1,8 +1,8 @@
 # Editor objectives and win/lose: destroy X, reach Y, survive T
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
-- TAGS: v0.12.0,editor,scenario
+- TAGS: v0.12.0, editor, scenario
 
 Successor to `20260714-081703` slice 2. **Blocked on `20260820-223059`
 (Sequence).** Do not start before it lands: an objective set authored against
@@ -41,3 +41,13 @@ then build.
   reloads, and completes its player path.
 - A UI-harness walk covers author -> save -> reload -> play -> win; probe
   green.
+
+## Resolution
+
+FOLDED INTO `20260825-223035` (editor events), which does this task's work as
+a consequence of its own. The open question above is answered: `Objective`,
+`ObjectiveComplete`, the marker attach/detach pair and `Outcome` are action
+arms already, so an editor that authors the ACTION VOCABULARY authors
+objectives and win/lose with no declarative objective type invented. Destroy
+X, reach Y and survive T are then three authored handler sets, not three
+editor features.

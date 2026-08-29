@@ -8,12 +8,15 @@ use bevy::{
     picking::pointer::{Location, PointerId},
     window::WindowRef,
 };
-use nova_scenario::prelude::{AsteroidConfig, BeaconConfig, ScenarioObjectKind};
+use nova_scenario::prelude::{
+    AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind,
+};
 use nova_ui::prelude::TextFieldSubmitted;
 
 use super::*;
 use crate::{
     config::SelectedNode,
+    event::{FilterKind, FilterNode},
     node::{
         EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
         ScenarioNode,
@@ -42,7 +45,10 @@ fn window_app() -> App {
     app.world_mut().spawn(Window::default());
     app.world_mut().spawn(inspector_panel(UiSkin::default()));
     app.world_mut().spawn(window_layer());
-    app.add_systems(Update, (sync_inspector, sync_colour_windows).chain());
+    app.add_systems(
+        Update,
+        (sync_inspector, sync_colour_windows, sync_ref_windows).chain(),
+    );
     app.add_observer(on_colour_slider);
     app
 }
@@ -430,4 +436,107 @@ fn a_fresh_window_stands_clear_of_the_rail() {
          one it must not cover: {}",
         fresh_window_left(760.0)
     );
+}
+
+/// A filter that matches one object by id - the row the picker exists for.
+fn entity_filter(app: &mut App, scenario: Entity, id: &str) -> Entity {
+    app.world_mut()
+        .spawn((
+            EditorNode,
+            FilterNode {
+                kind: FilterKind::Entity(EntityFilterConfig {
+                    id: Some(id.to_string()),
+                    ..default()
+                }),
+            },
+            NodeId("entity_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id()
+}
+
+/// Press the chip beside the Id row.
+fn open_the_ref_picker(app: &mut App) {
+    let chip = named(app, "Inspector Ref Id").expect("the id row carries a picker chip");
+    app.world_mut().trigger(Activate { entity: chip });
+    app.update();
+}
+
+fn ref_picker(app: &mut App) -> Option<Entity> {
+    app.world_mut()
+        .query_filtered::<Entity, With<RefWindow>>()
+        .iter(app.world())
+        .next()
+}
+
+/// What the open picker offers, in the order it lists them.
+fn offered(app: &mut App) -> Vec<String> {
+    app.world_mut()
+        .query::<(&Name, &RefOption)>()
+        .iter(app.world())
+        .map(|(_, option)| option.id.clone())
+        .collect()
+}
+
+fn filter_id(app: &App, filter: Entity) -> Option<String> {
+    match &app
+        .world()
+        .get::<FilterNode>(filter)
+        .expect("a filter")
+        .kind
+    {
+        FilterKind::Entity(config) => config.id.clone(),
+        other => panic!("not an entity filter: {other:?}"),
+    }
+}
+
+/// The chip lists what the DOCUMENT holds, not what the type allows: a string
+/// field cannot say which ids exist, and this is the answer only the document
+/// can give.
+#[test]
+fn a_reference_chip_lists_the_ids_the_document_holds() {
+    let mut app = window_app();
+    let (scenario, _) = document(&mut app);
+    asteroid(&mut app, scenario);
+    let filter = entity_filter(&mut app, scenario, "");
+    select(&mut app, filter);
+
+    open_the_ref_picker(&mut app);
+
+    assert!(ref_picker(&mut app).is_some(), "the picker opened");
+    assert_eq!(offered(&mut app), vec!["asteroid_1", "beacon_1"]);
+}
+
+/// Picking writes the id and puts the picker away: the choice is made, and a
+/// list left standing over the panel hides the row it just wrote.
+#[test]
+fn picking_an_id_writes_it_into_the_row() {
+    let mut app = window_app();
+    let (scenario, _) = document(&mut app);
+    let filter = entity_filter(&mut app, scenario, "");
+    select(&mut app, filter);
+    open_the_ref_picker(&mut app);
+
+    let option = named(&mut app, "Ref Option beacon_1").expect("the beacon is offered");
+    app.world_mut().trigger(Activate { entity: option });
+    app.update();
+
+    assert_eq!(filter_id(&app, filter), Some("beacon_1".to_string()));
+    assert!(ref_picker(&mut app).is_none(), "the picker closed itself");
+}
+
+/// The picker belongs to the ROW, like every other window here: inspect
+/// something else and it goes.
+#[test]
+fn inspecting_another_node_closes_the_reference_picker() {
+    let mut app = window_app();
+    let (scenario, beacon) = document(&mut app);
+    let filter = entity_filter(&mut app, scenario, "");
+    select(&mut app, filter);
+    open_the_ref_picker(&mut app);
+    assert!(ref_picker(&mut app).is_some());
+
+    select(&mut app, beacon);
+
+    assert!(ref_picker(&mut app).is_none());
 }

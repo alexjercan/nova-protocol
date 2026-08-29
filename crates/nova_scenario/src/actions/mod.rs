@@ -4,7 +4,10 @@
 use bevy::prelude::*;
 use nova_events::prelude::*;
 
-use crate::{filters::EventFilterConfig, variables::VariableExpressionNode, world::NovaEventWorld};
+use crate::{
+    filters::EventFilterConfig, names::Names, variables::VariableExpressionNode,
+    world::NovaEventWorld,
+};
 mod flow;
 mod mission;
 mod sequence;
@@ -228,10 +231,11 @@ impl EventActionConfig {
 
 /// Action that evaluates an expression and stores the result in a scenario
 /// variable.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariableSetActionConfig {
     /// The scenario variable to write.
+    #[reflect(@Names::Variable)]
     pub key: String,
     /// The expression evaluated (against the current variables) into that key.
     pub expression: VariableExpressionNode,
@@ -254,7 +258,7 @@ impl EventAction<NovaEventWorld> for VariableSetActionConfig {
 }
 
 /// Action that logs a message; an authoring/debugging aid with no game effect.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DebugMessageActionConfig {
     /// The text to log.

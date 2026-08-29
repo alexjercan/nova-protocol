@@ -3,11 +3,12 @@
 //! whatever content declares, so a test that walks its own toy type would not
 //! be testing it.
 
-use bevy::ecs::system::RunSystemOnce;
+use bevy::{ecs::system::RunSystemOnce, reflect::Typed};
 use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
-    AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, LightConfig,
-    ScenarioObjectKind, SectionSource, ShipSource, SpaceshipConfig, SpaceshipController,
+    AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig,
+    EventActionConfig, EventConfig, LightConfig, Names, ScenarioAreaConfig, ScenarioObjectKind,
+    SectionSource, ShipSource, SpaceshipConfig, SpaceshipController, TimerFilterConfig,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, ThrusterExhaust,
@@ -16,7 +17,16 @@ use nova_ship::prelude::{
 };
 
 use super::*;
-use crate::node::{EditorNode, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipNode};
+use crate::{
+    event::{
+        action_config_mut, filter_config_mut, ActionChoice, ActionKind, ActionNode, EventNode,
+        FilterChoice, FilterKind, FilterNode, ScriptNode, SequenceHead, StepNode,
+    },
+    node::{
+        EditorNode, NextChildOrdinal, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipDriver,
+        ShipNode,
+    },
+};
 
 /// The row labelled `label`, or a failure naming what WAS found - a walk that
 /// silently returns nothing is the failure mode these tests exist to catch.
@@ -1227,4 +1237,355 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let refused = nudge_field(&mut config, &path, true, rule, 5.0);
 
     assert_eq!(refused, Err(GRIP_EMPTY.to_string()));
+}
+
+/// A handler is its own config: the trigger is a choice over every event name
+/// and `once` is a checkbox, and this module names neither.
+#[test]
+fn a_handler_shows_its_trigger_as_a_choice() {
+    let rows = event_rows(&EventNode {
+        name: EventConfig::OnDestroyed,
+        once: true,
+    });
+
+    let RowValue::Choice { options, chosen } = &row(&rows, "Name").value else {
+        panic!("the trigger is a choice");
+    };
+    // Against the ENUM, not against a list this test wrote out: the row is
+    // built by reflection, and a hand-written vocabulary anywhere in the panel
+    // is one that goes stale the day the engine grows an event.
+    let TypeInfo::Enum(events) = EventConfig::type_info() else {
+        panic!("an event name is an enum");
+    };
+    assert_eq!(
+        options.len(),
+        events.variant_len(),
+        "every event is offered"
+    );
+    assert_eq!(options[*chosen], "OnDestroyed");
+    assert_eq!(row(&rows, "Once").value, RowValue::Flag(true));
+}
+
+/// Switching the trigger is the same unit-variant write every other choice row
+/// makes, so the handler needs no rule of its own.
+#[test]
+fn switching_the_trigger_writes_the_handler() {
+    let mut event = EventNode::default();
+    let path = vec![PathStep::Field("name".to_string())];
+
+    choose_field(&mut event, &path, "OnTimerEnd").expect("the trigger takes");
+
+    assert!(matches!(event.name, EventConfig::OnTimerEnd));
+}
+
+/// A filter says which filter it is and then shows its own fields. An unset
+/// optional id is an empty box: it matches anything, and a box reading `none`
+/// would say the filter had been given something.
+#[test]
+fn a_filter_shows_the_ids_it_matches_on() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::Entity(EntityFilterConfig {
+            id: Some("raider_1".to_string()),
+            ..default()
+        }),
+    });
+
+    assert_eq!(row(&rows, "Filter").value.reading(), "Entity");
+    assert_eq!(text_of(&rows, "Id"), "raider_1");
+    assert_eq!(text_of(&rows, "Other Id"), "");
+}
+
+/// A combinator holds nothing to author: what it combines are its child rows
+/// in the tree, and the panel says so rather than showing an empty config.
+#[test]
+fn a_combinator_shows_only_what_it_is() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::And,
+    });
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(row(&rows, "Filter").value.reading(), "And");
+}
+
+/// The kind row is the one row that is not a FIELD: it offers every filter
+/// there is, and switching it swaps the config the other rows are walked from.
+#[test]
+fn a_filter_is_switched_to_any_other_kind_from_its_own_row() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::Timer(TimerFilterConfig {
+            key: "patrol".to_string(),
+        }),
+    });
+
+    let kind = row(&rows, "Filter");
+    assert_eq!(kind.root, FieldRoot::Kind);
+    assert!(kind.path.is_empty(), "a kind is not reached through a path");
+    let RowValue::Choice { options, chosen } = &kind.value else {
+        panic!("the kind is a choice");
+    };
+    assert_eq!(
+        options.len(),
+        FilterChoice::ALL.len(),
+        "every filter is offered"
+    );
+    assert_eq!(options[*chosen], "Timer");
+}
+
+/// The same row, over the vocabulary the Add menu does not list: five rows
+/// there, twenty-six kinds here.
+#[test]
+fn an_action_is_switched_to_any_other_kind_from_its_own_row() {
+    let rows = action_rows(&ActionNode {
+        kind: ActionChoice::Outcome.stock(),
+    });
+
+    let kind = row(&rows, "Action");
+    assert_eq!(kind.root, FieldRoot::Kind);
+    let RowValue::Choice { options, chosen } = &kind.value else {
+        panic!("the kind is a choice");
+    };
+    assert_eq!(
+        options.len(),
+        ActionChoice::ALL.len(),
+        "every action is offered"
+    );
+    assert_eq!(options[*chosen], "Outcome");
+}
+
+/// A sequence shows the KEY its gates name it by and not its steps: the steps
+/// are rows of the tree, and a panel listing them would be a second place they
+/// could be edited.
+#[test]
+fn a_sequence_shows_its_key_and_not_its_steps() {
+    let rows = action_rows(&ActionNode {
+        kind: ActionKind::Sequence(SequenceHead {
+            key: "briefing".to_string(),
+        }),
+    });
+
+    assert_eq!(row(&rows, "Action").value.reading(), "Sequence");
+    assert_eq!(text_of(&rows, "Key"), "briefing");
+    assert_eq!(rows.len(), 2, "and nothing else: {rows:?}");
+}
+
+/// The variables DSL is a LEAF, not a struct to be taken apart: it is authored
+/// as the text a RON file carries, so the row is that text and typing another
+/// expression into it parses.
+#[test]
+fn an_expression_is_authored_as_its_own_syntax() {
+    let mut node = FilterNode {
+        kind: FilterChoice::Expression.stock(),
+    };
+    let rows = filter_rows(&node);
+    assert_eq!(text_of(&rows, "Condition"), "0 == 0");
+
+    let config = filter_config_mut(&mut node.kind).expect("an expression has a config");
+    write_field(config, &[PathStep::Slot(0)], false, "scenario.elapsed > 30")
+        .expect("the condition takes");
+
+    assert_eq!(
+        text_of(&filter_rows(&node), "Condition"),
+        "scenario.elapsed > 30"
+    );
+}
+
+/// And a condition the grammar cannot read is refused with the reason, rather
+/// than silently leaving the old one in place.
+#[test]
+fn an_unreadable_expression_says_why() {
+    let mut node = FilterNode {
+        kind: FilterChoice::Expression.stock(),
+    };
+    let config = filter_config_mut(&mut node.kind).expect("an expression has a config");
+
+    let refused = write_field(config, &[PathStep::Slot(0)], false, "scenario.elapsed >");
+
+    assert!(refused.is_err(), "an unfinished comparison is not a filter");
+    assert_eq!(text_of(&filter_rows(&node), "Condition"), "0 == 0");
+}
+
+/// An asset reference is a leaf too: the path under `assets/`, which is what a
+/// hand-written mod carries. Without this a Set Skybox action is one greyed
+/// row of debug text and nothing to type into.
+#[test]
+fn an_asset_reference_is_authored_as_its_path() {
+    let mut node = ActionNode {
+        kind: ActionChoice::SetSkybox.stock(),
+    };
+    let config = action_config_mut(&mut node.kind).expect("a skybox has a config");
+
+    write_field(
+        config,
+        &[PathStep::Field("cubemap".to_string())],
+        false,
+        "scenarios/deep.cube.png",
+    )
+    .expect("the path takes");
+
+    assert_eq!(
+        text_of(&action_rows(&node), "Cubemap"),
+        "scenarios/deep.cube.png"
+    );
+}
+
+/// A beat of a sequence is two optional clocks, and an empty box is what
+/// clears one - the same gesture an unauthored mass takes.
+#[test]
+fn a_step_clears_a_deadline_with_an_empty_box() {
+    let mut step = StepNode {
+        after: Some(2.0),
+        deadline: Some(30.0),
+    };
+    assert_eq!(text_of(&step_rows(&step), "Deadline"), "30");
+
+    let path = vec![PathStep::Field("deadline".to_string())];
+    write_field(&mut step, &path, true, "").expect("the clear takes");
+
+    assert_eq!(step.deadline, None);
+    assert_eq!(text_of(&step_rows(&step), "Deadline"), "");
+    assert_eq!(step.after, Some(2.0), "and the other clock is untouched");
+}
+
+/// A row that names something says WHAT it names, straight off the field's own
+/// attribute. That is the whole of what the picker beside it needs, so a config
+/// that grows a reference grows a picker without a line here changing.
+#[test]
+fn a_row_that_names_an_object_says_so() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::Entity(EntityFilterConfig::default()),
+    });
+
+    assert_eq!(row(&rows, "Id").names, Some(Names::Object));
+    assert_eq!(
+        row(&rows, "Type Name").names,
+        None,
+        "a type name is a class of thing, not one of them"
+    );
+}
+
+/// The document, read for its names: a rock on the board, a ship, and the id an
+/// action of the script declares - one list, because a handler names the rock
+/// the tree put down as readily as one another handler spawns.
+fn named_document() -> World {
+    let mut world = World::new();
+    let scenario = world
+        .spawn((
+            EditorNode,
+            ScenarioNode,
+            NodeId("scenario".to_string()),
+            NextChildOrdinal::default(),
+        ))
+        .id();
+    world.insert_resource(EditContext {
+        path: vec![scenario],
+    });
+    world.spawn((
+        EditorNode,
+        ObjectNode {
+            name: "rock".to_string(),
+            kind: ScenarioObjectKind::Asteroid(stock_asteroid()),
+        },
+        NodeId("asteroid_1".to_string()),
+        Transform::default(),
+        ChildOf(scenario),
+    ));
+    world.spawn((
+        EditorNode,
+        ShipNode {
+            driver: ShipDriver::Ai,
+            ..default()
+        },
+        NodeId("raider_1".to_string()),
+        ChildOf(scenario),
+    ));
+    let script = world
+        .spawn((
+            EditorNode,
+            ScriptNode,
+            NodeId("script".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    let handler = world
+        .spawn((
+            EditorNode,
+            EventNode {
+                name: EventConfig::OnStart,
+                once: true,
+            },
+            NodeId("event_1".to_string()),
+            ChildOf(script),
+        ))
+        .id();
+    world.spawn((
+        EditorNode,
+        ActionNode {
+            kind: ActionKind::Leaf(EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+                id: "trap".to_string(),
+                name: "TRAP".to_string(),
+                position: Vec3::ZERO,
+                rotation: Quat::IDENTITY,
+                radius: 10.0,
+            })),
+        },
+        NodeId("area_1".to_string()),
+        ChildOf(handler),
+    ));
+    world
+}
+
+fn document_names(world: &mut World) -> DocumentNames {
+    world
+        .run_system_once(|ids: DocumentIds| ids.names())
+        .expect("the system runs")
+}
+
+/// What the picker offers is what the DOCUMENT holds - the world half and the
+/// script half both - because that is the set the lowering judges a reference
+/// against.
+#[test]
+fn the_picker_offers_every_id_the_document_holds() {
+    let mut world = named_document();
+
+    let offered = document_names(&mut world).offers(Names::Object);
+
+    assert_eq!(
+        offered,
+        vec![
+            "asteroid_1".to_string(),
+            "raider_1".to_string(),
+            "trap".to_string()
+        ],
+        "the rock on the board, the ship, and the area the script creates"
+    );
+}
+
+/// A DECLARATION is offered nothing. An id has to be unique, so a list of the
+/// ones already taken is a list of mistakes.
+#[test]
+fn a_declared_id_is_offered_no_choices() {
+    let mut world = named_document();
+
+    assert!(document_names(&mut world)
+        .offers(Names::NewObject)
+        .is_empty());
+}
+
+/// The fault the panel paints: a reference naming nothing the document spawns
+/// is the reference the lowering drops the handler for.
+#[test]
+fn an_id_nothing_spawns_does_not_resolve() {
+    let mut world = named_document();
+    let names = document_names(&mut world);
+
+    assert!(names.resolves(Names::Object, "asteroid_1"));
+    assert!(!names.resolves(Names::Object, "asteroid_2"));
+    assert!(
+        names.resolves(Names::Object, ""),
+        "an unset optional matches anything, and is not a mistake"
+    );
+    assert!(
+        names.resolves(Names::Variable, "never_written"),
+        "a variable is made by the handler that first writes it"
+    );
 }

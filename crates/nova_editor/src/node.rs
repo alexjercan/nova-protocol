@@ -28,9 +28,10 @@ use nova_ship::prelude::*;
 use crate::{
     bundle::{insert_lifted_ship, lift_objects},
     config::{EditorSays, SelectedNode},
+    event::lift,
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
-    scenario::default_world_objects,
+    scenario::{default_script, default_world_objects},
     ExampleStates,
 };
 
@@ -726,7 +727,11 @@ pub(crate) fn node_of_view(
 }
 
 /// Mint the next id under `parent`, named after `prototype`.
-fn mint_id(ordinals: &mut Query<&mut NextChildOrdinal>, parent: Entity, prototype: &str) -> NodeId {
+pub(crate) fn mint_id(
+    ordinals: &mut Query<&mut NextChildOrdinal>,
+    parent: Entity,
+    prototype: &str,
+) -> NodeId {
     let ordinal = match ordinals.get_mut(parent) {
         Ok(mut next) => {
             next.0 += 1;
@@ -784,6 +789,11 @@ pub(crate) fn found_document(
     for ship in seed.ships {
         insert_lifted_ship(commands, sections, scenario, ship);
     }
+    // The script is seeded the same way the world is, and for the same reason:
+    // a new document opens on a range that WORKS - one with a briefing, an
+    // objective, pickets that wake and a death that offers a retry - rather
+    // than on a world nothing ever reacts to.
+    lift(commands, scenario, default_script());
     scenario
 }
 

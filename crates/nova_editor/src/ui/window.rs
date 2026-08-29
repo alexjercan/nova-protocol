@@ -19,17 +19,17 @@ use bevy::{
     },
 };
 use nova_ui::{
-    prelude::{panel, slider_track, themed_button, UiSkin, UiText},
+    prelude::{button, panel, slider_track, themed_button, ButtonSpec, UiSkin, UiText},
     theme,
 };
 
 use crate::{
     bundle::ask_to_open,
     config::EditorSays,
-    inspect::{colour_text, write_field},
+    inspect::{colour_text, write_field, DocumentIds},
     node::reset_document,
     ui::{
-        inspector::{EditTargets, InspectorField, InspectorSwatch},
+        inspector::{EditTargets, InspectorField, InspectorRef, InspectorSwatch},
         layer,
         menu::back_to_main_menu,
     },
@@ -81,6 +81,22 @@ pub(crate) struct WindowClose {
 #[derive(Component, Clone)]
 pub(crate) struct ColourWindow {
     field: InspectorField,
+}
+
+/// The reference picker: which field it writes to, and what it lists.
+///
+/// The same [`InspectorField`] the row's text box holds, so picking an id and
+/// typing it are one edit made two ways.
+#[derive(Component, Clone)]
+pub(crate) struct RefWindow {
+    field: InspectorField,
+}
+
+/// One id the picker offers, and the window that offered it.
+#[derive(Component, Clone)]
+pub(crate) struct RefOption {
+    window: Entity,
+    id: String,
 }
 
 /// One channel of a colour.
@@ -468,20 +484,154 @@ fn fresh_window_left(width: f32) -> f32 {
     (width - RIGHT_MARGIN - WINDOW_W).max(crate::ui::RAIL_W + RAIL_GUTTER)
 }
 
-/// The picker, in one place: the frame, its bar, the preview and the four
-/// channels.
-fn spawn_colour_window(
+/// Open the reference picker on the chip that was clicked.
+///
+/// It lists what the DOCUMENT holds - the rocks and ships on the board, the
+/// variables the script writes, the timers it starts - because that is the set
+/// the row beside it is judged against. An id can still be typed: a builder
+/// naming an object they are about to add is not making a mistake yet.
+pub(crate) fn on_open_ref_window(
+    activate: On<Activate>,
+    mut commands: Commands,
+    skin: Res<UiSkin>,
+    chips: Query<(&InspectorField, &InspectorRef)>,
+    ids: DocumentIds,
+    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
+    open: Query<(Entity, &RefWindow)>,
+    screen: Option<Single<&Window>>,
+) {
+    let Ok((field, chip)) = chips.get(activate.entity) else {
+        return;
+    };
+    let Some(layer) = layer else {
+        return;
+    };
+    // One at a time, and a second press on the same chip puts it away - the
+    // rule the colour picker set, for the same reason.
+    let mut reopening = false;
+    for (window, open) in &open {
+        reopening |= open.field == *field;
+        commands.entity(window).despawn();
+    }
+    if reopening {
+        return;
+    }
+    let offered = ids.names().offers(chip.names);
+    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
+    let at = Vec2::new(fresh_window_left(size.x), TOP_MARGIN);
+    let label = chip.label.clone();
+    let field = field.clone();
+    commands.entity(*layer).with_children(|layer| {
+        spawn_ref_window(layer, field, &label, &offered, at, *skin);
+    });
+}
+
+/// The picker: the frame, and one row per id the document offers.
+fn spawn_ref_window(
     layer: &mut RelatedSpawnerCommands<ChildOf>,
     field: InspectorField,
     label: &str,
-    colour: Color,
+    offered: &[String],
     at: Vec2,
     skin: UiSkin,
 ) {
+    window_frame(
+        layer,
+        "Ref Window",
+        label,
+        at,
+        skin,
+        RefWindow { field },
+        |body, window| {
+            if offered.is_empty() {
+                // The empty picker still OPENS, and says why it is empty. A
+                // chip that did nothing would read as a broken button on a
+                // document that simply has not spawned anything yet.
+                body.spawn((
+                    Name::new("Ref Window Empty"),
+                    UiText,
+                    Text::new("nothing to name yet"),
+                    TextFont {
+                        font_size: FontSize::Px(12.0),
+                        ..default()
+                    },
+                    TextColor(theme::PHOSPHOR_MUTED),
+                ));
+                return;
+            }
+            for id in offered {
+                body.spawn((
+                    Name::new(format!("Ref Option {id}")),
+                    RefOption {
+                        window,
+                        id: id.clone(),
+                    },
+                    // The rail's own row: a list of ids is a list of things to
+                    // pick, and it should read like the one on the left.
+                    button(ButtonSpec::new(id).block()),
+                    observe(on_ref_option),
+                ));
+            }
+        },
+    );
+}
+
+/// Write the id that was picked into the row that opened the picker, and put
+/// the picker away: the choice is made, and a list left standing over the
+/// panel hides the row it just wrote.
+pub(crate) fn on_ref_option(
+    activate: On<Activate>,
+    mut commands: Commands,
+    options: Query<&RefOption>,
+    windows: Query<&RefWindow>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok(option) = options.get(activate.entity) else {
+        return;
+    };
+    let Ok(window) = windows.get(option.window) else {
+        return;
+    };
+    let written = targets.edit(&window.field.clone(), |root, path, optional| {
+        write_field(root, path, optional, &option.id)
+    });
+    if let Err(reason) = written {
+        says.refuse(reason);
+        return;
+    }
+    commands.entity(option.window).despawn();
+}
+
+/// Close a picker whose row has gone: the panel is on another node, and the
+/// window belongs to the row it was opened from.
+pub(crate) fn sync_ref_windows(
+    mut commands: Commands,
+    windows: Query<(Entity, &RefWindow)>,
+    chips: Query<&InspectorField, With<InspectorRef>>,
+) {
+    for (entity, window) in &windows {
+        if !chips.iter().any(|field| *field == window.field) {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// The frame every floating window shares: the panel, the bar it is dragged
+/// by, the title, the close, and a body the caller fills.
+fn window_frame(
+    layer: &mut RelatedSpawnerCommands<ChildOf>,
+    name: &str,
+    title: &str,
+    at: Vec2,
+    skin: UiSkin,
+    held: impl Bundle,
+    body: impl FnOnce(&mut RelatedSpawnerCommands<ChildOf>, Entity),
+) -> Entity {
     let mut frame = layer.spawn((
-        Name::new("Colour Window"),
+        Name::new(name.to_string()),
         EditorWindow,
-        ColourWindow { field },
+        held,
         Node {
             position_type: PositionType::Absolute,
             left: px(at.x),
@@ -495,10 +645,13 @@ fn spawn_colour_window(
         panel(skin),
     ));
     let window = frame.id();
+    let bar_name = format!("{name} Bar");
+    let close_name = format!("{name} Close");
+    let body_name = format!("{name} Body");
     frame.with_children(|frame| {
         frame
             .spawn((
-                Name::new("Colour Window Bar"),
+                Name::new(bar_name),
                 WindowTitleBar { window },
                 Node {
                     flex_direction: FlexDirection::Row,
@@ -514,12 +667,11 @@ fn spawn_colour_window(
             ))
             .with_children(|bar| {
                 bar.spawn((
-                    Name::new("Colour Window Title"),
+                    Name::new(format!("{name} Title")),
                     UiText,
-                    // The ROW's name, not "colour": the window is four channel
-                    // sliders and a swatch, so what it needs to say is which
-                    // field it is on.
-                    Text::new(label.to_uppercase()),
+                    // The ROW's name: a window is a control for one field, so
+                    // what it has to say is which field it is on.
+                    Text::new(title.to_uppercase()),
                     TextLayout {
                         linebreak: LineBreak::NoWrap,
                         ..default()
@@ -531,7 +683,7 @@ fn spawn_colour_window(
                     TextColor(theme::PHOSPHOR),
                 ));
                 bar.spawn((
-                    Name::new("Colour Window Close"),
+                    Name::new(close_name),
                     WindowClose { window },
                     Node {
                         width: px(18),
@@ -552,7 +704,7 @@ fn spawn_colour_window(
             });
         frame
             .spawn((
-                Name::new("Colour Window Body"),
+                Name::new(body_name),
                 Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
@@ -561,41 +713,63 @@ fn spawn_colour_window(
                     ..default()
                 },
             ))
-            .with_children(|body| {
-                body.spawn((
-                    Name::new("Colour Window Preview"),
-                    ColourPreview { window },
-                    Node {
-                        width: percent(100),
-                        height: px(30),
-                        border: UiRect::all(px(theme::BORDER_W)),
-                        border_radius: BorderRadius::all(px(theme::RADIUS)),
-                        ..default()
-                    },
-                    BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
-                    BackgroundColor(colour),
-                ));
-                body.spawn((
-                    Name::new("Colour Window Hex"),
-                    ColourReadout { window },
-                    UiText,
-                    Text::new(colour_text(colour)),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(theme::PHOSPHOR_MUTED),
-                ));
-                for channel in [
-                    ColourChannel::Red,
-                    ColourChannel::Green,
-                    ColourChannel::Blue,
-                    ColourChannel::Alpha,
-                ] {
-                    spawn_channel(body, window, channel, colour, skin);
-                }
-            });
+            .with_children(|filled| body(filled, window));
     });
+    window
+}
+
+/// The picker, in one place: the frame, its bar, the preview and the four
+/// channels.
+fn spawn_colour_window(
+    layer: &mut RelatedSpawnerCommands<ChildOf>,
+    field: InspectorField,
+    label: &str,
+    colour: Color,
+    at: Vec2,
+    skin: UiSkin,
+) {
+    window_frame(
+        layer,
+        "Colour Window",
+        label,
+        at,
+        skin,
+        ColourWindow { field },
+        |body, window| {
+            body.spawn((
+                Name::new("Colour Window Preview"),
+                ColourPreview { window },
+                Node {
+                    width: percent(100),
+                    height: px(30),
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    border_radius: BorderRadius::all(px(theme::RADIUS)),
+                    ..default()
+                },
+                BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
+                BackgroundColor(colour),
+            ));
+            body.spawn((
+                Name::new("Colour Window Hex"),
+                ColourReadout { window },
+                UiText,
+                Text::new(colour_text(colour)),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ));
+            for channel in [
+                ColourChannel::Red,
+                ColourChannel::Green,
+                ColourChannel::Blue,
+                ColourChannel::Alpha,
+            ] {
+                spawn_channel(body, window, channel, colour, skin);
+            }
+        },
+    );
 }
 
 /// One channel: its letter, its slider and its number.

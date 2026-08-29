@@ -24,7 +24,7 @@ use crate::prelude::*;
 ///
 /// Part of the in-engine photo-mode surface, paired with
 /// [`ScreenshotActionConfig`]: a beat poses the camera, settles, then captures.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetCameraActionConfig {
     /// World-space camera position.
@@ -100,7 +100,7 @@ fn resolve_capture_path_in(path: &str, capture_dir: Option<&str>) -> std::path::
 /// The parent directory is created if missing; a capture on a build without a
 /// render backend simply never lands, which is acceptable for a dev/marketing
 /// tool.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScreenshotActionConfig {
     /// Output PNG path (relative paths resolve under `NOVA_CAPTURE_DIR`).
@@ -158,7 +158,7 @@ const DEFAULT_SKYBOX_BRIGHTNESS: f32 = 1000.0;
 /// freshly-referenced modder path is not. So the action only *tags* the
 /// scenario camera with a [`PendingSkyboxSwap`]; [`apply_pending_skybox_swaps`]
 /// inserts the real `SkyboxConfig` once the image has finished loading.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetSkyboxActionConfig {
     /// The new cubemap image, authored as an asset path (e.g.

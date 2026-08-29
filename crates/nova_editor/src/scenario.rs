@@ -11,12 +11,14 @@
 //! be scenery rather than a wall (see [`PLANETOID_POSITION`]), and the light
 //! rig that makes any of it visible.
 //!
-//! The split down the middle of this file is the LOWERING CONVENTION: the
-//! objects are LAYOUT and become editor nodes ([`default_world_objects`] seeds
-//! them, [`lower_objects`] reads them back), while the belts, the trip spheres,
-//! the wake handlers and the outcome are LOGIC and stay authored here. Move an
-//! object and you edited the world; the script is not something the editor
-//! edits yet.
+//! The split down the middle of this file is the LOWERING CONVENTION, and it
+//! now has only one thing on the far side of it. The objects are LAYOUT and
+//! become editor nodes ([`default_world_objects`] seeds them, [`lower_objects`]
+//! reads them back); the belts, the trip spheres, the wake handlers and the
+//! outcome are the SCRIPT and are seeded the same way ([`default_script`] seeds
+//! them, [`crate::event`] reads them back). What stays derived is the one
+//! handler that SPAWNS the world: it is the layout written as an action list,
+//! and a copy of it in the tree could disagree with the tree.
 
 use std::collections::HashSet;
 
@@ -30,9 +32,12 @@ use nova_ship::prelude::{
     PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
 };
 
-use crate::node::{
-    objects_of, sections_of, EditContext, NodeId, ObjectNodes, SectionNodes, ShipDriver, ShipNode,
-    ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
+use crate::{
+    event::{named_ids, NamedIds, ScriptNodes},
+    node::{
+        objects_of, sections_of, EditContext, NodeId, ObjectNodes, SectionNodes, ShipDriver,
+        ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
+    },
 };
 
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
@@ -41,7 +46,7 @@ use crate::node::{
 const SANDBOX_ID: &str = "editor_sandbox";
 /// The player ship's scenario id, referenced by every handler that scopes to
 /// the player and by the editor's input mapping.
-const PLAYER_ID: &str = "player_spaceship";
+pub(crate) const PLAYER_ID: &str = "player_spaceship";
 
 /// The planetoid: far enough that it reads as a destination.
 ///
@@ -212,6 +217,7 @@ pub(crate) fn setup_scenario(
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    script: ScriptNodes,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
@@ -221,6 +227,7 @@ pub(crate) fn setup_scenario(
         &game_assets,
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
+        world_script(&context, &script),
     );
 
     // Re-register with the ship the editor just built: the boot-time entry
@@ -256,12 +263,14 @@ pub(crate) fn register_sandbox_scenario(
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    script: ScriptNodes,
     mut scenarios: ResMut<GameScenarios>,
 ) {
     let scenario = sandbox_scenario(
         &game_assets,
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
+        world_script(&context, &script),
     );
     scenarios.insert(scenario.id.clone(), scenario);
 }
@@ -280,6 +289,22 @@ pub(crate) fn world_objects(
     match context.scenario() {
         Some(scenario) => lower_objects(scenario, q_objects),
         None => default_world_objects(),
+    }
+}
+
+/// The script the sandbox runs: the DOCUMENT's handlers once a document
+/// exists, and the stock range's own before one does.
+///
+/// The same rule [`world_objects`] follows, for the same reason: a document
+/// whose script the builder emptied runs no script, and an id registered
+/// before the editor has ever opened still has to name a range that works.
+pub(crate) fn world_script(
+    context: &EditContext,
+    script: &ScriptNodes,
+) -> Vec<ScenarioEventConfig> {
+    match context.scenario() {
+        Some(scenario) => script.lower(scenario),
+        None => default_script(),
     }
 }
 
@@ -492,14 +517,16 @@ pub(crate) fn range_scenario(
     range: Range<'_>,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
+    script: Vec<ScenarioEventConfig>,
 ) -> ScenarioConfig {
     ScenarioConfig {
         description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
             .to_string(),
         hidden: range.hidden,
-        events: sandbox_events(
+        events: range_events(
             range.id,
             sandbox_objects(world, fleet, range.form, range.flight),
+            script,
         ),
         ..ScenarioConfig::new(range.id.to_string(), range.name.to_string(), sky)
     }
@@ -549,8 +576,15 @@ pub(crate) fn sandbox_scenario(
     game_assets: &GameAssets,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
+    script: Vec<ScenarioEventConfig>,
 ) -> ScenarioConfig {
-    range_scenario(game_assets.cubemap.clone().into(), SANDBOX, world, fleet)
+    range_scenario(
+        game_assets.cubemap.clone().into(),
+        SANDBOX,
+        world,
+        fleet,
+        script,
+    )
 }
 
 /// Everything the range spawns on start: the world's own objects, then the
@@ -968,75 +1002,133 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
     }
 }
 
-/// The scenario events: spawn the range on start, wake the pickets on lock or
-/// proximity, swap the sky at the beacons, and offer a retry when the player
-/// dies. No completion path: the standing objective is never completed and
-/// nothing chains anywhere but back here.
+/// The range's whole script: the derived spawn handler, then the document's
+/// own handlers.
 ///
-/// The script follows the objects. A handler naming an id nothing spawns is a
-/// lint error and the loader refuses the scenario over it, so deleting the
-/// picket a wake-up flips - or the beacon it triggers on - takes the handler
-/// with it.
-fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
+/// The SPAWN handler is derived and stays derived. It is the layout written as
+/// an action list, and an authored copy of it would be a second answer to
+/// "what stands on this range" - one the tree could disagree with the moment a
+/// rock was dragged. Everything else - the belts, the trip spheres, the
+/// wake-ups, the briefing, the outcome - is the document's, held as event
+/// nodes and lowered through [`world_script`].
+fn range_events(
+    id: &str,
+    objects: Vec<ScenarioObjectConfig>,
+    script: Vec<ScenarioEventConfig>,
+) -> Vec<ScenarioEventConfig> {
     let spawned: HashSet<String> = objects
         .iter()
         .map(|object| object.base.id.clone())
         .collect();
-    // Every handler below names the player as the ship that trips it.
-    let player_flies = spawned.contains(PLAYER_ID);
-    let picket_stands = |picket: &&Picket| player_flies && spawned.contains(picket.id);
-    let beacon_stands = |beacon: &&SkyBeacon| player_flies && spawned.contains(beacon.id);
+    let mut events = vec![ScenarioEventConfig {
+        name: EventConfig::OnStart,
+        once: false,
+        filters: vec![],
+        // The world's own lights come through `objects` - the engine spawns
+        // none, so a scenario that authors none renders black. (The editor
+        // VIEW has its own light - `ui/mod.rs` - which is a different
+        // surface.)
+        actions: objects
+            .into_iter()
+            .map(EventActionConfig::SpawnScenarioObject)
+            .collect(),
+    }];
+    events.extend(following_the_objects(script, spawned, id));
+    events
+}
 
-    // The one outcome the sandbox has, and the retry it queues. `linger` holds
-    // the switch until the overlay's Retry (or Enter) releases it.
-    let retry = |message: &str| {
-        vec![
-            EventActionConfig::Outcome(OutcomeActionConfig::new(
-                ScenarioOutcomeKind::Defeat,
-                message,
-            )),
-            EventActionConfig::NextScenario(NextScenarioActionConfig {
-                // ITS OWN id, not the sandbox's: a saved range's retry has to
-                // reload the range you died on.
-                scenario_id: id.to_string(),
-                linger: true,
-                delay: None,
-            }),
-        ]
-    };
-    let player = |id: &str| {
-        vec![EventFilterConfig::Entity(EntityFilterConfig {
-            id: Some(id.to_string()),
-            type_name: None,
-            ..default()
-        })]
-    };
+/// The script, minus the handlers that name something the range never spawns.
+///
+/// A handler naming an id nothing spawns is a lint ERROR and the loader
+/// refuses the scenario over it, so a document that lost its pickets, its
+/// beacons or its player ship has to lose their handlers too. Deleting the
+/// object is the gesture; the panel paints the reference as a fault before the
+/// drop, so the handler does not vanish unannounced.
+///
+/// Declarations are collected from the WHOLE script before anything is
+/// dropped, so a handler is never judged against a spawn a later one makes.
+fn following_the_objects(
+    script: Vec<ScenarioEventConfig>,
+    mut spawned: HashSet<String>,
+    range: &str,
+) -> Vec<ScenarioEventConfig> {
+    let named: Vec<NamedIds> = script.iter().map(named_ids).collect();
+    for ids in &named {
+        spawned.extend(ids.declared.iter().cloned());
+    }
+    let prefixes: Vec<String> = named
+        .iter()
+        .flat_map(|ids| ids.prefixes.iter().cloned())
+        .filter(|prefix| !prefix.is_empty())
+        .collect();
+    script
+        .into_iter()
+        .zip(named)
+        .filter(|(_, ids)| {
+            ids.referenced.iter().all(|id| {
+                spawned.contains(id) || prefixes.iter().any(|prefix| id.starts_with(prefix))
+            })
+        })
+        .map(|(mut event, _)| {
+            retarget_retries(&mut event.actions, range);
+            event
+        })
+        .collect()
+}
 
+/// Point a retry at the range it is actually being lowered into.
+///
+/// A `NextScenario` naming [`SANDBOX_ID`] is the document's name for ITSELF -
+/// the seeded death handler offers this range again - and which id this range
+/// answers to is decided by the lowering: `editor_sandbox` on Play,
+/// `editor_save` in a file. Left alone, a saved range's retry would reload a
+/// hidden scenario the saved mod does not contain.
+fn retarget_retries(actions: &mut [EventActionConfig], range: &str) {
+    for action in actions {
+        match action {
+            EventActionConfig::NextScenario(next) if next.scenario_id == SANDBOX_ID => {
+                next.scenario_id = range.to_string();
+            }
+            EventActionConfig::Sequence(sequence) => {
+                for step in &mut sequence.steps {
+                    retarget_retries(&mut step.actions, range);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The script a new document opens with: everything the range does that is not
+/// putting its objects on the board.
+///
+/// These were constants written into the hand-off until the editor could hold
+/// them. They are seeded into the document instead, as event nodes, so the
+/// first thing a builder sees in the EVENTS tab is a working scenario they can
+/// read - a briefing, an objective, two ways to wake a picket, a sky that
+/// swaps, and a death that offers a retry.
+pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
     let mut events = vec![
+        // The range stands ITSELF up: the two rock belts, the proximity trips
+        // the wake-ups fire on, and the guard variable each wake reads. The
+        // variables have to exist before the first filter reads one.
         ScenarioEventConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
-            // The world's own lights come through `objects` - the engine spawns
-            // none, so a scenario that authors none renders black. (The editor
-            // VIEW has its own light - `ui/mod.rs` - which is a different
-            // surface.)
-            actions: objects
-                .into_iter()
-                .map(EventActionConfig::SpawnScenarioObject)
-                .chain(BELTS.iter().map(belt_scatter))
-                .chain(PICKETS.iter().filter(picket_stands).map(trip_area))
-                // Every picket starts asleep, and its guard variable has to
-                // exist before the first filter reads it.
-                .chain(PICKETS.iter().filter(picket_stands).map(|picket| {
+            actions: BELTS
+                .iter()
+                .map(belt_scatter)
+                .chain(PICKETS.iter().map(trip_area))
+                .chain(PICKETS.iter().map(|picket| {
                     EventActionConfig::VariableSet(VariableSetActionConfig {
                         key: woke_key(picket),
                         expression: boolean(false),
                     })
                 }))
-                .collect::<_>(),
+                .collect(),
         },
-        // The standing objective. It is never completed - there is nothing to
+        // The standing objective. Nothing completes it - there is nothing to
         // complete - so it stays on the HUD as the sandbox's only instruction.
         ScenarioEventConfig {
             name: EventConfig::OnStart,
@@ -1057,43 +1149,61 @@ fn sandbox_events(id: &str, objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioE
                 }),
             ],
         },
+        // Death is the only outcome, and it offers this same range again.
+        ScenarioEventConfig {
+            name: EventConfig::OnDestroyed,
+            once: false,
+            filters: player(PLAYER_ID),
+            actions: [EventActionConfig::DebugMessage(DebugMessageActionConfig {
+                message: "The player's spaceship was destroyed!".to_string(),
+            })]
+            .into_iter()
+            .chain(retry(
+                "Range is quiet. Your ship is part of the scenery now.",
+            ))
+            .collect(),
+        },
+        // Shot to pieces without dying: the same offer. A ship that never
+        // carried a weapon cannot reach this, so an unarmed build is not
+        // instantly "neutralized" off the line.
+        ScenarioEventConfig {
+            name: EventConfig::OnNeutralized,
+            once: false,
+            filters: player(PLAYER_ID),
+            actions: retry("Nothing left to fight with - you drift the range dead."),
+        },
     ];
-
-    if player_flies {
-        events.extend([
-            // Death is the only outcome, and it offers this same range again.
-            ScenarioEventConfig {
-                name: EventConfig::OnDestroyed,
-                once: false,
-                filters: player(PLAYER_ID),
-                actions: [EventActionConfig::DebugMessage(DebugMessageActionConfig {
-                    message: "The player's spaceship was destroyed!".to_string(),
-                })]
-                .into_iter()
-                .chain(retry(
-                    "Range is quiet. Your ship is part of the scenery now.",
-                ))
-                .collect(),
-            },
-            // Shot to pieces without dying: the same offer. A ship that never
-            // carried a weapon cannot reach this, so an unarmed build is not
-            // instantly "neutralized" off the line.
-            ScenarioEventConfig {
-                name: EventConfig::OnNeutralized,
-                once: false,
-                filters: player(PLAYER_ID),
-                actions: retry("Nothing left to fight with - you drift the range dead."),
-            },
-        ]);
-    }
-    events.extend(PICKETS.iter().filter(picket_stands).flat_map(wake_picket));
-    events.extend(
-        SKY_BEACONS
-            .iter()
-            .filter(beacon_stands)
-            .map(beacon_swaps_the_sky),
-    );
+    events.extend(PICKETS.iter().flat_map(wake_picket));
+    events.extend(SKY_BEACONS.iter().map(beacon_swaps_the_sky));
     events
+}
+
+/// The outcome a death declares, and the retry it queues.
+///
+/// `linger` holds the switch until the overlay's Retry (or Enter) releases it.
+/// The scenario named is [`SANDBOX_ID`], which [`retarget_retries`] rewrites
+/// to whichever range the document was lowered into.
+fn retry(message: &str) -> Vec<EventActionConfig> {
+    vec![
+        EventActionConfig::Outcome(OutcomeActionConfig::new(
+            ScenarioOutcomeKind::Defeat,
+            message,
+        )),
+        EventActionConfig::NextScenario(NextScenarioActionConfig {
+            scenario_id: SANDBOX_ID.to_string(),
+            linger: true,
+            delay: None,
+        }),
+    ]
+}
+
+/// The filter that scopes a handler to one ship by id.
+fn player(id: &str) -> Vec<EventFilterConfig> {
+    vec![EventFilterConfig::Entity(EntityFilterConfig {
+        id: Some(id.to_string()),
+        type_name: None,
+        ..default()
+    })]
 }
 
 #[cfg(test)]
@@ -1128,7 +1238,7 @@ mod tests {
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
-        sandbox_events(SANDBOX_ID, objects())
+        range_events(SANDBOX_ID, objects(), default_script())
     }
 
     /// Every id the SCRIPT names: the entities its filters match on, and the
@@ -1204,7 +1314,7 @@ mod tests {
         ];
 
         for (what, objects) in ranges {
-            let events = sandbox_events(SANDBOX_ID, objects);
+            let events = range_events(SANDBOX_ID, objects, default_script());
             let defined = defined_ids(&events);
             let mut dangling: Vec<String> = referenced_ids(&events)
                 .difference(&defined)

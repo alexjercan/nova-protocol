@@ -48,7 +48,7 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
 
 /// Match the event's primary entity and its other party by id and/or type
 /// name; every set field must match, unset fields match any.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EntityFilterConfig {
     /// Match the event's primary entity by its `EntityId`; unset matches any.
@@ -56,6 +56,7 @@ pub struct EntityFilterConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(@Names::Object)]
     pub id: Option<String>,
     /// Match the primary entity by its `EntityTypeName`; unset matches any.
     #[cfg_attr(
@@ -69,6 +70,7 @@ pub struct EntityFilterConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(@Names::Object)]
     pub other_id: Option<String>,
     /// Match the other party's `EntityTypeName`; unset matches any.
     #[cfg_attr(
@@ -144,10 +146,11 @@ impl EventFilter<NovaEventWorld> for EntityFilterConfig {
 }
 
 /// Match an `OnTimerEnd` payload by timer key.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TimerFilterConfig {
     /// Scenario-local timer key to match.
+    #[reflect(@Names::Timer)]
     pub key: String,
 }
 
@@ -206,7 +209,7 @@ impl EventFilter<NovaEventWorld> for ConditionalFilterConfig {
 
 /// Evaluate a [`VariableConditionNode`] against the scenario variables; passes
 /// when it yields true, and fails closed (false) on an evaluation error.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExpressionFilterConfig(pub VariableConditionNode);
 

@@ -14,6 +14,7 @@ use nova_scenario::prelude::{ScenarioObjectKind, SpaceshipController};
 use nova_ship::prelude::{GameSections, SectionKind};
 
 use crate::{
+    event::ScriptAdd,
     gallery::GalleryCategory,
     node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver},
 };
@@ -107,12 +108,55 @@ fn spaceship_mark(controller: &SpaceshipController) -> (&'static str, &'static s
     }
 }
 
+/// A handler in the script. DOWNWARDS ZIGZAG ARROW - something arrived and
+/// this is what caught it.
+pub(crate) const HANDLER: &str = "\u{21af}";
+/// A filter: the handler's way of declining. WHITE DOWN-POINTING TRIANGLE - a
+/// funnel, which is what a filter is.
+pub(crate) const FILTER: &str = "\u{25bd}";
+/// A boolean over other filters. WHITE DOWN-POINTING SMALL TRIANGLE - the
+/// funnel mark, one size down, because this row is funnels all the way in.
+pub(crate) const COMBINATOR: &str = "\u{25bf}";
+/// An action the handler runs. RIGHTWARDS ARROW - a thing that happens.
+pub(crate) const ACTION: &str = "\u{2192}";
+/// A sequence. RIGHTWARDS DOUBLE ARROW - the action mark, doubled: not one
+/// thing happening but a chain of them.
+pub(crate) const SEQUENCE: &str = "\u{21d2}";
+/// One beat of a sequence. BULLET.
+pub(crate) const STEP: &str = "\u{2022}";
+/// The event a step waits for. BOX DRAWINGS DOUBLE VERTICAL - a shut gate.
+pub(crate) const GATE: &str = "\u{2551}";
+
 /// The mark the Add row that CREATES an object wears.
 ///
 /// The same glyph the created node will wear in the tree, which is how the menu
 /// teaches the tree's alphabet without a legend.
 pub(crate) fn choice_mark(choice: ObjectChoice) -> &'static str {
     object_mark(&choice.stock()).0
+}
+
+/// The chip that opens a picker on a row naming something the document holds.
+/// BLACK DOWN-POINTING SMALL TRIANGLE - the one shape every list a control
+/// drops is drawn under.
+pub(crate) const PICK: &str = "\u{25be}";
+
+/// A container whose children are drawn under it. BLACK DOWN-POINTING SMALL
+/// TRIANGLE - pointing at what it is showing.
+pub(crate) const OPEN: &str = "\u{25be}";
+/// A container holding its children back. BLACK RIGHT-POINTING SMALL TRIANGLE -
+/// the same caret, turned: press it and it points down.
+pub(crate) const SHUT: &str = "\u{25b8}";
+
+/// The mark an Add row of the script palette wears: the same glyph the node it
+/// makes will wear in the tree.
+pub(crate) fn script_mark(add: ScriptAdd) -> &'static str {
+    match add {
+        ScriptAdd::Handler => HANDLER,
+        ScriptAdd::Filter => FILTER,
+        ScriptAdd::Action => ACTION,
+        ScriptAdd::Step => STEP,
+        ScriptAdd::Gate => GATE,
+    }
 }
 
 /// The mark an Add row that opens the parts gallery wears: the section kind

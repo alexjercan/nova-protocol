@@ -34,6 +34,9 @@ does NOT get an entry - and it is the only place they are written down.
   gone, 51 to 25.
 - A range saved in the editor is an ordinary mod: each built ship a design, the
   range a scenario naming them. Editing a design moves every instance of it.
+- A saved range carries its script: every handler the editor wrote survives
+  Save and Open on the ids it was authored with, objectives and outcome
+  included.
 - F5 reads every content file off disk behind a loading screen, as does leaving
   the editor or the mods panel: a range saved in the editor reaches the
   Scenarios list without a restart.
@@ -91,6 +94,25 @@ does NOT get an entry - and it is the only place they are written down.
   config back.
 - The Inspector says a node's id under its title, and View > Ids reads the whole
   tree as ids rather than names: what an event's filter will name them by.
+- The left rail has two tabs. SCENE is the world; EVENTS is the script - the
+  scenario at the root, a row per handler, and its filters, actions,
+  sequence steps and gates under it.
+- The Inspector edits a handler like a rock: what it fires on, whether it
+  retires, and every field of every filter and action, read off the config
+  by reflection.
+- A filter or an action is switched to any other kind from its own row, and
+  keeps the operands the new kind can hold.
+- A condition is typed, not nested: an expression row reads and writes
+  `scenario.elapsed > 90`, and a line that will not parse says why under the
+  field.
+- Add builds the script: Handler, Filter, Action, Step and Gate land under
+  the marked node, and Delete removes any of them.
+- A row that names an object opens a picker of the ids the document actually
+  spawns, and reads `unknown` beside one that names nothing - the handler a
+  save would drop.
+- The script opens where you are working: containers arrive shut, two clicks
+  open one, and a caret says which way each goes - a shipped scenario no
+  longer fills the rail four times over.
 - A seeded spacecraft IS a ship: it wears the driver's mark, opens on a double
   click like any other, and its panel reads the hull it flies, who flies it and
   which side it is on.
@@ -230,6 +252,9 @@ does NOT get an entry - and it is the only place they are written down.
 - One vocabulary names a physical input everywhere: content bindings, the
   weapon components and every rebind surface speak `nova_input`'s source type.
   The scenario format's private copy of it is gone.
+- A config's string field declares what it NAMES - `#[reflect(@Names::Object)]`
+  - so a surface walking it by reflection offers the ids in scope instead of
+  keeping a list of its own.
 - The editor publishes its build state - armed tool, placement, gallery, edited
   ship, inspector rows, the status line - as read-only data the driven ranges
   wait on instead of counting frames.

@@ -10,10 +10,11 @@ use crate::prelude::*;
 /// Despawn the scenario object whose [`EntityId`] matches `id` (recursive,
 /// so the object's whole child hierarchy goes with it). The complement of
 /// `SpawnScenarioObject`, e.g. a salvage crate the script removes on pickup.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DespawnScenarioObjectActionConfig {
     /// The `EntityId` of the scoped object to despawn.
+    #[reflect(@Names::Object)]
     pub id: String,
 }
 
@@ -67,7 +68,7 @@ impl EventAction<NovaEventWorld> for DespawnScenarioObjectActionConfig {
 
 /// A spawnable scenario object: the shared base (id, name, transform) plus the
 /// kind-specific config that picks what to spawn.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioObjectConfig {
     /// The shared base fields every scenario object carries.
@@ -78,10 +79,11 @@ pub struct ScenarioObjectConfig {
 
 /// The fields every scenario object shares, regardless of kind: identity and
 /// initial pose.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseScenarioObjectConfig {
     /// The object's scenario `EntityId`.
+    #[reflect(@Names::NewObject)]
     pub id: String,
     /// The object's display name.
     pub name: String,
@@ -107,7 +109,7 @@ pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
 }
 
 /// Which kind of scenario object to spawn, carrying that kind's config.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioObjectKind {
     /// An invisible authored point publishing a deterministic gravity well
@@ -180,7 +182,7 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
 }
 
 /// A volume to scatter objects within, for [`ScatterObjectsConfig`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScatterRegion {
     /// An axis-aligned box; each object is placed uniformly per-axis in
@@ -260,7 +262,7 @@ pub const MAX_SCATTER_COUNT: u32 = 4096;
 /// clone of `template` with `base.id = "{id_prefix}{i}"` and a sampled position;
 /// when `asteroid_radius` is set and the template is an asteroid, its radius is
 /// randomized too. This is the declarative form of a procedural asteroid field.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScatterObjectsConfig {
     /// The id prefix each copy gets (`"{id_prefix}{i}"`).
@@ -410,10 +412,11 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
 
 /// A spherical sensor zone that drives `OnEnter`/`OnExit` when a body crosses
 /// its boundary.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioAreaConfig {
     /// The area's scenario `EntityId` (the `id` reported by `OnEnter`/`OnExit`).
+    #[reflect(@Names::NewObject)]
     pub id: String,
     /// The area's display name.
     pub name: String,

@@ -8,7 +8,7 @@ use crate::prelude::*;
 /// Which way a scenario ended. The variant picks the overlay's banner and
 /// styling (gold VICTORY / red DEFEAT); everything else about the ending
 /// stays the author's composition.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioOutcomeKind {
     /// The player won: the overlay shows the gold VICTORY banner.
@@ -23,7 +23,7 @@ pub enum ScenarioOutcomeKind {
 /// retries (Defeat); with nothing queued, [Enter] returns to the main menu.
 /// In strict RON the optional message is written with its variant:
 /// `Outcome((outcome: Defeat, message: Some("...")))`, never a bare string.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OutcomeActionConfig {
     /// Victory or Defeat.
@@ -61,7 +61,7 @@ impl OutcomeActionConfig {
 /// play. Written by [`OutcomeActionConfig`], cleared by scenario teardown
 /// (both the load and unload paths), read by the outcome overlay in
 /// `nova_menu` and by the Enter handler's return-to-menu fallback.
-#[derive(Resource, Debug, Default, Clone, PartialEq)]
+#[derive(Resource, Debug, Default, Clone, PartialEq, Reflect)]
 pub struct CurrentOutcome(pub Option<OutcomeActionConfig>);
 
 impl EventAction<NovaEventWorld> for OutcomeActionConfig {
@@ -93,10 +93,11 @@ pub const NEXT_SCENARIO_DELAY_WARN_SECS: f32 = 60.0;
 pub const OUTCOME_AUTO_ADVANCE_MAX_SECS: f64 = 300.0;
 
 /// Action that queues a switch to another scenario.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NextScenarioActionConfig {
     /// The id of the scenario to switch to.
+    #[reflect(@Names::Scenario)]
     pub scenario_id: String,
     /// When true, defer the switch until something releases it (the
     /// scenario-advance input or the outcome overlay's Continue/Retry).

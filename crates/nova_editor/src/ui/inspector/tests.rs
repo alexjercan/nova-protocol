@@ -10,8 +10,8 @@ use bevy::{
 };
 use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
-    AIControllerConfig, AsteroidConfig, BeaconConfig, ScenarioObjectKind, SectionSource,
-    SpaceshipConfig, SpaceshipController,
+    AIControllerConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind,
+    SectionSource, SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
@@ -19,7 +19,10 @@ use nova_ship::prelude::{
 };
 
 use super::*;
-use crate::node::{EditorNode, NextChildOrdinal, ScenarioNode};
+use crate::{
+    event::{FilterKind, FilterNode},
+    node::{EditorNode, NextChildOrdinal, ScenarioNode},
+};
 
 /// A panel with the reconciler running, over a document holding one scenario
 /// node. The tests below hang things off it.
@@ -1230,4 +1233,58 @@ fn scrub_from(app: &mut App, label: &str, at: Vec2, pixels: f32) {
         grip,
     ));
     app.update();
+}
+
+/// A reference naming nothing this document spawns is marked in the unit slot -
+/// the same slot a refusal takes, because both are "this row is not right yet".
+///
+/// The warning has to be HERE and not at the file: the lowering silently drops
+/// a handler that names an unspawned id, so a builder who only sees the saved
+/// scenario sees a beat that never fires and no reason why.
+#[test]
+fn a_reference_that_names_nothing_is_marked_in_the_unit_slot() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let filter = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            FilterNode {
+                kind: FilterKind::Entity(EntityFilterConfig {
+                    id: Some("asteroid_9".to_string()),
+                    ..default()
+                }),
+            },
+            NodeId("entity_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    select(&mut app, filter);
+    paint_references(&mut app);
+
+    assert_eq!(
+        unit_of(&mut app, "Id"),
+        "unknown",
+        "nothing in the document is called asteroid_9"
+    );
+
+    submit(&mut app, "Id", "asteroid_1");
+    paint_references(&mut app);
+
+    assert_eq!(
+        unit_of(&mut app, "Id"),
+        "",
+        "the rock is on the board, so the row is right"
+    );
+}
+
+/// The lookup and the paint, in the order the schedule runs them.
+fn paint_references(app: &mut App) {
+    app.world_mut()
+        .run_system_once(sync_reference_faults)
+        .expect("the lookup runs");
+    app.world_mut()
+        .run_system_once(paint_field_reasons)
+        .expect("the reason paints");
 }

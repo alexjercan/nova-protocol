@@ -150,6 +150,41 @@ Supported queries:
 `Entity` is strict-single. Zero matches, multiple matches, or a missing velocity
 make the query unavailable. Expressions fail closed. Missing is not zero.
 
+## The typed form (in the editor)
+
+The RON above is the authored form, and it is the one the file holds. The
+in-game editor's Inspector shows the same tree as ONE LINE of text and parses
+what you type back into it, because a nest of `Add(Term(Factor(...` does not fit
+a 300px row:
+
+| you type | the file holds |
+|---|---|
+| `4` | `Term(Factor(Literal(Number(4.0))))` |
+| `"act_two"` | `Term(Factor(Literal(String("act_two"))))` |
+| `true` | `Term(Factor(Literal(Boolean(true))))` |
+| `beat` | `Term(Factor(Name("beat")))` |
+| `beat + 1` | `Add(Factor(Name("beat")), Term(Factor(Literal(Number(1.0)))))` |
+| `(a + b) * 2` | `Term(Multiply(Parens(..), Factor(Literal(Number(2.0)))))` |
+| `scenario.elapsed` | `Term(Factor(Query(Scenario((property: Elapsed)))))` |
+| `entity("courier").speed` | `Term(Factor(Query(Entity((filter: (id: "courier"), property: Speed)))))` |
+| `beat == 3` | `Equal(Term(Factor(Name("beat"))), Term(Factor(Literal(Number(3.0)))))` |
+
+Operators are `+ - * /` for values, `< > ==` for conditions, and `( )` groups.
+Strings are double-quoted, with `\"` for a quote inside one. There is nothing
+here the grammar above does not already have: no `!=`, no `&&`, no operator the
+engine cannot evaluate.
+
+There is no unary minus. `-3` is the literal -3, read only where a value may
+start, so the `-` in `a - 3` stays an operator.
+
+The text round-trips. Reading a file and writing it back gives the same tree,
+and the same text - so opening a scenario in the editor and saving it does not
+rewrite a condition you did not touch. `a - b - c` still groups RIGHTWARD, as
+`Subtract(a, Subtract(b, c))` does; parenthesize when you mean otherwise.
+
+A line that does not parse is REFUSED: the field says why (`'&' is not part of
+an expression`, `unterminated string`) and the config keeps the value it had.
+
 ## Recipes
 
 The compositions every shipped scenario is built from. All of them depend on
