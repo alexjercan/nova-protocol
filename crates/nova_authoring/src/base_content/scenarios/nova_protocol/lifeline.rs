@@ -274,6 +274,7 @@ fn wave_beat(
 /// was neutralized or directly destroyed.
 fn defeat_flag(id: &str, flag: &str) -> ScenarioEventConfig {
     ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnDefeated,
         once: true,
         filters: vec![entity(id)],
@@ -384,6 +385,7 @@ fn paced_line(
     }
     filters.extend(extra_filters);
     ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnUpdate,
         once: true,
         filters,
@@ -404,6 +406,7 @@ fn victory(message: &str, extra_filters: Vec<EventFilterConfig>) -> ScenarioEven
     let mut filters = vec![number_equals(VAR_ACT, 1.0)];
     filters.extend(extra_filters);
     ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnUpdate,
         once: true,
         filters,
@@ -530,6 +533,7 @@ pub(crate) fn lifeline(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -537,6 +541,7 @@ pub(crate) fn lifeline(
         },
         // The countdown, recomputed every live frame: RELIEF_SECS - clock.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![number_equals(VAR_ACT, 1.0)],
@@ -552,6 +557,7 @@ pub(crate) fn lifeline(
         },
         // --- Wave one: two raiders, one vector. ---
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -590,6 +596,7 @@ pub(crate) fn lifeline(
         ),
         // --- Wave two: three raiders, split vectors (one flanker). ---
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -637,6 +644,7 @@ pub(crate) fn lifeline(
         ),
         // --- Wave three: the full-gun corvette and its escort. ---
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -668,6 +676,7 @@ pub(crate) fn lifeline(
         // its beacon-dark line; BOTH down is the loss (act 3 closes the
         // win gate before the defeat shows).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_QUEEN), number_less_than(VAR_ACT, 2.0)],
@@ -678,6 +687,7 @@ pub(crate) fn lifeline(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_MERIDIAN), number_less_than(VAR_ACT, 2.0)],
@@ -688,6 +698,7 @@ pub(crate) fn lifeline(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -765,6 +776,7 @@ pub(crate) fn lifeline(
         // Victory over the queued retry. Act 3 closes every win gate and stops
         // the countdown.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
@@ -783,6 +795,7 @@ pub(crate) fn lifeline(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],

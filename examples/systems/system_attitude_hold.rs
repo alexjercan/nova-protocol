@@ -327,6 +327,7 @@ fn attitude_rig(
     ScenarioConfig {
         description: "A minimal ship chasing a rotating attitude command.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

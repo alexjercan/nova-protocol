@@ -390,6 +390,7 @@ pub(crate) fn broadside(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -399,6 +400,7 @@ pub(crate) fn broadside(
         // and the warning lands now; the DEFEND objective posts a beat later so
         // "contact done" and "drive them off" never share a frame.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![
@@ -434,6 +436,7 @@ pub(crate) fn broadside(
         },
         // Corvette defeats raise their flags once for either terminal path.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: true,
             filters: vec![entity(ID_CORVETTE_A)],
@@ -443,6 +446,7 @@ pub(crate) fn broadside(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: true,
             filters: vec![entity(ID_CORVETTE_B)],
@@ -457,6 +461,7 @@ pub(crate) fn broadside(
         // goes straight to the checkpoint beat, no second line. Separate
         // from the flag handlers so the flag-set stays unconditional.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![
@@ -470,6 +475,7 @@ pub(crate) fn broadside(
             )],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![
@@ -493,6 +499,7 @@ pub(crate) fn broadside(
         // acknowledged in the banner. The overlay's own message carries the
         // closing line per the beat-sheet convention.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -516,6 +523,7 @@ pub(crate) fn broadside(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -542,6 +550,7 @@ pub(crate) fn broadside(
         // notices - but only while the fight is on; after the win nothing
         // pushes fresh objectives under the Victory overlay.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
@@ -559,6 +568,7 @@ pub(crate) fn broadside(
         // under the gold banner) must not overwrite the earned Victory with
         // Defeat.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
@@ -581,6 +591,7 @@ pub(crate) fn broadside(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
@@ -687,6 +698,7 @@ pub(crate) fn broadside_gunship(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -698,6 +710,7 @@ pub(crate) fn broadside_gunship(
         // part tracks its OWN yacht, since variables are scenario-scoped and
         // the arena restages across the checkpoint.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![
@@ -722,6 +735,7 @@ pub(crate) fn broadside_gunship(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![
@@ -746,6 +760,7 @@ pub(crate) fn broadside_gunship(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![
@@ -771,6 +786,7 @@ pub(crate) fn broadside_gunship(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![
@@ -796,6 +812,7 @@ pub(crate) fn broadside_gunship(
         },
         // Flavor, not failure: same soft-fail beat as part one.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_HAULER), number_less_than(VAR_ACT, 2.0)],
@@ -810,6 +827,7 @@ pub(crate) fn broadside_gunship(
         },
         // Lose: retry THIS part - the checkpoint's whole point (spike F7).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],
@@ -832,6 +850,7 @@ pub(crate) fn broadside_gunship(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_ACT, 2.0)],

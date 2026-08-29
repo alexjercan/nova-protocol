@@ -116,6 +116,7 @@ fn the_seeded_script_survives_a_lift_and_a_lowering() {
 #[test]
 fn a_sequences_steps_keep_the_order_they_were_written_in() {
     let script = vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: true,
         filters: vec![],
@@ -152,6 +153,7 @@ fn a_sequences_steps_keep_the_order_they_were_written_in() {
 #[test]
 fn a_nested_condition_round_trips_through_operand_nodes() {
     let script = vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnEnter,
         once: false,
         filters: vec![EventFilterConfig::Conditional(
@@ -185,6 +187,7 @@ fn an_expression_filter_round_trips_through_operator_nodes() {
         )),
     );
     let script = vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -212,6 +215,7 @@ fn a_filter_switched_to_an_expression_arrives_with_a_condition() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![named("player")],
@@ -239,6 +243,7 @@ fn an_operator_switched_to_a_value_drops_its_operands() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -295,6 +300,7 @@ fn a_handler_names_what_it_places_and_what_it_expects() {
     let mut object = stock_object();
     object.base.id = "beacon_1".to_string();
     let event = ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![named("player")],
@@ -328,6 +334,7 @@ fn a_scatter_declares_a_prefix_rather_than_an_id() {
     };
     scatter.id_prefix = "belt".to_string();
     let event = ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -344,6 +351,7 @@ fn a_scatter_declares_a_prefix_rather_than_an_id() {
 /// every "where would this land" question of.
 fn one_handler() -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![named("player")],
@@ -393,6 +401,7 @@ fn a_full_combinator_takes_no_more_operands() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![EventFilterConfig::Conditional(
@@ -426,6 +435,7 @@ fn a_beat_that_already_waits_takes_no_second_gate() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -467,6 +477,7 @@ fn switching_a_combinator_keeps_the_operands_it_can_hold() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![EventFilterConfig::Conditional(
@@ -499,6 +510,7 @@ fn leaving_a_sequence_drops_its_beats() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -538,6 +550,7 @@ fn a_switched_filter_keeps_its_place_in_the_handler() {
     let scenario = seeded(
         &mut world,
         vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![
@@ -591,6 +604,7 @@ fn entity_named(id: &str) -> EventFilterConfig {
 fn objective_set() -> Vec<ScenarioEventConfig> {
     vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],
@@ -614,6 +628,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity_named("hulk_1")],
@@ -624,6 +639,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
             )],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![entity_named("marker_area")],
@@ -634,6 +650,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
             )],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -770,4 +787,22 @@ fn an_objective_stands_until_the_beat_it_names_happens() {
         vec!["destroy", "reach", "survive"],
         "nothing the set names was destroyed"
     );
+}
+
+/// A handler's NAME survives the round trip. It is the one field of a handler
+/// that nothing else can reconstruct: the trigger, the filters and the actions
+/// all come back from the tree, and the sentence saying what the handler is
+/// for comes back only if it was kept.
+#[test]
+fn a_named_handler_keeps_its_name() {
+    let events = round_trip(vec![ScenarioEventConfig {
+        label: Some("picket warden wakes".to_string()),
+        name: EventConfig::OnEnter,
+        once: true,
+        filters: vec![],
+        actions: vec![],
+    }]);
+
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].label.as_deref(), Some("picket warden wakes"));
 }

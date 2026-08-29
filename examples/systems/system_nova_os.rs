@@ -558,6 +558,7 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
     };
 
     let events = vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

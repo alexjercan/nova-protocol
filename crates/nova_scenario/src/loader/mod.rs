@@ -322,6 +322,20 @@ fn is_false(b: &bool) -> bool {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScenarioEventConfig {
+    /// What this handler is FOR, in the author's own words.
+    ///
+    /// The trigger is not a name: a scenario has six handlers on `OnEnter` and
+    /// nothing on the file or in the editor tells them apart. This is the line
+    /// that does - `picket warden wakes` beside the `OnEnter` that wakes it.
+    ///
+    /// Optional, and omitted when absent: a file written before it existed
+    /// parses unchanged, and one that never names a handler is not padded with
+    /// empty strings.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub label: Option<String>,
     /// The name of the event to listen for
     pub name: EventConfig,
     /// Retire this handler the first time its filters pass.
@@ -711,6 +725,7 @@ mod tests {
         let scenario = ScenarioConfig {
             description: "serde smoke".to_string(),
             events: vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],

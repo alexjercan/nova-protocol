@@ -207,6 +207,7 @@ pub(crate) fn menu_duel(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -232,6 +233,7 @@ pub(crate) fn menu_duel(
         },
         // The single spawn site for both duelists.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -243,6 +245,7 @@ pub(crate) fn menu_duel(
         // AI stops shooting a neutralized wreck, so waiting for full
         // destruction could wait forever).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity("duel_rival")],
@@ -256,6 +259,7 @@ pub(crate) fn menu_duel(
         // doubled up. Expired keys are removed before dispatch, so the
         // self-restart is legal.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -278,6 +282,7 @@ pub(crate) fn menu_duel(
         // Act three: stop the finisher clock and let the aftermath drift for
         // a beat - the wrecks stay in shot - then the carousel turns.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity("duel_victor")],
@@ -294,6 +299,7 @@ pub(crate) fn menu_duel(
         // own handler with a short delay: an instant switch consumed in the
         // same flush would discard sibling handlers' queued commands.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -307,6 +313,7 @@ pub(crate) fn menu_duel(
         },
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

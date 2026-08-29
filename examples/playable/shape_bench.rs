@@ -391,6 +391,7 @@ fn bench_row(
     let scenario = ScenarioConfig {
         description: "A fixed roster of hand-placed structures for judging the skin".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

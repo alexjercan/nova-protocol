@@ -127,6 +127,7 @@ pub(crate) fn menu_weave(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -151,6 +152,7 @@ pub(crate) fn menu_weave(
                 .collect(),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -166,6 +168,7 @@ pub(crate) fn menu_weave(
         // staring at a pilotless band - a short aftermath linger, then the
         // carousel turns early.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![crate::scenario_helpers::entity("weave_runner")],
@@ -175,6 +178,7 @@ pub(crate) fn menu_weave(
             })],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

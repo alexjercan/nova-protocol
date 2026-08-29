@@ -933,6 +933,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         // Painted: the lock event's primary entity is the TARGET, the other is
         // the ship that locked it.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnCombatLockStart,
             once: false,
             filters: vec![
@@ -947,6 +948,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         },
         // Crowded: the trip sphere's own id is the primary entity.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: false,
             filters: vec![
@@ -983,6 +985,7 @@ fn trip_area(picket: &Picket) -> EventActionConfig {
 /// again, which is the whole point of having two.
 fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
     ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnEnter,
         once: false,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -1021,6 +1024,7 @@ fn range_events(
         .map(|object| object.base.id.clone())
         .collect();
     let mut events = vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -1113,6 +1117,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // the wake-ups fire on, and the guard variable each wake reads. The
         // variables have to exist before the first filter reads one.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1131,6 +1136,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // The standing objective. Nothing completes it - there is nothing to
         // complete - so it stays on the HUD as the sandbox's only instruction.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1151,6 +1157,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         },
         // Death is the only outcome, and it offers this same range again.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: player(PLAYER_ID),
@@ -1167,6 +1174,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // carried a weapon cannot reach this, so an unarmed build is not
         // instantly "neutralized" off the line.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: false,
             filters: player(PLAYER_ID),

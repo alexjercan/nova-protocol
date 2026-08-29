@@ -48,9 +48,22 @@ fn row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
 fn text_of(rows: &[InspectorRow], label: &str) -> String {
     match &row(rows, label).value {
         RowValue::Text(text) | RowValue::Number(text) | RowValue::Colour(text) => text.clone(),
+        RowValue::Operand {
+            text: Some(text), ..
+        } => text.clone(),
         // A vector row reads as one line however many boxes it is typed in.
         RowValue::Axes(axes) => axes.join(", "),
         other => panic!("row {label:?} is {other:?}, not text"),
+    }
+}
+
+/// What a value node HOLDS, read off the row the condition page draws it in.
+fn leaf(node: &ExpressionNode) -> String {
+    match operand_row(Entity::PLACEHOLDER, node, "Left", false, 1).value {
+        RowValue::Operand {
+            text: Some(text), ..
+        } => text,
+        other => panic!("a value row holds text, not {other:?}"),
     }
 }
 
@@ -1245,6 +1258,7 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
 #[test]
 fn a_handler_shows_its_trigger_as_a_choice() {
     let rows = event_rows(&EventNode {
+        label: None,
         name: EventConfig::OnDestroyed,
         once: true,
     });
@@ -1389,7 +1403,7 @@ fn an_expression_is_authored_as_its_own_syntax() {
     let mut node = ExpressionNode {
         kind: ExprChoice::Value.stock(),
     };
-    assert_eq!(text_of(&expression_rows(&node, false), "Value"), "0");
+    assert_eq!(leaf(&node), "0");
 
     let config = expr_config_mut(&mut node.kind).expect("a value has a config");
     write_field(
@@ -1400,10 +1414,7 @@ fn an_expression_is_authored_as_its_own_syntax() {
     )
     .expect("the expression takes");
 
-    assert_eq!(
-        text_of(&expression_rows(&node, false), "Value"),
-        "scenario.elapsed"
-    );
+    assert_eq!(leaf(&node), "scenario.elapsed");
 }
 
 /// And an expression the grammar cannot read is refused with the reason, rather
@@ -1423,7 +1434,7 @@ fn an_unreadable_expression_says_why() {
     );
 
     assert!(refused.is_err(), "an unfinished sum is not an expression");
-    assert_eq!(text_of(&expression_rows(&node, false), "Value"), "0");
+    assert_eq!(leaf(&node), "0");
 }
 
 /// The operator row offers what BELONGS where the node stands: a comparison at
@@ -1434,16 +1445,19 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
         kind: ExprChoice::Equal.stock(),
     };
 
-    let compared = expression_rows(&node, true);
-    let RowValue::Choice { options, chosen } = &row(&compared, "Operator").value else {
-        panic!("the operator row is a choice");
+    let compared = operand_row(Entity::PLACEHOLDER, &node, "Compare", true, 0);
+    let RowValue::Operand {
+        options, chosen, ..
+    } = &compared.value
+    else {
+        panic!("an operand row offers its kinds");
     };
     assert_eq!(options, &["==", "<", ">"], "a condition compares");
     assert_eq!(*chosen, 0);
 
-    let valued = expression_rows(&node, false);
-    let RowValue::Choice { options, .. } = &row(&valued, "Operator").value else {
-        panic!("the operator row is a choice");
+    let valued = operand_row(Entity::PLACEHOLDER, &node, "Left", false, 1);
+    let RowValue::Operand { options, .. } = &valued.value else {
+        panic!("an operand row offers its kinds");
     };
     assert_eq!(
         options,
@@ -1558,6 +1572,7 @@ fn named_document() -> World {
         .spawn((
             EditorNode,
             EventNode {
+                label: None,
                 name: EventConfig::OnStart,
                 once: true,
             },

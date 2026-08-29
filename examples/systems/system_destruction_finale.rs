@@ -667,6 +667,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
         description: "Every destructible body breaking into its own art.".to_string(),
         events: vec![
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -678,6 +679,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                 })],
             },
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -719,6 +721,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                 .concat(),
             },
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {

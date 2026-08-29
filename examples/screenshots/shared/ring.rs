@@ -167,6 +167,7 @@ pub fn the_ring_with_hull(
             .to_string(),
         events: vec![
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -193,6 +194,7 @@ pub fn the_ring_with_hull(
                 .concat(),
             },
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnOrbitStable,
                 once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {

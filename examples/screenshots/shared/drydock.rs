@@ -106,6 +106,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
         description: "A salvage yard adrift over a planetoid - the website's beauty set."
             .to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

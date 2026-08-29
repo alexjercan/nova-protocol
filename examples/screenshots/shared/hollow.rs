@@ -222,6 +222,7 @@ pub fn ambush_hollow(
     ScenarioConfig {
         description: "A rock hollow, and the ambush waiting in it.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -299,6 +300,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
     ScenarioConfig {
         description: "The rock hollow with only the ordnance cast in it.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

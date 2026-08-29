@@ -41,16 +41,16 @@ use crate::{
     gizmo::GizmoAxis,
     inspect::{
         action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
-        driver_label, editable_config, event_rows, expression_rows, filter_rows, gate_rows,
-        inspected, nudge_field, object_config_mut, object_rows, parse_colour, rotation_degrees,
+        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
+        object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
         rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
         ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
         InspectTarget, InspectorRow, NodeKinds, PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
-        default_allegiance, EditContext, NodeId, ObjectBodyStale, ObjectNode, SectionNode,
-        ShipDriver, ShipNode,
+        default_allegiance, id_order, EditContext, NodeId, ObjectBodyStale, ObjectNode,
+        SectionNode, ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
     ui::window::{on_open_colour_window, on_open_ref_window},
@@ -284,7 +284,6 @@ pub(crate) struct Document<'w, 's> {
     steps: Query<'w, 's, &'static StepNode>,
     gates: Query<'w, 's, &'static GateNode>,
     expressions: Query<'w, 's, &'static ExpressionNode>,
-    parents: Query<'w, 's, &'static ChildOf>,
     names: ScriptNames<'w, 's>,
 }
 
@@ -295,13 +294,42 @@ impl Document<'_, '_> {
         self.tab.as_deref().copied().is_some_and(RailTab::is_events)
     }
 
-    /// Whether `node` stands where a COMPARISON belongs: at the root of a
-    /// condition, which is the child of the filter that holds it. Everything
-    /// under one is a value.
-    fn compares(&self, node: Entity) -> bool {
-        self.parents
-            .get(node)
-            .is_ok_and(|parent| !self.expressions.contains(parent.parent()))
+    /// The operands under `node`, in authored order.
+    fn operands_of(&self, node: Entity) -> Vec<Entity> {
+        let Ok(children) = self.children.get(node) else {
+            return Vec::new();
+        };
+        let mut found: Vec<(u64, Entity)> = children
+            .iter()
+            .filter(|child| self.expressions.contains(*child))
+            .filter_map(|child| Some((id_order(&self.ids.get(child).ok()?.0).1, child)))
+            .collect();
+        found.sort_unstable();
+        found.into_iter().map(|(_, child)| child).collect()
+    }
+
+    /// The condition under a filter, as ONE PAGE: a row per node of the tree,
+    /// each writing to its own entity.
+    ///
+    /// A page rather than a branch of the rail because a condition is not part
+    /// of the document's shape - it is one field of one filter, written in a
+    /// grammar that happens to have a shape of its own. The tree says
+    /// `Expression` and stops; everything below it is here.
+    fn condition_rows(
+        &self,
+        node: Entity,
+        place: &str,
+        compares: bool,
+        depth: usize,
+        rows: &mut Vec<InspectorRow>,
+    ) {
+        let Ok(expression) = self.expressions.get(node) else {
+            return;
+        };
+        rows.push(operand_row(node, expression, place, compares, depth));
+        for (side, operand) in SIDES.into_iter().zip(self.operands_of(node)) {
+            self.condition_rows(operand, side, false, depth + 1, rows);
+        }
     }
 
     /// The node the panel is on and the rows it wants, or `None` with nothing
@@ -341,13 +369,16 @@ impl Document<'_, '_> {
             // between it and its children, and a curated action would hide the
             // one field the builder came to set.
             InspectTarget::Event(node) => event_rows(self.events.get(node).ok()?),
-            InspectTarget::Filter(node) => filter_rows(self.filters.get(node).ok()?),
+            InspectTarget::Filter(node) => {
+                let mut rows = filter_rows(self.filters.get(node).ok()?);
+                if let Some(root) = self.operands_of(node).into_iter().next() {
+                    self.condition_rows(root, COMPARE, true, 0, &mut rows);
+                }
+                rows
+            }
             InspectTarget::Action(node) => action_rows(self.actions.get(node).ok()?),
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
-            InspectTarget::Expression(node) => {
-                expression_rows(self.expressions.get(node).ok()?, self.compares(node))
-            }
         };
         Some((target, rows))
     }
@@ -527,6 +558,11 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
                         InspectorList,
                         Node {
                             align_items: AlignItems::Stretch,
+                            // A MEASURE, not the panel's width. In Events the
+                            // panel is most of a 1600px window, and a text box
+                            // stretched across all of it is a box a builder
+                            // reads a scenario id in the far left tenth of.
+                            max_width: px(MEASURE_W),
                             ..scroll_column()
                         },
                         scroll_viewport(),
@@ -556,6 +592,19 @@ fn row_shell() -> Node {
 fn indent(depth: usize) -> f32 {
     depth.min(4) as f32 * 7.0
 }
+
+/// The widest a column of rows is allowed to be, however wide the panel is.
+///
+/// The Inspector's own width is the measure the rows were drawn for; Events
+/// gives the panel the window, and rows that spent all of it put the name
+/// column and its value box at opposite ends of the screen.
+const MEASURE_W: f32 = 640.0;
+
+/// How far one level of a CONDITION steps in. Wider than a config's indent
+/// because the page IS the tree: these steps are the only thing drawing its
+/// shape, where a walked config already said where its rows sit in its
+/// headings.
+const OPERAND_STEP: f32 = 16.0;
 
 /// The name column. Clipped rather than wrapped: a two-line name would push
 /// its own value box out of the column the row above lined up with.
@@ -660,6 +709,15 @@ fn spawn_choice_options(
 /// across the value column at the panel's width; a fourth clips.
 const WIDE_CHOICE: usize = 3;
 
+/// What a condition's root is to the filter holding it: the comparison the
+/// filter tests.
+const COMPARE: &str = "Compare";
+
+/// What an operand is to the operator above it. The grammar has exactly two
+/// sides, and naming them is what lets the page label a node at all - an
+/// operand has no name of its own.
+const SIDES: [&str; 2] = ["Left", "Right"];
+
 /// A wide choice: the name on its own line and the options under it, across
 /// the panel rather than squeezed into the value column.
 #[expect(
@@ -701,6 +759,102 @@ fn spawn_choice_row(
             TextColor(theme::PHOSPHOR_MUTED),
         ));
         spawn_choice_options(block, &row.label, field, slot, options, chosen, skin);
+    });
+}
+
+/// One node of a condition: the operators it may be, and - for a leaf - the
+/// box holding what it holds.
+///
+/// Both in the VALUE COLUMN of one row, because the page's job is the SHAPE of
+/// the tree: the name column carries each node's place, `Compare` over `Left`
+/// over `Right`, and a builder finds the shape without reading one operator.
+/// Stacking the kind over the value would make the page twice as tall as the
+/// thing it draws.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the row says what to draw, the field says where it writes"
+)]
+fn spawn_operand_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+    options: &[String],
+    chosen: usize,
+    text: Option<&str>,
+    skin: UiSkin,
+    step: f32,
+) {
+    list.spawn((
+        Name::new(format!("Inspector Operand {}", row.label)),
+        Node {
+            padding: UiRect::left(px(step)),
+            ..row_shell()
+        },
+    ))
+    .with_children(|shell| {
+        shell.spawn(row_label(&row.label, step));
+        shell.spawn(value_column()).with_children(|value| {
+            // The control keeps its natural width so the box beside it takes
+            // what is left: a segmented bar that shrank would clip the very
+            // operator the row is showing.
+            value
+                .spawn(Node {
+                    flex_shrink: 0.0,
+                    ..default()
+                })
+                .with_children(|slot_node| {
+                    slot_node
+                        .spawn((
+                            Name::new(format!("Inspector Choice {}", row.label)),
+                            segmented_container(skin),
+                        ))
+                        .with_children(|segments| {
+                            for (index, option) in options.iter().enumerate() {
+                                let mut entity = segments.spawn((
+                                    Name::new(format!("Inspector Choice {} {option}", row.label)),
+                                    InspectorSlot(slot),
+                                    InspectorChoice {
+                                        variant: option.clone(),
+                                    },
+                                    field.clone(),
+                                    segmented_option_fit(option),
+                                    observe(on_inspector_choice),
+                                ));
+                                if index == chosen {
+                                    entity.insert(Selected);
+                                }
+                            }
+                        });
+                });
+            let Some(text) = text else {
+                return;
+            };
+            value
+                .spawn(Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    margin: UiRect::left(px(6)),
+                    ..default()
+                })
+                .with_children(|box_slot| {
+                    box_slot.spawn((
+                        Name::new(format!("Inspector Field {}", row.label)),
+                        InspectorSlot(slot),
+                        // The LEAF's own field, not the row's: the operators
+                        // beside it swap the kind, and the box writes the value
+                        // inside the kind they left alone.
+                        InspectorField {
+                            node: field.node,
+                            root: FieldRoot::Config,
+                            path: operand_path(),
+                            optional: false,
+                        },
+                        text_field(TextFieldSpec::new(text.to_string()).max_chars(64).dense()),
+                    ));
+                });
+        });
     });
 }
 
@@ -977,7 +1131,9 @@ fn build_rows(
         }
         row.group.clone_into(&mut heading);
         let field = InspectorField {
-            node,
+            // A PAGE names its own node per row - a condition is several
+            // entities under one filter, and each row edits its own.
+            node: row.owner.unwrap_or(node),
             root: row.root,
             path: row.path.clone(),
             optional: row.optional,
@@ -985,7 +1141,7 @@ fn build_rows(
         // The row steps in with its group, and its NAME COLUMN gives up
         // exactly what the step took: the value boxes stay in one column down
         // the whole panel however deep the tree goes.
-        let step = indent(row.group.len());
+        let step = indent(row.group.len()) + row.depth as f32 * OPERAND_STEP;
         // A vector row has its own SHAPE - a name line over one box per axis -
         // so it is spawned whole rather than as a name column and a value
         // column: three boxes in the 140px value column would each hold four
@@ -1006,6 +1162,25 @@ fn build_rows(
         }
         if let RowValue::Driver(driver) = &row.value {
             spawn_driver_row(list, row, node, slot, *driver, skin, step);
+            continue;
+        }
+        if let RowValue::Operand {
+            options,
+            chosen,
+            text,
+        } = &row.value
+        {
+            spawn_operand_row(
+                list,
+                row,
+                &field,
+                slot,
+                options,
+                *chosen,
+                text.as_deref(),
+                skin,
+                step,
+            );
             continue;
         }
         list.spawn((
@@ -1125,10 +1300,11 @@ fn build_rows(
                             observe(on_inspector_flag),
                         ));
                     }
-                    // Both spawned whole above, before the row shell exists:
+                    // All spawned whole above, before the row shell exists:
                     // three axis boxes and three driver options each need the
-                    // panel's width, not the value column's share of it.
-                    RowValue::Axes(_) | RowValue::Driver(_) => {}
+                    // panel's width, and an operand carries two controls in one
+                    // value column.
+                    RowValue::Axes(_) | RowValue::Driver(_) | RowValue::Operand { .. } => {}
                     RowValue::Key(binding) => {
                         // The ROW is the button. A binding named on one surface
                         // and armed from another - the top bar's Rebind - left
@@ -1198,7 +1374,10 @@ fn build_rows(
 /// they write to.
 #[derive(Default)]
 pub(crate) struct ShownInspector {
-    shape: Option<(Entity, Vec<(String, FieldRoot, Vec<PathStep>)>)>,
+    shape: Option<(
+        Entity,
+        Vec<(String, FieldRoot, Vec<PathStep>, Option<Entity>, usize)>,
+    )>,
 }
 
 /// The events editor with nothing picked: the panel stays, and says so.
@@ -1338,8 +1517,19 @@ pub(crate) fn sync_inspector(
         target.node(),
         // A row's heading is derived from its path, so a changed heading is a
         // changed path and this signature already catches it.
+        // The OWNER and the DEPTH are part of it: a condition page has two
+        // rows called `Left`, and without them a tree that changed shape would
+        // repaint into the widgets of the tree it used to be.
         rows.iter()
-            .map(|row| (row.label.clone(), row.root, row.path.clone()))
+            .map(|row| {
+                (
+                    row.label.clone(),
+                    row.root,
+                    row.path.clone(),
+                    row.owner,
+                    row.depth,
+                )
+            })
             .collect::<Vec<_>>(),
     );
     if shown.shape.as_ref() != Some(&shape) {
@@ -1361,7 +1551,14 @@ pub(crate) fn sync_inspector(
     for (slot, axis, mut value) in &mut fields {
         let text = match (rows.get(slot.0).map(|row| &row.value), axis) {
             (
-                Some(RowValue::Text(text) | RowValue::Number(text) | RowValue::Colour(text)),
+                Some(
+                    RowValue::Text(text)
+                    | RowValue::Number(text)
+                    | RowValue::Colour(text)
+                    | RowValue::Operand {
+                        text: Some(text), ..
+                    },
+                ),
                 None,
             ) => text,
             // One row, three boxes: the box says which of the three numbers it
@@ -1420,7 +1617,12 @@ pub(crate) fn sync_inspector(
         }
     }
     for (entity, slot, option, marked) in &choices {
-        let Some(RowValue::Choice { options, chosen }) = rows.get(slot.0).map(|row| &row.value)
+        let Some(
+            RowValue::Choice { options, chosen }
+            | RowValue::Operand {
+                options, chosen, ..
+            },
+        ) = rows.get(slot.0).map(|row| &row.value)
         else {
             continue;
         };

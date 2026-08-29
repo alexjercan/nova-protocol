@@ -257,6 +257,7 @@ pub fn compare_stage(game_assets: &GameAssets, id: &str, name: &str) -> Scenario
     ScenarioConfig {
         description: format!("{name} - side-by-side texture comparison"),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -469,6 +469,7 @@ pub(crate) fn final_tally(
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -479,6 +480,7 @@ pub(crate) fn final_tally(
         // the survey lands - that path must not post a picket objective nothing
         // will ever complete, nor mark two dead ships.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTravelLockStart,
             once: true,
             filters: vec![
@@ -511,6 +513,7 @@ pub(crate) fn final_tally(
         // pointing at dead ships. The timer is only started on the pickets-live
         // survey path, so this cannot fire on the already-drift variant.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![
@@ -527,6 +530,7 @@ pub(crate) fn final_tally(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTravelLockStart,
             once: true,
             filters: vec![
@@ -549,6 +553,7 @@ pub(crate) fn final_tally(
         },
         // Picket defeat flags (unconditional, one handler each).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: true,
             filters: vec![entity(ID_PICKET_A)],
@@ -558,6 +563,7 @@ pub(crate) fn final_tally(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: true,
             filters: vec![entity(ID_PICKET_B)],
@@ -571,6 +577,7 @@ pub(crate) fn final_tally(
         // cannot deadlock - the chain's step owes the survey as well as the
         // breathe, and only the ENGINE holds that wait.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -593,6 +600,7 @@ pub(crate) fn final_tally(
         // it runs, narratively). The confirm line fires now; the close
         // and the banner ride the epilogue clock.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
@@ -611,6 +619,7 @@ pub(crate) fn final_tally(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_FLAGSHIP), number_equals(VAR_ACT, 1.0)],
@@ -633,6 +642,7 @@ pub(crate) fn final_tally(
         // epilogue's act 4 locks the win; terminal act 3 closes every gate
         // per the ledger lesson). Retry THIS scenario.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],
@@ -651,6 +661,7 @@ pub(crate) fn final_tally(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PLAYER), number_equals(VAR_ACT, 1.0)],

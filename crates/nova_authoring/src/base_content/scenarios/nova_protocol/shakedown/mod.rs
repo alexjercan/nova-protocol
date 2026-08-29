@@ -690,6 +690,7 @@ pub(crate) fn shakedown_run(
         // and beacons 2-4 and the pirate all spawn LAZILY with their beats, so a
         // new chip appearing on the HUD always means "this is next".
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -761,6 +762,7 @@ pub(crate) fn shakedown_run(
         // The objective and beacon 2 post a beat later (beat_setup below), once
         // the captain's line lands - never the same frame.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![player_enters(ID_BEACON_1), number_equals(VAR_BEAT, 1.0)],
@@ -805,6 +807,7 @@ pub(crate) fn shakedown_run(
         // pilot calls the sweep; the salvage objective and the crate markers
         // post a beat later (beat_setup below), once the line lands.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![player_enters(ID_BEACON_2), number_equals(VAR_BEAT, 2.0)],
@@ -843,6 +846,7 @@ pub(crate) fn shakedown_run(
         // that has not posted yet, and beat_setup would then overwrite the
         // tally text.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![
@@ -853,6 +857,7 @@ pub(crate) fn shakedown_run(
             actions: vec![despawn_object("crate_1"), increment_variable(VAR_CRATES)],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![
@@ -863,6 +868,7 @@ pub(crate) fn shakedown_run(
             actions: vec![despawn_object("crate_2"), increment_variable(VAR_CRATES)],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![
@@ -875,6 +881,7 @@ pub(crate) fn shakedown_run(
         // Tally text (1/3, 2/3): complete + re-add rebuilds the panel line in
         // the same frame (no flicker; verified in).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![number_equals(VAR_BEAT, 3.0), number_equals(VAR_CRATES, 1.0)],
@@ -884,6 +891,7 @@ pub(crate) fn shakedown_run(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![number_equals(VAR_BEAT, 3.0), number_equals(VAR_CRATES, 2.0)],
@@ -898,6 +906,7 @@ pub(crate) fn shakedown_run(
         // (beat sheet v2). Beacon 3 sits OUTSIDE the SOI, within default beacon
         // lock range of the cluster.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![number_equals(VAR_BEAT, 3.0), number_equals(VAR_CRATES, 3.0)],
@@ -932,6 +941,7 @@ pub(crate) fn shakedown_run(
         // Beat 4 -> 5: the white lock LANDED (OnTravelLockStart - the lesson
         // ticks the instant the radar rewards it). One gesture: [G].
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTravelLockStart,
             once: true,
             filters: vec![player_enters(ID_BEACON_3), number_equals(VAR_BEAT, 4.0)],
@@ -961,6 +971,7 @@ pub(crate) fn shakedown_run(
         // and re-pressing [G] teaches that GOTO captures the lock at the
         // press (the re-designation semantics, previously untaught).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![player_enters(ID_BEACON_3), number_equals(VAR_BEAT, 5.0)],
@@ -994,6 +1005,7 @@ pub(crate) fn shakedown_run(
         // The gravity coast: zero keys, the well does the flying. The ring
         // spawns HERE (not at start), so its OnEnter cannot fire early.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![player_enters(ID_BEACON_4), number_equals(VAR_BEAT, 6.0)],
@@ -1028,6 +1040,7 @@ pub(crate) fn shakedown_run(
         // because the ORBIT verb rings at max(band, engage radius);
         // playtest finding 5).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![player_enters(ID_COAST_RING), number_equals(VAR_BEAT, 7.0)],
@@ -1061,6 +1074,7 @@ pub(crate) fn shakedown_run(
         // ending ORBIT cancels it, so only one continuous five-second hold
         // completes the lesson.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnOrbitStable,
             once: false,
             filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
@@ -1070,6 +1084,7 @@ pub(crate) fn shakedown_run(
             })],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnOrbitUnstable,
             once: false,
             filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
@@ -1078,6 +1093,7 @@ pub(crate) fn shakedown_run(
             })],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnOrbitEnd,
             once: false,
             filters: vec![player_enters(ID_PLANETOID), number_equals(VAR_BEAT, 8.0)],
@@ -1089,6 +1105,7 @@ pub(crate) fn shakedown_run(
         // completion: leaving the coast ring). The derelict spawns now,
         // back by the salvage field - outside the SOI, so it stays put.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![
@@ -1131,6 +1148,7 @@ pub(crate) fn shakedown_run(
         // combat lock in calm - this is where the viewfinder inset, the
         // fine-lock and guided torpedoes become discoverable.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnExit,
             once: true,
             filters: vec![player_enters(ID_COAST_RING), number_equals(VAR_BEAT, 9.0)],
@@ -1160,6 +1178,7 @@ pub(crate) fn shakedown_run(
         // Beat 10 -> 11: the RED lock landed on the hulk. One gesture:
         // fire.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnCombatLockStart,
             once: true,
             filters: vec![player_enters(ID_DERELICT), number_equals(VAR_BEAT, 10.0)],
@@ -1179,6 +1198,7 @@ pub(crate) fn shakedown_run(
         // likewise. Every gesture was rehearsed (or skipped by
         // demonstration), so the fight is the exam: ONE line.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_DERELICT), number_less_than(VAR_BEAT, 12.0)],
@@ -1213,6 +1233,7 @@ pub(crate) fn shakedown_run(
         // on beat 12: a fast kill (the win sets beat 13) must not post a stale
         // objective under the Victory overlay.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![timer(TIMER_SCAV_GATE), number_equals(VAR_BEAT, 12.0)],
@@ -1225,6 +1246,7 @@ pub(crate) fn shakedown_run(
         // input still works behind it, and the gesture recurs naturally in the
         // next chapter's fights.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
@@ -1240,6 +1262,7 @@ pub(crate) fn shakedown_run(
             ),
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PIRATE), number_equals(VAR_BEAT, 12.0)],
@@ -1262,6 +1285,7 @@ pub(crate) fn shakedown_run(
         // and Main Menu, so a death never silently queues a restart the player
         // has to know to press Enter for.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_BEAT, BEAT_OUTRO)],
@@ -1278,6 +1302,7 @@ pub(crate) fn shakedown_run(
             ],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![entity(ID_PLAYER), number_less_than(VAR_BEAT, BEAT_OUTRO)],

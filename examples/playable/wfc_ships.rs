@@ -411,6 +411,7 @@ fn wfc_row(
     let scenario = ScenarioConfig {
         description: "Wave-function-collapse ships built from link-point rules".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

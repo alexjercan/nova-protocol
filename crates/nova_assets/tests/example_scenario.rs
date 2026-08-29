@@ -731,6 +731,7 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     let broken = ScenarioConfig {
         description: "merge sweep pin".to_string(),
         events: vec![nova_scenario::prelude::ScenarioEventConfig {
+            label: None,
             name: nova_scenario::prelude::EventConfig::OnStart,
             once: false,
             filters: vec![],

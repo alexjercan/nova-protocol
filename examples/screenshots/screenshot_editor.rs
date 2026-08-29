@@ -326,19 +326,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .click("open the Add menu for an action", "Add Menu Button")
         .click("give the handler something to do", "Add Action")
-        // A CONDITION, authored as nodes. The filter is switched to an
-        // expression, which arrives holding `0 == 0`, and the comparison is
-        // then changed on the operator's own row - so the walk proves both
-        // halves: the subtree a switch mints, and the panel that edits it.
-        // Last, so the capture is of the operator being edited.
+        // A CONDITION, on the page the filter opens. The filter is switched to
+        // an expression, which arrives holding `0 == 0`, and the comparison is
+        // then changed on its own row of that page - so the walk proves both
+        // halves: the subtree a switch mints, and the page that edits it.
+        // Last, so the capture is of the condition being authored.
         .click("open the Add menu for a second filter", "Add Menu Button")
         .click("add the filter that compares", "Add Filter")
         .click(
             "make it an expression",
             "Inspector Choice Filter Expression",
         )
-        .click("select the comparison itself", "Scene Row equal_1")
-        .click("compare the other way", "Inspector Choice Operator >")
+        .click("compare the other way", "Inspector Choice Compare >")
         .step("capture the authored script")
         .on_enter(shot("feature-editor-events.png"))
         .until(shot_written("feature-editor-events.png"))

@@ -33,8 +33,8 @@ use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 use crate::{
     config::SelectedNode,
     event::{
-        action_choice, action_config, event_label, expr_choice, expr_config, filter_choice,
-        filter_config, ActionChoice, ActionNode, EventNode, ExprChoice, ExpressionNode,
+        action_choice, action_config, event_label, expr_choice, filter_choice, filter_config,
+        handler_text, ActionChoice, ActionNode, EventNode, ExprChoice, ExprKind, ExpressionNode,
         FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
     },
     node::{
@@ -59,7 +59,6 @@ pub(crate) type NodeKinds<'w, 's> = Query<
         Has<ActionNode>,
         Has<StepNode>,
         Has<GateNode>,
-        Has<ExpressionNode>,
     ),
     With<EditorNode>,
 >;
@@ -85,8 +84,6 @@ pub(crate) enum InspectTarget {
     Step(Entity),
     /// The event one beat waits for.
     Gate(Entity),
-    /// One node of a condition: an operator, or the value under one.
-    Expression(Entity),
 }
 
 impl InspectTarget {
@@ -101,8 +98,7 @@ impl InspectTarget {
             | InspectTarget::Filter(node)
             | InspectTarget::Action(node)
             | InspectTarget::Step(node)
-            | InspectTarget::Gate(node)
-            | InspectTarget::Expression(node) => node,
+            | InspectTarget::Gate(node) => node,
         }
     }
 
@@ -118,7 +114,6 @@ impl InspectTarget {
             InspectTarget::Action(_) => "ACTION",
             InspectTarget::Step(_) => "STEP",
             InspectTarget::Gate(_) => "GATE",
-            InspectTarget::Expression(_) => "EXPRESSION",
         }
     }
 }
@@ -136,7 +131,7 @@ pub(crate) fn inspected(
     kinds: &NodeKinds,
 ) -> Option<InspectTarget> {
     let node = selected.0.or_else(|| context.current())?;
-    let (scenario, ship, section, object, event, filter, action, step, gate, expression) =
+    let (scenario, ship, section, object, event, filter, action, step, gate) =
         kinds.get(node).ok()?;
     if scenario {
         return Some(InspectTarget::Scenario(node));
@@ -162,10 +157,7 @@ pub(crate) fn inspected(
     if step {
         return Some(InspectTarget::Step(node));
     }
-    if gate {
-        return Some(InspectTarget::Gate(node));
-    }
-    expression.then_some(InspectTarget::Expression(node))
+    gate.then_some(InspectTarget::Gate(node))
 }
 
 /// Which of a node's parts a row edits. The reflection path is relative to
@@ -252,6 +244,22 @@ pub(crate) enum RowValue {
     Driver(ShipDriver),
     /// Shown but not editable here.
     Fixed(String),
+    /// ONE node of a condition: which operator it is, and - where it is a leaf
+    /// - the expression it holds.
+    ///
+    /// Its own shape because the two belong on one LINE. A page that stacked
+    /// the operator over the value it applies to would be twice as tall as the
+    /// tree it is drawing, and the shape of the tree is the whole reason the
+    /// page exists.
+    Operand {
+        /// Every operator this node's PLACE allows, and the leaf.
+        options: Vec<String>,
+        /// Which one it is.
+        chosen: usize,
+        /// What the leaf holds, or `None` for an operator - which holds
+        /// operands rather than a value.
+        text: Option<String>,
+    },
     /// The key a section fires on, and the button that arms a new one.
     ///
     /// Its own variant rather than a [`RowValue::Fixed`] beside the top bar's
@@ -277,6 +285,15 @@ impl RowValue {
             Self::Axes(axes) => axes.join(", "),
             Self::Flag(flag) => flag.to_string(),
             Self::Choice { options, chosen } => options.get(*chosen).cloned().unwrap_or_default(),
+            // The VALUE where it has one: a leaf reading `equal` would say what
+            // the row is instead of what it holds.
+            Self::Operand {
+                options,
+                chosen,
+                text,
+            } => text
+                .clone()
+                .unwrap_or_else(|| options.get(*chosen).cloned().unwrap_or_default()),
             Self::Driver(driver) => driver_label(*driver).to_string(),
         }
     }
@@ -332,6 +349,16 @@ pub(crate) struct InspectorRow {
     /// of field names kept here: a reference row that has to be registered
     /// twice is one the editor stops drawing the day the vocabulary grows.
     pub(crate) names: Option<Names>,
+    /// Which node the row WRITES TO, where that is not the node the panel is
+    /// on. `None` for every row of a config, which is the node's own.
+    ///
+    /// Set by a page that draws a TREE of nodes rather than one node's fields:
+    /// a condition is several entities, and each of its rows edits its own.
+    pub(crate) owner: Option<Entity>,
+    /// How far in the row stands BEYOND its group. Zero for a walked config,
+    /// whose depth is the length of its heading; a page draws a tree that has
+    /// no headings to count.
+    pub(crate) depth: usize,
 }
 
 /// The row a filter or an action is SWITCHED on: every kind it could be, and
@@ -358,6 +385,8 @@ fn kind_row(
             chosen: chosen.unwrap_or_default(),
         },
         names: None,
+        owner: None,
+        depth: 0,
     }
 }
 
@@ -374,6 +403,8 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
         names: None,
+        owner: None,
+        depth: 0,
     }
 }
 
@@ -403,6 +434,8 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         limit,
         value,
         names: None,
+        owner: None,
+        depth: 0,
     }
 }
 
@@ -1642,6 +1675,8 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
             names: None,
+            owner: None,
+            depth: 0,
         },
         fixed(
             FieldRoot::Config,
@@ -1705,6 +1740,8 @@ pub(crate) fn section_rows(
                 binding
             }),
             names: None,
+            owner: None,
+            depth: 0,
         });
     }
     let Some(config) = node.resolve(catalog) else {
@@ -1783,28 +1820,67 @@ pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
     rows
 }
 
-/// The rows one node of a condition shows: which operator it is, and - for a
-/// value - the expression it holds.
+/// The heading the condition page stands under.
+pub(crate) const CONDITION: &str = "Condition";
+
+/// Where a LEAF's text is written back: the one field a value operand has.
 ///
-/// `compares` narrows the kind row to the operators that BELONG here. A
-/// condition's root is a comparison and everything under it is a value, which
-/// is the grammar's own split: offering `+` where a `<` has to stand would let
-/// a builder author a condition that is not one.
-pub(crate) fn expression_rows(expression: &ExpressionNode, compares: bool) -> Vec<InspectorRow> {
+/// Named here beside the row that offers it, so the page and the box beside
+/// its operators cannot disagree about which field the text is.
+pub(crate) fn operand_path() -> Vec<PathStep> {
+    vec![PathStep::Field("value".to_string())]
+}
+
+/// ONE row of the condition page: which operator this node is, and - for a
+/// leaf - the expression it holds.
+///
+/// `place` is what the node IS to its parent, which is the only name it has:
+/// the comparison a filter tests, or the left and right of the operator above
+/// it. `compares` narrows the operators offered to the ones that BELONG there.
+/// A condition's root is a comparison and everything under it is arithmetic,
+/// which is the grammar's own split: offering `+` where a `<` has to stand
+/// would let a builder author a condition that is not one.
+pub(crate) fn operand_row(
+    owner: Entity,
+    expression: &ExpressionNode,
+    place: &str,
+    compares: bool,
+    depth: usize,
+) -> InspectorRow {
     let choice = expr_choice(&expression.kind);
     let offered: Vec<ExprChoice> = ExprChoice::ALL
         .into_iter()
         .filter(|kind| kind.compares() == compares)
         .collect();
-    let mut rows = vec![kind_row(
-        "Operator",
-        offered.iter().copied().map(ExprChoice::label),
-        offered.iter().position(|kind| *kind == choice),
-    )];
-    if let Some(config) = expr_config(&expression.kind) {
-        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+    InspectorRow {
+        root: FieldRoot::Kind,
+        path: Vec::new(),
+        optional: false,
+        group: vec![CONDITION.to_string()],
+        label: place.to_string(),
+        unit: "",
+        nudge: 0.0,
+        limit: Limit::Free,
+        value: RowValue::Operand {
+            options: offered
+                .iter()
+                .copied()
+                .map(ExprChoice::label)
+                .map(str::to_string)
+                .collect(),
+            chosen: offered
+                .iter()
+                .position(|kind| *kind == choice)
+                .unwrap_or_default(),
+            text: match &expression.kind {
+                ExprKind::Value(operand) => Some(operand.value.to_string()),
+                _ => None,
+            },
+        },
+        names: None,
+        owner: Some(owner),
+        depth,
     }
-    rows
 }
 
 /// The rows one beat of a sequence shows: how long after the beat before it,
@@ -1930,10 +2006,10 @@ impl DocumentIds<'_, '_> {
 /// row wears, so the panel and the row that opened it read alike.
 pub(crate) fn script_name(target: InspectTarget, kinds: &ScriptNames) -> String {
     match target {
-        InspectTarget::Event(node) => kinds.events.get(node).map_or_else(
-            |_| String::new(),
-            |event| event_label(event.name).to_string(),
-        ),
+        InspectTarget::Event(node) => kinds
+            .events
+            .get(node)
+            .map_or_else(|_| String::new(), handler_text),
         InspectTarget::Filter(node) => kinds
             .filters
             .get(node)
@@ -1949,11 +2025,6 @@ pub(crate) fn script_name(target: InspectTarget, kinds: &ScriptNames) -> String 
             .gates
             .get(node)
             .map_or_else(|_| String::new(), |gate| event_label(gate.name).to_string()),
-        InspectTarget::Expression(node) => kinds
-            .expressions
-            .get(node)
-            .map_or("", |expression| expr_choice(&expression.kind).label())
-            .to_string(),
         _ => String::new(),
     }
 }
@@ -1967,7 +2038,6 @@ pub(crate) struct ScriptNames<'w, 's> {
     filters: Query<'w, 's, &'static FilterNode>,
     actions: Query<'w, 's, &'static ActionNode>,
     gates: Query<'w, 's, &'static GateNode>,
-    expressions: Query<'w, 's, &'static ExpressionNode>,
 }
 
 /// What the Key row reads when the section fires on nothing.
@@ -1987,6 +2057,8 @@ fn name_row(name: String) -> InspectorRow {
         limit: Limit::Free,
         value: RowValue::Text(name),
         names: None,
+        owner: None,
+        depth: 0,
     }
 }
 
@@ -2063,6 +2135,8 @@ fn axes_row(
         limit,
         value: axes_of(value),
         names: None,
+        owner: None,
+        depth: 0,
     }
 }
 

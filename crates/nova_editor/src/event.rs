@@ -43,6 +43,11 @@ use crate::{
 /// Its filters and actions are its children.
 #[derive(Component, Debug, Clone, Reflect)]
 pub(crate) struct EventNode {
+    /// What this handler is FOR, in the author's own words.
+    ///
+    /// The trigger is not a name. Six handlers on `OnEnter` read as six copies
+    /// of one row, and this is the line that tells them apart.
+    pub(crate) label: Option<String>,
     /// The event this handler reacts to.
     pub(crate) name: EventConfig,
     /// Retire the handler the first time its filters pass.
@@ -52,6 +57,7 @@ pub(crate) struct EventNode {
 impl Default for EventNode {
     fn default() -> Self {
         Self {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
         }
@@ -197,6 +203,24 @@ impl Default for GateNode {
         Self {
             name: EventConfig::OnEnter,
         }
+    }
+}
+
+/// What a handler reads as: its trigger, then the name its author gave it.
+///
+/// BOTH, because they answer different questions. `On Enter` says WHEN the
+/// handler runs and `picket warden wakes` says WHAT it is for, and a row
+/// showing one of them leaves the other unanswerable from the tree.
+pub(crate) fn handler_text(event: &EventNode) -> String {
+    let trigger = event_label(event.name);
+    match event
+        .label
+        .as_deref()
+        .map(str::trim)
+        .filter(|label| !label.is_empty())
+    {
+        Some(label) => format!("{trigger} - {label}"),
+        None => trigger.to_string(),
     }
 }
 
@@ -416,15 +440,6 @@ pub(crate) fn expr_choice(kind: &ExprKind) -> ExprChoice {
         ExprKind::Multiply => ExprChoice::Multiply,
         ExprKind::Divide => ExprChoice::Divide,
         ExprKind::Value(_) => ExprChoice::Value,
-    }
-}
-
-/// The config an expression node carries, for reading. `None` for an operator,
-/// which carries none: what it operates on are its children.
-pub(crate) fn expr_config(kind: &ExprKind) -> Option<&dyn PartialReflect> {
-    match kind {
-        ExprKind::Value(operand) => Some(operand),
-        _ => None,
     }
 }
 
@@ -991,6 +1006,7 @@ fn lift_event(
         .spawn((
             EditorNode,
             EventNode {
+                label: event.label,
                 name: event.name,
                 once: event.once,
             },
@@ -1451,6 +1467,7 @@ impl ScriptNodes<'_, '_> {
             .filter_map(|node| {
                 let event = self.events.get(node).ok()?;
                 Some(ScenarioEventConfig {
+                    label: event.label.clone(),
                     name: event.name,
                     once: event.once,
                     filters: self.lower_filters(node),

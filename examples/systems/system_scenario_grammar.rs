@@ -335,12 +335,14 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
             actions: start_actions,
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -351,6 +353,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // Every destroyed asteroid bumps the tally (entity-type filter +
         // variable arithmetic).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -365,6 +368,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // repeat - the old "and beat is still 1" guard was the handler asking
         // whether it had already run.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -378,6 +382,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // The per-frame pulse promotes beat 2 -> 3 (OnUpdate + expression
         // filter, retiring on the pass).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -391,6 +396,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // Self-limiting, since the last increment puts the threshold out of
         // the ring's reach.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -412,6 +418,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // OnEnter/OnExit on the trigger volume, filtered to the pair (the
         // area's id, the body's id) the area plugin reports.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -422,6 +429,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             actions: vec![increment_variable("area_entries")],
         },
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnExit,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -435,6 +443,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // of the fight with the hull still intact - a verdict `OnDestroyed`
         // never delivers. Completing an objective here is the other half.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -452,6 +461,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // every-frame handler fire exactly once; the only filter left is the
         // one about the ring.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -471,6 +481,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // which without `once` would tick on every frame of every round. The
         // report asserts the counter reads exactly 1.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![],

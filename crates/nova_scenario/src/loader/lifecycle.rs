@@ -650,6 +650,7 @@ mod tests {
         let scenario = ScenarioConfig {
             description: "a range whose picket was deleted".to_string(),
             events: vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -705,6 +706,7 @@ mod tests {
         let scenario = ScenarioConfig {
             description: "the sandbox offers itself again".to_string(),
             events: vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![],

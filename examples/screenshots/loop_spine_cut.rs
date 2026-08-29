@@ -182,6 +182,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     ScenarioConfig {
         description: "A corvette losing its bow to a spine cut.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

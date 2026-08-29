@@ -20,7 +20,7 @@ use nova_ship::prelude::{
 
 use super::*;
 use crate::{
-    event::{FilterKind, FilterNode},
+    event::{ExprChoice, ExprKind, FilterChoice, FilterKind, FilterNode},
     node::{EditorNode, NextChildOrdinal, ScenarioNode},
 };
 
@@ -1287,4 +1287,92 @@ fn paint_references(app: &mut App) {
     app.world_mut()
         .run_system_once(paint_field_reasons)
         .expect("the reason paints");
+}
+
+/// A condition is ONE PAGE of the filter that holds it: a row per node of the
+/// tree, each writing to its own entity.
+///
+/// The tree in the rail says `Expression` and stops - the grammar's shape is
+/// not the document's shape - so this page is the only place a condition can
+/// be read or changed, and it has to reach every node of it.
+#[test]
+fn a_condition_is_one_page_of_the_filter_that_holds_it() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let filter = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            FilterNode {
+                kind: FilterChoice::Expression.stock(),
+            },
+            NodeId("expression_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    let root = operand(&mut app, filter, "equal_1", ExprChoice::Equal);
+    let left = operand(&mut app, root, "value_2", ExprChoice::Value);
+    operand(&mut app, root, "value_3", ExprChoice::Value);
+    select(&mut app, filter);
+
+    assert_eq!(
+        operand_names(&mut app),
+        ["Compare", "Left", "Right"],
+        "every node of the condition is a row, named by its place"
+    );
+
+    submit(&mut app, "Left", "scenario.elapsed");
+
+    assert_eq!(
+        leaf_text(&app, left),
+        "scenario.elapsed",
+        "the row wrote to its OWN node, not to the filter the panel is on"
+    );
+}
+
+/// One node of a condition, hung under `owner`.
+fn operand(app: &mut App, owner: Entity, id: &str, kind: ExprChoice) -> Entity {
+    app.world_mut()
+        .spawn((
+            EditorNode,
+            ExpressionNode { kind: kind.stock() },
+            NodeId(id.to_string()),
+            ChildOf(owner),
+        ))
+        .id()
+}
+
+/// The place each row of the condition page stands in, in draw order.
+fn operand_names(app: &mut App) -> Vec<String> {
+    let list = app
+        .world_mut()
+        .query_filtered::<Entity, With<InspectorList>>()
+        .single(app.world())
+        .expect("one inspector list");
+    let rows: Vec<Entity> = app
+        .world()
+        .get::<Children>(list)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    rows.into_iter()
+        .filter_map(|row| app.world().get::<Name>(row))
+        .filter_map(|name| {
+            name.as_str()
+                .strip_prefix("Inspector Operand ")
+                .map(str::to_string)
+        })
+        .collect()
+}
+
+/// What a value node holds.
+fn leaf_text(app: &App, node: Entity) -> String {
+    match &app
+        .world()
+        .get::<ExpressionNode>(node)
+        .expect("an expression node")
+        .kind
+    {
+        ExprKind::Value(operand) => operand.value.to_string(),
+        other => panic!("not a value: {other:?}"),
+    }
 }

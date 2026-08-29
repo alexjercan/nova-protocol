@@ -152,11 +152,12 @@ make the query unavailable. Expressions fail closed. Missing is not zero.
 
 ## The typed form (in the editor)
 
-The RON above is the authored form, and it is the one the file holds. The
-in-game editor's EVENTS screen shows a condition as NODES: the operator is the
-row you land on and the two things it compares hang under it, which is the shape
-the comparison has. Each leaf is one row holding one value, and that value is
-typed in the short form below rather than as a nest of `Add(Term(Factor(...`:
+The RON above is the authored form, and it is the one the file holds. In the
+in-game editor an expression filter is ONE ROW in the tree; selecting it opens
+the condition as a PAGE, a row per node: `Compare` at the top with `Left` and
+`Right` stepped in under it, each offering the operators its place allows. A
+leaf holds one value, typed in the short form below rather than as a nest of
+`Add(Term(Factor(...`:
 
 | you type | the file holds |
 |---|---|

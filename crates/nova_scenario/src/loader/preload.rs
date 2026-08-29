@@ -393,6 +393,7 @@ mod tests {
                     ShipSource::Prototype("opener_ship".to_string()),
                 )]),
                 ScenarioEventConfig {
+                    label: None,
                     name: EventConfig::OnTimerEnd,
                     once: false,
                     filters: vec![],

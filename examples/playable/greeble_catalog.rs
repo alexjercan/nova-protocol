@@ -200,6 +200,7 @@ fn catalog_stage(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
         description: "Every style's fixture models in named rows".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

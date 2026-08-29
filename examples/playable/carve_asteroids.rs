@@ -873,6 +873,7 @@ fn gallery(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
         description: "Real PDC fire, one torpedo and one severing cut.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -121,6 +121,7 @@ pub fn asteroid(
 /// world: one unfiltered `OnStart` spawning each in order.
 pub fn spawn_on_start(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

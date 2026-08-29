@@ -241,6 +241,7 @@ pub(crate) fn menu_gauntlet(
         // id's single handler performs the first spawn/launch and every
         // later one.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -271,6 +272,7 @@ pub(crate) fn menu_gauntlet(
         // torpedo) starts an aftermath linger - the wreck drifts, the
         // batteries fire into the dark and skip - then the FULL reset.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity("gauntlet_ship")],
@@ -281,6 +283,7 @@ pub(crate) fn menu_gauntlet(
         // backdrop. Own handler + short delay, per the NextScenario
         // same-flush rule.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -294,6 +297,7 @@ pub(crate) fn menu_gauntlet(
         },
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -313,6 +317,7 @@ pub(crate) fn menu_gauntlet(
     // action itself.
     for (id, _, _, period) in BATTERY_PARKS {
         events.push(ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

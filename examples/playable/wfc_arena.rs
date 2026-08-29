@@ -1326,6 +1326,7 @@ fn arena(
     let scenario = ScenarioConfig {
         description: "Wave-function-collapse ships fight in a dressed arena".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -1207,6 +1207,7 @@ mod tests {
     fn duplicate_spawn_ids_across_handlers_are_a_warn() {
         let mut s = scenario(vec![spawn_object("boss")], vec![]);
         s.events.push(ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![],
@@ -1463,6 +1464,7 @@ mod tests {
         let mut s = scenario(vec![line(Some(120.0))], vec![]);
         for l in [line(Some(12.0)), line(None)] {
             s.events.push(ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -1702,6 +1704,7 @@ mod tests {
             vec![],
         );
         s.events.push(ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![],
@@ -1801,6 +1804,7 @@ mod tests {
             }),
         }];
         s.events = vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -1833,6 +1837,7 @@ mod tests {
             }),
         }];
         s.events = vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -1869,6 +1874,7 @@ mod tests {
             }),
         }];
         s.events = vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -1908,6 +1914,7 @@ mod tests {
             }),
         }];
         s.events.push(ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(

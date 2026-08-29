@@ -756,6 +756,7 @@ mod tests {
 
     fn on_start(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -868,6 +869,7 @@ mod tests {
         let catalog =
             SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 100.0, 4.0, 100.0)]]);
         let triggered = ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![],
@@ -917,6 +919,7 @@ mod tests {
                 ship(player_controller(), &["h"]),
             )]),
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnUpdate,
                 once: false,
                 filters: vec![],

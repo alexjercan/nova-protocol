@@ -48,6 +48,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
     commands.trigger(LoadScenario(ScenarioConfig {
         description: "Two identical layered targets for the round-type comparison.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

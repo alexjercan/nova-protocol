@@ -241,6 +241,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     ScenarioConfig {
         description: "A torpedo salvo carving a parked corvette.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

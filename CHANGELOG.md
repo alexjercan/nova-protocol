@@ -102,9 +102,11 @@ does NOT get an entry - and it is the only place they are written down.
   by reflection.
 - A filter or an action is switched to any other kind from its own row, and
   keeps the operands the new kind can hold.
-- A condition is nodes: the operator is the row, drawn large, with its two sides
-  under it, and a leaf holds any expression as text - refusing, with the reason,
-  what will not parse.
+- An expression filter opens its condition as one page: every operator and
+  every leaf on its own row, offered the kinds its place in the grammar allows,
+  and a leaf takes any expression as text.
+- A handler can be named, and the tree reads both - `On Enter - picket warden
+  wakes` - so six handlers on one trigger are six different rows.
 - Add builds the script: Handler, Filter, Action, Step and Gate land under
   the marked node, and Delete removes any of them.
 - A row that names an object opens a picker of the ids the document actually

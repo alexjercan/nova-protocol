@@ -242,6 +242,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
 
     let events = vec![
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -308,6 +309,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         // The kill, seen by the scenario.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -322,6 +324,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         // The travel lock on the waypoint, seen by the scenario.
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnTravelLockStart,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -336,6 +339,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         },
         // The arrival, seen by the scenario (the beacon is its own area).
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnEnter,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {

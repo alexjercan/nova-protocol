@@ -73,6 +73,7 @@ fn instance(id: &str, hull: ShipSource, controller: SpaceshipController) -> Scen
 fn scenario(actions: Vec<EventActionConfig>) -> Content {
     Content::Scenario(ScenarioConfig {
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -162,12 +163,14 @@ fn only_a_pure_start_spawn_handler_is_layout() {
     let items = vec![Content::Scenario(ScenarioConfig {
         events: vec![
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
                 actions: vec![spawn(object("anchor_1"))],
             },
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -181,6 +184,7 @@ fn only_a_pure_start_spawn_handler_is_layout() {
                 ],
             },
             ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![],
@@ -636,6 +640,7 @@ fn editing_a_design_leaves_its_instances_untouched() {
 /// inspector's picker offers and the one the drop below is judged against.
 fn authored_script(id: &str) -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
+        label: None,
         name: EventConfig::OnDestroyed,
         once: true,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {

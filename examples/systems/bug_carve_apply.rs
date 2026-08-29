@@ -322,6 +322,7 @@ fn range(game_assets: &GameAssets) -> ScenarioConfig {
     ScenarioConfig {
         description: "One rock, cut through the middle in a single frame.".to_string(),
         events: vec![ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -48,8 +48,8 @@ use crate::{
         ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
-        action_choice, add_script_node, event_label, expr_choice, filter_choice, ActionChoice,
-        ActionKind, Expanded, ExprChoice, ExprKind, FilterChoice, ScriptAdd, ScriptNodes,
+        action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
+        ActionKind, Expanded, FilterChoice, ScriptAdd, ScriptNodes,
     },
     frame::{
         ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
@@ -58,8 +58,7 @@ use crate::{
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
     glyph::{
         category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
-        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, OPERAND, OPERATOR, SCENARIO, SEQUENCE,
-        SHIP_AI, SHUT, STEP,
+        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, SCENARIO, SEQUENCE, SHIP_AI, SHUT, STEP,
     },
     keybind::{on_rebind_action, EditorRebind},
     node::{
@@ -1072,12 +1071,6 @@ struct WantedRow {
     /// What the row's icon MEANS, in one word. Read back by the hover hint,
     /// which is where a builder finds out what `%` was.
     kind: String,
-    /// Whether the label is drawn LARGE: an operator, and nothing else.
-    ///
-    /// `==` is two characters in a tree of words, and the shape of a condition
-    /// is which operator is where. Size is what makes them findable without a
-    /// second colour, which the rail spends on selection.
-    accent: bool,
 }
 
 /// What a node reads as in a 150px rail: (label, trail).
@@ -1378,7 +1371,6 @@ fn wanted_rows(
                 (false, 1) => format!("{kind} - 1 PART"),
                 (false, parts) => format!("{kind} - {parts} PARTS"),
             },
-            accent: false,
         });
         if entered != Some(ship) {
             continue;
@@ -1398,7 +1390,6 @@ fn wanted_rows(
                 label: elide(&label, label_budget(2)),
                 trail,
                 kind: kind.to_string(),
-                accent: false,
             });
         }
     }
@@ -1429,7 +1420,6 @@ fn wanted_rows(
             label: elide(&label, label_budget(1)),
             trail,
             kind: kind.to_string(),
-            accent: false,
         });
     }
     show_ids(&mut rows, ids, label_budget);
@@ -1448,7 +1438,6 @@ fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
         label: elide(&label, label_budget(0)),
         trail,
         kind: "SCENARIO".to_string(),
-        accent: false,
     }
 }
 
@@ -1502,9 +1491,9 @@ fn script_rows(
             handler,
             1,
             &tree_lead(open, HANDLER),
-            event_label(event.name),
-            // ONCE is the one fact about a handler its label cannot hold, and
-            // it is the difference between a beat and a rule.
+            &handler_text(event),
+            // ONCE is the one fact about a handler its row cannot hold, and it
+            // is the difference between a beat and a rule.
             if event.once { "1x" } else { &ordinal },
             &format!("HANDLER - {}", event_label(event.name).to_uppercase()),
         ));
@@ -1524,14 +1513,16 @@ fn filter_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
             continue;
         };
         let choice = filter_choice(&filter.kind);
-        let condition = choice == FilterChoice::Expression;
-        let nests = choice.operands() > 0 || condition;
+        let nests = choice.operands() > 0;
         let ordinal = ordinal_of(script, node);
         let open = (nests && has_children(script, node)).then(|| script.expanded(node));
         // An expression filter READS AS ITS CONDITION: `Expression` is the
         // name of a kind, and what a builder scanning a handler needs from the
-        // row is which comparison it makes.
-        let text = condition.then(|| script.condition_text(node)).flatten();
+        // row is which comparison it makes. The condition's own nodes are the
+        // panel's, not the tree's - see `Document::condition_rows`.
+        let text = (choice == FilterChoice::Expression)
+            .then(|| script.condition_text(node))
+            .flatten();
         rows.push(script_row(
             script,
             node,
@@ -1542,46 +1533,7 @@ fn filter_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
             &format!("FILTER - {}", choice.label().to_uppercase()),
         ));
         if open == Some(true) {
-            expression_rows(script, node, depth + 1, rows);
             filter_rows(script, node, depth + 1, rows);
-        }
-    }
-}
-
-/// The condition under a filter, or the operands under an operator.
-///
-/// The OPERATOR is the row and its two sides hang under it, which is the shape
-/// the comparison has. A value is a leaf reading as the expression it holds -
-/// `entity("courier").speed` is one row here and one field in the panel.
-fn expression_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
-    for node in script.operands_of(owner) {
-        let Some(expression) = script.expression(node) else {
-            continue;
-        };
-        let choice = expr_choice(&expression.kind);
-        let operator = choice != ExprChoice::Value;
-        let open = operator.then(|| script.expanded(node));
-        let label = match &expression.kind {
-            ExprKind::Value(operand) => operand.value.to_string(),
-            _ => choice.label().to_string(),
-        };
-        let mut row = script_row(
-            script,
-            node,
-            depth,
-            &tree_lead(open, if operator { OPERATOR } else { OPERAND }),
-            &label,
-            &ordinal_of(script, node),
-            &format!(
-                "{} - {}",
-                if operator { "OPERATOR" } else { "VALUE" },
-                label.to_uppercase()
-            ),
-        );
-        row.accent = operator;
-        rows.push(row);
-        if open == Some(true) {
-            expression_rows(script, node, depth + 1, rows);
         }
     }
 }
@@ -1698,7 +1650,6 @@ fn script_row(
         label: elide(label, script_budget(depth)),
         trail: trail.to_string(),
         kind: kind.to_string(),
-        accent: false,
     }
 }
 
@@ -1784,9 +1735,7 @@ pub(crate) fn sync_scene_list(
                     // find a row by the node's own key, whatever the rail has
                     // room to print.
                     Name::new(format!("Scene Row {}", row.id)),
-                    scene_row(
-                        row.depth, &row.lead, &row.label, &row.trail, marked, row.accent, *skin,
-                    ),
+                    scene_row(row.depth, &row.lead, &row.label, &row.trail, marked, *skin),
                     SceneRow(row.node),
                     // What a hover reveals: the kind the icon stands for, and
                     // the id the 150px row had to clip.
@@ -2991,6 +2940,7 @@ mod tests {
     /// A handler with one filter and one action.
     fn handler(name: EventConfig, id: &str) -> ScenarioEventConfig {
         ScenarioEventConfig {
+            label: None,
             name,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -3001,6 +2951,45 @@ mod tests {
                 message: id.to_string(),
             })],
         }
+    }
+
+    /// A named handler reads as BOTH: the trigger that runs it and the name
+    /// its author gave it.
+    ///
+    /// One of them alone is not enough. Six handlers on `On Enter` is six
+    /// identical rows, and a row saying only `picket warden wakes` never says
+    /// when it happens.
+    #[test]
+    fn a_named_handler_reads_as_its_trigger_and_its_name() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        script(
+            &mut app,
+            scenario,
+            vec![
+                ScenarioEventConfig {
+                    label: Some("picket warden wakes".to_string()),
+                    ..handler(EventConfig::OnEnter, "ship_1")
+                },
+                handler(EventConfig::OnEnter, "ship_2"),
+            ],
+        );
+        open_events(&mut app);
+
+        let labels: Vec<String> = row_columns(&mut app)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect();
+        assert!(
+            labels
+                .iter()
+                .any(|label| label == "On Enter - picket warden wakes"),
+            "the named handler wears both: {labels:?}"
+        );
+        assert!(
+            labels.iter().any(|label| label == "On Enter"),
+            "and an unnamed one is still its trigger: {labels:?}"
+        );
     }
 
     /// The mode widens the rail, so the tree spends the width: a condition that
@@ -3015,6 +3004,7 @@ mod tests {
             &mut app,
             scenario,
             vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnUpdate,
                 once: false,
                 filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -3093,6 +3083,7 @@ mod tests {
             &mut app,
             scenario,
             vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: true,
                 filters: vec![],
@@ -3149,6 +3140,7 @@ mod tests {
             &mut app,
             scenario,
             vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnStart,
                 once: true,
                 filters: vec![],

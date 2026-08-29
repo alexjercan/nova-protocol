@@ -15,15 +15,16 @@ event handlers; each pairs an event with filters (all must pass) and actions
 
 Three surfaces write that list: a RON file, a Rust builder under
 `nova_authoring`, and the editor's EVENTS mode, which lifts a handler into nodes
-you select and inspect - a condition included, down to its operators - and
+you select and inspect - a condition included, drawn as a page of its own - and
 lowers them back on save (`crates/nova_editor/src/event.rs`). All three produce
 the same `ScenarioEventConfig`, so nothing below cares which one wrote it.
 
 ## Scenario structure
 
 - `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox), `events`.
-- `ScenarioEventConfig` - one handler: `name: EventConfig`, `once`, `filters`,
-  `actions`. `once` retires the handler the first time its filters PASS (not
+- `ScenarioEventConfig` - one handler: `label` (optional, what the handler is
+  for in the author's words - the editor's tree reads it beside the trigger),
+  `name: EventConfig`, `once`, `filters`, `actions`. `once` retires the handler the first time its filters PASS (not
   the first time its event fires): the loader-spawned entity is despawned, and
   `ScenarioEventConfig::build_handler` is the single place a config becomes a
   runtime handler, so the loader and every headless rig honour the same fields.
@@ -292,11 +293,13 @@ because `Subtract(Term, Expression)` nests that way.
 
 The editor takes a condition APART along the same grammar: each operator is one
 document node with its two sides as children, and a leaf holds whatever fits one
-row of the text form. `Parens` is dropped on the way in - the nesting says what
-the brackets said - and put back on the way out wherever the position needs it,
-so a sum under a product lowers as `(a + b) * 2`. What a switched operator
-cannot hold it does not keep: an operand a value has no place for is dropped
-rather than left hanging where no row would show it.
+row of the text form. Those nodes are NOT part of the tree - the rail shows the
+filter and stops - and the panel draws the whole condition as a page instead,
+one row per node, each writing to its own entity. `Parens` is dropped on the way
+in - the nesting says what the brackets said - and put back on the way out
+wherever the position needs it, so a sum under a product lowers as `(a + b) * 2`.
+What a switched operator cannot hold it does not keep: an operand a value has no
+place for is dropped rather than left hanging where no row would show it.
 
 ### Two clocks pace a transition
 

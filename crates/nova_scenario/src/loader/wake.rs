@@ -324,6 +324,7 @@ mod tests {
 
     fn on_update(filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
+            label: None,
             name: EventConfig::OnUpdate,
             filters,
             ..event_with(vec![])
@@ -550,6 +551,7 @@ mod tests {
     fn what_an_on_update_handler_writes_is_also_a_reason_to_wake() {
         let profile = profile(&watched(
             vec![ScenarioEventConfig {
+                label: None,
                 name: EventConfig::OnUpdate,
                 filters: vec![equals("act", 1.0)],
                 actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
@@ -571,6 +573,7 @@ mod tests {
             vec![
                 on_update(vec![equals("act", 1.0)]),
                 ScenarioEventConfig {
+                    label: None,
                     name: EventConfig::OnDefeated,
                     actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
                         key: "picket_a_down".to_string(),
