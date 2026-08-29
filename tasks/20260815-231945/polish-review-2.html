@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nova Remaining Polish Review</title>
+<style>
+:root{color-scheme:light dark;--bg:#fafaf8;--fg:#191a18;--mut:#666961;--line:#dfe2da;--panel:#f0f3ed;--accent:#2f6f4f;--s:#2f6f4f;--m:#8a5f14;--l:#9b352f}
+@media(prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e7e6df;--mut:#9b9d96;--line:#30342f;--panel:#1b1f1b;--accent:#7fc09a;--s:#7fc09a;--m:#ffc06a;--l:#ff8a80}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,sans-serif}main{max-width:56rem;margin:auto;padding:3rem 1.25rem 5rem}h1{font-size:1.8rem;margin:.2rem 0}h2{font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:2.8rem 0 .7rem}p{max-width:48rem}.eyebrow{color:var(--accent);font:650 .72rem/1.4 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}.sub{color:var(--mut);margin:.2rem 0}.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.6rem;margin:1.5rem 0}.tile{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:.75rem}.tile b{display:block;font-size:1.35rem}.tile span{color:var(--mut);font-size:.8rem}.closed{border-left:3px solid var(--accent);background:var(--panel);padding:.7rem 1rem;border-radius:6px}.closed li{margin:.35rem 0}.queue{list-style:none;padding:0;margin:0;counter-reset:item}.queue[start="8"]{counter-reset:item 7}.queue[start="18"]{counter-reset:item 17}.queue>li{counter-increment:item;border-top:1px solid var(--line);padding:.85rem 0 .85rem 3rem;position:relative}.queue>li:before{content:counter(item,decimal-leading-zero);position:absolute;left:0;top:1.05rem;color:var(--accent);font:650 .78rem ui-monospace,monospace}.row{display:flex;gap:.55rem;align-items:baseline;flex-wrap:wrap}.row strong{font-weight:650}.eff{font:650 .65rem ui-monospace,monospace;border:1px solid var(--line);border-radius:4px;padding:.05rem .35rem}.eff.s{color:var(--s)}.eff.m{color:var(--m)}.eff.l{color:var(--l)}.queue p{color:var(--mut);font-size:.9rem;margin:.25rem 0 0}.call{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:7px;background:var(--panel);padding:1rem 1.15rem}.call h3{margin:0 0 .5rem}.call ul{margin:.5rem 0}.foot{border-top:1px solid var(--line);color:var(--mut);font-size:.82rem;margin-top:3rem;padding-top:1rem}code{font:.86em ui-monospace,monospace;background:var(--panel);padding:.08em .3em;border-radius:3px}
+</style>
+</head>
+<body><main>
+<p class="eyebrow">Research record 20260815-231945 - round 6 - 2026-08-29</p>
+<h1>Remaining Polish Review</h1>
+<p class="sub">The first obvious defects are closed. This pass rechecks the rest against <code>c8b432cf</code> and orders it by honest implementation effort.</p>
+<div class="tiles">
+<div class="tile"><b>6</b><span>first-batch work items closed</span></div>
+<div class="tile"><b>7</b><span>bounded corrections next</span></div>
+<div class="tile"><b>1</b><span>visual baseline to isolate: IBL</span></div>
+<div class="tile"><b>32</b><span>remaining work groups triaged</span></div>
+</div>
+<h2>Closed since the audit</h2>
+<ul class="closed">
+<li>Wrecks latch burnt damage, including one-shot kills, and stop grading dead section references.</li>
+<li>Editor beacon and lamp previews use live emissive materials.</li>
+<li>Three default 4 px editor text shadows are gone.</li>
+<li>Turret and torpedo ammo/reload controls are on the first screen with units.</li>
+<li>Reload controls reject zero delay and zero rounds.</li>
+<li>Fixture and census material documentation matches the implementation.</li>
+</ul>
+<h2>Next bounded batch</h2>
+<ol class="queue">
+<li><div class="row"><strong>Gate Backquote while NovaOS owns text input</strong><span class="eff s">S</span></div><p>Keep the binding; stop the global HUD action from firing inside the terminal.</p></li>
+<li><div class="row"><strong>Finish terminal editing basics</strong><span class="eff s">S-M</span></div><p>Reuse shared Home / End caret behavior, then add Ctrl-A/E/U/K and first-key boot skip. Treat click-to-position as a separate pointer follow-up.</p></li>
+<li><div class="row"><strong>Render the target inset at its 256 px display size</strong><span class="eff s">S</span></div><p>It currently renders 512 px plus full post into a 256 px panel. Keep bloom only if a screenshot proves its value.</p></li>
+<li><div class="row"><strong>Make the fallback hot nozzle emissive</strong><span class="eff s">S</span></div><p>The placeholder calls it hot red but gives it albedo only.</p></li>
+<li><div class="row"><strong>Consolidate combat color families</strong><span class="eff s">S</span></div><p>Share RGB meanings while preserving per-widget alpha and distinct warning roles.</p></li>
+<li><div class="row"><strong>Report combat-lock drop reasons</strong><span class="eff s">S</span></div><p>The event already names the reason. Route a short explanation through the existing log/comms surface.</p></li>
+<li><div class="row"><strong>Show current / rated speed in one chip</strong><span class="eff s">S</span></div><p>Reuse the current speed register rather than adding another floating instrument.</p></li>
+</ol>
+<h2>Highest-value medium work</h2>
+<ol class="queue" start="8">
+<li><div class="row"><strong>Explicit ambient plus generated skybox IBL</strong><span class="eff m">M</span></div><p>The largest visual lever. Remove Bevy's white default wash only in the same accepted change that replaces it with environment lighting.</p></li>
+<li><div class="row"><strong>Own-ship integrity HUD</strong><span class="eff m">M</span></div><p>The aggregate root health already runs every frame; no own-ship surface reads it.</p></li>
+<li><div class="row"><strong>Turn authority and limiting reason</strong><span class="eff m">M</span></div><p>Show the glance number in flight and keep the full torque/structure explanation for NovaOS.</p></li>
+<li><div class="row"><strong>Dim the HUD under NovaOS; add direct app keys</strong><span class="eff m">M</span></div><p>Preserve the tactical pause but keep world context. Add mouse and gamepad routes to MAP, SHIP, LOG and HELP.</p></li>
+<li><div class="row"><strong>Fade wreck expiry</strong><span class="eff m">M</span></div><p>Replace the visible 30 second hard pop with a wreck-specific final interval.</p></li>
+<li><div class="row"><strong>Smooth camera shake samples</strong><span class="eff m">M</span></div><p>Keep trauma; replace frame-resampled white noise with a time-based correlated signal.</p></li>
+<li><div class="row"><strong>Expose section base, AI pilot and torpedo-type groups</strong><span class="eff m">M</span></div><p>Curate health/mass/links, pilot orders and ordnance type. Do not flatten these trees onto the first screen.</p></li>
+<li><div class="row"><strong>Finish editor units and derived ship stats</strong><span class="eff m">M</span></div><p>Reuse the authoritative balance formulas for DPS, range, tubes and TTK.</p></li>
+<li><div class="row"><strong>Scene-boundary fade</strong><span class="eff m">M</span></div><p>One state-transition overlay should own menu/game and backdrop entry fades.</p></li>
+<li><div class="row"><strong>Smooth free-fly camera movement</strong><span class="eff m">M</span></div><p>Use delta-time exponential smoothing in the one rig shared by editor and menu scenes.</p></li>
+</ol>
+<h2>Larger systems, after the baseline</h2>
+<ol class="queue" start="18">
+<li><div class="row"><strong>World-space friend-or-foe trim lights</strong><span class="eff l">M-L</span></div><p>Needs an authored style channel, not whole-hull recoloring.</p></li>
+<li><div class="row"><strong>Wreck effects and damaged cladding</strong><span class="eff l">M-L</span></div><p>Route particle families to <code>20260822-204201</code>; define a separate cladding damage policy.</p></li>
+<li><div class="row"><strong>HUD scale and comfort controls, then measured de-clutter</strong><span class="eff l">M-L</span></div><p>Persist HUD scale and independent shake/brightness controls first. Build collision avoidance only if overlap remains in resolution captures.</p></li>
+<li><div class="row"><strong>Velocity parallax cues</strong><span class="eff l">M</span></div><p>Sparse camera-local dust/debris can show speed without implying atmosphere.</p></li>
+<li><div class="row"><strong>Camera-relative designated hero lights</strong><span class="eff l">M-L</span></div><p>Do not make every authored scenario light follow the player.</p></li>
+<li><div class="row"><strong>KTX2 skyboxes, then post decisions</strong><span class="eff l">L</span></div><p>Compression precedes grading, AO, AA or fog. IBL precedes all material tuning.</p></li>
+<li><div class="row"><strong>Shared materials and asteroid art variants</strong><span class="eff l">M-L</span></div><p>Share assets where animation permits; keep authored identity deterministic.</p></li>
+<li><div class="row"><strong>Target-inset world context</strong><span class="eff l">M</span></div><p>Recommendation: shared IBL with a dim backdrop, not the full bright sky.</p></li>
+<li><div class="row"><strong>Decision-specific flight instruments</strong><span class="eff l">M-L</span></div><p>TTI and arming to combat HUD; braking to autopilot HUD; gravity detail to NovaOS.</p></li>
+<li><div class="row"><strong>Point-defense and kinetic-bonus legibility</strong><span class="eff l">M-L</span></div><p>These explain mechanics and need the combat-mode owner, not a generic numbers panel.</p></li>
+<li><div class="row"><strong>NovaOS engineering app</strong><span class="eff l">L</span></div><p>The depth surface for exact ammo, sections, gravity, envelope ceilings and live build stats.</p></li>
+<li><div class="row"><strong>Docking and trade through NovaOS</strong><span class="eff l">L</span></div><p>Owned by station task <code>20260824-125943</code>.</p></li>
+<li><div class="row"><strong>Editor leftover information architecture</strong><span class="eff l">L</span></div><p>Modifications, collapse threshold, root scripts, light kind and signatures need designed homes.</p></li>
+<li><div class="row"><strong>Contact-point hit cue, no vacuum ring</strong><span class="eff l">L</span></div><p>Carry hit position through the damage path under <code>20260822-204201</code>.</p></li>
+<li><div class="row"><strong>Use dynamic sky changes only for a mission beat</strong><span class="eff l">content</span></div><p>The API is complete; content should call it only when the transition means something.</p></li>
+</ol>
+<h2>Recommendation</h2>
+<div class="call"><h3>Keep the simple-first rule</h3><ul><li>Land bounded items 1-7 next.</li><li>Then isolate lighting item 8 and accept it with captures from both cubemaps.</li><li>Then take interface items 9-11 as one coherent information/context pass.</li></ul><p>Starting with lighting is defensible and gives the largest visual jump, but it exposes material tuning immediately. The bounded batch is lower risk and follows the owner's requested order.</p></div>
+<p class="foot">Full evidence and routing: <code>POLISH-REVIEW-2.md</code>. Original audit: <code>POLISH-AUDIT.md</code>. Baseline <code>c8b432cf</code>.</p>
+</main></body></html>

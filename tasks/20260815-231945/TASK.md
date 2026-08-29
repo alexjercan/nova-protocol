@@ -42,6 +42,10 @@ art generator. Research that informs it is the most valuable.
 - `POLISH-AUDIT.md` - round 5 evidence: the internal polish audit (visuals,
   editor and in-flight stats coverage, the terminal position).
 - `polish-audit.html` - round 5 presentation: the findings as a design page.
+- `POLISH-REVIEW-2.md` - round 6: post-fix verification and remaining polish
+  triage, ordered from bounded corrections through interaction architecture.
+- `polish-review-2.html` - round 6 presentation: the remaining implementation
+  queue and recommended cutoffs.
 
 ## Round 2: hull plating shape and greeble placement
 
@@ -220,3 +224,28 @@ Cross-references: round 2's target_inset emissive+unlit defect is FIXED on
 master, but the same defect now lives twice in `nova_editor/src/preview.rs`
 (:143-147, :168-172). Does not repeat 20260822-204201 (particle families),
 20260827-120347 (console), 20260824-125955 (audio), or round 3 (combat mode).
+
+## Round 6: remaining polish review
+
+Ran 2026-08-29 after commit `c8b432cf` landed the first six work items from
+round 5. `POLISH-REVIEW-2.md` is the evidence and scheduling record;
+`polish-review-2.html` is the browsable queue.
+
+The review preserves round 5 as the historical baseline, verifies the closed
+wreck/editor/reload defects, corrects two claims that changed independently
+(graphics quality is now wired; both cubemaps have scenario users), and ranks
+32 remaining work groups by implementation plus validation cost.
+
+Recommended order:
+
+1. Seven bounded corrections: terminal Backquote and caret friction, target
+   inset resolution, fallback nozzle emissive, combat color families,
+   lock-drop explanation and rated speed.
+2. One isolated visual baseline: explicit zero ambient plus generated skybox
+   IBL, accepted with captures from both cubemaps.
+3. One interface batch: own-ship integrity, turn authority, and preserving HUD
+   context/direct app access under NovaOS.
+
+Routes remain explicit: vacuum hit/wreck/velocity effects to `20260822-204201`,
+settings controls to `20260824-120527`, docking to `20260824-125943`, audio to
+`20260824-125955`, and the out-of-fiction console to `20260827-120347`.
