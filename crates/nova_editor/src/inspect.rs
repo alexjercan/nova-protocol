@@ -20,7 +20,7 @@ use bevy::{
     reflect::{
         enums::{DynamicEnum, DynamicVariant, VariantInfo},
         tuple::DynamicTuple,
-        NamedField, ReflectMut, ReflectRef, TypeInfo,
+        NamedField, ReflectMut, ReflectRef, TypeInfo, Typed,
     },
 };
 use nova_gameplay::prelude::AssetRef;
@@ -31,6 +31,7 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
 use crate::{
+    asset_index::prelude::AssetSort,
     config::SelectedNode,
     event::{
         action_choice, action_config, event_label, expr_choice, filter_choice, filter_config,
@@ -231,6 +232,12 @@ pub(crate) enum RowValue {
     Choice {
         /// Every variant, in declaration order.
         options: Vec<String>,
+        /// What each of them MEANS, one per option and in the same order.
+        ///
+        /// Carried beside the names because the picker is where a builder
+        /// meets a vocabulary they do not know yet: a list of twenty-six bare
+        /// names is a list to be looked up somewhere else.
+        hints: Vec<String>,
         /// Which one the value currently holds.
         chosen: usize,
     },
@@ -284,7 +291,9 @@ impl RowValue {
             // it is TYPED, not what it is.
             Self::Axes(axes) => axes.join(", "),
             Self::Flag(flag) => flag.to_string(),
-            Self::Choice { options, chosen } => options.get(*chosen).cloned().unwrap_or_default(),
+            Self::Choice {
+                options, chosen, ..
+            } => options.get(*chosen).cloned().unwrap_or_default(),
             // The VALUE where it has one: a leaf reading `equal` would say what
             // the row is instead of what it holds.
             Self::Operand {
@@ -343,12 +352,25 @@ pub(crate) struct InspectorRow {
     pub(crate) limit: Limit,
     /// The value, and the widget it implies.
     pub(crate) value: RowValue,
+    /// One sentence saying what this row is FOR, or empty for a row nothing
+    /// has been written about.
+    ///
+    /// Read out of the config author's own doc comment through
+    /// `reflect_documentation` rather than kept in a list here: a hint that
+    /// has to be registered a second time is one that goes stale the day the
+    /// field it describes changes its mind.
+    pub(crate) hint: String,
     /// What this row's string NAMES, where the config said so.
     ///
     /// Read off the [`Names`] attribute at the source rather than from a list
     /// of field names kept here: a reference row that has to be registered
     /// twice is one the editor stops drawing the day the vocabulary grows.
     pub(crate) names: Option<Names>,
+    /// What FILE this row's string names, where the field's own type says so.
+    ///
+    /// Read off the type rather than the name: `AssetRef<Image>` wants an image
+    /// whether the field is called `texture`, `icon` or `cubemap`.
+    pub(crate) asset: Option<AssetSort>,
     /// Which node the row WRITES TO, where that is not the node the panel is
     /// on. `None` for every row of a config, which is the node's own.
     ///
@@ -361,6 +383,68 @@ pub(crate) struct InspectorRow {
     pub(crate) depth: usize,
 }
 
+impl InspectorRow {
+    /// The same row, saying what it is for.
+    pub(crate) fn saying(mut self, hint: impl Into<String>) -> Self {
+        self.hint = hint.into();
+        self
+    }
+}
+
+/// One doc comment, as a panel says it.
+///
+/// The FIRST PARAGRAPH only: a doc comment goes on to say what the engine does
+/// with the value, and a tooltip that quoted all of it would cover the rows it
+/// was called to explain. Backticks go with it - the panel has one font, and a
+/// builder reading `"scenario_elapsed"` in it sees the quotes as part of the
+/// name.
+pub(crate) fn hint_of(docs: Option<&str>) -> String {
+    let Some(docs) = docs else {
+        return String::new();
+    };
+    docs.lines()
+        .map(str::trim)
+        .skip_while(|line| line.is_empty())
+        .take_while(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('`', "")
+}
+
+/// One hint, short enough to stand under an option in a LIST.
+///
+/// A row's own tooltip says the whole first paragraph - it is one row, and the
+/// reader asked. A picker draws twenty-six of them at once, and one option
+/// whose sentence runs to nine lines pushes the rest of the vocabulary off the
+/// bottom of the window.
+pub(crate) fn clipped(hint: &str, chars: usize) -> String {
+    if hint.chars().count() <= chars {
+        return hint.to_string();
+    }
+    let kept: String = hint.chars().take(chars).collect();
+    let cut = kept.rfind(' ').unwrap_or(kept.len());
+    format!(
+        "{}...",
+        kept[..cut].trim_end_matches([',', ';', '-']).trim()
+    )
+}
+
+/// What the OPTION a choice row stands on means, out of its own doc comment.
+///
+/// Keyed on the derived `Debug` of a bare variant, which IS that variant's
+/// name. The row holds the choice and the sentence lives on the type, and
+/// reflection is the only bridge between them - which is the whole reason the
+/// editor's choice enums derive `Reflect`.
+pub(crate) fn variant_hint<T: Typed + core::fmt::Debug>(chosen: &T) -> String {
+    let TypeInfo::Enum(info) = T::type_info() else {
+        return String::new();
+    };
+    hint_of(
+        info.variant(&format!("{chosen:?}"))
+            .and_then(VariantInfo::docs),
+    )
+}
+
 /// The row a filter or an action is SWITCHED on: every kind it could be, and
 /// which one it is.
 ///
@@ -369,6 +453,7 @@ pub(crate) struct InspectorRow {
 fn kind_row(
     label: &str,
     options: impl Iterator<Item = &'static str>,
+    hints: impl Iterator<Item = String>,
     chosen: Option<usize>,
 ) -> InspectorRow {
     InspectorRow {
@@ -382,9 +467,12 @@ fn kind_row(
         limit: Limit::Free,
         value: RowValue::Choice {
             options: options.map(str::to_string).collect(),
+            hints: hints.collect(),
             chosen: chosen.unwrap_or_default(),
         },
+        hint: String::new(),
         names: None,
+        asset: None,
         owner: None,
         depth: 0,
     }
@@ -402,7 +490,9 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         nudge: 0.0,
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
+        hint: String::new(),
         names: None,
+        asset: None,
         owner: None,
         depth: 0,
     }
@@ -433,7 +523,9 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         nudge,
         limit,
         value,
+        hint: String::new(),
         names: None,
+        asset: None,
         owner: None,
         depth: 0,
     }
@@ -833,7 +925,11 @@ fn walk(
         } else {
             RowValue::Text(text)
         };
-        out.push(walked(root, path, false, leaf));
+        let mut row = walked(root, path, false, leaf);
+        row.asset = value
+            .get_represented_type_info()
+            .and_then(|info| asset_sort(info.type_path()));
+        out.push(row);
         return;
     }
     if is_option(value) {
@@ -855,10 +951,11 @@ fn walk(
                 else {
                     continue;
                 };
-                let names = info
-                    .and_then(|info| info.field_at(index))
+                let declared = info.and_then(|info| info.field_at(index));
+                let names = declared
                     .and_then(NamedField::get_attribute::<Names>)
                     .copied();
+                let hint = hint_of(declared.and_then(NamedField::docs));
                 let first = out.len();
                 walk(
                     field,
@@ -868,6 +965,12 @@ fn walk(
                 );
                 for row in &mut out[first..] {
                     row.names = names;
+                    // The INNERMOST doc wins: a struct's own field said what
+                    // this one number is, where the field that holds the whole
+                    // struct could only say what the struct is.
+                    if row.hint.is_empty() {
+                        row.hint.clone_from(&hint);
+                    }
                 }
             }
         }
@@ -892,24 +995,33 @@ fn walk(
             }
         }
         ReflectRef::Enum(chosen) => {
+            // The doc of the variant it IS, not of the field that holds it:
+            // "the event to wait for" is the one thing a builder reading a row
+            // that already says OnEnter does not need told.
+            let variant = match value.get_represented_type_info() {
+                Some(TypeInfo::Enum(info)) => info.variant(chosen.variant_name()),
+                _ => None,
+            };
+            let variant = hint_of(variant.and_then(VariantInfo::docs));
             // A variant that carries FIELDS is a readout, not a choice:
             // switching to one would mean inventing every field of it that
             // nobody has authored. An enum whose variants are all bare names
             // has nothing to invent, so it is offered as a choice.
             let value = match unit_variants(value) {
-                Some(options) => {
+                Some(offered) => {
                     let name = chosen.variant_name();
                     RowValue::Choice {
-                        chosen: options
+                        chosen: offered
                             .iter()
-                            .position(|option| option == name)
+                            .position(|(option, _)| option == name)
                             .unwrap_or(0),
-                        options,
+                        options: offered.iter().map(|(option, _)| option.clone()).collect(),
+                        hints: offered.into_iter().map(|(_, hint)| hint).collect(),
                     }
                 }
                 None => RowValue::Fixed(chosen.variant_name().to_string()),
             };
-            out.push(walked(root, path.clone(), false, value));
+            out.push(walked(root, path.clone(), false, value).saying(variant));
             for index in 0..chosen.field_len() {
                 let Some(field) = chosen.field_at(index) else {
                     continue;
@@ -953,7 +1065,9 @@ fn walk_option(
         } else {
             RowValue::Text(text)
         };
-        out.push(walked(root, path, true, leaf));
+        let mut row = walked(root, path, true, leaf);
+        row.asset = payload.as_deref().and_then(asset_sort);
+        out.push(row);
         return;
     }
     if !present {
@@ -980,13 +1094,13 @@ fn walk_option(
 /// `None` the moment one variant carries a field, which is what keeps the
 /// choice honest: a dropdown that could switch to `Prototype(String)` would
 /// have to invent the string.
-fn unit_variants(value: &dyn PartialReflect) -> Option<Vec<String>> {
+fn unit_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
     let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
         return None;
     };
     info.iter()
         .map(|variant| match variant {
-            VariantInfo::Unit(unit) => Some(unit.name().to_string()),
+            VariantInfo::Unit(unit) => Some((unit.name().to_string(), hint_of(unit.docs()))),
             _ => None,
         })
         .collect()
@@ -1061,6 +1175,25 @@ fn asset_type(type_path: &str) -> bool {
     type_path == AssetRef::<Image>::type_path()
         || type_path == AssetRef::<AudioSource>::type_path()
         || type_path == AssetRef::<WorldAsset>::type_path()
+}
+
+/// What SORT of file an asset reference names, or `None` for a type that names
+/// no file.
+///
+/// The picker and the fault mark both hang off this. Taken from the TYPE, which
+/// is also how an `Option` field answers it: a row holding `None` is still an
+/// image's row, and can still offer the images to fill it with.
+fn asset_sort(type_path: &str) -> Option<AssetSort> {
+    if type_path == AssetRef::<Image>::type_path() {
+        return Some(AssetSort::Image);
+    }
+    if type_path == AssetRef::<AudioSource>::type_path() {
+        return Some(AssetSort::Audio);
+    }
+    if type_path == AssetRef::<WorldAsset>::type_path() {
+        return Some(AssetSort::Model);
+    }
+    None
 }
 
 /// The path an asset reference holds, whichever asset it points at.
@@ -1674,7 +1807,9 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             nudge: 0.0,
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
+            hint: "Who flies this ship: you, a bot, or nobody.".to_string(),
             names: None,
+            asset: None,
             owner: None,
             depth: 0,
         },
@@ -1685,7 +1820,8 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
                 || IMPLIED_ALLEGIANCE.to_string(),
                 |side| format!("{side:?}"),
             ),
-        ),
+        )
+        .saying("Which side this ship is on. It follows the driver unless a script overwrites it."),
     ];
     rows.extend(pose_rows(pose));
     rows
@@ -1706,13 +1842,16 @@ pub(crate) fn scenario_rows(
     flown: Option<String>,
 ) -> Vec<InspectorRow> {
     vec![
-        fixed(FieldRoot::Config, "Ships", ships.to_string()),
-        fixed(FieldRoot::Config, "Objects", objects.to_string()),
+        fixed(FieldRoot::Config, "Ships", ships.to_string())
+            .saying("How many ships the document holds."),
+        fixed(FieldRoot::Config, "Objects", objects.to_string())
+            .saying("How many rocks, beacons, crates and areas stand on the board."),
         fixed(
             FieldRoot::Config,
             "Player Ship",
             flown.unwrap_or_else(|| NO_PLAYER_SHIP.to_string()),
-        ),
+        )
+        .saying("The ship you fly when the scenario runs."),
     ]
 }
 
@@ -1722,7 +1861,8 @@ pub(crate) fn section_rows(
     node: &SectionNode,
     catalog: Option<&GameSections>,
 ) -> Vec<InspectorRow> {
-    let mut rows = vec![fixed(FieldRoot::Config, "Part", node.prototype())];
+    let mut rows = vec![fixed(FieldRoot::Config, "Part", node.prototype())
+        .saying("The catalog part this section was built from.")];
     if node.bindable(catalog) {
         let binding = source_label(&node.binds);
         rows.push(InspectorRow {
@@ -1739,7 +1879,9 @@ pub(crate) fn section_rows(
             } else {
                 binding
             }),
+            hint: "The key that fires this section. Click it, then press one.".to_string(),
             names: None,
+            asset: None,
             owner: None,
             depth: 0,
         });
@@ -1787,8 +1929,10 @@ pub(crate) fn filter_rows(filter: &FilterNode) -> Vec<InspectorRow> {
     let mut rows = vec![kind_row(
         "Filter",
         FilterChoice::ALL.into_iter().map(FilterChoice::label),
+        FilterChoice::ALL.iter().map(variant_hint),
         FilterChoice::ALL.iter().position(|kind| *kind == choice),
-    )];
+    )
+    .saying(variant_hint(&choice))];
     if let Some(config) = filter_config(&filter.kind) {
         let first = rows.len();
         walk(config, FieldRoot::Config, Vec::new(), &mut rows);
@@ -1812,8 +1956,10 @@ pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
     let mut rows = vec![kind_row(
         "Action",
         ActionChoice::ALL.into_iter().map(ActionChoice::label),
+        ActionChoice::ALL.iter().map(variant_hint),
         ActionChoice::ALL.iter().position(|kind| *kind == choice),
-    )];
+    )
+    .saying(variant_hint(&choice))];
     if let Some(config) = action_config(&action.kind) {
         walk(config, FieldRoot::Config, Vec::new(), &mut rows);
     }
@@ -1877,7 +2023,14 @@ pub(crate) fn operand_row(
                 _ => None,
             },
         },
+        hint: if compares {
+            "The test this filter makes: it passes when the comparison holds."
+        } else {
+            "One side of the comparison: a variable, a number, or another operator."
+        }
+        .to_string(),
         names: None,
+        asset: None,
         owner: Some(owner),
         depth,
     }
@@ -2021,10 +2174,10 @@ pub(crate) fn script_name(target: InspectTarget, kinds: &ScriptNames) -> String 
             .map_or("", |action| action_choice(&action.kind).label())
             .to_string(),
         InspectTarget::Step(_) => "Step".to_string(),
-        InspectTarget::Gate(node) => kinds
-            .gates
-            .get(node)
-            .map_or_else(|_| String::new(), |gate| event_label(gate.name).to_string()),
+        InspectTarget::Gate(node) => kinds.gates.get(node).map_or_else(
+            |_| String::new(),
+            |gate| event_label(gate.trigger).to_string(),
+        ),
         _ => String::new(),
     }
 }
@@ -2056,7 +2209,9 @@ fn name_row(name: String) -> InspectorRow {
         nudge: 0.0,
         limit: Limit::Free,
         value: RowValue::Text(name),
+        hint: "What this node is called on the board and in the tree.".to_string(),
         names: None,
+        asset: None,
         owner: None,
         depth: 0,
     }
@@ -2088,7 +2243,8 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             POSE_STEP,
             Limit::Free,
             pose.translation,
-        ),
+        )
+        .saying("Where this node stands, in world units."),
         // ROTATION, not heading: it is the node's rotation, and rotation is
         // what every other editor calls that. Both facts it used to keep in a
         // doc comment - degrees, and which turn is which - are on screen.
@@ -2099,7 +2255,8 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             TURN_STEP,
             Limit::Free,
             rotation_degrees(pose),
-        ),
+        )
+        .saying("Which way it faces, in degrees."),
     ]
 }
 
@@ -2134,7 +2291,9 @@ fn axes_row(
         nudge,
         limit,
         value: axes_of(value),
+        hint: String::new(),
         names: None,
+        asset: None,
         owner: None,
         depth: 0,
     }

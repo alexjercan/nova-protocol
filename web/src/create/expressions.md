@@ -157,7 +157,8 @@ in-game editor an expression filter is ONE ROW in the tree; selecting it opens
 the condition as a PAGE, a row per node: `Compare` at the top with `Left` and
 `Right` stepped in under it, each offering the operators its place allows. A
 leaf holds one value, typed in the short form below rather than as a nest of
-`Add(Term(Factor(...`:
+`Add(Term(Factor(...`. A leaf that names a variable can PICK one instead of
+spelling it: the chip beside the box lists what the scenario declares.
 
 | you type | the file holds |
 |---|---|

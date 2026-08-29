@@ -699,6 +699,50 @@ pub(crate) fn sync_script_menu(
     }
 }
 
+/// Which half of the Add menu a block holds.
+///
+/// Add means "one more node HERE", and the MODE is most of what here means: in
+/// SCENE the document takes ships and rocks, in EVENTS it takes handlers and
+/// their parts. The two halves used to be one list where half the rows were
+/// greyed, which asked a builder to read past six dead rows to find the one
+/// their mode could press.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AddPalette {
+    /// What SCENE can put on the board.
+    World,
+    /// What EVENTS can put in the script.
+    Script,
+}
+
+/// The block of rows one palette holds, so a mode can hide the other whole -
+/// its separators included, which a per-row marker could not.
+pub(crate) fn palette_block() -> Node {
+    Node {
+        width: percent(100),
+        flex_direction: FlexDirection::Column,
+        align_items: AlignItems::Stretch,
+        ..default()
+    }
+}
+
+/// Show the palette the mode can use, and hide the other.
+pub(crate) fn sync_add_palette(
+    tab: Res<crate::config::RailTab>,
+    mut blocks: Query<(&AddPalette, &mut Node)>,
+) {
+    let events = tab.is_events();
+    for (palette, mut node) in &mut blocks {
+        let wanted = if (*palette == AddPalette::Script) == events {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != wanted {
+            node.display = wanted;
+        }
+    }
+}
+
 /// A Ship menu row that needs a part IN HAND, not just a ship - the pose verbs.
 #[derive(Component)]
 pub(crate) struct ArmedMenuItem;
@@ -769,6 +813,30 @@ mod tests {
 
     fn display(world: &World, entity: Entity) -> Display {
         world.get::<Node>(entity).expect("a node").display
+    }
+
+    /// Add shows the palette the MODE can use and hides the other. A menu
+    /// listing six dead script rows in Scene asks a builder to read past them
+    /// to find the row their mode can press.
+    #[test]
+    fn add_shows_only_the_palette_the_mode_can_use() {
+        let mut world = World::new();
+        world.insert_resource(crate::config::RailTab::Scene);
+        let scene_half = world.spawn((AddPalette::World, palette_block())).id();
+        let events_half = world.spawn((AddPalette::Script, palette_block())).id();
+
+        world
+            .run_system_once(sync_add_palette)
+            .expect("the sync runs");
+        assert_eq!(display(&world, scene_half), Display::Flex);
+        assert_eq!(display(&world, events_half), Display::None);
+
+        *world.resource_mut::<crate::config::RailTab>() = crate::config::RailTab::Events;
+        world
+            .run_system_once(sync_add_palette)
+            .expect("the sync runs");
+        assert_eq!(display(&world, scene_half), Display::None);
+        assert_eq!(display(&world, events_half), Display::Flex);
     }
 
     /// One menu hangs open at a time, and the scrim goes up with it: a bar

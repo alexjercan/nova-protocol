@@ -154,6 +154,7 @@ pub(crate) fn script_mark(add: ScriptAdd) -> &'static str {
         ScriptAdd::Handler => HANDLER,
         ScriptAdd::Filter => FILTER,
         ScriptAdd::Action => ACTION,
+        ScriptAdd::Sequence => SEQUENCE,
         ScriptAdd::Step => STEP,
         ScriptAdd::Gate => GATE,
     }

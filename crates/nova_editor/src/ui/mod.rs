@@ -33,7 +33,7 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
         key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
-        separator, themed_button, ButtonLabel, UiSkin,
+        separator, themed_button, ButtonLabel, UiSkin, UiText,
     },
     theme,
     widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
@@ -71,12 +71,13 @@ use crate::{
     },
     ui::{
         callout::placement_callout,
-        inspector::{inspector_panel, InspectorPanel, PANEL_W as INSPECTOR_W},
+        inspector::{inspector_panel, inspector_tooltip, InspectorPanel, PANEL_W as INSPECTOR_W},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
-            on_menu_scrim, toggle_all_fields, toggle_ids, toggle_key_legend, toggle_link_points,
-            toggle_object_volumes, toggle_world_grid, ArmedMenuItem, MenuDeleteItem, MenuDropdown,
-            MenuId, MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            on_menu_scrim, palette_block, toggle_all_fields, toggle_ids, toggle_key_legend,
+            toggle_link_points, toggle_object_volumes, toggle_world_grid, AddPalette,
+            ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuLead, MenuTail, OpenMenu,
+            ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         plate::plate_layer,
         rail::{
@@ -273,70 +274,88 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
             // top bar and Add Object in a block halfway down the left, which
             // made two names for one question.
             //
-            // Add means "one more node HERE", and here changes. The world
-            // palette is live at the scenario node; the parts palette is live
-            // inside a ship. Both blocks stay on show either way, greyed,
-            // because the menu is also where a builder reads what entering a
-            // ship changes.
-            items.spawn((
-                Name::new("Add Ship Button"),
-                ScenarioMenuItem,
-                // The OUTLINE ship: the row adds a design beside the one already
-                // there. The first ship of an empty document becomes the
-                // player's and the tree fills its mark in.
-                menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
-                observe(create_blank_ship),
-            ));
-            items.spawn(separator());
-            for choice in ObjectChoice::ALL {
-                items.spawn((
-                    Name::new(format!("Add {}", choice.label())),
-                    choice,
-                    ScenarioMenuItem,
-                    menu_item_row(
-                        choice.label(),
-                        MenuLead::Glyph(choice_mark(choice)),
-                        MenuTail::None,
-                        skin,
-                    ),
-                    observe(create_scenario_object),
-                ));
-            }
-            // The SCRIPT palette, on the same menu as the world's. Add means
-            // "one more node here", and the EVENTS tab is a different here:
-            // these five rows are live there and greyed on the SCENE tab,
-            // exactly as the world rows grey inside a ship.
-            items.spawn(separator());
-            for add in ScriptAdd::ALL {
-                items.spawn((
-                    Name::new(format!("Add {}", add.label())),
-                    add,
-                    menu_item_row(
-                        add.label(),
-                        MenuLead::Glyph(script_mark(add)),
-                        MenuTail::None,
-                        skin,
-                    ),
-                    observe(add_script_node),
-                ));
-            }
-            items.spawn(separator());
-            for category in GalleryCategory::ROW {
-                if category == GalleryCategory::All {
-                    continue;
-                }
-                items.spawn((
-                    Name::new(format!("Add {} Item", category.label())),
-                    ShipMenuItem,
-                    GalleryAction::Browse(category),
-                    menu_item_row(
-                        &format!("{}...", category.label()),
-                        MenuLead::Glyph(category_mark(category)),
-                        MenuTail::None,
-                        skin,
-                    ),
-                ));
-            }
+            // Add means "one more node HERE", and here changes. The MODE is
+            // most of what it changes: SCENE builds the board and EVENTS builds
+            // the script, so the menu shows one palette and hides the other
+            // rather than listing both with half of them dead. Within a
+            // palette the rows still GREY - the world block is greyed inside a
+            // ship, and a script row greys until the marked node can take what
+            // it makes - because that part is about where the caret is, which
+            // is a thing a builder can move without changing mode.
+            items
+                .spawn((
+                    Name::new("Add World Palette"),
+                    AddPalette::World,
+                    palette_block(),
+                ))
+                .with_children(|world| {
+                    world.spawn((
+                        Name::new("Add Ship Button"),
+                        ScenarioMenuItem,
+                        // The OUTLINE ship: the row adds a design beside the
+                        // one already there. The first ship of an empty
+                        // document becomes the player's and the tree fills its
+                        // mark in.
+                        menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None, skin),
+                        observe(create_blank_ship),
+                    ));
+                    world.spawn(separator());
+                    for choice in ObjectChoice::ALL {
+                        world.spawn((
+                            Name::new(format!("Add {}", choice.label())),
+                            choice,
+                            ScenarioMenuItem,
+                            menu_item_row(
+                                choice.label(),
+                                MenuLead::Glyph(choice_mark(choice)),
+                                MenuTail::None,
+                                skin,
+                            ),
+                            observe(create_scenario_object),
+                        ));
+                    }
+                    world.spawn(separator());
+                    for category in GalleryCategory::ROW {
+                        if category == GalleryCategory::All {
+                            continue;
+                        }
+                        world.spawn((
+                            Name::new(format!("Add {} Item", category.label())),
+                            ShipMenuItem,
+                            GalleryAction::Browse(category),
+                            menu_item_row(
+                                &format!("{}...", category.label()),
+                                MenuLead::Glyph(category_mark(category)),
+                                MenuTail::None,
+                                skin,
+                            ),
+                        ));
+                    }
+                });
+            items
+                .spawn((
+                    Name::new("Add Script Palette"),
+                    AddPalette::Script,
+                    palette_block(),
+                ))
+                .with_children(|script| {
+                    for add in ScriptAdd::ALL {
+                        script.spawn((
+                            Name::new(format!("Add {}", add.label())),
+                            add,
+                            menu_item_row(
+                                add.label(),
+                                MenuLead::Glyph(script_mark(add)),
+                                // What the word MEANS, beside it. `Gate` and
+                                // `Step` are the two rows nobody can rank from
+                                // their names alone.
+                                MenuTail::Word(add.hint()),
+                                skin,
+                            ),
+                            observe(add_script_node),
+                        ));
+                    }
+                });
         }
     }
 }
@@ -521,6 +540,7 @@ pub(crate) fn setup_editor_scene(
                 .with_children(|left| {
                     left.spawn((
                         Name::new("Editor Title"),
+                        UiText,
                         Text::new("EDITOR"),
                         TextFont {
                             font_size: FontSize::Px(16.0),
@@ -774,6 +794,7 @@ pub(crate) fn setup_editor_scene(
                                             settings.spawn((
                                                 Name::new("Ship Readout"),
                                                 ShipReadout,
+                                                UiText,
                                                 Text::new(""),
                                                 TextFont {
                                                     font_size: FontSize::Px(READOUT_TEXT),
@@ -792,6 +813,7 @@ pub(crate) fn setup_editor_scene(
                                             settings.spawn((
                                                 Name::new("Ship Readout Note"),
                                                 ShipReadoutNote,
+                                                UiText,
                                                 Text::new(""),
                                                 TextFont {
                                                     font_size: FontSize::Px(11.0),
@@ -818,6 +840,7 @@ pub(crate) fn setup_editor_scene(
                                             // View can switch off.
                                             settings.spawn((
                                                 Name::new("Ship Skin Note"),
+                                                UiText,
                                                 Text::new("reflows around the part in hand"),
                                                 TextFont {
                                                     font_size: FontSize::Px(11.0),
@@ -881,6 +904,7 @@ pub(crate) fn setup_editor_scene(
             // - a window a panel could cover would be a window nobody opened -
             // and the hint stands above the windows.
             root.spawn(scene_tooltip(skin));
+            root.spawn(inspector_tooltip(skin));
             root.spawn(placement_callout(skin));
             root.spawn(plate_layer());
             root.spawn(window_layer());
@@ -942,6 +966,7 @@ pub(crate) fn setup_editor_scene(
                             },
                             BorderColor::all(theme::RED),
                             BackgroundColor(theme::SPACE),
+                            UiText,
                             Text::new(""),
                             TextFont {
                                 font_size: FontSize::Px(13.0),
@@ -1495,7 +1520,7 @@ fn script_rows(
             // ONCE is the one fact about a handler its row cannot hold, and it
             // is the difference between a beat and a rule.
             if event.once { "1x" } else { &ordinal },
-            &format!("HANDLER - {}", event_label(event.name).to_uppercase()),
+            &format!("HANDLER - {}", event_label(event.trigger).to_uppercase()),
         ));
         if open == Some(true) {
             filter_rows(script, handler, 2, &mut rows);
@@ -1590,7 +1615,7 @@ fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
                 continue;
             }
             if let Some(gate) = script.gate_of(step) {
-                let name = script.gate(gate).map(|gate| gate.name);
+                let name = script.gate(gate).map(|gate| gate.trigger);
                 let label = name.map_or("Gate", event_label);
                 let open = has_children(script, gate).then(|| script.expanded(gate));
                 rows.push(script_row(
@@ -2153,6 +2178,7 @@ pub(crate) fn sync_breadcrumb(
 /// One word of the crumb that is not a control: the level, and the separators.
 fn crumb_word(text: &str, colour: Color) -> impl Bundle {
     (
+        UiText,
         Text::new(text.to_string()),
         TextLayout {
             linebreak: LineBreak::NoWrap,
@@ -2435,6 +2461,7 @@ fn legend_mode_cell() -> impl Bundle {
             margin: UiRect::right(px(4)),
             ..default()
         },
+        UiText,
         Text::new(""),
         TextFont {
             font_size: FontSize::Px(12.0),
@@ -2461,6 +2488,7 @@ fn legend_cell(index: usize) -> impl Bundle {
             (LegendChip, key_chip("", 12.0)),
             (
                 LegendLabel,
+                UiText,
                 Text::new(""),
                 TextFont {
                     font_size: FontSize::Px(12.0),

@@ -16,7 +16,7 @@ use nova_ui::prelude::TextFieldSubmitted;
 use super::*;
 use crate::{
     config::SelectedNode,
-    event::{FilterKind, FilterNode},
+    event::{ActionChoice, ActionNode, FilterKind, FilterNode},
     node::{
         EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
         ScenarioNode,
@@ -539,4 +539,39 @@ fn inspecting_another_node_closes_the_reference_picker() {
     select(&mut app, beacon);
 
     assert!(ref_picker(&mut app).is_none());
+}
+
+/// The picker is where a builder MEETS the vocabulary: twenty-six action names
+/// with nothing beside them is a list to be looked up somewhere else, so each
+/// one carries the sentence its own config was documented with.
+#[test]
+fn a_long_choice_lists_what_each_option_does() {
+    let mut app = window_app();
+    let (scenario, _) = document(&mut app);
+    let action = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ActionNode {
+                kind: ActionChoice::StoryMessage.stock(),
+            },
+            NodeId("action_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    select(&mut app, action);
+
+    let chip = named(&mut app, "Inspector Choice Action").expect("the kind row opens a picker");
+    app.world_mut().trigger(Activate { entity: chip });
+    app.update();
+
+    let hint = named(&mut app, "Choice Hint Outcome").expect("the outcome option says what it is");
+    assert!(
+        app.world()
+            .get::<Text>(hint)
+            .expect("the hint reads")
+            .0
+            .contains("won or lost"),
+        "the choice's own doc comment"
+    );
 }

@@ -5,13 +5,17 @@
 use bevy::{
     camera::NormalizedRenderTarget,
     ecs::system::RunSystemOnce,
+    math::Affine2,
     picking::pointer::{Location, PointerId},
     window::WindowResolution,
 };
+use nova_assets::prelude::EnabledMods;
 use nova_gameplay::prelude::Allegiance;
+use nova_modding::prelude::{BundleAsset, CatalogEntry, InstalledCatalog, ModEntry, ModMeta};
 use nova_scenario::prelude::{
-    AIControllerConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind,
-    SectionSource, SpaceshipConfig, SpaceshipController,
+    AIControllerConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig, EventActionConfig,
+    ScenarioObjectKind, SectionSource, SpaceshipConfig, SpaceshipController,
+    StoryMessageActionConfig,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
@@ -20,7 +24,7 @@ use nova_ship::prelude::{
 
 use super::*;
 use crate::{
-    event::{ExprChoice, ExprKind, FilterChoice, FilterKind, FilterNode},
+    event::{ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice, FilterKind, FilterNode},
     node::{EditorNode, NextChildOrdinal, ScenarioNode},
 };
 
@@ -1375,4 +1379,245 @@ fn leaf_text(app: &App, node: Entity) -> String {
         ExprKind::Value(operand) => operand.value.to_string(),
         other => panic!("not a value: {other:?}"),
     }
+}
+
+/// A row with a laid-out box, hovered or not, plus the one hint panel.
+/// Returns the panel and its two text lines.
+fn hint_tree(world: &mut World, hovered: bool) -> (Entity, Entity, Entity) {
+    world.spawn((
+        InspectorHint {
+            title: "Turret / Fire Rate".to_string(),
+            body: "Shots a second.".to_string(),
+        },
+        Hovered(hovered),
+        ComputedNode {
+            size: Vec2::new(280.0, 22.0),
+            inverse_scale_factor: 1.0,
+            ..default()
+        },
+        UiGlobalTransform::from(Affine2::from_translation(Vec2::new(1000.0, 100.0))),
+    ));
+    let title = world.spawn(Text::new("")).id();
+    let body = world.spawn(Text::new("")).id();
+    let tooltip = world
+        .spawn((
+            InspectorTooltip,
+            Node {
+                display: Display::None,
+                ..default()
+            },
+        ))
+        .add_children(&[title, body])
+        .id();
+    (tooltip, title, body)
+}
+
+/// The panel explains itself: resting on a row says what it is called in full
+/// - the name column clips - and what the config author said it is for.
+#[test]
+fn hovering_a_row_reveals_its_whole_name_and_what_it_is_for() {
+    let mut world = World::new();
+    let (tooltip, title, body) = hint_tree(&mut world, true);
+
+    world
+        .run_system_once(sync_inspector_tooltip)
+        .expect("the sync runs");
+
+    let node = world.get::<Node>(tooltip).expect("a node");
+    assert_eq!(node.display, Display::Flex);
+    assert_eq!(
+        node.left,
+        px(860.0 - HINT_W - HINT_GAP),
+        "clear of the row, on the stage side"
+    );
+    assert_eq!(node.top, px(89.0), "level with the row");
+    assert_eq!(
+        world.get::<Text>(title).expect("the title").0,
+        "Turret / Fire Rate"
+    );
+    assert_eq!(
+        world.get::<Text>(body).expect("the body").0,
+        "Shots a second."
+    );
+}
+
+/// EVENTS gives the panel the whole window, so the room is to the RIGHT of the
+/// rows - and a hint drawn on the left would be a hint over the tree.
+#[test]
+fn the_hint_takes_the_side_of_the_row_that_has_room() {
+    let mut world = World::new();
+    let (tooltip, _, _) = hint_tree(&mut world, true);
+    world.spawn((
+        Window {
+            resolution: WindowResolution::new(1920, 1080),
+            ..default()
+        },
+        PrimaryWindow,
+    ));
+
+    world
+        .run_system_once(sync_inspector_tooltip)
+        .expect("the sync runs");
+
+    assert_eq!(
+        world.get::<Node>(tooltip).expect("a node").left,
+        px(1140.0 + HINT_GAP),
+        "beside the row, clear of the tree"
+    );
+}
+
+/// The pointer leaving takes the hint with it: a hint left standing over the
+/// stage is a hint about a row nobody is looking at.
+#[test]
+fn the_inspector_hint_goes_away_with_the_pointer() {
+    let mut world = World::new();
+    let (tooltip, _, _) = hint_tree(&mut world, false);
+
+    world
+        .run_system_once(sync_inspector_tooltip)
+        .expect("the sync runs");
+
+    assert_eq!(
+        world.get::<Node>(tooltip).expect("a node").display,
+        Display::None
+    );
+}
+
+/// Every span the panel spawns has to be MARKED for the editor's typeface.
+///
+/// `UiText` is what routes a span through Iosevka Term; a span that forgets it
+/// renders in the engine's built-in face, which is close enough to pass a
+/// glance and has none of the line art the panel is drawn with - an unmarked
+/// picker chip is an empty box.
+#[test]
+fn every_span_the_panel_spawns_takes_the_editor_typeface() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let filter = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            FilterNode {
+                kind: FilterKind::Entity(EntityFilterConfig {
+                    id: Some("asteroid_1".to_string()),
+                    ..default()
+                }),
+            },
+            NodeId("entity_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    select(&mut app, filter);
+
+    assert_eq!(
+        unmarked_spans(&mut app),
+        Vec::<String>::new(),
+        "a filter draws the picker chip and the choice rows"
+    );
+
+    let beacon = beacon(&mut app, scenario, "beacon_1");
+    select(&mut app, beacon);
+
+    assert_eq!(
+        unmarked_spans(&mut app),
+        Vec::<String>::new(),
+        "a beacon draws the swatch, the units and the group headers"
+    );
+}
+
+/// What every span in the panel says, for the spans that would render in the
+/// engine's own face.
+fn unmarked_spans(app: &mut App) -> Vec<String> {
+    app.world_mut()
+        .query_filtered::<&Text, Without<UiText>>()
+        .iter(app.world())
+        .map(|text| text.0.clone())
+        .collect()
+}
+
+/// A row naming a FILE gets the same chip a row naming an id gets, and the
+/// same warning: the picker is the only place the set of shippable files is
+/// written down, and a path outside it is a path that loads nothing.
+#[test]
+fn a_file_row_offers_the_bundles_files_and_marks_one_they_do_not_ship() {
+    let mut app = inspector_app();
+    installed_bundle(&mut app, "base", &["icons/alpha.png"]);
+    let scenario = document(&mut app);
+    let action = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ActionNode {
+                kind: ActionKind::Leaf(EventActionConfig::StoryMessage(StoryMessageActionConfig {
+                    speaker: "Alpha".to_string(),
+                    text: "Strip it clean.".to_string(),
+                    dwell: None,
+                    icon: Some("dep://base/icons/gone.png".into()),
+                })),
+            },
+            NodeId("action_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    select(&mut app, action);
+    paint_references(&mut app);
+
+    assert_eq!(
+        chip_of(&mut app, "Icon"),
+        Some(Offers::File(AssetSort::Image)),
+        "the icon row opens the image picker"
+    );
+    assert_eq!(
+        unit_of(&mut app, "Icon"),
+        UNRESOLVED,
+        "no installed bundle ships icons/gone.png"
+    );
+
+    submit(&mut app, "Icon", "dep://base/icons/alpha.png");
+    paint_references(&mut app);
+
+    assert_eq!(
+        unit_of(&mut app, "Icon"),
+        "",
+        "the file the bundle declares is right"
+    );
+}
+
+/// What the picker chip on `label` offers, or `None` when the row has none.
+fn chip_of(app: &mut App, label: &str) -> Option<Offers> {
+    let wanted = format!("Inspector Ref {label}");
+    app.world_mut()
+        .query::<(&Name, &InspectorRef)>()
+        .iter(app.world())
+        .find(|(name, _)| name.as_str() == wanted)
+        .map(|(_, chip)| chip.offers)
+}
+
+/// One enabled bundle shipping `resources`, the way the editor's picker reads
+/// the installed set.
+fn installed_bundle(app: &mut App, id: &str, resources: &[&str]) {
+    let mut bundles = Assets::<BundleAsset>::default();
+    let bundle = bundles.add(BundleAsset {
+        content: vec![],
+        meta: ModMeta::default(),
+        new_game_scenario: None,
+        resources: resources.iter().map(|file| (*file).to_string()).collect(),
+        resource_base: format!("mods/{id}"),
+    });
+    let mut catalogs = Assets::<InstalledCatalog>::default();
+    catalogs.add(InstalledCatalog {
+        entries: vec![CatalogEntry {
+            decl: ModEntry {
+                id: id.to_string(),
+                bundle: format!("mods/{id}/{id}.bundle.ron"),
+                base: true,
+                hidden: false,
+            },
+            bundle,
+        }],
+    });
+    app.world_mut().insert_resource(bundles);
+    app.world_mut().insert_resource(catalogs);
+    app.world_mut()
+        .insert_resource(EnabledMods([id.to_string()].into_iter().collect()));
 }

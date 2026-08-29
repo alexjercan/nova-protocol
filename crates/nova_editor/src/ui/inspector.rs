@@ -26,13 +26,14 @@ use nova_ui::{
         panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
         segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
         text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin,
+        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiSkin, UiText,
     },
     theme,
     widget::{checkbox, checkbox_colors, checkbox_glyph, swatch},
 };
 
 use crate::{
+    asset_index::prelude::{AssetIndex, AssetSort},
     config::{EditorOverlays, EditorSays, InspectorHeader, RailTab, SelectedNode},
     event::{
         action_config_mut, expr_config_mut, filter_config_mut, retype_script_node, ActionNode,
@@ -53,7 +54,10 @@ use crate::{
         SectionNode, ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
-    ui::window::{on_open_colour_window, on_open_ref_window},
+    ui::{
+        layer,
+        window::{on_open_colour_window, on_open_pick_window, on_open_ref_window},
+    },
 };
 
 /// Panel width IN SCENE MODE. Wider than the rail because every row is a name
@@ -121,7 +125,29 @@ pub(crate) struct InspectorRef {
     /// The row's label, for the window's title.
     pub(crate) label: String,
     /// What the field names, which decides what the picker lists.
-    pub(crate) names: Names,
+    pub(crate) offers: Offers,
+}
+
+/// The two vocabularies a row can name out of.
+///
+/// A file is not an id: the DOCUMENT cannot grow one, so the list comes from
+/// what the installed bundles declare and a path outside it is a path that will
+/// not load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Offers {
+    /// An id the document declares: an object, a variable, a timer.
+    Named(Names),
+    /// A file an installed bundle ships.
+    File(AssetSort),
+}
+
+impl Offers {
+    /// What a row offers, or `None` for a row that names nothing.
+    fn of(row: &InspectorRow) -> Option<Self> {
+        row.names
+            .map(Offers::Named)
+            .or_else(|| row.asset.map(Offers::File))
+    }
 }
 
 /// A reference row whose text names nothing this document holds.
@@ -153,6 +179,7 @@ fn ref_chip() -> impl Bundle {
         BorderColor::all(theme::PHOSPHOR.with_alpha(0.4)),
         BackgroundColor(Color::NONE),
         children![(
+            UiText,
             Text::new(crate::glyph::PICK),
             TextFont {
                 font_size: FontSize::Px(11.0),
@@ -514,6 +541,7 @@ pub(crate) fn inspector_panel(skin: UiSkin) -> impl Bundle {
             (
                 Name::new("Inspector Title"),
                 InspectorTitle,
+                UiText,
                 Text::new(""),
                 // WRAPS, on any character. A node id is one word with
                 // underscores in it, so a word-boundary break never fires and
@@ -586,6 +614,171 @@ fn row_shell() -> Node {
     }
 }
 
+/// What one row IS, revealed while the pointer rests on it.
+///
+/// Carried by the row rather than looked up from the node, so the sentence and
+/// the widget come out of the same pass over the config and cannot disagree
+/// about which field is being explained.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorHint {
+    /// The row's whole name, headings included. The name COLUMN is clipped -
+    /// this is where a builder reads the end of one that did not fit.
+    pub(crate) title: String,
+    /// One sentence saying what goes in it, or empty for a row the config
+    /// says nothing about.
+    pub(crate) body: String,
+}
+
+/// The one hint panel, parked off-screen until a row is hovered.
+#[derive(Component)]
+pub(crate) struct InspectorTooltip;
+
+/// Gap between the row's left edge and the hint standing beside it.
+const HINT_GAP: f32 = 8.0;
+
+/// How wide the hint is. FIXED rather than sized to its longest line, because
+/// the panel is anchored by its RIGHT edge and nothing knows how wide a line
+/// is until it has been laid out - a hint that measured itself would land in
+/// the wrong place on the frame it appeared.
+const HINT_W: f32 = 220.0;
+
+/// The hint a row reveals: what it is called, and what it is for.
+///
+/// Hovering the ROW rather than its name, because the thing a builder points
+/// at when they do not know what a field wants is the box they were about to
+/// type into.
+fn row_hint(row: &InspectorRow) -> impl Bundle {
+    let mut title = row.group.join(" / ");
+    if !title.is_empty() {
+        title.push_str(" / ");
+    }
+    title.push_str(&row.label);
+    (
+        Hovered::default(),
+        InspectorHint {
+            title,
+            body: row.hint.clone(),
+        },
+    )
+}
+
+/// The hint panel: the row's name over the sentence that explains it,
+/// absolutely positioned by [`sync_inspector_tooltip`].
+///
+/// Deaf to the pointer: it stands beside the row it describes, over the panel
+/// the pointer is already inside, and a hint that took the hover would take it
+/// from the row that raised it and flicker itself away.
+pub(crate) fn inspector_tooltip(skin: UiSkin) -> impl Bundle {
+    (
+        Name::new("Inspector Hint"),
+        InspectorTooltip,
+        GlobalZIndex(layer::TOOLTIP_Z),
+        Pickable::IGNORE,
+        Node {
+            display: Display::None,
+            position_type: PositionType::Absolute,
+            left: px(0),
+            top: px(0),
+            width: px(HINT_W),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::FlexStart,
+            row_gap: px(3),
+            padding: UiRect::axes(px(8), px(5)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        panel(skin),
+        children![
+            (
+                Name::new("Inspector Hint Title"),
+                UiText,
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(10.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR_MUTED),
+            ),
+            (
+                Name::new("Inspector Hint Body"),
+                UiText,
+                Text::new(""),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+            )
+        ],
+    )
+}
+
+/// Put the hint beside the row under the pointer, and take it away again when
+/// the pointer leaves.
+///
+/// On whichever SIDE of the row has room for it: beside the rows in EVENTS
+/// mode, where the panel is the screen and the space is to their right, and
+/// over the stage in SCENE mode, where the panel stands against the right edge
+/// and a hint drawn on its right would be a hint off the screen.
+///
+/// Positioned from the ROW's own laid-out box rather than from the pointer, so
+/// the hint sits still while the pointer moves along a row on its way to the
+/// box it came to type in.
+pub(crate) fn sync_inspector_tooltip(
+    rows: Query<(&Hovered, &InspectorHint, &ComputedNode, &UiGlobalTransform)>,
+    mut tooltips: Query<(&mut Node, &Children), With<InspectorTooltip>>,
+    mut texts: Query<&mut Text>,
+    window: Option<Single<&Window, With<PrimaryWindow>>>,
+) {
+    let screen = window.map_or(0.0, |window| window.width());
+    let hovered = rows
+        .iter()
+        .find(|(hovered, _, computed, _)| hovered.get() && computed.size().x > 0.0);
+    for (mut node, children) in &mut tooltips {
+        let Some((_, hint, computed, transform)) = hovered else {
+            if node.display != Display::None {
+                node.display = Display::None;
+            }
+            continue;
+        };
+        // Logical pixels: `Node` is written in them and the computed box is
+        // not (see `ComputedNode::inverse_scale_factor`).
+        let scale = computed.inverse_scale_factor();
+        let row = Rect::from_center_size(transform.translation * scale, computed.size() * scale);
+        let beside = row.max.x + HINT_GAP;
+        let left = if beside + HINT_W <= screen {
+            px(beside)
+        } else {
+            px((row.min.x - HINT_W - HINT_GAP).max(0.0))
+        };
+        let top = px(row.min.y);
+        if node.display != Display::Flex {
+            node.display = Display::Flex;
+        }
+        if node.left != left {
+            node.left = left;
+        }
+        if node.top != top {
+            node.top = top;
+        }
+        for (index, wanted) in [hint.title.as_str(), hint.body.as_str()]
+            .into_iter()
+            .enumerate()
+        {
+            let Some(line) = children.iter().nth(index) else {
+                continue;
+            };
+            let Ok(mut text) = texts.get_mut(line) else {
+                continue;
+            };
+            if text.0 != wanted {
+                text.0 = wanted.to_string();
+            }
+        }
+    }
+}
+
 /// How far in a row or heading at `depth` stands. Capped, because a config
 /// deep enough to run out of panel is a config the tree is already carrying:
 /// past four levels the indent stops earning its pixels.
@@ -619,6 +812,7 @@ fn row_label(label: &str, taken: f32) -> impl Bundle {
             overflow: Overflow::clip(),
             ..default()
         },
+        UiText,
         Text::new(label.to_string()),
         TextLayout {
             linebreak: LineBreak::NoWrap,
@@ -709,6 +903,16 @@ fn spawn_choice_options(
 /// across the value column at the panel's width; a fourth clips.
 const WIDE_CHOICE: usize = 3;
 
+/// How many options a choice may have before it stops being a bar of them at
+/// all and becomes a PICKER: one button saying what is chosen, opening a list.
+///
+/// A handler's trigger has sixteen and an action has twenty-six. Wrapped into
+/// a bar, twenty-six chips are six lines of them under one row's name, and
+/// finding the one you want means reading all twenty-six every time. Six or
+/// fewer still read as a bar - the eye takes them in at once, and one click
+/// beats two.
+const PICK_CHOICE: usize = 7;
+
 /// What a condition's root is to the filter holding it: the comparison the
 /// filter tests.
 const COMPARE: &str = "Compare";
@@ -717,6 +921,118 @@ const COMPARE: &str = "Compare";
 /// sides, and naming them is what lets the page label a node at all - an
 /// operand has no name of its own.
 const SIDES: [&str; 2] = ["Left", "Right"];
+
+/// A choice with too many options to draw: the button that opens the list.
+///
+/// The OPTIONS ride on the button rather than being looked up again by the
+/// window: the row already resolved which kinds belong here, and a window that
+/// asked a second time could offer a kind the row would not.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorPick {
+    /// The row's name, which is the window's title.
+    pub(crate) label: String,
+    /// Every option, in the row's own order.
+    pub(crate) options: Vec<String>,
+    /// What each option MEANS, one per option and in the same order. The
+    /// window is where a builder meets the vocabulary, so it is where the
+    /// vocabulary explains itself.
+    pub(crate) hints: Vec<String>,
+}
+
+/// A long choice as ONE row: the name, and a button saying what is chosen.
+fn spawn_pick_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    slot: usize,
+    options: &[String],
+    hints: &[String],
+    chosen: usize,
+    step: f32,
+) {
+    let picked = options.get(chosen).cloned().unwrap_or_default();
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
+        Node {
+            padding: UiRect::left(px(step)),
+            ..row_shell()
+        },
+    ))
+    .with_children(|shell| {
+        shell.spawn(row_label(&row.label, step));
+        shell.spawn(value_column()).with_children(|value| {
+            value.spawn((
+                Name::new(format!("Inspector Choice {}", row.label)),
+                InspectorPick {
+                    label: row.label.clone(),
+                    options: options.to_vec(),
+                    hints: hints.to_vec(),
+                },
+                field.clone(),
+                Button,
+                Hovered::default(),
+                ThemedButton,
+                ButtonVariant::Ghost,
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    padding: UiRect::axes(px(8), px(3)),
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    border_radius: BorderRadius::all(px(theme::RADIUS)),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(6),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                // The ghost face spelled out, like the Key row's: the
+                // button reconciler repaints it on hover, and these are the
+                // colours it lands on.
+                BorderColor::all(theme::PHOSPHOR.with_alpha(0.25)),
+                BackgroundColor(Color::NONE),
+                observe(on_open_pick_window),
+                children![
+                    (
+                        Name::new(format!("Inspector Pick {}", row.label)),
+                        ButtonLabel,
+                        InspectorSlot(slot),
+                        InspectorFixed,
+                        UiText,
+                        Text::new(picked),
+                        TextLayout {
+                            linebreak: LineBreak::NoWrap,
+                            ..default()
+                        },
+                        TextFont {
+                            font_size: FontSize::Px(11.0),
+                            ..default()
+                        },
+                        TextColor(theme::PHOSPHOR),
+                        Node {
+                            flex_grow: 1.0,
+                            flex_basis: px(0),
+                            min_width: px(0),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                    ),
+                    (
+                        UiText,
+                        Text::new(crate::glyph::PICK),
+                        TextFont {
+                            font_size: FontSize::Px(11.0),
+                            ..default()
+                        },
+                        TextColor(theme::PHOSPHOR_MUTED),
+                    ),
+                ],
+            ));
+        });
+        shell.spawn(unit_text(&row.label, row.unit, slot));
+    });
+}
 
 /// A wide choice: the name on its own line and the options under it, across
 /// the panel rather than squeezed into the value column.
@@ -736,6 +1052,7 @@ fn spawn_choice_row(
 ) {
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Column,
@@ -747,6 +1064,7 @@ fn spawn_choice_row(
     ))
     .with_children(|block| {
         block.spawn((
+            UiText,
             Text::new(row.label.clone()),
             TextLayout {
                 linebreak: LineBreak::NoWrap,
@@ -787,6 +1105,7 @@ fn spawn_operand_row(
 ) {
     list.spawn((
         Name::new(format!("Inspector Operand {}", row.label)),
+        row_hint(row),
         Node {
             padding: UiRect::left(px(step)),
             ..row_shell()
@@ -830,6 +1149,15 @@ fn spawn_operand_row(
             let Some(text) = text else {
                 return;
             };
+            // The LEAF's own field, not the row's: the operators beside it swap
+            // the kind, and the box writes the value inside the kind they left
+            // alone.
+            let leaf = InspectorField {
+                node: field.node,
+                root: FieldRoot::Config,
+                path: operand_path(),
+                optional: false,
+            };
             value
                 .spawn(Node {
                     flex_grow: 1.0,
@@ -842,19 +1170,30 @@ fn spawn_operand_row(
                     box_slot.spawn((
                         Name::new(format!("Inspector Field {}", row.label)),
                         InspectorSlot(slot),
-                        // The LEAF's own field, not the row's: the operators
-                        // beside it swap the kind, and the box writes the value
-                        // inside the kind they left alone.
-                        InspectorField {
-                            node: field.node,
-                            root: FieldRoot::Config,
-                            path: operand_path(),
-                            optional: false,
-                        },
+                        leaf.clone(),
                         text_field(TextFieldSpec::new(text.to_string()).max_chars(64).dense()),
                     ));
                 });
+            // A VARIABLE is an identifier, not a value: the scenario declares
+            // the set, so the leaf offers it rather than asking a builder to
+            // remember how they spelled it. Not marked when it names something
+            // else - a leaf holding `0` or `entity("courier").speed` is a leaf
+            // holding an expression, which is the whole point of the box.
+            value.spawn((
+                Name::new(format!("Inspector Ref {}", row.label)),
+                InspectorSlot(slot),
+                InspectorRef {
+                    label: row.label.clone(),
+                    offers: Offers::Named(Names::Variable),
+                },
+                leaf,
+                Button,
+                Hovered::default(),
+                ref_chip(),
+                observe(on_open_ref_window),
+            ));
         });
+        shell.spawn(unit_text(&row.label, row.unit, slot));
     });
 }
 
@@ -874,6 +1213,7 @@ fn spawn_driver_row(
 ) {
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Column,
@@ -885,6 +1225,7 @@ fn spawn_driver_row(
     ))
     .with_children(|block| {
         block.spawn((
+            UiText,
             Text::new(row.label.clone()),
             TextLayout {
                 linebreak: LineBreak::NoWrap,
@@ -937,6 +1278,13 @@ fn axis_leads(root: FieldRoot) -> [(&'static str, Color); 3] {
     }
 }
 
+/// The width every unit reserves, whether it has one to say or not.
+///
+/// A COLUMN, not a word: the boxes are what a builder's eye runs down, and
+/// sized to their own unit they ended at a different x on every row - one
+/// short by `u/s`, the next by nothing at all.
+const UNIT_W: f32 = 26.0;
+
 /// The unit beside a value: what the number in the box is measured in.
 ///
 /// Muted and one step smaller than the value, because it is the same word on
@@ -946,6 +1294,7 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
         Name::new(format!("Inspector Unit {label}")),
         InspectorSlot(slot),
         InspectorUnit(unit),
+        UiText,
         Text::new(unit),
         TextLayout {
             linebreak: LineBreak::NoWrap,
@@ -957,6 +1306,7 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
         },
         TextColor(theme::PHOSPHOR_DIM),
         Node {
+            min_width: px(UNIT_W),
             flex_shrink: 0.0,
             ..default()
         },
@@ -985,6 +1335,7 @@ fn spawn_axes_row(
     let label = row.label.clone();
     list.spawn((
         Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Column,
@@ -1006,6 +1357,7 @@ fn spawn_axes_row(
             })
             .with_children(|line| {
                 line.spawn((
+                    UiText,
                     Text::new(label.clone()),
                     TextLayout {
                         linebreak: LineBreak::NoWrap,
@@ -1036,6 +1388,7 @@ fn spawn_axes_row(
                 })
                 .with_children(|line| {
                     line.spawn((
+                        UiText,
                         Text::new(lead),
                         TextFont {
                             font_size: FontSize::Px(11.0),
@@ -1106,6 +1459,7 @@ fn build_rows(
             list.spawn((
                 Name::new(format!("Inspector Group {level}")),
                 InspectorGroup,
+                UiText,
                 Text::new(level.to_uppercase()),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
@@ -1154,7 +1508,16 @@ fn build_rows(
         // types are wider than the value column, and a control that wrapped
         // inside it stacked one option per line with the row's own name
         // floating halfway down the stack.
-        if let RowValue::Choice { options, chosen } = &row.value {
+        if let RowValue::Choice {
+            options,
+            hints,
+            chosen,
+        } = &row.value
+        {
+            if options.len() >= PICK_CHOICE {
+                spawn_pick_row(list, row, &field, slot, options, hints, *chosen, step);
+                continue;
+            }
             if options.len() > 2 {
                 spawn_choice_row(list, row, &field, slot, options, *chosen, skin, step);
                 continue;
@@ -1185,6 +1548,7 @@ fn build_rows(
         }
         list.spawn((
             Name::new(format!("Inspector Row {}", row.label)),
+            row_hint(row),
             Node {
                 padding: UiRect::left(px(step)),
                 ..row_shell()
@@ -1238,14 +1602,15 @@ fn build_rows(
                             });
                         // The picker, for a row the config said names
                         // something: what the document holds is a list only
-                        // the document can write.
-                        if let Some(names) = row.names {
+                        // the document can write, and what a FILE ref may name
+                        // is a list only the installed bundles can.
+                        if let Some(offers) = Offers::of(row) {
                             value.spawn((
                                 Name::new(format!("Inspector Ref {}", row.label)),
                                 InspectorSlot(slot),
                                 InspectorRef {
                                     label: row.label.clone(),
-                                    names,
+                                    offers,
                                 },
                                 field.clone(),
                                 Button,
@@ -1254,7 +1619,6 @@ fn build_rows(
                                 observe(on_open_ref_window),
                             ));
                         }
-                        value.spawn(unit_text(&row.label, row.unit, slot));
                     }
                     RowValue::Colour(text) => {
                         // The swatch comes FIRST so a column of them reads as a
@@ -1283,7 +1647,9 @@ fn build_rows(
                             text_field(TextFieldSpec::new(text.clone()).max_chars(9).dense()),
                         ));
                     }
-                    RowValue::Choice { options, chosen } => {
+                    RowValue::Choice {
+                        options, chosen, ..
+                    } => {
                         spawn_choice_options(
                             value, &row.label, &field, slot, options, *chosen, skin,
                         );
@@ -1335,6 +1701,7 @@ fn build_rows(
                                 ButtonLabel,
                                 InspectorSlot(slot),
                                 InspectorFixed,
+                                UiText,
                                 Text::new(binding.clone()),
                                 TextFont {
                                     font_size: FontSize::Px(11.0),
@@ -1349,6 +1716,7 @@ fn build_rows(
                             Name::new(format!("Inspector Readout {}", row.label)),
                             InspectorSlot(slot),
                             InspectorFixed,
+                            UiText,
                             Text::new(text.clone()),
                             TextLayout {
                                 linebreak: LineBreak::NoWrap,
@@ -1362,6 +1730,12 @@ fn build_rows(
                         ));
                     }
                 });
+            // The unit stands OUTSIDE the value column, in a column of its
+            // own: a row whose unit is the empty string still reserves it, so
+            // every box, chip and checkbox down the panel ends at the same x.
+            // It is also where a refused edit says why (`paint_field_reasons`),
+            // which is the one thing allowed to widen it.
+            shell.spawn(unit_text(&row.label, row.unit, slot));
         });
     }
 }
@@ -1585,13 +1959,18 @@ pub(crate) fn sync_inspector(
         }
     }
     for (slot, mut text) in &mut readouts {
-        let Some(RowValue::Fixed(wanted) | RowValue::Key(wanted)) =
-            rows.get(slot.0).map(|row| &row.value)
-        else {
+        let Some(value) = rows.get(slot.0).map(|row| &row.value) else {
             continue;
         };
-        if text.0 != *wanted {
-            text.0.clone_from(wanted);
+        let wanted = match value {
+            RowValue::Fixed(text) | RowValue::Key(text) => text.clone(),
+            // A PICKED choice reads in the button that opens its list, which
+            // is a readout of the row like any other.
+            RowValue::Choice { .. } => value.reading(),
+            _ => continue,
+        };
+        if text.0 != wanted {
+            text.0 = wanted;
         }
     }
     for (slot, children, mut background, mut border) in flags {
@@ -1618,7 +1997,9 @@ pub(crate) fn sync_inspector(
     }
     for (entity, slot, option, marked) in &choices {
         let Some(
-            RowValue::Choice { options, chosen }
+            RowValue::Choice {
+                options, chosen, ..
+            }
             | RowValue::Operand {
                 options, chosen, ..
             },
@@ -1699,6 +2080,7 @@ pub(crate) fn paint_field_reasons(
 pub(crate) fn sync_reference_faults(
     mut commands: Commands,
     ids: DocumentIds,
+    files: AssetIndex,
     refs: Query<(&InspectorSlot, &InspectorRef)>,
     boxes: Query<(&InspectorSlot, &TextFieldValue)>,
     units: Query<(Entity, &InspectorSlot, Has<InspectorFault>), With<InspectorUnit>>,
@@ -1719,8 +2101,13 @@ pub(crate) fn sync_reference_faults(
             .iter()
             .find(|(row, _)| row.0 == slot.0)
             .and_then(|(_, chip)| {
-                let text = boxes.iter().find(|(row, _)| row.0 == slot.0)?;
-                Some(!names.resolves(chip.names, &text.1 .0))
+                let text = &boxes.iter().find(|(row, _)| row.0 == slot.0)?.1 .0;
+                Some(match chip.offers {
+                    Offers::Named(named) => !names.resolves(named, text),
+                    // A rig with nothing installed knows no file, and would
+                    // otherwise mark every path on the panel wrong.
+                    Offers::File(_) => !files.is_empty() && !files.resolves(text),
+                })
             })
             .unwrap_or(false);
         match (wrong, faulted) {
@@ -2094,17 +2481,36 @@ pub(crate) fn on_inspector_choice(
     let Ok((field, option)) = options.get(activate.entity) else {
         return;
     };
+    apply_choice(
+        &mut commands,
+        field,
+        &option.variant,
+        &mut targets,
+        &mut says,
+    );
+}
+
+/// Put `variant` into the field a choice row writes.
+///
+/// ONE place, because a choice is drawn two ways - a bar of options in the row,
+/// and a picker window for a vocabulary too long to be one - and both have to
+/// land the same edit.
+pub(crate) fn apply_choice(
+    commands: &mut Commands,
+    field: &InspectorField,
+    variant: &str,
+    targets: &mut EditTargets,
+    says: &mut EditorSays,
+) {
     // The KIND row is not a field of anything: it replaces the config the rest
     // of the panel is walked from, so it is a swap on the node rather than a
     // write through a path.
     if field.root == FieldRoot::Kind {
-        let (node, kind) = (field.node, option.variant.clone());
+        let (node, kind) = (field.node, variant.to_string());
         commands.queue(move |world: &mut World| retype_script_node(world, node, &kind));
         return;
     }
-    let chosen = targets.edit(field, |root, path, _| {
-        choose_field(root, path, &option.variant)
-    });
+    let chosen = targets.edit(field, |root, path, _| choose_field(root, path, variant));
     if let Err(reason) = chosen {
         says.refuse(reason);
     }

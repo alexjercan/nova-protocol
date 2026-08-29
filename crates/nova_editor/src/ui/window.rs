@@ -19,17 +19,24 @@ use bevy::{
     },
 };
 use nova_ui::{
-    prelude::{button, panel, slider_track, themed_button, ButtonSpec, UiSkin, UiText},
+    prelude::{
+        button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, slider_track,
+        themed_button, ButtonSpec, UiSkin, UiText,
+    },
     theme,
 };
 
 use crate::{
+    asset_index::prelude::AssetIndex,
     bundle::ask_to_open,
     config::EditorSays,
-    inspect::{colour_text, write_field, DocumentIds},
+    inspect::{clipped, colour_text, write_field, DocumentIds},
     node::reset_document,
     ui::{
-        inspector::{EditTargets, InspectorField, InspectorRef, InspectorSwatch},
+        inspector::{
+            apply_choice, EditTargets, InspectorField, InspectorPick, InspectorRef,
+            InspectorSwatch, Offers,
+        },
         layer,
         menu::back_to_main_menu,
     },
@@ -39,6 +46,10 @@ use crate::{
 /// came from rather than as a second panel with its own ideas - and follows it
 /// when the panel is widened.
 const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
+
+/// How much of an option's hint the list has room for: about three lines in a
+/// 300px window.
+const OPTION_HINT_CHARS: usize = 120;
 /// The gutter a fresh window keeps between itself and the Inspector.
 const INSPECTOR_GUTTER: f32 = 12.0;
 /// How far off the right edge a fresh window stands. Derived from the panel it
@@ -97,6 +108,23 @@ pub(crate) struct RefWindow {
 pub(crate) struct RefOption {
     window: Entity,
     id: String,
+}
+
+/// The list a long CHOICE opens: the row it writes to.
+///
+/// Its own window rather than a bar of chips in the row, because the longest
+/// choice in the editor is twenty-six actions - six wrapped lines under one
+/// row's name, every one of which has to be read to find the one you want.
+#[derive(Component, Clone)]
+pub(crate) struct ChoiceWindow {
+    field: InspectorField,
+}
+
+/// One variant the choice window offers, and the window that offered it.
+#[derive(Component, Clone)]
+pub(crate) struct ChoiceOption {
+    window: Entity,
+    variant: String,
 }
 
 /// One channel of a colour.
@@ -496,6 +524,7 @@ pub(crate) fn on_open_ref_window(
     skin: Res<UiSkin>,
     chips: Query<(&InspectorField, &InspectorRef)>,
     ids: DocumentIds,
+    files: AssetIndex,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(Entity, &RefWindow)>,
     screen: Option<Single<&Window>>,
@@ -516,14 +545,165 @@ pub(crate) fn on_open_ref_window(
     if reopening {
         return;
     }
-    let offered = ids.names().offers(chip.names);
+    // What the list is, and what its being empty MEANS: a document with no
+    // rocks on it yet is a different answer from a game shipping no sounds.
+    let (offered, empty) = match chip.offers {
+        Offers::Named(named) => (ids.names().offers(named), "nothing to name yet".to_string()),
+        Offers::File(sort) => (
+            files.offers(sort),
+            format!("no installed mod ships {}", sort.holds()),
+        ),
+    };
     let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
     let at = Vec2::new(fresh_window_left(size.x), TOP_MARGIN);
     let label = chip.label.clone();
     let field = field.clone();
     commands.entity(*layer).with_children(|layer| {
-        spawn_ref_window(layer, field, &label, &offered, at, *skin);
+        spawn_ref_window(layer, field, &label, &offered, &empty, at, *skin);
     });
+}
+
+/// Open the list of a long choice, from the button that says what is chosen.
+///
+/// The same rules the id picker keeps: one window at a time, and a second
+/// press on the same button puts it away.
+pub(crate) fn on_open_pick_window(
+    activate: On<Activate>,
+    mut commands: Commands,
+    skin: Res<UiSkin>,
+    buttons: Query<(&InspectorField, &InspectorPick)>,
+    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
+    open: Query<(Entity, &ChoiceWindow)>,
+    screen: Option<Single<&Window>>,
+) {
+    let Ok((field, pick)) = buttons.get(activate.entity) else {
+        return;
+    };
+    let Some(layer) = layer else {
+        return;
+    };
+    let mut reopening = false;
+    for (window, open) in &open {
+        reopening |= open.field == *field;
+        commands.entity(window).despawn();
+    }
+    if reopening {
+        return;
+    }
+    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
+    let at = Vec2::new(fresh_window_left(size.x), TOP_MARGIN);
+    let (label, options, hints) = (pick.label.clone(), pick.options.clone(), pick.hints.clone());
+    let field = field.clone();
+    commands.entity(*layer).with_children(|layer| {
+        spawn_choice_window(layer, field, &label, &options, &hints, at, *skin);
+    });
+}
+
+/// The choice list: the frame, and one row per variant the row offers.
+fn spawn_choice_window(
+    layer: &mut RelatedSpawnerCommands<ChildOf>,
+    field: InspectorField,
+    label: &str,
+    options: &[String],
+    hints: &[String],
+    at: Vec2,
+    skin: UiSkin,
+) {
+    window_frame(
+        layer,
+        "Choice Window",
+        label,
+        at,
+        skin,
+        ChoiceWindow { field },
+        |body, window| {
+            for (index, variant) in options.iter().enumerate() {
+                // The option and what it MEANS, in one column: this list is
+                // twenty-six actions long, and a builder who has to look up
+                // what `Hint Emphasis` does has left the editor to find out.
+                body.spawn((
+                    Name::new(format!("Choice Block {variant}")),
+                    Node {
+                        width: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        margin: UiRect::bottom(px(2)),
+                        ..default()
+                    },
+                ))
+                .with_children(|block| {
+                    block.spawn((
+                        Name::new(format!("Choice Option {variant}")),
+                        ChoiceOption {
+                            window,
+                            variant: variant.clone(),
+                        },
+                        button(ButtonSpec::new(variant).block()),
+                        observe(on_choice_option),
+                    ));
+                    let Some(hint) = hints.get(index).filter(|hint| !hint.is_empty()) else {
+                        return;
+                    };
+                    block.spawn((
+                        Name::new(format!("Choice Hint {variant}")),
+                        Pickable::IGNORE,
+                        UiText,
+                        Text::new(clipped(hint, OPTION_HINT_CHARS)),
+                        TextFont {
+                            font_size: FontSize::Px(10.0),
+                            ..default()
+                        },
+                        TextColor(theme::PHOSPHOR_MUTED),
+                        Node {
+                            padding: UiRect::new(px(10), px(6), px(0), px(3)),
+                            ..default()
+                        },
+                    ));
+                });
+            }
+        },
+    );
+}
+
+/// Put the variant that was picked into the row that opened the list, and put
+/// the list away.
+pub(crate) fn on_choice_option(
+    activate: On<Activate>,
+    mut commands: Commands,
+    options: Query<&ChoiceOption>,
+    windows: Query<&ChoiceWindow>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok(option) = options.get(activate.entity) else {
+        return;
+    };
+    let Ok(window) = windows.get(option.window) else {
+        return;
+    };
+    let field = window.field.clone();
+    // The window goes FIRST: a kind swap rebuilds the panel it was opened
+    // from, and a list left standing over the rows it just changed hides them.
+    commands.entity(option.window).despawn();
+    apply_choice(
+        &mut commands,
+        &field,
+        &option.variant,
+        &mut targets,
+        &mut says,
+    );
+}
+
+/// Close a choice list whose row has gone, the same way a picker closes.
+pub(crate) fn sync_choice_windows(
+    mut commands: Commands,
+    windows: Query<(Entity, &ChoiceWindow)>,
+    buttons: Query<&InspectorField, With<InspectorPick>>,
+) {
+    for (entity, window) in &windows {
+        if !buttons.iter().any(|field| *field == window.field) {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 
 /// The picker: the frame, and one row per id the document offers.
@@ -532,6 +712,7 @@ fn spawn_ref_window(
     field: InspectorField,
     label: &str,
     offered: &[String],
+    empty: &str,
     at: Vec2,
     skin: UiSkin,
 ) {
@@ -550,7 +731,7 @@ fn spawn_ref_window(
                 body.spawn((
                     Name::new("Ref Window Empty"),
                     UiText,
-                    Text::new("nothing to name yet"),
+                    Text::new(empty.to_string()),
                     TextFont {
                         font_size: FontSize::Px(12.0),
                         ..default()
@@ -637,6 +818,10 @@ fn window_frame(
             left: px(at.x),
             top: px(at.y),
             width: px(WINDOW_W),
+            // Bounded, and its body scrolls: a choice list is twenty-six
+            // options long, and a frame that grew to hold them all ran off the
+            // bottom of the screen with the last of them on it.
+            max_height: percent(80),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Stretch,
             border: UiRect::all(px(theme::BORDER_W)),
@@ -668,9 +853,9 @@ fn window_frame(
             .with_children(|bar| {
                 bar.spawn((
                     Name::new(format!("{name} Title")),
-                    UiText,
                     // The ROW's name: a window is a control for one field, so
                     // what it has to say is which field it is on.
+                    UiText,
                     Text::new(title.to_uppercase()),
                     TextLayout {
                         linebreak: LineBreak::NoWrap,
@@ -703,17 +888,22 @@ fn window_frame(
                 ));
             });
         frame
-            .spawn((
-                Name::new(body_name),
-                Node {
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Stretch,
-                    row_gap: px(6),
-                    padding: UiRect::all(px(10)),
-                    ..default()
-                },
-            ))
-            .with_children(|filled| body(filled, window));
+            .spawn((Name::new(format!("{name} Scroll")), scroll_row()))
+            .with_children(|scroll| {
+                scroll
+                    .spawn((
+                        Name::new(body_name),
+                        Node {
+                            align_items: AlignItems::Stretch,
+                            row_gap: px(6),
+                            padding: UiRect::all(px(10)),
+                            ..scroll_column()
+                        },
+                        scroll_viewport(),
+                    ))
+                    .with_children(|filled| body(filled, window));
+                scroll.spawn((Name::new(format!("{name} Scrollbar")), scroll_bar(skin)));
+            });
     });
     window
 }

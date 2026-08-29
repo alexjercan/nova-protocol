@@ -378,6 +378,27 @@ fn a_filter_lands_under_the_marked_handler() {
     assert_eq!(fresh.id, None, "and matches none of them yet");
 }
 
+/// Add > Sequence makes the one action that takes children, already switched.
+///
+/// Its own row because it is the only way a builder finds out that beats and
+/// gates exist: reached as `Action` plus a switch to `Sequence`, the whole
+/// paced-chain half of the vocabulary is behind a menu nobody opens.
+#[test]
+fn add_sequence_makes_the_action_that_holds_beats() {
+    let mut world = World::new();
+    let scenario = seeded(&mut world, one_handler());
+    let handler = handlers(&mut world, scenario)[0];
+
+    added(&mut world, scenario, Some(handler), ScriptAdd::Sequence);
+
+    let script = lowered(&mut world, scenario);
+    let fresh = script[0].actions.last().expect("the action landed");
+    assert!(
+        matches!(fresh, EventActionConfig::Sequence(_)),
+        "Add > Sequence is a sequence, not an action to be switched: {fresh:?}"
+    );
+}
+
 /// A marked node that cannot take the new one hands the question UP: three
 /// actions in a row is three presses, not three presses and two reselections.
 #[test]

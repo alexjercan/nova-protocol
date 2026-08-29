@@ -103,15 +103,27 @@ does NOT get an entry - and it is the only place they are written down.
 - A filter or an action is switched to any other kind from its own row, and
   keeps the operands the new kind can hold.
 - An expression filter opens its condition as one page: every operator and
-  every leaf on its own row, offered the kinds its place in the grammar allows,
-  and a leaf takes any expression as text.
+  every leaf on its own row, offered the kinds its place in the grammar allows.
+  A leaf takes any expression as text, or picks one of the scenario's
+  variables.
 - A handler can be named, and the tree reads both - `On Enter - picket warden
   wakes` - so six handlers on one trigger are six different rows.
-- Add builds the script: Handler, Filter, Action, Step and Gate land under
-  the marked node, and Delete removes any of them.
+- Add builds the script: Handler, Filter, Action, Sequence, Step and Gate land
+  under the marked node, Delete removes any of them, and the menu offers only
+  what the mode you are in can place.
+- Every Inspector row says what it is for on hover - its whole name, then the
+  sentence the config author wrote beside that field - so the panel is what
+  gets read rather than the docs.
+- A choice too long to wear as chips - a handler's trigger, an action's kind -
+  opens as a picker window, and the row reads back the one it stands on.
+- Units stand in a column of their own, so every box, chip and checkbox down
+  the panel ends on the same line.
 - A row that names an object opens a picker of the ids the document actually
   spawns, and reads `unknown` beside one that names nothing - the handler a
   save would drop.
+- A row that names a FILE picks from what the installed bundles declare -
+  images, sounds and models, written as the `dep://` ref that resolves - and
+  reads `unknown` beside a path no bundle ships.
 - The script opens where you are working: containers arrive shut, two clicks
   open one, and a caret says which way each goes - a shipped scenario no
   longer fills the rail four times over.
@@ -230,6 +242,9 @@ does NOT get an entry - and it is the only place they are written down.
   one read a resource bevy no longer has.
 - RCS fine adjust moves off the pad's left trigger onto the left stick click:
   it shared the trigger with Raise Weapons, so one pull did both at once.
+- The editor reads in the game's own typeface. Its text went out unmarked and
+  rendered in bevy's built-in face, which has none of the line art the panel is
+  drawn with: every picker chip was an empty box.
 
 ### Internals & Tooling
 

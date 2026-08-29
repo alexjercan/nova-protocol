@@ -338,6 +338,20 @@ field with no [`Names`](scenario-system.md#the-vocabulary-and-who-documents-it)
 attribute is a blank box where the panel could have offered the ids the document
 actually spawns.
 
+AN `AssetRef<A>` FIELD PICKS ITS OWN FILE. The panel reads the sort off the
+type, so a field typed `AssetRef<Image>` offers the images the installed bundles
+DECLARE in their `resources` lists, written as the `dep://<mod>/<file>` ref that
+resolves - and marks a `dep://` path no bundle ships. Do not add
+`#[reflect(ignore)]` to an asset field a builder is meant to change: an ignored
+field has no row at all.
+
+A FIELD'S DOC COMMENT IS ITS TOOLTIP. `nova_editor` builds against
+`bevy/reflect_documentation`, so the first paragraph of the `///` above a field
+- or above the variant a choice row stands on - is what the panel says when the
+pointer rests on that row. Write it for the person filling the box in, not for
+the person calling the constructor: a field nobody documented is a row the
+editor cannot explain.
+
 What each of the four recipes owes the editor:
 
 | Recipe | What the editor needs |
@@ -354,8 +368,10 @@ lint refuses.
 ## Checklist
 
 Whichever recipe you follow, the change is done when: the config struct derives
-`Clone`, `Debug`, `Reflect` and the serde pair; every string that names
-something carries its `Names` attribute; the dispatch enum has the variant; the
+`Clone`, `Debug`, `Reflect` and the serde pair; every field says what it is for
+in a doc comment; every string that names something carries its `Names`
+attribute; every file a builder may change is an `AssetRef<A>` the reflection
+can see; the dispatch enum has the variant; the
 trait impl has the delegating arm; the type is exported from its module prelude;
 the editor has the choice variant (events excepted); and (for an event)
 something fires it. Then it is reachable from code-built scenarios, from a RON

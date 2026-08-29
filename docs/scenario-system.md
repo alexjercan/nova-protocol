@@ -17,7 +17,9 @@ Three surfaces write that list: a RON file, a Rust builder under
 `nova_authoring`, and the editor's EVENTS mode, which lifts a handler into nodes
 you select and inspect - a condition included, drawn as a page of its own - and
 lowers them back on save (`crates/nova_editor/src/event.rs`). All three produce
-the same `ScenarioEventConfig`, so nothing below cares which one wrote it.
+the same `ScenarioEventConfig`, so nothing below cares which one wrote it. The
+editor reads its TOOLTIPS off these configs too: a field's doc comment is what
+the panel says about it, through `bevy/reflect_documentation`.
 
 ## Scenario structure
 

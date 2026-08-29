@@ -42,6 +42,7 @@ pub(crate) fn skin_toggle_row(on: bool, skin: UiSkin) -> impl Bundle {
         BackgroundColor(theme::SCREEN_0),
         children![
             (
+                UiText,
                 Text::new("Ship Skin"),
                 TextFont {
                     font_size: FontSize::Px(13.0),
@@ -112,6 +113,7 @@ pub(crate) fn style_row(
                 BackgroundColor(colour),
             ),
             (
+                UiText,
                 Text::new(name.to_string()),
                 TextFont {
                     font_size: FontSize::Px(12.0),
@@ -318,6 +320,7 @@ fn row_trash() -> impl Bundle {
             ..default()
         },
         children![(
+            UiText,
             Text::new("x"),
             TextFont {
                 font_size: FontSize::Px(ROW_TEXT),
@@ -381,6 +384,7 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
         children![
             (
                 Name::new("Scene Row Hint Kind"),
+                UiText,
                 Text::new(""),
                 TextFont {
                     font_size: FontSize::Px(10.0),
@@ -390,6 +394,7 @@ pub(crate) fn scene_tooltip(skin: UiSkin) -> impl Bundle {
             ),
             (
                 Name::new("Scene Row Hint Id"),
+                UiText,
                 Text::new(""),
                 TextLayout {
                     linebreak: LineBreak::AnyCharacter,

@@ -6,7 +6,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_input::prelude::{source_label, ActionContext, InputBindings, InputSource, InputSources};
 use nova_ship::prelude::*;
-use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode};
+use nova_ui::prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText};
 
 use crate::{
     config::{EditorSays, SelectedNode},
@@ -141,6 +141,7 @@ pub(crate) fn sync_section_keybind_labels(
                 // blocks the picking ray to that section and clicking it does
                 // nothing (`ui::card` and `ui::tooltip` do the same).
                 Pickable::IGNORE,
+                UiText,
                 Text::new(""),
                 TextFont {
                     font_size: FontSize::Px(16.0),

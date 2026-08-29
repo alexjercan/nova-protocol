@@ -8,7 +8,8 @@ use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig,
     EventActionConfig, EventConfig, LightConfig, Names, ScenarioAreaConfig, ScenarioObjectKind,
-    SectionSource, ShipSource, SpaceshipConfig, SpaceshipController, TimerFilterConfig,
+    SectionSource, ShipSource, SpaceshipConfig, SpaceshipController, StoryMessageActionConfig,
+    TimerFilterConfig,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, ThrusterExhaust,
@@ -417,7 +418,10 @@ fn an_enum_of_bare_names_is_a_choice() {
     let node = thruster_with_exhaust(ThrusterExhaustShape::Cone);
     let rows = section_rows(&node, None);
 
-    let RowValue::Choice { options, chosen } = &row(&rows, "Geometry").value else {
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &row(&rows, "Geometry").value
+    else {
         panic!(
             "the exhaust's geometry is a two-name enum; got {:?}",
             row(&rows, "Geometry").value
@@ -439,7 +443,10 @@ fn choosing_a_name_switches_the_variant() {
     node.source = SectionSource::Inline(config);
 
     let rows = section_rows(&node, None);
-    let RowValue::Choice { options, chosen } = &row(&rows, "Geometry").value else {
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &row(&rows, "Geometry").value
+    else {
         panic!("still a choice");
     };
     assert_eq!(options[*chosen], "Rect");
@@ -1259,11 +1266,14 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
 fn a_handler_shows_its_trigger_as_a_choice() {
     let rows = event_rows(&EventNode {
         label: None,
-        name: EventConfig::OnDestroyed,
+        trigger: EventConfig::OnDestroyed,
         once: true,
     });
 
-    let RowValue::Choice { options, chosen } = &row(&rows, "Name").value else {
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &row(&rows, "Trigger").value
+    else {
         panic!("the trigger is a choice");
     };
     // Against the ENUM, not against a list this test wrote out: the row is
@@ -1286,11 +1296,11 @@ fn a_handler_shows_its_trigger_as_a_choice() {
 #[test]
 fn switching_the_trigger_writes_the_handler() {
     let mut event = EventNode::default();
-    let path = vec![PathStep::Field("name".to_string())];
+    let path = vec![PathStep::Field("trigger".to_string())];
 
     choose_field(&mut event, &path, "OnTimerEnd").expect("the trigger takes");
 
-    assert!(matches!(event.name, EventConfig::OnTimerEnd));
+    assert!(matches!(event.trigger, EventConfig::OnTimerEnd));
 }
 
 /// A filter says which filter it is and then shows its own fields. An unset
@@ -1335,7 +1345,10 @@ fn a_filter_is_switched_to_any_other_kind_from_its_own_row() {
     let kind = row(&rows, "Filter");
     assert_eq!(kind.root, FieldRoot::Kind);
     assert!(kind.path.is_empty(), "a kind is not reached through a path");
-    let RowValue::Choice { options, chosen } = &kind.value else {
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &kind.value
+    else {
         panic!("the kind is a choice");
     };
     assert_eq!(
@@ -1356,7 +1369,10 @@ fn an_action_is_switched_to_any_other_kind_from_its_own_row() {
 
     let kind = row(&rows, "Action");
     assert_eq!(kind.root, FieldRoot::Kind);
-    let RowValue::Choice { options, chosen } = &kind.value else {
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &kind.value
+    else {
         panic!("the kind is a choice");
     };
     assert_eq!(
@@ -1365,6 +1381,36 @@ fn an_action_is_switched_to_any_other_kind_from_its_own_row() {
         "every action is offered"
     );
     assert_eq!(options[*chosen], "Outcome");
+}
+
+/// The panel says what a field is FOR out of the doc comment the config author
+/// wrote beside it - the whole point of turning `reflect_documentation` on.
+#[test]
+fn a_row_explains_itself_from_the_config_that_declares_it() {
+    let rows = action_rows(&ActionNode {
+        kind: ActionChoice::StoryMessage.stock(),
+    });
+
+    assert!(
+        row(&rows, "Speaker").hint.starts_with("Who says it"),
+        "the speaker's own doc: {:?}",
+        row(&rows, "Speaker").hint
+    );
+}
+
+/// A CHOICE is explained by the variant it holds, not by the field that holds
+/// it: a row already reading Victory does not need told it is an outcome.
+#[test]
+fn a_choice_explains_the_option_it_is_on() {
+    let rows = action_rows(&ActionNode {
+        kind: ActionChoice::Outcome.stock(),
+    });
+
+    assert!(
+        row(&rows, "Outcome").hint.contains("The player won"),
+        "the variant's own doc: {:?}",
+        row(&rows, "Outcome").hint
+    );
 }
 
 /// A sequence shows the KEY its gates name it by and not its steps: the steps
@@ -1573,7 +1619,7 @@ fn named_document() -> World {
             EditorNode,
             EventNode {
                 label: None,
-                name: EventConfig::OnStart,
+                trigger: EventConfig::OnStart,
                 once: true,
             },
             NodeId("event_1".to_string()),
@@ -1650,5 +1696,33 @@ fn an_id_nothing_spawns_does_not_resolve() {
     assert!(
         names.resolves(Names::Variable, "never_written"),
         "a variable is made by the handler that first writes it"
+    );
+}
+
+/// A row holding an asset ref knows what KIND of file it wants, off the type of
+/// the field rather than off its name - which is what lets the panel offer the
+/// images the installed bundles ship without a list of field names here.
+#[test]
+fn a_row_that_names_a_file_says_what_kind_of_file() {
+    let action = ActionNode {
+        kind: ActionKind::Leaf(EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            speaker: "Alpha".to_string(),
+            text: "Strip it clean.".to_string(),
+            dwell: None,
+            icon: Some("dep://base/icons/alpha.png".into()),
+        })),
+    };
+    let rows = action_rows(&action);
+
+    assert_eq!(
+        row(&rows, "Icon").asset,
+        Some(AssetSort::Image),
+        "the field is an `AssetRef<Image>`; got {:?}",
+        row(&rows, "Icon").value
+    );
+    assert_eq!(
+        row(&rows, "Speaker").asset,
+        None,
+        "a line of text names no file"
     );
 }

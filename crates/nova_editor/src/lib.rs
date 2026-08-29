@@ -45,6 +45,7 @@ use nova_ui::prelude::{
     InputModeSystems,
 };
 
+mod asset_index;
 mod bundle;
 mod config;
 mod event;
@@ -101,12 +102,12 @@ use ui::{
     callout::sync_placement_callout,
     inspector::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
-        sync_reference_faults,
+        sync_inspector_tooltip, sync_reference_faults,
     },
     menu::{
-        close_menu_on_item, close_menus, close_open_menu, sync_armed_menu, sync_menu_delete,
-        sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_script_menu, sync_ship_menu,
-        sync_view_menu_marks, OpenMenu,
+        close_menu_on_item, close_menus, close_open_menu, sync_add_palette, sync_armed_menu,
+        sync_menu_delete, sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_script_menu,
+        sync_ship_menu, sync_view_menu_marks, OpenMenu,
     },
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
@@ -114,8 +115,8 @@ use ui::{
     sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash, sync_scene_list,
     sync_skin_toggle, sync_status_line, sync_style_list,
     window::{
-        close_confirm_window, on_colour_slider, on_destructive_item, sync_colour_windows,
-        sync_ref_windows,
+        close_confirm_window, on_colour_slider, on_destructive_item, sync_choice_windows,
+        sync_colour_windows, sync_ref_windows,
     },
 };
 
@@ -439,6 +440,7 @@ fn editor_plugin(app: &mut App) {
                     sync_ship_menu,
                     sync_scenario_menu,
                     sync_script_menu,
+                    sync_add_palette,
                     sync_armed_menu,
                     sync_frame_item,
                 )
@@ -464,14 +466,24 @@ fn editor_plugin(app: &mut App) {
                 // describes, and a rebuilt list has no laid-out rows yet. The
                 // row's own delete is revealed by the same pass, for the same
                 // reason.
-                (sync_scene_tooltip, sync_row_trash, paint_hovered_rows),
+                (
+                    sync_scene_tooltip,
+                    sync_inspector_tooltip,
+                    sync_row_trash,
+                    paint_hovered_rows,
+                ),
                 // The panel, and then the floating windows: a window shows what
                 // the row it was opened from shows, and closes when that row
                 // goes away. One element, because the group around it is
                 // already at Bevy's tuple arity.
                 (
                     sync_inspector,
-                    (sync_colour_windows, sync_ref_windows, sync_reference_faults),
+                    (
+                        sync_colour_windows,
+                        sync_ref_windows,
+                        sync_choice_windows,
+                        sync_reference_faults,
+                    ),
                     paint_field_reasons,
                 )
                     .chain(),

@@ -175,7 +175,15 @@ declaring it is warned and ignored.
 (`assets/base/<path>`), gated on `<path>` being in the base bundle's declared
 `resources` list - an undeclared path is a lint/merge Error, not a silent
 404. A `#Scene0`-style gltf label is stripped before the membership check,
-so `dep://base/gltf/hull-01.glb#Scene0` is fine. The declared list, complete:
+so `dep://base/gltf/hull-01.glb#Scene0` is fine.
+
+The editor reads this same list. A row holding an image, a sound or a model
+opens a picker of the files the installed bundles declare, writes the `dep://`
+ref for the one you pick (with the `#Scene0` label where a mesh needs it), and
+marks a `dep://` path no bundle ships - so you never type one of these paths
+from memory.
+
+The declared list, complete:
 
 ### Meshes (26 glb)
 

@@ -49,7 +49,7 @@ pub(crate) struct EventNode {
     /// of one row, and this is the line that tells them apart.
     pub(crate) label: Option<String>,
     /// The event this handler reacts to.
-    pub(crate) name: EventConfig,
+    pub(crate) trigger: EventConfig,
     /// Retire the handler the first time its filters pass.
     pub(crate) once: bool,
 }
@@ -58,7 +58,7 @@ impl Default for EventNode {
     fn default() -> Self {
         Self {
             label: None,
-            name: EventConfig::OnStart,
+            trigger: EventConfig::OnStart,
             once: false,
         }
     }
@@ -195,13 +195,13 @@ pub(crate) struct StepNode {
 #[derive(Component, Debug, Clone, Reflect)]
 pub(crate) struct GateNode {
     /// The event kind the step waits for.
-    pub(crate) name: EventConfig,
+    pub(crate) trigger: EventConfig,
 }
 
 impl Default for GateNode {
     fn default() -> Self {
         Self {
-            name: EventConfig::OnEnter,
+            trigger: EventConfig::OnEnter,
         }
     }
 }
@@ -212,7 +212,7 @@ impl Default for GateNode {
 /// handler runs and `picket warden wakes` says WHAT it is for, and a row
 /// showing one of them leaves the other unanswerable from the tree.
 pub(crate) fn handler_text(event: &EventNode) -> String {
-    let trigger = event_label(event.name);
+    let trigger = event_label(event.trigger);
     match event
         .label
         .as_deref()
@@ -251,7 +251,7 @@ pub(crate) fn event_label(name: EventConfig) -> &'static str {
 }
 
 /// The filter kinds the editor can add, in the order a menu lists them.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub(crate) enum FilterChoice {
     /// Match by entity id or type name.
     Entity,
@@ -580,7 +580,7 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
 /// EVERY arm of [`EventActionConfig`] is here. An action the menu skipped
 /// would be one a hand-written mod can hold and the editor would silently drop
 /// on the next save.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub(crate) enum ActionChoice {
     /// Post an objective on the HUD.
     Objective,
@@ -1007,7 +1007,7 @@ fn lift_event(
             EditorNode,
             EventNode {
                 label: event.label,
-                name: event.name,
+                trigger: event.name,
                 once: event.once,
             },
             NodeId(format!("event_{ordinal}")),
@@ -1257,7 +1257,7 @@ fn lift_gate(
     let node = commands
         .spawn((
             EditorNode,
-            GateNode { name: gate.name },
+            GateNode { trigger: gate.name },
             NodeId(id.clone()),
             counter(gate.filters.len()),
             Name::new(format!("Gate Node {id}")),
@@ -1468,7 +1468,7 @@ impl ScriptNodes<'_, '_> {
                 let event = self.events.get(node).ok()?;
                 Some(ScenarioEventConfig {
                     label: event.label.clone(),
-                    name: event.name,
+                    name: event.trigger,
                     once: event.once,
                     filters: self.lower_filters(node),
                     actions: self.lower_actions(node),
@@ -1620,7 +1620,7 @@ impl ScriptNodes<'_, '_> {
     fn lower_gate(&self, node: Entity) -> Option<SequenceGateConfig> {
         let gate = self.gates.get(node).ok()?;
         Some(SequenceGateConfig {
-            name: gate.name,
+            name: gate.trigger,
             filters: self.lower_filters(node),
         })
     }
@@ -1970,13 +1970,18 @@ fn drop_children(world: &mut World, node: Entity, keep: usize) {
     }
 }
 
-/// What an Add row makes while the EVENTS tab is showing.
+/// What an Add row makes while the EVENTS mode is showing.
 ///
-/// FIVE rows for a vocabulary of forty-eight, because the kind is not chosen
-/// here: a fresh filter arrives matching entities and a fresh action arrives
-/// logging a line, and the panel's own Filter and Action rows switch either to
-/// any of the rest. A menu with one row per action would be a list nothing on
-/// this screen is tall enough to show.
+/// SIX rows for a vocabulary of forty-eight, because the kind is mostly not
+/// chosen here: a fresh filter arrives matching entities and a fresh action
+/// arrives logging a line, and the panel's own Filter and Action rows switch
+/// either to any of the rest. A menu with one row per action would be a list
+/// nothing on this screen is tall enough to show.
+///
+/// SEQUENCE is the exception, and it earns its row: it is the one action that
+/// takes children, so a builder who does not already know it is an `Action`
+/// switched to `Sequence` has no way to guess that steps and gates exist at
+/// all.
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScriptAdd {
     /// One more handler, under the script.
@@ -1985,6 +1990,8 @@ pub(crate) enum ScriptAdd {
     Filter,
     /// One more action, under whatever takes actions.
     Action,
+    /// One more action, already switched to the chain of beats.
+    Sequence,
     /// One more beat of a sequence.
     Step,
     /// The event a beat waits for.
@@ -1993,22 +2000,41 @@ pub(crate) enum ScriptAdd {
 
 impl ScriptAdd {
     /// Every script row of the Add menu, in the order it lists them.
-    pub(crate) const ALL: [ScriptAdd; 5] = [
+    pub(crate) const ALL: [ScriptAdd; 6] = [
         ScriptAdd::Handler,
         ScriptAdd::Filter,
         ScriptAdd::Action,
+        ScriptAdd::Sequence,
         ScriptAdd::Step,
         ScriptAdd::Gate,
     ];
 
-    /// The row label.
+    /// The row label: the word the tree, the panel and the docs all use.
     pub(crate) fn label(self) -> &'static str {
         match self {
             ScriptAdd::Handler => "Handler",
             ScriptAdd::Filter => "Filter",
             ScriptAdd::Action => "Action",
+            ScriptAdd::Sequence => "Sequence",
             ScriptAdd::Step => "Step",
             ScriptAdd::Gate => "Gate",
+        }
+    }
+
+    /// What the row MAKES, in the menu's right-hand column.
+    ///
+    /// The label is the vocabulary and this is what it means. `Handler` and
+    /// `Gate` are words a builder cannot rank until something says which one
+    /// runs first and which one waits - and the menu is where they are read,
+    /// before there is anything on screen to hover.
+    pub(crate) fn hint(self) -> &'static str {
+        match self {
+            ScriptAdd::Handler => "on an event",
+            ScriptAdd::Filter => "only if",
+            ScriptAdd::Action => "do this",
+            ScriptAdd::Sequence => "paced beats",
+            ScriptAdd::Step => "one beat",
+            ScriptAdd::Gate => "waits for",
         }
     }
 }
@@ -2040,7 +2066,7 @@ pub(crate) fn add_parent(
     match add {
         ScriptAdd::Handler => Some(root),
         ScriptAdd::Filter => climb(node?, script, filter_home),
-        ScriptAdd::Action => climb(node?, script, action_home),
+        ScriptAdd::Action | ScriptAdd::Sequence => climb(node?, script, action_home),
         ScriptAdd::Step => climb(node?, script, sequence_home),
         ScriptAdd::Gate => climb(node?, script, gate_home),
     }
@@ -2156,15 +2182,20 @@ fn spawn_script_node(
                 },
             )
         }
-        ScriptAdd::Action => {
-            let id = mint_id(ordinals, parent, NEW_ACTION.stem());
+        ScriptAdd::Action | ScriptAdd::Sequence => {
+            let choice = if add == ScriptAdd::Sequence {
+                ActionChoice::Sequence
+            } else {
+                NEW_ACTION
+            };
+            let id = mint_id(ordinals, parent, choice.stem());
             spawn_node(
                 commands,
                 parent,
                 "Action",
                 id,
                 ActionNode {
-                    kind: NEW_ACTION.stock(),
+                    kind: choice.stock(),
                 },
             )
         }
@@ -2179,7 +2210,7 @@ fn spawn_script_node(
     }
 }
 
-/// The five spawns' one shape: a node of the script, childless, under `parent`.
+/// The six spawns' one shape: a node of the script, childless, under `parent`.
 fn spawn_node<T: Component>(
     commands: &mut Commands,
     parent: Entity,
