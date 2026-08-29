@@ -253,12 +253,19 @@
       <p><code>TempEntity(30.0)</code> is a hard cut — no fade, shrink, or dissolve.
       The pop is visible whenever a wreck dies on screen.</p>
       <p class="ev">explode.rs:342 · lifetime.rs:93-115</p></li>
-    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The hit flash is a 2 px wireframe that cannot bloom</strong></div>
-      <p>Impact and destruction feedback is a default-config gizmo ring: 2 px line,
-      z-tested against the hull it just hit, LDR colours under an HDR bloom chain.
-      The module doc names the successor itself — "a true per-section emissive flash
-      is a possible follow-up".</p>
-      <p class="ev">juice.rs:21-23, :599, :641</p></li>
+    <li><div class="fr"><span class="sev warn">POLISH</span><strong>The hit ring is a shockwave in vacuum, drawn in the wrong place</strong></div>
+      <p>Impact feedback is a default-config gizmo ring: 2 px line, z-tested against
+      the hull it just hit, LDR under an HDR bloom chain. It also anchors at the hit
+      entity's <em>origin</em>, not the impact point — and it can never do better:
+      <code>HealthApplyDamage { entity, source, amount }</code> carries no position,
+      so the contact point is dropped before the cue fires. Owner feedback
+      (2026-08-29): an expanding radial ring reads as a pressure wave, which the
+      vacuum direction forbids, and the particle families already carry the impact —
+      cut the ring rather than upgrade it, and move the per-hit cue to the contact
+      point inside 20260822-204201, whose family list already owns the
+      <code>juice.rs</code> rings. The module doc's "per-section emissive flash"
+      remains a valid non-shockwave successor.</p>
+      <p class="ev">juice.rs:21-23, :546-550, :599, :641 · integrity/health.rs:78-86</p></li>
     <li><div class="fr"><span class="sev bug">BUG</span><strong>Docs in this area describe removed or wrong behavior</strong></div>
       <p><code>fixture.rs:28-31</code> references <code>grade_section_tints</code>, which
       no longer exists; <code>census.rs:238-241</code> claims cladding gets the cracks
@@ -625,9 +632,11 @@
     <li><div class="fr"><strong>Set ambient, add IBL from the skybox</strong><span class="eff">S–M</span></div>
       <p>Two lines buy the biggest look upgrade in the game; then the metallic authoring
       can stop compensating.</p></li>
-    <li><div class="fr"><strong>Replace the gizmo hit rings with emissive flashes</strong><span class="eff">M</span></div>
-      <p>The one placeholder VFX outside the vacuum task's scope, already named as a
-      follow-up in its own module doc.</p></li>
+    <li><div class="fr"><strong>Cut the shockwave rings; cue hits at the contact point</strong><span class="eff">M</span></div>
+      <p>Delete the ring — a pressure wave has no place in vacuum — and give
+      <code>HealthApplyDamage</code> a hit position so the surviving cue (particles,
+      or the module doc's per-section emissive flash) lands where the round did.
+      Owned by 20260822-204201.</p></li>
     <li><div class="fr"><strong>Curate turret/torpedo ammo + reload, label the units</strong><span class="eff">S</span></div>
       <p>The owner's editor example, plus the rad/deg and per-tick labeling sweep.</p></li>
     <li><div class="fr"><strong>Own-ship integrity + turn-rate chips</strong><span class="eff">S</span></div>

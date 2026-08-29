@@ -63,11 +63,19 @@ Add the missing wreck-material test.
   clean skin plates.
 - Wrecks vanish by hard despawn: `TempEntity(30.0)` (explode.rs:342,
   lifetime.rs:93-115). No fade, shrink, or dissolve; the pop is visible.
-- No hit flash on the mesh. Impact feedback is a 2 px default-config gizmo
-  ring, z-tested against the hull it just hit and LDR so it never blooms
-  (juice.rs:599,641; gizmo defaults line.width 2.0, depth_bias 0.0). The
-  module doc names the successor itself: "a true per-section emissive flash
-  is a possible follow-up" (juice.rs:21-23).
+- The hit ring is a shockwave in vacuum, drawn in the wrong place. Impact
+  feedback is a 2 px default-config gizmo ring, z-tested against the hull it
+  just hit and LDR so it never blooms (juice.rs:599,641). It anchors at the
+  hit entity's ORIGIN, not the impact point, and cannot do better:
+  `HealthApplyDamage { entity, source, amount }` carries no position
+  (integrity/health.rs:78-86, juice.rs:546-550), so the contact point is
+  dropped before the cue fires. Owner feedback (2026-08-29, artifact comment):
+  an expanding radial ring reads as a pressure wave, which the vacuum
+  direction forbids, and the particle families already carry the impact - cut
+  the ring rather than upgrade it, and move the per-hit cue to the contact
+  point inside 20260822-204201, whose family inventory already owns the
+  juice.rs rings. The module doc's "per-section emissive flash"
+  (juice.rs:21-23) remains a valid non-shockwave successor.
 - Stale comments: `fixture.rs:28-31` references `grade_section_tints`, which
   no longer exists; `nova_probe/src/capabilities/census.rs:238-241` claims
   cladding gets the cracks material and that the `StandardMaterial` is always
