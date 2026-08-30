@@ -42,12 +42,12 @@ use scripted::*;
 /// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
-        preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, TorpedoArming,
-        TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance, TorpedoSectionConfig,
-        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
-        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
-        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
-        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, BlastMomentum,
+        TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
+        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
+        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
+        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
+        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -429,6 +429,22 @@ pub struct TorpedoThrusterMarker;
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoBlastEffectMarker;
 
+/// The velocity a detonating torpedo was carrying, in world units per second,
+/// left on the blast for the render layer to give its ejecta.
+///
+/// A warhead does not stop before it goes off. Without this the fireball
+/// expands symmetrically about a point the torpedo was only passing through,
+/// which reads as a firework rather than as something that arrived at speed -
+/// most visibly on an intercept, where the closing speed is the whole story.
+/// The launch puff and the muzzle flash have carried the same inheritance
+/// through a `base_velocity` property since they were written; the blast is the
+/// one that never did.
+///
+/// Absent on a blast nothing launched (a scripted detonation, a range rig),
+/// which reads as a standing explosion and is correct for one.
+#[derive(Component, Clone, Copy, Debug, Deref, Reflect)]
+pub struct BlastMomentum(pub Vec3);
+
 /// The bay's full config, kept on the section entity. Pub (read-only via
 /// `Deref`) so the AI input side can derive its launch envelope from the
 /// same numbers the bay actually fires with (blast radius), like it reads
@@ -676,6 +692,12 @@ impl Plugin for TorpedoSectionPlugin {
             // a salvo shares one effect asset instead of minting one per
             // detonation.
             app.init_resource::<DefaultBlastEffect>();
+            // The shared billboard mask, initialised HERE and not by
+            // `nova_gameplay`, so this section states no ordering claim
+            // against another plugin for a resource it can stand up itself.
+            // `init_resource` is idempotent, so every effect family that wants
+            // the mask asks for it the same way.
+            app.init_resource::<SoftDot>();
             app.add_observer(insert_particle_effect);
 
             // Launch burst at the bay: build the effect on the spawner, fire it

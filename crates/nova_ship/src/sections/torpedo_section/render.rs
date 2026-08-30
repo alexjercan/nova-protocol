@@ -220,13 +220,24 @@ pub(super) fn insert_torpedo_controller_render(
 /// Lazy rather than [`FromWorld`], so an app that never detonates anything -
 /// and one running at a graphics tier with particles off - builds nothing.
 #[derive(Resource, Default, Debug)]
-pub(crate) struct DefaultBlastEffect(Option<Handle<EffectAsset>>);
+pub(crate) struct DefaultBlastEffect {
+    ejecta: Option<Handle<EffectAsset>>,
+    core: Option<Handle<EffectAsset>>,
+}
 
 impl DefaultBlastEffect {
-    /// The shared fallback burst, building it on the first blast that needs it.
+    /// The shared fallback ejecta burst, building it on the first blast that
+    /// needs it.
     fn handle(&mut self, effects: &mut Assets<EffectAsset>) -> Handle<EffectAsset> {
-        self.0
+        self.ejecta
             .get_or_insert_with(|| effects.add(build_default_blast_effect()))
+            .clone()
+    }
+
+    /// The shared fallback core-and-shell burst, built on the same terms.
+    fn core_handle(&mut self, effects: &mut Assets<EffectAsset>) -> Handle<EffectAsset> {
+        self.core
+            .get_or_insert_with(|| effects.add(build_default_blast_core_effect()))
             .clone()
     }
 }
@@ -291,6 +302,14 @@ fn build_default_blast_effect() -> EffectAsset {
     // Position: explosion center
     let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
 
+    // The velocity the warhead arrived with, written per detonation. A blast
+    // that does not carry it expands about a point the torpedo was only
+    // passing through, which reads as a firework rather than as an impact -
+    // and on an intercept, where the closing speed is most of the motion in
+    // the frame, it reads as the wrong thing entirely.
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+
     // Velocity: spherical random burst
     let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
     let rand_y = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
@@ -302,10 +321,17 @@ fn build_default_blast_effect() -> EffectAsset {
     // Normalize before applying an intentionally broad speed range. The faster
     // front gives the brief burst reach without adding particles or lifetime.
     let speed = writer.lit(12.0).uniform(writer.lit(60.0));
-    let velocity = dir.normalized() * speed;
+    let velocity = dir.normalized() * speed + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    EffectAsset::new(BLAST_CAPACITY, spawner, writer.finish())
+    // Round, not rectangular. On a velocity-oriented quad the circular mask
+    // reads as a tapered streak rather than as a lozenge with corners, which
+    // is what a fragment leaving a fireball should look like close up.
+    let mask = soft_dot_modifier(&writer);
+    let mut module = writer.finish();
+    declare_soft_dot_slot(&mut module);
+
+    EffectAsset::new(BLAST_CAPACITY, spawner, module)
         .with_name("spawn_on_blast_explosion")
         .init(init_pos)
         .init(init_vel)
@@ -314,17 +340,150 @@ fn build_default_blast_effect() -> EffectAsset {
         .init(init_color)
         .render(size_over_lifetime)
         .render(OrientModifier::new(OrientMode::AlongVelocity))
+        .render(mask)
         .render(color_over_lifetime)
 }
+
+/// Particle capacity of the built-in blast CORE, a per-instance buffer on the
+/// same terms as [`BLAST_CAPACITY`]. Derived the same way: the burst emits
+/// [`BLAST_CORE_PARTICLES`] once and is never reset.
+const BLAST_CORE_CAPACITY: u32 = 64;
+
+/// How many soft billboards make the core and its shell.
+///
+/// Small on purpose. These are the LARGEST quads in the effect and they all
+/// overlap at the centre, so this is the overdraw-bound half of a detonation
+/// while the ejecta is the particle-count-bound half. Forty is enough to read
+/// as a filled sphere rather than as separate blobs; more only pays more fill
+/// for the same picture.
+const BLAST_CORE_PARTICLES: f32 = 40.0;
+
+/// The generated blast CORE: the flash and the cooling shell the ejecta leaves
+/// from, built once and shared by every detonation.
+///
+/// Two assets and not one, because the two halves want opposite things from
+/// every modifier a single graph could only set once. The ejecta is fast, thin
+/// and oriented ALONG its velocity, which is what makes a streak; the core is
+/// slow, wide and camera-facing, which is what makes a fireball. Orientation
+/// alone forces the split - a billboard cannot also be a streak - and once the
+/// split exists the lifetimes, sizes and speeds separate too.
+///
+/// Physically this stands for the fireball rather than a shock wave: vacuum has
+/// nothing to carry a shock, so what expands is the warhead's own vaporised
+/// mass, and it cools as it thins. That is why the size gradient grows and the
+/// colour falls at the same time, and why it is over inside a third of a
+/// second - there is no atmosphere to keep it burning.
+fn build_default_blast_core_effect() -> EffectAsset {
+    let spawner = SpawnerSettings::once(BLAST_CORE_PARTICLES.into()).with_emit_on_start(true);
+
+    let writer = ExprWriter::new();
+
+    let init_age = SetAttributeModifier::new(Attribute::AGE, writer.lit(0.).expr());
+
+    // Shorter than the ejecta's tail: the fireball is gone while the fragments
+    // are still travelling, which is the order a vacuum burst happens in.
+    let lifetime = writer.lit(0.12).uniform(writer.lit(0.32)).expr();
+    let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
+
+    // Blinding white through amber to nothing. The first key is well past 1.0
+    // in every channel so the core blooms into a flare rather than reading as
+    // a white circle, and the last is transparent so the shell thins out
+    // instead of cutting off.
+    let mut color_gradient = bevy_hanabi::Gradient::new();
+    color_gradient.add_key(0.0, Vec4::new(14.0, 13.0, 11.0, 1.0));
+    color_gradient.add_key(0.12, Vec4::new(9.0, 6.0, 2.4, 0.95));
+    color_gradient.add_key(0.40, Vec4::new(3.2, 1.0, 0.16, 0.6));
+    color_gradient.add_key(1.0, Vec4::new(0.4, 0.05, 0.01, 0.0));
+    let color_over_lifetime = ColorOverLifetimeModifier {
+        gradient: color_gradient,
+        blend: ColorBlendMode::default(),
+        mask: ColorBlendMask::default(),
+    };
+    let init_color = SetAttributeModifier::new(Attribute::COLOR, writer.lit(0xFFFFFFFFu32).expr());
+
+    // Grows, then thins. The peak is early: a fireball reaches its size while
+    // it is still bright and spends the rest of its life fading at roughly
+    // that size, so a gradient that keeps growing to the end reads as a
+    // balloon being inflated.
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::splat(1.6));
+    size_gradient.add_key(0.18, Vec3::splat(4.2));
+    size_gradient.add_key(0.55, Vec3::splat(3.4));
+    size_gradient.add_key(1.0, Vec3::ZERO);
+    let size_over_lifetime = SizeOverLifetimeModifier {
+        gradient: size_gradient,
+        screen_space_size: false,
+    };
+
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+
+    let rand_x = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    let rand_y = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    let rand_z = writer.rand(ScalarType::Float) * writer.lit(2.0) - writer.lit(1.0);
+    let dir =
+        writer.lit(Vec3::X) * rand_x + writer.lit(Vec3::Y) * rand_y + writer.lit(Vec3::Z) * rand_z;
+
+    // An order of magnitude under the ejecta. The shell is what the fragments
+    // are seen leaving THROUGH, so it has to stay behind them.
+    let speed = writer.lit(1.5).uniform(writer.lit(9.0));
+    let velocity = dir.normalized() * speed + base_velocity;
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+    // The core is where an untextured quad is most obviously a box: it is the
+    // biggest, brightest, closest-to-camera thing in the frame. Without the
+    // mask a detonation reads as a glowing square whatever the gradient does.
+    let mask = soft_dot_modifier(&writer);
+    let mut module = writer.finish();
+    declare_soft_dot_slot(&mut module);
+
+    EffectAsset::new(BLAST_CORE_CAPACITY, spawner, module)
+        .with_name("spawn_on_blast_core")
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        .init(init_color)
+        .render(size_over_lifetime)
+        .render(mask)
+        .render(color_over_lifetime)
+}
+
+/// How bright a detonation lights the hulls around it, in lumens.
+///
+/// Sized against the blast radius rather than picked: `PointLight` falls off
+/// with the square of distance, so a light meant to still read at the 30-unit
+/// edge of the shipped warhead's damage sphere has to be large at its centre.
+/// This lands a little under bevy's own outdoor-sun illuminance at that edge,
+/// which is the intent - at the rim of a nuclear fireball, being lit like
+/// daylight is the understatement.
+const BLAST_LIGHT_LUMENS: f32 = 40_000_000.0;
+
+/// How far the detonation light reaches, in world units.
+///
+/// Three times the shipped 30-unit blast radius. The light is the only part of
+/// a detonation that is meant to be seen from outside it: the fireball says
+/// something went off there, and the light says it went off near YOU.
+const BLAST_LIGHT_RANGE: f32 = 90.0;
+
+/// How long the detonation light burns, in seconds.
+///
+/// Shorter than the core it belongs to. The flash has to be over before the
+/// fireball is, or the last frames read as a lamp hanging in the debris.
+const BLAST_LIGHT_SECS: f32 = 0.16;
 
 pub(super) fn insert_particle_effect(
     add: On<Add, NovaBlast>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    mut images: ResMut<Assets<Image>>,
     mut default_blast: ResMut<DefaultBlastEffect>,
+    mut soft_dot: ResMut<SoftDot>,
     asset_server: Res<AssetServer>,
     budget: Option<Res<GraphicsBudget>>,
-    q_blast: Query<(&Transform, &TorpedoSectionPartOf), With<NovaBlast>>,
+    q_blast: Query<(&Transform, &TorpedoSectionPartOf, Option<&BlastMomentum>), With<NovaBlast>>,
     q_config: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
 ) {
     let entity = add.entity;
@@ -336,7 +495,9 @@ pub(super) fn insert_particle_effect(
         return;
     }
 
-    let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section))) = q_blast.get(entity) else {
+    let Ok((blast_transform, TorpedoSectionPartOf(torpedo_section), momentum)) =
+        q_blast.get(entity)
+    else {
         // A blast no torpedo bay owns - a scripted detonation, a range rig, a
         // mod spawning `nova_blast` directly. It is a real blast and it damages
         // normally; it just has no authored bay behind it to take a particle
@@ -359,19 +520,70 @@ pub(super) fn insert_particle_effect(
         return;
     };
 
-    let effect = match &config.blast_effect {
-        Some(asset_ref) => asset_ref.resolve(&asset_server),
-        None => default_blast.handle(&mut effects),
-    };
+    let at = blast_transform.translation;
+    let inherited = momentum.map_or(Vec3::ZERO, |momentum| **momentum);
+    let mut properties = EffectProperties::default();
+    properties.set("base_velocity", inherited.into());
 
-    commands.spawn(((
-        Name::new("Blast Effect"),
-        TorpedoBlastEffectMarker,
-        Transform::from_translation(blast_transform.translation),
-        ParticleEffect::new(effect),
-        EffectProperties::default(),
-        TempEntity(2.0),
-    ),));
+    // An AUTHORED effect replaces the whole detonation look, core included: a
+    // mod that wrote its own blast graph did not ask for the built-in fireball
+    // to be composited under it. So the core rides the fallback path only.
+    match &config.blast_effect {
+        Some(asset_ref) => {
+            commands.spawn((
+                Name::new("Blast Effect"),
+                TorpedoBlastEffectMarker,
+                Transform::from_translation(at),
+                ParticleEffect::new(asset_ref.resolve(&asset_server)),
+                properties,
+                TempEntity(2.0),
+            ));
+        }
+        None => {
+            // Both fallback graphs declare the mask slot, so both instances
+            // must bind it. An AUTHORED effect above gets no material: its
+            // graph declares whatever slots it wants and binding an image it
+            // never asked for is not ours to do.
+            let mask = EffectMaterial {
+                images: vec![soft_dot.handle(&mut images)],
+            };
+            commands.spawn((
+                Name::new("Blast Effect"),
+                TorpedoBlastEffectMarker,
+                Transform::from_translation(at),
+                ParticleEffect::new(default_blast.handle(&mut effects)),
+                mask.clone(),
+                properties.clone(),
+                TempEntity(2.0),
+            ));
+            commands.spawn((
+                Name::new("Blast Core Effect"),
+                TorpedoBlastEffectMarker,
+                Transform::from_translation(at),
+                ParticleEffect::new(default_blast.core_handle(&mut effects)),
+                mask,
+                properties,
+                // Shorter than the ejecta's: the core is finished inside a
+                // third of a second and nothing is left to draw after it.
+                TempEntity(1.0),
+            ));
+        }
+    }
+
+    // Asked for, never assumed - the budget may refuse it, and a detonation
+    // that lit nothing is still a detonation. Gated with the particles above
+    // rather than separately: a tier that spawns no fireball has nothing for a
+    // light to be the flash OF.
+    commands.trigger(LightFlash {
+        at,
+        // Warmer than the core's first key. The light stands in for the whole
+        // fireball averaged over its life, and that average is amber, not the
+        // white of its first two frames.
+        color: Color::srgb(1.0, 0.72, 0.38),
+        peak_intensity: BLAST_LIGHT_LUMENS,
+        range: BLAST_LIGHT_RANGE,
+        duration: BLAST_LIGHT_SECS,
+    });
 }
 
 /// Particle capacity of the built-in launch puff, a per-INSTANCE GPU buffer

@@ -245,6 +245,22 @@ does NOT get an entry - and it is the only place they are written down.
 - The OBJECTIVES affordance draws the key the NOVA OS is bound to now, not the
   Tab it ships with.
 
+### Audio & Visuals
+
+- A torpedo detonation lights the hulls around it. Nothing in combat cast light
+  before: the fireball was the only thing in the frame that knew the warhead
+  had gone off.
+- The number of brief lights that may burn at once is a graphics-tier budget -
+  six on High, three on Medium, none on Low - and a salvo that asks for more
+  than the tier affords is refused rather than dimmed.
+- A blast carries the torpedo's velocity, so an intercept throws its fireball
+  along the closing course instead of expanding about a point the warhead was
+  only passing through.
+- A detonation has a core: a white-hot flash that cools through amber while the
+  ejecta leaves through it.
+- Glowing particles are drawn through a round mask. Close to the camera an
+  untextured one is a square, and no colour gradient fixes a corner.
+
 ### Performance
 
 - The target inset renders at the size of the panel it fills. It drew the whole
@@ -280,6 +296,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 
+- A VFX range stands a shooter and a parked target and fires muzzle, impact,
+  launch and blast on a fixed cycle, three passes to a run. It records the
+  docs loop and claims the frame-time number the effects work is measured on.
 - Loop capture takes a `LoopProfile` - window size, encoded size, fps, CRF and
   frame cap in one value - so a recorder can film a 1080x1920 60 fps master
   instead of the docs fleet's 720p30.

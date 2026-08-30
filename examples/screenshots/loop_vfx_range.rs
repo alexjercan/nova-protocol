@@ -76,6 +76,17 @@ const TARGET_ID: &str = "vfx_target";
 /// a wait.
 const RANGE: f32 = 36.0;
 
+/// Frames held between ordering the torpedo and the aftermath step.
+///
+/// Sized off the measured flight, not guessed: the torpedo crosses the range
+/// and detonates about 57 frames after the order, so this leaves the blast a
+/// sixth of a second before the aftermath step takes over and another second
+/// there. It is a budget as much as a duration - three passes of
+/// `12 + 45 + 30 + this + 30`, plus the frames the recorder drains on close,
+/// have to fit inside the loop recorder's 600 frame cap, and a longer coast is
+/// the first thing that breaks it.
+const TORPEDO_FLIGHT_FRAMES: u32 = 70;
+
 /// Health every section on both ships is authored to.
 ///
 /// The cycle has to survive itself. One pass lands a 750 warhead plus roughly
@@ -291,7 +302,7 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             .add()
             .step(format!("pass {pass}: torpedo away"))
             .on_enter(order_torpedo)
-            .until(frames(150))
+            .until(frames(TORPEDO_FLIGHT_FRAMES))
             .add()
             .step(format!("pass {pass}: hold the aftermath"))
             .until(frames(30))
@@ -334,9 +345,17 @@ fn frame_range(world: &mut World) {
         .iter(world)
         .next()
         .expect("the vfx range has a camera");
+    // Offsets FROM the midpoint, not absolute: the whole frame is sized off
+    // RANGE, so the shot survives the range being lengthened. The distance
+    // that comes out is a little over 1 x RANGE, which at bevy's default 45
+    // degree vertical fov and 16:9 leaves both ships clear of the edges with
+    // room for the ejecta thrown PAST the target - the fragments reach further
+    // than the hull they came off, and framing to the hulls crops them.
+    // Further out than this and a detonation is a bright speck.
+    let midpoint = Vec3::new(0.0, 0.0, -RANGE * 0.5);
     world.entity_mut(camera).insert(ScriptedCameraPose {
-        position: Vec3::new(RANGE * 0.55, RANGE * 0.22, -RANGE * 0.5),
-        look_at: Vec3::new(0.0, 0.0, -RANGE * 0.5),
+        position: midpoint + Vec3::new(RANGE * 0.98, RANGE * 0.28, RANGE * 0.22),
+        look_at: midpoint,
     });
 }
 

@@ -247,6 +247,11 @@ pub(super) fn torpedo_detonate_system(
                 nova_blast(blast.radius, blast.damage, DamageType::Explosive),
                 Transform::from_translation(torpedo_transform.translation),
                 part_of.clone(),
+                // The torpedo's own velocity, not the closing speed read above:
+                // the ejecta leave the warhead, and the warhead was going this
+                // way. The target's motion belongs to the fuze window, not to
+                // where the fireball goes.
+                BlastMomentum(torpedo_velocity),
                 TempEntity(0.1),
             ));
             // The blast inherits the torpedo's owner so the damage it deals

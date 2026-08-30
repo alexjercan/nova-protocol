@@ -109,6 +109,7 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::rounds::NovaRoundPlugin);
         app.add_plugins(crate::audio::NovaAudioPlugin);
         app.add_plugins(crate::juice::NovaJuicePlugin);
+        app.add_plugins(crate::transient_light::TransientLightPlugin);
         app.add_plugins(crate::settings::NovaSettingsPlugin);
 
         if !app.is_plugin_added::<bevy::diagnostic::FrameTimeDiagnosticsPlugin>() {

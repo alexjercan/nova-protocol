@@ -10,10 +10,11 @@
 //! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
 //! (transient entities and the countdowns that gate actions), `math`,
 //! `relations`, `beacon`, `asset_ref` and `settings` (volume + graphics
-//! presets). Nova owns all of it, engine layers included: health, damage and
-//! destruction (`integrity`), the transform rigs, the mesh toolkit and SFX
-//! playback were vendored in from the shared-helpers crate and are nova's to
-//! shape now.
+//! presets), `transient_light` (the capped brief lights combat throws) and
+//! `soft_dot` (the round mask every glowing billboard is drawn through). Nova
+//! owns all of it, engine layers included: health, damage and destruction
+//! (`integrity`), the transform rigs, the mesh toolkit and SFX playback were
+//! vendored in from the shared-helpers crate and are nova's to shape now.
 //!
 //! The ship itself - `sections`, `input`, `flight`, `camera`, `physics` and the
 //! ship's soundtrack - is the peer crate `nova_ship`, which depends on this one.
@@ -40,9 +41,11 @@ pub mod relations;
 pub mod rounds;
 pub mod settings;
 pub mod shake;
+pub mod soft_dot;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 pub mod transform;
+pub mod transient_light;
 
 /// Test-only helper for asserting on log output: a shared in-memory sink
 /// installed as the thread's tracing subscriber. `EntityCommands::remove` and
@@ -97,7 +100,8 @@ pub mod prelude {
         lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
         objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
         relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
-        transform::prelude::*, EscapeOwner, GameMode, GameStates, PauseStates,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 

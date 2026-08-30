@@ -226,6 +226,15 @@ pub struct GraphicsBudget {
     /// than the particle toggle. Only `Low` drops it; `Medium`/`High` stay at
     /// native resolution.
     pub render_scale: f32,
+    /// How many [`TransientLight`](crate::transient_light::TransientLight)
+    /// flashes may burn at once.
+    ///
+    /// A real-time light is paid per fragment it touches, so this is a cliff
+    /// rather than a slope: the difference between one detonation lighting the
+    /// hull and a salvo lighting it eight times over is not eight times the
+    /// cost of one. `Low` takes none at all, which is the same spawn-less rule
+    /// [`particles`](Self::particles) states.
+    pub transient_lights: usize,
 }
 
 impl GraphicsBudget {
@@ -239,10 +248,16 @@ impl GraphicsBudget {
             GraphicsQuality::High => Self {
                 particles: true,
                 render_scale: 1.0,
+                transient_lights: 6,
             },
             GraphicsQuality::Medium => Self {
                 particles: true,
                 render_scale: 1.0,
+                // Half of High. The first flash is what makes a detonation
+                // read; the sixth only makes a salvo brighter, so this is the
+                // cheapest real step down between the two tiers that keeps
+                // every single event looking the same as it does on High.
+                transient_lights: 3,
             },
             GraphicsQuality::Low => Self {
                 particles: false,
@@ -255,6 +270,7 @@ impl GraphicsBudget {
                 // phones) that the available rig cannot stand in for. Retune
                 // with the `render_scale` perf override if such a rig appears.
                 render_scale: 0.7,
+                transient_lights: 0,
             },
         }
     }
@@ -507,12 +523,13 @@ mod tests {
     }
 
     #[test]
-    fn graphics_budget_gates_particles_only_by_tier() {
+    fn graphics_budget_gates_particles_and_transient_lights_by_tier() {
         // The tier->cost policy is a pure function, so assert it directly
-        // rather than only through the app. Particles are the ONLY per-frame
-        // cost the preset gates: High and Medium keep them, Low is spawn-less.
-        // Scatter and object counts are gameplay content and are never a preset
-        // lever, so there is no density field to assert on.
+        // rather than only through the app. Two per-frame costs are gated:
+        // particles (High and Medium keep them, Low is spawn-less) and the
+        // number of brief lights that may burn at once. Scatter and object
+        // counts are gameplay content and are never a preset lever, so there
+        // is no density field to assert on.
         let high = GraphicsBudget::for_quality(GraphicsQuality::High);
         let medium = GraphicsBudget::for_quality(GraphicsQuality::Medium);
         let low = GraphicsBudget::for_quality(GraphicsQuality::Low);
@@ -534,6 +551,15 @@ mod tests {
         // the over-budget web target and Medium/High keep the crisp look.
         assert!(high.is_native_resolution() && medium.is_native_resolution());
         assert!(!low.is_native_resolution());
+
+        // The light budget falls with the tier and bottoms out OFF, which is
+        // the one lever that can remove a per-fragment cost outright rather
+        // than only reduce it.
+        assert!(
+            high.transient_lights > medium.transient_lights,
+            "High must afford more live flashes than Medium"
+        );
+        assert_eq!(low.transient_lights, 0, "Low casts no dynamic light at all");
 
         // The default matches the default preset (full quality), so a
         // settings-less app renders everything.
