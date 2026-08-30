@@ -133,6 +133,37 @@ Take the first measurement here. Re-measure after every later stage.
 Measurement lanes run one at a time; a shared GPU makes concurrent runs
 meaningless.
 
+#### Measurements
+
+`probe run loop_vfx_range --release --repeat 3`, host `nixos`, gpu backend.
+Three passes per row, reported mean fps / mean ms and the worst frame:
+
+| Stage | Commit | Pass means (fps) | Mean ms | Worst frame (ms) |
+|---|---|---|---|---|
+| 0 - baseline | a704bb57 | 56.9 / 61.0 / 57.1 | 17.57 / 16.39 / 17.50 | 37.90 / 26.05 / 29.92 |
+| 1 - blast | 7e0658be | 63.2 / 64.7 / 66.7 | 15.81 / 15.46 / 14.99 | 30.46 / 27.65 / 27.62 |
+
+Read the spread before reading a delta: the three baseline passes differ by
+7% in the mean with nothing changed between them, so anything under about
+1 ms is inside this host's noise and needs the repeat count raised rather
+than a verdict. 68 to 89 frames per pass ran two fixed steps, which is
+`Time<Virtual>::max_delta` discarding time - the range already sits on that
+edge, so a stage that pushes the mean past 20 ms will show up as clamping
+before it shows up as frame rate.
+
+**Rows 0 and 1 are not like for like, and the difference is not a win.**
+Stage 1 shortened the torpedo leg from 150 frames to 70 to fit the loop
+recorder's cap, so the two runs measure different spans of a different
+script: at row 0 the 600-frame window ended part way through pass 3, at row 1
+it covers the whole cycle with frames to spare. What the pair does establish
+is a bound: a detonation light, a second blast graph and a texture fetch per
+particle cannot have made the range faster, so their combined cost is smaller
+than the script change that moved these numbers. Row 1 is the reference for
+stages 2 to 4, which leave the script alone.
+
+The absolute number is the one to hold onto: 15.0 to 15.8 ms mean, under the
+16.67 ms that 60 fps costs, with the worst frame at 27 to 30 ms.
+
 ### Stage 1 - the blast
 
 Core flash, expanding cooling shell, afterglow, ejecta. One short-lived
