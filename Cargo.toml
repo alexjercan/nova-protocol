@@ -417,6 +417,10 @@ name = "loop_torpedo_blast"
 path = "examples/screenshots/loop_torpedo_blast.rs"
 
 [[example]]
+name = "loop_vfx_range"
+path = "examples/screenshots/loop_vfx_range.rs"
+
+[[example]]
 name = "loop_spine_cut"
 path = "examples/screenshots/loop_spine_cut.rs"
 
