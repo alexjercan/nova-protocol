@@ -206,6 +206,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Tab and the HUD cycle key are named actions: the Controls list prints them,
   the settings file remembers a move, and both answer a rebind like every
   flight key already did.
+- The NOVA OS prompt edits like a shell: Home and End, Ctrl+A/E/U/K, and the
+  first deliberate key finishes the boot banner rather than making you wait the
+  reveal out.
 - Every key in the NOVA OS map and ship viewers is a named action - orbit, pan,
   cycle, GOTO, reload, repair, rebind - and the monitor's footer prints the key
   each one is bound to now.
@@ -254,6 +257,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Destroyed sections keep burnt damage on detached wreckage instead of reverting
   to pristine, and wreck meshes no longer retain dead grading references.
 - Editor section key chips no longer carry Bevy's 4 px default text shadow.
+- Typing a backquote at the NOVA OS prompt no longer cycles the HUD behind the
+  monitor: the cycle key answers in flight only, so the instruments are the
+  ones you left.
 
 ### Internals & Tooling
 

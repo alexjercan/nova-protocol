@@ -4,6 +4,7 @@ mod apps;
 mod chin;
 mod commands;
 mod crt;
+mod editing;
 mod flight_log;
 mod sound;
 mod structure;

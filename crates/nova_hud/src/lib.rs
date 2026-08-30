@@ -421,7 +421,7 @@ pub fn hud_bindings() -> Vec<ActionBinding> {
 /// was lost before was a HUD that came back cinematic with no visible cause.
 fn hud_key_is_the_players() -> impl bevy::ecs::schedule::SystemCondition<()> {
     in_state(nova_gameplay::GameStates::Playing)
-        .and(not(in_state(nova_gameplay::PauseStates::NovaOs)))
+        .and_then(not(in_state(nova_gameplay::PauseStates::NovaOs)))
 }
 
 /// Cycle the HUD level on whatever `hud_cinematic` is bound to.

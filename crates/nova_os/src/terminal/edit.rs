@@ -100,6 +100,43 @@ impl NovaOsTerminal {
             .unwrap_or(self.prompt.len());
     }
 
+    /// Put the caret at the start of the line (Home, Ctrl+A).
+    pub fn move_cursor_to_start(&mut self) {
+        self.cursor = 0;
+    }
+
+    /// Put the caret at the end of the line (End, Ctrl+E).
+    pub fn move_cursor_to_end(&mut self) {
+        self.cursor = self.prompt.len();
+    }
+
+    /// Cut everything before the caret (Ctrl+U).
+    ///
+    /// Nothing is kept to paste back. A kill ring is a second clipboard for a
+    /// prompt that is one line long, and the line it cut is one Up-arrow away
+    /// in the history the moment it was submitted.
+    pub fn kill_to_start(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        self.prompt.drain(..self.cursor);
+        self.cursor = 0;
+        self.history_cursor = None;
+        self.cycle_stem = None;
+        self.refresh_parse();
+    }
+
+    /// Cut everything from the caret to the end of the line (Ctrl+K).
+    pub fn kill_to_end(&mut self) {
+        if self.cursor >= self.prompt.len() {
+            return;
+        }
+        self.prompt.truncate(self.cursor);
+        self.history_cursor = None;
+        self.cycle_stem = None;
+        self.refresh_parse();
+    }
+
     /// Run the current prompt line against `snapshot`, appending output to the
     /// scrollback and returning what kind of command ran.
     pub fn submit(&mut self, snapshot: &TerminalCommandSnapshot) -> TerminalSubmitOutcome {
@@ -461,6 +498,45 @@ mod tests {
         terminal.history_next();
         assert_eq!(terminal.prompt, "clear");
     }
+    /// The caret jumps a typo does not need a walk to reach: Home / End and
+    /// their Ctrl+A / Ctrl+E chords are the same two moves, and a kill takes
+    /// the half of the line the caret is not on.
+    #[test]
+    fn the_prompt_jumps_and_kills_by_the_line_not_the_character() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "map goto beacon");
+
+        terminal.move_cursor_to_start();
+        assert_eq!(terminal.cursor, 0);
+        terminal.move_cursor_to_end();
+        assert_eq!(terminal.cursor, "map goto beacon".len());
+
+        terminal.move_cursor_to_start();
+        type_text(&mut terminal, "x");
+        terminal.kill_to_start();
+        assert_eq!(terminal.prompt, "map goto beacon", "the typo alone is cut");
+        assert_eq!(terminal.cursor, 0);
+
+        type_text(&mut terminal, "run ");
+        terminal.kill_to_end();
+        assert_eq!(terminal.prompt, "run ", "and the rest of the line goes");
+        assert_eq!(terminal.cursor, "run ".len());
+    }
+
+    /// A kill on a line with nothing to cut on that side leaves the line alone
+    /// rather than clearing it.
+    #[test]
+    fn a_kill_with_nothing_on_that_side_of_the_caret_does_nothing() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "log");
+
+        terminal.kill_to_end();
+        assert_eq!(terminal.prompt, "log", "the caret is already at the end");
+        terminal.move_cursor_to_start();
+        terminal.kill_to_start();
+        assert_eq!(terminal.prompt, "log", "and now at the start");
+    }
+
     #[test]
     fn nova_os_clear_restores_welcome_block() {
         let mut terminal = NovaOsTerminal::default();

@@ -403,6 +403,22 @@ impl NovaOsTerminal {
         true
     }
 
+    /// Reveal every queued boot-banner row at once.
+    ///
+    /// The stagger is an ANIMATION, not a gate. A player who already knows the
+    /// command they want should not have to wait out a reveal to type it, so
+    /// the first deliberate key finishes the banner and then does its own job.
+    /// Returns whether anything was still queued.
+    pub fn finish_boot(&mut self) -> bool {
+        if self.pending_rows.is_empty() {
+            return false;
+        }
+        for row in std::mem::take(&mut self.pending_rows) {
+            self.push_row(row);
+        }
+        true
+    }
+
     /// Hand the screen to the app with launch word `id`, the same transition
     /// [`Self::submit`] performs for an app launch word. Pairs with
     /// [`Self::exit_app`].

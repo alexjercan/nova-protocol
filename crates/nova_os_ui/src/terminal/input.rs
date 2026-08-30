@@ -156,6 +156,29 @@ pub(crate) fn close_nova_os_from_menu_keys(
     }
 }
 
+/// Whether a key is the player SAYING something, rather than holding a
+/// modifier down on the way to saying it. Only a deliberate key finishes the
+/// boot reveal: a Shift pressed before the letter it capitalises is not an
+/// instruction to skip anything.
+fn is_deliberate(key: &Key) -> bool {
+    !matches!(
+        key,
+        Key::Control
+            | Key::Shift
+            | Key::Alt
+            | Key::Super
+            | Key::AltGraph
+            | Key::CapsLock
+            | Key::NumLock
+            | Key::Fn
+            | Key::FnLock
+            | Key::Meta
+            | Key::Hyper
+            | Key::Symbol
+            | Key::SymbolLock
+    )
+}
+
 pub(crate) fn handle_terminal_keyboard(
     mut keyboard: MessageReader<KeyboardInput>,
     pause: Res<State<PauseStates>>,
@@ -207,6 +230,14 @@ pub(crate) fn handle_terminal_keyboard(
         }
         if event.state != ButtonState::Pressed {
             continue;
+        }
+        // The boot banner is an animation, not a gate. A player who already
+        // knows the command they want finishes the reveal by starting to type
+        // it - and the key that finished it still does its own job, so the
+        // first letter is not eaten. Read through the immutable `Deref` first
+        // so an ordinary keystroke does not mark the terminal changed.
+        if terminal.has_pending_boot_rows() && is_deliberate(&event.logical_key) {
+            terminal.finish_boot();
         }
         match &event.logical_key {
             Key::Enter => {
@@ -290,6 +321,8 @@ pub(crate) fn handle_terminal_keyboard(
             }
             Key::ArrowLeft => terminal.move_cursor_left(),
             Key::ArrowRight => terminal.move_cursor_right(),
+            Key::Home => terminal.move_cursor_to_start(),
+            Key::End => terminal.move_cursor_to_end(),
             Key::ArrowUp => terminal.history_previous(),
             Key::ArrowDown => terminal.history_next(),
             // Page the scrollback from the keyboard (PoC's PageUp/PageDown): a
@@ -306,12 +339,22 @@ pub(crate) fn handle_terminal_keyboard(
                     scroll.0.y = (scroll.0.y + delta).clamp(0.0, max_scroll_y(computed_node));
                 }
             }
-            // A held Control makes this an app-exit / readline chord, owned by
-            // `close_nova_os_from_menu_keys`. Without the guard Ctrl+C, Ctrl+U,
-            // Ctrl+W, Ctrl+A and Ctrl+K all insert a literal character at the
-            // prompt. The chords themselves are not implemented - not typing the
-            // letter is the fix; kill-line and friends are their own change.
-            Key::Character(_) | Key::Space if control_held(&keys) => {}
+            // A held Control makes this a readline chord rather than a
+            // character. The four the prompt answers are keyed on the physical
+            // key, not the text: with Control down the produced text is a
+            // control character on some platforms and the letter on others.
+            //
+            // Ctrl+C and Ctrl+[ are NOT here - they are the app-exit chord,
+            // owned by `close_nova_os_from_menu_keys`. They still land in the
+            // fallthrough, which is the point of the arm: an unanswered chord
+            // must not type its letter at the prompt.
+            Key::Character(_) | Key::Space if control_held(&keys) => match event.key_code {
+                KeyCode::KeyA => terminal.move_cursor_to_start(),
+                KeyCode::KeyE => terminal.move_cursor_to_end(),
+                KeyCode::KeyU => terminal.kill_to_start(),
+                KeyCode::KeyK => terminal.kill_to_end(),
+                _ => {}
+            },
             Key::Character(_) | Key::Space => {
                 if let Some(text) = &event.text {
                     terminal.insert_text(text);
