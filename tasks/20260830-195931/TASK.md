@@ -1,6 +1,6 @@
 # Seven bounded polish corrections from round 6
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.12.0
 
@@ -58,8 +58,17 @@ tuning done before it would be redone.
 
 ## Progress
 
-- Item 1 landed in `ca55e306`, item 2 in `4fce30ac`, item 6 in `6ec927c2`,
-  item 7 in `3eede6d4`, item 4 in `ee6f3469`, item 3 in `0c4608c7`.
+All seven landed, one commit each: item 1 `ca55e306`, item 2 `4fce30ac`,
+item 3 `0c4608c7`, item 4 `ee6f3469`, item 5 `a1ec6745`, item 6 `6ec927c2`,
+item 7 `3eede6d4`.
+
+Headless tests, all passing: the Backquote gate
+(`nova_hud`), the terminal chords and the boot skip (`nova_os` model +
+`nova_os_ui` input), the drop reason reaching the log (`nova_os_ui`), the rated
+readout (`nova_hud` + a `nova_ui::units` doctest), the inset texture pinned to
+its panel (`nova_hud`), and the colour families' hue order (`nova_ui`).
+`cargo check --workspace --all-targets --features debug` is clean. The full
+suite and Clippy were not run locally, per standing instruction; CI covers them.
 - Item 4's rendered inspection: `placeholder-nozzle-emissive.png`, the
   `basic_thruster (today)` subject of `screenshot_thruster_gallery` (which
   spawns `ThrusterSectionConfig::default()`, so it wears the placeholder).
@@ -76,6 +85,21 @@ tuning done before it would be redone.
   the torpedo focus meter - none of which this capture shows. The marker pair
   is verified against its own docstring, which already said "the same hue at
   full presence" while the literal said otherwise.
+
+## Decisions
+
+- Item 6 goes to the NOVA OS flight log, not the comms stack. `StoryFeed` is
+  rebuilt from the scenario's story log whenever the two lengths differ, so an
+  appended line is gone the next frame - and a feed shorter than the comms
+  queue's cursor reads as teardown, wiping the visible stack. The log is also
+  where "why did my lock let go?" is actually asked.
+- Item 3 keeps bloom. The comparison the review asked for says it buys no
+  damage readability at 256 px - the unbloomed frame is if anything crisper -
+  but it is what makes a burning hull read the same inside the inset as
+  outside it, and over 256 square it is nearly free. The saving was the
+  texture. Pulling bloom now would also pre-judge item 8.
+- Item 5 puts the families in `nova_ui::theme::combat`, not `semantic`.
+  `semantic` holds whole colours; these are one hue per widget alpha.
 
 ## Deliberately out
 

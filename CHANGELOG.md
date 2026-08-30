@@ -210,11 +210,11 @@ does NOT get an entry - and it is the only place they are written down.
   chip, so a held burn levelling off reads as the cap it is against rather than
   as a drive that quit pulling.
 - The targeting reds are three named families - inbound, lock, hot metal - one
-  hue each at whatever opacity the widget wants. Five literals that had drifted
-  within 0.05 of a neighbour snap back onto the family they meant.
+  hue at whatever opacity a widget wants. Five that had drifted snap back onto
+  the family they meant.
 - A combat lock that lets go says why in the NOVA OS log - target gone, out of
-  lock range, no longer hostile, or the idle clock running out - rather than
-  leaving a lock that vanished for no visible reason.
+  range, no longer hostile, or the idle clock running out - instead of just
+  vanishing.
 - The NOVA OS prompt edits like a shell: Home and End, Ctrl+A/E/U/K, and the
   first deliberate key finishes the boot banner rather than making you wait the
   reveal out.
