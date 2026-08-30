@@ -249,10 +249,15 @@ fn mode_chip_label(autopilot: &Autopilot) -> String {
 /// The ship's speed beside the velocity sphere, always on. A dead ship
 /// clears the anchor so the chip hides in the frame gap before the HUD
 /// observer despawns the layer.
+///
+/// A ship flown under a [`FlightSpeedCap`] reads `current / rated`: a held
+/// burn that levels off is the cap working, and without the second number it
+/// reads as a drive that stopped pulling. Ships without the component burn
+/// unbounded and have no rating to print.
 fn drive_speed_chip(
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &mut Text, &ChildOf), With<SpeedChipUIMarker>>,
-    q_ship: Query<&LinearVelocity>,
+    q_ship: Query<(&LinearVelocity, Option<&FlightSpeedCap>)>,
 ) {
     for (mut anchor, mut text, &ChildOf(parent)) in &mut q_ui {
         let Ok(ship) = q_hud.get(parent) else {
@@ -260,11 +265,14 @@ fn drive_speed_chip(
         };
 
         match q_ship.get(**ship) {
-            Ok(velocity) => {
+            Ok((velocity, cap)) => {
                 // Re-assert the anchor so a transient query miss cannot
                 // leave the chip dark while its text keeps updating.
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
-                **text = nova_ui::units::speed(velocity.length());
+                **text = match cap {
+                    Some(cap) => nova_ui::units::speed_rated(velocity.length(), **cap),
+                    None => nova_ui::units::speed(velocity.length()),
+                };
             }
             Err(_) => {
                 **anchor = None;
@@ -383,6 +391,30 @@ mod tests {
         world.run_system_once(drive_speed_chip).unwrap();
         assert_eq!(anchor_of(&world, speed), None);
         assert!(text_of(&world, speed).is_empty());
+    }
+
+    /// The capped ship says what it is capped AT. A held burn levelling off at
+    /// 80 is the cap doing its job; with only the left number on the chip it
+    /// reads as a drive that quit.
+    #[test]
+    fn the_speed_chip_reads_current_over_rated_only_where_there_is_a_rating() {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                LinearVelocity(Vec3::new(3.0, 0.0, 4.0)),
+                FlightSpeedCap(8.0),
+            ))
+            .id();
+        let (speed, _) = spawn_status_hud(&mut world, ship);
+
+        world.run_system_once(drive_speed_chip).unwrap();
+        assert_eq!(text_of(&world, speed), "50.0 / 80.0 m/s");
+
+        // The scenario lifts the cap: the chip drops back to the bare number
+        // rather than printing a rating the ship no longer has.
+        world.entity_mut(ship).remove::<FlightSpeedCap>();
+        world.run_system_once(drive_speed_chip).unwrap();
+        assert_eq!(text_of(&world, speed), "50.0 m/s");
     }
 
     #[test]

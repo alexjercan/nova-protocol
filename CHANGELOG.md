@@ -206,6 +206,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Tab and the HUD cycle key are named actions: the Controls list prints them,
   the settings file remembers a move, and both answer a rebind like every
   flight key already did.
+- A ship flown under a manual speed cap reads `current / rated` on the speed
+  chip, so a held burn levelling off reads as the cap it is against rather than
+  as a drive that quit pulling.
 - A combat lock that lets go says why in the NOVA OS log - target gone, out of
   lock range, no longer hostile, or the idle clock running out - rather than
   leaving a lock that vanished for no visible reason.

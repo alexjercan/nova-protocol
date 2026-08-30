@@ -51,6 +51,24 @@ pub fn speed(units_per_s: f32) -> String {
     format!("{:.1} m/s", units_per_s * METERS_PER_UNIT)
 }
 
+/// Format a speed against the rating it is flown against - a manual burn cap,
+/// say - as one readout under one unit.
+///
+/// Two `speed` calls side by side would print the unit twice; the pair is one
+/// number with a ceiling on it, not two numbers.
+///
+/// ```
+/// # use nova_ui::units::speed_rated;
+/// assert_eq!(speed_rated(5.0, 8.0), "50.0 / 80.0 m/s");
+/// ```
+pub fn speed_rated(units_per_s: f32, rated_units_per_s: f32) -> String {
+    format!(
+        "{:.1} / {}",
+        units_per_s * METERS_PER_UNIT,
+        speed(rated_units_per_s)
+    )
+}
+
 /// Format a closing speed (world units per second) as signed metres per second
 /// to one decimal - positive when the range is shrinking (approaching).
 ///
