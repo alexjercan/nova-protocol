@@ -59,7 +59,7 @@ fn document(app: &mut App) -> Entity {
         .world_mut()
         .spawn((
             EditorNode,
-            ScenarioNode,
+            ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
         ))
@@ -675,7 +675,19 @@ fn the_scenario_node_counts_what_the_document_holds() {
     app.update();
 
     let rows = row_names(&mut app);
-    assert_eq!(rows, ["Ships", "Objects", "Player Ship"], "{rows:?}");
+    assert_eq!(
+        rows,
+        [
+            "Ships",
+            "Objects",
+            "Player Ship",
+            "Name",
+            "Description",
+            "Cubemap",
+            "Skybox Brightness",
+        ],
+        "the counts it holds, then the fields it authors: {rows:?}"
+    );
     assert_eq!(readout_of(&mut app, "Ships"), "1");
     assert_eq!(readout_of(&mut app, "Objects"), "2");
     assert_eq!(
@@ -683,6 +695,31 @@ fn the_scenario_node_counts_what_the_document_holds() {
         "Kestrel",
         "and which one Play would hand over"
     );
+}
+
+/// The root is a node like any other: what it says about the range is typed
+/// into it, not baked into the save. The rows come off `ScenarioNode` by the
+/// same walk every other node gets, so a write lands on the component.
+#[test]
+fn the_scenario_root_is_typed_into_like_any_other_node() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    app.update();
+
+    assert_eq!(
+        unit_of(&mut app, "Skybox Brightness"),
+        "lx",
+        "a lux field says so"
+    );
+    submit(&mut app, "Name", "Ashfall Belt");
+    submit(&mut app, "Skybox Brightness", "250");
+
+    let settings = app
+        .world()
+        .get::<ScenarioNode>(scenario)
+        .expect("the root carries its settings");
+    assert_eq!(settings.name, "Ashfall Belt");
+    assert_eq!(settings.skybox_brightness, 250.0);
 }
 
 /// An object could be renamed and a ship could not, so a fleet of designs read

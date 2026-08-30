@@ -485,11 +485,18 @@ mod tests {
     fn the_probe_reports_the_rows_the_inspector_is_showing() {
         use nova_scenario::prelude::{AsteroidConfig, ScenarioObjectKind};
 
-        use crate::node::{EditorNode, NodeId, ObjectNode, ScenarioNode};
+        use crate::{
+            node::{EditorNode, NodeId, ObjectNode, ScenarioNode},
+            scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SKY},
+        };
 
         let mut world = world(ExampleStates::Editor);
         let scenario = world
-            .spawn((EditorNode, ScenarioNode, NodeId("scenario".to_string())))
+            .spawn((
+                EditorNode,
+                ScenarioNode::default(),
+                NodeId("scenario".to_string()),
+            ))
             .id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         assert_eq!(
@@ -498,8 +505,15 @@ mod tests {
                 ("Ships".to_string(), "0".to_string()),
                 ("Objects".to_string(), "0".to_string()),
                 ("Player Ship".to_string(), "none".to_string()),
+                ("Name".to_string(), "Saved Range".to_string()),
+                (
+                    "Description".to_string(),
+                    DEFAULT_SCENARIO_DESCRIPTION.to_string(),
+                ),
+                ("Cubemap".to_string(), DEFAULT_SKY.to_string()),
+                ("Skybox Brightness".to_string(), "1000".to_string()),
             ],
-            "the root holds nodes rather than fields, and says how many"
+            "the root counts what it holds, then says what it authors"
         );
 
         let rock = world
@@ -544,7 +558,7 @@ mod tests {
 
         let mut world = world(ExampleStates::Editor);
         let scenario = world
-            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
             .id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         // Spawned out of order, so id order and spawn order disagree.
@@ -612,7 +626,7 @@ mod tests {
 
         let mut world = world(ExampleStates::Editor);
         let scenario = world
-            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
             .id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         let _first = world
@@ -662,7 +676,7 @@ mod tests {
 
         let mut world = world(ExampleStates::Editor);
         let scenario = world
-            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
             .id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         let ship = world

@@ -531,6 +531,27 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     }
 }
 
+/// A walked row holding a number, stepped by its own TYPE where its
+/// declaration does not step it larger.
+///
+/// The step floor lives here rather than in the declaration table because it
+/// is a property of the type: a whole field nobody has declared still cannot
+/// be dragged a tenth at a time. Three declarations reached the same rule one
+/// field at a time before this did it once.
+fn walked_number(
+    root: FieldRoot,
+    path: Vec<PathStep>,
+    optional: bool,
+    text: String,
+    whole: bool,
+) -> InspectorRow {
+    let mut row = walked(root, path, optional, RowValue::Number(text));
+    if whole {
+        row.nudge = row.nudge.max(WHOLE_STEP);
+    }
+    row
+}
+
 /// The values a field takes, and so what any control may put in it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Limit {
@@ -570,6 +591,10 @@ pub(crate) struct FieldSpec {
     /// How far one pixel of a drag moves the number, and so the precision a
     /// drag lands on: a field stepped by `0.05` never comes out of one reading
     /// `0.30000001`.
+    ///
+    /// A WHOLE field takes at least [`WHOLE_STEP`] whatever is declared here.
+    /// That floor is the type's, not this table's, so an integer nobody has
+    /// declared still drags a whole number at a time.
     step: f32,
 }
 
@@ -601,6 +626,14 @@ const fn floored(name: &'static str, unit: &'static str, step: f32) -> FieldSpec
 
 /// How far one pixel of a drag moves a number nothing is declared about.
 const FREE_STEP: f32 = 0.1;
+
+/// The smallest step a WHOLE number can be dragged by.
+///
+/// Structural rather than declared, because [`snapped`] rounds a whole value:
+/// a smaller step travels a fraction and lands back where it started, which
+/// reads as a grip that does not work at all. A declaration may still ask for
+/// a bigger step - it can no longer ask for one below this.
+const WHOLE_STEP: f32 = 1.0;
 
 /// A field with nothing to say about its values: a name, a flag, a colour, a
 /// choice, or a number nobody has checked.
@@ -669,6 +702,9 @@ const ILLUMINANCE: FieldSpec = floored("illuminance", "lx", 50.0);
 const INTENSITY: FieldSpec = floored("intensity", "lm", 50.0);
 const RANGE: FieldSpec = floored("range", "u", 0.1);
 const SHADOWS: FieldSpec = plain("shadows");
+/// Lux, the same register the authored lights are in, so a builder comparing a
+/// sky against a key light is comparing two numbers of one kind.
+const SKYBOX_BRIGHTNESS: FieldSpec = floored("skybox_brightness", "lx", 50.0);
 const HEALTH: FieldSpec = floored("health", "hp", 1.0);
 const WIDTH: FieldSpec = floored("width", "u", 0.05);
 const DELAY: FieldSpec = floored("delay", "s", 0.02);
@@ -727,6 +763,10 @@ const SALVAGE_PICKS: &[FieldSpec] = &[SIZE, AREA_RADIUS];
 /// No `aim`. The node's ROTATION aims the light (`node.rs`), and two controls
 /// on one output is a builder turning the gizmo and watching nothing happen.
 const LIGHT_PICKS: &[FieldSpec] = &[ILLUMINANCE, INTENSITY, COLOR, RANGE, RADIUS, SHADOWS];
+/// The document root's own fields. Not a scenario OBJECT kind - the root is the
+/// one node whose config is the node itself - but declared here for the same
+/// reason every other field is: so the row carries its unit and its floor.
+const SCENARIO_PICKS: &[FieldSpec] = &[SKYBOX_BRIGHTNESS];
 /// The fields no kind shows first, which still carry a unit and a floor once
 /// View > All Fields puts them back.
 const UNPICKED: &[FieldSpec] = &[
@@ -749,6 +789,7 @@ const DECLARED: &[&[FieldSpec]] = &[
     BEACON_PICKS,
     SALVAGE_PICKS,
     LIGHT_PICKS,
+    SCENARIO_PICKS,
     UNPICKED,
 ];
 
@@ -793,6 +834,17 @@ fn is_number(value: &dyn PartialReflect) -> bool {
         ($($kind:ty),*) => { $(if value.try_downcast_ref::<$kind>().is_some() { return true; })* };
     }
     any!(f32, f64, i32, i64, u8, u16, u32, u64, usize);
+    false
+}
+
+/// Whether the leaf holds a number with no fractional part to author.
+///
+/// The value form of [`whole_type`], for the walk that has the value in hand.
+fn is_whole(value: &dyn PartialReflect) -> bool {
+    macro_rules! any {
+        ($($kind:ty),*) => { $(if value.try_downcast_ref::<$kind>().is_some() { return true; })* };
+    }
+    any!(i32, i64, u8, u16, u32, u64, usize);
     false
 }
 
@@ -953,12 +1005,11 @@ fn walk(
         return;
     }
     if let Some(text) = leaf_text(value) {
-        let leaf = if is_number(value) {
-            RowValue::Number(text)
+        let mut row = if is_number(value) {
+            walked_number(root, path, false, text, is_whole(value))
         } else {
-            RowValue::Text(text)
+            walked(root, path, false, RowValue::Text(text))
         };
-        let mut row = walked(root, path, false, leaf);
         row.asset = value
             .get_represented_type_info()
             .and_then(|info| asset_sort(info.type_path()));
@@ -1091,14 +1142,14 @@ fn walk_option(
             _ => String::new(),
         };
         // Off the PAYLOAD TYPE, not the value: a field holding `None` is still
-        // a number's field, so it wears its unit and its name is still the grip
-        // that scrubs it once it holds one.
-        let leaf = if payload.as_deref().is_some_and(number_type) {
-            RowValue::Number(text)
+        // a number's field, so it wears its unit, its step and its name - the
+        // grip that scrubs it once it holds one.
+        let mut row = if payload.as_deref().is_some_and(number_type) {
+            let whole = payload.as_deref().is_some_and(whole_type);
+            walked_number(root, path, true, text, whole)
         } else {
-            RowValue::Text(text)
+            walked(root, path, true, RowValue::Text(text))
         };
-        let mut row = walked(root, path, true, leaf);
         row.asset = payload.as_deref().and_then(asset_sort);
         out.push(row);
         return;
@@ -1157,6 +1208,15 @@ fn number_type(type_path: &str) -> bool {
     matches!(
         type_path,
         "f32" | "f64" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
+    )
+}
+
+/// Whether the type is a number with no fractional part to author, asked the
+/// same way and for the same reason as [`number_type`].
+fn whole_type(type_path: &str) -> bool {
+    matches!(
+        type_path,
+        "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize"
     )
 }
 
@@ -1870,11 +1930,12 @@ pub(crate) const NO_PLAYER_SHIP: &str = "none";
 /// the document's own facts, and every one of them is a thing a builder came
 /// to the root to check.
 pub(crate) fn scenario_rows(
+    settings: Option<&ScenarioNode>,
     ships: usize,
     objects: usize,
     flown: Option<String>,
 ) -> Vec<InspectorRow> {
-    vec![
+    let mut rows = vec![
         fixed(FieldRoot::Config, "Ships", ships.to_string())
             .saying("How many ships the document holds."),
         fixed(FieldRoot::Config, "Objects", objects.to_string())
@@ -1885,7 +1946,20 @@ pub(crate) fn scenario_rows(
             flown.unwrap_or_else(|| NO_PLAYER_SHIP.to_string()),
         )
         .saying("The ship you fly when the scenario runs."),
-    ]
+    ];
+    // The counts first because they are what the root has always answered, then
+    // what the builder AUTHORS about the range as a whole. The walk is the same
+    // one every other node gets, so the cubemap wears the file picker its type
+    // earns it without this naming a single field.
+    if let Some(settings) = settings {
+        walk(
+            settings.as_partial_reflect(),
+            FieldRoot::Config,
+            Vec::new(),
+            &mut rows,
+        );
+    }
+    rows
 }
 
 /// The rows a section shows: what it was built from, what it is bound to, and

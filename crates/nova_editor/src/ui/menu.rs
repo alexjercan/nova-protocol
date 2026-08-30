@@ -965,7 +965,7 @@ mod tests {
 
         let mut world = World::new();
         world.init_resource::<crate::node::EditContext>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
         let row = world.spawn(ShipMenuItem).id();
@@ -991,7 +991,7 @@ mod tests {
 
         let mut world = World::new();
         world.init_resource::<crate::node::EditContext>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
         let row = world.spawn(ScenarioMenuItem).id();
@@ -1026,7 +1026,7 @@ mod tests {
         world.init_resource::<EditContext>();
         world.init_resource::<RailTab>();
         world.init_resource::<SelectedNode>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         world
             .run_system_once(move |mut commands: Commands| {
@@ -1064,7 +1064,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<EditContext>();
         world.init_resource::<SelectedNode>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         let handler = world.spawn(EventNode::default()).id();
         world.resource_mut::<SelectedNode>().0 = Some(handler);

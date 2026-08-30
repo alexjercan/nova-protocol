@@ -171,6 +171,22 @@ pub struct ScenarioConfig {
     /// The cubemap image used for the scenario's skybox. Authored as an asset
     /// path; resolved to a live handle at load time (see `on_load_scenario`).
     pub cubemap: AssetRef<Image>,
+    /// How bright that sky comes up, in lux. Serde-defaulted to
+    /// [`DEFAULT_SKYBOX_BRIGHTNESS`], so scenarios authored before this field
+    /// still parse and every file that takes the default still writes none.
+    ///
+    /// Authored here rather than left to the loader because two skies are not
+    /// two exposures: a dusk cubemap and a deep-field one want different
+    /// numbers under the same rig. `SetSkybox` changes it mid-scenario; this is
+    /// what the scenario STARTS at.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_skybox_brightness",
+            skip_serializing_if = "is_default_skybox_brightness"
+        )
+    )]
+    pub skybox_brightness: f32,
     /// An optional thumbnail image for menus (the Scenarios picker renders it in
     /// the details pane). Authored as an asset path exactly like `cubemap`, so a
     /// mod thumbnail gets the same path handling. Serde-defaulted, so scenarios
@@ -247,6 +263,7 @@ impl ScenarioConfig {
             name: name.into(),
             description: String::new(),
             cubemap,
+            skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
             thumbnail: None,
             hidden: false,
             menu_backdrop: false,
@@ -316,6 +333,19 @@ impl ScenarioConfig {
 #[cfg(feature = "serde")]
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+/// The `serde` default for [`ScenarioConfig::skybox_brightness`].
+#[cfg(feature = "serde")]
+fn default_skybox_brightness() -> f32 {
+    DEFAULT_SKYBOX_BRIGHTNESS
+}
+
+/// `skip_serializing_if` predicate for the skybox brightness: a scenario that
+/// takes the default writes no field, so adding this one rewrote no content.
+#[cfg(feature = "serde")]
+fn is_default_skybox_brightness(brightness: &f32) -> bool {
+    *brightness == DEFAULT_SKYBOX_BRIGHTNESS
 }
 
 /// Configuration for a scenario event
@@ -822,14 +852,14 @@ mod tests {
         );
     }
 
-    /// The `thumbnail`/`hidden`/`menu_backdrop` fields are serde-defaulted, so
-    /// a scenario RON authored before they existed still parses
-    /// (None/false/false), and a scenario carrying them round-trips. Guards
-    /// the back-compat contract the picker and the menu-backdrop rotation
-    /// depend on.
+    /// The `thumbnail`/`hidden`/`menu_backdrop`/`skybox_brightness` fields are
+    /// serde-defaulted, so a scenario RON authored before they existed still
+    /// parses, and a scenario carrying them round-trips. Guards the
+    /// back-compat contract the picker, the menu-backdrop rotation and the
+    /// skybox applier depend on.
     #[test]
     fn thumbnail_and_hidden_default_when_absent_and_round_trip_when_present() {
-        // Legacy shape: no thumbnail, no hidden, no menu_backdrop.
+        // Legacy shape: none of the optional fields.
         let legacy = r#"(id: "legacy", name: "Legacy", description: "old", cubemap: "sky.png")"#;
         let parsed: ScenarioConfig = ron::from_str(legacy).expect("legacy scenario parses");
         assert_eq!(parsed.thumbnail, None, "absent thumbnail defaults to None");
@@ -837,6 +867,10 @@ mod tests {
         assert!(
             !parsed.menu_backdrop,
             "absent menu_backdrop defaults to false"
+        );
+        assert_eq!(
+            parsed.skybox_brightness, DEFAULT_SKYBOX_BRIGHTNESS,
+            "absent skybox_brightness comes up at the shipped default"
         );
 
         // A configured scenario round-trips the fields, and the defaulted
@@ -849,6 +883,7 @@ mod tests {
             thumbnail: Some(AssetRef::from("thumb.png")),
             hidden: true,
             menu_backdrop: true,
+            skybox_brightness: 250.0,
             watches: vec![],
             events: vec![],
         };
@@ -857,6 +892,7 @@ mod tests {
         assert!(ron.contains("thumbnail:Some(\"thumb.png\")"), "ron: {ron}");
         assert!(ron.contains("hidden:true"), "ron: {ron}");
         assert!(ron.contains("menu_backdrop:true"), "ron: {ron}");
+        assert!(ron.contains("skybox_brightness:250"), "ron: {ron}");
         let back: ScenarioConfig = ron::from_str(&ron).expect("configured scenario parses");
         assert_eq!(
             back.thumbnail
@@ -866,12 +902,14 @@ mod tests {
         );
         assert!(back.hidden);
         assert!(back.menu_backdrop);
+        assert_eq!(back.skybox_brightness, 250.0);
 
         // The defaulted form omits the keys.
         let bare = ron::to_string(&parsed).expect("legacy re-serializes");
         assert!(!bare.contains("thumbnail"), "ron: {bare}");
         assert!(!bare.contains("hidden"), "ron: {bare}");
         assert!(!bare.contains("menu_backdrop"), "ron: {bare}");
+        assert!(!bare.contains("skybox_brightness"), "ron: {bare}");
     }
 
     /// A campaign parses from a HAND-WRITTEN RON string (not just a

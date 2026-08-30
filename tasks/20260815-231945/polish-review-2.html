@@ -29,6 +29,10 @@
 <li>Reload controls reject zero delay and zero rounds.</li>
 <li>Fixture and census material documentation matches the implementation.</li>
 </ul>
+<h2>Considered and declined</h2>
+<div class="call"><h3>Echo NovaOS command results to the HUD</h3>
+<p>Declined 2026-08-30. Of the terminal's commands, <code>map goto</code> already reaches the world through the autopilot chip, <code>reload</code> through the ammunition pips, a rebind through the key chips, and <code>log</code> and <code>objectives</code> are pure reads whose result is the page already on screen. An echo channel for those repeats what the player can see.</p>
+<p>One command does change the world invisibly: <code>ship repair</code>. That is item 9 below, own-ship integrity, which is where a hull-state readout belongs. Revisit only if NovaOS grows a command that is both world-changing and invisible.</p></div>
 <h2>Next bounded batch</h2>
 <ol class="queue">
 <li><div class="row"><strong>Gate Backquote while NovaOS owns text input</strong><span class="eff s">S</span></div><p>Keep the binding; stop the global HUD action from firing inside the terminal.</p></li>

@@ -1145,7 +1145,11 @@ fn an_anchor_with_no_mass_still_lists_the_field() {
 fn the_inspector_falls_back_to_the_node_you_are_standing_in() {
     let mut world = World::new();
     let scenario = world
-        .spawn((EditorNode, ScenarioNode, NodeId("scenario".to_string())))
+        .spawn((
+            EditorNode,
+            ScenarioNode::default(),
+            NodeId("scenario".to_string()),
+        ))
         .id();
     let ship = world
         .spawn((
@@ -1656,7 +1660,7 @@ fn named_document() -> World {
     let scenario = world
         .spawn((
             EditorNode,
-            ScenarioNode,
+            ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
         ))
@@ -1801,5 +1805,61 @@ fn a_row_that_names_a_file_says_what_kind_of_file() {
         row(&rows, "Speaker").asset,
         None,
         "a line of text names no file"
+    );
+}
+
+/// A whole field scrubs by whole numbers whether or not anything declares it.
+///
+/// `count` has no declaration, and the drag lands through `snapped`, which
+/// rounds a whole value: at the undeclared step of a tenth a scatter's count
+/// travelled and rounded straight back, so the grip did nothing at all.
+#[test]
+fn a_whole_field_scrubs_by_one_with_nothing_declared_about_it() {
+    let node = ActionNode {
+        kind: ActionChoice::ScatterObjects.stock(),
+    };
+    let rows = action_rows(&node);
+
+    let count = row(&rows, "Count");
+    assert_eq!(count.nudge, 1.0, "an undeclared u32 still drags whole");
+    assert_eq!(count.unit, "", "and gains no unit it was never given");
+
+    let mut config = node.kind.clone();
+    let target = action_config_mut(&mut config).expect("a scatter carries a config");
+    nudge_field(
+        target,
+        &count.path,
+        count.optional,
+        DragRule {
+            step: count.nudge,
+            limit: count.limit,
+        },
+        1.0,
+    )
+    .expect("one step up");
+    assert_eq!(
+        text_of(&action_rows(&ActionNode { kind: config }), "Count"),
+        "9",
+        "one step of the row's own rule moves the number by one"
+    );
+}
+
+/// And a fractional field keeps the step it declares: the floor is a floor,
+/// not a rounding of every number in the panel.
+#[test]
+fn a_declared_fractional_field_keeps_its_own_step() {
+    let rows = action_rows(&ActionNode {
+        kind: ActionChoice::ScatterObjects.stock(),
+    });
+
+    let seed = row(&rows, "Seed");
+    assert_eq!(seed.nudge, 1.0, "a seed names a shape, one whole per pixel");
+
+    let turret = turret_with_muzzle(4.0);
+    let turret_rows = curated_section_rows(&turret, None);
+    assert_eq!(
+        row(&turret_rows, "Fire Rate").nudge,
+        0.05,
+        "a rate is a fraction and stays one"
     );
 }

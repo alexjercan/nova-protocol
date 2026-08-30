@@ -623,6 +623,7 @@ pub(crate) fn broadside(
         thumbnail: Some(AssetRef::from("self://thumbnails/broadside.png")),
         hidden: false,
         menu_backdrop: false,
+        skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
         watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         // Chapter two of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the
@@ -884,6 +885,7 @@ pub(crate) fn broadside_gunship(
         // campaign mapping so it is replayable from the campaign header.
         hidden: true,
         menu_backdrop: false,
+        skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
         watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
     }

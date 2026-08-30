@@ -829,6 +829,7 @@ pub(crate) fn lifeline(
         thumbnail: Some(AssetRef::from("self://thumbnails/lifeline.png")),
         hidden: false,
         menu_backdrop: false,
+        skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
         watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         // Chapter three of the Nova Protocol campaign. Membership + order now
         // live in the `nova_protocol` campaign mapping, which also lists the

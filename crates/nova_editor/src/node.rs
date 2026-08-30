@@ -31,7 +31,10 @@ use crate::{
     event::lift,
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
-    scenario::{default_script, default_world_objects},
+    scenario::{
+        default_script, default_world_objects, DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME,
+        DEFAULT_SKY,
+    },
     ExampleStates,
 };
 
@@ -79,8 +82,40 @@ pub(crate) struct NextChildOrdinal(pub(crate) u32);
 
 /// The outermost node: the scenario being edited. One per document, and the
 /// context the editor opens in.
-#[derive(Component, Debug)]
-pub(crate) struct ScenarioNode;
+///
+/// A node with FIELDS, like [`ShipNode`] and [`ObjectNode`]: everything the
+/// document says at scenario level rather than about one thing standing in it.
+/// It was a bare marker while the panel showed the root three read-only
+/// counts, so every scenario-level value the editor wrote was a constant in
+/// the lowering.
+///
+/// What is NOT here is what the BUILD TARGET decides rather than the builder:
+/// the mod id (one save slot, `bundle::MOD_ID`) and `hidden` (the Play sandbox
+/// is always hidden, a saved range never is). See [`crate::scenario::Range`].
+#[derive(Component, Debug, Clone, Reflect)]
+pub(crate) struct ScenarioNode {
+    /// What the scenario is CALLED, in the Scenarios picker and the editor's
+    /// own breadcrumb.
+    pub(crate) name: String,
+    /// The one-line description the picker's details pane reads.
+    pub(crate) description: String,
+    /// The cubemap the range comes up under, as a PATH: a save cannot write a
+    /// resolved handle (see [`crate::scenario::range_scenario`]).
+    pub(crate) cubemap: AssetRef<Image>,
+    /// How bright that sky is, in lux. Two skies are not two exposures.
+    pub(crate) skybox_brightness: f32,
+}
+
+impl Default for ScenarioNode {
+    fn default() -> Self {
+        Self {
+            name: DEFAULT_SCENARIO_NAME.to_string(),
+            description: DEFAULT_SCENARIO_DESCRIPTION.to_string(),
+            cubemap: AssetRef::from(DEFAULT_SKY),
+            skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
+        }
+    }
+}
 
 /// Who drives a ship once the scenario runs.
 ///
@@ -806,7 +841,7 @@ pub(crate) fn found_empty_document(commands: &mut Commands, context: &mut EditCo
     let scenario = commands
         .spawn((
             EditorNode,
-            ScenarioNode,
+            ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
             Name::new("Scenario Node"),
@@ -1816,7 +1851,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<crate::config::EditorStatus>();
         world.init_resource::<Time>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         world.spawn((NodeId("rock_1".to_string()), ChildOf(scenario)));
         world.spawn((NodeId("rock_2".to_string()), ChildOf(scenario)));
 

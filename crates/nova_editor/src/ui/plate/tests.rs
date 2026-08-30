@@ -13,7 +13,7 @@ fn stage() -> (App, Entity, Entity) {
     app.init_resource::<HoveredNode>();
     let scenario = app
         .world_mut()
-        .spawn((ScenarioNode, NodeId("scenario".to_string())))
+        .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
         .id();
     let ship = app
         .world_mut()

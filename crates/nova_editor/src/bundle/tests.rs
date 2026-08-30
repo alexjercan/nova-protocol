@@ -1,6 +1,7 @@
 //! What a save is made of, and what a load gets back out of it.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
 use nova_scenario::prelude::{
@@ -10,7 +11,7 @@ use nova_scenario::prelude::{
 };
 
 use super::*;
-use crate::node::ObjectNode;
+use crate::node::{ObjectNode, ScenarioNode};
 
 fn section(id: &str) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
@@ -269,7 +270,7 @@ fn authored_ids_alone_leave_the_counter_at_zero() {
 fn document(world: &mut World) -> Entity {
     let scenario = world
         .spawn((
-            crate::node::ScenarioNode,
+            crate::node::ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
             Transform::default(),
@@ -323,8 +324,10 @@ fn lower(world: &mut World) -> Vec<Content> {
              nodes: SectionNodes,
              q_objects: ObjectNodes,
              script: ScriptNodes,
-             q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>| {
+             q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+             q_settings: Query<&ScenarioNode>| {
                 document_content(
+                    &world_settings(&context, &q_settings),
                     world_objects(&context, &q_objects),
                     &lower_fleet(&q_ships, &nodes),
                     world_script(&context, &script),
@@ -339,7 +342,7 @@ fn lower(world: &mut World) -> Vec<Content> {
 fn unflown_document(world: &mut World) -> Entity {
     let scenario = world
         .spawn((
-            crate::node::ScenarioNode,
+            crate::node::ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
             Transform::default(),
@@ -390,6 +393,36 @@ fn a_save_never_invents_the_player_ship_the_document_lacks() {
             .iter()
             .all(|object| object.base.id != "player_spaceship"),
         "and no hull the editor invented for Play"
+    );
+}
+
+/// What the builder authors ABOUT THE RANGE is part of the document, not a
+/// constant the save writes over the top of them: the name, the blurb, the sky
+/// and how bright it burns go out to the file and come back onto the root.
+#[test]
+fn the_range_settings_the_builder_authored_survive_the_file() {
+    let mut world = world_with_document();
+    let scenario = world.resource::<EditContext>().path[0];
+    world.entity_mut(scenario).insert(ScenarioNode {
+        name: "Ashfall Belt".to_string(),
+        description: "A hot drift of slag.".to_string(),
+        cubemap: AssetRef::from("base/textures/cubemap_alt_2.png"),
+        skybox_brightness: 250.0,
+    });
+
+    let lifted = lift_content(&lower(&mut world)).expect("the file carries a range");
+
+    let settings = &lifted.settings;
+    assert_eq!(settings.name, "Ashfall Belt");
+    assert_eq!(settings.description, "A hot drift of slag.");
+    assert_eq!(
+        settings.cubemap.path(),
+        Some("base/textures/cubemap_alt_2.png"),
+        "the sky it was pointed at"
+    );
+    assert_eq!(
+        settings.skybox_brightness, 250.0,
+        "and how bright that sky comes up"
     );
 }
 
@@ -509,7 +542,7 @@ fn a_re_save_writes_the_same_bytes() {
     let mut reloaded = World::new();
     let scenario = reloaded
         .spawn((
-            crate::node::ScenarioNode,
+            crate::node::ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
             Transform::default(),
@@ -543,7 +576,7 @@ fn a_loaded_document_mints_ids_above_the_ones_it_read() {
     let mut reloaded = World::new();
     let scenario = reloaded
         .spawn((
-            crate::node::ScenarioNode,
+            crate::node::ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
             Transform::default(),

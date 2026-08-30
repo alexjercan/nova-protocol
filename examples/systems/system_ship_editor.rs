@@ -309,6 +309,34 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(state_is(GameStates::Playing))
         .deadline(BOOT_DEADLINE_SECS)
         .add()
+        // The root before anything is built on it: the document opens standing
+        // on the scenario, so its own panel is the first thing the editor
+        // shows. It says what the range HOLDS and what the range IS.
+        .step("editor: the root authors the range it stands on")
+        .on_enter(|world: &mut World| {
+            let labels = inspector_labels(world);
+            for wanted in ["Ships", "Objects", "Name", "Cubemap", "Skybox Brightness"] {
+                assert!(
+                    labels.iter().any(|label| label == wanted),
+                    "the scenario root is missing {wanted:?}: {labels:?}"
+                );
+            }
+            let sky = inspector_reading(world, "Cubemap");
+            assert!(
+                sky.ends_with(".png"),
+                "the sky row names the file it would load: {sky:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the scenario root is authored like any other node",
+                serde_json::json!({}),
+            );
+            info!(
+                "editor: the root reads sky {sky} at {} lx",
+                inspector_reading(world, "Skybox Brightness")
+            );
+        })
+        .add()
         .click_a_menu_item("editor: click Add > New Ship", ADD_MENU, "Add Ship Button")
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))

@@ -52,7 +52,7 @@ use crate::{
     keybind::on_rebind_action,
     node::{
         default_allegiance, id_order, EditContext, NodeId, ObjectBodyStale, ObjectNode,
-        SectionNode, ShipDriver, ShipNode,
+        ScenarioNode, SectionNode, ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
     ui::{
@@ -303,6 +303,7 @@ pub(crate) struct Document<'w, 's> {
     kinds: NodeKinds<'w, 's>,
     ids: Query<'w, 's, &'static NodeId>,
     children: Query<'w, 's, &'static Children>,
+    scenarios: Query<'w, 's, &'static ScenarioNode>,
     ships: Query<'w, 's, (&'static ShipNode, &'static Transform)>,
     sections: Query<'w, 's, &'static SectionNode>,
     objects: Query<'w, 's, (&'static ObjectNode, &'static Transform)>,
@@ -445,7 +446,12 @@ impl Document<'_, '_> {
                 .get(*ship)
                 .is_ok_and(|(node, _)| node.driver == ShipDriver::Player)
         });
-        scenario_rows(ships.len(), objects, flown.map(|ship| self.name_of(ship)))
+        scenario_rows(
+            self.scenarios.get(scenario).ok(),
+            ships.len(),
+            objects,
+            flown.map(|ship| self.name_of(ship)),
+        )
     }
 
     /// What a node is CALLED: the authored name, or the id it was minted under.
@@ -2160,6 +2166,7 @@ pub(crate) fn paint_swatch_hover(
 #[derive(SystemParam)]
 pub(crate) struct EditTargets<'w, 's> {
     catalog: Option<Res<'w, GameSections>>,
+    scenarios: Query<'w, 's, &'static mut ScenarioNode>,
     ships: Query<'w, 's, &'static mut ShipNode>,
     sections: Query<'w, 's, &'static mut SectionNode>,
     objects: Query<'w, 's, &'static mut ObjectNode>,
@@ -2247,6 +2254,18 @@ impl EditTargets<'_, '_> {
             FieldRoot::Config => {
                 if self.is_script(field.node) {
                     return self.edit_script(field, edit);
+                }
+                if let Ok(mut settings) = self.scenarios.get_mut(field.node) {
+                    // The whole component IS the scenario's config, so it needs
+                    // no root of its own: the document root is the one node
+                    // whose fields are not inside a `kind`.
+                    return if_it_took(&mut settings, |settings| {
+                        edit(
+                            settings.as_partial_reflect_mut(),
+                            &field.path,
+                            field.optional,
+                        )
+                    });
                 }
                 if let Ok(mut section) = self.sections.get_mut(field.node) {
                     return if_it_took(&mut section, |section| {

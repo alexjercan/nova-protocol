@@ -142,11 +142,6 @@ impl EventAction<NovaEventWorld> for ScreenshotActionConfig {
     }
 }
 
-/// Fallback skybox brightness, matching the value the loader spawns the scenario
-/// camera with (`loader.rs`). Only used if a swap targets a camera that somehow
-/// has no current `SkyboxConfig` to inherit brightness from.
-const DEFAULT_SKYBOX_BRIGHTNESS: f32 = 1000.0;
-
 /// Swap the scenario's skybox cubemap mid-scenario. A modding hook: a beat can
 /// change the sky by authoring a new cubemap path, resolved through the same
 /// [`AssetRef`] path-or-handle layer the RON format uses for the initial

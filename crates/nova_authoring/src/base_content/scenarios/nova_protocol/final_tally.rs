@@ -699,6 +699,7 @@ pub(crate) fn final_tally(
         // header.
         hidden: true,
         menu_backdrop: false,
+        skybox_brightness: DEFAULT_SKYBOX_BRIGHTNESS,
         watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
     }

@@ -23,7 +23,6 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
-use nova_assets::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
@@ -35,8 +34,8 @@ use nova_ship::prelude::{
 use crate::{
     event::{named_ids, NamedIds, ScriptNodes},
     node::{
-        objects_of, sections_of, EditContext, NodeId, ObjectNodes, SectionNodes, ShipDriver,
-        ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
+        objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
+        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
     },
 };
 
@@ -212,11 +211,11 @@ const BEACON_LOCK_SIGNATURE: f32 = 30.0;
 
 pub(crate) fn setup_scenario(
     mut commands: Commands,
-    game_assets: Res<GameAssets>,
     context: Res<EditContext>,
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    q_settings: Query<&ScenarioNode>,
     script: ScriptNodes,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
@@ -224,7 +223,7 @@ pub(crate) fn setup_scenario(
     scenarios: Option<ResMut<GameScenarios>>,
 ) {
     let scenario = sandbox_scenario(
-        &game_assets,
+        &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
@@ -258,16 +257,16 @@ pub(crate) fn sandbox_unregistered(scenarios: Option<Res<GameScenarios>>) -> boo
 ///
 /// [`setup_scenario`] overwrites the entry with the built ship on hand-off.
 pub(crate) fn register_sandbox_scenario(
-    game_assets: Res<GameAssets>,
     context: Res<EditContext>,
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
+    q_settings: Query<&ScenarioNode>,
     script: ScriptNodes,
     mut scenarios: ResMut<GameScenarios>,
 ) {
     let scenario = sandbox_scenario(
-        &game_assets,
+        &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
@@ -290,6 +289,22 @@ pub(crate) fn world_objects(
         Some(scenario) => lower_objects(scenario, q_objects),
         None => default_world_objects(),
     }
+}
+
+/// What the sandbox is CALLED and comes up under: the DOCUMENT's settings once
+/// a document exists, and the stock ones before one does.
+///
+/// The same rule [`world_objects`] follows. An id registered before the editor
+/// has ever opened still has to name a range with a sky.
+pub(crate) fn world_settings(
+    context: &EditContext,
+    q_settings: &Query<&ScenarioNode>,
+) -> ScenarioNode {
+    context
+        .scenario()
+        .and_then(|scenario| q_settings.get(scenario).ok())
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// The script the sandbox runs: the DOCUMENT's handlers once a document
@@ -512,41 +527,57 @@ pub(crate) fn ship_hull(ship: &LoweredShip) -> ShipHull {
 /// disagree about: the Play hand-off builds the hidden sandbox with hulls
 /// written out inline, and a SAVE builds a scenario of its own id whose ships
 /// reference the prototypes the same file carries.
+///
+/// `settings` is what the BUILDER said and `range` is what the build target
+/// decides, which is why the sky arrives with the first and the id with the
+/// second.
 pub(crate) fn range_scenario(
-    sky: AssetRef<Image>,
+    settings: &ScenarioNode,
     range: Range<'_>,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
 ) -> ScenarioConfig {
     ScenarioConfig {
-        description: "A free-flight range: rocks, target hulks, dormant pickets and a planetoid."
-            .to_string(),
+        description: settings.description.clone(),
+        skybox_brightness: settings.skybox_brightness,
         hidden: range.hidden,
         events: range_events(
             range.id,
             sandbox_objects(world, fleet, range.form, range.flight),
             script,
         ),
-        ..ScenarioConfig::new(range.id.to_string(), range.name.to_string(), sky)
+        ..ScenarioConfig::new(
+            range.id.to_string(),
+            settings.name.clone(),
+            settings.cubemap.clone(),
+        )
     }
 }
 
-/// The sky a saved range comes up under, as a PATH.
+/// The sky a range comes up under, as a PATH.
 ///
-/// The Play hand-off passes the LOADED cubemap handle instead, which is faster
-/// and is all it needs. A save cannot: a handle has no authorable form, so a
-/// file written from one refuses to serialize. The path is the same sky the
+/// A save cannot write a resolved handle: a handle has no authorable form, so
+/// a file written from one refuses to serialize. The path is the same sky the
 /// home beacon swaps back to.
 pub(crate) const DEFAULT_SKY: &str = "base/textures/cubemap.png";
 
-/// Which range a lowering is building: its id and name, whether the Scenarios
-/// picker lists it, how its ships name their hulls, and whether it may stand
-/// in for what the document has not built yet.
+/// What a new document calls itself until the builder renames it.
+pub(crate) const DEFAULT_SCENARIO_NAME: &str = "Saved Range";
+
+/// What a new document says about itself, which is what the stock world is.
+pub(crate) const DEFAULT_SCENARIO_DESCRIPTION: &str =
+    "A free-flight range: rocks, target hulks, dormant pickets and a planetoid.";
+
+/// Which range a lowering is building: its id, whether the Scenarios picker
+/// lists it, how its ships name their hulls, and whether it may stand in for
+/// what the document has not built yet.
+///
+/// The name, description and sky are NOT here: those the builder authors on
+/// the [`ScenarioNode`], and both targets write what they said.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Range<'a> {
     pub(crate) id: &'a str,
-    pub(crate) name: &'a str,
     /// Kept out of the Scenarios picker, which lists shipped content.
     pub(crate) hidden: bool,
     pub(crate) form: HullForm,
@@ -565,7 +596,6 @@ pub(crate) struct Range<'a> {
 /// carrying its hulls inline because nothing has registered them as prototypes.
 pub(crate) const SANDBOX: Range<'static> = Range {
     id: SANDBOX_ID,
-    name: "Editor Sandbox",
     hidden: true,
     form: HullForm::Inline,
     flight: true,
@@ -573,18 +603,12 @@ pub(crate) const SANDBOX: Range<'static> = Range {
 
 /// Build the sandbox the editor plays: the range above, with the document in it.
 pub(crate) fn sandbox_scenario(
-    game_assets: &GameAssets,
+    settings: &ScenarioNode,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
 ) -> ScenarioConfig {
-    range_scenario(
-        game_assets.cubemap.clone().into(),
-        SANDBOX,
-        world,
-        fleet,
-        script,
-    )
+    range_scenario(settings, SANDBOX, world, fleet, script)
 }
 
 /// Everything the range spawns on start: the world's own objects, then the

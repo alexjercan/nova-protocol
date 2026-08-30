@@ -41,6 +41,20 @@ Two round-5 claims changed independently before this review:
   still has no authored caller (`assets/base/scenarios/*.content.ron`; no
   `SetSkybox` under `nova_authoring`).
 
+## Considered and declined
+
+- **Echo NovaOS command results to the HUD after the terminal closes.** Round 5
+  asked for this so that a command run in the terminal is visible in the world.
+  Declined, 2026-08-30. The premise does not hold for the commands that exist.
+  `map goto` already reaches the world through the autopilot chip, `reload`
+  through the ammunition pips, a rebind through the key chips, and `log` and
+  `objectives` are pure reads whose whole result is the page already on screen.
+  A HUD echo for those repeats what the player can already see, and a general
+  echo channel is machinery in front of one real gap. That gap is `ship repair`,
+  which changes hull state with no glance-level confirmation, and it is item 9
+  of this review under integrity readout - the place it belongs. Revisit only if
+  NovaOS grows a command whose effect is both world-changing and invisible.
+
 ## Remaining work, simplest first
 
 Effort is implementation plus the cheapest honest validation, not line count.

@@ -2756,7 +2756,7 @@ mod tests {
         let scenario = app
             .world_mut()
             .spawn((
-                ScenarioNode,
+                ScenarioNode::default(),
                 NodeId("scenario".to_string()),
                 NextChildOrdinal::default(),
             ))
@@ -4077,7 +4077,7 @@ mod tests {
 
         let mut world = World::new();
         world.init_resource::<EditContext>();
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         let settings = world.spawn((ShipSettings, Node::default())).id();
@@ -4126,7 +4126,7 @@ mod tests {
         app.init_resource::<UiSkin>();
         let scenario = app
             .world_mut()
-            .spawn((ScenarioNode, NodeId("scenario".to_string())))
+            .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
             .id();
         let ship = app
             .world_mut()
@@ -4664,7 +4664,7 @@ mod tests {
 
     /// Put the context inside a ship, or out at the scenario node.
     fn enter_ship(world: &mut World, inside: bool) {
-        let scenario = world.spawn(ScenarioNode).id();
+        let scenario = world.spawn(ScenarioNode::default()).id();
         let mut context = world.resource_mut::<EditContext>();
         context.path = if inside {
             vec![scenario, scenario]

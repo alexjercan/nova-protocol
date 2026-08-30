@@ -26,6 +26,8 @@ does NOT get an entry - and it is the only place they are written down.
 - The `OnUpdate` pulse sleeps: it fires only when a variable its filters read is
   written, or when the clock crosses a threshold they compare against. A
   value-gated scenario wakes on about 2% of frames.
+- A scenario says how bright its sky comes up: `skybox_brightness`, in lux,
+  defaulted so that a file authoring none still comes up at the shipped 1000.
 
 ### Modding & Mod Portal
 
@@ -171,8 +173,9 @@ does NOT get an entry - and it is the only place they are written down.
   screen edge; a typed negative radius is refused.
 - A ship carries a name of its own, and the tree shows it with the minted id
   on hover. The Key row is the button that arms the rebind.
-- The scenario node reports what the document holds: how many ships, how many
-  objects, and which ship the player flies.
+- The scenario node reports what the document holds - ships, objects, the ship
+  the player flies - and authors what the range is: its name, its blurb, its
+  sky and how bright that sky burns.
 - The placement verdict is said beside the ghost rather than at the window
   edge, and every refusal names the key that resolves it.
 - Link points read at any distance, the socket the ghost would take is marked

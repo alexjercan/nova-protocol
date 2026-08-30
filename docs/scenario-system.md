@@ -23,7 +23,8 @@ the panel says about it, through `bevy/reflect_documentation`.
 
 ## Scenario structure
 
-- `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox), `events`.
+- `ScenarioConfig` - `id`, `name`, `description`, `cubemap` (skybox),
+  `skybox_brightness` (lux, defaults to `DEFAULT_SKYBOX_BRIGHTNESS`), `events`.
 - `ScenarioEventConfig` - one handler: `label` (optional, what the handler is
   for in the author's words - the editor's tree reads it beside the trigger),
   `name: EventConfig`, `once`, `filters`, `actions`. `once` retires the handler the first time its filters PASS (not

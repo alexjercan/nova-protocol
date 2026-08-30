@@ -54,8 +54,16 @@ use bevy::{
 
 /// Glob-import surface for the skybox rig.
 pub mod prelude {
-    pub use super::{SkyboxConfig, SkyboxPlugin};
+    pub use super::{SkyboxConfig, SkyboxPlugin, DEFAULT_SKYBOX_BRIGHTNESS};
 }
+
+/// The brightness a sky comes up at when nothing authors one.
+///
+/// ONE constant because three places used to spell the same literal and say in
+/// a comment that they matched: the component's own default, the scenario
+/// camera the loader spawns, and the fallback a mid-scenario swap uses when it
+/// finds no current config to inherit from.
+pub const DEFAULT_SKYBOX_BRIGHTNESS: f32 = 1000.0;
 
 /// Component used to enable a skybox on a specific camera.
 ///
@@ -76,7 +84,7 @@ impl Default for SkyboxConfig {
     fn default() -> Self {
         Self {
             cubemap: Handle::default(),
-            brightness: 1000.0,
+            brightness: DEFAULT_SKYBOX_BRIGHTNESS,
         }
     }
 }

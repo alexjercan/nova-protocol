@@ -261,7 +261,7 @@ pub(super) fn on_load_scenario(
         Transform::from_xyz(0.0, 10.0, 20.0).looking_at(Vec3::ZERO, Vec3::Y),
         PendingSkyboxSwap {
             cubemap: scenario.cubemap.resolve(&asset_server),
-            brightness: Some(1000.0),
+            brightness: Some(scenario.skybox_brightness),
         },
     ));
 
@@ -774,6 +774,55 @@ mod tests {
         assert!(
             installed.is_none(),
             "no eager SkyboxConfig: the skybox observer runs once and would give up on an unloaded image"
+        );
+    }
+
+    /// A scenario says how bright its sky comes up, and the number it says
+    /// travels: the loader hands the authored lux to the deferred applier
+    /// rather than the one literal every scenario used to get.
+    #[test]
+    fn a_scenario_lights_its_own_sky() {
+        fn brightness_after(config: ScenarioConfig) -> Option<f32> {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+            app.init_asset::<Image>();
+            app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+            app.init_resource::<NovaEventWorld>();
+            app.init_resource::<CurrentScenario>();
+            app.init_resource::<GameObjectives>();
+            app.register_input_actions(scenario_bindings());
+            app.add_observer(on_load_scenario);
+            app.world_mut().trigger(LoadScenario(config));
+            app.update();
+
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&PendingSkyboxSwap, With<ScenarioCameraMarker>>();
+            q.single(app.world())
+                .expect("scenario camera spawned")
+                .brightness
+        }
+
+        let sky = || {
+            ScenarioConfig::new(
+                "sky_test".to_string(),
+                "Sky Test".to_string(),
+                AssetRef::from("textures/never_preloaded.png".to_string()),
+            )
+        };
+
+        assert_eq!(
+            brightness_after(ScenarioConfig {
+                skybox_brightness: 250.0,
+                ..sky()
+            }),
+            Some(250.0),
+            "a dim range comes up dim"
+        );
+        assert_eq!(
+            brightness_after(sky()),
+            Some(DEFAULT_SKYBOX_BRIGHTNESS),
+            "and a scenario that authors none comes up at the shipped default"
         );
     }
 

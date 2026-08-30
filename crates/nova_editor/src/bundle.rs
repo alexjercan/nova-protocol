@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_assets::prelude::EnabledMods;
-use nova_gameplay::prelude::{Allegiance, AssetRef};
+use nova_gameplay::prelude::Allegiance;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
 #[cfg(not(target_arch = "wasm32"))]
@@ -49,8 +49,8 @@ use crate::{
         SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
     scenario::{
-        lower_fleet, ship_hull, world_objects, world_script, HullForm, LoweredFleet, Range,
-        DEFAULT_SKY,
+        lower_fleet, ship_hull, world_objects, world_script, world_settings, HullForm,
+        LoweredFleet, Range,
     },
 };
 
@@ -77,7 +77,6 @@ pub(crate) const SAVE_CONTENT_FILE: &str = "editor_save.content.ron";
 /// enabled.
 pub(crate) const SAVED_RANGE: Range<'static> = Range {
     id: "editor_save",
-    name: "Saved Range",
     hidden: false,
     form: HullForm::Prototype,
     flight: false,
@@ -90,6 +89,7 @@ pub(crate) const SAVED_RANGE: Range<'static> = Range {
 /// referencing a prototype is easier to follow under the prototype than over
 /// it - and in id order, because the output is a file.
 pub(crate) fn document_content(
+    settings: &ScenarioNode,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
@@ -105,7 +105,7 @@ pub(crate) fn document_content(
         })
         .collect();
     items.push(Content::Scenario(crate::scenario::range_scenario(
-        AssetRef::from(DEFAULT_SKY),
+        settings,
         SAVED_RANGE,
         world,
         fleet,
@@ -168,6 +168,10 @@ pub(crate) struct LiftedDocument {
     pub(crate) ships: Vec<LiftedShip>,
     /// Every handler that is not the layout, in file order.
     pub(crate) script: Vec<ScenarioEventConfig>,
+    /// What the file says about the range AS A WHOLE - its name, its sky. Read
+    /// back onto the document root so the fields a builder authored are the
+    /// fields they are shown on the way in.
+    pub(crate) settings: ScenarioNode,
 }
 
 /// Read a saved file back into a document.
@@ -194,6 +198,12 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
         .filter(|event| !is_layout(event))
         .cloned()
         .collect();
+    lifted.settings = ScenarioNode {
+        name: scenario.name.clone(),
+        description: scenario.description.clone(),
+        cubemap: scenario.cubemap.clone(),
+        skybox_brightness: scenario.skybox_brightness,
+    };
     Some(lifted)
 }
 
@@ -475,6 +485,7 @@ pub(crate) fn apply_file_request(
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     script: ScriptNodes,
+    q_settings: Query<&ScenarioNode>,
     roots: Query<Entity, With<ScenarioNode>>,
 ) {
     let asked = std::mem::take(&mut *request);
@@ -483,6 +494,7 @@ pub(crate) fn apply_file_request(
         FileRequest::None => {}
         FileRequest::Save => {
             let items = document_content(
+                &world_settings(&context, &q_settings),
                 world_objects(&context, &q_objects),
                 &lower_fleet(&q_ships, &nodes),
                 world_script(&context, &script),
@@ -549,6 +561,7 @@ fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) 
     // Taken out and put back: the section configs are read through it while
     // `world.commands()` holds a mutable borrow of the world.
     let sections = world.remove_resource::<GameSections>();
+    world.entity_mut(scenario).insert(document.settings);
     let mut ids: Vec<String> = Vec::new();
     let mut ship_ordinals: Vec<(Entity, u32)> = Vec::new();
     {

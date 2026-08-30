@@ -60,7 +60,7 @@ fn document(app: &mut App) -> (Entity, Entity) {
         .world_mut()
         .spawn((
             EditorNode,
-            ScenarioNode,
+            ScenarioNode::default(),
             NodeId("scenario".to_string()),
             NextChildOrdinal::default(),
         ))
