@@ -293,3 +293,56 @@ fn terminal_commands_clear_on_nova_os_teardown() {
         "nova_os teardown clears printed command output before the next player ship"
     );
 }
+
+/// Every drop branch reaches the log the player reads it in, each saying which
+/// branch it was. The reason is the whole point: an intended 30 s decay and a
+/// target that died read as the same disappearing lock without it.
+#[test]
+fn a_dropped_combat_lock_says_why_in_the_flight_log() {
+    use nova_ship::prelude::{CombatLockDrop, CombatLockDropped};
+
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.init_resource::<NovaOsFlightLog>();
+    app.add_message::<CombatLockDropped>();
+    app.add_systems(Update, log_combat_lock_drops);
+    app.update();
+    assert!(flight_log_entry_texts(&app).is_empty(), "nothing yet");
+
+    let target = app.world_mut().spawn_empty().id();
+    for (reason, idle_secs) in [
+        (CombatLockDrop::TargetGone, 0.0),
+        (CombatLockDrop::OutOfRange, 1.0),
+        (CombatLockDrop::AllegianceFlip, 2.0),
+        (CombatLockDrop::IdleDecay, 30.0),
+    ] {
+        app.world_mut().write_message(CombatLockDropped {
+            target,
+            reason,
+            idle_secs,
+        });
+    }
+    app.update();
+
+    let lines = flight_log_entry_texts(&app);
+    assert_eq!(lines.len(), 4, "one line per drop: {lines:?}");
+    assert!(
+        lines.iter().all(|line| line.starts_with("SYS ! ")),
+        "the ship reports these, nobody says them: {lines:?}"
+    );
+    assert!(lines[0].contains("target is gone"), "{}", lines[0]);
+    assert!(lines[1].contains("out of lock range"), "{}", lines[1]);
+    assert!(lines[2].contains("no longer hostile"), "{}", lines[2]);
+    assert!(
+        lines[3].contains("30 s without combat"),
+        "the decay names the clock that ran out: {}",
+        lines[3]
+    );
+
+    app.update();
+    assert_eq!(
+        flight_log_entry_texts(&app).len(),
+        4,
+        "a drained message does not log again"
+    );
+}

@@ -79,7 +79,7 @@ pub use self::{
 use self::{
     components::{NovaOsCloseTransition, NovaOsDegauss, NovaOsFlightLog},
     crt::{animate_nova_os_crt, mirror_nova_os_hover, reconcile_nova_os_target, NovaOsCrtMaterial},
-    flight_log::{announce_objectives_in_terminal, sync_nova_os_logs},
+    flight_log::{announce_objectives_in_terminal, log_combat_lock_drops, sync_nova_os_logs},
     input::{
         close_nova_os_from_menu_keys, handle_nova_os_app_keyboard, handle_terminal_keyboard,
         scroll_nova_os_panels, sync_nova_os_commands, toggle_nova_os,
@@ -215,6 +215,10 @@ impl Plugin for NovaOsPlugin {
                 sync_nova_os_logs.run_if(
                     resource_changed::<GameObjectives>.or_else(resource_changed::<StoryFeed>),
                 ),
+                // Unconditional: the drops arrive while the computer is SHUT,
+                // and an undrained message queue would report them a frame late
+                // or not at all.
+                log_combat_lock_drops,
             )
                 .in_set(NovaOsSystems::Simulate),
         );

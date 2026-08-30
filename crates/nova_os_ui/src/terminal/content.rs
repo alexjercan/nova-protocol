@@ -112,6 +112,7 @@ pub(crate) fn terminal_log_rows(log: &NovaOsFlightLog) -> Vec<TerminalRow> {
                 NovaOsFlightLogEntryKind::Comms => TerminalRowKind::Output,
                 NovaOsFlightLogEntryKind::ObjectivePosted => TerminalRowKind::Warn,
                 NovaOsFlightLogEntryKind::ObjectiveCompleted => TerminalRowKind::Info,
+                NovaOsFlightLogEntryKind::System => TerminalRowKind::Info,
             },
             text: format!("{:04} {}", index + 1, nova_os_flight_log_text(entry)),
         })
@@ -409,5 +410,6 @@ pub(crate) fn nova_os_flight_log_text(entry: &NovaOsFlightLogEntry) -> String {
         ),
         NovaOsFlightLogEntryKind::ObjectivePosted => format!("OBJ + {}", entry.message),
         NovaOsFlightLogEntryKind::ObjectiveCompleted => format!("OBJ x {}", entry.message),
+        NovaOsFlightLogEntryKind::System => format!("SYS ! {}", entry.message),
     }
 }

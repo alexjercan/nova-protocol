@@ -206,6 +206,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Tab and the HUD cycle key are named actions: the Controls list prints them,
   the settings file remembers a move, and both answer a rebind like every
   flight key already did.
+- A combat lock that lets go says why in the NOVA OS log - target gone, out of
+  lock range, no longer hostile, or the idle clock running out - rather than
+  leaving a lock that vanished for no visible reason.
 - The NOVA OS prompt edits like a shell: Home and End, Ctrl+A/E/U/K, and the
   first deliberate key finishes the boot banner rather than making you wait the
   reveal out.

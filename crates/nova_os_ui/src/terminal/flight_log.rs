@@ -1,5 +1,5 @@
-//! The NOVA OS combined flight-log model, derived from the story feed and the
-//! active objective list.
+//! The NOVA OS combined flight-log model, derived from the story feed, the
+//! active objective list, and what the ship's own systems report.
 //!
 //! Nothing here paints rows. The monitor has no permanent panes; the log
 //! reaches the player through the `log` / `objectives` terminal commands, the
@@ -14,6 +14,7 @@ use nova_gameplay::{
 };
 use nova_hud::prelude::*;
 use nova_os::prelude::*;
+use nova_ship::prelude::{CombatLockDrop, CombatLockDropped, COMBAT_DECAY_SECS};
 
 use super::{components::*, content::*};
 
@@ -91,6 +92,44 @@ pub(crate) fn sync_nova_os_logs(
     }
 
     log.previous_active = objectives.objectives.clone();
+}
+
+/// Write a line to the flight log for every combat lock the upkeep let go of.
+///
+/// "Sometimes the ship loses radar focus on locked enemies" was unanswerable
+/// from a shipped run: the drop had a reason, and the reason reached a `debug!`
+/// nobody reads. The log is where a player asks that question afterwards, so
+/// the reason goes where the question is asked - no new instrument, and nothing
+/// on screen mid-fight.
+pub(crate) fn log_combat_lock_drops(
+    mut drops: MessageReader<CombatLockDropped>,
+    mut log: ResMut<NovaOsFlightLog>,
+) {
+    for drop in drops.read() {
+        log.entries.push(NovaOsFlightLogEntry {
+            kind: NovaOsFlightLogEntryKind::System,
+            objective_id: None,
+            speaker: None,
+            message: combat_lock_drop_line(drop),
+            icon: None,
+        });
+    }
+}
+
+/// The one-line reason, phrased as the computer reporting rather than as the
+/// enum naming itself.
+fn combat_lock_drop_line(drop: &CombatLockDropped) -> String {
+    match drop.reason {
+        CombatLockDrop::TargetGone => "Combat lock lost: target is gone.".to_string(),
+        CombatLockDrop::OutOfRange => "Combat lock lost: target out of lock range.".to_string(),
+        CombatLockDrop::AllegianceFlip => {
+            "Combat lock released: target is no longer hostile.".to_string()
+        }
+        CombatLockDrop::IdleDecay => format!(
+            "Combat lock released: {COMBAT_DECAY_SECS:.0} s without combat (idle {:.0} s).",
+            drop.idle_secs
+        ),
+    }
 }
 
 /// Announce objective flips into the LIVE terminal scrollback while the computer

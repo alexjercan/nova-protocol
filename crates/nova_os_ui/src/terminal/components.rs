@@ -277,13 +277,13 @@ pub(crate) struct NovaOsCloseTransition {
     pub(crate) closing: bool,
 }
 
-/// NovaOs-local combined flight log derived from [`StoryFeed`] and
-/// [`GameObjectives`].
+/// NovaOs-local combined flight log derived from [`StoryFeed`],
+/// [`GameObjectives`] and the ship's own reports.
 ///
 /// Feeds the `log` / `objectives` terminal commands and the boot banner's
-/// unread-events count: comms entries plus objective posted/completed entries,
-/// in the order the HUD observes them. Objective text updates edit the open
-/// posted entry rather than appending duplicate events.
+/// unread-events count: comms entries, objective posted/completed entries and
+/// system entries, in the order the HUD observes them. Objective text updates
+/// edit the open posted entry rather than appending duplicate events.
 #[derive(Resource, Default, Debug, Clone)]
 pub(crate) struct NovaOsFlightLog {
     pub(crate) entries: Vec<NovaOsFlightLogEntry>,
@@ -312,6 +312,9 @@ pub(crate) enum NovaOsFlightLogEntryKind {
     Comms,
     ObjectivePosted,
     ObjectiveCompleted,
+    /// The ship's own computer reporting something it did - a combat lock it
+    /// let go of, for one. Nobody says it, so the row has no speaker.
+    System,
 }
 
 /// The live degauss pulse. [`super::shell::sync_nova_os_app_ui`] resets
