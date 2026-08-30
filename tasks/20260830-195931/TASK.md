@@ -56,6 +56,16 @@ tuning done before it would be redone.
 - Item 5 is a refactor with no behaviour change: the proof is that the rendered
   HUD is unchanged apart from the literals that were wrong.
 
+## Progress
+
+- Item 1 landed in `ca55e306`, item 2 in `4fce30ac`, item 6 in `6ec927c2`,
+  item 7 in `3eede6d4`.
+- Item 4's rendered inspection: `placeholder-nozzle-emissive.png`, the
+  `basic_thruster (today)` subject of `screenshot_thruster_gallery` (which
+  spawns `ThrusterSectionConfig::default()`, so it wears the placeholder).
+  Left is the shipped albedo-only cone, middle the landed 1.2 emissive, right
+  a 2.5 that was shot and rejected for washing the red out.
+
 ## Deliberately out
 
 - Click-to-position in the terminal. Item 2 says so: glyph-to-caret mapping is

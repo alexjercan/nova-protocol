@@ -244,6 +244,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Ships & Sections
 
+- The placeholder thruster nozzle glows. It called itself a hot red and had
+  albedo only, so the side away from the key light read as painted plastic.
 - The basic thruster now wears an authored exposed bell with its exhaust fitted to the nozzle instead of the placeholder barrel and plume.
 - Real 3x3x2 vector and 5x5x3 capital drives join the editor, with full-size mass, mounting faces, thrust, skin footprints and exhaust clearance.
 - Large WFC arena ships fly with a seeded stern stamp: one capital drive or a bank of two to three vector drives.

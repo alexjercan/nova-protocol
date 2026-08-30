@@ -24,6 +24,16 @@ const THRUSTER_BARREL: (f32, f32) = (0.4, 0.4);
 /// The thruster nozzle's base radius and length.
 const THRUSTER_NOZZLE: (f32, f32) = (0.5, 0.5);
 
+/// The glow of the placeholder nozzle. The stand-in already called itself a
+/// hot red and then gave the cone albedo only, so the side of it facing away
+/// from the key light sat in shadow reading as painted plastic.
+///
+/// Held to the base colour's own ratio and only just over 1.0. Brighter (2.5
+/// was shot beside this) tips the cone to a washed salmon under the
+/// tonemapper - hotter, but no longer RED-hot, and loud beside the exhaust
+/// that is the actual light source when the drive burns.
+const NOZZLE_EMISSIVE: LinearRgba = LinearRgba::new(1.2, 0.28, 0.1, 1.0);
+
 /// The turret base plate's radius and thickness. A wide flat disc, which is
 /// what an unmeshed mount stood on before the joints were split out.
 const TURRET_PLATE: (f32, f32) = (0.5, 0.1);
@@ -58,7 +68,7 @@ pub struct PlaceholderArt {
     pub controller_material: Handle<StandardMaterial>,
     /// The porthole's white.
     pub window_material: Handle<StandardMaterial>,
-    /// The nozzle's hot red.
+    /// The nozzle's hot red, emissive so it reads hot unlit.
     pub nozzle_material: Handle<StandardMaterial>,
     /// The turret plate's dark grey.
     pub turret_plate_material: Handle<StandardMaterial>,
@@ -86,7 +96,11 @@ impl FromWorld for PlaceholderArt {
             structure_material: materials.add(Color::srgb(0.8, 0.8, 0.8)),
             controller_material: materials.add(Color::srgb(0.2, 0.7, 0.9)),
             window_material: materials.add(Color::srgb(0.9, 0.9, 1.0)),
-            nozzle_material: materials.add(Color::srgb(0.9, 0.3, 0.2)),
+            nozzle_material: materials.add(StandardMaterial {
+                base_color: Color::srgb(0.9, 0.3, 0.2),
+                emissive: NOZZLE_EMISSIVE,
+                ..default()
+            }),
             turret_plate_material: materials.add(Color::srgb(0.25, 0.25, 0.25)),
         }
     }
