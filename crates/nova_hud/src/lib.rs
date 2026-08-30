@@ -298,7 +298,7 @@ impl Plugin for NovaHudPlugin {
         app.register_input_actions(hud_bindings());
         app.add_systems(
             Update,
-            cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
+            cycle_hud_visibility.run_if(hud_key_is_the_players()),
         );
         // Visibility enforcement runs AFTER the screen-indicator
         // projection: the widget writes Visibility::Visible on its nodes in
@@ -409,6 +409,19 @@ pub fn hud_bindings() -> Vec<ActionBinding> {
             .keyboard([InputSource::Keyboard(KeyCode::Backquote)])
             .gamepad([InputSource::Gamepad(GamepadButton::Select)]),
     ]
+}
+
+/// Whether the cycle key is the PLAYER's to press: in flight, and not while
+/// the NOVA OS has the keyboard.
+///
+/// The binding stays `Always` - it answers at every rung the HUD is drawn at -
+/// but the terminal takes a printable backquote as a character, so an ungated
+/// action cycled the HUD out from under a builder typing one. The whole HUD is
+/// hidden behind the monitor anyway, so nothing is lost by refusing here; what
+/// was lost before was a HUD that came back cinematic with no visible cause.
+fn hud_key_is_the_players() -> impl bevy::ecs::schedule::SystemCondition<()> {
+    in_state(nova_gameplay::GameStates::Playing)
+        .and(not(in_state(nova_gameplay::PauseStates::NovaOs)))
 }
 
 /// Cycle the HUD level on whatever `hud_cinematic` is bound to.
@@ -877,7 +890,7 @@ mod tests {
         app.register_input_actions(hud_bindings());
         app.add_systems(
             Update,
-            cycle_hud_visibility.run_if(in_state(nova_gameplay::GameStates::Playing)),
+            cycle_hud_visibility.run_if(hud_key_is_the_players()),
         );
         app.add_systems(PostUpdate, fake_widget_drive.in_set(ScreenIndicatorSystems));
         // Same double-bounded registration as the plugin.
@@ -943,6 +956,37 @@ mod tests {
         assert_eq!(level(&app), HudVisibility::Cinematic);
         press_backquote(&mut app);
         assert_eq!(level(&app), HudVisibility::On);
+    }
+
+    /// A backquote typed at the NOVA OS prompt is a CHARACTER, not the HUD
+    /// key. The binding stays `Always`; the action refuses while the monitor
+    /// has the keyboard, so a builder typing one does not come back out to a
+    /// HUD that quietly went cinematic.
+    #[test]
+    fn typing_a_backquote_at_the_nova_os_does_not_cycle_the_hud() {
+        let mut app = app();
+        app.world_mut()
+            .resource_mut::<NextState<nova_gameplay::PauseStates>>()
+            .set(nova_gameplay::PauseStates::NovaOs);
+        app.update();
+
+        press_backquote(&mut app);
+        assert_eq!(
+            level(&app),
+            HudVisibility::On,
+            "the monitor owns the key while it is up"
+        );
+
+        app.world_mut()
+            .resource_mut::<NextState<nova_gameplay::PauseStates>>()
+            .set(nova_gameplay::PauseStates::Unpaused);
+        app.update();
+        press_backquote(&mut app);
+        assert_eq!(
+            level(&app),
+            HudVisibility::Cinematic,
+            "and hands it straight back on close"
+        );
     }
 
     /// Every tier answers the level the same way now: on at `On`, cleared at
