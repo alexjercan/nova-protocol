@@ -148,12 +148,17 @@ fn drive(world: &mut World) {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::hash::DefaultHasher::new();
     serialized.hash(&mut hasher);
+    let digest = format!("{:016x}", hasher.finish());
     info!(
-        "headless replay: digest {:016x} over {} bytes at played frame {played}",
-        hasher.finish(),
+        "headless replay: digest {digest} over {} bytes at played frame {played}",
         serialized.len()
     );
     info!("headless replay: state {serialized}");
+    nova_probe::probe_marker(
+        world,
+        "outcome: the replay digest is recorded",
+        serde_json::json!({ "digest": digest, "bytes": serialized.len() }),
+    );
 
     // The knob proof, separate from the digest: shakedown's first 8 seconds
     // never consume the global entropy (the belt scatter runs on scenario-
@@ -165,12 +170,17 @@ fn drive(world: &mut World) {
         use bevy_rand::prelude::{GlobalRng, WyRand};
         use rand::RngExt;
         let mut query = world.query_filtered::<&mut WyRand, With<GlobalRng>>();
-        let mut rng = query
-            .single_mut(world)
-            .expect("the entropy plugin owns one global stream");
-        info!(
-            "headless replay: entropy draw {:016x}",
-            rng.random_range(0..u64::MAX)
+        let draw = {
+            let mut rng = query
+                .single_mut(world)
+                .expect("the entropy plugin owns one global stream");
+            format!("{:016x}", rng.random_range(0..u64::MAX))
+        };
+        info!("headless replay: entropy draw {draw}");
+        nova_probe::probe_marker(
+            world,
+            "outcome: the entropy draw is recorded",
+            serde_json::json!({ "draw": draw }),
         );
     }
     world.write_message(AppExit::Success);

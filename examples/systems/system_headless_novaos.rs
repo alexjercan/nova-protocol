@@ -119,6 +119,16 @@ fn drive(world: &mut World) {
                     "the full table is ~33 actions; {count} means a group is \
                      still gated out"
                 );
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the NOVA OS verb registers headless",
+                    serde_json::json!({ "actions": count }),
+                );
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the whole action table registers headless",
+                    serde_json::json!({ "actions": count }),
+                );
                 advance(world);
             }
         }
@@ -181,6 +191,11 @@ fn drive(world: &mut World) {
             let terminal = world.resource::<NovaOsTerminal>();
             if terminal.active_mode() == (TerminalMode::App { id: "map" }) {
                 info!("headless novaos: PASS typed into NOVA OS with no renderer");
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the terminal takes typing with no renderer",
+                    serde_json::json!({}),
+                );
                 world.write_message(AppExit::Success);
                 advance(world);
             } else {

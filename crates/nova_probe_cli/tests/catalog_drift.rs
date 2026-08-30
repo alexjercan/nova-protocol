@@ -111,12 +111,23 @@ fn catalog_matches_disk() {
 /// Each sits in an `on_enter` hook that reports and logs, one beat after the
 /// `until` that established it.
 ///
-/// Three slugs are RECORDED OBSERVATIONS rather than claims - `the idle contact
+/// Five slugs are RECORDED OBSERVATIONS rather than claims - `the idle contact
 /// cost is recorded` and `the settled step cost is recorded` (bug_sandbox_soak)
 /// and `the swap cost is recorded` (bug_carve_apply) carry milliseconds, which
 /// are a fact about the host that ran them and can never be asserted on a
 /// shared runner. They are on the roster so the evidence cannot be deleted
 /// quietly; each range's asserted claim beside them is structural.
+///
+/// `the replay digest is recorded` and `the entropy draw is recorded`
+/// (system_headless_replay) read the same way for a different reason: the
+/// claim that range carries is that TWO runs on one seed print one digest,
+/// which a single process cannot see. The range prints; the runner diffs. The
+/// slugs keep the printing on the roster.
+///
+/// The six `system_headless_*` ranges are `nova_channel` spikes (task
+/// 20260820-174148) rather than probe ranges, and they landed without markers.
+/// They are held to the same rule as everything else in `systems/`: whatever a
+/// range claims, it names.
 ///
 /// What this test bounds is that every invariant is NAMED. That the invariants
 /// HOLD is what the runs themselves prove, by panicking.
@@ -223,6 +234,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the trigger volume fires on enter and exit",
             "the disarmed escort fires the neutralized handler",
             "every kill reaches the tally",
+            "a once handler retires after one pass",
             "both objectives complete",
         ],
     ),
@@ -286,6 +298,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "an occupied socket refuses",
             "a blocked drive lane refuses",
             "Add obeys the context",
+            "Ctrl+S answers under the parts gallery",
             "an Add row opens the gallery on its kind",
             "a second ship stands beside the first",
             "an offset ship builds in its own space",
@@ -308,6 +321,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the tree can be read as the ids an event names",
             "section ids survive exit and re-entry",
             "the scenario node reports the document",
+            "the scenario root is authored like any other node",
+            "the range's sky is picked from what the bundles ship",
             "a seeded hull is entered and inspected as a ship",
             "a saved range is switched on for the way out",
             "a destructive verb asks first",
@@ -319,7 +334,11 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     ),
     (
         "system_ui_scale",
-        &["a world-anchored label keeps its logical place"],
+        &[
+            "a world-anchored label keeps its logical place",
+            "the stage's names stand apart",
+            "the top bar keeps its controls apart",
+        ],
     ),
     (
         "system_field_controls",
@@ -327,6 +346,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "a declared field wears its own unit",
             "a number is scrubbed by its own name",
             "a scrub arrives at the floor",
+            "a vector axis is scrubbed by its row's step",
         ],
     ),
     (
@@ -441,10 +461,55 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the teardown left nothing behind",
         ],
     ),
+    (
+        "system_headless_pointer",
+        &[
+            "the pause overlay lays out with no renderer",
+            "a wire click resumes the game",
+        ],
+    ),
+    (
+        "system_headless_novaos",
+        &[
+            "the NOVA OS verb registers headless",
+            "the whole action table registers headless",
+            "the terminal takes typing with no renderer",
+        ],
+    ),
+    (
+        "system_headless_replay",
+        &[
+            "the replay digest is recorded",
+            "the entropy draw is recorded",
+        ],
+    ),
+    (
+        "system_headless_rebind",
+        &[
+            "the rebind store starts isolated",
+            "the registry takes a wire rebind",
+        ],
+    ),
+    (
+        "system_headless_drag",
+        &[
+            "a wire drag moves the volume",
+            "the slider widget agrees with the resource",
+        ],
+    ),
+    (
+        "system_headless_crt",
+        &[
+            "the forwarded pointer reaches the blip",
+            "the window mouse cannot reach behind the glass",
+            "the press lands through the glass",
+            "the clicked blip engages GOTO on its contact",
+        ],
+    ),
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 182;
+const SYSTEMS_INVARIANTS: usize = 204;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

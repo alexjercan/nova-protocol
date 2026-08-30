@@ -349,6 +349,16 @@ fn drive(world: &mut World) {
                 "the widget and the resource must agree ({widget} vs {after})"
             );
             info!("headless drag: PASS the drag moved MasterVolume {before} -> {after}");
+            nova_probe::probe_marker(
+                world,
+                "outcome: a wire drag moves the volume",
+                serde_json::json!({ "before": before, "after": after }),
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the slider widget agrees with the resource",
+                serde_json::json!({ "widget": widget, "resource": after }),
+            );
             world.write_message(AppExit::Success);
             advance(world);
         }

@@ -491,6 +491,16 @@ fn drive(world: &mut World) {
                  mouse hit means it was never behind the image camera"
             );
             info!("headless crt: the forwarded pointer reached the blip");
+            nova_probe::probe_marker(
+                world,
+                "outcome: the forwarded pointer reaches the blip",
+                serde_json::json!({}),
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the window mouse cannot reach behind the glass",
+                serde_json::json!({}),
+            );
             advance(world);
         }
         14 => {
@@ -504,6 +514,11 @@ fn drive(world: &mut World) {
                 assert!(
                     world.get::<Pressed>(target).is_some(),
                     "the blip must be holding the press that came through the glass"
+                );
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the press lands through the glass",
+                    serde_json::json!({}),
                 );
                 advance(world);
             }
@@ -553,6 +568,11 @@ fn drive(world: &mut World) {
                             "GOTO must aim at the contact whose blip was clicked ({code})"
                         );
                         info!("headless crt: PASS clicked {code} through the glass, GOTO engaged");
+                        nova_probe::probe_marker(
+                            world,
+                            "outcome: the clicked blip engages GOTO on its contact",
+                            serde_json::json!({ "code": code }),
+                        );
                         world.write_message(AppExit::Success);
                         advance(world);
                     }

@@ -169,6 +169,14 @@ fn drive(world: &mut World) {
                 resume.width() > 0.0 && resume.height() > 0.0,
                 "the Resume button laid out without a box: {resume:?}"
             );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the pause overlay lays out with no renderer",
+                serde_json::json!({
+                    "resume_w": resume.width(),
+                    "resume_h": resume.height(),
+                }),
+            );
             hover_named("Resume Button")(world);
             advance(world);
         }
@@ -191,6 +199,11 @@ fn drive(world: &mut World) {
         7 => {
             if *world.resource::<State<PauseStates>>().get() == PauseStates::Unpaused {
                 info!("headless pointer: PASS clicked Resume with no renderer");
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: a wire click resumes the game",
+                    serde_json::json!({}),
+                );
                 world.write_message(AppExit::Success);
                 advance(world);
             } else {

@@ -216,6 +216,11 @@ fn drive(world: &mut World) {
                     "the isolated store must start clean - a leftover override \
                      means NOVA_CONFIG_ROOT did not isolate"
                 );
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the rebind store starts isolated",
+                    serde_json::json!({}),
+                );
                 advance(world);
             }
         }
@@ -273,10 +278,13 @@ fn drive(world: &mut World) {
                     bindings.overrides().contains_key("main_drive"),
                     "the diff-against-defaults set must carry the rebind"
                 );
+                let column = format!("{:?}", main_drive.keyboard);
                 info!("headless rebind: PASS the registry took J for main_drive");
-                info!(
-                    "headless rebind: keyboard column is now {:?} (W and Space are gone)",
-                    main_drive.keyboard
+                info!("headless rebind: keyboard column is now {column} (W and Space are gone)");
+                nova_probe::probe_marker(
+                    world,
+                    "outcome: the registry takes a wire rebind",
+                    serde_json::json!({ "main_drive": column }),
                 );
                 world.write_message(AppExit::Success);
                 advance(world);
