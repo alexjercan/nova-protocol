@@ -1,6 +1,7 @@
 //! What the picker offers, and what it is willing to call wrong.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_gameplay::prelude::AssetRef;
 use nova_modding::prelude::{CatalogEntry, ModEntry, ModMeta};
 
 use super::*;
@@ -120,4 +121,46 @@ fn a_ref_the_panel_cannot_resolve_is_left_alone() {
         bare,
         "a bare path addresses the asset root, which is not indexed"
     );
+}
+
+/// A picked sky is written as the ref a SAVE needs, and the sandbox is merged
+/// with nothing - so the ref reaches the asset server verbatim and comes up as
+/// an unknown source, which is a scenario with no sky at all. Play resolves it
+/// the way the merge would.
+#[test]
+fn the_sandbox_resolves_a_picked_ref_the_merge_will_never_see() {
+    let mut world = installed("base", &["textures/cubemap_alt.png"]);
+    let picked = ScenarioConfig::new(
+        "editor_sandbox".to_string(),
+        "Saved Range".to_string(),
+        AssetRef::from("dep://base/textures/cubemap_alt.png"),
+    );
+
+    let resolved = world
+        .run_system_once(move |files: AssetIndex| files.resolved(picked.clone()))
+        .expect("the index reads");
+
+    assert_eq!(
+        resolved.cubemap.path(),
+        Some("mods/base/textures/cubemap_alt.png"),
+        "the sky loads from where the bundle that ships it puts its files"
+    );
+}
+
+/// A path with no scheme is what the code-built parts of the range carry, and
+/// what a builder who never opened the picker keeps. It is already concrete.
+#[test]
+fn a_direct_path_is_left_exactly_as_it_was_authored() {
+    let mut world = installed("base", &["textures/cubemap.png"]);
+    let direct = ScenarioConfig::new(
+        "editor_sandbox".to_string(),
+        "Saved Range".to_string(),
+        AssetRef::from("base/textures/cubemap.png"),
+    );
+
+    let resolved = world
+        .run_system_once(move |files: AssetIndex| files.resolved(direct.clone()))
+        .expect("the index reads");
+
+    assert_eq!(resolved.cubemap.path(), Some("base/textures/cubemap.png"));
 }

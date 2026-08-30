@@ -32,6 +32,7 @@ use nova_ship::prelude::{
 };
 
 use crate::{
+    asset_index::prelude::AssetIndex,
     event::{named_ids, NamedIds, ScriptNodes},
     node::{
         objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
@@ -178,9 +179,10 @@ struct SkyBeacon {
 }
 
 /// The two beacons, one per shipped cubemap. Both are DIRECT asset paths for
-/// the same reason the sounds below are: this scenario is built at runtime,
-/// outside the mod merge, so a `self://` or `dep://` scheme ref would never be
-/// rewritten.
+/// the same reason the sounds below are: they are built in code and always
+/// name base-game art, so a scheme buys them nothing. A ref the BUILDER picks
+/// does carry one, and [`AssetIndex::resolved`] resolves it on the way to
+/// Play.
 const SKY_BEACONS: [SkyBeacon; 2] = [
     SkyBeacon {
         id: "beacon_veil",
@@ -217,17 +219,18 @@ pub(crate) fn setup_scenario(
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     q_settings: Query<&ScenarioNode>,
     script: ScriptNodes,
+    assets: AssetIndex,
     // Optional: the registry is written by the bundle merge, and a rig that
     // never merged content must still be able to fly the sandbox - it just
     // does not get the retry.
     scenarios: Option<ResMut<GameScenarios>>,
 ) {
-    let scenario = sandbox_scenario(
+    let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
-    );
+    ));
 
     // Re-register with the ship the editor just built: the boot-time entry
     // (`register_sandbox_scenario`) carries the DEFAULT hull, and the DEFEAT
@@ -263,14 +266,15 @@ pub(crate) fn register_sandbox_scenario(
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     q_settings: Query<&ScenarioNode>,
     script: ScriptNodes,
+    assets: AssetIndex,
     mut scenarios: ResMut<GameScenarios>,
 ) {
-    let scenario = sandbox_scenario(
+    let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
         &lower_fleet(&q_ships, &nodes),
         world_script(&context, &script),
-    );
+    ));
     scenarios.insert(scenario.id.clone(), scenario);
 }
 
@@ -602,6 +606,10 @@ pub(crate) const SANDBOX: Range<'static> = Range {
 };
 
 /// Build the sandbox the editor plays: the range above, with the document in it.
+///
+/// The refs it comes out with are the ones the DOCUMENT holds. A caller flying
+/// it has to put them through [`AssetIndex::resolved`] first, because nothing
+/// merges this range.
 pub(crate) fn sandbox_scenario(
     settings: &ScenarioNode,
     world: Vec<ScenarioObjectConfig>,
@@ -1851,6 +1859,64 @@ mod tests {
         assert!(
             !registered.menu_backdrop,
             "and out of the menu's backdrop rotation"
+        );
+    }
+
+    /// The Play hand-off is where a PICKED ref stops being a ref. The picker
+    /// writes what a save needs - `dep://<bundle>/<file>` - and the sandbox is
+    /// merged with nothing, so an unresolved ref reaches the asset server as an
+    /// unknown source and the range comes up with no sky at all. The regression
+    /// is the resolver going uncalled, not the resolver being wrong, so this
+    /// runs the real system.
+    #[test]
+    fn play_hands_off_a_picked_sky_the_asset_server_can_actually_load() {
+        use nova_assets::prelude::EnabledMods;
+        use nova_modding::prelude::{
+            BundleAsset, CatalogEntry, InstalledCatalog, ModEntry, ModMeta,
+        };
+
+        let mut world = World::new();
+        let mut bundles = Assets::<BundleAsset>::default();
+        let bundle = bundles.add(BundleAsset {
+            content: vec![],
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+            resources: vec!["textures/cubemap_alt.png".to_string()],
+            resource_base: "base".to_string(),
+        });
+        let mut catalogs = Assets::<InstalledCatalog>::default();
+        catalogs.add(InstalledCatalog {
+            entries: vec![CatalogEntry {
+                decl: ModEntry {
+                    id: "base".to_string(),
+                    bundle: "base/base.bundle.ron".to_string(),
+                    base: true,
+                    hidden: false,
+                },
+                bundle,
+            }],
+        });
+        world.insert_resource(bundles);
+        world.insert_resource(catalogs);
+        world.insert_resource(EnabledMods(["base".to_string()].into_iter().collect()));
+        world.insert_resource(GameScenarios::default());
+        world.init_resource::<EditContext>();
+        world.init_resource::<SelectedNode>();
+        world.run_system_once(ensure_document).expect("a document");
+
+        let scenario = world.resource::<EditContext>().path[0];
+        world.entity_mut(scenario).insert(ScenarioNode {
+            cubemap: AssetRef::from("dep://base/textures/cubemap_alt.png"),
+            ..default()
+        });
+        world
+            .run_system_once(setup_scenario)
+            .expect("Play hands off");
+
+        assert_eq!(
+            world.resource::<GameScenarios>()[SANDBOX_ID].cubemap.path(),
+            Some("base/textures/cubemap_alt.png"),
+            "the sky the builder picked is handed off as a path that loads"
         );
     }
 

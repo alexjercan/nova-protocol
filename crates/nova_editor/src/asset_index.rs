@@ -11,9 +11,15 @@ pub(crate) mod prelude {
     pub(crate) use super::{AssetIndex, AssetSort};
 }
 
+use std::collections::{HashMap, HashSet};
+
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_assets::prelude::{DownloadedMods, EnabledMods};
-use nova_modding::prelude::{BundleAsset, InstalledCatalog};
+use nova_assets::{
+    mod_refs::prelude::{rewrite_refs, DepRef, RefScope},
+    prelude::{DownloadedMods, EnabledMods},
+};
+use nova_modding::prelude::{BundleAsset, Content, InstalledCatalog};
+use nova_scenario::prelude::ScenarioConfig;
 
 /// The scheme a picked file is written under. `dep://<id>/<file>` names another
 /// bundle's declared resource, which is what a range built in the editor does
@@ -109,6 +115,53 @@ impl AssetIndex<'_> {
             .any(|(bundle, declared)| bundle == id && declared == file)
     }
 
+    /// The same rewrite the mod merge performs, for a range that never goes
+    /// through it.
+    ///
+    /// A picked file is written as `dep://<bundle>/<file>`, which is the ref a
+    /// SAVED range needs: the merge resolves it against the bundle that ships
+    /// the file. The sandbox is built at runtime and merged with nothing, so
+    /// the same ref reaches the asset server verbatim and fails as an unknown
+    /// source - which is a scenario that comes up with no sky. Resolving here
+    /// keeps ONE spelling in the document and lets Play show what a save would.
+    ///
+    /// Every enabled bundle is a legal target, `base` included. There is no
+    /// dependency graph to honour: the range is not a mod yet, and what it may
+    /// name is what is installed. A save writes the refs unresolved, so the
+    /// merge still gates them when the range becomes a mod.
+    pub(crate) fn resolved(&self, scenario: ScenarioConfig) -> ScenarioConfig {
+        let bundles: Vec<(&str, &BundleAsset)> = self.bundles().collect();
+        let declared_deps: HashSet<String> =
+            bundles.iter().map(|(id, _)| (*id).to_string()).collect();
+        let deps: HashMap<String, DepRef<'_>> = bundles
+            .iter()
+            .map(|(id, bundle)| {
+                (
+                    (*id).to_string(),
+                    DepRef {
+                        base: Some(bundle.resource_base.as_str()),
+                        resources: Some(bundle.resources.as_slice()),
+                    },
+                )
+            })
+            .collect();
+        // No `self://` target: the sandbox owns no folder of its own, so such a
+        // ref is left literal and fails loudly rather than resolving somewhere
+        // it was never pointed at.
+        let scope = RefScope {
+            self_base: "",
+            self_resources: &[],
+            declared_deps: &declared_deps,
+            deps: &deps,
+        };
+        let Content::Scenario(resolved) =
+            rewrite_refs(&Content::Scenario(scenario.clone()), &scope)
+        else {
+            return scenario;
+        };
+        resolved
+    }
+
     /// Whether the index knows anything at all. A rig with no bundles loaded
     /// answers every path with "unknown", which would paint a whole panel wrong.
     pub(crate) fn is_empty(&self) -> bool {
@@ -117,6 +170,12 @@ impl AssetIndex<'_> {
 
     /// Every (bundle id, declared file) pair of the enabled set.
     fn declared(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.bundles()
+            .flat_map(|(id, bundle)| bundle.resources.iter().map(move |file| (id, file.as_str())))
+    }
+
+    /// Every ENABLED bundle, by id.
+    fn bundles(&self) -> impl Iterator<Item = (&str, &BundleAsset)> {
         let enabled = self.enabled.as_deref().map(|enabled| &enabled.0);
         // Every catalog asset loaded rather than the one `GameAssets` points
         // at: there is only ever the one, and reading it this way keeps the
@@ -139,7 +198,6 @@ impl AssetIndex<'_> {
             .chain(downloaded)
             .filter(move |(id, _)| enabled.is_none_or(|enabled| enabled.contains(*id)))
             .filter_map(|(id, handle)| Some((id, self.bundles.as_deref()?.get(handle)?)))
-            .flat_map(|(id, bundle)| bundle.resources.iter().map(move |file| (id, file.as_str())))
     }
 }
 

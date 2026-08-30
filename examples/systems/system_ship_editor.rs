@@ -337,6 +337,29 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
         })
         .add()
+        // And the sky is PICKED, not typed. The ref the picker writes is the
+        // one a save needs; the sandbox is merged with nothing, so Play has to
+        // resolve it or the range comes up with no sky at all.
+        .click_a_widget("editor: open the sky picker", "Inspector Ref Cubemap")
+        .click_a_widget(
+            "editor: pick the other sky",
+            "Ref Option dep://base/textures/cubemap_alt.png",
+        )
+        .step("editor: the root took the sky the picker offered")
+        .on_enter(|world: &mut World| {
+            let picked = inspector_reading(world, "Cubemap");
+            assert_eq!(
+                picked, "dep://base/textures/cubemap_alt.png",
+                "the row holds the ref a saved range is written with"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the range's sky is picked from what the bundles ship",
+                serde_json::json!({}),
+            );
+            info!("editor: the root took the sky {picked}");
+        })
+        .add()
         .click_a_menu_item("editor: click Add > New Ship", ADD_MENU, "Add Ship Button")
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))

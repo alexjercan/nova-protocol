@@ -157,6 +157,40 @@ below), and the picker itself is covered by
 `a_file_row_offers_the_bundles_files_and_marks_one_they_do_not_ship`. The
 cubemap row reaches that picker by its type, naming no field.
 
+## Follow-up defect, found in play and fixed
+
+Reported 2026-08-30: a sky picked in the sandbox came up grey on Play. The
+editor's Play hand-off used to pass `GameAssets.cubemap` - a LOADED HANDLE - so
+the path was never read. Taking the sky off the document replaced that handle
+with the ref the row holds, and the picker writes `dep://<bundle>/<file>`: the
+ref a SAVE needs, because the merge resolves it. The sandbox is built at
+runtime and merged with nothing, so the asset server got `dep://...` verbatim,
+answered `Asset Source 'dep' does not exist`, and the skybox applier left the
+sky unchanged.
+
+The hole was wider than the sky. Every picked ref on the Play path had it - an
+asteroid texture, an impact sound, a mesh - it was simply unreachable while the
+one scenario-level ref was a handle.
+
+Fixed by resolving the whole sandbox scenario through the same rewrite the
+merge uses: `AssetIndex::resolved` builds a `RefScope` over the enabled bundles
+and runs `nova_assets::mod_refs::rewrite_refs`, called by both `setup_scenario`
+(Play) and `register_sandbox_scenario` (the boot entry). A save still writes the
+refs unresolved, so the merge keeps gating them when the range becomes a mod.
+
+- `the_sandbox_resolves_a_picked_ref_the_merge_will_never_see` and
+  `a_direct_path_is_left_exactly_as_it_was_authored` (`asset_index/tests.rs`).
+- `play_hands_off_a_picked_sky_the_asset_server_can_actually_load`
+  (`scenario.rs`) runs the real `setup_scenario`; with the resolver call
+  removed it fails on `dep://base/textures/cubemap_alt.png`, which is the bug.
+- LIVE: new beats `editor: open the sky picker` / `editor: pick the other sky`
+  - the picker offers the shipped skies and the root takes
+  `dep://base/textures/cubemap_alt.png`. The hand-off itself is not reachable
+  live: Play comes after the stalling beat below.
+
+No changelog entry - the picker, the Cubemap row and the defect are all inside
+this release cycle.
+
 ## Found alongside, not fixed
 
 `system_ship_editor` stalls at `editor: give it J`: the turret's Key row arms
