@@ -36,6 +36,19 @@
 //! mod that wants a puff, sparks, or no debris at all replaces this observer
 //! rather than patching the carve.
 //!
+//! # The body says what it is made of
+//!
+//! A rock and a hull announce a carve identically, so for as long as one look
+//! was shared an asteroid threw gunmetal chips. [`CarveDebris`] sits on the
+//! BODY and this observer reads it, which is the only arrangement that does not
+//! force `integrity` to enumerate the kinds of body the layers above it will
+//! invent. A body that says nothing is plate, so every ship stayed correct
+//! without being touched.
+//!
+//! Metal is also HOT. A chip is cut, not picked up, so it leaves near-white and
+//! cools to gunmetal in under a second - which is the difference between debris
+//! and litter, and what the cold grey cube got wrong.
+//!
 //! # Why shards are not physical debris
 //!
 //! Shards are `Kinematic` and carry NO collider, exactly as damage sparks do,
@@ -50,14 +63,65 @@
 //! it is meant to still be there when it lands.
 
 use avian3d::prelude::{AngularVelocity, LinearVelocity, RigidBody};
-use bevy::prelude::*;
+use bevy::{platform::collections::HashMap, prelude::*};
 
 use super::carve::prelude::CarveSpew;
 use crate::{damage::prelude::DamageType, prelude::TempEntity};
 
-/// `CarveShardMarker` and `CarveSpewPlugin`.
+/// `CarveDebris`, `CarveShardMarker` and `CarveSpewPlugin`.
 pub mod prelude {
-    pub use super::{CarveShardMarker, CarveSpewPlugin};
+    pub use super::{CarveDebris, CarveShardMarker, CarveSpewPlugin};
+}
+
+/// What a body is MADE OF, read off the body a carve took material from.
+///
+/// A ship and an asteroid announce a carve identically - the same `CarveSpew`,
+/// with the same fields - so before this existed a rock threw the hull's
+/// gunmetal chips. The split cannot live in the event, because a carve says
+/// what it took and nothing about how that should look, and it cannot live in
+/// a match on a body-type enum either: `integrity` does not know what kinds of
+/// body exist, and every layer that invents one would have to come back and
+/// add an arm.
+///
+/// So the BODY declares it, and this observer reads whatever is there.
+/// Anything without one is plate, which keeps every existing ship correct
+/// without touching it.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Reflect)]
+#[reflect(Component)]
+pub enum CarveDebris {
+    /// Ship plate. Freshly cut metal is INCANDESCENT, so a chip leaves
+    /// near-white and cools to gunmetal while it flies.
+    #[default]
+    Metal,
+    /// Rock. It does not glow, it spalls in greater number and it leaves
+    /// slower, because what comes off a hit rock is dust and grit rather than
+    /// a cut piece of plate.
+    Rock,
+}
+
+impl CarveDebris {
+    /// How this material spalls, given the weapon class's baseline look.
+    fn shape(self, look: ShardLook) -> ShardLook {
+        match self {
+            Self::Metal => look,
+            Self::Rock => ShardLook {
+                size: look.size * 0.75,
+                per_unit_radius: look.per_unit_radius * 1.8,
+                fewest: look.fewest * 2,
+                most: (look.most * 9) / 5,
+            },
+        }
+    }
+
+    /// How fast its chips leave, as a factor on the shared speed range.
+    fn speed_scale(self) -> f32 {
+        match self {
+            Self::Metal => 1.0,
+            // Grit off a rock carries less of the round's energy than a cut
+            // piece of plate does, and it is what makes rock read as heavy.
+            Self::Rock => 0.55,
+        }
+    }
 }
 
 /// What one weapon class's chips are.
@@ -183,10 +247,42 @@ pub struct CarveShardMarker;
 /// which a headless test app adds without any asset stores at all, and an
 /// `init_resource` here would panic every one of them before a single carve
 /// happened.
-type ShardAssets = (Handle<Mesh>, Handle<StandardMaterial>);
+struct ShardAssets {
+    mesh: Handle<Mesh>,
+    /// The cooling ramp, hottest first. One entry means a material that never
+    /// glowed and so never cools.
+    ramp: Vec<Handle<StandardMaterial>>,
+}
 
-/// Mint the shared shard assets.
+/// The shard assets for every material seen so far, minted on first use.
+///
+/// A MAP and not a pair of fields, so a third material is one arm in
+/// [`shard_assets`] rather than an edit here as well - the same shape
+/// `DefaultTorpedoRender` uses to key warhead materials by tint.
+#[derive(Resource, Default)]
+struct DebrisLooks(HashMap<CarveDebris, ShardAssets>);
+
+/// Seconds a hot chip takes to reach the cold end of its ramp.
+///
+/// Under a third of [`SHARD_LIFETIME_SECS`]. The glow is what says the chip was
+/// just CUT, and a chip still glowing when it drifts out of frame reads as a
+/// firefly instead.
+const SHARD_COOL_SECS: f32 = 0.8;
+
+/// How many materials the cooling ramp is cut into.
+///
+/// Discrete because the material is SHARED - a per-shard material would mint an
+/// asset per chip and never free it - so cooling is a swap between a handful of
+/// shared handles rather than a value animated per entity. Five is where the
+/// steps stop being visible as pops at [`SHARD_COOL_SECS`].
+const SHARD_COOL_STEPS: usize = 5;
+
+/// How hot a chip is at the instant it is cut. Well past 1.0 so it blooms.
+const SHARD_HOT_EMISSIVE: LinearRgba = LinearRgba::new(7.0, 3.2, 0.9, 1.0);
+
+/// Mint the shared shard assets for one material.
 fn shard_assets(
+    debris: CarveDebris,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
 ) -> ShardAssets {
@@ -194,13 +290,92 @@ fn shard_assets(
     // and angular, and the flat-shaded look the rest of the game is built on
     // has no way to draw a small sphere that does not read as a ball bearing.
     let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
-    let material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.30, 0.30, 0.33),
-        perceptual_roughness: 0.9,
-        metallic: 0.3,
-        ..default()
-    });
-    (mesh, material)
+
+    let ramp = match debris {
+        CarveDebris::Metal => (0..SHARD_COOL_STEPS)
+            .map(|step| {
+                // Squared, so most of the glow is gone in the first step or
+                // two: metal loses heat fastest when it is hottest, and a
+                // linear ramp reads as a chip being dimmed by a knob.
+                let remaining = 1.0 - step as f32 / (SHARD_COOL_STEPS - 1) as f32;
+                let heat = remaining * remaining;
+                materials.add(StandardMaterial {
+                    base_color: Color::srgb(0.30, 0.30, 0.33),
+                    // Channel by channel, and NOT `SHARD_HOT_EMISSIVE * heat`:
+                    // scaling the whole colour scales its alpha too, and the
+                    // cold end of the ramp would be a transparent black rather
+                    // than the ordinary opaque black a material that emits
+                    // nothing carries.
+                    emissive: LinearRgba::new(
+                        SHARD_HOT_EMISSIVE.red * heat,
+                        SHARD_HOT_EMISSIVE.green * heat,
+                        SHARD_HOT_EMISSIVE.blue * heat,
+                        1.0,
+                    ),
+                    perceptual_roughness: 0.9,
+                    metallic: 0.3,
+                    ..default()
+                })
+            })
+            .collect(),
+        CarveDebris::Rock => vec![materials.add(StandardMaterial {
+            base_color: Color::srgb(0.34, 0.29, 0.25),
+            perceptual_roughness: 1.0,
+            metallic: 0.0,
+            ..default()
+        })],
+    };
+
+    ShardAssets { mesh, ramp }
+}
+
+/// A chip still losing its cutting heat. Absent on a material that never
+/// glowed, so [`cool_carve_shards`] does no work for rock.
+#[derive(Component, Clone, Copy, Debug)]
+struct ShardCooling {
+    debris: CarveDebris,
+    age: f32,
+    step: usize,
+}
+
+/// Walk every hot chip down its ramp, swapping to the next shared material as
+/// it cools.
+fn cool_carve_shards(
+    time: Res<Time>,
+    looks: Res<DebrisLooks>,
+    mut q_shard: Query<(&mut ShardCooling, &mut MeshMaterial3d<StandardMaterial>)>,
+) {
+    let delta = time.delta_secs();
+    for (mut cooling, mut material) in &mut q_shard {
+        cooling.age += delta;
+        let Some(assets) = looks.0.get(&cooling.debris) else {
+            continue;
+        };
+        let last = assets.ramp.len().saturating_sub(1);
+        if last == 0 {
+            continue;
+        }
+        let t = (cooling.age / SHARD_COOL_SECS).clamp(0.0, 1.0);
+        let step = shard_cool_step(t, assets.ramp.len());
+        if step != cooling.step {
+            cooling.step = step;
+            material.0 = assets.ramp[step].clone();
+        }
+    }
+}
+
+/// Which ramp entry a chip `t` of the way through its cooling is on.
+///
+/// Pure, so the ramp can be read without a running app.
+fn shard_cool_step(t: f32, steps: usize) -> usize {
+    let last = steps.saturating_sub(1);
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "t is clamped to 0..=1, so the product is inside `last`"
+    )]
+    let step = (t.clamp(0.0, 1.0) * last as f32).round() as usize;
+    step.min(last)
 }
 
 /// Which way the `nth` shard off a crater at `at` is thrown.
@@ -249,17 +424,21 @@ impl Plugin for CarveSpewPlugin {
         trace!("CarveSpewPlugin: build");
 
         app.register_type::<CarveShardMarker>();
+        app.register_type::<CarveDebris>();
+        app.init_resource::<DebrisLooks>();
         app.add_observer(spew_carved_material);
+        app.add_systems(Update, cool_carve_shards);
     }
 }
 
 fn spew_carved_material(
     spew: On<CarveSpew>,
     mut commands: Commands,
-    mut cached: Local<Option<ShardAssets>>,
+    mut looks: ResMut<DebrisLooks>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     q_body: Query<&GlobalTransform>,
+    q_debris: Query<&CarveDebris>,
 ) {
     // The class decides first, so a warhead costs nothing at all here.
     let Some(look) = shard_look(spew.kind) else {
@@ -281,13 +460,21 @@ fn spew_carved_material(
         (spew.at - frame.translation()).normalize_or(Vec3::Y)
     });
 
-    let (mesh, material) = cached
-        .get_or_insert_with(|| shard_assets(&mut meshes, &mut materials))
-        .clone();
+    // The body decides what it is made of; anything silent is plate.
+    let debris = q_debris.get(spew.entity).copied().unwrap_or_default();
+    let look = debris.shape(look);
+
+    let assets = looks
+        .0
+        .entry(debris)
+        .or_insert_with(|| shard_assets(debris, &mut meshes, &mut materials));
+    let mesh = assets.mesh.clone();
+    let material = assets.ramp[0].clone();
+    let cools = assets.ramp.len() > 1;
 
     let count = look.count(spew.radius);
     trace!(
-        "spew_carved_material: {count} shard(s) off {:?} at {} ({:?})",
+        "spew_carved_material: {count} {debris:?} shard(s) off {:?} at {} ({:?})",
         spew.entity,
         spew.at,
         spew.kind
@@ -295,7 +482,8 @@ fn spew_carved_material(
 
     for nth in 0..count {
         let (direction, speed) = shard_throw(outward, spew.at, nth);
-        commands.spawn((
+        let speed = speed * debris.speed_scale();
+        let mut shard = commands.spawn((
             Name::new("Carve Shard"),
             CarveShardMarker,
             Mesh3d(mesh.clone()),
@@ -312,6 +500,16 @@ fn spew_carved_material(
             AngularVelocity(direction.any_orthogonal_vector() * SPEW_SPIN),
             TempEntity(SHARD_LIFETIME_SECS),
         ));
+        // Only a material with a ramp carries the cooling: rock never glowed,
+        // so it costs no component and the cooling system skips it entirely
+        // rather than iterating it to do nothing.
+        if cools {
+            shard.insert(ShardCooling {
+                debris,
+                age: 0.0,
+                step: 0,
+            });
+        }
     }
 }
 
@@ -350,10 +548,19 @@ mod tests {
     /// Throw one crater of `radius` off a body at the origin and report the
     /// shards it left.
     fn carve(app: &mut App, kind: DamageType, radius: f32) -> Vec<(Vec3, Vec3)> {
-        let body = app
+        carve_body(app, kind, radius, None);
+        shards(app)
+    }
+
+    /// Throw one crater off a body optionally declaring what it is made of.
+    fn carve_body(app: &mut App, kind: DamageType, radius: f32, debris: Option<CarveDebris>) {
+        let mut body = app
             .world_mut()
-            .spawn(GlobalTransform::from_translation(Vec3::ZERO))
-            .id();
+            .spawn(GlobalTransform::from_translation(Vec3::ZERO));
+        if let Some(debris) = debris {
+            body.insert(debris);
+        }
+        let body = body.id();
         app.world_mut().trigger(CarveSpew {
             entity: body,
             at: Vec3::X * 3.0,
@@ -361,7 +568,15 @@ mod tests {
             kind,
         });
         app.update();
-        shards(app)
+    }
+
+    /// Every shard's material handle.
+    fn shard_materials(app: &mut App) -> Vec<Handle<StandardMaterial>> {
+        app.world_mut()
+            .query_filtered::<&MeshMaterial3d<StandardMaterial>, With<CarveShardMarker>>()
+            .iter(app.world())
+            .map(|material| material.0.clone())
+            .collect()
     }
 
     /// THE ruling this module now implements: chips are an IMPACT effect. A
@@ -572,6 +787,138 @@ mod tests {
         assert_ne!(
             once, elsewhere,
             "two different craters must not throw identically"
+        );
+    }
+
+    /// The ruling the owner took: a rock must not throw the hull's chips. Both
+    /// bodies take the identical carve, and the only thing that differs is what
+    /// the body said it was made of.
+    #[test]
+    fn a_rock_and_a_hull_throw_different_debris() {
+        let mut plate = spew_app();
+        carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
+        let plate_material = shard_materials(&mut plate);
+
+        let mut rock = spew_app();
+        carve_body(&mut rock, DamageType::Kinetic, 0.6, Some(CarveDebris::Rock));
+        let rock_material = shard_materials(&mut rock);
+
+        assert!(!plate_material.is_empty() && !rock_material.is_empty());
+        let plate_asset = plate.world().resource::<Assets<StandardMaterial>>();
+        let rock_asset = rock.world().resource::<Assets<StandardMaterial>>();
+        let plate_look = plate_asset.get(&plate_material[0]).expect("plate look");
+        let rock_look = rock_asset.get(&rock_material[0]).expect("rock look");
+        assert_ne!(plate_look.base_color, rock_look.base_color);
+        assert!(
+            plate_look.emissive.red > 0.0,
+            "a freshly cut chip of plate is incandescent"
+        );
+        assert_eq!(
+            rock_look.emissive,
+            LinearRgba::BLACK,
+            "rock does not glow when it is hit"
+        );
+    }
+
+    /// An unmarked body is plate, so every ship that existed before
+    /// [`CarveDebris`] did keeps throwing exactly what it threw.
+    #[test]
+    fn a_body_that_says_nothing_throws_plate() {
+        assert_eq!(CarveDebris::default(), CarveDebris::Metal);
+        assert_eq!(CarveDebris::Metal.shape(KINETIC_SHARDS), KINETIC_SHARDS);
+        assert!((CarveDebris::Metal.speed_scale() - 1.0).abs() < f32::EPSILON);
+    }
+
+    /// Rock spalls in greater number and leaves slower, which is what makes it
+    /// read as heavy rather than as a hull painted brown.
+    #[test]
+    fn rock_spalls_more_and_slower_than_plate() {
+        let plate = CarveDebris::Metal.shape(KINETIC_SHARDS);
+        let rock = CarveDebris::Rock.shape(KINETIC_SHARDS);
+        assert!(rock.count(0.6) > plate.count(0.6));
+        assert!(rock.count(100.0) > plate.count(100.0), "and at the ceiling");
+        assert!(rock.size < plate.size);
+        assert!(CarveDebris::Rock.speed_scale() < CarveDebris::Metal.speed_scale());
+
+        let mut plate_app = spew_app();
+        carve_body(&mut plate_app, DamageType::Kinetic, 0.6, None);
+        let mut rock_app = spew_app();
+        carve_body(
+            &mut rock_app,
+            DamageType::Kinetic,
+            0.6,
+            Some(CarveDebris::Rock),
+        );
+        assert!(shards(&mut rock_app).len() > shards(&mut plate_app).len());
+    }
+
+    /// Only a material with a ramp carries the cooling component, so rock costs
+    /// the cooling system nothing at all.
+    #[test]
+    fn only_a_hot_chip_carries_its_cooling() {
+        let mut plate = spew_app();
+        carve_body(&mut plate, DamageType::Kinetic, 0.6, None);
+        let hot = plate
+            .world_mut()
+            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
+            .iter(plate.world())
+            .count();
+        assert!(hot > 0, "a chip of plate cools");
+
+        let mut rock = spew_app();
+        carve_body(&mut rock, DamageType::Kinetic, 0.6, Some(CarveDebris::Rock));
+        let cold = rock
+            .world_mut()
+            .query_filtered::<(), (With<CarveShardMarker>, With<ShardCooling>)>()
+            .iter(rock.world())
+            .count();
+        assert_eq!(cold, 0, "rock never glowed, so it has nothing to cool");
+    }
+
+    /// The ramp starts hot, ends cold, and clamps at both ends.
+    #[test]
+    fn the_cooling_ramp_runs_hot_to_cold_and_clamps() {
+        assert_eq!(shard_cool_step(0.0, 5), 0);
+        assert_eq!(shard_cool_step(1.0, 5), 4);
+        assert_eq!(shard_cool_step(-1.0, 5), 0);
+        assert_eq!(shard_cool_step(2.0, 5), 4);
+        assert!(shard_cool_step(0.25, 5) < shard_cool_step(0.75, 5));
+        // A one-entry ramp has nowhere to go.
+        assert_eq!(shard_cool_step(1.0, 1), 0);
+    }
+
+    /// A hot chip actually swaps material as it flies.
+    ///
+    /// The clock is DRIVEN, not read: `MinimalPlugins` runs `Time` off the real
+    /// wall clock, so forty updates of a test binary advance it by microseconds
+    /// and nothing would ever cool. A warm-up tick goes first because bevy's
+    /// first manual step is dt 0.
+    #[test]
+    fn a_hot_chip_swaps_to_a_cooler_material_as_it_flies() {
+        let mut app = spew_app();
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_millis(50),
+        ));
+        app.update();
+
+        carve_body(&mut app, DamageType::Kinetic, 0.6, None);
+        let at_birth = shard_materials(&mut app);
+        assert!(!at_birth.is_empty());
+
+        // Past the far end of the ramp, and still well inside the shard's own
+        // lifetime so there is something left to read.
+        for _ in 0..25 {
+            app.update();
+        }
+
+        let cooled = shard_materials(&mut app);
+        assert!(!cooled.is_empty(), "the shard outlives its cooling");
+        assert_ne!(at_birth[0], cooled[0], "the chip is on a cooler material");
+        let materials = app.world().resource::<Assets<StandardMaterial>>();
+        assert_eq!(
+            materials.get(&cooled[0]).expect("cold look").emissive,
+            LinearRgba::BLACK,
+            "the far end of the ramp is not glowing at all"
         );
     }
 }

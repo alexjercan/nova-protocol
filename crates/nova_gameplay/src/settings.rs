@@ -168,10 +168,10 @@ fn harness_muted_from(nova_mute: Option<&str>, harness_env_active: bool) -> bool
 #[reflect(Resource)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum GraphicsQuality {
-    /// Cheapest: all combat juice off (no camera shake, no hit flashes). The
+    /// Cheapest: all combat juice off (no camera shake, no impact sparks). The
     /// low-end task extends this to also skip particles.
     Low,
-    /// Middle: hit flashes stay, camera shake off.
+    /// Middle: impact sparks stay, camera shake off.
     Medium,
     /// Everything on (the default look).
     #[default]
@@ -391,12 +391,12 @@ fn apply_graphics_quality(
         GraphicsQuality::High => {
             juice.master_enabled = true;
             juice.shake.enabled = true;
-            juice.flash.enabled = true;
+            juice.sparks.enabled = true;
         }
         GraphicsQuality::Medium => {
             juice.master_enabled = true;
             juice.shake.enabled = false;
-            juice.flash.enabled = true;
+            juice.sparks.enabled = true;
         }
         GraphicsQuality::Low => {
             juice.master_enabled = false;
@@ -504,7 +504,7 @@ mod tests {
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(
-            j.master_enabled && j.shake.enabled && j.flash.enabled,
+            j.master_enabled && j.shake.enabled && j.sparks.enabled,
             "High: all on"
         );
 
@@ -512,8 +512,8 @@ mod tests {
         app.update();
         let j = app.world().resource::<JuiceSettings>();
         assert!(
-            j.master_enabled && !j.shake.enabled && j.flash.enabled,
-            "Medium: flash on, shake off - a real, observable step down from High"
+            j.master_enabled && !j.shake.enabled && j.sparks.enabled,
+            "Medium: sparks on, shake off - a real, observable step down from High"
         );
 
         app.insert_resource(GraphicsQuality::Low);

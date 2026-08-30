@@ -1,12 +1,12 @@
 //! Nova's combat juice: moment-to-moment feedback when a shot lands or a target
-//! dies. Two effects (camera shake and flash rings), both driven off the same
+//! dies. Two effects (camera shake and a spark burst), both driven off the same
 //! existing seams the audio layer uses so no gameplay system has to know about
 //! them:
 //!
-//! - damage applied to a target -> a small camera-shake kick + an impact flash
+//! - damage applied to a target -> a small camera-shake kick + a spark burst
 //!   (`On<HealthApplyDamage>`);
 //! - a section/asteroid destroyed or a torpedo detonating -> a big camera-shake
-//!   kick + a destruction flash (`On<Add, IntegrityDestroyMarker>`).
+//!   kick + a bigger burst (`On<Add, IntegrityDestroyMarker>`).
 //!
 //! **Camera shake** reuses the generic trauma model from [`shake`](crate::shake)
 //! ([`CameraShakePlugin`]): it is drift-free (offset is un-applied and re-applied
@@ -14,20 +14,25 @@
 //! camera. This module only *feeds* it trauma; `ensure_camera_shake` attaches a
 //! [`CameraShake`] (configured from [`JuiceSettings`]) to the gameplay camera.
 //!
-//! **Impact / hit-flash FX** are drawn with gizmos, not spawned meshes or
-//! particles: a camera-facing ring at the event position that expands and fades
-//! over a fraction of a second. Gizmos are immediate-mode, so they incur zero
-//! asset/entity churn even when a blast hits many colliders in one frame.
-//! Section render meshes live in shared, gltf-instanced children, so an overlay
-//! ring is chosen over recoloring their materials (a true per-section emissive
-//! flash is a possible follow-up).
+//! **The impact burst** is an [`ImpactSparks`] request, which
+//! [`impact_spark`](crate::impact_spark) answers with a handful of short-lived
+//! incandescent streaks. What used to stand here was an expanding camera-facing
+//! gizmo ring, drawn immediate-mode for zero entity churn - cheap, and the most
+//! seen and least believable effect in a fight. A ring is a diagram of a hit.
+//! Sparks are the hit.
+//!
+//! This module decides WHETHER a burst happens and how big; the spark module
+//! decides what one looks like. Everything below the split - the throttle, the
+//! distance falloff, the settings toggle - is inherited by whatever replaces
+//! the look.
 //!
 //! Both effects are **distance-attenuated** from the gameplay camera (the one
 //! carrying `SfxListenerMarker`, shared with the audio layer; the trauma
-//! impulse and the ring alpha both scale with the falloff) and **per-area-cell
-//! throttled**, mirroring `audio/`: a blast that damages a dozen colliders of
-//! one ship in a single frame collapses to one kick and one flash, and a distant
-//! event kicks/flashes weaker than one in your face. Every tunable
+//! impulse and the spark count both scale with the falloff) and
+//! **per-area-cell throttled**, mirroring `audio/`: a blast that damages a
+//! dozen colliders of one ship in a single frame collapses to one kick and one
+//! burst, and a distant event kicks weaker and throws fewer sparks than one in
+//! your face. Every tunable
 //! lives on the [`JuiceSettings`] resource (with per-effect enable toggles and a
 //! master switch) so a settings menu can bind to it later. All the math a headless
 //! run cannot exercise (the rendering) is pushed into pure helpers that are
@@ -39,20 +44,20 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
-/// The shake and flash settings, `JuiceSettings` and `NovaJuicePlugin`.
+/// The shake and spark settings, `JuiceSettings` and `NovaJuicePlugin`.
 pub mod prelude {
-    pub use super::{FlashSettings, JuiceSettings, NovaJuicePlugin, ShakeSettings};
+    pub use super::{JuiceSettings, NovaJuicePlugin, ShakeSettings, SparkSettings};
 }
 
 /// World-cell size (units) for grouping co-located juice events, matching the
 /// audio layer's `SFX_AREA_CELL`. A blast hitting many colliders of one ship, or a
 /// ship's sections all destroyed at once, fall in the same cell and collapse to a
-/// single kick/flash; events far enough apart get their own.
+/// single kick/burst; events far enough apart get their own.
 const JUICE_AREA_CELL: f32 = 6.0;
 
 /// Minimum seconds between successive impact / destruction juice events per cell.
 /// Without this a single blast's many-collider damage burst would stack a dozen
-/// identical kicks (saturating trauma instantly) and a dozen overlapping rings.
+/// identical kicks (saturating trauma instantly) and a dozen overlapping bursts.
 /// A dying multi-section ship marks every section in one frame, so destruction is
 /// throttled too, just a touch looser so genuinely separate kills still each read.
 const IMPACT_MIN_INTERVAL: f32 = 0.04;
@@ -62,14 +67,8 @@ const DESTROY_MIN_INTERVAL: f32 = 0.06;
 /// stays bounded as combat moves through new cells (mirrors the audio throttle).
 const JUICE_THROTTLE_PRUNE_WINDOW: f32 = 2.0;
 
-/// Hard cap on simultaneously-tracked flashes. Throttling already bounds the spawn
-/// rate and the draw system prunes expired ones every frame, so this is only a
-/// runaway backstop; when full, the newest flash is dropped rather than unbounded
-/// growth.
-const MAX_ACTIVE_FLASHES: usize = 64;
-
-/// Which kind of juice event a flash represents, selecting its color/size/duration
-/// from [`FlashSettings`].
+/// Which kind of juice event this is, selecting its trauma from
+/// [`ShakeSettings`] and its spark count from [`SparkSettings`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Reflect)]
 pub enum JuiceEventKind {
     /// Damage landed on a still-living target.
@@ -131,67 +130,42 @@ impl Default for ShakeSettings {
     }
 }
 
-/// Tunables for the gizmo impact/destruction flash rings.
+/// Tunables for the impact spark burst.
+///
+/// Counts and nothing else: how HOT a spark is, how fast it leaves and how long
+/// it lives are properties of incandescent metal, not preferences, and they
+/// live with the look in [`impact_spark`](crate::impact_spark). What a player
+/// or a graphics tier wants to turn down is density.
 #[derive(Clone, Debug, Reflect)]
-pub struct FlashSettings {
-    /// Master toggle for the flash FX.
+pub struct SparkSettings {
+    /// Master toggle for the spark burst.
     pub enabled: bool,
-    /// Ring color for impact flashes (alpha is driven by the fade, so any alpha
-    /// here is ignored at draw time).
-    pub impact_color: Color,
-    /// Ring color for destruction flashes.
-    pub destroy_color: Color,
-    /// Peak radius an impact ring expands to, world units.
-    pub impact_radius: f32,
-    /// Peak radius a destruction ring expands to, world units.
-    pub destroy_radius: f32,
-    /// Lifetime of an impact flash, seconds.
-    pub impact_duration: f32,
-    /// Lifetime of a destruction flash, seconds.
-    pub destroy_duration: f32,
-    /// Concentric rings drawn per flash; >1 gives a little shockwave depth. Each
-    /// extra ring trails the leading edge slightly.
-    pub ring_count: u32,
+    /// Sparks thrown by a point-blank hit on a living target.
+    pub impact_count: u32,
+    /// Sparks thrown by a point-blank destruction.
+    pub destroy_count: u32,
 }
 
-impl Default for FlashSettings {
+impl Default for SparkSettings {
     fn default() -> Self {
         Self {
             enabled: true,
-            // Warm spark for hits, hot white-orange for kills.
-            impact_color: Color::srgb(1.0, 0.85, 0.4),
-            destroy_color: Color::srgb(1.0, 0.6, 0.25),
-            impact_radius: 1.2,
-            destroy_radius: 4.0,
-            impact_duration: 0.18,
-            destroy_duration: 0.45,
-            ring_count: 2,
+            // A kill throws roughly four times a hit. The ratio matters more
+            // than either number: under sustained PDC fire the impact burst is
+            // on screen constantly, so it has to stay small enough that a kill
+            // still reads as a different event.
+            impact_count: 5,
+            destroy_count: 20,
         }
     }
 }
 
-impl FlashSettings {
-    /// Peak radius for a flash of `kind`.
-    fn radius(&self, kind: JuiceEventKind) -> f32 {
+impl SparkSettings {
+    /// Point-blank spark count for an event of `kind`.
+    fn count(&self, kind: JuiceEventKind) -> u32 {
         match kind {
-            JuiceEventKind::Impact => self.impact_radius,
-            JuiceEventKind::Destroy => self.destroy_radius,
-        }
-    }
-
-    /// Lifetime for a flash of `kind`.
-    fn duration(&self, kind: JuiceEventKind) -> f32 {
-        match kind {
-            JuiceEventKind::Impact => self.impact_duration,
-            JuiceEventKind::Destroy => self.destroy_duration,
-        }
-    }
-
-    /// Base (opaque) color for a flash of `kind`.
-    fn color(&self, kind: JuiceEventKind) -> Color {
-        match kind {
-            JuiceEventKind::Impact => self.impact_color,
-            JuiceEventKind::Destroy => self.destroy_color,
+            JuiceEventKind::Impact => self.impact_count,
+            JuiceEventKind::Destroy => self.destroy_count,
         }
     }
 }
@@ -206,11 +180,11 @@ pub struct JuiceSettings {
     pub master_enabled: bool,
     /// Camera-shake tunables.
     pub shake: ShakeSettings,
-    /// Flash-FX tunables.
-    pub flash: FlashSettings,
+    /// Spark-burst tunables.
+    pub sparks: SparkSettings,
     /// A juice event at or nearer than this to the camera fires at full strength.
     pub near_distance: f32,
-    /// A juice event at or beyond this is fully attenuated (no kick, no flash).
+    /// A juice event at or beyond this is fully attenuated (no kick, no sparks).
     pub far_distance: f32,
 }
 
@@ -219,7 +193,7 @@ impl Default for JuiceSettings {
         Self {
             master_enabled: true,
             shake: ShakeSettings::default(),
-            flash: FlashSettings::default(),
+            sparks: SparkSettings::default(),
             // Only a near, in-your-face event shakes at full strength; the camera
             // chases the player from ~20 units back, so `near_distance` is kept
             // tight (roughly the ship's own length) and `far_distance` well inside
@@ -238,9 +212,9 @@ impl JuiceSettings {
         self.master_enabled && self.shake.enabled
     }
 
-    /// Whether the flash effect should run (master + per-effect toggle).
-    fn flash_on(&self) -> bool {
-        self.master_enabled && self.flash.enabled
+    /// Whether the spark burst should run (master + per-effect toggle).
+    fn sparks_on(&self) -> bool {
+        self.master_enabled && self.sparks.enabled
     }
 }
 
@@ -279,28 +253,6 @@ impl JuiceThrottle {
     }
 }
 
-/// One in-flight flash ring. Position and distance strength are fixed at spawn;
-/// the draw system derives the current radius/alpha from `age = now - start_secs`
-/// and scales the alpha by `strength`.
-#[derive(Clone, Copy, Debug)]
-struct Flash {
-    pos: Vec3,
-    start_secs: f32,
-    kind: JuiceEventKind,
-    /// Distance falloff (`0..1`) captured at emit time, so a far event draws a
-    /// fainter ring than one in your face (the visual analog of the attenuated
-    /// trauma). Radius is left at world scale - perspective already shrinks a
-    /// distant ring, so scaling radius too would double-attenuate.
-    strength: f32,
-}
-
-/// The set of flashes currently being drawn. Pushed by the event observers, drawn
-/// and pruned by [`draw_juice_flashes`].
-#[derive(Resource, Default)]
-struct ActiveJuiceFx {
-    flashes: Vec<Flash>,
-}
-
 /// Quantize a world position to a [`JUICE_AREA_CELL`]-sized integer cell, so nearby
 /// events share a throttle key and far ones do not.
 fn area_cell(pos: Vec3) -> IVec3 {
@@ -327,42 +279,28 @@ fn distance_falloff(distance: f32, near: f32, far: f32) -> f32 {
 /// The gameplay camera's world position (the attenuation listener), or `None` if no
 /// listener exists yet (early startup, or the editor). Keys off
 /// [`SfxListenerMarker`], the same explicit listener the audio layer uses, so shake
-/// and flash attenuation can never diverge from the sound attenuation.
+/// and spark attenuation can never diverge from the sound attenuation.
 fn listener_position(q_camera: &Query<&GlobalTransform, With<SfxListenerMarker>>) -> Option<Vec3> {
     q_camera.iter().next().map(|t| t.translation())
 }
 
-/// Normalized progress `0..1` of a flash of `age` seconds and total `duration`, or
-/// `>= 1.0` once it has fully elapsed. A non-positive duration reads as instantly
-/// done. Pure for unit testing.
-fn flash_progress(age: f32, duration: f32) -> f32 {
-    if duration <= 0.0 {
-        1.0
-    } else {
-        age / duration
-    }
-}
-
-/// Ring radius at progress `t` (0..1), easing out from ~0 toward `peak` so the ring
-/// leaps out then decelerates (`1 - (1 - t)^2`). Clamped so out-of-range `t` is
-/// safe. Pure for unit testing.
-fn flash_radius(t: f32, peak: f32) -> f32 {
-    let t = t.clamp(0.0, 1.0);
-    let eased = 1.0 - (1.0 - t) * (1.0 - t);
-    peak * eased
-}
-
-/// Ring alpha at progress `t` (0..1): opaque at the start, fading quadratically to
-/// zero at the end so the tail lingers faintly rather than cutting out. Clamped for
-/// safety. Pure for unit testing.
-fn flash_alpha(t: f32) -> f32 {
-    let t = t.clamp(0.0, 1.0);
-    let remaining = 1.0 - t;
-    remaining * remaining
+/// How many sparks a burst of `kind` throws at `falloff` distance strength.
+///
+/// At least one whenever the event fired at all: an event that passed the
+/// falloff gate and the throttle happened, and a burst that rounds to nothing
+/// is a hit with no cue. Pure for unit testing.
+fn spark_count(base: u32, falloff: f32) -> u32 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "falloff is clamped to 0..=1 by `distance_falloff`, so the product fits"
+    )]
+    let scaled = (base as f32 * falloff.clamp(0.0, 1.0)).round() as u32;
+    scaled.max(1)
 }
 
 /// Plugin wiring Nova's combat feedback: the reusable [`CameraShakePlugin`] plus
-/// Nova's own trauma-feeding observers, gizmo flash FX, and the [`JuiceSettings`]
+/// Nova's own trauma-feeding observers, the impact burst, and the [`JuiceSettings`]
 /// resource that tunes them.
 #[derive(Default)]
 pub struct NovaJuicePlugin;
@@ -379,13 +317,18 @@ impl Plugin for NovaJuicePlugin {
         app.init_resource::<JuiceSettings>()
             // Register the whole reflected tree, not just the root, so the debug
             // WorldInspector and a future settings menu can traverse into the nested
-            // shake/flash configs rather than seeing them as unregistered.
+            // shake/spark configs rather than seeing them as unregistered.
             .register_type::<JuiceSettings>()
             .register_type::<ShakeSettings>()
-            .register_type::<FlashSettings>()
+            .register_type::<SparkSettings>()
             .register_type::<JuiceEventKind>()
-            .init_resource::<JuiceThrottle>()
-            .init_resource::<ActiveJuiceFx>();
+            .init_resource::<JuiceThrottle>();
+
+        // The look the burst takes. Added HERE rather than left to the app, so
+        // a request this module makes always has an answer.
+        if !app.is_plugin_added::<ImpactSparkPlugin>() {
+            app.add_plugins(ImpactSparkPlugin);
+        }
 
         app.add_observer(on_damage_juice);
         app.add_observer(on_destroy_juice);
@@ -397,13 +340,6 @@ impl Plugin for NovaJuicePlugin {
                 sync_camera_shake_config,
                 prune_juice_throttle,
             ),
-        );
-
-        // Drawing reads the camera's GlobalTransform, so it must run after transform
-        // propagation, exactly like the debug gizmo systems.
-        app.add_systems(
-            PostUpdate,
-            draw_juice_flashes.after(TransformSystems::Propagate),
         );
     }
 }
@@ -453,7 +389,7 @@ fn sync_camera_shake_config(settings: Res<JuiceSettings>, mut q_shake: Query<&mu
 }
 
 /// Shared reaction to a juice event at `pos`: add attenuated trauma to the marked
-/// gameplay camera and queue a flash, each gated by its own enable toggle and
+/// gameplay camera and ask for a spark burst, each gated by its own toggle and
 /// throttle. Called by both observers so impact and destruction share one code
 /// path. The shake-input query is scoped to [`SfxListenerMarker`] so trauma lands
 /// only on the listener camera, never on some other `CameraShakeInput` holder.
@@ -468,7 +404,7 @@ fn emit_juice(
     settings: &JuiceSettings,
     listener: Option<Vec3>,
     throttle: &mut JuiceThrottle,
-    fx: &mut ActiveJuiceFx,
+    commands: &mut Commands,
     q_shake_input: &mut Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     let falloff = listener.map_or(1.0, |l| {
@@ -478,8 +414,8 @@ fn emit_juice(
             settings.far_distance,
         )
     });
-    // Fully attenuated events do nothing at all - no kick, no ring, no throttle
-    // stamp - so a far-off skirmish stays quiet even before throttling.
+    // Fully attenuated events do nothing at all - no kick, no sparks, no
+    // throttle stamp - so a far-off skirmish stays quiet even before throttling.
     if falloff <= 0.0 {
         return;
     }
@@ -503,17 +439,16 @@ fn emit_juice(
         }
     }
 
-    if settings.flash_on() {
-        if fx.flashes.len() < MAX_ACTIVE_FLASHES {
-            fx.flashes.push(Flash {
-                pos,
-                start_secs: now,
-                kind,
-                strength: falloff,
-            });
-        } else {
-            trace!("emit_juice: flash cap reached, dropping flash");
-        }
+    if settings.sparks_on() {
+        // The falloff is spent on COUNT and not on speed or size: perspective
+        // already shrinks a distant burst, so shrinking it again would
+        // double-attenuate, while thinning it is the one axis the camera does
+        // not apply for free.
+        commands.trigger(ImpactSparks {
+            at: pos,
+            count: spark_count(settings.sparks.count(kind), falloff),
+            force: 1.0,
+        });
     }
 }
 
@@ -522,8 +457,8 @@ fn emit_juice(
 /// Propagation caveat: `HealthApplyDamage` auto-propagates up `ChildOf`
 /// (section -> ship root), and ship death depends on that bubbling, so it must
 /// not be stopped here - but a global observer fires once per hop, which would
-/// double the kick/flash whenever the section and root land in different area
-/// cells (2x trauma plus a phantom ring at the ship root's origin). Reacting
+/// double the kick/burst whenever the section and root land in different area
+/// cells (2x trauma plus a phantom burst at the ship root's origin). Reacting
 /// only to the original target keeps one hit = one cue, and the original
 /// target is also the better cue position: the actual hit location. Any future
 /// damage-cue observer needs this same guard (mirrors `audio/`).
@@ -534,7 +469,7 @@ fn on_damage_juice(
     q_transform: Query<&GlobalTransform>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
-    mut fx: ResMut<ActiveJuiceFx>,
+    mut commands: Commands,
     mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     if damage.entity != damage.original_event_target() {
@@ -553,7 +488,7 @@ fn on_damage_juice(
         &settings,
         listener_position(&q_camera),
         &mut throttle,
-        &mut fx,
+        &mut commands,
         &mut q_shake_input,
     );
 }
@@ -567,7 +502,7 @@ fn on_destroy_juice(
     q_transform: Query<&GlobalTransform>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
-    mut fx: ResMut<ActiveJuiceFx>,
+    mut commands: Commands,
     mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
     if !settings.master_enabled {
@@ -584,64 +519,9 @@ fn on_destroy_juice(
         &settings,
         listener_position(&q_camera),
         &mut throttle,
-        &mut fx,
+        &mut commands,
         &mut q_shake_input,
     );
-}
-
-/// Draw every active flash as concentric camera-facing rings whose radius expands
-/// and alpha fades over the flash lifetime, then drop the ones that have elapsed.
-fn draw_juice_flashes(
-    time: Res<Time>,
-    settings: Res<JuiceSettings>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
-    mut fx: ResMut<ActiveJuiceFx>,
-    mut gizmos: Gizmos,
-) {
-    let now = time.elapsed_secs();
-    let cam_pos = listener_position(&q_camera);
-
-    // Prune first so a disabled/duration-changed setting cannot strand old flashes.
-    fx.flashes.retain(|flash| {
-        flash_progress(now - flash.start_secs, settings.flash.duration(flash.kind)) < 1.0
-    });
-
-    if !settings.flash_on() {
-        return;
-    }
-
-    for flash in &fx.flashes {
-        let age = now - flash.start_secs;
-        let duration = settings.flash.duration(flash.kind);
-        let t = flash_progress(age, duration);
-        let peak = settings.flash.radius(flash.kind);
-        let base = settings.flash.color(flash.kind).to_srgba();
-
-        // Face the ring toward the camera so it always reads as a disc, not an
-        // edge-on line. Fall back to a fixed orientation if the camera is missing
-        // or sits exactly on the flash.
-        let rotation = cam_pos
-            .and_then(|c| Dir3::new(c - flash.pos).ok())
-            .map(|dir| Quat::from_rotation_arc(Vec3::Z, dir.as_vec3()))
-            .unwrap_or(Quat::IDENTITY);
-
-        // Trailing concentric rings for a bit of shockwave depth: each inner ring
-        // lags the leading edge by a fraction of the lifetime.
-        let ring_count = settings.flash.ring_count.max(1);
-        for ring in 0..ring_count {
-            let lag = ring as f32 * 0.15;
-            let rt = (t - lag).clamp(0.0, 1.0);
-            let radius = flash_radius(rt, peak);
-            // Lifetime fade scaled by the distance strength captured at emit,
-            // so a far event's ring is faint from its first frame.
-            let alpha = flash_alpha(rt) * flash.strength;
-            if alpha <= 0.0 || radius <= 0.0 {
-                continue;
-            }
-            let color = Color::srgba(base.red, base.green, base.blue, alpha);
-            gizmos.circle(Isometry3d::new(flash.pos, rotation), radius, color);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -721,45 +601,27 @@ mod tests {
     }
 
     #[test]
-    fn flash_progress_maps_age_to_unit_and_guards_zero_duration() {
-        assert_eq!(flash_progress(0.0, 0.2), 0.0);
-        assert!((flash_progress(0.1, 0.2) - 0.5).abs() < 1e-6);
-        assert!(flash_progress(0.2, 0.2) >= 1.0);
-        // A zero/negative duration reads as instantly elapsed (never drawn).
-        assert!(flash_progress(0.0, 0.0) >= 1.0);
-    }
-
-    #[test]
-    fn flash_radius_expands_from_zero_to_peak_and_eases_out() {
-        assert_eq!(flash_radius(0.0, 4.0), 0.0);
-        assert!((flash_radius(1.0, 4.0) - 4.0).abs() < 1e-6);
-        // Ease-out: past the halfway radius by the time-midpoint.
-        assert!(flash_radius(0.5, 4.0) > 2.0);
-        // Clamps out-of-range progress.
-        assert_eq!(flash_radius(-1.0, 4.0), 0.0);
-        assert!((flash_radius(2.0, 4.0) - 4.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn flash_alpha_fades_from_opaque_to_transparent() {
-        assert_eq!(flash_alpha(0.0), 1.0);
-        assert_eq!(flash_alpha(1.0), 0.0);
-        // Monotonic decreasing.
-        assert!(flash_alpha(0.25) > flash_alpha(0.75));
-        // Clamps out-of-range progress.
-        assert_eq!(flash_alpha(-1.0), 1.0);
-        assert_eq!(flash_alpha(2.0), 0.0);
+    fn the_spark_count_thins_with_distance_but_never_to_nothing() {
+        assert_eq!(spark_count(20, 1.0), 20);
+        assert_eq!(spark_count(20, 0.5), 10);
+        // An event that fired at all throws at least one spark: a hit that
+        // passed the falloff gate and the throttle happened, and rounding it
+        // away leaves a hit with no cue.
+        assert_eq!(spark_count(5, 0.01), 1);
+        assert_eq!(spark_count(0, 1.0), 1);
+        // Out-of-range strength cannot inflate the burst.
+        assert_eq!(spark_count(4, 2.0), 4);
+        assert_eq!(spark_count(4, -1.0), 1);
     }
 
     #[test]
     fn default_settings_are_sane() {
         let s = JuiceSettings::default();
         assert!(s.master_enabled);
-        assert!(s.shake_on() && s.flash_on());
-        // Destruction should out-shake and out-flash an impact.
+        assert!(s.shake_on() && s.sparks_on());
+        // Destruction should out-shake and out-spark an impact.
         assert!(s.shake.destroy_trauma > s.shake.hit_trauma);
-        assert!(s.flash.destroy_radius > s.flash.impact_radius);
-        assert!(s.flash.destroy_duration > s.flash.impact_duration);
+        assert!(s.sparks.destroy_count > s.sparks.impact_count);
         // Ranges are well-formed so the falloff never divides by zero.
         assert!(s.far_distance > s.near_distance);
         // Toggling the master switch disables both effects.
@@ -767,12 +629,12 @@ mod tests {
             master_enabled: false,
             ..JuiceSettings::default()
         };
-        assert!(!off.shake_on() && !off.flash_on());
+        assert!(!off.shake_on() && !off.sparks_on());
     }
 
     //
     // These exercise the wiring the pure helpers cannot: that the event observers
-    // actually feed trauma into `CameraShakeInput` and queue a `Flash`, that the
+    // actually feed trauma into `CameraShakeInput` and ask for sparks, that the
     // per-cell throttle collapses a co-located burst, that distance attenuation
     // scales/suppresses through the observers, and that the master switch
     // suppresses everything. Most run without a camera, so the attenuation
@@ -786,11 +648,22 @@ mod tests {
         app.init_resource::<Time>();
         app.init_resource::<JuiceSettings>();
         app.init_resource::<JuiceThrottle>();
-        app.init_resource::<ActiveJuiceFx>();
+        app.init_resource::<AskedBursts>();
         app.add_observer(on_damage_juice);
         app.add_observer(on_destroy_juice);
+        // Record the ASK rather than adding `ImpactSparkPlugin`: what this
+        // module owes is a correctly gated, correctly placed, correctly sized
+        // request, and the spark module's own tests cover what a request
+        // becomes. It also keeps the rig free of asset stores.
+        app.add_observer(|burst: On<ImpactSparks>, mut asked: ResMut<AskedBursts>| {
+            asked.0.push(*burst);
+        });
         app
     }
+
+    /// Every [`ImpactSparks`] the observers asked for this run, in order.
+    #[derive(Resource, Default)]
+    struct AskedBursts(Vec<ImpactSparks>);
 
     /// Spawn an entity carrying a `CameraShakeInput` plus the listener marker,
     /// standing in for the gameplay camera's shake sink (trauma is scoped to the
@@ -824,12 +697,23 @@ mod tests {
             .add_trauma
     }
 
-    fn flash_count(app: &App) -> usize {
-        app.world().resource::<ActiveJuiceFx>().flashes.len()
+    /// Every ask recorded so far, flushing first.
+    ///
+    /// `Commands::trigger` from inside an observer is DEFERRED: the ask has not
+    /// happened until the world flushes, which is what the running app does at
+    /// the end of every schedule. Reading without the flush sees nothing and
+    /// reads as a missing cue.
+    fn bursts(app: &mut App) -> &[ImpactSparks] {
+        app.world_mut().flush();
+        &app.world().resource::<AskedBursts>().0
+    }
+
+    fn burst_count(app: &mut App) -> usize {
+        bursts(app).len()
     }
 
     #[test]
-    fn damage_event_feeds_impact_trauma_and_queues_a_flash() {
+    fn damage_event_feeds_impact_trauma_and_asks_for_sparks() {
         let mut app = juice_test_app();
         let sink = spawn_shake_sink(&mut app);
         let target = spawn_at(&mut app, Vec3::ZERO);
@@ -843,7 +727,7 @@ mod tests {
         // No camera -> falloff 1.0 -> trauma is exactly the impact impulse.
         let expected = JuiceSettings::default().shake.hit_trauma;
         assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
-        assert_eq!(flash_count(&app), 1);
+        assert_eq!(burst_count(&mut app), 1);
     }
 
     #[test]
@@ -860,7 +744,12 @@ mod tests {
 
         let expected = JuiceSettings::default().shake.destroy_trauma;
         assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
-        assert_eq!(flash_count(&app), 1);
+        assert_eq!(burst_count(&mut app), 1);
+        assert_eq!(
+            bursts(&mut app)[0].count,
+            JuiceSettings::default().sparks.destroy_count,
+            "a point-blank kill throws the full destruction burst"
+        );
     }
 
     #[test]
@@ -879,18 +768,19 @@ mod tests {
             });
         }
 
-        // Only the first of the co-located pair passes: one flash, one trauma impulse.
+        // Only the first of the co-located pair passes: one burst, one trauma
+        // impulse.
         let expected = JuiceSettings::default().shake.hit_trauma;
         assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
-        assert_eq!(flash_count(&app), 1);
+        assert_eq!(burst_count(&mut app), 1);
     }
 
     #[test]
     fn a_propagated_hit_on_a_straddling_hierarchy_fires_one_cue() {
         // `HealthApplyDamage` auto-propagates child -> parent, and with the
         // parent one area cell away the per-cell throttle cannot collapse the
-        // hops - one hit read as two cues (flashes = 2, trauma = 2x the tuned
-        // impulse, plus a phantom ring at the parent's origin). The
+        // hops - one hit read as two cues (bursts = 2, trauma = 2x the tuned
+        // impulse, plus a phantom burst at the parent's origin). The
         // original-target guard must keep it at exactly one.
         let mut app = juice_test_app();
         let sink = spawn_shake_sink(&mut app);
@@ -910,10 +800,13 @@ mod tests {
             "one hit must add exactly one trauma impulse, got {}",
             trauma_of(&app, sink)
         );
-        let flashes = &app.world().resource::<ActiveJuiceFx>().flashes;
-        assert_eq!(flashes.len(), 1, "one hit must queue exactly one flash");
+        assert_eq!(
+            burst_count(&mut app),
+            1,
+            "one hit must ask for exactly one burst"
+        );
         // And the cue sits at the hit location, not the parent's origin.
-        assert_eq!(flashes[0].pos, Vec3::ZERO);
+        assert_eq!(bursts(&mut app)[0].at, Vec3::ZERO);
     }
 
     #[test]
@@ -931,11 +824,11 @@ mod tests {
             });
         }
 
-        assert_eq!(flash_count(&app), 2);
+        assert_eq!(burst_count(&mut app), 2);
     }
 
     #[test]
-    fn a_mid_range_event_scales_trauma_and_flash_strength() {
+    fn a_mid_range_event_scales_trauma_and_thins_the_burst() {
         let mut app = juice_test_app();
         let sink = spawn_shake_sink(&mut app);
         let target = spawn_at(&mut app, Vec3::ZERO);
@@ -952,9 +845,12 @@ mod tests {
 
         let expected = s.shake.hit_trauma * 0.5;
         assert!((trauma_of(&app, sink) - expected).abs() < 1e-6);
-        let flashes = &app.world().resource::<ActiveJuiceFx>().flashes;
-        assert_eq!(flashes.len(), 1);
-        assert!((flashes[0].strength - 0.5).abs() < 1e-6);
+        assert_eq!(burst_count(&mut app), 1);
+        assert_eq!(
+            bursts(&mut app)[0].count,
+            spark_count(s.sparks.impact_count, 0.5),
+            "half strength throws half the sparks"
+        );
     }
 
     #[test]
@@ -972,7 +868,7 @@ mod tests {
         });
 
         assert_eq!(trauma_of(&app, sink), 0.0);
-        assert_eq!(flash_count(&app), 0);
+        assert_eq!(burst_count(&mut app), 0);
         // A far event must not consume throttle state either, so a near event in
         // the same cell right after still fires.
         assert!(app.world().resource::<JuiceThrottle>().last.is_empty());
@@ -1020,7 +916,7 @@ mod tests {
         });
 
         assert_eq!(trauma_of(&app, sink), 0.0);
-        assert_eq!(flash_count(&app), 0);
+        assert_eq!(burst_count(&mut app), 0);
     }
 
     #[test]
@@ -1062,6 +958,6 @@ mod tests {
             .insert(IntegrityDestroyMarker);
 
         assert_eq!(trauma_of(&app, sink), 0.0);
-        assert_eq!(flash_count(&app), 0);
+        assert_eq!(burst_count(&mut app), 0);
     }
 }

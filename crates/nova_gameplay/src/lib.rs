@@ -4,7 +4,8 @@
 //! machine and the physics, entropy and particle registrations its peers build
 //! on. The modules are `integrity` and `damage` (health, disable, destroy),
 //! `gravity` (gravity wells), `audio` (the SFX engine), `juice` (combat
-//! feedback) over the reusable trauma rig in `shake`, `objectives` (the mission
+//! feedback) over the reusable trauma rig in `shake` and the burst in
+//! `impact_spark`, `objectives` (the mission
 //! objective list and its conveyance tags), `mesh` and `transform` (the mesh
 //! toolkit and the rotation/orbit rigs), `markers` and `projectile_hooks` (the
 //! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
@@ -28,6 +29,7 @@ pub mod beacon;
 pub mod cooldown;
 pub mod damage;
 pub mod gravity;
+pub mod impact_spark;
 pub mod integrity;
 pub mod juice;
 pub mod lifetime;
@@ -96,9 +98,9 @@ pub mod prelude {
     // the lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cooldown::prelude::*,
-        damage::prelude::*, gravity::prelude::*, integrity::prelude::*, juice::prelude::*,
-        lifetime::prelude::*, markers::prelude::*, math::prelude::*, mesh::prelude::*,
-        objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        damage::prelude::*, gravity::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
+        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, math::prelude::*,
+        mesh::prelude::*, objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
         relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
         soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
         GameMode, GameStates, PauseStates,

@@ -185,6 +185,9 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     entity.insert((
         AsteroidMarker,
         EntityTypeName::new(ASTEROID_TYPE_NAME),
+        // A rock throws rock. Without this the shared carve debris is ship
+        // plate, and shooting an asteroid sprayed hot gunmetal chips off it.
+        CarveDebris::Rock,
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
         ImpactDestroySounds {

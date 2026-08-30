@@ -247,6 +247,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Audio & Visuals
 
+- The gizmo impact rings are gone. A hit throws a burst of incandescent sparks
+  at the point it landed instead, thinned by distance the same way the camera
+  shake is attenuated. A ring was a diagram of a hit.
+- A chip carved off a hull leaves near-white and cools to gunmetal in under a
+  second. It was just cut out of a ship; it was never cold.
+- A body says what it is made of, so a shot rock spalls rock: dusty, slower,
+  more of it, and not glowing. Every rock in the game used to throw the hull's
+  gunmetal chips.
 - A torpedo detonation lights the hulls around it. Nothing in combat cast light
   before: the fireball was the only thing in the frame that knew the warhead
   had gone off.
