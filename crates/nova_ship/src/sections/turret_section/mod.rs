@@ -27,7 +27,8 @@ use firing::shoot_spawn_projectile;
 use nova_gameplay::prelude::*;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
-    on_projectile_marker_effect, DefaultMuzzleEffect, DefaultProjectileRender,
+    on_projectile_marker_effect, stretch_round_tracers, DefaultMuzzleEffect,
+    DefaultProjectileRender,
 };
 use setup::{apply_turret_config_to_children, insert_turret_section};
 
@@ -271,8 +272,14 @@ impl Plugin for TurretSectionPlugin {
             // lives in a resource so every barrel on every ship shares one
             // effect asset.
             app.init_resource::<DefaultMuzzleEffect>();
+            // The shared round-billboard mask, initialised HERE and not by
+            // `nova_gameplay`, so this section states no ordering claim against
+            // another plugin for a resource it only reads. `init_resource` is
+            // idempotent, so the torpedo bay doing the same is not a conflict.
+            app.init_resource::<SoftDot>();
             app.add_observer(insert_turret_barrel_muzzle_effect);
             app.add_observer(on_projectile_marker_effect);
+            app.add_systems(Update, stretch_round_tracers);
         }
 
         app.add_systems(

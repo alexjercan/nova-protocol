@@ -247,6 +247,14 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Audio & Visuals
 
+- A PDC burst reads as a stream. Each round is drawn as long as it travels in
+  one frame, so the gap the eye was seeing between them closes at any frame
+  rate. It was a dotted line at every fire rate.
+- The muzzle flash is a real object at the barrel: a ball of burning gas with a
+  cone leaving it, sized in metres. It was 100 dots three pixels across at any
+  range, so a distant gun was confetti.
+- A muzzle flash rides the ship that fired it, instead of hanging at the point
+  in space the shot left from.
 - The gizmo impact rings are gone. A hit throws a burst of incandescent sparks
   at the point it landed instead, thinned by distance the same way the camera
   shake is attenuated. A ring was a diagram of a hit.

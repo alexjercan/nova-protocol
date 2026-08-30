@@ -1,6 +1,7 @@
 //! Turret render children: joint meshes, the projectile mesh, and the
 //! muzzle-flash and bullet-trail effects.
 
+use avian3d::prelude::LinearVelocity;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 
@@ -10,7 +11,11 @@ use crate::sections::nose_cone_mesh;
 pub(super) fn on_projectile_marker_effect(
     add: On<Add, TurretBulletProjectileMarker>,
     budget: Option<Res<GraphicsBudget>>,
-    q_projectile: Query<&TurretSectionMuzzleEntity, With<TurretBulletProjectileMarker>>,
+    q_projectile: Query<
+        (&TurretSectionMuzzleEntity, Option<&ProjectileOwner>),
+        With<TurretBulletProjectileMarker>,
+    >,
+    q_ship_velocity: Query<&LinearVelocity>,
     q_direct_mesh: Query<(), With<Mesh3d>>,
     mut q_effect: Query<
         (&mut EffectProperties, &mut EffectSpawner, &ChildOf),
@@ -39,7 +44,7 @@ pub(super) fn on_projectile_marker_effect(
         return;
     }
 
-    let Ok(muzzle) = q_projectile.get(projectile) else {
+    let Ok((muzzle, owner)) = q_projectile.get(projectile) else {
         error!(
             "on_projectile_marker: entity {:?} not found in q_projectile",
             projectile
@@ -97,7 +102,18 @@ pub(super) fn on_projectile_marker_effect(
     let normal = normal.normalize();
     properties.set("normal", normal.into());
 
-    let base_velocity = Vec3::ZERO;
+    // The gas leaves with the SHIP, not with the round and not with the world.
+    // Pinned to zero it smeared off the barrel the moment the firing ship had
+    // any speed of its own, which at combat closing speeds is always - the same
+    // defect the blast carried until it was given the warhead's momentum.
+    //
+    // The ship's linear velocity and not the muzzle POINT's: the turret's own
+    // rotation adds a term far below anything a flash lasting 0.05 s could
+    // show, and reading it would cost a transform chain walk per shot at 100
+    // rounds a second.
+    let base_velocity = owner
+        .and_then(|owner| q_ship_velocity.get(**owner).ok())
+        .map_or(Vec3::ZERO, |velocity| velocity.0);
     properties.set("base_velocity", base_velocity.into());
 
     // Spawn the particles
@@ -114,6 +130,11 @@ const ROUND_EMISSIVE_GAIN: f32 = 6.0;
 struct ProjectileArt {
     mesh: Handle<Mesh>,
     material: Handle<StandardMaterial>,
+    /// Half the mesh's drawn length, in world units. Half because
+    /// [`nose_cone_mesh`] centres the body on its own midpoint, so this is the
+    /// distance from the round's position to its nose - which is what
+    /// [`stretch_round_tracers`] has to hold still.
+    half_length: f32,
 }
 
 /// The built-in bullet art, one mesh and one material per [`DamageType`], built
@@ -187,29 +208,25 @@ impl FromWorld for DefaultProjectileRender {
         // Pierce is a long fine dart: a third the thickness, twice the length,
         // and most of that length is the point.
         // Explosive is a squat shell - the widest body, the least travel.
-        let (kinetic_mesh, pierce_mesh, explosive_mesh) = {
-            let mut meshes = world.resource_mut::<Assets<Mesh>>();
-            (
-                meshes.add(round_mesh(0.025, 0.09, 0.03)),
-                meshes.add(round_mesh(0.015, 0.13, 0.09)),
-                meshes.add(round_mesh(0.035, 0.05, 0.03)),
-            )
-        };
-        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-        Self {
-            kinetic: ProjectileArt {
-                mesh: kinetic_mesh,
-                material: materials.add(round_material(DamageType::Kinetic)),
-            },
-            pierce: ProjectileArt {
-                mesh: pierce_mesh,
-                material: materials.add(round_material(DamageType::Pierce)),
-            },
-            explosive: ProjectileArt {
-                mesh: explosive_mesh,
-                material: materials.add(round_material(DamageType::Explosive)),
-            },
-        }
+        //
+        // The mesh and the half-length come off the SAME three numbers here,
+        // and that is the point of building them together: the tracer stretch
+        // holds the nose of the drawn body still, so a length read from
+        // anywhere but the mesh it belongs to would pin the streak to a point
+        // the round is not at.
+        world.resource_scope(|world, mut meshes: Mut<Assets<Mesh>>| {
+            let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+            let mut art = |kind, radius, body_length: f32, nose_length: f32| ProjectileArt {
+                mesh: meshes.add(round_mesh(radius, body_length, nose_length)),
+                material: materials.add(round_material(kind)),
+                half_length: (body_length + nose_length) / 2.0,
+            };
+            Self {
+                kinetic: art(DamageType::Kinetic, 0.025, 0.09, 0.03),
+                pierce: art(DamageType::Pierce, 0.015, 0.13, 0.09),
+                explosive: art(DamageType::Explosive, 0.035, 0.05, 0.03),
+            }
+        })
     }
 }
 
@@ -254,6 +271,9 @@ pub(super) fn insert_projectile_render(
                 Name::new("Bullet Projectile Render"),
                 Mesh3d(art.mesh.clone()),
                 MeshMaterial3d(art.material.clone()),
+                RoundTracer {
+                    half_length: art.half_length,
+                },
             ),],));
         }
     }
@@ -333,16 +353,141 @@ pub(super) fn insert_turret_joint_render(
     }
 }
 
+/// Longest a tracer may be drawn, in world units.
+///
+/// The stretch is taken from the frame's own delta, so a stall would draw a
+/// streak as long as the stall was: a quarter-second hitch puts a 25 unit bar
+/// of light across the screen for one frame, which reads as a rendering fault
+/// rather than as a gun. This clamps it to a length a round could plausibly
+/// have crossed.
+const TRACER_MAX_LENGTH: f32 = 4.0;
+
+/// How much of a frame's travel a round is drawn across.
+///
+/// A camera's shutter is open for part of its frame, not all of it - the film
+/// standard is half - so the streak a moving object leaves is shorter than the
+/// ground it covered. Here the fraction also does a second job: the shipped PDC
+/// leaves 1.0 unit between rounds and covers 1.67 units a frame at 60 fps, so
+/// drawing the whole of it overlaps every round with both its neighbours and
+/// fuses the burst into an unbroken rod. The gap has to close enough to read as
+/// one stream and stay open enough to read as separate rounds.
+///
+/// Below about 30 fps the streaks meet and the stream does go solid. That is
+/// the correct way round: a longer exposure IS more blur.
+const TRACER_SHUTTER: f32 = 0.35;
+
+/// How long a round's body is drawn this frame, in world units.
+///
+/// A round crosses more ground between two drawn frames than the gun leaves
+/// between rounds - 1.67 units at 60 fps against 1.0 unit of spacing at 100
+/// rounds a second - so no fire rate makes a stream that reads as continuous
+/// while each round is drawn at its own 0.12 units. Lowering the rate widens
+/// the gap and makes it worse, which is why the answer here is the tracer and
+/// not the cadence.
+///
+/// Drawing a frame of travel closes the gap by construction and at ANY frame
+/// rate: what the eye is missing is exactly the distance the round covered
+/// while the shutter was open. Never shorter than the round itself, so a slow
+/// round keeps its silhouette instead of collapsing to a point.
+///
+/// A FRACTION of that travel, per [`TRACER_SHUTTER`], because a whole frame of
+/// it is too much: 1.67 units drawn into 1.0 unit of spacing overlaps every
+/// round with the two beside it and fuses the burst into an unbroken rod. A
+/// rod is a laser. This gun fires rounds and has to look like it.
+fn tracer_length(speed: f32, delta_secs: f32, natural_length: f32) -> f32 {
+    (speed * delta_secs * TRACER_SHUTTER)
+        .clamp(natural_length, TRACER_MAX_LENGTH.max(natural_length))
+}
+
+/// The render child of a round wearing the BUILT-IN art, and how long that art
+/// is.
+///
+/// Only the built-in art wears it. An authored `projectile_render_mesh` chose
+/// its own look, there is no length this crate could read off a scene handle
+/// before it loads, and a mod that wanted a streak would author one.
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct RoundTracer {
+    /// Half the drawn length of the unstretched art, in world units - the
+    /// distance from the round's position to its nose.
+    half_length: f32,
+}
+
+/// Stretch each built-in round's art back along its own flight, so a burst
+/// reads as a stream rather than as a dotted line. See [`tracer_length`].
+///
+/// On the RENDER clock and in `Update`, not on the sweep's fixed clock: the gap
+/// being closed is between two DRAWN frames, so a machine drawing at 20 fps
+/// needs three times the streak a machine at 60 fps needs from the same round
+/// at the same speed.
+///
+/// The round itself is untouched. It carries no collider and is swept by hand
+/// (`nova_gameplay::rounds`), so nothing about what its art MEASURES can reach
+/// what it HITS - which is the whole reason stretching it is free.
+pub(super) fn stretch_round_tracers(
+    time: Res<Time>,
+    q_round: Query<&RoundVelocity>,
+    mut q_tracer: Query<(&mut Transform, &RoundTracer, &ChildOf)>,
+) {
+    let delta = time.delta_secs();
+    for (mut transform, tracer, &ChildOf(round)) in &mut q_tracer {
+        let Ok(velocity) = q_round.get(round) else {
+            continue;
+        };
+        let natural = tracer.half_length * 2.0;
+        if natural <= 0.0 {
+            continue;
+        }
+        let stretch = tracer_length(velocity.length(), delta, natural) / natural;
+        transform.scale.z = stretch;
+        // The art is centred on the round, so scaling alone would push the nose
+        // out ahead of where the round actually is - the streak would arrive
+        // before the round did, and a PDC would appear to hit early. Sliding
+        // the art back by exactly what the nose gained pins the nose to the
+        // round and spends the whole stretch on a tail. Local +Z is backwards:
+        // `round_mesh` turns the nose onto -Z.
+        transform.translation.z = (stretch - 1.0) * tracer.half_length;
+    }
+}
+
+/// How many particles one shot throws.
+///
+/// A third of what the screen-space flash spent. That version needed a hundred
+/// 3-pixel dots to fill anything, because each dot covered nine pixels however
+/// near or far the camera was; a world-space quad the width of the bore covers
+/// the same picture with a handful, and it grows when you fly past it.
+const MUZZLE_PARTICLES_PER_SHOT: f32 = 32.0;
+
+/// Longest a muzzle particle lives, in seconds.
+///
+/// A PDC at 100 rounds a second fires every 0.01 s, so anything that outlives
+/// three rounds stops being a flash and becomes a plume hanging off the barrel
+/// - the atmospheric read this work exists to remove. In vacuum there is no air
+/// for the propellant gas to push against and nothing to keep it burning: it
+/// leaves, it thins, it is gone.
+const MUZZLE_LIFETIME_MAX: f32 = 0.05;
+
+/// Fastest a muzzle particle leaves the barrel, in units/second.
+const MUZZLE_SPEED_MAX: f32 = 30.0;
+
+/// How wide the flash is at birth, in world units.
+///
+/// World-space, so it is the SAME object from any distance and shrinks to
+/// nothing as the camera pulls out. The screen-space dots it replaces stayed
+/// three pixels across at any range, which turned a gun two kilometres away
+/// into a cloud of confetti larger than the ship firing it.
+const MUZZLE_SIZE: f32 = 0.9;
+
 /// Particle capacity of the built-in muzzle flash, which is a per-INSTANCE GPU
 /// buffer: the [`EffectAsset`] is shared, one allocation per barrel is not.
 ///
-/// DERIVED, not picked. The flash bursts 100 particles a shot and a particle
-/// lives at most 0.1 s, so a barrel holds `100 x fire_rate x 0.1` at once. The
+/// DERIVED, not picked. A barrel holds
+/// `MUZZLE_PARTICLES_PER_SHOT x fire_rate x MUZZLE_LIFETIME_MAX` at once. The
 /// fastest muzzle the game ships is `pdc_kinetic_turret_section` at 100 rounds
-/// a second, which peaks at 1000. This is that, doubled and rounded up.
+/// a second, which peaks at 160. This is that, doubled and rounded up to a
+/// power of two - a quarter of what the hundred-dot version reserved.
 ///
 /// An authored `muzzle_effect` brings its own capacity and ignores this.
-const MUZZLE_FLASH_CAPACITY: u32 = 2048;
+const MUZZLE_FLASH_CAPACITY: u32 = 512;
 
 /// The generated muzzle flash, built once and shared by every barrel.
 ///
@@ -350,8 +495,19 @@ const MUZZLE_FLASH_CAPACITY: u32 = 2048;
 /// direction, the colour and the ship's own velocity all arrive through
 /// hanabi PROPERTIES at runtime, so nothing about the graph is per-barrel.
 /// A clad warship carries a lot of barrels.
+///
+/// # One graph, two readings
+///
+/// A muzzle flash is a bright ball at the bore and a thin cone of gas leaving
+/// it, and here those are not two effects - they are the two ends of one speed
+/// distribution. The speed is the PRODUCT of two random draws, so most
+/// particles barely clear the barrel and pile into the ball while the tail of
+/// the distribution strings the rest out ahead as the cone. Splitting them into
+/// two assets, as the blast does, would double the per-barrel buffer to draw
+/// the same picture; the blast pays that because its two halves want opposite
+/// ORIENTATIONS, and both halves of a muzzle flash are billboards.
 fn build_default_muzzle_effect() -> EffectAsset {
-    let spawner = SpawnerSettings::once(100.0.into())
+    let spawner = SpawnerSettings::once(MUZZLE_PARTICLES_PER_SHOT.into())
         // Do not emit on instantiation - the muzzle flash only
         // fires when the shot calls reset().
         .with_emit_on_start(false);
@@ -362,7 +518,10 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let init_age = SetAttributeModifier::new(Attribute::AGE, age);
 
     // Give a bit of variation by randomizing the lifetime per particle
-    let lifetime = writer.lit(0.01).uniform(writer.lit(0.1)).expr();
+    let lifetime = writer
+        .lit(0.01)
+        .uniform(writer.lit(MUZZLE_LIFETIME_MAX))
+        .expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
 
     // Attribute::COLOR saves the property value PER PARTICLE at spawn,
@@ -370,6 +529,31 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let spawn_color = writer.add_property("spawn_color", 0xFFFFFFFFu32.into());
     let color = writer.prop(spawn_color).expr();
     let init_color = SetAttributeModifier::new(Attribute::COLOR, color);
+
+    // MODULATE and not the default overwrite, so the shot's own colour - drawn
+    // per shot in `on_projectile_marker_effect` - survives the fade instead of
+    // being replaced by it. The first key is well past 1.0 in every channel so
+    // the flash blooms rather than reading as a flat disc, and the last is
+    // transparent so the gas thins out instead of cutting off.
+    let mut color_gradient = bevy_hanabi::Gradient::new();
+    color_gradient.add_key(0.0, Vec4::new(12.0, 12.0, 12.0, 1.0));
+    color_gradient.add_key(0.25, Vec4::new(5.0, 5.0, 5.0, 0.85));
+    color_gradient.add_key(1.0, Vec4::ZERO);
+    let color_over_lifetime = ColorOverLifetimeModifier {
+        gradient: color_gradient,
+        blend: ColorBlendMode::Modulate,
+        mask: ColorBlendMask::default(),
+    };
+
+    // Full width immediately: a flash has no rise. It only shrinks.
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::splat(MUZZLE_SIZE));
+    size_gradient.add_key(0.3, Vec3::splat(MUZZLE_SIZE * 0.6));
+    size_gradient.add_key(1.0, Vec3::ZERO);
+    let size_over_lifetime = SizeOverLifetimeModifier {
+        gradient: size_gradient,
+        screen_space_size: false,
+    };
 
     let normal = writer.add_property("normal", Vec3::ZERO.into());
     let normal = writer.prop(normal);
@@ -389,23 +573,32 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let spread = writer.lit(Vec3::X) * spread_x
         + writer.lit(Vec3::Y) * spread_y
         + writer.lit(Vec3::Z) * spread_z;
-    let speed = writer.rand(ScalarType::Float) * writer.lit(5.0);
+    // Two draws multiplied, per the graph's docs: one uniform draw spreads the
+    // particles evenly along the barrel's axis, which reads as a jet.
+    let speed = writer.rand(ScalarType::Float)
+        * writer.rand(ScalarType::Float)
+        * writer.lit(MUZZLE_SPEED_MAX);
     let velocity = (normal + spread * writer.lit(2.5)).normalized() * speed;
     let velocity = velocity + base_velocity;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    EffectAsset::new(MUZZLE_FLASH_CAPACITY, spawner, writer.finish())
+    // Round, not rectangular. A PDC is fought at ranges where the camera can
+    // sit a couple of metres off the barrel, and a square is the one shape a
+    // ball of burning gas is not.
+    let mask = soft_dot_modifier(&writer);
+    let mut module = writer.finish();
+    declare_soft_dot_slot(&mut module);
+
+    EffectAsset::new(MUZZLE_FLASH_CAPACITY, spawner, module)
         .with_name("spawn_on_command")
         .init(init_pos)
         .init(init_vel)
         .init(init_age)
         .init(init_lifetime)
         .init(init_color)
-        // Set a size of 3 (logical) pixels, constant in screen space, independent of projection
-        .render(SetSizeModifier {
-            size: Vec3::splat(3.).into(),
-        })
-        .render(ScreenSpaceSizeModifier)
+        .render(size_over_lifetime)
+        .render(mask)
+        .render(color_over_lifetime)
 }
 
 /// The generated muzzle flash, held so it is built ONCE. Authoring an
@@ -430,6 +623,8 @@ pub(super) fn insert_turret_barrel_muzzle_effect(
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut default_muzzle: ResMut<DefaultMuzzleEffect>,
+    mut images: ResMut<Assets<Image>>,
+    mut soft_dot: ResMut<SoftDot>,
     asset_server: Res<AssetServer>,
     budget: Option<Res<GraphicsBudget>>,
     q_effect: Query<&TurretSectionBarrelMuzzleEffect, With<TurretSectionBarrelMuzzleMarker>>,
@@ -451,16 +646,33 @@ pub(super) fn insert_turret_barrel_muzzle_effect(
         return;
     };
 
-    let effect = match &**effect_handle {
-        Some(asset_ref) => asset_ref.resolve(&asset_server),
-        None => default_muzzle.handle(&mut effects),
+    // The fallback graph declares the round-billboard slot, so its instance
+    // must bind it. An AUTHORED effect gets no material: its graph declares
+    // whatever slots it wants and binding an image it never asked for is not
+    // ours to do.
+    let (effect, mask) = match &**effect_handle {
+        Some(asset_ref) => (asset_ref.resolve(&asset_server), None),
+        None => (
+            default_muzzle.handle(&mut effects),
+            Some(EffectMaterial {
+                images: vec![soft_dot.handle(&mut images)],
+            }),
+        ),
     };
-    commands.entity(entity).insert((children![(
-        Name::new("Muzzle Effect"),
-        TurretSectionBarrelMuzzleEffectMarker,
-        ParticleEffect::new(effect),
-        EffectProperties::default(),
-    ),],));
+    // Spawned as its own entity rather than through `children!` because the
+    // mask is conditional and `Option<B>` is not a `Bundle`.
+    let child = commands
+        .spawn((
+            Name::new("Muzzle Effect"),
+            TurretSectionBarrelMuzzleEffectMarker,
+            ParticleEffect::new(effect),
+            EffectProperties::default(),
+            ChildOf(entity),
+        ))
+        .id();
+    if let Some(mask) = mask {
+        commands.entity(child).insert(mask);
+    }
 }
 
 #[cfg(test)]
@@ -477,9 +689,146 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
+        // The AUTHORED arm loads a scene through the asset server, which panics
+        // on an uninitialised asset type.
+        app.init_asset::<WorldAsset>();
         app.init_resource::<DefaultProjectileRender>();
         app.add_observer(insert_projectile_render);
         app
+    }
+
+    /// The kinetic round the PDC fires: 0.12 units long at 100 units/s, drawn
+    /// at 60 fps. This is the exact case `## Findings` measured - 1.0 unit of
+    /// spacing between rounds and 1.67 units of travel per frame - and the
+    /// drawn body has to land between the two: long enough that the burst
+    /// reads as one stream, short enough that consecutive rounds stay separate
+    /// rather than fusing into a rod.
+    #[test]
+    fn a_tracer_is_drawn_between_its_own_length_and_the_gap_to_the_next_round() {
+        let natural = 0.09 + 0.03;
+        let spacing = 1.0;
+        let drawn = tracer_length(100.0, 1.0 / 60.0, natural);
+        assert!(
+            drawn > natural * 4.0,
+            "the streak must be several times the round to close the gap, got {drawn}"
+        );
+        assert!(
+            drawn < spacing,
+            "a streak past the spacing merges the burst into a rod, got {drawn}"
+        );
+    }
+
+    /// Frame-rate correctness is the whole claim: the SAME round at the SAME
+    /// speed must be drawn longer on a slower machine, because the gap it has
+    /// to cover is the one between two drawn frames.
+    #[test]
+    fn a_slower_frame_draws_a_longer_tracer() {
+        let natural = 0.12;
+        let fast = tracer_length(100.0, 1.0 / 120.0, natural);
+        let slow = tracer_length(100.0, 1.0 / 30.0, natural);
+        assert!(slow > fast, "{slow} must exceed {fast}");
+        assert!(
+            (slow / fast - 4.0).abs() < 1e-4,
+            "four times the frame is four times the streak, got {}",
+            slow / fast
+        );
+    }
+
+    #[test]
+    fn a_round_that_is_barely_moving_keeps_its_own_silhouette() {
+        let natural = 0.12;
+        assert_eq!(tracer_length(0.0, 1.0 / 60.0, natural), natural);
+        assert_eq!(tracer_length(1.0, 1.0 / 60.0, natural), natural);
+    }
+
+    /// A hitch must not put a bar of light across the screen. The stretch is
+    /// read off the frame's own delta, so without the clamp a quarter-second
+    /// stall would draw a 25 unit streak for one frame.
+    #[test]
+    fn a_stalled_frame_cannot_draw_a_bar_across_the_screen() {
+        assert_eq!(tracer_length(100.0, 0.25, 0.12), TRACER_MAX_LENGTH);
+    }
+
+    /// The nose is the round. Scaling the art alone would push it out ahead of
+    /// the position the sweep actually resolves hits at, so a PDC would look
+    /// like it connected before it did; the offset exists to pin it.
+    #[test]
+    fn stretching_a_tracer_pins_its_nose_to_the_round() {
+        let mut app = round_render_app();
+        app.add_systems(Update, stretch_round_tracers);
+        // `MinimalPlugins` runs `Time` off the wall clock, which would advance
+        // by microseconds across a test binary's updates and stretch nothing.
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(1.0 / 60.0),
+        ));
+        // Bevy's first manual tick is dt 0, so the stretch would be a no-op.
+        app.update();
+
+        let round = app
+            .world_mut()
+            .spawn((
+                TurretBulletProjectileMarker,
+                BulletProjectileRenderMesh(None),
+                ProjectileDamage::new(4.0, DamageType::Kinetic),
+                RoundVelocity(Vec3::NEG_Z * 100.0),
+            ))
+            .id();
+        app.update();
+
+        let world = app.world_mut();
+        let child = world
+            .entity(round)
+            .get::<Children>()
+            .and_then(|children| children.first().copied())
+            .expect("the round got its render child");
+        let tracer = *world
+            .entity(child)
+            .get::<RoundTracer>()
+            .expect("built-in art wears the tracer marker");
+        let transform = *world
+            .entity(child)
+            .get::<Transform>()
+            .expect("the render child has a transform");
+
+        let natural = tracer.half_length * 2.0;
+        let drawn = natural * transform.scale.z;
+        assert!(
+            (drawn - 100.0 / 60.0 * TRACER_SHUTTER).abs() < 1e-4,
+            "the body must be drawn one shutter of travel long, got {drawn}"
+        );
+        // Local -Z is forward: `round_mesh` turns the nose onto it.
+        let nose = transform.translation.z - tracer.half_length * transform.scale.z;
+        assert!(
+            (nose + tracer.half_length).abs() < 1e-5,
+            "the nose must stay where the unstretched art put it, got {nose}"
+        );
+    }
+
+    /// An authored round chose its own look and there is no length to measure
+    /// on a scene handle, so the stretch must leave it alone.
+    #[test]
+    fn an_authored_round_gets_no_tracer_stretch() {
+        let mut app = round_render_app();
+        let round = app
+            .world_mut()
+            .spawn((
+                TurretBulletProjectileMarker,
+                BulletProjectileRenderMesh(Some("rounds/dart.glb".into())),
+                RoundVelocity(Vec3::NEG_Z * 100.0),
+            ))
+            .id();
+        app.update();
+
+        let world = app.world_mut();
+        let child = world
+            .entity(round)
+            .get::<Children>()
+            .and_then(|children| children.first().copied())
+            .expect("the round got its render child");
+        assert!(
+            world.entity(child).get::<RoundTracer>().is_none(),
+            "authored art must not be stretched"
+        );
     }
 
     /// The `None` arm is the shipped path and the default turret fires 100
