@@ -1238,6 +1238,10 @@ pub fn wfc_hull(tiles: &[Tile], seed: u64, clad: bool, style: StyleId) -> ShipHu
     }
 }
 
+// The stamp below and its helper are the ARENA's; `wfc_ships` includes the
+// same file and never calls them. `expect` is wrong here - it would go
+// unfulfilled in `wfc_arena`, where both are live.
+#[allow(dead_code, reason = "shared module: the stamp is arena-only")]
 fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
         id,
@@ -1254,6 +1258,7 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
 /// and the production ship generator will own a richer grammar later. The
 /// arena only needs a deterministic fleet for judging one capital drive against
 /// two or three vector drives.
+#[allow(dead_code, reason = "shared module: the stamp is arena-only")]
 pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64) {
     const SUPPORT_Z: f32 = 4.0;
     let (prototype, length, centres): (&str, f32, Vec<Vec3>) = match seed % 3 {

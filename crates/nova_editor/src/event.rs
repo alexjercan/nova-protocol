@@ -167,6 +167,10 @@ pub(crate) struct ActionNode {
 /// show - a chain of beats, and an expression - and each keeps the fields left
 /// over once that something is a child. See the module note.
 #[derive(Debug, Clone)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "the leaf IS the whole action config. Boxing it buys a few hundred bytes on a tree of at most a few hundred nodes, and costs every nested pattern over it a manual deref."
+)]
 pub(crate) enum ActionKind {
     /// An action the config holds whole.
     Leaf(EventActionConfig),

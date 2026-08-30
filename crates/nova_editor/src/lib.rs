@@ -25,7 +25,7 @@
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
 //! - `event`     - the script as nodes: a handler, its filters and actions, its
-//!                 beats, and a condition down to its operators
+//!   beats, and a condition down to its operators
 //! - `bundle`    - the document as a saved mod bundle, and the read back out of one
 //! - `ui`        - the wiki-style rail + component drawer + tooltip
 //! - `probe`     - the one public, read-only snapshot of all of the above

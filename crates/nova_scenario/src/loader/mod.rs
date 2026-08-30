@@ -372,9 +372,10 @@ pub struct ScenarioEventConfig {
     ///
     /// The engine holds the "we have already done this" fact so content does
     /// not have to. Without it a beat that can only happen once still needs a
-    /// latch variable of its own, a filter reading it and an action writing it
-    /// - three lines of ceremony per beat, none of them about the game - and
-    /// the handler is walked every frame for the rest of the scenario anyway.
+    /// latch variable of its own, a filter reading it and an action writing
+    /// it - three lines of ceremony per beat, none of them about the game -
+    /// and the handler is walked every frame for the rest of the scenario
+    /// anyway.
     ///
     /// Defaulted, so a file written before it existed parses unchanged.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]

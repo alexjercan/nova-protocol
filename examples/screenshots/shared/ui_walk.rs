@@ -281,13 +281,6 @@ pub trait Gestures {
     /// somewhere else.
     fn click(self, label: &str, name: &str) -> Self;
 
-    /// Press the named widget TWICE inside the editor's double-click window.
-    ///
-    /// A second click is its own verb in the scene tree - it enters a ship, and
-    /// on the root row it leaves one - so a walk that steps out of a ship has
-    /// to spell the gesture the builder would make.
-    fn double_click(self, label: &str, name: &str) -> Self;
-
     /// Place a section on the ship: aim at the `face` face of the section
     /// mounted at `on`, press, release. The editor acts on `Pointer<Press>`, so
     /// the press does the work and the release only lets go.
@@ -322,21 +315,6 @@ impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates
             .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
-    }
-
-    fn double_click(self, label: &str, name: &str) -> Self {
-        let second = name.to_string();
-        self.click(label, name)
-            .step(format!("{label}: press again"))
-            .on_enter(click_named(second))
-            .until(pointer_pressed())
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: release again"))
             .on_enter(release_mouse(MouseButton::Left))
             .until(pointer_released())
             .deadline(STEP_DEADLINE_SECS)

@@ -1842,8 +1842,7 @@ fn curate(rows: Vec<InspectorRow>, picks: &[FieldSpec]) -> Vec<InspectorRow> {
                 PathStep::Field(name) => Some(name.as_str()),
                 PathStep::Item(_) | PathStep::Slot(_) => None,
             });
-            row.group
-                .retain(|_| fields.next().is_some_and(|name| picked(name)));
+            row.group.retain(|_| fields.next().is_some_and(&picked));
             row
         })
         .collect()

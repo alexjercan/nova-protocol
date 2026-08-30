@@ -197,6 +197,17 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
         .iter()
         .filter(|event| !is_layout(event))
         .cloned()
+        .map(|mut event| {
+            // The saved file names the range by the id it was WRITTEN under; in
+            // memory a document names itself the sandbox. See
+            // `crate::scenario::retarget_retries`.
+            crate::scenario::retarget_retries(
+                &mut event.actions,
+                scenario.id.as_str(),
+                crate::scenario::SANDBOX_ID,
+            );
+            event
+        })
         .collect();
     lifted.settings = ScenarioNode {
         name: scenario.name.clone(),

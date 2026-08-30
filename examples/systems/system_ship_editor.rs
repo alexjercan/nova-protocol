@@ -3470,11 +3470,9 @@ trait EditorGestures {
 
     /// Press a widget TWICE, close enough together to read as one double click.
     ///
-    /// Four beats rather than two presses in one frame: a widget's `Activate`
-    /// fires on the RELEASE, and the press that arms it is a command that does
-    /// not land until the frame ends - so a press and a release in the same
-    /// frame activate nothing at all. Four beats is about a tenth of a second,
-    /// well inside the editor's window.
+    /// The harness's own gesture, because the window is wall-clock and a beat
+    /// apiece overruns it under a software renderer - see
+    /// [`AutopilotPlugin::double_click_named`].
     fn double_click_a_widget(self, label: &str, name: &str) -> Self;
 
     /// Drop a top-bar menu, then press one of its rows.
@@ -3520,32 +3518,7 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     }
 
     fn double_click_a_widget(self, label: &str, name: &str) -> Self {
-        let first = name.to_string();
-        let second = name.to_string();
-        self.step(format!("{label}: the widget is up"))
-            .until(ui_node_present(name.to_string()))
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: press"))
-            .on_enter(click_named(first))
-            .until(pointer_pressed())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: press again"))
-            .on_enter(click_named(second))
-            .until(pointer_pressed())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: release again"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
+        self.double_click_named(label, name, BEAT_DEADLINE_SECS)
     }
 
     fn click_a_widget(self, label: &str, name: &str) -> Self {

@@ -30,7 +30,9 @@ use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
-use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
+#[cfg(feature = "debug")]
+use nova_protocol::nova_debug::harness::Predicate;
+use nova_protocol::prelude::*;
 
 // The pointer gestures, shared with the other menu walks. Script-only, so the
 // whole module sits behind one gate here.

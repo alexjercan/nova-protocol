@@ -6,8 +6,8 @@ use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
 use nova_scenario::prelude::{
     AnchorConfig, BaseScenarioObjectConfig, EntityFilterConfig, EventConfig, EventFilterConfig,
-    ObjectiveActionConfig, OutcomeActionConfig, PlayerControllerConfig, ScenarioEventConfig,
-    ScenarioOutcomeKind, SectionSource, ShipHull, SpaceshipConfig,
+    NextScenarioActionConfig, ObjectiveActionConfig, OutcomeActionConfig, PlayerControllerConfig,
+    ScenarioEventConfig, ScenarioOutcomeKind, SectionSource, ShipHull, SpaceshipConfig,
 };
 
 use super::*;
@@ -211,6 +211,62 @@ fn only_a_pure_start_spawn_handler_is_layout() {
             .any(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))),
         "and neither of them lost the object it spawns"
     );
+}
+
+/// The range's name for ITSELF is the sandbox, whatever id the file it came
+/// out of was written under.
+///
+/// The seeded death handler offers this range again, and the lowering points
+/// that retry at whichever range it is writing - `editor_save` in a file. Lift
+/// it back verbatim and Play would lower the document into `editor_sandbox`
+/// beside a retry naming `editor_save`, which the content lint rejects as a
+/// dangling reference: a saved range would refuse to start.
+#[test]
+fn a_retry_naming_the_saved_range_comes_back_naming_the_sandbox() {
+    let items = vec![scenario(vec![EventActionConfig::NextScenario(
+        NextScenarioActionConfig {
+            scenario_id: SAVE_MOD_ID.to_string(),
+            linger: true,
+            delay: None,
+        },
+    )])];
+
+    let lifted = lift_content(&items).expect("the file carries a scenario");
+
+    let EventActionConfig::NextScenario(retry) = &lifted.script[0].actions[0] else {
+        panic!(
+            "the retry survives the lift: {:?}",
+            lifted.script[0].actions
+        );
+    };
+    assert_eq!(
+        retry.scenario_id,
+        crate::scenario::SANDBOX_ID,
+        "an opened document names itself the sandbox again"
+    );
+}
+
+/// And a retry naming some OTHER scenario is the builder's own chain, which
+/// the lift must leave exactly where they pointed it.
+#[test]
+fn a_retry_naming_another_scenario_is_left_alone() {
+    let items = vec![scenario(vec![EventActionConfig::NextScenario(
+        NextScenarioActionConfig {
+            scenario_id: "broadside".to_string(),
+            linger: false,
+            delay: None,
+        },
+    )])];
+
+    let lifted = lift_content(&items).expect("the file carries a scenario");
+
+    let EventActionConfig::NextScenario(next) = &lifted.script[0].actions[0] else {
+        panic!(
+            "the chain survives the lift: {:?}",
+            lifted.script[0].actions
+        );
+    };
+    assert_eq!(next.scenario_id, "broadside");
 }
 
 /// A content file with nothing but designs is a legal mod and not a document.

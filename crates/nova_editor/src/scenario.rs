@@ -43,7 +43,7 @@ use crate::{
 /// The sandbox's scenario id. Registered in [`GameScenarios`] on hand-off so
 /// the DEFEAT overlay's Retry can reload it by id like any other scenario;
 /// `hidden` keeps it out of the Scenarios picker, which lists shipped content.
-const SANDBOX_ID: &str = "editor_sandbox";
+pub(crate) const SANDBOX_ID: &str = "editor_sandbox";
 /// The player ship's scenario id, referenced by every handler that scopes to
 /// the player and by the editor's input mapping.
 pub(crate) const PLAYER_ID: &str = "player_spaceship";
@@ -1106,28 +1106,36 @@ fn following_the_objects(
             })
         })
         .map(|(mut event, _)| {
-            retarget_retries(&mut event.actions, range);
+            retarget_retries(&mut event.actions, SANDBOX_ID, range);
             event
         })
         .collect()
 }
 
-/// Point a retry at the range it is actually being lowered into.
+/// Rewrite a retry that names `from` so it names `to` instead.
 ///
-/// A `NextScenario` naming [`SANDBOX_ID`] is the document's name for ITSELF -
-/// the seeded death handler offers this range again - and which id this range
-/// answers to is decided by the lowering: `editor_sandbox` on Play,
+/// A `NextScenario` naming the document's own range is the document's name for
+/// ITSELF - the seeded death handler offers this range again - and which id
+/// that range answers to is decided by the lowering: `editor_sandbox` on Play,
 /// `editor_save` in a file. Left alone, a saved range's retry would reload a
 /// hidden scenario the saved mod does not contain.
-fn retarget_retries(actions: &mut [EventActionConfig], range: &str) {
+///
+/// In memory the document always names itself [`SANDBOX_ID`], so this runs
+/// BOTH ways: the lowering points a retry at the range being written, and
+/// [`crate::bundle::lift_content`] points it back at the sandbox when a saved
+/// range is opened. Without the return leg a document that had been through a
+/// file would keep the FILE's id, Play would lower it into `editor_sandbox`
+/// beside a retry naming `editor_save`, and the range would refuse to start on
+/// a dangling reference.
+pub(crate) fn retarget_retries(actions: &mut [EventActionConfig], from: &str, to: &str) {
     for action in actions {
         match action {
-            EventActionConfig::NextScenario(next) if next.scenario_id == SANDBOX_ID => {
-                next.scenario_id = range.to_string();
+            EventActionConfig::NextScenario(next) if next.scenario_id == from => {
+                next.scenario_id = to.to_string();
             }
             EventActionConfig::Sequence(sequence) => {
                 for step in &mut sequence.steps {
-                    retarget_retries(&mut step.actions, range);
+                    retarget_retries(&mut step.actions, from, to);
                 }
             }
             _ => {}

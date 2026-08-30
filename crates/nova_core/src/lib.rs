@@ -251,11 +251,14 @@ impl AppBuilder {
             // driver wants each `app.update()` to have finished drawing the
             // frame it just simulated, not to be a frame behind on a render
             // thread.
-            app.add_plugins(
-                plugins
-                    .disable::<bevy::winit::WinitPlugin>()
-                    .disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>(),
-            );
+            let plugins = plugins.disable::<bevy::winit::WinitPlugin>();
+            // `PipelinedRenderingPlugin` is native-only - bevy gates the whole
+            // module out on wasm32, where there is no render thread to be a
+            // frame behind on and so nothing to disable.
+            #[cfg(not(target_arch = "wasm32"))]
+            let plugins =
+                plugins.disable::<bevy::render::pipelined_rendering::PipelinedRenderingPlugin>();
+            app.add_plugins(plugins);
             app.add_plugins(bevy::app::ScheduleRunnerPlugin::default());
         } else {
             // `WinitPlugin::build` constructs the event loop, which needs a

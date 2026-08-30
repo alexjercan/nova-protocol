@@ -66,7 +66,10 @@
 //! enforced: the run-level value comes from the harness that launches the
 //! process, which this crate cannot see.
 
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU8, Ordering as AtomicOrdering},
+    Arc,
+};
 
 use bevy::{input::InputSystems, prelude::*, state::state::FreelyMutableState};
 
@@ -206,6 +209,56 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
         self.step(name)
             .enter(state)
             .until(crate::predicate::elapsed(seconds))
+            .add()
+    }
+
+    /// Append the two beats of a DOUBLE CLICK on the UI node called `name`:
+    /// wait for it to lay out, then press-release-press-release it.
+    ///
+    /// The gesture is ONE step, not a beat per press, because the window it has
+    /// to land inside is wall-clock. A widget that reads a double click times
+    /// the two clicks on `Time<Real>` - the editor's scene tree allows 0.5s -
+    /// while a beat costs several frames of harness bookkeeping: entry, the
+    /// frame its ack arrives, and the frame that advances it. Under a software
+    /// renderer that is most of a second per beat, so four beats put the two
+    /// clicks over a second apart and the widget reads two singles.
+    ///
+    /// Inside one step the presses are driven a frame at a time, which puts the
+    /// two RELEASES - what a widget acts on - exactly two frames apart at any
+    /// frame rate. Each is still its own frame: a press and a release in the
+    /// SAME frame activate nothing, because the press is a message the picking
+    /// backend does not read until the next `PreUpdate`.
+    ///
+    /// `deadline` is the stall bound for each of the two beats.
+    pub fn double_click_named(self, label: &str, name: &str, deadline: f32) -> Self {
+        let second = name.to_string();
+        let first = name.to_string();
+        // The phase is the step's own frame counter. Reset on entry rather than
+        // just initialised, so a looping script drives the gesture again.
+        let phase = Arc::new(AtomicU8::new(0));
+        let armed = phase.clone();
+        let ticks = phase.clone();
+        let released = crate::predicate::pointer_released();
+        self.step(format!("{label}: the widget is up"))
+            .until(crate::predicate::ui_node_present(name.to_string()))
+            .deadline(deadline)
+            .add()
+            .step(format!("{label}: double click"))
+            .on_enter(move |world: &mut World| {
+                armed.store(0, AtomicOrdering::Relaxed);
+                crate::input::click_named(first.clone())(world);
+            })
+            .each(
+                move |world: &mut World, _| match ticks.fetch_add(1, AtomicOrdering::Relaxed) {
+                    0 | 2 => crate::input::release_mouse(MouseButton::Left)(world),
+                    1 => crate::input::click_named(second.clone())(world),
+                    _ => {}
+                },
+            )
+            .until(Arc::new(move |world: &World| {
+                phase.load(AtomicOrdering::Relaxed) > 3 && released(world)
+            }))
+            .deadline(deadline)
             .add()
     }
 

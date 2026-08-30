@@ -577,6 +577,9 @@ fn launcher(sections: &GameSections) -> SpaceshipConfig {
             if let SectionSource::Inline(section) = &mut section.source {
                 if let SectionKind::Torpedo(bay) = &mut section.kind {
                     bay.ammo_capacity = None;
+                    // An unlimited bay never reloads, and the loader's content
+                    // lint refuses a reload without a capacity to refill.
+                    bay.reload = None;
                 }
             }
         }

@@ -327,12 +327,14 @@ jobs:
       # for wasm. This checks the lib graph the trunk bundle actually ships,
       # where an ungated host-only module shows up as dead code.
       #
-      # nova_probe_cli is excluded, not stubbed: it is the HOST half of the
-      # run-harness (spawns child processes, reads their artifacts) and has no
-      # meaning in a browser. That exclusion is what lets its modules carry no
-      # `cfg(not(target_arch = "wasm32"))` at all. The root package reaches it
-      # only through a wasm-target-gated optional dependency (the `probe`
-      # subcommand), so this check never pulls it in through the game either.
+      # nova_probe_cli and nova_channel are excluded, not stubbed: one is the
+      # HOST half of the run-harness (spawns child processes, reads their
+      # artifacts), the other drives a headless app over stdin/stdout, and
+      # neither has any meaning in a browser. That exclusion is what lets their
+      # modules carry no `cfg(not(target_arch = "wasm32"))` at all. The root
+      # package reaches both only through wasm-target-gated optional
+      # dependencies (`probe` and `--channel`), so this check never pulls them
+      # in through the game either.
       #
       # clippy rather than check, and CLIPPY_CONF_DIR rather than a root
       # clippy.toml, because of ci/wasm-clippy/clippy.toml: it bans the std APIs
@@ -353,7 +355,7 @@ jobs:
         env:
           CLIPPY_CONF_DIR: ci/wasm-clippy
         run: >-
-          cargo clippy --workspace --exclude nova_probe_cli
+          cargo clippy --workspace --exclude nova_probe_cli --exclude nova_channel
           --target wasm32-unknown-unknown -- -D warnings
 
   # The dependency-license gate. The shipped manifest

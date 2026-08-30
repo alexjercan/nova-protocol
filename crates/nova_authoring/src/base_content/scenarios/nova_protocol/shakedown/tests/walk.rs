@@ -114,9 +114,9 @@ fn walk_to_rehearsal(app: &mut App) {
 /// Run the opening conversation to its hand-off: walk the opening chain's
 /// steps until objective 1 posts and beacon 1 spawns.
 ///
-/// The chain is one `Sequence` now, so the rig walks it the way the pulse does
-/// - one advance per line - rather than parking the clock past every gate at
-/// once and pulsing until the counters catch up.
+/// The chain is one `Sequence` now, so the rig walks it the way the pulse
+/// does - one advance per line - rather than parking the clock past every gate
+/// at once and pulsing until the counters catch up.
 fn finish_opening(app: &mut App) {
     advance(app, OPEN_1_AT + 1.0);
     // Four more lines, then the hand-off step, which owes no delay of its own.

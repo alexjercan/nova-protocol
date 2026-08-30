@@ -744,11 +744,11 @@ fn escape_backs_out_of_an_armed_rebind() {
 
 /// Closing the panel with a chip armed must drop the capture.
 ///
-/// The capture is ungated by menu state - the pause overlay shows the same body
-/// - and Back only flips `Visibility`, so nothing else lowers the arm. Left
-/// unfixed, a player who armed a chip and changed their mind had the next key
-/// they pressed in flight written into the table and persisted to disk, with no
-/// prompt on screen and Reset Defaults the only way back.
+/// The capture is ungated by menu state - the pause overlay shows the same
+/// body - and Back only flips `Visibility`, so nothing else lowers the arm.
+/// Left unfixed, a player who armed a chip and changed their mind had the next
+/// key they pressed in flight written into the table and persisted to disk,
+/// with no prompt on screen and Reset Defaults the only way back.
 #[test]
 fn closing_the_panel_drops_an_armed_rebind() {
     let mut app = mods_app();

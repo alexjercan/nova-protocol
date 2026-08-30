@@ -186,28 +186,6 @@ pub fn timer(key: impl Into<String>) -> EventFilterConfig {
     EventFilterConfig::Timer(TimerFilterConfig { key: key.into() })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn constructors_build_the_expected_ron_facing_variants() {
-        assert!(matches!(
-            number_equals("act", 1.0),
-            EventFilterConfig::Expression(_)
-        ));
-        assert!(matches!(entity("ship"), EventFilterConfig::Entity(_)));
-        assert!(matches!(
-            post_objective("go", "Go"),
-            EventActionConfig::Objective(_)
-        ));
-        assert!(matches!(
-            scenario_elapsed_watch("elapsed").query,
-            QueryConfig::Scenario(_)
-        ));
-    }
-}
-
 /// Build a keyed sequence action: an ordered beat chain the engine walks.
 ///
 /// The engine holds the cursor, so a chain of beats costs ONE handler and no
@@ -252,5 +230,27 @@ pub fn until_step(
         }),
         deadline: Some(deadline),
         actions,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn constructors_build_the_expected_ron_facing_variants() {
+        assert!(matches!(
+            number_equals("act", 1.0),
+            EventFilterConfig::Expression(_)
+        ));
+        assert!(matches!(entity("ship"), EventFilterConfig::Entity(_)));
+        assert!(matches!(
+            post_objective("go", "Go"),
+            EventActionConfig::Objective(_)
+        ));
+        assert!(matches!(
+            scenario_elapsed_watch("elapsed").query,
+            QueryConfig::Scenario(_)
+        ));
     }
 }

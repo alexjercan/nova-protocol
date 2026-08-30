@@ -84,7 +84,7 @@ pub fn release_key(key: KeyCode) -> impl Fn(&mut World) + Send + Sync + 'static 
     }
 }
 
-/// Type `text`: one press [`KeyboardInput`] per character, carrying that
+/// Type `text`: one [`KeyboardInput`] keystroke per character, carrying that
 /// character as the text the keypress produced.
 ///
 /// [`press_key`] writes only `ButtonInput<KeyCode>`, which is where a game
@@ -93,6 +93,11 @@ pub fn release_key(key: KeyCode) -> impl Fn(&mut World) + Send + Sync + 'static 
 /// is its own gesture. The physical key code is reported unidentified: a driven
 /// run knows the characters it means to type, not the keyboard that would have
 /// produced them.
+///
+/// Each character is a COMPLETE keystroke - the press and the release that
+/// follows it. A press on its own leaves the unidentified key code in
+/// `ButtonInput<KeyCode>` for the rest of the run, and every later "no key is
+/// held" check reads a keyboard that is holding something.
 ///
 /// A warn-and-continue no-op without a primary window, like the pointer
 /// gestures.
@@ -108,14 +113,16 @@ pub fn type_text(text: impl Into<String>) -> impl Fn(&mut World) + Send + Sync +
         };
         for character in text.chars() {
             let character = character.to_string();
-            world.write_message(KeyboardInput {
+            let stroke = |state| KeyboardInput {
                 key_code: KeyCode::Unidentified(NativeKeyCode::Unidentified),
                 logical_key: Key::Character(character.as_str().into()),
-                state: ButtonState::Pressed,
+                state,
                 text: Some(character.as_str().into()),
                 repeat: false,
                 window,
-            });
+            };
+            world.write_message(stroke(ButtonState::Pressed));
+            world.write_message(stroke(ButtonState::Released));
         }
     }
 }
@@ -129,6 +136,9 @@ pub fn type_text(text: impl Into<String>) -> impl Fn(&mut World) + Send + Sync +
 /// caret lands wherever the click fell, so a run that means to REPLACE a value
 /// ends the caret, clears back over what is there, types, and commits.
 ///
+/// A complete keystroke, press and release, for the same reason [`type_text`]
+/// is.
+///
 /// A warn-and-continue no-op without a primary window, like [`type_text`].
 pub fn press_edit_key(key: Key) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
@@ -139,14 +149,16 @@ pub fn press_edit_key(key: Key) -> impl Fn(&mut World) + Send + Sync + 'static {
             warn!("autopilot: pressing `{key:?}` has no primary window");
             return;
         };
-        world.write_message(KeyboardInput {
+        let stroke = |state| KeyboardInput {
             key_code: KeyCode::Unidentified(NativeKeyCode::Unidentified),
             logical_key: key.clone(),
-            state: ButtonState::Pressed,
+            state,
             text: None,
             repeat: false,
             window,
-        });
+        };
+        world.write_message(stroke(ButtonState::Pressed));
+        world.write_message(stroke(ButtonState::Released));
     }
 }
 

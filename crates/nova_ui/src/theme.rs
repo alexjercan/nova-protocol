@@ -196,8 +196,10 @@ pub mod combat {
         /// the distinction the families exist to carry.
         #[test]
         fn the_families_stay_in_their_order() {
-            assert!(INBOUND.green < LOCK.green, "inbound is the reddest");
-            assert!(LOCK.green < HOT.green, "hot metal is the most orange");
+            const {
+                assert!(INBOUND.green < LOCK.green, "inbound is the reddest");
+                assert!(LOCK.green < HOT.green, "hot metal is the most orange");
+            }
         }
     }
 }
