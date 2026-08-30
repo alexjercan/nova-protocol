@@ -29,6 +29,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::theme::combat;
 
 use crate::prelude::*;
 
@@ -60,7 +61,7 @@ const RADAR_BOX_PX: f32 = 48.0;
 
 /// Radar cue colors by engaged slot.
 const RADAR_TRAVEL_COLOR: Color = Color::srgba(1.0, 1.0, 1.0, 0.7);
-const RADAR_COMBAT_COLOR: Color = Color::srgba(1.0, 0.35, 0.25, 0.8);
+const RADAR_COMBAT_COLOR: Color = combat::at(combat::LOCK, 0.8);
 
 /// Unlatch ghost: lifetime (s), how far it grows (fraction of its start
 /// size) and the start sizes per slot (matching the crosshair each ghost

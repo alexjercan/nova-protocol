@@ -59,12 +59,23 @@ tuning done before it would be redone.
 ## Progress
 
 - Item 1 landed in `ca55e306`, item 2 in `4fce30ac`, item 6 in `6ec927c2`,
-  item 7 in `3eede6d4`.
+  item 7 in `3eede6d4`, item 4 in `ee6f3469`, item 3 in `0c4608c7`.
 - Item 4's rendered inspection: `placeholder-nozzle-emissive.png`, the
   `basic_thruster (today)` subject of `screenshot_thruster_gallery` (which
   spawns `ThrusterSectionConfig::default()`, so it wears the placeholder).
   Left is the shipped albedo-only cone, middle the landed 1.2 emissive, right
   a 2.5 that was shot and rejected for washing the red out.
+- Item 3's rendered inspection: `target-inset-512-256-bloom.png` - 512+bloom,
+  256+bloom, 256 without. Bloom kept; the reason it earns its place turned out
+  to be matching the main view, not target readability.
+- Item 5's rendered inspection: `combat-tokens-before-after.png`, the same
+  `screenshot_combat_lock` beat either side of the change. The frames differ
+  only in where the debris is; every HUD tint in them is identical, because the
+  literals those widgets use did not move. The five that DID move are the
+  component-lock marker pair, the two edge-indicator reds, the hot lead pip and
+  the torpedo focus meter - none of which this capture shows. The marker pair
+  is verified against its own docstring, which already said "the same hue at
+  full presence" while the literal said otherwise.
 
 ## Deliberately out
 

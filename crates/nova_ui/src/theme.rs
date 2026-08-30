@@ -99,9 +99,11 @@ pub const ICON: f32 = 44.0;
 /// ally green), distinct from the neutral chrome above - so they keep their own
 /// tuned hues rather than snapping to the cyan/amber brand accents. Values are
 /// the canonical HUD literals verbatim, so centralizing them changed nothing
-/// visually. Per-widget tuned variants (the many slightly-different combat
-/// reds/ambers) intentionally stay local to their file; only the shared,
-/// exactly-repeated accents live here.
+/// visually.
+///
+/// A colour whose ALPHA varies per widget cannot live here, because a `Color`
+/// carries one. Those are [`super::combat`]: a hue family plus the widget's own
+/// alpha at the point of use.
 pub mod semantic {
     use bevy::prelude::Color;
 
@@ -135,6 +137,67 @@ pub mod semantic {
             assert_eq!(ALLY, Color::srgba(0.35, 0.9, 0.55, 1.0));
             assert_eq!(NEUTRAL, Color::srgba(0.85, 0.88, 0.9, 0.9));
             assert_eq!(BACKDROP, Color::srgba(0.15, 0.15, 0.15, 0.8));
+        }
+    }
+}
+
+/// The combat hue FAMILIES: the reds every targeting widget is drawn in, held
+/// apart from [`semantic`] because each widget carries its own alpha over the
+/// same hue - a dim marker and the selected one are one colour at two
+/// opacities, not two colours.
+///
+/// Three families, three meanings, and they are meant to stay three:
+/// something is INBOUND at you, your guns are LOCKED on something, or your
+/// weapons are HOT. Before this they were eight literals within 0.05 of each
+/// other across six files, which is drift rather than meaning - the hues that
+/// moved onto a family here are the ones that had drifted off it.
+pub mod combat {
+    use bevy::prelude::{Color, Srgba};
+
+    /// Something is coming AT the player: an incoming torpedo, and the
+    /// candidates the radar sweep is offering. The most alarming of the three.
+    pub const INBOUND: Srgba = Srgba::rgb(1.0, 0.22, 0.22);
+
+    /// The player's guns are ON something: the radar combat crosshair, the
+    /// framed target's highlight, the torpedo focus meter, an unselected
+    /// component marker.
+    pub const LOCK: Srgba = Srgba::rgb(1.0, 0.35, 0.25);
+
+    /// Hot metal: the safety is off, or this is the one part the fine lock has
+    /// picked. Warmer than [`LOCK`] on purpose - it reads as heat, and it is
+    /// the family the target inset's frame wears while the weapons are up.
+    pub const HOT: Srgba = Srgba::rgb(1.0, 0.45, 0.3);
+
+    /// One family at one widget's opacity.
+    ///
+    /// `const` so a widget's colour is still a `const`, which is what keeps
+    /// these greppable and comparable in a test.
+    pub const fn at(family: Srgba, alpha: f32) -> Color {
+        Color::Srgba(Srgba::new(family.red, family.green, family.blue, alpha))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// The families are apart enough to read apart, and `at` moves nothing
+        /// but the alpha.
+        #[test]
+        fn a_family_keeps_its_hue_at_every_opacity() {
+            assert_eq!(at(LOCK, 0.22), Color::srgba(1.0, 0.35, 0.25, 0.22));
+            assert_eq!(at(LOCK, 0.9), Color::srgba(1.0, 0.35, 0.25, 0.9));
+            assert_eq!(at(HOT, 0.95), Color::srgba(1.0, 0.45, 0.3, 0.95));
+            assert_eq!(at(INBOUND, 0.45), Color::srgba(1.0, 0.22, 0.22, 0.45));
+        }
+
+        /// The three are ordered by how alarming they are, coolest last: an
+        /// inbound torpedo is the reddest thing on the screen and hot metal
+        /// the most orange. A future edit that crosses them over has collapsed
+        /// the distinction the families exist to carry.
+        #[test]
+        fn the_families_stay_in_their_order() {
+            assert!(INBOUND.green < LOCK.green, "inbound is the reddest");
+            assert!(LOCK.green < HOT.green, "hot metal is the most orange");
         }
     }
 }

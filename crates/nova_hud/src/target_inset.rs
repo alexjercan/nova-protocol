@@ -34,6 +34,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::theme::combat;
 
 use super::screen_indicator::target_world_aabb;
 use crate::prelude::*;
@@ -83,7 +84,7 @@ const INSET_BORDER_PX: f32 = 2.0;
 /// the inset reads as part of the targeting family. The frame carries the
 /// safety state: this red + the armed corner ticks while hot, the neutral
 /// tint below while safe.
-const INSET_BORDER_HOT_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+const INSET_BORDER_HOT_COLOR: Color = combat::at(combat::HOT, 0.95);
 
 /// Panel border tint while the weapons are SAFE: quiet steel.
 const INSET_BORDER_SAFE_COLOR: Color = Color::srgba(0.65, 0.7, 0.75, 0.8);
@@ -257,7 +258,7 @@ pub struct TargetInsetHighlightAssets {
 /// solid, which is what the flat wash exists to avoid.
 pub fn highlight_material() -> StandardMaterial {
     StandardMaterial {
-        base_color: Color::srgba(1.0, 0.35, 0.25, 0.22),
+        base_color: combat::at(combat::LOCK, 0.22),
         unlit: true,
         alpha_mode: AlphaMode::Blend,
         double_sided: true,

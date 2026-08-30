@@ -15,7 +15,10 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::hud::{self as chip, chip_paint, ChipTone};
+use nova_ui::{
+    hud::{self as chip, chip_paint, ChipTone},
+    theme::combat,
+};
 
 use crate::prelude::*;
 
@@ -68,7 +71,7 @@ const FOCUS_METER_BACKDROP: Color = nova_ui::theme::semantic::BACKDROP;
 
 /// Focus meter fill: hot-metal red, matching the component markers it
 /// unlocks.
-const FOCUS_METER_COLOR: Color = Color::srgba(1.0, 0.4, 0.25, 0.9);
+const FOCUS_METER_COLOR: Color = combat::at(combat::LOCK, 0.9);
 
 /// The combat reticle is ALWAYS combat-red: the on-object lock language is
 /// purely slot-colored - red bracket = combat lock, white bracket = travel

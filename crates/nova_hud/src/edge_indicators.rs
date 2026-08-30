@@ -13,6 +13,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::theme::combat;
 
 use crate::prelude::*;
 
@@ -35,11 +36,13 @@ const EDGE_MARGIN_PX: f32 = 30.0;
 /// Distance-label font size (px).
 const LABEL_FONT_PX: f32 = 10.0;
 
-/// Committed hostile torpedoes: full-presence threat red.
-const TORPEDO_COLOR: Color = Color::srgba(1.0, 0.2, 0.2, 0.95);
+/// Committed hostile torpedoes: the inbound family at full presence.
+const TORPEDO_COLOR: Color = combat::at(combat::INBOUND, 0.95);
 
-/// Tracked candidates that are not the lock: the bracket overlay's dim red.
-const CANDIDATE_COLOR: Color = Color::srgba(1.0, 0.25, 0.25, 0.45);
+/// Tracked candidates that are not the lock: the same red, dimmed to a
+/// bracket overlay. It read a shade cooler than the torpedo arrow for no
+/// reason anyone wrote down.
+const CANDIDATE_COLOR: Color = combat::at(combat::INBOUND, 0.45);
 
 /// The combat-lock arrow follows the reticle's slot color (torpedo_target.rs):
 /// always combat-red - red = combat lock, white = travel lock, everywhere.

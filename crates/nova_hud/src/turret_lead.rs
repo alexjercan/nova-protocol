@@ -13,6 +13,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::theme::combat;
 
 use crate::prelude::*;
 
@@ -48,7 +49,7 @@ pub struct TurretLeadPipTurret(pub Entity);
 /// lock-red - raised-manual gunnery has no lock crosshair or inset on screen,
 /// so the pip the player is aiming with must carry the state. Ticks would be
 /// noise at 8 px; color-only is the deliberate exception to shape+color here.
-const PIP_HOT_COLOR: Color = Color::srgba(1.0, 0.4, 0.3, 0.95);
+const PIP_HOT_COLOR: Color = combat::at(combat::HOT, 0.95);
 
 /// UI bundle for the pip layer. Pips are spawned under it by
 /// `sync_turret_pips`, one per player turret.

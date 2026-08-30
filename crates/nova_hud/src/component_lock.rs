@@ -13,6 +13,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::theme::combat;
 
 use crate::prelude::*;
 
@@ -23,12 +24,13 @@ const MARKER_PX: f32 = 10.0;
 /// On-screen size (px) of the fine-locked section's marker.
 const MARKER_SELECTED_PX: f32 = 16.0;
 
-/// Unselected marker tint: dim hot-metal red, distinct from the amber lead
-/// pip, the nav-cyan destination marker and the untinted lock reticle.
-const MARKER_COLOR: Color = Color::srgba(1.0, 0.3, 0.2, 0.55);
+/// Unselected marker tint: dim hot metal, distinct from the amber lead pip,
+/// the nav-cyan destination marker and the untinted lock reticle.
+const MARKER_COLOR: Color = combat::at(combat::HOT, 0.55);
 
-/// Selected marker tint: the same hue at full presence.
-const MARKER_SELECTED_COLOR: Color = Color::srgba(1.0, 0.45, 0.3, 0.95);
+/// Selected marker tint: the same hue at full presence, which is what the
+/// comment here always claimed and the literal did not.
+const MARKER_SELECTED_COLOR: Color = combat::at(combat::HOT, 0.95);
 
 /// The `component_lock_hud` spawner, its section-target components and `ComponentLockHudPlugin`.
 pub mod prelude {
