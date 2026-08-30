@@ -242,6 +242,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The OBJECTIVES affordance draws the key the NOVA OS is bound to now, not the
   Tab it ships with.
 
+### Performance
+
+- The target inset renders at the size of the panel it fills. It drew the whole
+  scene a second time at 512 px into a 256 px panel and threw three quarters of
+  those pixels away in the downscale.
+
 ### Ships & Sections
 
 - The placeholder thruster nozzle glows. It called itself a hot red and had
