@@ -142,6 +142,7 @@ Three passes per row, reported mean fps / mean ms and the worst frame:
 |---|---|---|---|---|
 | 0 - baseline | a704bb57 | 56.9 / 61.0 / 57.1 | 17.57 / 16.39 / 17.50 | 37.90 / 26.05 / 29.92 |
 | 1 - blast | 7e0658be | 63.2 / 64.7 / 66.7 | 15.81 / 15.46 / 14.99 | 30.46 / 27.65 / 27.62 |
+| 2 - impact | 07be5d6d | 59.8 / 60.8 / 58.9 | 16.72 / 16.46 / 16.97 | 35.04 / 29.38 / 29.07 |
 
 Read the spread before reading a delta: the three baseline passes differ by
 7% in the mean with nothing changed between them, so anything under about
@@ -163,6 +164,22 @@ stages 2 to 4, which leave the script alone.
 
 The absolute number is the one to hold onto: 15.0 to 15.8 ms mean, under the
 16.67 ms that 60 fps costs, with the worst frame at 27 to 30 ms.
+
+**Rows 1 and 2 ARE like for like, and stage 2 cost 1.3 ms.** Nothing about the
+script changed between them, so the whole spread between 15.4 and 16.7 ms is
+the spark burst and the shard cooling. The probe's own baseline gate agrees and
+fired `fps_within_baseline WARN worst +13.2%`. That spends the entire margin
+row 1 was sitting on: the mean is now at the 16.67 ms that 60 fps costs rather
+than under it.
+
+The suspected cost is entity count, not pixels. A PDC hit throws 5 sparks and a
+kill throws 20, each its own kinematic body living 0.28 s, so a sustained burst
+at 100 rounds a second holds on the order of 140 of them at once on top of the
+shards already in the air. Stage 3 cuts muzzle particles from 100 a shot to 32
+and the per-barrel buffer from 2048 to 512, which should hand some of this
+back; if row 3 does not recover it, the spark burst is where to look, and the
+first thing to try is dropping the rigid body a spark does not need - it
+carries no collider and nothing queries it.
 
 ### Stage 1 - the blast
 
