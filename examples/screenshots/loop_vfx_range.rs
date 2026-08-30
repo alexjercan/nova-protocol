@@ -105,20 +105,29 @@ fn main() -> bevy::app::AppExit {
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::default());
-        // The frame-time claim is declared only when the probe arms it, the
-        // same shape `wfc_ships` uses. A hand-run keeps the autopilot walk and
-        // pays nothing for a capture nobody asked for; an armed run measures
-        // the cycle once both ships are standing, which is the only state in
-        // which the load is the load this example exists to measure.
-        if nova_probe::probe_armed() {
-            app.add_plugins(
-                nova_probe::nova_frametime()
-                    .window(90, 600)
-                    .ready_when(range_is_standing),
-            );
-        }
+        // The frame-time claim is UNCONDITIONAL, unlike `wfc_ships`, which
+        // declares one only under a capture. A posed row holds no load worth
+        // grading; this range holds nothing else. Every pass of the cycle
+        // fires the same four effects in the same order, so the number is
+        // repeatable enough to grade, and grading it is what the example is
+        // for - `probe run` is the before/after gauge the VFX work is judged
+        // on. Measurement opens once both ships are standing, which is the
+        // only state in which the load is the load being measured.
+        app.add_plugins(
+            nova_probe::nova_frametime()
+                .window(90, 600)
+                .ready_when(range_is_standing),
+        );
         app.add_plugins(vfx_script());
-        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+        app.add_systems(Startup, hide_dev_overlays);
+        // The shot resolution stands down for a MEASURED run: the frame-time
+        // capture sizes the window before winit creates it, and a second
+        // Startup writer asking for a capture size is both ambiguous with it
+        // and refused by the window manager afterwards (`wfc_ships` records
+        // the same trap). A hand-run has no such writer and keeps the frame.
+        if !nova_probe::probe_armed() {
+            app.add_systems(Startup, force_capture_resolution);
+        }
     }
 
     app.run()
