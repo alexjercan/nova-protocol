@@ -321,7 +321,11 @@ fn torpedo_kind(
         render_mesh_transform: render_transform(spec),
         projectile_render_mesh: None,
         spawn_offset: Vec3::new(0.0, 0.0, -spec.size().z * 0.5 - 0.5),
-        spawn_rotation: Quat::IDENTITY,
+        // Aim the tube out of the open face. The launch axis is
+        // the spawner's +Y and this turns it onto the section's -Z,
+        // the one face `link_points` leaves unlinkable so it can be
+        // a muzzle. Without it the tube ejected through its own roof.
+        spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
         fire_rate: 1.0,
         spawner_speed: 8.0,
         projectile_lifetime: 100.0,

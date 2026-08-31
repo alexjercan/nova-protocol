@@ -307,9 +307,12 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Fixes
 
-- A launched torpedo is pointed the way it is thrown. Its attitude command was
-  seeded from its own nose axis rather than the bay's exit axis, so it left the
-  tube turning.
+- A launched torpedo is pointed the way it is thrown. It was born in the bay's
+  own frame, which laid its nose at a right angle to the way it was travelling
+  whatever the bay authored.
+- A torpedo bay fires out of its bow face, the one face that cannot take a
+  section. It ejected sideways out of its own roof instead, across whatever was
+  mounted above it.
 - The gamepad shortcuts outside the flight rig fire again: pause, the HUD
   cycle, the NOVA OS, and the editor's place and Sandbox-return chords. Every
   one read a resource bevy no longer has.
