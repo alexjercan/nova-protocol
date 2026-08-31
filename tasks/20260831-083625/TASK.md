@@ -88,6 +88,15 @@ section declares an animation before modelling the second one.
   `content gen` does not write it and `89091f2e` edited it by hand. The
   eleven new resources are declared there directly. All `*.content.ron`
   changes went through `content gen` only.
+- Section animation is PROCEDURAL DATA, not glTF clips: a track on the
+  base config names a cue, scene nodes by name prefix, a motion over the
+  rest pose, and travel times. Kind systems steer cue targets only. The
+  full argument is `animation-research.md` in this folder; clips remain
+  a future `motion` variant behind the same declaration.
+- No launch recoil on the ship, by fiction: the ship's RCS counters the
+  ejection kick off screen (the Expanse turret treatment), so the
+  ejection charge moves the torpedo only. The railgun is the weapon
+  whose recoil is a feature, and it applies its impulse for real.
 
 ## Landed
 
@@ -117,6 +126,19 @@ section declares an animation before modelling the second one.
    under Xvfb - the arena drafts bay-armed hulls again and fights to its
    capture, and the clad posed row skins cleanly.
 
+4. `357cb815` - the iris muzzle doors. The part generator learns named
+   nodes; `bay_tube.glb` grows a closed six-petal iris on the muzzle face
+   (hinge frames on the hexagon edges, recessed throat behind). Sections
+   declare animation tracks on the base config; the generic
+   `SectionAnimationPlugin` resolves rigs on scene-ready and drives
+   progress; the bay's fire path holds the `MuzzleDoor` cue open across
+   the cold coast plus a 0.3 s linger. Owner approved the look from the
+   live frames before the land. Proof: 8 behaviour tests (driver, hold,
+   and a catalog test binding every tube bay's track to real petal
+   nodes inside the cold-coast window), `content lint` 0 errors, the
+   torpedo range's door round runs the full cycle live -
+   `bay-doors-{shut,open}.png` in this folder.
+
 ## Proof
 
 - 12 `standard.rs` tests pass, including: the twin splits the gatling total
@@ -134,12 +156,14 @@ section declares an animation before modelling the second one.
 
 ## Remaining
 
-- Section animation authoring, then the bay doors use it. Owner settled
-  the look (2026-08-31): an IRIS APERTURE over the muzzle face, in the
-  style of Alien Isolation's ventilation doors - petals iris open on
-  fire, then the torpedo comes out, across the `ignition_delay` window.
-  In flight on the `bay-doors` sprout.
+- Better ejection (owner, 2026-08-31): the torpedo should START inside
+  the tube and slide out through the open iris, instead of materializing
+  1.5 u clear of the door. Momentum inheritance is already correct
+  (rigid-body point velocity at the bay); the work is launch sequencing
+  (fire intent opens the door, ejection waits for it) plus a recessed
+  `spawn_offset`. No reaction impulse on the ship - see Decisions.
 - PDC stow animation (future promise `20260831-083622`): barrel points up,
   the mount slides down, a cover closes over the face. May want a 1x1x2
-  mount like the bay.
+  mount like the bay. Needs a slide/translate `motion` variant and a
+  `Stow` cue - deliberate skips of the door round, recorded here.
 - Changelog entry for the remodel when the release entry is written.
