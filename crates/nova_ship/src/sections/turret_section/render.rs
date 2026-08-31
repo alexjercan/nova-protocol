@@ -451,11 +451,17 @@ pub(super) fn stretch_round_tracers(
 
 /// How many particles one shot throws.
 ///
-/// A third of what the screen-space flash spent. That version needed a hundred
+/// A sixth of what the screen-space flash spent. That version needed a hundred
 /// 3-pixel dots to fill anything, because each dot covered nine pixels however
 /// near or far the camera was; a world-space quad the width of the bore covers
 /// the same picture with a handful, and it grows when you fly past it.
-const MUZZLE_PARTICLES_PER_SHOT: f32 = 32.0;
+///
+/// It was 32 while the flash was invisible for an unrelated reason (see
+/// [`MUZZLE_LIFETIME_MAX`]), which is not a count anybody could have judged.
+/// Once the flash reached the screen, 32 a frame against a 0.12 s life put
+/// about 230 overlapping quads inside one 0.55-unit ball and cost 1.0 ms of
+/// the range's frame. Half of them draw the same picture.
+const MUZZLE_PARTICLES_PER_SHOT: f32 = 16.0;
 
 /// Shortest a muzzle particle lives, in seconds. See [`MUZZLE_LIFETIME_MAX`]
 /// for why the pair is as long as it is.
@@ -501,12 +507,12 @@ const MUZZLE_SIZE: f32 = 0.55;
 /// DERIVED, not picked. A spawner emits its `once` count at most one time per
 /// tick however many shots asked for it, so a barrel holds
 /// `MUZZLE_PARTICLES_PER_SHOT x frame_rate x MUZZLE_LIFETIME_MAX` at once, not
-/// one burst per round. At 60 fps that peaks at 230. This is that, doubled and
-/// rounded up to a power of two - a quarter of what the hundred-dot version
+/// one burst per round. At 60 fps that peaks at 115. This is that, doubled and
+/// rounded up to a power of two - an eighth of what the hundred-dot version
 /// reserved.
 ///
 /// An authored `muzzle_effect` brings its own capacity and ignores this.
-const MUZZLE_FLASH_CAPACITY: u32 = 512;
+const MUZZLE_FLASH_CAPACITY: u32 = 256;
 
 /// The generated muzzle flash, built once and shared by every barrel.
 ///
