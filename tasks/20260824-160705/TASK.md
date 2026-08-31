@@ -1,14 +1,15 @@
 # Redesign Autopilot pacing and probe contracts
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,autopilot
+- PRIORITY: 45
+- TAGS: v0.13.0,autopilot,probe
 
 ## Goal
 
 Redesign Nova Autopilot pacing so walks use explicit state conditions by default and retain frame counts only when frame work is the real contract. Improve the API, probe surfaces, diagnostics, and examples, then retire the generic `frames` predicate if the resulting vocabulary makes it obsolete.
 
-This is backlog design work. It is not part of v0.12.0.
+Scheduled into v0.13.0 (2026-08-31 planning round) as the cycle's internal
+work.
 
 ## Context
 

@@ -2,7 +2,7 @@
 
 - STATUS: OPEN
 - PRIORITY: 0
-- TAGS: backlog
+- TAGS: backlog,idea,ship,gameplay
 
 ## Goal
 
@@ -12,8 +12,13 @@ needed. The ship at rest should read as at rest.
 Owner framing (2026-08-31): "maybe PDC to go inside the ship during no
 combat, basically hide itself or something". The mount also wants more
 geometry around it so the stow has something to disappear INTO - that art
-overlaps with the section model pass, so the two tasks should agree on the
-turret before either commits to a shape.
+overlaps with the section model pass.
+
+Disposition (2026-08-31 planning round): a wish, not needed - a cool idea.
+Stays in the backlog as a future promise beyond v0.14.0. The section model
+pass (`20260831-083625`, v0.13.0) does not wait on it: it models the
+turret mount with room for a future stow and records the shape decision
+there.
 
 ## This is a combat change wearing an animation costume
 

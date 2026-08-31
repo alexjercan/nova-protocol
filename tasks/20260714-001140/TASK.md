@@ -1,17 +1,19 @@
-# Gamepad navigation for menus/editor and mobile virtual pad
+# Gamepad navigation, and a real playthrough on hardware
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,input,gamepad,mobile,spike
+- PRIORITY: 55
+- TAGS: v0.13.0,input,gamepad
 
-Rewritten 2026-08-24. The settings-menu half (tabs + rebinding, the absorbed
-`20260818-182012` Part C) moved into v0.12.0 as `20260824-120527`; this task
-keeps the two parts that should target a SETTLED editor and menu surface,
-which v0.12.0's node-editor rework is actively changing. Stays backlog;
-schedule after the editor interaction model lands. Current-state audit:
-`tasks/20260815-231945/INPUT-AND-PROCESS.md` (it corrects this task's stale
-paths: the flight rig is nova_ship/src/input/player/flight_rig.rs, the HUD
-crate is nova_hud).
+Rescoped 2026-08-31 for v0.13.0. The mobile virtual pad (old Part B) split
+to `20260831-145917` and stays backlog, so its layout targets interactions
+proven with a pad first. This task is the gamepad, and the point is a REAL
+gamepad in hand - the pad support so far shipped against the harness, not
+against hardware. The settled surface this task waited for exists:
+v0.12.0 landed the editor rework and the settings rebinding
+(`20260824-120527`). Current-state audit:
+`tasks/20260815-231945/INPUT-AND-PROCESS.md` (it corrects this task's
+older stale paths: the flight rig is
+nova_ship/src/input/player/flight_rig.rs, the HUD crate is nova_hud).
 
 ## Part A - Gamepad navigation for menus and the editor
 
@@ -26,36 +28,20 @@ Make the whole out-of-cockpit UI operable with a gamepad (no mouse):
   small focus-ring + gamepad-driven focus system.
 - The existing raw pad reads are inventoried in INPUT-AND-PROCESS.md
   section 5 (pause Start, HUD Select, editor L3, placement capture, NOVA OS
-  RightThumb/Start). By then they should be registry actions
-  (`20260820-174148`) or documented fixed chords.
+  RightThumb/Start). They should be registry actions (`20260820-174148`,
+  landed v0.12.0) or documented fixed chords.
 
-## Part B - Mobile virtual pad (touch)
+## Part B - The hardware playthrough
 
-Make the web build playable on a phone, built on the bevy-common-systems
-touch primitives as the reference implementation:
+With a physical pad plugged in, play the game end to end: boot, navigate
+the menus, rebind in settings, build in the editor, fly a campaign
+chapter, pause, quit. Fix what the harness never caught - dead zones,
+stick response, chord conflicts, focus traps, prompts that show keyboard
+glyphs to a pad player.
 
-- `bevy_common_systems::ui::touchpad` - `TouchpadPlugin` + `TouchSeen`
-  (reveal-on-first-touch via `RevealOnTouch`/`HideOnTouch`; no
-  wasm/maxTouchPoints sniffing), pure hit-tests `stick_deflection` and
-  `button_grid_at`.
-- `bevy_common_systems::input::pointer::UnifiedPointer` for aim/look.
-- Reference the crate's shipped touch work:
-  ~/personal/bevy-common-systems/docs/2026-07-04-{dropzone,reactor,overload}-touch-controls.md
-  and examples/08_dropzone.rs.
-- On-screen left stick (thrust/nav), right-side aim area, buttons for the
-  core verbs (GOTO / ORBIT / STOP, radar lock, fire), revealed on first
-  touch.
-- `bevy-common-systems` is a git dependency with a local checkout at
-  ~/personal/bevy-common-systems; extend the primitives there and bump the
-  pinned rev if needed.
+- Record the playthrough findings with this task; each fix is evidence.
+- Record which pad(s) were tested.
 
-## Notes
-
-- Requires a spike first (menu-nav approach: Bevy UI focus vs a custom focus
-  ring; virtual-pad layout), then split Part A and Part B into independent
-  child tasks. Gamepad navigation first; mobile last, so its layout targets
-  stable interactions.
-
-Done when: the menus and the editor are fully operable with a gamepad, and
-the web build is playable on a touchscreen via a virtual pad built on the
-bevy-common-systems primitives.
+Done when: the menus and the editor are fully operable with a gamepad, a
+full hardware playthrough completes without touching the keyboard, and
+the findings list is closed or explicitly deferred.

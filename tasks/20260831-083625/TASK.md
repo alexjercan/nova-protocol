@@ -1,8 +1,8 @@
 # Model the sections to the thruster's standard
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 80
+- TAGS: v0.13.0,art,content,ship
 
 ## Goal
 
@@ -39,9 +39,10 @@ section declares an animation before modelling the second one.
 ## The rest
 
 - Every section except the thruster, which is the reference.
-- The PDC turret is a special case: the stow task needs more geometry around
-  the mount for the turret to disappear into. Agree the turret shape with
-  that task before either commits.
+- The PDC turret is a special case: the stow wish (`20260831-083622`, kept
+  in the backlog as a future promise) wants more geometry around the mount
+  for a turret to disappear into. Do not wait on it - model the mount with
+  room for a future stow and record the shape decision here.
 - Keep the sections readable at gameplay distance and at the silhouette
   level - a player has to tell a turret from a bay at a glance, which is the
   same constraint the damage effects were written against

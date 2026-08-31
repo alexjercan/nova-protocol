@@ -1,8 +1,8 @@
 # The console and the action vocabulary: reach into the world by name
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog
+- PRIORITY: 50
+- TAGS: v0.13.0,console,input,tooling
 
 Split out of `20260820-174148`, which now covers `input` only.
 
@@ -55,5 +55,6 @@ so as an action it must add and remove the component on live entities.
 
 ## Depends on
 
-`20260820-174148` landing the transport, the registry and the snapshot. The line
-schema keeps the `action` key reserved, so adding it is additive.
+`20260820-174148` landed in v0.12.0 with the transport, the registry and the
+snapshot. The line schema keeps the `action` key reserved, so adding it is
+additive. Scheduled into v0.13.0 (2026-08-31 planning round).
