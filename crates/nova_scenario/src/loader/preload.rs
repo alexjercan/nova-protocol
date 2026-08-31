@@ -336,6 +336,7 @@ mod tests {
     /// A fixed joint carrying `path` as its art, over `children`.
     fn joint(path: &str, children: Vec<TurretJoint>) -> TurretJoint {
         TurretJoint {
+            name: None,
             offset: Vec3::ZERO,
             axis: None,
             speed: 1.0,

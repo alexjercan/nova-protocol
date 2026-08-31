@@ -439,7 +439,11 @@ const AIM_HINGE_POLE_SIN: f32 = 1e-3;
 pub(super) fn update_turret_target_joints_system(
     time: Res<Time>,
     q_turret: Query<
-        (&TurretSectionAimPoint, &TurretSectionMuzzles),
+        (
+            &TurretSectionAimPoint,
+            &TurretSectionMuzzles,
+            Option<&TurretStow>,
+        ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
     q_child_of: Query<&ChildOf>,
@@ -452,7 +456,13 @@ pub(super) fn update_turret_target_joints_system(
     // The error fraction each hinge corrects this frame; dt 0 (startup frame)
     // holds every joint. See AIM_CORRECTION_RATE for the derivation.
     let gain = 1.0 - (-AIM_CORRECTION_RATE * time.delta_secs()).exp();
-    for (aim_point, muzzles) in &q_turret {
+    for (aim_point, muzzles, stow) in &q_turret {
+        // A mount that is not fully deployed does not track: the stow
+        // machine owns its hinges (the barrel-up attitude) until the phase
+        // returns to Deployed. A turret with no stow machine always tracks.
+        if stow.is_some_and(|stow| !stow.is_deployed()) {
+            continue;
+        }
         let Some(target) = **aim_point else {
             continue;
         };
@@ -1070,6 +1080,45 @@ mod tests {
     }
 
     #[test]
+    fn a_turret_not_fully_deployed_does_not_track_its_target() {
+        // The stow gate on the aim solver: the same rig that converges above
+        // must NOT steer while the stow machine holds any phase short of
+        // Deployed - its hinges belong to the stow attitude, not the target.
+        let target = Vec3::new(30.0, 0.0, -10.0); // ~72 deg off boresight
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig {
+                muzzle_speed: 1000.0,
+                ..Default::default()
+            }))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+        app.world_mut().entity_mut(turret).insert((
+            TurretSectionTargetInput(Some(target)),
+            TurretStow::new(TurretStowPhase::Stowing),
+        ));
+        let muzzle = muzzle_entity(&app, turret);
+
+        for _ in 0..240 {
+            app.update();
+        }
+
+        let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+        assert!(
+            error > 45.0,
+            "a stowing turret must hold its pose, not converge: {error} deg"
+        );
+    }
+
+    #[test]
     fn a_turret_swings_around_to_a_target_directly_behind() {
         // STUCK-BEHIND REGRESSION: a target dead behind the barrel is a rotation
         // singularity (either way is a valid 180); the naive solve dithered and
@@ -1118,6 +1167,7 @@ mod tests {
     /// the case where the obvious lever-arm fallback steers the wrong way.
     fn shipped_turret_chain() -> TurretJoint {
         let fixed = |offset: Vec3, muzzle, children| TurretJoint {
+            name: None,
             offset,
             axis: None,
             speed: std::f32::consts::PI,
@@ -1132,6 +1182,7 @@ mod tests {
             Vec3::new(0.0, -0.5, 0.0),
             None,
             vec![TurretJoint {
+                name: None,
                 offset: Vec3::new(0.0, 0.1, 0.0),
                 axis: Some(Vec3::Y),
                 speed: std::f32::consts::PI,
@@ -1141,6 +1192,7 @@ mod tests {
                 render_mesh_transform: None,
                 muzzle: None,
                 children: vec![TurretJoint {
+                    name: None,
                     offset: Vec3::new(0.0, 0.332706, 0.303954),
                     axis: Some(Vec3::X),
                     speed: std::f32::consts::PI,
@@ -1370,6 +1422,7 @@ mod tests {
 
         // Y -> X -> Y -> muzzle, each a link one unit long, generous limits.
         let hinge = |axis: Vec3, offset: Vec3, children: Vec<TurretJoint>| TurretJoint {
+            name: None,
             offset,
             axis: Some(axis),
             speed: std::f32::consts::TAU,
@@ -1390,6 +1443,7 @@ mod tests {
                     Vec3::Y,
                     Vec3::new(0.0, 1.0, 0.0),
                     vec![TurretJoint {
+                        name: None,
                         offset: Vec3::new(0.0, 0.0, -1.0),
                         axis: None,
                         speed: std::f32::consts::PI,
@@ -1449,6 +1503,7 @@ mod tests {
 
         // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) with TWO muzzles.
         let muzzle = |x: f32| TurretJoint {
+            name: None,
             offset: Vec3::new(x, 0.0, -0.5),
             axis: None,
             speed: default_joint_speed(),
@@ -1463,6 +1518,7 @@ mod tests {
             children: vec![],
         };
         let yaw = TurretJoint {
+            name: None,
             offset: Vec3::ZERO,
             axis: Some(Vec3::Y),
             speed: std::f32::consts::TAU,
@@ -1472,6 +1528,7 @@ mod tests {
             render_mesh_transform: None,
             muzzle: None,
             children: vec![TurretJoint {
+                name: None,
                 offset: Vec3::ZERO,
                 axis: Some(Vec3::X),
                 speed: std::f32::consts::TAU,

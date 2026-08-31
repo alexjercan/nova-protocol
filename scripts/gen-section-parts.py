@@ -60,6 +60,7 @@ PROMOTED_STEMS = (
     "pdc_twin_yaw",
     "pdc_twin_pitch",
     "pdc_twin_barrel",
+    "pdc_housing",
     "hull_personnel",
     "hull_cargo",
     "hull_tank",

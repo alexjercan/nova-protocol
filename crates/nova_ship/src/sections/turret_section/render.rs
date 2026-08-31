@@ -1182,6 +1182,7 @@ mod tests {
         // turret) whose root carries a mesh and the given transform.
         let turret_with = |xf: Option<RenderMeshTransform>| TurretSectionConfig {
             root: TurretJoint {
+                name: None,
                 offset: Vec3::ZERO,
                 axis: None,
                 speed: default_joint_speed(),
@@ -1191,6 +1192,7 @@ mod tests {
                 render_mesh_transform: xf,
                 muzzle: None,
                 children: vec![TurretJoint {
+                    name: None,
                     offset: Vec3::new(0.0, 0.0, -0.5),
                     axis: None,
                     speed: default_joint_speed(),
@@ -1266,6 +1268,7 @@ mod tests {
         let plate_transform = |xf: Option<RenderMeshTransform>| {
             let turret = TurretSectionConfig {
                 root: TurretJoint {
+                    name: None,
                     offset: Vec3::ZERO,
                     axis: None,
                     speed: default_joint_speed(),
@@ -1276,6 +1279,7 @@ mod tests {
                     render_mesh_transform: xf,
                     muzzle: None,
                     children: vec![TurretJoint {
+                        name: None,
                         offset: Vec3::new(0.0, 0.0, -0.5),
                         axis: None,
                         speed: default_joint_speed(),

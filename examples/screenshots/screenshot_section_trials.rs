@@ -33,6 +33,12 @@
 //! killed). A gun that never fires or a bay that launches into its own roof
 //! fails the walk by deadline.
 //!
+//! The walk opens with the STOW round (task 20260831-083622): managed cold,
+//! both mounts must fold into their housings behind shut lids; weapons hot,
+//! they must rise again - with the trigger HELD and the safety passing the
+//! whole way up, so a single round fired before full deployment fails the
+//! walk. Only then do the firing lanes open.
+//!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full live-fire walk,
 //!   capturing nothing.
@@ -279,6 +285,48 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(and(range_standing(), scenario_camera_present()))
         .deadline(30.0)
         .add()
+        // THE STOW ROUND (task 20260831-083622). Managing the stands and
+        // going weapons-cold makes both mounts fold up, sink and shut their
+        // lids; weapons-hot brings them back. The trigger is HELD through
+        // the whole deploy with the safety passing (hot) and no aim point
+        // (an unaimed turret fires freely), so the ONLY thing that can hold
+        // fire is the stow gate - a bullet before full deployment fails the
+        // walk.
+        .step("weapons cold - both mounts must park in their housings")
+        .on_enter(|world| {
+            set_weapons_hot(world, false);
+            pose_camera(
+                world,
+                Vec3::new(GATLING_LANE_X + 1.7, 2.3, 2.0),
+                Vec3::new(GATLING_LANE_X, 0.85, 0.0),
+            );
+        })
+        .until(mounts_parked())
+        .deadline(30.0)
+        .add()
+        .step("shoot the stowed mount")
+        .on_enter(|world| shoot(world, "section-trials-stowed.png"))
+        .until(shot_written("section-trials-stowed.png"))
+        .deadline(30.0)
+        .add()
+        .step("weapons hot, trigger held - catch the assembly rising")
+        .on_enter(|world| {
+            set_weapons_hot(world, true);
+            set_triggers(world, true);
+        })
+        .until(and(mount_rising(), no_bullets()))
+        .deadline(15.0)
+        .add()
+        .step("shoot the deploy mid-rise")
+        .on_enter(|world| shoot(world, "section-trials-deploying.png"))
+        .until(shot_written("section-trials-deploying.png"))
+        .deadline(30.0)
+        .add()
+        .step("fully deployed, and not one round fired on the way up")
+        .on_enter(|world| set_triggers(world, false))
+        .until(and(mounts_deployed(), no_bullets()))
+        .deadline(15.0)
+        .add()
         .step("frame the range and lay both guns")
         .on_enter(|world| {
             frame_range(world);
@@ -376,6 +424,84 @@ fn set_triggers(world: &mut World, firing: bool) {
     for mut trigger in query.iter_mut(world) {
         **trigger = firing;
     }
+}
+
+/// Manage both PDC stands' weapons state. Inserting `WeaponsHot` is what
+/// MAKES them managed: the stow machine (and the fire safety) read an
+/// unmanaged ship as hot, so the cold state must be written, not defaulted.
+#[cfg(feature = "debug")]
+fn set_weapons_hot(world: &mut World, hot: bool) {
+    for id in ["gatling_stand", "twin_stand"] {
+        if let Some(ship) = ship_by_id(world, id) {
+            world.entity_mut(ship).insert(WeaponsHot(hot));
+        }
+    }
+}
+
+/// Every mount on the range is parked: assembly sunk (lift 1) behind shut
+/// lids (doors 1). The `seen &&` guard keeps an empty query from passing.
+#[cfg(feature = "debug")]
+fn mounts_parked() -> Arc<nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()
+            .is_some_and(|mut query| {
+                let mut seen = false;
+                let parked = query.iter(world).all(|animations| {
+                    seen = true;
+                    animations.cue_progress(SectionAnimationCue::StowLift) == Some(1.0)
+                        && animations.cue_progress(SectionAnimationCue::StowDoors) == Some(1.0)
+                });
+                seen && parked
+            })
+    })
+}
+
+/// Some mount is mid-rise: lids fully parted, assembly strictly between
+/// sunk and up - the deploying money-shot window.
+#[cfg(feature = "debug")]
+fn mount_rising() -> Arc<nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()
+            .is_some_and(|mut query| {
+                query.iter(world).any(|animations| {
+                    animations.cue_progress(SectionAnimationCue::StowDoors) == Some(0.0)
+                        && animations
+                            .cue_progress(SectionAnimationCue::StowLift)
+                            .is_some_and(|progress| progress > 0.0 && progress < 1.0)
+                })
+            })
+    })
+}
+
+/// Every mount is fully up: both stow cues back at rest.
+#[cfg(feature = "debug")]
+fn mounts_deployed() -> Arc<nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()
+            .is_some_and(|mut query| {
+                let mut seen = false;
+                let deployed = query.iter(world).all(|animations| {
+                    seen = true;
+                    animations.cue_progress(SectionAnimationCue::StowLift) == Some(0.0)
+                        && animations.cue_progress(SectionAnimationCue::StowDoors) == Some(0.0)
+                });
+                seen && deployed
+            })
+    })
+}
+
+/// Not one turret round exists in the world. Rounds live 2 s, so this also
+/// rules out a bullet that leaked EARLIER in the held-trigger window.
+#[cfg(feature = "debug")]
+fn no_bullets() -> Arc<nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query_filtered::<Entity, With<TurretBulletProjectileMarker>>()
+            .is_none_or(|mut query| query.iter(world).next().is_none())
+    })
 }
 
 /// Order one torpedo out of the bay, committed to the bay column.

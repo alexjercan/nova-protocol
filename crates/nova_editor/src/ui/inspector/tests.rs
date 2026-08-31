@@ -831,6 +831,7 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
         ))
         .id();
     let joint = |muzzle, children| TurretJoint {
+        name: None,
         offset: Vec3::ZERO,
         axis: None,
         speed: 0.0,

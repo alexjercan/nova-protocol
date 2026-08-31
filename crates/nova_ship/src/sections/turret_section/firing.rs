@@ -71,6 +71,7 @@ pub(super) fn shoot_spawn_projectile(
             Option<&TurretSectionAimPoint>,
             Option<&mut SectionAmmo>,
             Option<&mut SectionReload>,
+            Option<&TurretStow>,
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -95,8 +96,17 @@ pub(super) fn shoot_spawn_projectile(
         aim_point,
         mut ammo,
         mut reload,
+        stow,
     ) in &mut q_turret
     {
+        // BEFORE the safety and its point-defence exemption: a mount that is
+        // not fully deployed cannot fire at all - a gun inside its housing
+        // has no line of fire, and the deploy travel is the design's cost.
+        // The Flight Computer deploys a mount by assigning it (the stow
+        // machine reads `TurretDefenseTarget`); it never shoots through it.
+        if stow.is_some_and(|stow| !stow.is_deployed()) {
+            continue;
+        }
         // The weapons safety is a LIVE predicate: a managed ship (player,
         // mirrored AI) cannot fire
         // while SAFE even mid-held-trigger - the input bool is latched, so a
@@ -670,6 +680,44 @@ mod tests {
     }
 
     #[test]
+    fn a_turret_not_fully_deployed_holds_its_fire() {
+        // The stow gate sits BEFORE the safety and its point-defence
+        // exemption: any phase short of Deployed holds fire, on an otherwise
+        // free-firing unmanaged rig - a gun inside its housing has no line
+        // of fire.
+        for phase in [
+            TurretStowPhase::Stowed,
+            TurretStowPhase::Stowing,
+            TurretStowPhase::Deploying,
+        ] {
+            let mut app = firing_app(1.0);
+            let turret = spawn_firing_turret(&mut app, None);
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretStow::new(phase));
+
+            for _ in 0..3 {
+                app.update();
+            }
+            assert_eq!(
+                bullet_count(&mut app),
+                0,
+                "{phase:?} must hold fire on a rig that otherwise fires freely"
+            );
+
+            // The same rig with the machine at Deployed proves the gate, not
+            // some other silence, held the trigger.
+            app.world_mut()
+                .entity_mut(turret)
+                .insert(TurretStow::new(TurretStowPhase::Deployed));
+            for _ in 0..3 {
+                app.update();
+            }
+            assert!(bullet_count(&mut app) > 0, "deployed, the rig fires again");
+        }
+    }
+
+    #[test]
     fn a_turret_with_ammo_fires_exactly_its_magazine_then_stops() {
         // The core ammo claim: `try_consume` hard-caps total bullets at the
         // magazine size regardless of sub-tick fire timing, so an exact count is
@@ -731,6 +779,7 @@ mod tests {
         // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) with TWO muzzle
         // children at symmetric lateral offsets. fire_rate 10, shared mag of 3.
         let muzzle = |x: f32| TurretJoint {
+            name: None,
             offset: Vec3::new(x, 0.0, -0.5),
             axis: None,
             speed: default_joint_speed(),
@@ -745,6 +794,7 @@ mod tests {
             children: vec![],
         };
         let barrel = TurretJoint {
+            name: None,
             offset: Vec3::new(0.0, 0.0, 0.0),
             axis: None,
             speed: default_joint_speed(),

@@ -40,6 +40,9 @@ pub struct BaseContentAssets {
     pub turret_twin_yaw: AssetRef<WorldAsset>,
     pub turret_twin_pitch: AssetRef<WorldAsset>,
     pub turret_twin_barrel: AssetRef<WorldAsset>,
+    /// The stow housing both PDC mounts share: the pit the assembly sinks
+    /// into, with the sliding lid nodes the `StowDoors` track drives.
+    pub turret_housing: AssetRef<WorldAsset>,
     pub torpedo_bay: AssetRef<WorldAsset>,
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
@@ -158,6 +161,7 @@ impl BaseContentAssets {
             turret_twin_barrel: AssetRef::from(
                 "self://gltf/pdc_twin_barrel.glb#Scene0".to_string(),
             ),
+            turret_housing: AssetRef::from("self://gltf/pdc_housing.glb#Scene0".to_string()),
             torpedo_bay: AssetRef::from("self://gltf/bay_tube.glb#Scene0".to_string()),
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),

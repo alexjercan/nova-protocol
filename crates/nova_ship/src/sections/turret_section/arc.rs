@@ -214,6 +214,7 @@ mod tests {
         // must keep the pre-arc behavior rather than silently refuse to defend
         // its ship. Three ways to be unrecognised.
         let hinge = |axis: Option<Vec3>, children: Vec<TurretJoint>| TurretJoint {
+            name: None,
             offset: Vec3::ZERO,
             axis,
             speed: 1.0,
@@ -225,6 +226,7 @@ mod tests {
             children,
         };
         let muzzle = || TurretJoint {
+            name: None,
             muzzle: Some(MuzzleConfig {
                 fire_rate: 1.0,
                 muzzle_effect: None,

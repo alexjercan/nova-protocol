@@ -93,3 +93,99 @@ published:
 - The intercept numbers are RE-MEASURED and the wiki widget updated from
   the measurement.
 - Frame time measured before and after if the stow adds any per-frame work.
+
+## Decisions (build, 2026-08-31)
+
+- Collider deliberately NOT grown. The housing is a 1x1x0.5 visual; the
+  section collider stays the authored spec. Growing the hitbox is a
+  balance call this task records as not taken.
+- Sink depth 0.8, not the sketched ~0.5. The twin's stowed column tops
+  out at +0.925 over the section origin and the lid underside sits at
+  +0.21; the excess travel rides into the host hull, which every mount
+  has beneath it. One shared track serves both mounts.
+- Stow attitude is derived, not authored: the pitch hinge is commanded
+  to `look.max.unwrap_or(look.initial)`, so a clamped mount rides its
+  own +90 degree stop and a mount with no stop keeps its rest pitch.
+- Unmanaged ships fail OPEN (deployed at spawn, never stow). This
+  matches the fire path's WeaponsHot convention and keeps bare rigs,
+  ranges, and every pre-existing walk working unchanged.
+- The housing is the catalog's one final-size art piece: authored at
+  shipped mount scale with its open base on the joint origin, so the
+  turret root wears it with no render transform and no tree scaling.
+- Doors never shut over a moving gun: Stowing holds the lids open until
+  the lift reads 1.0; Deploying parts them fully before the lift rises.
+  Mid-travel reversals flip phase and reverse the same cues naturally.
+- AI deploys ahead of need without a new planner: deploy demand is
+  weapons hot OR a live tracked target OR a point-defense assignment,
+  and the AI's existing acquisition IS the readiness decision. An AI
+  ship engages anything hostile - ships and inbound torpedoes both -
+  at AI_TARGET_MAX_RANGE 2000 u, which raises weapons and derives
+  WeaponsHot, so its mounts deploy roughly 50 s of closure before the
+  180 u fire gate. The only cold path left is a quiet defender whose
+  first contact is the assignment itself at AI_POINT_DEFENSE_RANGE
+  150 u: deploy (0.25 s doors + 0.35 s lift) plus the up-to-0.5 s
+  slew from vertical costs ~38 u of Lance travel, so first rounds go
+  out at ~112 u instead of the alert rig's 180 u - a Lance still dies
+  ~75 u out, clear of the 30 u fuze. That shrunken window against a
+  Serpent is the authored combat cost, and in practice it prices the
+  PLAYER's cold ambush, not the AI's defense.
+
+## Landed
+
+- 831ceb35 - stage 1: StowLift/StowDoors cues, Translate motion,
+  snap_cue/has_cue, rest carry-forward on re-resolve.
+- b6855a78 - stage 2: TurretStow state machine, TurretSectionSystems
+  set, aim and fire gates, TurretJoint.name, 6 stow tests + 2 gate
+  tests.
+- 6c57b07c - stage 3: pdc_housing part with named lid nodes, raised
+  yaw hinges, stow_lift joint, authored tracks, regenerated content.
+- 51be4e8e - stage 4: trials walk stow round + task-folder captures.
+- 6a1a9944 - stage 4b: fold an idle deployed mount back to its rest
+  attitude (the stow attitude had survived the deploy).
+- record commit: changelog entry, wiki stow section, creator `name`
+  field, this file.
+
+## Proof
+
+- Trials walk (Xvfb, autopilot, capture): full cycle green at t=8.2s.
+  The stow round parks both mounts (lids shut), catches the gatling
+  mid-rise with the trigger HELD and zero rounds fired, and only counts
+  the step done when both mounts report deployed - still zero rounds.
+  The no_bullets predicate spans the whole deploy window, so any fire
+  leak fails the walk. Frames: section-trials-stowed.png,
+  section-trials-deploying.png, section-trials-twin.png (this folder).
+- Targeted tests: 6 stow-machine tests (incl. the idle rest-attitude
+  fold), aim-gate test, fire-gate test, animation and authoring
+  suites - all green.
+- RE-MEASURED intercept table (point_defense_cost rig, run serially,
+  2026-08-31): straight 116 rounds / killed 114.03 u out; weaving 390
+  rounds / killed 39.92 u out. IDENTICAL to the published table
+  (~116/~114, ~390/~40): the rig models an alert defender already on
+  the bearing and never constructs a turret entity, so the stow gate
+  cannot enter it - and a live alert defender IS deployed by then
+  (demand rises at 2000 u acquisition). ordnance.rs and the wiki
+  widget therefore stand unchanged; the cold-defender cost is the
+  arithmetic under Decisions.
+- Regression walks (Xvfb, autopilot, serial): system_torpedo_launch
+  green (t=32.4 s, fired/armed/detonated across both scenes - bay
+  iris unharmed); screenshot_section_weapons green (t=4.0 s, wiki
+  captures show both mounts deployed over open housings, idling at
+  rest attitude); system_turret_gunnery green (t=11.4 s, two rounds
+  of raise -> deploy -> fire -> hit through the stow gate).
+- stress_point_defense smoke: BLOCKED by a pre-existing master
+  break - the example's code-built 'launcher' ship fails the ship
+  lint (link-point graph disconnected: controller | bay_0..bay_11)
+  and the scenario refuses to start. Not from this branch: the ship
+  has no turret, the branch's content diff is confined to the two
+  turret entries, and its only lint-crate line is a test fixture
+  field.
+- content gen + lint: 0 errors, 0 warnings; gen-section-parts --check
+  byte-identical for all unchanged parts.
+- Frame time: reasoned, not measured. The stow adds one FixedUpdate
+  system per turret-bearing ship tick: a phase match, two cue reads
+  (a scan over the section's handful of tracks), and a timer
+  accumulate. No allocation, no new queries in the hot Deployed arm;
+  the attitude commander only runs while a mount is in transit. The
+  two extra tracks per PDC ride the pre-existing animation driver,
+  which skips settled tracks. Nothing here is per-frame work at a
+  scale the profiler could see over the existing turret aim solve.

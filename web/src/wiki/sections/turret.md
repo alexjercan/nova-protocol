@@ -32,6 +32,14 @@ The mount turns all the way round, so nothing is out of reach sideways. What bou
 
 That blind cone is the whole reason [point defense](../../combat-weapons/#point-defense) is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.
 
+## Stowed between fights
+
+<!-- Behavior verified against crates/nova_ship/src/sections/turret_section/stow.rs (deploy demand: weapons hot OR tracked target OR point-defense assignment, drive_turret_stow; settle STOW_SETTLE_SECONDS = 4.0; aim gate crates/nova_ship/src/sections/turret_section/aim.rs and fire gate firing.rs both skip a non-Deployed mount) and the authored travel times in crates/nova_authoring/src/base_content/sections/standard.rs pdc_stow_tracks (lift 0.9 s down / 0.35 s up, lids 0.5 s / 0.25 s). -->
+
+A mount with nothing to do does not stand in the wind. Out of combat the barrel swings straight up, the assembly sinks into its housing, and two lid halves slide shut over it - the ship at rest reads as at rest. The gun comes back up the moment it is wanted: weapons hot, a live tracking target, or a point-defense assignment all deploy it, and it stows again only after the guns have been cold with nothing tracked for a few quiet seconds. Deploy is fast and stow is lazy, so a lull in the fight does not park your guns.
+
+The deploy is not free. A stowed mount neither tracks nor fires until it is fully up - under a second, but a real window. Point defense assigns the mount well outside its own kill envelope, so an inbound torpedo meets a gun that is already firing; what the delay actually costs you is the ambush you spring with cold weapons and no lock, where the first trigger pull raises the guns instead of firing them.
+
 A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering "how is that still firing?" with "it is not, really", and it is. It stops when it dies, and not before.
 
 <figure class="figure">

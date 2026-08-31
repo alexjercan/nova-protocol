@@ -101,6 +101,16 @@ pub struct TurretJoint {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub muzzle: Option<MuzzleConfig>,
+    /// The authored animation-rig handle of this joint's entity. A named
+    /// joint is matched by a `SectionAnimation` track's `node_prefix` the
+    /// same way a named scene node is - the seam that lets a track drive a
+    /// code-built joint (the PDC stow's `"stow_lift"` elevator). `None`
+    /// keeps the generic `"Turret Joint"` label, which no track matches.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub name: Option<String>,
     /// Child joints, composed in this joint's ROTATED frame.
     #[cfg_attr(
         feature = "serde",
@@ -204,6 +214,7 @@ impl Default for TurretSectionConfig {
             // The same kinematic chain the flat config used to build:
             // base(fixed) -> yaw(Y) -> pitch(X) -> barrel(fixed) -> muzzle.
             root: TurretJoint {
+                name: None,
                 offset: Vec3::new(0.0, -0.5, 0.0),
                 axis: None,
                 speed: default_joint_speed(),
@@ -213,6 +224,7 @@ impl Default for TurretSectionConfig {
                 render_mesh_transform: None,
                 muzzle: None,
                 children: vec![TurretJoint {
+                    name: None,
                     offset: Vec3::new(0.0, 0.1, 0.0),
                     axis: Some(Vec3::Y),
                     speed: std::f32::consts::PI, // 180 degrees per second
@@ -222,6 +234,7 @@ impl Default for TurretSectionConfig {
                     render_mesh_transform: None,
                     muzzle: None,
                     children: vec![TurretJoint {
+                        name: None,
                         offset: Vec3::new(0.0, 0.2, 0.0),
                         axis: Some(Vec3::X),
                         speed: std::f32::consts::PI, // 180 degrees per second
@@ -234,6 +247,7 @@ impl Default for TurretSectionConfig {
                         render_mesh_transform: None,
                         muzzle: None,
                         children: vec![TurretJoint {
+                            name: None,
                             offset: Vec3::new(0.1, 0.2, 0.0),
                             axis: None,
                             speed: default_joint_speed(),
@@ -243,6 +257,7 @@ impl Default for TurretSectionConfig {
                             render_mesh_transform: None,
                             muzzle: None,
                             children: vec![TurretJoint {
+                                name: None,
                                 offset: Vec3::new(0.0, 0.0, -0.5),
                                 axis: None,
                                 speed: default_joint_speed(),
@@ -345,6 +360,7 @@ mod tests {
         // A joint that omits render_mesh_transform entirely does not serialize
         // the field (keeps authored turrets and RON parity unchanged).
         let joint = TurretJoint {
+            name: None,
             offset: Vec3::ZERO,
             axis: None,
             speed: default_joint_speed(),

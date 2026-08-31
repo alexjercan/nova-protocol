@@ -1,0 +1,77 @@
+{
+  "_comment": "PDC STOW HOUSING: the shared 1x1x0.5 pit both shipped mounts sink into (task 20260831-083622). Authored at FINAL mount scale with its open base ON the joint origin (y 0..0.5), so the turret root wears it with no render transform: four flank walls, a gunmetal deck ring around the 0.48 shaft the turret assembly rides through, guide rails, and two sliding lid halves as named nodes. The lids REST PARTED (deployed pose, matching the whole catalog's rest-deployed convention) at the flanks and slide inward 0.24 to seal; the left lid is placed mirror-rotated so both share one Translate track - the slide sibling of the bay's six-petal hinge trick. Deliberately a TRANSLATE read at silhouette range, distinct from the bay's rotating petals.",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.04, 0.5, 1.0], "at": [0.48, 0.25, 0.0] },
+    { "primitive": "box", "size": [0.04, 0.5, 1.0], "at": [-0.48, 0.25, 0.0] },
+    { "primitive": "box", "size": [0.92, 0.5, 0.04], "at": [0.0, 0.25, 0.48] },
+    { "primitive": "box", "size": [0.92, 0.5, 0.04], "at": [0.0, 0.25, -0.48] },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.04, 0.92],
+      "at": [0.35, 0.44, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.04, 0.92],
+      "at": [-0.35, 0.44, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.48, 0.04, 0.22],
+      "at": [0.0, 0.44, 0.35],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.48, 0.04, 0.22],
+      "at": [0.0, 0.44, -0.35],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.92, 0.02, 0.02],
+      "at": [0.0, 0.47, 0.26],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.92, 0.02, 0.02],
+      "at": [0.0, 0.47, -0.26],
+      "material": "part_gunmetal"
+    },
+    { "primitive": "box", "size": [0.06, 0.42, 0.06], "at": [0.43, 0.21, 0.43] },
+    { "primitive": "box", "size": [0.06, 0.42, 0.06], "at": [-0.43, 0.21, 0.43] },
+    { "primitive": "box", "size": [0.06, 0.42, 0.06], "at": [0.43, 0.21, -0.43] },
+    { "primitive": "box", "size": [0.06, 0.42, 0.06], "at": [-0.43, 0.21, -0.43] },
+    {
+      "primitive": "box",
+      "size": [0.12, 0.05, 0.03],
+      "at": [0.3, 0.465, 0.4],
+      "material": "part_glow"
+    }
+  ],
+  "nodes": [
+    {
+      "name": "stow_lid_right",
+      "at": [0.37, 0.48, 0.0],
+      "rotate": [0.0, 0.0, 0.0],
+      "parts": [{ "primitive": "box", "size": [0.26, 0.04, 0.48], "at": [0.0, 0.0, 0.0] }]
+    },
+    {
+      "name": "stow_lid_left",
+      "at": [-0.37, 0.48, 0.0],
+      "rotate": [0.0, 180.0, 0.0],
+      "parts": [{ "primitive": "box", "size": [0.26, 0.04, 0.48], "at": [0.0, 0.0, 0.0] }]
+    }
+  ]
+}

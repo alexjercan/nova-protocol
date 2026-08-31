@@ -1153,6 +1153,34 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -1161,48 +1189,40 @@
                     -0.25,
                     0.0,
                 ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
                 children: [
                     (
                         offset: (
                             0.0,
-                            0.05,
+                            0.0,
                             0.0,
                         ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
                             scale: (
-                                0.5,
-                                0.5,
-                                0.5,
+                                0.44,
+                                0.44,
+                                0.44,
                             ),
                         )),
+                        name: Some("stow_lift"),
                         children: [
                             (
                                 offset: (
                                     0.0,
-                                    0.2,
+                                    0.4,
                                     0.0,
                                 ),
                                 axis: Some((
+                                    0.0,
                                     1.0,
                                     0.0,
-                                    0.0,
                                 )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1214,10 +1234,17 @@
                                     (
                                         offset: (
                                             0.0,
-                                            0.01,
-                                            -0.05,
+                                            0.2,
+                                            0.0,
                                         ),
-                                        render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1229,12 +1256,29 @@
                                             (
                                                 offset: (
                                                     0.0,
-                                                    0.0,
-                                                    -0.475,
+                                                    0.01,
+                                                    -0.05,
                                                 ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
+                                                render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
                                                 )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 100.0,
+                                                        )),
+                                                    ),
+                                                ],
                                             ),
                                         ],
                                     ),
@@ -1291,6 +1335,34 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -1299,48 +1371,40 @@
                     -0.25,
                     0.0,
                 ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
                 children: [
                     (
                         offset: (
                             0.0,
-                            0.05,
+                            0.0,
                             0.0,
                         ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.33,
+                                0.0,
+                            ),
                             scale: (
-                                0.5,
-                                0.5,
-                                0.5,
+                                0.44,
+                                0.44,
+                                0.44,
                             ),
                         )),
+                        name: Some("stow_lift"),
                         children: [
                             (
                                 offset: (
                                     0.0,
-                                    0.2,
+                                    0.4,
                                     0.0,
                                 ),
                                 axis: Some((
+                                    0.0,
                                     1.0,
                                     0.0,
-                                    0.0,
                                 )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1352,10 +1416,17 @@
                                     (
                                         offset: (
                                             0.0,
-                                            0.01,
-                                            -0.05,
+                                            0.2,
+                                            0.0,
                                         ),
-                                        render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1367,12 +1438,29 @@
                                             (
                                                 offset: (
                                                     0.0,
-                                                    0.0,
-                                                    -0.475,
+                                                    0.01,
+                                                    -0.05,
                                                 ),
-                                                muzzle: Some((
-                                                    fire_rate: 100.0,
+                                                render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
                                                 )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.0,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 100.0,
+                                                        )),
+                                                    ),
+                                                ],
                                             ),
                                         ],
                                     ),
@@ -1429,6 +1517,34 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -1437,48 +1553,40 @@
                     -0.25,
                     0.0,
                 ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
                 children: [
                     (
                         offset: (
                             0.0,
-                            0.05,
+                            0.0,
                             0.0,
                         ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.305,
+                                0.0,
+                            ),
                             scale: (
-                                0.5,
-                                0.5,
-                                0.5,
+                                0.44,
+                                0.44,
+                                0.44,
                             ),
                         )),
+                        name: Some("stow_lift"),
                         children: [
                             (
                                 offset: (
                                     0.0,
-                                    0.225,
+                                    0.375,
                                     0.0,
                                 ),
                                 axis: Some((
+                                    0.0,
                                     1.0,
                                     0.0,
-                                    0.0,
                                 )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1490,10 +1598,17 @@
                                     (
                                         offset: (
                                             0.0,
+                                            0.225,
                                             0.0,
-                                            -0.1,
                                         ),
-                                        render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1504,23 +1619,40 @@
                                         children: [
                                             (
                                                 offset: (
-                                                    0.06,
                                                     0.0,
-                                                    -0.475,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 50.0,
-                                                )),
-                                            ),
-                                            (
-                                                offset: (
-                                                    -0.06,
                                                     0.0,
-                                                    -0.475,
+                                                    -0.1,
                                                 ),
-                                                muzzle: Some((
-                                                    fire_rate: 50.0,
+                                                render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
                                                 )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                    (
+                                                        offset: (
+                                                            -0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                ],
                                             ),
                                         ],
                                     ),
@@ -1577,6 +1709,34 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: StowLift,
+                    node_prefix: "stow_lift",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            -0.8,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.9,
+                    close_seconds: 0.35,
+                ),
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.24,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.5,
+                    close_seconds: 0.25,
+                ),
+            ],
         ),
         kind: Turret((
             root: (
@@ -1585,48 +1745,40 @@
                     -0.25,
                     0.0,
                 ),
-                render_mesh_transform: Some((
-                    scale: (
-                        0.5,
-                        0.5,
-                        0.5,
-                    ),
-                )),
+                render_mesh: Some("self://gltf/pdc_housing.glb#Scene0"),
                 children: [
                     (
                         offset: (
                             0.0,
-                            0.05,
+                            0.0,
                             0.0,
                         ),
-                        axis: Some((
-                            0.0,
-                            1.0,
-                            0.0,
-                        )),
-                        render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
+                            position: (
+                                0.0,
+                                0.305,
+                                0.0,
+                            ),
                             scale: (
-                                0.5,
-                                0.5,
-                                0.5,
+                                0.44,
+                                0.44,
+                                0.44,
                             ),
                         )),
+                        name: Some("stow_lift"),
                         children: [
                             (
                                 offset: (
                                     0.0,
-                                    0.225,
+                                    0.375,
                                     0.0,
                                 ),
                                 axis: Some((
+                                    0.0,
                                     1.0,
                                     0.0,
-                                    0.0,
                                 )),
-                                min: Some(-0.17453294),
-                                max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1638,10 +1790,17 @@
                                     (
                                         offset: (
                                             0.0,
+                                            0.225,
                                             0.0,
-                                            -0.1,
                                         ),
-                                        render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                        axis: Some((
+                                            1.0,
+                                            0.0,
+                                            0.0,
+                                        )),
+                                        min: Some(-0.17453294),
+                                        max: Some(1.5707964),
+                                        render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1652,23 +1811,40 @@
                                         children: [
                                             (
                                                 offset: (
-                                                    0.06,
                                                     0.0,
-                                                    -0.475,
-                                                ),
-                                                muzzle: Some((
-                                                    fire_rate: 50.0,
-                                                )),
-                                            ),
-                                            (
-                                                offset: (
-                                                    -0.06,
                                                     0.0,
-                                                    -0.475,
+                                                    -0.1,
                                                 ),
-                                                muzzle: Some((
-                                                    fire_rate: 50.0,
+                                                render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                                render_mesh_transform: Some((
+                                                    scale: (
+                                                        0.5,
+                                                        0.5,
+                                                        0.5,
+                                                    ),
                                                 )),
+                                                children: [
+                                                    (
+                                                        offset: (
+                                                            0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                    (
+                                                        offset: (
+                                                            -0.06,
+                                                            0.0,
+                                                            -0.475,
+                                                        ),
+                                                        muzzle: Some((
+                                                            fire_rate: 50.0,
+                                                        )),
+                                                    ),
+                                                ],
                                             ),
                                         ],
                                     ),

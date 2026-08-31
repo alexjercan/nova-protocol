@@ -41,8 +41,15 @@ fn spawn_turret_joint(
         );
     }
 
+    // The authored name is the joint's animation-rig handle: a
+    // `SectionAnimation` track resolves it by prefix exactly like a scene
+    // node, which is how the stow lift joint gets driven.
+    let name = joint
+        .name
+        .clone()
+        .unwrap_or_else(|| "Turret Joint".to_string());
     let mut entity = commands.spawn((
-        Name::new("Turret Joint"),
+        Name::new(name),
         TurretSectionPartOf(turret),
         TurretJointRenderMesh(joint.render_mesh.clone()),
         TurretJointRenderMeshTransform(joint.render_mesh_transform),

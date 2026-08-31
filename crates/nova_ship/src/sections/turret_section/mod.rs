@@ -7,6 +7,7 @@ mod config;
 mod firing;
 mod render;
 mod setup;
+mod stow;
 #[cfg(test)]
 mod test_support;
 
@@ -31,6 +32,8 @@ use render::{
     DefaultProjectileRender,
 };
 use setup::{apply_turret_config_to_children, insert_turret_section};
+use stow::{drive_turret_stow, insert_turret_stow};
+pub use stow::{TurretStow, TurretStowPhase};
 
 use crate::prelude::*;
 
@@ -42,11 +45,23 @@ pub mod prelude {
         MuzzleConfig, TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems,
         TurretSectionArc, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
         TurretSectionConfigHelper, TurretSectionInput, TurretSectionMuzzleEntity,
-        TurretSectionPlugin, TurretSectionTargetEntity, TurretSectionTargetInput,
-        TurretSectionTargetTrack, TurretSectionTargetVelocity, CLOSE_ENGAGEMENT_RANGE,
-        HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+        TurretSectionPlugin, TurretSectionSystems, TurretSectionTargetEntity,
+        TurretSectionTargetInput, TurretSectionTargetTrack, TurretSectionTargetVelocity,
+        TurretStow, TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
     };
 }
+
+/// The turret stow machine's set on the fixed clock: arming and driving
+/// [`TurretStow`]. Ordered after [`SpaceshipInputSystems`] (the AI's fixed
+/// members and the weapons state it maintains) and before
+/// [`TurretSectionAimSystems`], so a deploy decision made this tick gates
+/// this same tick's aim solve, the controller sync after it, and the fire
+/// path after that. The AI's target feed itself writes
+/// `TurretSectionTargetEntity` in `Update`, so a demand raised there is read
+/// on the NEXT fixed tick - the same one-frame seam the aim chain already
+/// rides.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TurretSectionSystems;
 
 /// Helper function to create a turret section entity bundle.
 pub fn turret_section(config: TurretSectionConfig) -> impl Bundle {
@@ -314,9 +329,21 @@ impl Plugin for TurretSectionPlugin {
             FixedUpdate,
             TurretSectionAimSystems.before(SmoothLookRotationSystems::Sync),
         );
+        // The stow machine decides whether the mount may aim and fire AT ALL
+        // this tick, so it runs between the input that raises the demand and
+        // the aim chain it gates - see `TurretSectionSystems`.
+        app.configure_sets(
+            FixedUpdate,
+            TurretSectionSystems
+                .after(SpaceshipInputSystems)
+                .before(TurretSectionAimSystems),
+        );
         app.add_systems(
             FixedUpdate,
             (
+                (insert_turret_stow, drive_turret_stow)
+                    .chain()
+                    .in_set(TurretSectionSystems),
                 (
                     update_turret_target_track,
                     update_turret_aim_point,

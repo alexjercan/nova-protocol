@@ -97,19 +97,28 @@ pub(crate) const PDC_MOUNT_OFFSET: f32 = PDC_TURRET_SIZE * 0.5;
 const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 
 /// The size the turret art was drawn at: one whole section cube. A tree
-/// assembled at this scale needs no art transform at all.
+/// assembled at this scale needs no art transform on its unit-drawn parts
+/// (the stow elevator's platform placement is authored at every scale, and
+/// the housing is final-size art - see `TurretArt`).
 const UNIT_TURRET_SCALE: f32 = 1.0;
 
-/// One mount's authored geometry: the three meshed parts and where each joint
+/// One mount's authored geometry: the meshed parts and where each joint
 /// stands, in unit-turret space. Turret parts are generated around their own
 /// joint origins (`scripts/gen-section-parts.py`), so these offsets ARE the
 /// assembly - the section gallery example poses candidates with the same
 /// numbers, which is how they were read off in the first place.
 struct TurretArt<'a> {
+    /// The stow housing the assembly sinks into, worn by the fixed base
+    /// joint. Authored at the SHIPPED mount size (its recipe is the full
+    /// 1x1x0.5 cell footprint, base on the joint origin), so unlike the
+    /// unit-drawn parts it never takes the tree's scale transform; a
+    /// differently sized mount authors its own housing.
+    housing_mesh: &'a AssetRef<WorldAsset>,
     yaw_mesh: &'a AssetRef<WorldAsset>,
     pitch_mesh: &'a AssetRef<WorldAsset>,
     barrel_mesh: &'a AssetRef<WorldAsset>,
-    /// The yaw turntable, above the base plate.
+    /// The yaw turntable, raised so the pitch hinge clears the housing deck
+    /// and the barrel sweeps above the lids (deployed pose).
     yaw_at: Vec3,
     /// The pitch hinge, above the turntable.
     pitch_at: Vec3,
@@ -132,10 +141,16 @@ const TWIN_MUZZLES: [Vec3; 2] = [Vec3::new(0.12, 0.0, -0.95), Vec3::new(-0.12, 0
 /// The gatling mount, the default PDC: one rotary barrel cluster, one muzzle.
 fn gatling_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
     TurretArt {
+        housing_mesh: &meshes.turret_housing,
         yaw_mesh: &meshes.turret_yaw,
         pitch_mesh: &meshes.turret_pitch,
         barrel_mesh: &meshes.turret_barrel,
-        yaw_at: Vec3::new(0.0, 0.1, 0.0),
+        // Raised for the stow housing: the turntable head sits proud of the
+        // deck (hole half-width 0.24 clears the 0.21 assembly radius) and
+        // the pitch hinge lands 0.10 above the deck, so the level barrel
+        // sweeps over the shut-lid plane and the -10 deg depression clears
+        // the housing rim.
+        yaw_at: Vec3::new(0.0, 0.8, 0.0),
         pitch_at: Vec3::new(0.0, 0.4, 0.0),
         barrel_at: Vec3::new(0.0, 0.02, -0.1),
         muzzles_at: &GATLING_MUZZLES,
@@ -146,10 +161,15 @@ fn gatling_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
 /// muzzles - and two independent fire streams over the shared magazine.
 fn twin_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
     TurretArt {
+        housing_mesh: &meshes.turret_housing,
         yaw_mesh: &meshes.turret_twin_yaw,
         pitch_mesh: &meshes.turret_twin_pitch,
         barrel_mesh: &meshes.turret_twin_barrel,
-        yaw_at: Vec3::new(0.0, 0.1, 0.0),
+        // 0.05 unit lower than the gatling's raise: the twin's pitch sits
+        // 0.45 up its pedestal, so both mounts land their pitch hinge at the
+        // same 0.35 above the section origin - one housing, one deck
+        // clearance, one stow sink for the pair.
+        yaw_at: Vec3::new(0.0, 0.75, 0.0),
         pitch_at: Vec3::new(0.0, 0.45, 0.0),
         barrel_at: Vec3::new(0.0, 0.0, -0.2),
         muzzles_at: &TWIN_MUZZLES,
@@ -194,6 +214,7 @@ fn turret_joint_tree(
         .muzzles_at
         .iter()
         .map(|&muzzle_at| TurretJoint {
+            name: None,
             offset: at(muzzle_at),
             axis: None,
             speed: std::f32::consts::PI,
@@ -209,51 +230,81 @@ fn turret_joint_tree(
         })
         .collect();
 
+    // The elevator platform is the default joint primitive (a wide flat
+    // disc) pressed into service: sized to ride inside the housing's 0.48
+    // shaft mouth and lifted to sit just under the turntable, it reads as
+    // the floor the assembly stands on and sinks with it.
+    let platform = Some(RenderMeshTransform {
+        position: Vec3::new(0.0, at(art_spec.yaw_at).y - 0.14 * scale, 0.0),
+        scale: Vec3::splat(0.88 * scale),
+        ..default()
+    });
+
     TurretJoint {
+        name: None,
         offset: Vec3::new(0.0, -mount, 0.0),
         axis: None,
         speed: std::f32::consts::PI,
         min: None,
         max: None,
-        render_mesh: None,
-        // The base plate is a default primitive, not authored art, so the
-        // transform is what sizes it.
-        render_mesh_transform: art,
+        // The stow housing replaces the old default base plate. Authored at
+        // the shipped mount size (see `TurretArt::housing_mesh`), so no art
+        // transform rides it.
+        render_mesh: Some(art_spec.housing_mesh.clone()),
+        render_mesh_transform: None,
         muzzle: None,
         children: vec![TurretJoint {
-            offset: at(art_spec.yaw_at),
-            axis: Some(Vec3::Y),
-            speed: std::f32::consts::PI, // 180 degrees per second
+            // The stow elevator: a fixed joint the `StowLift` track drives
+            // by NAME (`SectionAnimation.node_prefix` resolves named joints
+            // exactly like named scene nodes). Everything above it - yaw,
+            // pitch, barrels, muzzles - rides it down into the housing.
+            name: Some("stow_lift".to_string()),
+            offset: Vec3::ZERO,
+            axis: None,
+            speed: std::f32::consts::PI,
             min: None,
             max: None,
-            render_mesh: Some(art_spec.yaw_mesh.clone()),
-            render_mesh_transform: art,
+            render_mesh: None,
+            render_mesh_transform: platform,
             muzzle: None,
             children: vec![TurretJoint {
-                offset: at(art_spec.pitch_at),
-                axis: Some(Vec3::X),
+                name: None,
+                offset: at(art_spec.yaw_at),
+                axis: Some(Vec3::Y),
                 speed: std::f32::consts::PI, // 180 degrees per second
-                // Depression floor: every shipped turret is HULL-MOUNTED, so a
-                // deep depression just aims the barrel into its own ship (the
-                // cargoa's nose cheeks are the tightest case). 10 degrees is
-                // enough to reach a target slightly below the mount without
-                // the muzzle sweeping back across the bodywork. Elevation
-                // stays at 90: straight up is the point-defense arc.
-                min: Some(-TURRET_DEPRESSION_LIMIT),
-                max: Some(std::f32::consts::FRAC_PI_2),
-                render_mesh: Some(art_spec.pitch_mesh.clone()),
+                min: None,
+                max: None,
+                render_mesh: Some(art_spec.yaw_mesh.clone()),
                 render_mesh_transform: art,
                 muzzle: None,
                 children: vec![TurretJoint {
-                    offset: at(art_spec.barrel_at),
-                    axis: None,
-                    speed: std::f32::consts::PI,
-                    min: None,
-                    max: None,
-                    render_mesh: Some(art_spec.barrel_mesh.clone()),
+                    name: None,
+                    offset: at(art_spec.pitch_at),
+                    axis: Some(Vec3::X),
+                    speed: std::f32::consts::PI, // 180 degrees per second
+                    // Depression floor: every shipped turret is HULL-MOUNTED, so a
+                    // deep depression just aims the barrel into its own ship (the
+                    // cargoa's nose cheeks are the tightest case). 10 degrees is
+                    // enough to reach a target slightly below the mount without
+                    // the muzzle sweeping back across the bodywork. Elevation
+                    // stays at 90: straight up is the point-defense arc.
+                    min: Some(-TURRET_DEPRESSION_LIMIT),
+                    max: Some(std::f32::consts::FRAC_PI_2),
+                    render_mesh: Some(art_spec.pitch_mesh.clone()),
                     render_mesh_transform: art,
                     muzzle: None,
-                    children: muzzles,
+                    children: vec![TurretJoint {
+                        name: None,
+                        offset: at(art_spec.barrel_at),
+                        axis: None,
+                        speed: std::f32::consts::PI,
+                        min: None,
+                        max: None,
+                        render_mesh: Some(art_spec.barrel_mesh.clone()),
+                        render_mesh_transform: art,
+                        muzzle: None,
+                        children: muzzles,
+                    }],
                 }],
             }],
         }],
@@ -300,6 +351,54 @@ fn bay_link_points() -> Vec<LinkPoint> {
         }
     }
     points
+}
+
+/// How deep the stow lift sinks the assembly, in section units. Derived from
+/// the tallest stowed column, not the owner's sketch: the twin's straight-up
+/// barrel tops out 0.925 above the section origin (pitch hinge +0.35, barrel
+/// block and muzzle points 0.575 above it), and the shut lids' underside sits
+/// at +0.21, so 0.8 parks the tallest tip at +0.125 with clearance. The
+/// excess column length rides below the mount's base plate INTO the hull the
+/// mount is bolted to - which is what stowing into the ship means.
+const PDC_STOW_SINK: f32 = 0.8;
+
+/// How far each lid half slides to seal the deck: from its parked centre at
+/// +-0.37 to +-0.13, where the two 0.26-wide slabs meet over the 0.48 shaft
+/// mouth. The left lid is authored mirror-rotated, so ONE signed travel
+/// serves both (`SectionAnimationMotion::Translate` slides in each node's
+/// own rest frame).
+const PDC_STOW_LID_TRAVEL: f32 = 0.24;
+
+/// The shared PDC stow tracks: the `stow_lift` elevator JOINT (code-built,
+/// named in `turret_joint_tree`) and the `stow_lid_*` nodes modelled into
+/// `pdc_housing.glb`. The turret's stow state machine sequences the two
+/// cues; these author only WHAT moves and how fast.
+///
+/// Deploy fast, stow lazy - the close times are the combat-relevant ones
+/// (1 = stowed is these tracks' travelled pose): a threat pops the lids in
+/// 0.25 s and raises the gun in 0.35 s, while the fold-away runs at an
+/// unhurried service pace nobody is waiting on.
+fn pdc_stow_tracks() -> Vec<SectionAnimation> {
+    vec![
+        SectionAnimation {
+            cue: SectionAnimationCue::StowLift,
+            node_prefix: "stow_lift".to_string(),
+            motion: SectionAnimationMotion::Translate {
+                offset: Vec3::new(0.0, -PDC_STOW_SINK, 0.0),
+            },
+            open_seconds: 0.9,
+            close_seconds: 0.35,
+        },
+        SectionAnimation {
+            cue: SectionAnimationCue::StowDoors,
+            node_prefix: "stow_lid_".to_string(),
+            motion: SectionAnimationMotion::Translate {
+                offset: Vec3::new(-PDC_STOW_LID_TRAVEL, 0.0, 0.0),
+            },
+            open_seconds: 0.5,
+            close_seconds: 0.25,
+        },
+    ]
 }
 
 /// One compact PDC prototype, parameterised on the MOUNT it wears and the
@@ -355,7 +454,7 @@ fn pdc_turret_prototype(
                 normal: Vec3::NEG_Y,
             }],
             hide_in_editor: false,
-            animations: Vec::new(),
+            animations: pdc_stow_tracks(),
         },
         kind: SectionKind::Turret(TurretSectionConfig {
             root: turret_joint_tree(
@@ -1015,6 +1114,90 @@ mod tests {
         }
     }
 
+    /// Every catalog turret that wears the stow housing declares both stow
+    /// tracks, the lid track's prefix matches real named nodes in the
+    /// committed `pdc_housing.glb`, and the lift track's prefix matches the
+    /// named elevator joint in the turret's OWN tree. Art, tracks and rig
+    /// are one contract: a renamed lid node, a renamed lift joint or a
+    /// dropped track breaks here rather than as a gun that silently stops
+    /// sinking - or one that can never deploy again.
+    #[test]
+    fn every_housed_turret_declares_the_stow_tracks_over_its_rig() {
+        let glb = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/base/gltf/pdc_housing.glb"
+        ))
+        .expect("the promoted stow housing art");
+        for lid in ["\"stow_lid_right\"", "\"stow_lid_left\""] {
+            assert!(
+                glb.windows(lid.len())
+                    .any(|window| window == lid.as_bytes()),
+                "pdc_housing.glb has no {lid} node"
+            );
+        }
+
+        fn tree_has_named(joint: &TurretJoint, prefix: &str) -> bool {
+            joint
+                .name
+                .as_deref()
+                .is_some_and(|name| name.starts_with(prefix))
+                || joint
+                    .children
+                    .iter()
+                    .any(|child| tree_has_named(child, prefix))
+        }
+
+        let mut housed = 0;
+        for section in crate::generation::build_section_catalog() {
+            let SectionKind::Turret(turret) = &section.kind else {
+                continue;
+            };
+            let wears_housing = turret
+                .root
+                .render_mesh
+                .as_ref()
+                .and_then(|mesh| mesh.path())
+                .is_some_and(|path| path.contains("pdc_housing.glb"));
+            if !wears_housing {
+                continue;
+            }
+            housed += 1;
+            let lift = section
+                .base
+                .animations
+                .iter()
+                .find(|track| track.cue == SectionAnimationCue::StowLift)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{}: housed turret without a StowLift track",
+                        section.base.id
+                    )
+                });
+            assert!(
+                tree_has_named(&turret.root, &lift.node_prefix),
+                "{}: the lift track's prefix {:?} matches no named joint",
+                section.base.id,
+                lift.node_prefix
+            );
+            let doors = section
+                .base
+                .animations
+                .iter()
+                .find(|track| track.cue == SectionAnimationCue::StowDoors)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "{}: housed turret without a StowDoors track",
+                        section.base.id
+                    )
+                });
+            assert_eq!(doors.node_prefix, "stow_lid_", "{}", section.base.id);
+        }
+        assert!(
+            housed >= 2,
+            "both shipped PDCs wear the housing; found {housed}"
+        );
+    }
+
     /// A turret a builder can PLACE stands on the section it mounts through:
     /// its turntable sits on that section's own bottom face, not on a unit
     /// cube's.
@@ -1197,10 +1380,12 @@ mod tests {
     #[test]
     fn a_scaled_turret_tree_scales_its_offsets_and_its_art_together() {
         let mesh = |name: &str| AssetRef::<WorldAsset>::from(name.to_string());
-        let (yaw, pitch, barrel) = (mesh("yaw"), mesh("pitch"), mesh("barrel"));
+        let (housing, yaw, pitch, barrel) =
+            (mesh("housing"), mesh("yaw"), mesh("pitch"), mesh("barrel"));
         let tree = |scale: f32| {
             turret_joint_tree(
                 &TurretArt {
+                    housing_mesh: &housing,
                     yaw_mesh: &yaw,
                     pitch_mesh: &pitch,
                     barrel_mesh: &barrel,
@@ -1228,16 +1413,46 @@ mod tests {
                 b.offset,
                 a.offset,
             );
-            match (&b.render_mesh, b.render_mesh_transform) {
-                (Some(_), Some(art)) => assert_eq!(art.scale, Vec3::splat(0.5)),
-                (Some(_), None) => panic!("joint {joints}: meshed but unscaled art"),
-                _ => {}
+            match joints {
+                // The base wears the housing: final-size art (its recipe is
+                // the mount's own cell), so it never takes the tree scale.
+                0 => {
+                    assert!(a.render_mesh.is_some(), "the base wears the housing");
+                    assert!(
+                        a.render_mesh_transform.is_none() && b.render_mesh_transform.is_none(),
+                        "the housing is authored at mount size, not rescaled"
+                    );
+                }
+                // The stow elevator: named for its animation track, and its
+                // platform placement is authored art at EVERY scale - the
+                // whole transform rides the tree scale.
+                1 => {
+                    assert_eq!(a.name.as_deref(), Some("stow_lift"));
+                    let art_a = a.render_mesh_transform.expect("the platform placement");
+                    let art_b = b.render_mesh_transform.expect("the platform placement");
+                    assert!(art_b.scale.abs_diff_eq(art_a.scale * 0.5, 1e-6));
+                    assert!(art_b.position.abs_diff_eq(art_a.position * 0.5, 1e-6));
+                }
+                // The unit-drawn parts: meshed, no transform at unit scale
+                // (so the shipped RON stays clean), the scale on each part's
+                // transform at half.
+                2..=4 => {
+                    assert!(a.render_mesh.is_some(), "joint {joints}: meshed");
+                    assert!(
+                        a.render_mesh_transform.is_none(),
+                        "joint {joints}: an unscaled tree authors no art transform"
+                    );
+                    assert_eq!(
+                        b.render_mesh_transform.map(|art| art.scale),
+                        Some(Vec3::splat(0.5)),
+                        "joint {joints}: meshed but unscaled art"
+                    );
+                }
+                // The muzzle: an invisible fire point.
+                _ => {
+                    assert!(a.render_mesh.is_none() && a.render_mesh_transform.is_none());
+                }
             }
-            assert!(
-                a.render_mesh_transform.is_none(),
-                "joint {joints}: an unscaled tree authors no art transform, so the \
-                 shipped RON is unchanged"
-            );
             joints += 1;
             match (a.children.first(), b.children.first()) {
                 (Some(next_a), Some(next_b)) => {
@@ -1248,14 +1463,7 @@ mod tests {
                 _ => panic!("the two trees have different shapes"),
             }
         }
-        assert_eq!(joints, 5, "base, yaw, pitch, barrel, muzzle");
-
-        // The base plate is unmeshed, and it is exactly the part that used to
-        // stay unit-sized: it carries the scale on its own transform.
-        assert_eq!(
-            half.render_mesh_transform.map(|art| art.scale),
-            Some(Vec3::splat(0.5))
-        );
+        assert_eq!(joints, 6, "base, lift, yaw, pitch, barrel, muzzle");
     }
 
     /// "Variable damage by section type" as a checked invariant: section TYPE

@@ -1115,6 +1115,7 @@ mod tests {
             children: Vec<TurretJoint>,
         ) -> TurretJoint {
             TurretJoint {
+                name: None,
                 offset: Vec3::ZERO,
                 axis,
                 speed: std::f32::consts::PI,

@@ -22,21 +22,30 @@ use bevy::{prelude::*, world_serialization::WorldInstanceReady};
 pub mod prelude {
     pub use super::{
         SectionAnimation, SectionAnimationCue, SectionAnimationMotion, SectionAnimationPlugin,
-        SectionAnimationSystems, SectionAnimations,
+        SectionAnimationRigDirty, SectionAnimationSystems, SectionAnimations,
     };
 }
 
 /// Which gameplay moment drives an authored animation track. One cue can
 /// drive several tracks (a stow that folds a cover AND drops the mount); a
 /// cue no system steers rests at progress 0. Add a variant here when a new
-/// mechanic wants art: the railgun charge and the PDC stow are the known
-/// next consumers.
+/// mechanic wants art: the railgun charge is the known next consumer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionAnimationCue {
     /// A weapon bay's muzzle cover: driven to 1 (open) across a launch and
     /// back to 0 (closed) at rest by the bay's own fire path.
     MuzzleDoor,
+    /// A retractable turret's elevator: driven to 1 (sunk into the housing)
+    /// while stowed, 0 (raised, the rest pose) while deployed. Steered by
+    /// the turret's stow state machine, which sequences it against
+    /// [`Self::StowDoors`].
+    StowLift,
+    /// A retractable turret's housing lids: driven to 1 (shut over the sunk
+    /// gun) while stowed, 0 (parted, the rest pose) while deployed. The stow
+    /// machine shuts them only after [`Self::StowLift`] reaches 1, and parts
+    /// them before raising it.
+    StowDoors,
 }
 
 /// How each target node moves as its track's progress runs 0 -> 1, composed
@@ -55,6 +64,15 @@ pub enum SectionAnimationMotion {
         /// Signed rotation at full progress, in degrees.
         degrees: f32,
     },
+    /// Slide each node along a LOCAL displacement, reaching `offset` at
+    /// progress 1, composed onto the rest translation in the node's rest
+    /// frame. The same one-motion-many-nodes convention as [`Self::RotateX`]:
+    /// the node's placement rotation aims the slide, so two housing lids
+    /// authored mirror-rotated part in opposite directions off one track.
+    Translate {
+        /// Node-local displacement at full progress, in world units.
+        offset: Vec3,
+    },
 }
 
 impl SectionAnimationMotion {
@@ -65,6 +83,12 @@ impl SectionAnimationMotion {
                 *transform = Transform {
                     rotation: rest.rotation
                         * Quat::from_rotation_x(degrees.to_radians() * progress),
+                    ..*rest
+                };
+            }
+            Self::Translate { offset } => {
+                *transform = Transform {
+                    translation: rest.translation + rest.rotation * (offset * progress),
                     ..*rest
                 };
             }
@@ -154,6 +178,26 @@ impl SectionAnimations {
         }
     }
 
+    /// Land every track of `cue` AT `target` (clamped 0..1), skipping the
+    /// travel: progress and target both jump. For cold-start poses that must
+    /// not play out as motion - a scene that begins stowed snaps its stow
+    /// cues here, and the rig writes the landed pose the moment it resolves.
+    pub fn snap_cue(&mut self, cue: SectionAnimationCue, target: f32) {
+        let target = target.clamp(0.0, 1.0);
+        for track in &mut self.tracks {
+            if track.config.cue == cue {
+                track.target = target;
+                track.progress = target;
+                track.dirty = true;
+            }
+        }
+    }
+
+    /// True when the section authors at least one track of `cue`.
+    pub fn has_cue(&self, cue: SectionAnimationCue) -> bool {
+        self.tracks.iter().any(|track| track.config.cue == cue)
+    }
+
     /// The progress of the first track of `cue`, if the section authors one.
     /// 0 is rest, 1 is fully deployed. For walk asserts and tests.
     pub fn cue_progress(&self, cue: SectionAnimationCue) -> Option<f32> {
@@ -166,8 +210,10 @@ impl SectionAnimations {
 
 /// Marks a section whose animation rig must be (re)resolved against its
 /// spawned scene nodes. Inserted by the [`WorldInstanceReady`] observer when
-/// a scene finishes spawning under an animated section; tests insert it by
-/// hand on a hand-built hierarchy.
+/// a scene finishes spawning under an animated section, and by a kind system
+/// whose animated nodes are code-built rather than scene-spawned (the turret
+/// stow armer's lift joint); tests insert it by hand on a hand-built
+/// hierarchy.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 pub struct SectionAnimationRigDirty;
 
@@ -193,6 +239,14 @@ fn mark_ready_section_rigs(
 /// section and capture each hit's transform as the track's rest pose.
 /// Whole-tree and idempotent: a section with several scenes re-walks them
 /// all on each ready, and a replaced scene drops its dead entities here.
+///
+/// A node the track ALREADY holds keeps its captured rest. A section with
+/// several scenes (a turret's part glbs) readies once per scene, and by the
+/// second walk the driver may have posed the survivors of the first - their
+/// current transform is a driven pose, and re-capturing it as "rest" would
+/// compose the motion onto itself. Fresh entities are genuinely at their
+/// authored pose (nothing drives an unresolved node), so first capture is
+/// the only correct one.
 fn resolve_section_animation_rigs(
     mut q_dirty: Query<(Entity, &mut SectionAnimations), With<SectionAnimationRigDirty>>,
     q_children: Query<&Children>,
@@ -200,16 +254,22 @@ fn resolve_section_animation_rigs(
     mut commands: Commands,
 ) {
     for (section, mut animations) in &mut q_dirty {
-        for track in &mut animations.tracks {
-            track.nodes.clear();
-        }
+        let known: Vec<Vec<(Entity, Transform)>> = animations
+            .tracks
+            .iter_mut()
+            .map(|track| std::mem::take(&mut track.nodes))
+            .collect();
         for node in q_children.iter_descendants(section) {
             let Ok((name, transform)) = q_named.get(node) else {
                 continue;
             };
-            for track in &mut animations.tracks {
+            for (track, known) in animations.tracks.iter_mut().zip(&known) {
                 if name.as_str().starts_with(track.config.node_prefix.as_str()) {
-                    track.nodes.push((node, *transform));
+                    let rest = known
+                        .iter()
+                        .find(|(seen, _)| *seen == node)
+                        .map_or(*transform, |&(_, rest)| rest);
+                    track.nodes.push((node, rest));
                     track.dirty = true;
                 }
             }

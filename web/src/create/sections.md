@@ -429,6 +429,10 @@ Per-joint fields (on every `root`/`children` node):
   mesh visually without moving the hinge or the collider. It also sizes the
   DEFAULT primitive an unmeshed joint gets, which is a full unit across - scale
   it with the rest, or a small turret wears a hull-sized base plate.
+- `name` (optional) - names this joint so a section animation track can steer
+  it, exactly as a track matches a named node inside a scene mesh (the shipped
+  PDC names its elevator joint `stow_lift` and its stow track targets that).
+  Omit it on a joint no track touches.
 - `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
   (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
   aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or

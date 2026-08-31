@@ -15,6 +15,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Combat & Weapons
+- A PDC out of combat sinks into a housed pit and two lids slide shut over it;
+  it deploys on weapons hot, a tracked target or a point-defense assignment,
+  and cannot track or fire until fully up.
+
 ## [0.12.0] - 2026-08-31
 
 ### Combat & Weapons

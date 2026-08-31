@@ -670,6 +670,7 @@ mod tests {
         // A minimal one-muzzle tree carrying this test's fire rate; every other
         // field falls back to the default tree's shape.
         let root = TurretJoint {
+            name: None,
             offset: Vec3::ZERO,
             axis: None,
             speed: std::f32::consts::PI,

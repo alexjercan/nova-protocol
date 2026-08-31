@@ -114,6 +114,7 @@ fn thruster_with_exhaust(geometry: ThrusterExhaustShape) -> SectionNode {
 /// does: base -> yaw -> pitch -> barrel -> muzzle.
 fn turret_with_muzzle(fire_rate: f32) -> SectionNode {
     let joint = |muzzle, children| TurretJoint {
+        name: None,
         offset: Vec3::ZERO,
         axis: None,
         speed: 0.0,
