@@ -61,3 +61,30 @@ Start the standalone Quick Review extension in its separate Pi RPC agent. Keep
 foreground Scufris responsive while that agent writes the walkthrough and
 answers page questions. Do not use these Pi RPC settings for the review agent.
 """
+
+[briefings.morning]
+description = "Report CI on master and where the project stands this morning."
+keywords = { harness = "claude", model = "Opus", thinking = "medium" }
+guidance = """
+Read the checkout and the last CI runs. Do not build, do not run the test
+suites, and change nothing.
+
+- `gh run list --branch master --limit 8 --json
+  name,conclusion,status,createdAt,url` for CI. Name a failing or cancelled
+  workflow and give its link. A run still going is worth a line only when it
+  has been going a long time.
+- `git status --short` for work left uncommitted overnight, and
+  `git log --oneline -12` for what landed yesterday.
+- `tatr ls -f '(:status eq OPEN)' -s priority` for open tasks. Report the count
+  and the two or three at the top, never the list.
+- The Unreleased section of `CHANGELOG.md`, for whether there is a release
+  worth cutting.
+
+Facts are counts: failing workflows, uncommitted files, open tasks, Unreleased
+entries.
+
+A green master with a clean tree is a good morning. Say so with `status = "ok"`
+and a short body rather than finding something to say. This is a report on the
+repository only. Storefront numbers from itch.io or Steam are not part of it
+yet, so do not go looking for them.
+"""
