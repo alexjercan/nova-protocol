@@ -426,6 +426,12 @@ path = "examples/screenshots/loop_torpedo_blast.rs"
 name = "loop_vfx_range"
 path = "examples/screenshots/loop_vfx_range.rs"
 
+# The landing page's damage feature row, as a living loop of its own: the news
+# loop it used to borrow is frozen at v0.11.0.
+[[example]]
+name = "loop_damage_sequence"
+path = "examples/screenshots/loop_damage_sequence.rs"
+
 [[example]]
 name = "loop_spine_cut"
 path = "examples/screenshots/loop_spine_cut.rs"

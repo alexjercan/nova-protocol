@@ -52,34 +52,55 @@ LOOPS=(
     "loop_player_flight|landing-player-flight||"
     "loop_derived_skin|news-0110-derived-skin||"
     "loop_round_types|news-0110-round-types||"
-    "system_torpedo_launch|news-0110-torpedo-types||"
-    "stress_point_defense|news-0110-point-defense||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
+    "system_torpedo_launch|loop-section-torpedo-bay||"
+    "stress_point_defense|loop-section-turret||NOVA_STRESS_PD_MOUNTS=4 NOVA_STRESS_PD_BAYS=4 NOVA_STRESS_PD_VIEW=lanes"
     "loop_cockpit|landing-cockpit||"
     "screenshot_flip_burn|loop-section-controller||"
     "screenshot_radar_lock|lock-dwell||"
     "screenshot_editor|landing-editor-build||"
     "screenshot_editor|news-0110-editor-skin||"
-    "screenshot_damage_levels|news-0110-damage-levels||"
+    "screenshot_damage_levels|loop-section-hull||"
     "screenshot_editor|news-0120-editor-events||"
+    "loop_vfx_range|vfx-range||"
     "loop_vfx_range|vfx-cold-launch||"
+    "loop_damage_sequence|landing-damage-sequence||"
 )
 
-# Section pages reuse an ordinary outcome already captured above when a second
-# producer would only duplicate the same footage.
+# A second name for footage already captured above, when a second producer
+# would only record the same thing again.
+#
+# A `news-` name is always a LEAF: it may be an alias destination, never a
+# source, and no page outside its own post may show it (web/tests/
+# assets.test.js holds that end). The reason is that a news loop is frozen -
+# it records what one release looked like and is never re-cut - so anything
+# sourcing from it inherits a freeze it did not ask for. Three wiki section
+# loops used to, and would have broken silently the day their post's entry
+# was retired.
 #   destination|source|producer
 ALIASES=(
-    "news-0110-release-lead|spine-cut|loop_spine_cut"
-    "news-0110-parts-gallery|landing-editor-build|screenshot_editor"
     "nova-os-open|landing-cockpit|loop_cockpit"
-    "loop-section-hull|news-0110-damage-levels|screenshot_damage_levels"
     "loop-section-thruster|landing-player-flight|loop_player_flight"
-    "loop-section-turret|news-0110-point-defense|stress_point_defense"
-    "loop-section-torpedo-bay|news-0110-torpedo-types|system_torpedo_launch"
+    "news-0110-release-lead|spine-cut|loop_spine_cut"
+    "news-0110-spine-cut|spine-cut|loop_spine_cut"
+    "news-0110-parts-gallery|landing-editor-build|screenshot_editor"
+    "news-0110-damage-levels|loop-section-hull|screenshot_damage_levels"
+    "news-0110-point-defense|loop-section-turret|stress_point_defense"
+    "news-0110-torpedo-types|loop-section-torpedo-bay|system_torpedo_launch"
     "news-0120-release-lead|landing-editor-build|screenshot_editor"
-    "news-0120-point-defense|news-0110-point-defense|stress_point_defense"
+    "news-0120-point-defense|loop-section-turret|stress_point_defense"
     "news-0120-blast|torpedo-blast|loop_torpedo_blast"
     "news-0120-cold-launch|vfx-cold-launch|loop_vfx_range"
+    "news-0120-vfx-range|vfx-range|loop_vfx_range"
 )
+
+for alias in "${ALIASES[@]}"; do
+    IFS='|' read -r destination source _ <<<"$alias"
+    [[ "$source" != news-* ]] || {
+        echo "!! alias ${destination} sources ${source}: a news loop is frozen," \
+            "so nothing may derive from it - point it at the living loop" >&2
+        exit 1
+    }
+done
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
 # nova_autopilot::loops); a loop over budget FAILS the run - re-cut it or

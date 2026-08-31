@@ -111,7 +111,7 @@ FIGURES = [
     # its header.
     ("wiki-settings.png",               "screenshot_menu"),
     ("wiki-controls.png",               "screenshot_menu"),
-    ("news-090-scenario-campaigns.png", "screenshot_scenario_picker"),
+    ("wiki-scenarios-picker.png",       "screenshot_scenario_picker"),
     ("wiki-first-scenario-picker.png",  "screenshot_scenario_picker"),
     # The Rock hollow combat set, one producer per beat.
     ("tutorial-radar-lock.png",         "screenshot_radar_lock"),
@@ -217,18 +217,24 @@ COMPOSITE_SIZE = (1920, 1080)
 # any of these for a distinct capture later by dropping the file in the stage dir
 # (it takes precedence - see process_group).
 ALIASES = {
-    "wiki-scenarios-picker.png": "news-090-scenario-campaigns.png",
+    "news-090-scenario-campaigns.png": "wiki-scenarios-picker.png",
     # The v0.12.0 post's figures, frozen under its own namespace. A news figure
     # is evidence for what one release changed, so it takes a copy of the
     # living shot rather than pointing at one that will be re-cut next cycle
-    # (see `frozen`). The card comes off the frozen copy for the same reason.
+    # (see `frozen`). The card is frozen on the same terms, off the same shot.
     "news-0120-editor.png": "feature-editor.png",
     "news-0120-condition-page.png": "feature-editor-events.png",
     "news-0120-range.png": "wiki-sandbox-range.png",
     "news-0120-controls.png": "wiki-controls.png",
     "news-0120-thruster-bell.png": "wiki-section-thruster.png",
     "news-0120-drives.png": "wiki-section-drives.png",
-    "thumb-news-0.12.0.png": "news-0120-editor.png",
+    "thumb-news-0.12.0.png": "feature-editor.png",
+    # The v0.10.0 and v0.11.0 posts, retrofitted into their namespaces.
+    # Both shipped naming living shots, so a re-cut of the wiki or the
+    # landing page silently reillustrated them.
+    "news-0100-autopilot.png": "feature-autopilot.png",
+    "news-0100-combat.png": "feature-combat.png",
+    "news-0100-racer-exploded.png": "parts-viewer-racer-exploded.png",
     "news-0110-greeble-atlas.png": "greeble-catalog.png",
     # Section variants that share geometry intentionally share a product card.
     "catalog-basic-controller-section.png": "wiki-section-controller.png",
@@ -243,6 +249,19 @@ ALIASES = {
     "catalog-pdc-kinetic-turret-section.png": "wiki-section-turret.png",
     "catalog-pdc-pierce-turret-section.png": "wiki-section-turret.png",
 }
+
+# A `news-` still is a LEAF: an alias may write one, nothing may read one. A
+# news figure is frozen (see `frozen`), so a living shot that aliased it would
+# inherit a freeze it never asked for and quietly stop tracking the game.
+# web/tests/assets.test.js holds the same rule on the page side.
+_borrowed = sorted(
+    name for name, source in ALIASES.items() if source.startswith("news-")
+)
+if _borrowed:
+    raise SystemExit(
+        "alias sources a frozen news figure, point it at the living shot: "
+        + ", ".join(f"{name} <- {ALIASES[name]}" for name in _borrowed)
+    )
 
 # 44x44 authored section icons: (web name, section letter, RGB accent). Colours
 # echo the editor's component cards.

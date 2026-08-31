@@ -15,6 +15,8 @@
 //! - [`kenney_hull`]: the shipped section list for a semantic-parts Kenney ship.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
+//! - [`ship_root`] and [`section_health`]: the two lookups a scene needs to
+//!   drive production damage at a named section of a named ship.
 //!
 //! Scene layout (where the planetoid sits, where the ships are posed, how the
 //! camera is framed) stays with each producer - this is the kit, not the set.
@@ -127,4 +129,43 @@ impl NearField {
             min_separation: None,
         })
     }
+}
+
+/// The ship root carrying scenario id `id`.
+///
+/// A scene that damages something has to find it first, and the only stable
+/// handle a scenario hands out is the id it authored.
+pub fn ship_root(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
+    query
+        .iter(world)
+        .find(|(_, live)| live.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// The `Health` node of one named section of one named ship.
+///
+/// Two places to look, because health is authored on whichever entity owns the
+/// hit box: the section itself for a plain hull cell, a child for a section
+/// that builds a subtree. Returning the node rather than the section is what
+/// lets a caller trigger [`HealthApplyDamage`] - the production damage path -
+/// instead of writing a health value directly and skipping every system that
+/// reacts to a hit.
+pub fn section_health(world: &mut World, ship: &str, section: &str) -> Option<Entity> {
+    let root = ship_root(world, ship)?;
+    let owner = world
+        .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
+        .iter(world)
+        .find(|(_, id, parent)| id.0 == section && parent.parent() == root)
+        .map(|(entity, _, _)| entity)?;
+    if world.get::<Health>(owner).is_some() {
+        return Some(owner);
+    }
+    let children: Vec<Entity> = world
+        .get::<Children>(owner)
+        .map(|children| children.iter().collect())
+        .unwrap_or_default();
+    children
+        .into_iter()
+        .find(|&child| world.get::<Health>(child).is_some())
 }

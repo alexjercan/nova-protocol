@@ -129,6 +129,17 @@ level, a release means:
    empty TOC; and use the figure-placeholder format (a `.figure` block that
    auto-upgrades to its screenshot once `scripts/gen-web-screenshots.py`
    packages the image) rather than inlining an `<img>`.
+
+   Name every figure `news-<version>-<subject>` and nothing else. A post
+   argues about one release, so its media is frozen: both packagers refuse to
+   overwrite a `news-` file that already exists (`NOVA_UNFREEZE=news-0120`
+   re-opens the post being authored), and a `news-` name is a leaf that
+   nothing else may source from. A figure named for a living asset is re-cut
+   every cycle and silently reillustrates the post; a living page borrowing a
+   `news-` figure is pinned to an old release and can never update.
+   `web/tests/assets.test.js` fails the build on either, so authoring a
+   figure means adding an alias in `scripts/gen-web-screenshots.py` (stills)
+   or `scripts/capture-web-media.sh` (loops).
 3. **Wiki and creator docs**: sync any player or creator pages the release's
    changes touched (use the map above). Do this as you go during the cycle,
    not in a scramble at release.

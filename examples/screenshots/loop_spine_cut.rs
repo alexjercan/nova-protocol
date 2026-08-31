@@ -213,7 +213,7 @@ fn subject_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predi
 /// Give the hull its slow tumble.
 #[cfg(feature = "debug")]
 fn spin_subject(world: &mut World) {
-    let Some(subject) = subject_root(world) else {
+    let Some(subject) = kit::ship_root(world, SUBJECT_ID) else {
         warn!("spine loop: no subject to spin");
         return;
     };
@@ -228,7 +228,7 @@ fn spin_subject(world: &mut World) {
 /// Leave the cut section visibly cracked before the final severing hit.
 #[cfg(feature = "debug")]
 fn scar_spine(world: &mut World) {
-    let Some(node) = subject_section_health(world, CUT_SECTION) else {
+    let Some(node) = kit::section_health(world, SUBJECT_ID, CUT_SECTION) else {
         warn!("spine loop: no health node under section '{CUT_SECTION}'");
         return;
     };
@@ -246,7 +246,7 @@ fn scar_spine(world: &mut World) {
 /// Kill the cut section through the production damage path.
 #[cfg(feature = "debug")]
 fn cut_spine(world: &mut World) {
-    let Some(node) = subject_section_health(world, CUT_SECTION) else {
+    let Some(node) = kit::section_health(world, SUBJECT_ID, CUT_SECTION) else {
         warn!("spine loop: no health node under section '{CUT_SECTION}'");
         return;
     };
@@ -262,7 +262,7 @@ fn cut_spine(world: &mut World) {
 /// motion the sever handed it.
 #[cfg(feature = "debug")]
 fn nudge_fragments(world: &mut World) {
-    let origin = subject_root(world)
+    let origin = kit::ship_root(world, SUBJECT_ID)
         .and_then(|subject| world.get::<GlobalTransform>(subject))
         .map(|transform| transform.translation())
         .unwrap_or(Vec3::ZERO);
@@ -285,38 +285,4 @@ fn nudge_fragments(world: &mut World) {
         }
     }
     info!("spine loop: wreck adrift");
-}
-
-/// The `Health` node of one of the subject's sections (on the section entity
-/// or one of its children).
-#[cfg(feature = "debug")]
-fn subject_section_health(world: &mut World, section: &str) -> Option<Entity> {
-    let subject = subject_root(world)?;
-    let candidates: Vec<Entity> = world
-        .query_filtered::<(Entity, &EntityId, &ChildOf), With<SectionMarker>>()
-        .iter(world)
-        .filter(|(_, id, parent)| id.0 == section && parent.parent() == subject)
-        .map(|(entity, _, _)| entity)
-        .collect();
-    let section = candidates.into_iter().next()?;
-    if world.get::<Health>(section).is_some() {
-        return Some(section);
-    }
-    let children: Vec<Entity> = world
-        .get::<Children>(section)
-        .map(|children| children.iter().collect())
-        .unwrap_or_default();
-    children
-        .into_iter()
-        .find(|&child| world.get::<Health>(child).is_some())
-}
-
-/// The subject's ship root.
-#[cfg(feature = "debug")]
-fn subject_root(world: &mut World) -> Option<Entity> {
-    let mut query = world.query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>();
-    query
-        .iter(world)
-        .find(|(_, live)| live.0 == SUBJECT_ID)
-        .map(|(entity, _)| entity)
 }
