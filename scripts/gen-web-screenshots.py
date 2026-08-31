@@ -136,6 +136,7 @@ FIGURES = [
     ("wiki-section-hull.png",           "screenshot_section_frame"),
     ("wiki-section-thruster.png",       "screenshot_section_frame"),
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
+    ("wiki-section-turret-twin.png",    "screenshot_section_weapons"),
     ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
     # The drive family on one bench: the size comparison, then each large
     # drive on its own.
@@ -248,6 +249,8 @@ ALIASES = {
     "catalog-lance-torpedo-section.png": "wiki-section-torpedo-bay.png",
     "catalog-pdc-kinetic-turret-section.png": "wiki-section-turret.png",
     "catalog-pdc-pierce-turret-section.png": "wiki-section-turret.png",
+    "catalog-pdc-twin-kinetic-turret-section.png": "wiki-section-turret-twin.png",
+    "catalog-pdc-twin-pierce-turret-section.png": "wiki-section-turret-twin.png",
 }
 
 # A `news-` still is a LEAF: an alias may write one, nothing may read one. A

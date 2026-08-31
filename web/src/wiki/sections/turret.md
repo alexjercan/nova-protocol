@@ -22,7 +22,7 @@ Turrets draw their aim from the combat lock and prefer a fine-locked section if 
 
 ## What it can bear on
 
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :111-189: traverse limits None/None :142-143, elevation min -TURRET_DEPRESSION_LIMIT :157 where that constant is PI/18 at :84, elevation max FRAC_PI_2 :158, hinge speed PI rad/s :141,:150; muzzle_speed 100.0 :273 x projectile_lifetime 2.0 :280 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :19,:24,:47, doc'd 0.016 rad / 0.92 deg at :26-27; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :199: traverse limits None/None :221-222, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 :291-292 where that constant is PI/18 at :97, hinge speed PI rad/s :274,:284; pdc_turret_prototype :414: muzzle_speed 100.0 :473 x projectile_lifetime 2.0 :480 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :47, the per-muzzle gate :72, doc'd 0.92 deg; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
 
 The mount turns all the way round, so nothing is out of reach sideways. What bounds it is the barrel's floor: it stops ten degrees below level, because below that it would be pointing back through the ship it is bolted to.
 
@@ -39,6 +39,22 @@ That blind cone is the whole reason [point defense](../../combat-weapons/#point-
 A mount with nothing to do does not stand in the wind. Out of combat the barrel swings straight up, the assembly sinks into its housing, and two lid halves slide shut over it - the ship at rest reads as at rest. The gun comes back up the moment it is wanted: weapons hot, a live tracking target, or a point-defense assignment all deploy it, and it stows again only after the guns have been cold with nothing tracked for a few quiet seconds. Deploy is fast and stow is lazy, so a lull in the fight does not park your guns.
 
 The deploy is not free. A stowed mount neither tracks nor fires until it is fully up - under a second, but a real window. Point defense assigns the mount well outside its own kill envelope, so an inbound torpedo meets a gun that is already firing; what the delay actually costs you is the ambush you spring with cold weapons and no lock, where the first trigger pull raises the guns instead of firing them.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-turret-twin.png (producer: screenshot_section_weapons) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-turret-twin.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The twin mount deployed over its open housing,
+            both barrels reading side by side.</span
+        >
+    </div>
+</figure>
 
 A beaten mount cracks and, past about a third of its health gone, throws sparks - but it loses nothing of itself and it shoots exactly as well as it did new. A turret that had been eaten away would be answering "how is that still firing?" with "it is not, really", and it is. It stops when it dies, and not before.
 
@@ -61,10 +77,10 @@ A beaten mount cracks and, past about a third of its health gone, throws sparks 
 
 ## Variants
 
-Every craft mounts the same gun. There are two turrets in the catalog, they ride the identical mount, and the only thing that separates them is the round they load.
+Four turrets ship on two mounts. The gatlings put one barrel on the compact assembly every craft carries; the twins put two barrels on a broader one. A twin's tubes each fire at half the gatling's cadence, so the pair costs the same total rate and drains the magazine no faster - the trade is two offset streams instead of one dense one. Within each mount the only thing that separates the pair is the round it loads.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared mount turret_joint_tree :111-189 (yaw unlimited :142-143, pitch -10deg :157 to +90deg :158, slew PI :141); pdc_*_turret_section builder :215-290 (health :229, fire rate 100 :259, muzzle 100 :270, lifetime 2.0 :277, magazine 500 :283, reload 3.0s/200 :285-286) with kinds and damage at :406-426 (kinetic 4.0 :414 via :45, pierce 2.0 :425 via :55). Every craft mounts the kinetic one: ships/shared.rs `module` and `placement`. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared joint tree turret_joint_tree :199 (yaw unlimited :221-222, pitch -10deg to +90deg :291-292, slew PI :274,:284); pdc_turret_prototype :414 (health TURRET_BASE_HEALTH 130 :429,:32, muzzle 100 :473, lifetime 2.0 :480, magazine 500 :486, reload 3.0s/200 :487-489) with call sites :791-839 - gatlings on gatling_art :142 at GATLING_FIRE_RATE 100 :67, twins on twin_art :162 (two muzzles at x +-0.12) at TWIN_FIRE_RATE = half per muzzle :75; damage kinetic 4.0 :52, pierce 2.0 :62. Every craft mounts the kinetic gatling: ships/shared.rs `module` and `placement`. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-turret.png</span></span></span><span class="catalog__title">Turret - shipped prototypes</span></div>
 <table>
 <thead>
@@ -73,9 +89,11 @@ Every craft mounts the same gun. There are two turrets in the catalog, they ride
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Kinetic)</span><span class="catalog__id">pdc_twin_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Pierce)</span><span class="catalog__id">pdc_twin_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
 </tbody>
 </table>
 </div>
 
 <!-- raider mount health: nova_authoring ships/shared.rs ENEMY_TURRET_HEALTH = 60 and the ShipGrade::Enemy SetHealth pass -->
-Raider hulls mount the same two guns. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.
+Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.

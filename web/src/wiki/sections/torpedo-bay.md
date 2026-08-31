@@ -28,6 +28,14 @@ A blast then works from the outside in. A section that survives shields everythi
 
 The bay itself cracks and sparks as it is worn down, and keeps launching until it dies.
 
+## Shut until it fires
+
+<!-- Behavior verified against crates/nova_ship/src/sections/torpedo_section/bay.rs (a launch is refused while the MuzzleDoor cue is short of 1.0 :207-217; drive_muzzle_doors opens only on a held trigger with the safety off and rounds racked :539-568; a launch pins the door open for ignition_delay + MUZZLE_DOOR_LINGER = 0.9 s :487-517) and the authored track in crates/nova_authoring/src/base_content/sections/standard.rs (open 0.25 s, close 0.7 s) plus the 1x1x2 footprint and sockets there (:975-978, collider :319-359 path). -->
+
+The tube fills two cells of the build - twice a unit section's volume, and twice the mass - and its muzzle is sealed by a six-petal iris that opens for a launch and for nothing else. Holding the trigger folds the petals out and the ejection waits for them: a quarter second on the first shot, then the rest of the salvo leaves on cadence through the held-open door. Release the trigger and it winks shut again.
+
+The iris is honest. A safed bay keeps it shut and so does an empty one, so an open iris on another hull is never decoration - something is about to come out of it.
+
 ## The two run-ins
 
 A bay is loaded with a **torpedo type**, and the editor offers two: **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. Same tube, same warhead, same blast, same six-round rack. The only thing that differs is the run-in, and each flies in its own colour so what is inbound is readable at a glance.
@@ -62,7 +70,7 @@ So the Serpent is what you fire at something that shoots back, and the Lance at 
 The two editor bays share every number but the torpedo type; the capital-grade siege bay is scene dressing that never reaches the gallery. Ordnance hp is what point defense has to shoot through per torpedo.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :614-693 (health :628, blast radius 30 :650, blast damage 750 :658, projectile_health 10 :668, rack 6 :676, rearm 10s/1 :688-689) with Serpent/Lance call sites :528-549; heavy_torpedo_section :550-601 (hide_in_editor :567, blast 2000 :588, radius 45 :587, projectile_health 5000 :596, no magazine :598-599, Breaker :597). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 35 :68, no weave :72-73), breaker :95-108 (cruise 70 :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:341-351 (cruise 32 :347, weave :348-349). CargoB pods: ships/cargo_b.rs:37,:47 (health 350), torpedo kind ships/shared.rs:259-301, _lance variants shared.rs:388-400. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :959 (health :972, blast radius 30 :1014, blast damage 750 :1015, projectile_health 10 :1032, rack 6 :1040, rearm 10s/1 :1051-1053) with Serpent/Lance call sites :842-861; heavy_torpedo_section :864 (hide_in_editor :879, radius 45 :911, blast 2000 :912, projectile_health 5000 :920, no magazine :922-923, Breaker). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 35 :68, no weave :72-73), breaker :95-108 (cruise 70 :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:341-351 (cruise 32 :347, weave :348-349). CargoB pods: ships/cargo_b.rs:37,:47 (health 350), torpedo kind ships/shared.rs:259-301, _lance variants shared.rs:388-400. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-torpedo-bay.png</span></span></span><span class="catalog__title">Torpedo bay - shipped prototypes</span></div>
 <table>
 <thead>

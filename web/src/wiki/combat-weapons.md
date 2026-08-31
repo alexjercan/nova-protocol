@@ -184,7 +184,7 @@ Closing speed is how fast you and your target converge **along the round's line 
 
 Both curves are anchored at **100 u/s**, a PDC round's muzzle speed - what it closes at when neither ship is going anywhere. At that speed the multiplier is exactly 1.0, so a station-keeping duel plays out on the weapon's own numbers. Charging raises it; running from your target lowers it, and a stern chase is a real penalty. Both are clamped at each end: a head-on charge at most **doubles** Kinetic damage and at most **trebles** Pierce depth, while the worst tail chase still leaves a quarter of a slug's punch and half a penetrator's reach.
 
-The catalog ships two PDCs, **PDC Turret (Kinetic)** and **PDC Turret (Pierce)**, on the same mount with the same fire rate and magazine. The Pierce gun deals half the damage per hit. Mount one of each and the punch-versus-rake trade is the only thing you are feeling.
+The catalog ships four PDCs on two mounts: the single-barrel gatlings, **PDC Turret (Kinetic)** and **PDC Turret (Pierce)**, and their **Twin** counterparts, which split the same total fire rate across two offset barrels. Every variant shares the magazine and the reach, and the Pierce guns deal half the damage per hit - so mount a Kinetic and a Pierce and the punch-versus-rake trade is the only thing you are feeling.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-combat-aftermath.png -->

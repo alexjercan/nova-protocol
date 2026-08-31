@@ -502,9 +502,10 @@ torpedoes dealing blast damage. The shipped `torpedo_section`:
 
 ```ron
 kind: Torpedo((
-    render_mesh: Some("dep://base/gltf/torpedo-bay-01.glb#Scene0"),
-    spawn_offset: (0.0, 0.0, -2.0),
-    spawn_rotation: (0.0, 0.0, 0.0, 1.0),
+    render_mesh: Some("dep://base/gltf/bay_tube.glb#Scene0"),
+    spawn_offset: (0.0, 0.0, -1.0),
+    spawn_rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+    spawn_recess: 1.0,
     fire_rate: 1.0,
     spawner_speed: 8.0,
     projectile_lifetime: 100.0,
@@ -538,8 +539,14 @@ kind: Torpedo((
   built-in coned body, nose along its direction of travel.
 - `render_mesh_transform` (optional) - visual-only bay mesh position, rotation
   and scale. It does not move the launch point.
-- `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the
-  torpedo leaves the bay, relative to the section.
+- `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - the
+  MUZZLE point, relative to the section: where the torpedo crosses the hull
+  line, and where the launch flash and sound play.
+- `spawn_recess` (`f32`, default `0.0`) - how far back along the launch axis
+  the torpedo is BORN. The shipped bay recesses a full cell, so the round
+  starts inside the tube and slides its whole length out past the muzzle.
+  `0.0` births it at the muzzle point itself, and any depth is safe: the cold
+  coast means the torpedo has no colliders until its drive lights.
 - `fire_rate` - launches per second.
 - `spawner_speed` - the ejection charge, in units per second. A torpedo is not
   fired, it is dropped: this is the cold kick that pushes it clear of the hull,

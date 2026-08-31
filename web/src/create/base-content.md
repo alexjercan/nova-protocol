@@ -39,8 +39,12 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `capital_thruster_section` | Thruster | Capital Thruster Section | 1250 | 5x5x3 collider and footprint; magnitude 25; 25 `-Z` mounting sockets; one capital bell and plume |
 | `basic_controller_section` | Controller | Basic Controller Section | 100 | steering lag 0.5 s, max torque 1501.0; the hull derives its own turn ceiling from that torque, its inertia and its length |
 | `light_hull_section` | Hull | Light Hull Section | 60 | scavenger-grade hull |
-| `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the one turret every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
-| `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gun loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
+| `cargo_hull_section` | Hull | Cargo Hull Section | 200 | the reinforced cell's stats under caged freight; a visual choice until real hull types arrive |
+| `tank_hull_section` | Hull | Tank Hull Section | 200 | the reinforced cell's stats around a pressure vessel in open frame rails |
+| `pdc_kinetic_turret_section` | Turret | PDC Turret (Kinetic) | 130 | the gatling every craft mounts, on a 0.5 mount box; fits any hull face. Kinetic 4.0/hit at 100 rps, ammo 500, +200 after 3 s idle |
+| `pdc_pierce_turret_section` | Turret | PDC Turret (Pierce) | 130 | the same 500-round, +200 after 3 s idle gatling loading penetrators: Pierce 2.0/hit, dealt to every section it rakes through |
+| `pdc_twin_kinetic_turret_section` | Turret | Twin PDC Turret (Kinetic) | 130 | the same slugs from the two-barrel mount: each tube at half the gatling's cadence, so two offset streams at the same total rate and magazine drain |
+| `pdc_twin_pierce_turret_section` | Turret | Twin PDC Turret (Pierce) | 130 | penetrators from the two-barrel mount - half per-hit damage through every layer, split across two offset streams |
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (70 u/s, a shallow weave); scene dressing, hidden in the editor |
@@ -94,9 +98,12 @@ sockets meet another's. Ships use the suffix as the instance id: prototype
 There is no `*_turret_*` suffix in this table. The ten per-craft turret
 prototypes carried no mesh of their own - all of them were the same PDC on the
 same joint tree - and they are GONE from the catalog along with their `_light`
-twins. A mod naming one no longer resolves. Use `pdc_kinetic_turret_section` or
-`pdc_pierce_turret_section`: one gun that fits any hull face, in a Kinetic and a
-Pierce loadout.
+twins. A mod naming one no longer resolves. Use the four catalog PDCs, all of
+which fit any hull face: `pdc_kinetic_turret_section` and
+`pdc_pierce_turret_section` for the single-barrel gatling in a Kinetic and a
+Pierce loadout, or `pdc_twin_kinetic_turret_section` and
+`pdc_twin_pierce_turret_section` for the two-barrel mount that splits the same
+total fire rate across two offset streams.
 
 | family | prototype suffix | kind | health |
 |---|---|---|---|
@@ -185,14 +192,32 @@ from memory.
 
 The declared list, complete:
 
-### Meshes (26 glb)
+### Meshes (41 glb)
 
-Named meshes:
+Named meshes (all use label `#Scene0`). First the thruster bells:
 
-- `gltf/hull-01.glb` - the core hull (use label `#Scene0`)
-- `gltf/turret-yaw-01.glb`, `gltf/turret-pitch-01.glb`,
-  `gltf/turret-barrel-01.glb` - the turret joint meshes
-- `gltf/torpedo-bay-01.glb` - the torpedo bay
+- `gltf/shell_bell.glb`, `gltf/shell_vector.glb`, `gltf/shell_capital.glb` -
+  the three thruster bells
+
+Then the generated section parts the catalog renders
+(`scripts/gen-section-parts.py`, committed under `gltf/`):
+
+- `gltf/hull_personnel.glb`, `gltf/hull_cargo.glb`, `gltf/hull_tank.glb` -
+  the three hull cell looks (reinforced, cargo, tank)
+- `gltf/core_wires.glb` - the controller core
+- `gltf/pdc_gatling_yaw.glb`, `gltf/pdc_gatling_pitch.glb`,
+  `gltf/pdc_gatling_barrel.glb` - the gatling PDC joint meshes
+- `gltf/pdc_twin_yaw.glb`, `gltf/pdc_twin_pitch.glb`,
+  `gltf/pdc_twin_barrel.glb` - the twin PDC joint meshes
+- `gltf/pdc_housing.glb` - the stow housing both PDC mounts sink into,
+  with its animatable `stow_lid_*` nodes
+- `gltf/bay_tube.glb` - the two-cell torpedo bay, with its animatable
+  `door_petal_*` iris nodes
+
+The retired first-pass art stays in the bundle so old refs resolve, but no
+base section renders it: `gltf/hull-01.glb`, `gltf/turret-yaw-01.glb`,
+`gltf/turret-pitch-01.glb`, `gltf/turret-barrel-01.glb`,
+`gltf/torpedo-bay-01.glb`.
 
 Semantic ship meshes use `#Scene0` and live under `gltf/parts/`:
 
