@@ -276,12 +276,20 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
     // until the capture window closes. Whether there is anything to
     // capture is the program's answer (it wired nova_frametime(), or it
     // did not), and its contract tells the report which.
-    for pass in post_clean_passes(
+    // The manifest may only claim what was planned right here. Both
+    // `--correctness-only` and a sweep drop the frame-time pass, and a
+    // manifest that claimed the capture anyway turned every example that
+    // declares `nova_frametime()` into an "armed and silent" failure on a run
+    // that was never going to write a frametime.csv.
+    let planned = post_clean_passes(
         frametime_declared,
         sweeping,
         opts.samply,
         opts.correctness_only,
-    ) {
+    );
+    let armed_frametime = planned.contains(&NativePass::FrameTime);
+
+    for pass in planned {
         let record = match pass {
             NativePass::FrameTime => {
                 // One capture, or a repeat set. Each repeat is a whole
@@ -466,7 +474,7 @@ pub(crate) fn run(opts: &RunOptions) -> Result<ExitCode, String> {
         started_unix,
         passes,
         /*armed_native*/ !sweeping,
-        /*armed_frametime*/ frametime_declared,
+        /*armed_frametime*/ armed_frametime,
     )
 }
 
@@ -576,6 +584,23 @@ mod tests {
             ]
         );
         assert!(post_clean_passes(true, false, false, true).is_empty());
+    }
+
+    /// The manifest's `armed_fps` is read straight off this plan, so a pass
+    /// the plan drops must never be claimed as armed. A correctness-only run
+    /// of an example that declares `nova_frametime()` used to write
+    /// `armed_fps: true` with no frametime.csv behind it, and the report
+    /// graded that as "armed and silent" - a failure the manifest invented.
+    #[test]
+    fn a_dropped_frame_time_pass_is_never_claimed_as_armed() {
+        for (sweeping, correctness_only) in [(true, false), (false, true), (true, true)] {
+            assert!(
+                !post_clean_passes(true, sweeping, false, correctness_only)
+                    .contains(&NativePass::FrameTime),
+                "sweeping={sweeping} correctness_only={correctness_only}"
+            );
+        }
+        assert!(post_clean_passes(true, false, false, false).contains(&NativePass::FrameTime));
     }
 
     #[test]

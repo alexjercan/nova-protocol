@@ -45,7 +45,8 @@ pub(super) fn evaluate(artifacts: &RunArtifacts) -> Check {
                 CheckStatus::NotApplicable(NotApplicable::NotArmed(capability)),
                 "not armed",
                 format!(
-                    "the example wires {} but this older run did not arm the capture",
+                    "the example wires {} but this run took no frame-time pass \
+                     (--correctness-only, a sweep, or a run older than the capture)",
                     capability.wiring()
                 ),
             )
@@ -215,6 +216,32 @@ mod tests {
         let check = check(&checks, "fps_within_baseline");
         assert_eq!(check.status, CheckStatus::Fail, "{check:?}");
         assert!(check.detail.contains("no frametime.csv"), "{check:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The other half of that pair, and the one CI got wrong: a
+    /// `--correctness-only` sweep plans no frame-time pass at all, so an
+    /// example that wires `nova_frametime()` owes no capture. Grading the
+    /// missing csv as a failure there blames the example for a pass the
+    /// operator declined to run.
+    #[test]
+    fn declared_frame_time_that_was_never_armed_is_not_applicable() {
+        let dir = scratch_run_dir();
+        let _ = std::fs::remove_file(dir.join("frametime.csv"));
+        write_contract(&dir, [Capability::FrameTime]);
+        let mut manifest = manifest_ok();
+        manifest.armed_fps = false;
+        write_manifest(&dir, &manifest);
+
+        let artifacts = RunArtifacts::load(&dir, None).unwrap();
+        let checks = evaluate_checks(&artifacts);
+        let check = check(&checks, "fps_within_baseline");
+        assert_eq!(
+            check.status,
+            CheckStatus::NotApplicable(NotApplicable::NotArmed(Capability::FrameTime)),
+            "{check:?}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

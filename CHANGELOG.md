@@ -333,6 +333,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A VFX range stands a shooter and a parked target and fires muzzle, impact,
   launch and blast on a fixed cycle, three passes to a run. It records the
   docs loop and claims the frame-time number.
+- A `--correctness-only` run no longer claims it armed a frame-time capture it
+  never planned. An example wiring `nova_frametime()` graded `armed and silent`
+  on a pass the operator had declined.
 - Loop capture takes a `LoopProfile` - window size, encoded size, fps, CRF and
   frame cap in one value - so a recorder can film a 1080x1920 60 fps master
   instead of the docs fleet's 720p30.
