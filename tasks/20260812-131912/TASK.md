@@ -1,8 +1,8 @@
 # Epic: the node editor is the star of v0.12.0
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
-- TAGS: v0.12.0,epic,editor
+- TAGS: v0.12.0, epic, editor
 
 Rewritten 2026-08-24 for v0.12.0 from the round 4 research. The plan of
 record is `tasks/20260815-231945/V0.12.0-PLAN.md`; its five evidence files
@@ -98,3 +98,33 @@ foundations child owns this checklist (EDITOR-STATE.md section 3a).
   pass.
 - Editor, modding, scenario, input, and screenshot documentation ships with
   the behavior it describes.
+
+## Resolution
+
+CLOSED 2026-08-31 with the v0.12.0 release (`20260824-120544`).
+
+Against the release definition of done:
+
+- **Children closed or cut.** The spine landed in order: the editor state
+  probe (`20260824-011329`), foundations (`20260824-120520`), save/load
+  (`20260825-223004`) and polish (`20260825-221015`). Cuts taken and recorded
+  on their own tasks: the prefab loop, the readout panel as a task of its
+  own, and the objectives/events slices (`20260825-223024`,
+  `20260825-223035`, both blocked on `Sequence` and outside this spine). The
+  core - foundations and save/load - was not cut.
+- **The player path has coverage and reviewable output.** Build, enter/exit,
+  world, save, reload and play are driven by the editor harness; `probe /
+  screenshots` and `autopilot example` are green on master. The editor's own
+  loops (`landing-editor-build`, `news-0120-editor-events`) and stills ship
+  on the site.
+- **Checks pass.** CI run `33381755510`, all eight jobs green.
+- **Documentation ships with the behavior.** Editor, modding, scenario and
+  input pages were synced by the cycle's tasks; `mdbook build` is clean.
+
+The single-root debt this epic named is retired: the editor now holds a
+scenario of ships under one scene tree with per-root build state and edit
+contexts, which is what the foundations child was for.
+
+What the release actually shipped from this epic is the v0.12.0 post's first
+five sections - the scene tree and the Inspector, the script authored in the
+panel, and Save writing an ordinary mod.
