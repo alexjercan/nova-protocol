@@ -139,6 +139,19 @@ section declares an animation before modelling the second one.
    torpedo range's door round runs the full cycle live -
    `bay-doors-{shut,open}.png` in this folder.
 
+5. `46872c5e` - the torpedo launches out of the tube. The held trigger is
+   the door intent (weapons safety and an empty magazine keep the iris
+   shut), the ejection waits for the track to read fully open, and the
+   round is born at the tube's centre - `spawn_offset` becomes the muzzle
+   point on the door plane, the new `spawn_recess` births the torpedo
+   behind it - so it slides its whole length out through the open petals.
+   Tap fire cycles the door, a shot into a closing door reopens it from
+   wherever it was, held fire keeps the bay gaping. No ship recoil, per
+   the RCS fiction. Proof: 21 bay + catalog tests, lint 0, the torpedo
+   range and section trials walks run clean live, and
+   `bay-doors-emerging.png` in this folder catches both torpedoes
+   mid-emergence with their tails still in the tubes.
+
 ## Proof
 
 - 12 `standard.rs` tests pass, including: the twin splits the gatling total
@@ -156,12 +169,6 @@ section declares an animation before modelling the second one.
 
 ## Remaining
 
-- Better ejection (owner, 2026-08-31): the torpedo should START inside
-  the tube and slide out through the open iris, instead of materializing
-  1.5 u clear of the door. Momentum inheritance is already correct
-  (rigid-body point velocity at the bay); the work is launch sequencing
-  (fire intent opens the door, ejection waits for it) plus a recessed
-  `spawn_offset`. No reaction impulse on the ship - see Decisions.
 - PDC stow animation (future promise `20260831-083622`): barrel points up,
   the mount slides down, a cover closes over the face. May want a 1x1x2
   mount like the bay. Needs a slide/translate `motion` variant and a
