@@ -62,6 +62,48 @@ pub(super) fn update_torpedo_arming(
     }
 }
 
+/// Count each ejecting torpedo down and light its drive.
+///
+/// This is the whole ignition: dropping [`TorpedoColdLaunch`] restores the
+/// torpedo to every system that filters on its absence, so guidance, the
+/// weave, the attitude sync, the thruster and the fuze all resume together on
+/// the tick the motor catches. Clearing the sections' `ColliderDisabled` is
+/// the other half - the warhead becomes solid at the same instant it becomes
+/// dangerous, which is the pairing the safety separation is about.
+///
+/// Runs on the FIXED clock with the launch chain, not with the control inputs:
+/// a collider reappearing on a body physics is about to step has to reappear
+/// on physics' own clock.
+pub(super) fn ignite_cold_torpedoes(
+    mut commands: Commands,
+    time: Res<Time>,
+    q_children: Query<&Children>,
+    mut q_cold: Query<(Entity, &mut TorpedoColdLaunch, &Transform), With<TorpedoProjectileMarker>>,
+) {
+    let dt = time.delta_secs();
+    for (torpedo, mut cold, transform) in &mut q_cold {
+        cold.remaining -= dt;
+        if cold.remaining > 0.0 {
+            continue;
+        }
+
+        debug!("ignite_cold_torpedoes: torpedo {torpedo:?} lights its drive");
+        commands.entity(torpedo).remove::<TorpedoColdLaunch>();
+        // The colliders sit on the section children, and `ColliderDisabled`
+        // applies only to the entity carrying it - the root has no collider to
+        // re-enable.
+        if let Ok(children) = q_children.get(torpedo) {
+            for &child in children {
+                commands.entity(child).remove::<ColliderDisabled>();
+            }
+        }
+        commands.trigger(TorpedoIgnited {
+            torpedo,
+            at: transform.translation,
+        });
+    }
+}
+
 /// How close the torpedo root gets to its target's SKIN before the warhead fires.
 ///
 /// Three units is still a near-contact burst and delivers 90% of a standard
@@ -185,6 +227,10 @@ pub(super) fn torpedo_detonate_system(
         (
             With<TorpedoProjectileMarker>,
             Without<super::TorpedoShotDownMarker>,
+            // An unignited warhead cannot fuze. The arming clock has cleared
+            // it by now on a stock bay, and arming is about separation from
+            // the ship, not about whether the thing is under power.
+            Without<super::TorpedoColdLaunch>,
         ),
     >,
     q_body_colliders: Query<&RigidBodyColliders>,
@@ -337,7 +383,10 @@ pub(super) fn torpedo_pn_guidance(
             &TorpedoGuidance,
             &mut TorpedoSteering,
         ),
-        With<TorpedoProjectileMarker>,
+        (
+            With<TorpedoProjectileMarker>,
+            Without<super::TorpedoColdLaunch>,
+        ),
     >,
     q_target_velocity: Query<&LinearVelocity>,
 ) {
@@ -435,7 +484,10 @@ pub(super) fn torpedo_terminal_weave(
             &mut TorpedoWeave,
             &mut TorpedoSteering,
         ),
-        With<TorpedoProjectileMarker>,
+        (
+            With<TorpedoProjectileMarker>,
+            Without<super::TorpedoColdLaunch>,
+        ),
     >,
 ) {
     let dt = time.delta_secs();
@@ -453,6 +505,16 @@ pub(super) fn torpedo_terminal_weave(
 }
 
 /// Orient the torpedo's PD controller toward the PN steering direction.
+/// Deliberately NOT gated on [`TorpedoColdLaunch`], unlike everything else the
+/// ejection suspends: attitude is the torpedo's own RCS and not its main drive,
+/// so a coasting warhead still holds the nose it left the tube with.
+///
+/// Gating it was tried and is wrong twice over. `ControllerSectionRotationInput`
+/// defaults to `Quat::IDENTITY`, so a torpedo nobody writes to is not left
+/// alone - it is commanded to world identity, and the PD controller spent the
+/// coast rotating it off its launch attitude. The drive then lit pointing
+/// somewhere else and threw the run-in wide, which the real-flight weave test
+/// caught as 13 u of swing on the arm that is supposed to fly straight.
 pub(super) fn torpedo_sync_system(
     q_torpedo: Query<&TorpedoSteering, With<TorpedoProjectileMarker>>,
     mut q_controller: Query<
@@ -495,7 +557,10 @@ pub(super) fn torpedo_thrust_system(
             &LinearVelocity,
             &TorpedoGuidance,
         ),
-        With<TorpedoProjectileMarker>,
+        (
+            With<TorpedoProjectileMarker>,
+            Without<super::TorpedoColdLaunch>,
+        ),
     >,
     mut q_thruster: Query<
         (&mut ThrusterSectionInput, &ChildOf),
@@ -598,6 +663,114 @@ mod tests {
         assert!(
             app.world().entities().contains(torpedo),
             "unarmed torpedo should survive even on top of its target"
+        );
+    }
+
+    /// A rig for the ejection countdown, on a manual clock so the delay is the
+    /// only thing under test.
+    fn ignition_app(remaining: f32) -> (App, Entity, Entity) {
+        use std::time::Duration;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            Duration::from_secs_f32(0.1),
+        ));
+        app.add_systems(Update, ignite_cold_torpedoes);
+
+        let section = app.world_mut().spawn(ColliderDisabled).id();
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::ZERO),
+                TorpedoColdLaunch { remaining },
+            ))
+            .add_child(section)
+            .id();
+
+        // bevy's first manual tick is dt 0, so a warm-up update leaves the
+        // countdown untouched and every tick after it is worth 0.1 s.
+        app.update();
+        (app, torpedo, section)
+    }
+
+    fn is_cold(app: &App, torpedo: Entity) -> bool {
+        app.world().get::<TorpedoColdLaunch>(torpedo).is_some()
+    }
+
+    fn is_solid(app: &App, section: Entity) -> bool {
+        app.world().get::<ColliderDisabled>(section).is_none()
+    }
+
+    #[test]
+    fn an_ejecting_torpedo_stays_inert_until_its_delay_runs_out() {
+        let (mut app, torpedo, section) = ignition_app(0.6);
+        app.update();
+        app.update();
+        assert!(is_cold(&app, torpedo), "0.2 s into a 0.6 s ejection");
+        assert!(
+            !is_solid(&app, section),
+            "an unignited warhead has no collider to be shot down by or to hit the ship with"
+        );
+    }
+
+    #[test]
+    fn the_drive_and_the_collider_come_back_together() {
+        // The pairing is the safety separation: the warhead becomes dangerous
+        // and becomes solid on the same tick, never one before the other.
+        let (mut app, torpedo, section) = ignition_app(0.25);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert!(!is_cold(&app, torpedo), "the drive lit");
+        assert!(is_solid(&app, section), "and the section can be hit again");
+    }
+
+    #[test]
+    fn a_bay_authoring_no_ejection_delay_ignites_on_its_first_tick() {
+        // `ignition_delay` zero is the old spawn-under-power behavior, and it
+        // stays reachable without a second launch path.
+        let (mut app, torpedo, section) = ignition_app(0.0);
+        app.update();
+        assert!(!is_cold(&app, torpedo));
+        assert!(is_solid(&app, section));
+    }
+
+    #[test]
+    fn an_ejecting_torpedo_cannot_detonate_on_top_of_its_target() {
+        // Armed and on target, which is everything the fuze asks for - and it
+        // is still cargo until the motor catches.
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.init_resource::<ColliderTrees>();
+        app.add_systems(Update, torpedo_detonate_system);
+
+        let part_of = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO);
+        arming.tick(1.0, Vec3::ZERO);
+
+        let torpedo = app
+            .world_mut()
+            .spawn((
+                TorpedoProjectileMarker,
+                Transform::from_translation(Vec3::ZERO),
+                TorpedoTargetPosition(Vec3::ZERO),
+                arming,
+                TorpedoColdLaunch { remaining: 0.6 },
+                TorpedoBlast {
+                    radius: 30.0,
+                    damage: 100.0,
+                },
+                TorpedoSectionPartOf(part_of),
+            ))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().entities().contains(torpedo),
+            "an unignited warhead must not fuze, armed or not"
         );
     }
 

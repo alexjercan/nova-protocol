@@ -245,8 +245,20 @@ does NOT get an entry - and it is the only place they are written down.
 - The OBJECTIVES affordance draws the key the NOVA OS is bound to now, not the
   Tab it ships with.
 
+### Combat & Weapons
+
+- A torpedo is dropped, then lit. The bay kicks it clear inert and the motor
+  catches a few body lengths out; until it does it can neither be shot down nor
+  damage anything.
+- A bay authors `ignition_delay`: the seconds its torpedo coasts before the
+  drive lights. Zero keeps the old launch-under-power behavior.
+
 ### Audio & Visuals
 
+- A torpedo's drive lights with a flash on the bay it just left, so a launch is
+  two events - the drop and the burn - instead of one.
+- A launch puff rides the ship that fired it, instead of hanging at the point in
+  space the bay had been at.
 - A PDC burst reads as a stream. Each round is stretched along its own travel,
   so the gap the eye was seeing between them closes at any frame rate. It was a
   dotted line at every fire rate.
@@ -256,8 +268,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A muzzle flash rides the ship that fired it, instead of hanging at the point
   in space the shot left from.
 - The gizmo impact rings are gone. A hit throws a burst of incandescent sparks
-  at the point it landed instead, thinned by distance the same way the camera
-  shake is attenuated. A ring was a diagram of a hit.
+  where it landed instead, thinned by distance the way the camera shake is. A
+  ring was a diagram of a hit.
 - A chip carved off a hull leaves near-white and cools to gunmetal in under a
   second. It was just cut out of a ship; it was never cold.
 - A body says what it is made of, so a shot rock spalls rock: dusty, slower,
@@ -267,8 +279,8 @@ does NOT get an entry - and it is the only place they are written down.
   before: the fireball was the only thing in the frame that knew the warhead
   had gone off.
 - The number of brief lights that may burn at once is a graphics-tier budget -
-  six on High, three on Medium, none on Low - and a salvo that asks for more
-  than the tier affords is refused rather than dimmed.
+  six on High, three on Medium, none on Low - and a salvo asking for more is
+  refused rather than dimmed.
 - A blast carries the torpedo's velocity, so an intercept throws its fireball
   along the closing course instead of expanding about a point the warhead was
   only passing through.
@@ -295,6 +307,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Fixes
 
+- A launched torpedo is pointed the way it is thrown. Its attitude command was
+  seeded from its own nose axis rather than the bay's exit axis, so it left the
+  tube turning.
 - The gamepad shortcuts outside the flight rig fire again: pause, the HUD
   cycle, the NOVA OS, and the editor's place and Sandbox-return chords. Every
   one read a resource bevy no longer has.
@@ -314,7 +329,7 @@ does NOT get an entry - and it is the only place they are written down.
 
 - A VFX range stands a shooter and a parked target and fires muzzle, impact,
   launch and blast on a fixed cycle, three passes to a run. It records the
-  docs loop and claims the frame-time number the effects work is measured on.
+  docs loop and claims the frame-time number.
 - Loop capture takes a `LoopProfile` - window size, encoded size, fps, CRF and
   frame cap in one value - so a recorder can film a 1080x1920 60 fps master
   instead of the docs fleet's 720p30.

@@ -305,17 +305,36 @@ pub(super) fn shoot_spawn_projectile(
                     nav_constant: config.nav_constant,
                     max_speed: config.torpedo_type.max_speed,
                 },
-                TorpedoSteering(projectile_transform.forward().into()),
+                // The LAUNCH direction and not the transform's forward. A
+                // torpedo leaves along the bay's +Y while its own nose is its
+                // -Z, so seeding the attitude command from `forward()` asked
+                // for a nose 90 degrees off the way it was travelling. Under
+                // thrust from the first tick nobody saw it: PN guidance
+                // overwrote the seed before the controller could act on it.
+                // The cold coast is 0.6 s with guidance suspended, and the
+                // controller spent all of it turning the warhead sideways -
+                // the drive then lit across the run-in and threw the flight
+                // 13 u off the line.
+                TorpedoSteering(spawner_direction),
                 LinearDamping(config.linear_damping),
                 TorpedoBlast {
                     radius: config.blast_radius,
                     damage: config.blast_damage,
                 },
             ),
-            TorpedoArming::new(
-                config.arm_time,
-                config.arm_distance,
-                projectile_transform.translation,
+            (
+                TorpedoArming::new(
+                    config.arm_time,
+                    config.arm_distance,
+                    projectile_transform.translation,
+                ),
+                // Every launch is a COLD launch. The torpedo leaves on the
+                // ejection charge alone and `ignite_cold_torpedoes` lights it;
+                // a bay authoring `ignition_delay` zero ignites on the next
+                // tick rather than taking a different path out of the tube.
+                TorpedoColdLaunch {
+                    remaining: config.ignition_delay,
+                },
             ),
             TempEntity(config.projectile_lifetime),
             Visibility::Visible,
@@ -326,6 +345,10 @@ pub(super) fn shoot_spawn_projectile(
                     // owner collision filter (ProjectileHooks) opts in here, not on
                     // the collider-less root.
                     ActiveCollisionHooks::FILTER_PAIRS,
+                    // Inert until the drive lights - see `TorpedoColdLaunch`.
+                    // `ColliderDisabled` applies only to the entity carrying
+                    // it, so it goes HERE and not on the collider-less root.
+                    ColliderDisabled,
                     base_section(BaseSectionConfig {
                         id: "torpedo_controller".to_string(),
                         name: "Torpedo Controller".to_string(),
@@ -357,6 +380,7 @@ pub(super) fn shoot_spawn_projectile(
                 (
                     TorpedoThrusterMarker,
                     ActiveCollisionHooks::FILTER_PAIRS,
+                    ColliderDisabled,
                     base_section(BaseSectionConfig {
                         id: "torpedo_thruster".to_string(),
                         name: "Torpedo Thruster".to_string(),
@@ -932,6 +956,83 @@ mod tests {
             .next()
             .expect("a torpedo spawned");
         assert_eq!(allegiance, Some(&Allegiance::Player));
+    }
+
+    /// A torpedo has to be pointed the way it is thrown.
+    ///
+    /// It leaves along the bay's +Y while its own nose is its -Z, so the two
+    /// agree only when a bay is authored to make them agree. Seeding the
+    /// attitude command from the transform's `forward()` asked for a nose up
+    /// to 90 degrees off the way the warhead was travelling, and nothing
+    /// showed it: PN guidance overwrote the seed on the first powered tick.
+    /// The cold launch has no powered tick to hide behind.
+    #[test]
+    fn a_launched_torpedo_is_steered_along_the_way_it_was_ejected() {
+        use nova_gameplay::{
+            projectile_hooks::ProjectileHooks,
+            test_support::{settle, unfinished_integrity_physics_app_with},
+        };
+        let mut app = unfinished_integrity_physics_app_with(
+            PhysicsPlugins::default().with_collision_hooks::<ProjectileHooks>(),
+        );
+        app.add_plugins(TorpedoSectionPlugin { render: false });
+        app.finish();
+
+        // A bay pointed nowhere in particular, so `forward()` and the exit
+        // axis cannot coincide by luck.
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                RigidBody::Static,
+                Transform::default(),
+                Collider::cuboid(1.0, 1.0, 1.0),
+                ColliderDensity(1.0),
+            ))
+            .id();
+        app.world_mut().spawn((
+            TorpedoSectionMarker,
+            ChildOf(ship),
+            Transform::default(),
+            TorpedoSectionConfigHelper(TorpedoSectionConfig {
+                spawn_rotation: Quat::from_euler(EulerRot::XYZ, 0.4, -0.9, 0.2),
+                spawner_speed: 12.0,
+                ..default()
+            }),
+            TorpedoSectionInput(true),
+        ));
+        settle(&mut app);
+
+        let mut torpedo = None;
+        for _ in 0..120 {
+            app.update();
+            torpedo = app
+                .world_mut()
+                .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+                .iter(app.world())
+                .next();
+            if torpedo.is_some() {
+                break;
+            }
+        }
+        let torpedo = torpedo.expect("the bay launched");
+
+        let steering = **app
+            .world()
+            .get::<TorpedoSteering>(torpedo)
+            .expect("a launched torpedo is steered");
+        // The ship is static, so the torpedo's whole velocity is the ejection
+        // charge - the direction it is actually travelling.
+        let travel = app
+            .world()
+            .get::<LinearVelocity>(torpedo)
+            .expect("a launched torpedo is moving")
+            .0;
+
+        assert!(
+            steering.normalize().dot(travel.normalize()) > 0.999,
+            "the nose must be held along the exit axis: steering {steering:?}, travel {travel:?}"
+        );
     }
 
     /// A torpedo must launch FROM its bay on both clocks, at any ship

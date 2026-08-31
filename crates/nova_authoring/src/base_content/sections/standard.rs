@@ -600,12 +600,15 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 spawn_offset: Vec3::NEG_Z * 2.0,
                 spawn_rotation: Quat::IDENTITY,
                 fire_rate: 1.0,
-                spawner_speed: 2.0,
+                spawner_speed: 8.0,
                 // Long enough to cross a backdrop arena, short enough that a
                 // torpedo whose target died mid-flight cleans itself up.
                 projectile_lifetime: 60.0,
                 arm_time: 0.5,
                 arm_distance: 5.0,
+                // Dropped, then lit: the bay ejects it on a cold charge and the
+                // motor catches once it is clear. See `ignition_delay`.
+                ignition_delay: 0.6,
                 nav_constant: 4.0,
                 linear_damping: 0.4,
                 // Siege pressure: the same 65% transmission rule as every
@@ -670,10 +673,13 @@ fn torpedo_bay_prototype(
             spawn_offset: Vec3::NEG_Z * 2.0,
             spawn_rotation: Quat::IDENTITY,
             fire_rate: 1.0,
-            spawner_speed: 1.0,
+            spawner_speed: 8.0,
             projectile_lifetime: 100.0,
             arm_time: 0.5,
             arm_distance: 5.0,
+            // Dropped, then lit: the bay ejects it on a cold charge and the
+            // motor catches once it is clear. See `ignition_delay`.
+            ignition_delay: 0.6,
             nav_constant: 3.0,
             linear_damping: 0.8,
             blast_radius: 30.0,

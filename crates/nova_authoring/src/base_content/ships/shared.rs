@@ -323,10 +323,13 @@ fn torpedo_kind(
         spawn_offset: Vec3::new(0.0, 0.0, -spec.size().z * 0.5 - 0.5),
         spawn_rotation: Quat::IDENTITY,
         fire_rate: 1.0,
-        spawner_speed: 1.0,
+        spawner_speed: 8.0,
         projectile_lifetime: 100.0,
         arm_time: 0.5,
         arm_distance: 5.0,
+        // Dropped, then lit: the bay ejects it on a cold charge and the
+        // motor catches once it is clear. See `ignition_delay`.
+        ignition_delay: 0.6,
         nav_constant: 3.0,
         linear_damping: 0.8,
         blast_radius: 30.0,

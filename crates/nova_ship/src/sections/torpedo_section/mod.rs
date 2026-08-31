@@ -43,8 +43,8 @@ use scripted::*;
 pub mod prelude {
     pub use super::{
         preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, BlastMomentum,
-        TorpedoArming, TorpedoBlast, TorpedoControllerMarker, TorpedoGuidance,
-        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
+        TorpedoArming, TorpedoBlast, TorpedoColdLaunch, TorpedoControllerMarker, TorpedoGuidance,
+        TorpedoIgnited, TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
         TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
         TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
         TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
@@ -95,6 +95,25 @@ pub struct TorpedoSectionConfig {
     /// before it may detonate, so it clears the firing ship first. Armed when
     /// this OR `arm_time` is reached.
     pub arm_distance: f32,
+    /// Ejection delay: seconds the torpedo coasts INERT before its drive lights.
+    ///
+    /// A torpedo is not fired, it is DROPPED. The bay kicks it clear on a cold
+    /// charge (`spawner_speed`) and the motor lights only once it is several
+    /// body lengths out, because lighting a torch inside the hull that launched
+    /// it is how a ship kills itself. For that whole window the torpedo is
+    /// cargo: no thrust, no guidance, no fuze and no colliders, so it can
+    /// neither be shot down nor touch the ship it is leaving.
+    ///
+    /// `0.0` lights it on the first tick, which is the old spawn-under-power
+    /// behavior and stays authorable for a bay that wants it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default = "default_ignition_delay",
+            skip_serializing_if = "is_default_ignition_delay"
+        )
+    )]
+    pub ignition_delay: f32,
     /// Proportional-navigation constant (`N`). Higher values turn harder to null
     /// the line-of-sight rate, so the torpedo leads a moving target more
     /// aggressively. Typical PN values are 3-5.
@@ -200,6 +219,7 @@ impl Default for TorpedoSectionConfig {
             projectile_lifetime: 100.0,
             arm_time: 0.5,
             arm_distance: 5.0,
+            ignition_delay: default_ignition_delay(),
             nav_constant: 3.0,
             linear_damping: 0.8,
             blast_radius: 30.0,
@@ -372,6 +392,28 @@ fn default_projectile_health() -> f32 {
 #[cfg_attr(not(feature = "serde"), allow(dead_code))]
 fn is_default_projectile_health(health: &f32) -> bool {
     *health == default_projectile_health()
+}
+
+/// Default [`TorpedoSectionConfig::ignition_delay`], in seconds.
+///
+/// Sized against the bays that exist rather than picked: they eject at 8 units
+/// a second into damping, which carries the torpedo about 4 units - several
+/// body lengths, and clear of the hull - before the motor catches. Long enough
+/// that the drop and the burn read as two events at gameplay range, short
+/// enough that the launch is still prompt - and inside the 5-unit
+/// `arm_distance`, so nothing about the safety separation changes.
+fn default_ignition_delay() -> f32 {
+    0.6
+}
+
+/// Serde skip for [`TorpedoSectionConfig::ignition_delay`], so content authored
+/// before the field round-trips byte-identical.
+#[cfg_attr(
+    not(feature = "serde"),
+    expect(dead_code, reason = "only the serde attribute calls it")
+)]
+fn is_default_ignition_delay(delay: &f32) -> bool {
+    *delay == default_ignition_delay()
 }
 
 /// Bundle factory for a torpedo launch bay from its [`TorpedoSectionConfig`],
@@ -616,6 +658,40 @@ pub struct TorpedoBlast {
     pub damage: f32,
 }
 
+/// A torpedo that has left the tube but whose drive has not lit.
+///
+/// The ejection IS this component's lifetime. While it is present the torpedo
+/// is inert cargo: guidance, the terminal weave, the attitude sync, the
+/// thruster and the fuze all filter it out with `Without<TorpedoColdLaunch>`,
+/// and its two collider sections carry avian's `ColliderDisabled`, so it can
+/// neither be shot down nor touch the ship that dropped it. It coasts on the
+/// bay's ejection charge and the motion it inherited, and nothing steers it.
+///
+/// EVERY launch spawns with one, a bay authoring `ignition_delay` zero
+/// included - that bay simply ignites on its first tick. There is deliberately
+/// no second, warm-launch spawn path to keep in step with this one.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+#[reflect(Component)]
+pub struct TorpedoColdLaunch {
+    /// Seconds left before the drive lights.
+    pub remaining: f32,
+}
+
+/// A torpedo's drive has lit.
+///
+/// Triggered by the gameplay half so the render half can answer it without
+/// gameplay deciding what ignition looks like - the split [`LightFlash`]
+/// already uses. An `On<Remove, TorpedoColdLaunch>` observer would be the
+/// shorter route and the wrong one: bevy fires `Remove` on despawn too, so a
+/// torpedo reaped mid-ejection would flash as though it had ignited.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct TorpedoIgnited {
+    /// The torpedo whose drive lit.
+    pub torpedo: Entity,
+    /// Where it lit, in world space.
+    pub at: Vec3,
+}
+
 /// Arming state of a torpedo projectile. A torpedo cannot detonate until it is
 /// armed; it arms once it has either lived for `min_time` seconds or traveled
 /// `min_distance` from its `origin` (the muzzle). This stops a torpedo fired at
@@ -702,13 +778,16 @@ impl Plugin for TorpedoSectionPlugin {
 
             // Launch burst at the bay: build the effect on the spawner, fire it
             // whenever a torpedo projectile is spawned.
+            app.init_resource::<DefaultLaunchPuffEffect>();
             app.add_observer(insert_torpedo_spawner_effect);
             app.add_observer(on_torpedo_launch_effect);
+            app.add_observer(on_torpedo_ignition);
         }
 
         // A torpedo whose body is shot dead must die as a whole -
         // without this the collider-less root keeps flying, armed, and still
         // detonates.
+        app.register_type::<TorpedoColdLaunch>();
         app.register_type::<TorpedoShotDownMarker>();
         app.register_type::<TorpedoType>();
         app.register_type::<TorpedoWeave>();
@@ -722,7 +801,15 @@ impl Plugin for TorpedoSectionPlugin {
         // systems on their own clock.
         app.add_systems(
             FixedUpdate,
-            (update_spawner_fire_state, shoot_spawn_projectile)
+            (
+                update_spawner_fire_state,
+                shoot_spawn_projectile,
+                // On the FIXED clock and not with the control inputs below:
+                // ignition CLEARS `ColliderDisabled`, and a collider appearing
+                // on a body physics is about to step has to appear on physics'
+                // own clock or the ship it was dropped from meets it mid-step.
+                ignite_cold_torpedoes,
+            )
                 .chain()
                 .in_set(super::SpaceshipSectionSystems),
         );

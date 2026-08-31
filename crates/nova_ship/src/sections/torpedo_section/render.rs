@@ -591,6 +591,42 @@ pub(super) fn insert_particle_effect(
     });
 }
 
+/// Brightness of the drive light-off, in lumens.
+///
+/// Four hundred times smaller than the detonation's, which is the point: a
+/// torpedo motor catching is a torch, not a warhead, and the two must not read
+/// as the same event at a distance. Enough to put a moving highlight on the
+/// launching ship's hull for a few frames as the torpedo pulls away.
+const IGNITION_LIGHT_LUMENS: f32 = 100_000.0;
+
+/// How far the ignition light reaches, in world units. Short: it is meant to
+/// light the bay it just left and nothing further.
+const IGNITION_LIGHT_RANGE: f32 = 18.0;
+
+/// How long the ignition light burns, in seconds. It is a light-off, not a
+/// running engine - the exhaust takes over from here.
+const IGNITION_LIGHT_SECS: f32 = 0.22;
+
+/// Light the bay when a torpedo's drive catches.
+///
+/// Answers [`TorpedoIgnited`] rather than watching the component, so gameplay
+/// says WHEN and this says what it looks like. Unbudgeted on the particle tier
+/// unlike the blast's flash: there is no fireball here for a light to be the
+/// flash of, the light IS the effect, and the transient-light cap is already
+/// its own budget.
+pub(super) fn on_torpedo_ignition(ignited: On<TorpedoIgnited>, mut commands: Commands) {
+    trace!("on_torpedo_ignition: torpedo {:?}", ignited.torpedo);
+    commands.trigger(LightFlash {
+        at: ignited.at,
+        // The exhaust's own colour, so the light and the plume it comes from
+        // agree.
+        color: Color::srgb(1.0, 0.55, 0.15),
+        peak_intensity: IGNITION_LIGHT_LUMENS,
+        range: IGNITION_LIGHT_RANGE,
+        duration: IGNITION_LIGHT_SECS,
+    });
+}
+
 /// Particle capacity of the built-in launch puff, a per-INSTANCE GPU buffer
 /// held by every bay spawner in the scene.
 ///
@@ -603,6 +639,99 @@ pub(super) fn insert_particle_effect(
 /// An authored `launch_effect` brings its own capacity and ignores this.
 const LAUNCH_PUFF_CAPACITY: u32 = 512;
 
+/// The generated launch puff, built once and shared by every bay.
+///
+/// Authoring `launch_effect` on the bay overrides it; this is the fallback.
+fn build_default_launch_puff_effect() -> EffectAsset {
+    // Emit a fixed-size burst only when reset() is called (per launch),
+    // never automatically on spawn.
+    let spawner = SpawnerSettings::once(80.0.into()).with_emit_on_start(false);
+
+    let writer = ExprWriter::new();
+
+    let age = writer.lit(0.).expr();
+    let init_age = SetAttributeModifier::new(Attribute::AGE, age);
+
+    // A short-lived puff, with per-particle variation so it does not read
+    // as a single hard flash.
+    let lifetime = writer.lit(0.1).uniform(writer.lit(0.35)).expr();
+    let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
+
+    // Cold propellant flash: bright white-blue core fading to a dim blue
+    // haze, distinct from the turret's hot-orange muzzle flash.
+    let mut color_gradient = bevy_hanabi::Gradient::new();
+    color_gradient.add_key(0.0, Vec4::new(0.8, 0.9, 1.0, 1.0));
+    color_gradient.add_key(0.3, Vec4::new(0.3, 0.5, 1.0, 0.8));
+    color_gradient.add_key(1.0, Vec4::new(0.05, 0.05, 0.2, 0.0));
+    let color_over_lifetime = ColorOverLifetimeModifier {
+        gradient: color_gradient,
+        blend: ColorBlendMode::default(),
+        mask: ColorBlendMask::default(),
+    };
+
+    // A small world-space puff that expands then fades, so it reads at the
+    // bay's scale rather than as a cluster of screen-space dots.
+    let mut size_gradient = bevy_hanabi::Gradient::new();
+    size_gradient.add_key(0.0, Vec3::splat(0.03));
+    size_gradient.add_key(0.2, Vec3::splat(0.22));
+    size_gradient.add_key(0.6, Vec3::splat(0.18));
+    size_gradient.add_key(1.0, Vec3::splat(0.0));
+    let size_over_lifetime = SizeOverLifetimeModifier {
+        gradient: size_gradient,
+        screen_space_size: false,
+    };
+
+    let init_pos = SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
+
+    // Launch direction, set per shot from the spawner's forward (`up`) axis.
+    let normal = writer.add_property("normal", Vec3::ZERO.into());
+    let normal = writer.prop(normal);
+
+    // Ship motion the burst rides along with, set per shot.
+    let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
+    let base_velocity = writer.prop(base_velocity);
+
+    // Forward-biased cone: mostly along the launch normal with a little
+    // spread, so the flash sprays out of the tube.
+    let spread_x = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
+    let spread_y = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
+    let spread_z = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
+    let spread = writer.lit(Vec3::X) * spread_x
+        + writer.lit(Vec3::Y) * spread_y
+        + writer.lit(Vec3::Z) * spread_z;
+    let speed = writer.rand(ScalarType::Float) * writer.lit(8.0) + writer.lit(4.0);
+    let velocity = (normal + spread).normalized() * speed + base_velocity;
+    let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
+
+    EffectAsset::new(LAUNCH_PUFF_CAPACITY, spawner, writer.finish())
+        .with_name("torpedo_launch_burst")
+        .init(init_pos)
+        .init(init_vel)
+        .init(init_age)
+        .init(init_lifetime)
+        // The puff is a cloud seen from wherever the camera is. Without this a
+        // hanabi quad is expanded on the fixed WORLD axes, so it was a
+        // billboard only from the directions nobody was looking from.
+        .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane))
+        .render(size_over_lifetime)
+        .render(color_over_lifetime)
+}
+
+/// The shared fallback launch puff. Every bay spawner used to mint its own and
+/// they were byte-identical - the launch direction and the ship's motion both
+/// arrive through properties, so there was never anything per-bay in the asset.
+#[derive(Resource, Default)]
+pub(crate) struct DefaultLaunchPuffEffect(Option<Handle<EffectAsset>>);
+
+impl DefaultLaunchPuffEffect {
+    /// The shared puff, building it on the first bay that needs it.
+    fn handle(&mut self, effects: &mut Assets<EffectAsset>) -> Handle<EffectAsset> {
+        self.0
+            .get_or_insert_with(|| effects.add(build_default_launch_puff_effect()))
+            .clone()
+    }
+}
+
 /// Build the launch particle burst on the bay spawner when the spawner entity is
 /// added. Mirrors the turret's `insert_turret_barrel_muzzle_effect`: a
 /// spawn-on-command effect (emit-on-start `false`) parented to the spawner, so
@@ -613,6 +742,7 @@ pub(super) fn insert_torpedo_spawner_effect(
     add: On<Add, TorpedoSectionSpawnerMarker>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
+    mut default_puff: ResMut<DefaultLaunchPuffEffect>,
     asset_server: Res<AssetServer>,
     budget: Option<Res<GraphicsBudget>>,
     q_effect: Query<&TorpedoSectionSpawnerEffect, With<TorpedoSectionSpawnerMarker>>,
@@ -636,79 +766,7 @@ pub(super) fn insert_torpedo_spawner_effect(
 
     let effect = match &**effect_handle {
         Some(asset_ref) => asset_ref.resolve(&asset_server),
-        None => {
-            // Emit a fixed-size burst only when reset() is called (per launch),
-            // never automatically on spawn.
-            let spawner = SpawnerSettings::once(80.0.into()).with_emit_on_start(false);
-
-            let writer = ExprWriter::new();
-
-            let age = writer.lit(0.).expr();
-            let init_age = SetAttributeModifier::new(Attribute::AGE, age);
-
-            // A short-lived puff, with per-particle variation so it does not read
-            // as a single hard flash.
-            let lifetime = writer.lit(0.1).uniform(writer.lit(0.35)).expr();
-            let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
-
-            // Cold propellant flash: bright white-blue core fading to a dim blue
-            // haze, distinct from the turret's hot-orange muzzle flash.
-            let mut color_gradient = bevy_hanabi::Gradient::new();
-            color_gradient.add_key(0.0, Vec4::new(0.8, 0.9, 1.0, 1.0));
-            color_gradient.add_key(0.3, Vec4::new(0.3, 0.5, 1.0, 0.8));
-            color_gradient.add_key(1.0, Vec4::new(0.05, 0.05, 0.2, 0.0));
-            let color_over_lifetime = ColorOverLifetimeModifier {
-                gradient: color_gradient,
-                blend: ColorBlendMode::default(),
-                mask: ColorBlendMask::default(),
-            };
-
-            // A small world-space puff that expands then fades, so it reads at the
-            // bay's scale rather than as a cluster of screen-space dots.
-            let mut size_gradient = bevy_hanabi::Gradient::new();
-            size_gradient.add_key(0.0, Vec3::splat(0.03));
-            size_gradient.add_key(0.2, Vec3::splat(0.22));
-            size_gradient.add_key(0.6, Vec3::splat(0.18));
-            size_gradient.add_key(1.0, Vec3::splat(0.0));
-            let size_over_lifetime = SizeOverLifetimeModifier {
-                gradient: size_gradient,
-                screen_space_size: false,
-            };
-
-            let init_pos =
-                SetAttributeModifier::new(Attribute::POSITION, writer.lit(Vec3::ZERO).expr());
-
-            // Launch direction, set per shot from the spawner's forward (`up`) axis.
-            let normal = writer.add_property("normal", Vec3::ZERO.into());
-            let normal = writer.prop(normal);
-
-            // Ship motion the burst rides along with, set per shot.
-            let base_velocity = writer.add_property("base_velocity", Vec3::ZERO.into());
-            let base_velocity = writer.prop(base_velocity);
-
-            // Forward-biased cone: mostly along the launch normal with a little
-            // spread, so the flash sprays out of the tube.
-            let spread_x = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
-            let spread_y = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
-            let spread_z = (writer.rand(ScalarType::Float) - writer.lit(0.5)) * writer.lit(0.4);
-            let spread = writer.lit(Vec3::X) * spread_x
-                + writer.lit(Vec3::Y) * spread_y
-                + writer.lit(Vec3::Z) * spread_z;
-            let speed = writer.rand(ScalarType::Float) * writer.lit(8.0) + writer.lit(4.0);
-            let velocity = (normal + spread).normalized() * speed + base_velocity;
-            let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
-
-            effects.add(
-                EffectAsset::new(LAUNCH_PUFF_CAPACITY, spawner, writer.finish())
-                    .with_name("torpedo_launch_burst")
-                    .init(init_pos)
-                    .init(init_vel)
-                    .init(init_age)
-                    .init(init_lifetime)
-                    .render(size_over_lifetime)
-                    .render(color_over_lifetime),
-            )
-        }
+        None => default_puff.handle(&mut effects),
     };
 
     commands.entity(entity).insert((children![(
@@ -726,7 +784,11 @@ pub(super) fn insert_torpedo_spawner_effect(
 pub(super) fn on_torpedo_launch_effect(
     add: On<Add, TorpedoProjectileMarker>,
     budget: Option<Res<GraphicsBudget>>,
-    q_projectile: Query<&TorpedoSectionSpawnerEntity, With<TorpedoProjectileMarker>>,
+    q_projectile: Query<
+        (&TorpedoSectionSpawnerEntity, Option<&ProjectileOwner>),
+        With<TorpedoProjectileMarker>,
+    >,
+    q_ship_velocity: Query<&LinearVelocity>,
     mut q_effect: Query<
         (&mut EffectProperties, &mut EffectSpawner, &ChildOf),
         (
@@ -748,7 +810,7 @@ pub(super) fn on_torpedo_launch_effect(
         return;
     }
 
-    let Ok(spawner) = q_projectile.get(projectile) else {
+    let Ok((spawner, owner)) = q_projectile.get(projectile) else {
         error!(
             "on_torpedo_launch_effect: entity {:?} not found in q_projectile",
             projectile
@@ -779,8 +841,14 @@ pub(super) fn on_torpedo_launch_effect(
     // `shoot_spawn_projectile` gives the torpedo. `up()` is already a unit `Dir3`.
     let normal = spawner_transform.up();
     properties.set("normal", Vec3::from(normal).into());
-    // Currently always zero; a hook to later ride the burst along ship motion.
-    properties.set("base_velocity", Vec3::ZERO.into());
+    // The charge leaves with the SHIP. Pinned to zero the puff hung at the
+    // point in space the bay had been at, which at any closing speed is a cloud
+    // the launching ship drives out of - the same defect the muzzle flash and
+    // the blast both carried.
+    let base_velocity = owner
+        .and_then(|owner| q_ship_velocity.get(**owner).ok())
+        .map_or(Vec3::ZERO, |velocity| velocity.0);
+    properties.set("base_velocity", base_velocity.into());
 
     effect_spawner.reset();
 }

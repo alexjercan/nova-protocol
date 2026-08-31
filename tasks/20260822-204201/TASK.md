@@ -143,7 +143,8 @@ Three passes per row, reported mean fps / mean ms and the worst frame:
 | 0 - baseline | a704bb57 | 56.9 / 61.0 / 57.1 | 17.57 / 16.39 / 17.50 | 37.90 / 26.05 / 29.92 |
 | 1 - blast | 7e0658be | 63.2 / 64.7 / 66.7 | 15.81 / 15.46 / 14.99 | 30.46 / 27.65 / 27.62 |
 | 2 - impact | 07be5d6d | 59.8 / 60.8 / 58.9 | 16.72 / 16.46 / 16.97 | 35.04 / 29.38 / 29.07 |
-| 3 - muzzle | c92dbf0f | 63.2 / 64.7 / 64.8 | 15.83 / 15.47 / 15.42 | 45.29 / 25.34 / 24.02 |
+| 3 - muzzle, unseen | c92dbf0f | 63.2 / 64.7 / 64.8 | 15.83 / 15.47 / 15.42 | 45.29 / 25.34 / 24.02 |
+| 3 - muzzle, drawn | 2cc9053e | 57.2 / 61.2 / 60.3 | 17.48 / 16.35 / 16.58 | 37.74 / 28.99 / 27.82 |
 
 Read the spread before reading a delta: the three baseline passes differ by
 7% in the mean with nothing changed between them, so anything under about
@@ -184,6 +185,24 @@ The 45.29 ms in pass 1 is warm-up and not a cost. It is the first-pass figure
 only; passes 2 and 3 hold 25.34 and 24.02 ms, the two best worst-frames
 anywhere in this table, and the pass-1 outlier is the render pipeline being
 specialised for the new muzzle shader on the frame the gun first fires.
+
+**Row 3 measured a flash nobody could see, and drawing it costs 1.0 ms.** At
+c92dbf0f the muzzle graph was complete and correct and reached the screen as a
+smear: particles are first drawn one simulation step after birth, so a 0.01 to
+0.05 s life against a 0.022 s frame sampled both gradients past their peak
+every time. Lengthening the life to 0.05-0.12 s is what put the flash on
+screen, and it also multiplied the live particle count by about 2.4 - roughly
+230 overlapping quads at the bore during a burst where there had been 96. The
+orient fix in the same commit is the other half: the blast core had been drawn
+edge-on as a sliver and now draws its full area. Both are fill the earlier row
+never paid for.
+
+So row 3-drawn is where the stage actually lands, and it lands back on the
+16.67 ms line with `fps_within_baseline WARN worst +13.3%`. NOT accepted as
+final: 32 particles a frame was picked while the flash was invisible, and 230
+overlapping quads inside one 0.55-unit ball is the kind of overdraw that
+halves cheaply. The count is the lever, and pulling it is deferred to after
+stage 4 so it costs one rebuild instead of two.
 
 The suspected cost is entity count, not pixels. A PDC hit throws 5 sparks and a
 kill throws 20, each its own kinematic body living 0.28 s, so a sustained burst
@@ -246,6 +265,41 @@ a flag.
 
 Time-to-target moves, so the AI launch envelope and the PDC intercept window
 move with it. Re-check `input/ai/guns.rs` and the balance audit.
+
+Landed. The state is real, not a flag: an ejecting torpedo carries
+`TorpedoColdLaunch`, guidance, thrust, the weave and the fuze all filter on
+`Without<TorpedoColdLaunch>`, and both section children carry avian's
+`ColliderDisabled`. `ignite_cold_torpedoes` removes the marker and the
+disables together and fires `TorpedoIgnited`, which drives an ignition
+light on the bay it just left. `torpedo_sync_system` is deliberately NOT
+gated - gating it commands the warhead to world identity, because
+`ControllerSectionRotationInput` defaults to `Quat::IDENTITY` rather than to
+"leave it alone". The launch puff is now one shared asset behind
+`DefaultLaunchPuffEffect`, is camera-facing, and rides the ship that fired
+it.
+
+The ejection charge had to move for the drop to READ. At the authored 1 to 2
+u/s the torpedo drifted about a unit in the 0.6 s coast: on screen it was
+still at the hull, and the first frame anybody could see it in was already
+the frame its drive lit. The authored bays now eject at 8 u/s, which carries
+it about 4 units into the damping - several body lengths, clear of the hull,
+and still well inside the 5-unit `arm_distance`.
+
+A pre-existing steering defect surfaced here and is fixed in the same
+change: the bay seeded `TorpedoSteering` from the projectile transform's
+`forward()`, but a torpedo leaves along the bay's +Y while its own nose is
+its -Z, so the attitude command was 90 degrees off the way it was thrown.
+Under power from tick one nobody saw it - PN overwrote the seed before the
+controller could act. A 0.6 s coast with guidance suspended gave the
+controller the whole window to turn the warhead sideways, and the drive then
+lit across the run-in and threw the flight 13 u off the line.
+
+Known and deliberately NOT changed: AI point defence acquires on
+`TorpedoProjectileMarker`, so a defender can lock a torpedo that is still
+ejecting and its rounds pass through the disabled colliders. The coast
+happens at the launching ship and the point-defence envelope is 150 u, so
+this only bites at knife range. Changing AI acquisition is outside this
+task.
 
 ### Cross-cutting, folded into each stage
 
