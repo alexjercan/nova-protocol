@@ -457,17 +457,35 @@ pub(super) fn stretch_round_tracers(
 /// the same picture with a handful, and it grows when you fly past it.
 const MUZZLE_PARTICLES_PER_SHOT: f32 = 32.0;
 
+/// Shortest a muzzle particle lives, in seconds. See [`MUZZLE_LIFETIME_MAX`]
+/// for why the pair is as long as it is.
+const MUZZLE_LIFETIME_MIN: f32 = 0.05;
+
 /// Longest a muzzle particle lives, in seconds.
 ///
-/// A PDC at 100 rounds a second fires every 0.01 s, so anything that outlives
-/// three rounds stops being a flash and becomes a plume hanging off the barrel
-/// - the atmospheric read this work exists to remove. In vacuum there is no air
-/// for the propellant gas to push against and nothing to keep it burning: it
-/// leaves, it thins, it is gone.
-const MUZZLE_LIFETIME_MAX: f32 = 0.05;
+/// A real muzzle flash is over in a millisecond or two, and that is not a
+/// duration a frame can draw. A particle is first RENDERED one simulation step
+/// after it is born, so its gradients are already sampled a whole frame in: a
+/// flash that does not outlive two frames is only ever drawn on its way out.
+/// The first version of this graph lived 0.01 s to 0.05 s and was a dim orange
+/// smear at the bore for precisely that reason - the bright head of its colour
+/// curve existed and was never once put on screen.
+///
+/// So the flash is given the three to seven frames the eye actually has. It
+/// still does not become a plume: in vacuum there is no air to push against
+/// and nothing to keep the propellant burning, and the size and colour curves
+/// below take it to nothing well inside that. At 100 rounds a second the
+/// barrel does refire before this decays, and the overlap is the point - a
+/// sustained burst should read as one ball of gas burning at the bore for as
+/// long as the trigger is down, not as separate puffs.
+const MUZZLE_LIFETIME_MAX: f32 = 0.12;
 
 /// Fastest a muzzle particle leaves the barrel, in units/second.
-const MUZZLE_SPEED_MAX: f32 = 30.0;
+///
+/// Slow enough that the longest-lived particle travels under two units before
+/// it dies. The gas has to stay a cone at the bore; anything faster throws the
+/// tail far enough downrange to be read as a second, weaker tracer.
+const MUZZLE_SPEED_MAX: f32 = 14.0;
 
 /// How wide the flash is at birth, in world units.
 ///
@@ -475,16 +493,17 @@ const MUZZLE_SPEED_MAX: f32 = 30.0;
 /// nothing as the camera pulls out. The screen-space dots it replaces stayed
 /// three pixels across at any range, which turned a gun two kilometres away
 /// into a cloud of confetti larger than the ship firing it.
-const MUZZLE_SIZE: f32 = 0.9;
+const MUZZLE_SIZE: f32 = 0.55;
 
 /// Particle capacity of the built-in muzzle flash, which is a per-INSTANCE GPU
 /// buffer: the [`EffectAsset`] is shared, one allocation per barrel is not.
 ///
-/// DERIVED, not picked. A barrel holds
-/// `MUZZLE_PARTICLES_PER_SHOT x fire_rate x MUZZLE_LIFETIME_MAX` at once. The
-/// fastest muzzle the game ships is `pdc_kinetic_turret_section` at 100 rounds
-/// a second, which peaks at 160. This is that, doubled and rounded up to a
-/// power of two - a quarter of what the hundred-dot version reserved.
+/// DERIVED, not picked. A spawner emits its `once` count at most one time per
+/// tick however many shots asked for it, so a barrel holds
+/// `MUZZLE_PARTICLES_PER_SHOT x frame_rate x MUZZLE_LIFETIME_MAX` at once, not
+/// one burst per round. At 60 fps that peaks at 230. This is that, doubled and
+/// rounded up to a power of two - a quarter of what the hundred-dot version
+/// reserved.
 ///
 /// An authored `muzzle_effect` brings its own capacity and ignores this.
 const MUZZLE_FLASH_CAPACITY: u32 = 512;
@@ -519,7 +538,7 @@ fn build_default_muzzle_effect() -> EffectAsset {
 
     // Give a bit of variation by randomizing the lifetime per particle
     let lifetime = writer
-        .lit(0.01)
+        .lit(MUZZLE_LIFETIME_MIN)
         .uniform(writer.lit(MUZZLE_LIFETIME_MAX))
         .expr();
     let init_lifetime = SetAttributeModifier::new(Attribute::LIFETIME, lifetime);
@@ -596,6 +615,12 @@ fn build_default_muzzle_effect() -> EffectAsset {
         .init(init_age)
         .init(init_lifetime)
         .init(init_color)
+        // A hanabi quad with no orient modifier is expanded along the fixed
+        // WORLD axes, not the camera's, so it is a billboard only from the
+        // directions the camera happens not to be looking from. The old
+        // screen-space sizing hid the omission by expanding the quad in screen
+        // space instead, so dropping it made this mandatory.
+        .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane))
         .render(size_over_lifetime)
         .render(mask)
         .render(color_over_lifetime)
@@ -683,6 +708,34 @@ mod tests {
     };
 
     /// A bullet app with only the round-render observer and its resource.
+    #[test]
+    fn a_muzzle_flash_outlives_the_frame_that_draws_it() {
+        // A particle is first DRAWN one simulation step after it is born, so
+        // its gradients are already sampled a frame in. A flash that does not
+        // outlive two frames is therefore only ever put on screen on its way
+        // out, which is what made the first version of this graph a dim smear
+        // at the bore however bright the head of its colour curve was.
+        let frame = 1.0 / 60.0;
+        assert!(
+            MUZZLE_LIFETIME_MIN > frame * 2.0,
+            "the shortest-lived muzzle particle must survive the frame that first draws it"
+        );
+        assert!(MUZZLE_LIFETIME_MAX > MUZZLE_LIFETIME_MIN);
+    }
+
+    #[test]
+    fn the_muzzle_buffer_holds_a_sustained_burst() {
+        // One burst per FRAME and not per round: a spawner emits its `once`
+        // count at most once a tick however many shots called `reset()`, so a
+        // 100-round-a-second barrel does not fill this ten times faster than a
+        // 10-round-a-second one.
+        let alive = MUZZLE_PARTICLES_PER_SHOT * 60.0 * MUZZLE_LIFETIME_MAX;
+        assert!(
+            alive <= f64::from(MUZZLE_FLASH_CAPACITY) as f32,
+            "{alive} live particles do not fit in {MUZZLE_FLASH_CAPACITY}"
+        );
+    }
+
     fn round_render_app() -> App {
         use bevy::asset::AssetPlugin;
         let mut app = App::new();

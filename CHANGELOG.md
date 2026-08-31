@@ -247,9 +247,9 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Audio & Visuals
 
-- A PDC burst reads as a stream. Each round is drawn as long as it travels in
-  one frame, so the gap the eye was seeing between them closes at any frame
-  rate. It was a dotted line at every fire rate.
+- A PDC burst reads as a stream. Each round is stretched along its own travel,
+  so the gap the eye was seeing between them closes at any frame rate. It was a
+  dotted line at every fire rate.
 - The muzzle flash is a real object at the barrel: a ball of burning gas with a
   cone leaving it, sized in metres. It was 100 dots three pixels across at any
   range, so a distant gun was confetti.

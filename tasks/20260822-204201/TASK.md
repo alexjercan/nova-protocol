@@ -143,6 +143,7 @@ Three passes per row, reported mean fps / mean ms and the worst frame:
 | 0 - baseline | a704bb57 | 56.9 / 61.0 / 57.1 | 17.57 / 16.39 / 17.50 | 37.90 / 26.05 / 29.92 |
 | 1 - blast | 7e0658be | 63.2 / 64.7 / 66.7 | 15.81 / 15.46 / 14.99 | 30.46 / 27.65 / 27.62 |
 | 2 - impact | 07be5d6d | 59.8 / 60.8 / 58.9 | 16.72 / 16.46 / 16.97 | 35.04 / 29.38 / 29.07 |
+| 3 - muzzle | c92dbf0f | 63.2 / 64.7 / 64.8 | 15.83 / 15.47 / 15.42 | 45.29 / 25.34 / 24.02 |
 
 Read the spread before reading a delta: the three baseline passes differ by
 7% in the mean with nothing changed between them, so anything under about
@@ -171,6 +172,18 @@ the spark burst and the shard cooling. The probe's own baseline gate agrees and
 fired `fps_within_baseline WARN worst +13.2%`. That spends the entire margin
 row 1 was sitting on: the mean is now at the 16.67 ms that 60 fps costs rather
 than under it.
+
+**Row 3 gives it back.** The mean returns to row 1 and the probe's gate flips
+with it, from that WARN to `fps_within_baseline PASS improved; best -8.9%`.
+Nothing was optimised to get there: the muzzle stage deleted 100 screen-space
+dots per shot and put 32 world-space particles per BARREL PER FRAME in their
+place, which is the cheaper thing to draw by an order of magnitude at this fire
+rate. The velocity-stretched tracer costs one scale write per live round.
+
+The 45.29 ms in pass 1 is warm-up and not a cost. It is the first-pass figure
+only; passes 2 and 3 hold 25.34 and 24.02 ms, the two best worst-frames
+anywhere in this table, and the pass-1 outlier is the render pipeline being
+specialised for the new muzzle shader on the frame the gun first fires.
 
 The suspected cost is entity count, not pixels. A PDC hit throws 5 sparks and a
 kill throws 20, each its own kinematic body living 0.28 s, so a sustained burst

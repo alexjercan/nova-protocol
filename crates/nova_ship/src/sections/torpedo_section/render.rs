@@ -446,6 +446,11 @@ fn build_default_blast_core_effect() -> EffectAsset {
         .init(init_age)
         .init(init_lifetime)
         .init(init_color)
+        // The core is the camera-facing half of the detonation, and saying so
+        // in a doc comment did not make it so: a quad with no orient modifier
+        // is expanded along the fixed WORLD axes, so the fireball was drawn
+        // edge-on from any camera looking down one of them.
+        .render(OrientModifier::new(OrientMode::ParallelCameraDepthPlane))
         .render(size_over_lifetime)
         .render(mask)
         .render(color_over_lifetime)
