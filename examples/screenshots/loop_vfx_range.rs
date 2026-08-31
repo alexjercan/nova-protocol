@@ -85,6 +85,7 @@ const RANGE: f32 = 36.0;
 /// `12 + 45 + 30 + this + 30`, plus the frames the recorder drains on close,
 /// have to fit inside the loop recorder's 600 frame cap, and a longer coast is
 /// the first thing that breaks it.
+#[cfg(feature = "debug")]
 const TORPEDO_FLIGHT_FRAMES: u32 = 70;
 
 /// Health every section on both ships is authored to.
@@ -360,6 +361,7 @@ fn frame_range(world: &mut World) {
 }
 
 /// The world-space point the target slab occupies.
+#[cfg(feature = "debug")]
 const fn target_point() -> Vec3 {
     Vec3::new(0.0, 0.0, -RANGE)
 }

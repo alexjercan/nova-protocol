@@ -726,7 +726,7 @@ mod tests {
             MUZZLE_LIFETIME_MIN > frame * 2.0,
             "the shortest-lived muzzle particle must survive the frame that first draws it"
         );
-        assert!(MUZZLE_LIFETIME_MAX > MUZZLE_LIFETIME_MIN);
+        const { assert!(MUZZLE_LIFETIME_MAX > MUZZLE_LIFETIME_MIN) };
     }
 
     #[test]
