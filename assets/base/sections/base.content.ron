@@ -1846,7 +1846,7 @@
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.5,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1854,6 +1854,7 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
             spawner_speed: 8.0,
             projectile_lifetime: 100.0,
@@ -2039,7 +2040,7 @@
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.5,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -2047,6 +2048,7 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
             spawner_speed: 8.0,
             projectile_lifetime: 100.0,
@@ -2233,7 +2235,7 @@
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.5,
+                -1.0,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -2241,6 +2243,7 @@
                 0.0,
                 0.70710677,
             ),
+            spawn_recess: 1.0,
             fire_rate: 1.0,
             spawner_speed: 8.0,
             projectile_lifetime: 60.0,

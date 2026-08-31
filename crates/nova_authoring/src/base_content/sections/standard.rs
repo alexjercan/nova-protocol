@@ -785,14 +785,15 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 render_mesh: Some(meshes.torpedo_bay.clone()),
                 render_mesh_transform: None,
                 projectile_render_mesh: None,
-                // The muzzle face sits at -1; same 1.5 units of launch
-                // clearance as the standard bay.
-                spawn_offset: Vec3::NEG_Z * 2.5,
+                // The muzzle point on the door plane and the centred birth,
+                // same as the standard bay: it launches out of the same tube.
+                spawn_offset: Vec3::NEG_Z * BAY_CELLS.z * 0.5,
                 // Aim the tube out of the open face. The launch axis is
                 // the spawner's +Y and this turns it onto the section's -Z,
                 // the one face `link_points` leaves unlinkable so it can be
                 // a muzzle. Without it the tube ejected through its own roof.
                 spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                spawn_recess: BAY_CELLS.z * 0.5,
                 fire_rate: 1.0,
                 spawner_speed: 8.0,
                 // Long enough to cross a backdrop arena, short enough that a
@@ -889,14 +890,18 @@ fn torpedo_bay_prototype(
             render_mesh: Some(meshes.torpedo_bay.clone()),
             render_mesh_transform: None,
             projectile_render_mesh: None,
-            // The muzzle face sits at -1, so this keeps the same 1.5 units of
-            // clearance the unit-cube bay launched with.
-            spawn_offset: Vec3::NEG_Z * 2.5,
+            // The muzzle point, ON the door plane at -1: the launch flash and
+            // the spatial launch sound belong at the iris, not out in space.
+            spawn_offset: Vec3::NEG_Z * BAY_CELLS.z * 0.5,
             // Aim the tube out of the open face. The launch axis is
             // the spawner's +Y and this turns it onto the section's -Z,
             // the one face `link_points` leaves unlinkable so it can be
             // a muzzle. Without it the tube ejected through its own roof.
             spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            // Born at the tube's centre: the 2 u torpedo exactly fills the
+            // 2 u tube - nose on the door plane, tail at the back wall - and
+            // slides its whole length out through the open iris.
+            spawn_recess: BAY_CELLS.z * 0.5,
             fire_rate: 1.0,
             spawner_speed: 8.0,
             projectile_lifetime: 100.0,
@@ -998,9 +1003,13 @@ mod tests {
                     panic!("{}: tube bay without a MuzzleDoor track", section.base.id)
                 });
             assert_eq!(door.node_prefix, "door_petal_", "{}", section.base.id);
+            // The ejection waits for the open iris, so `open_seconds` is the
+            // whole first-shot delay: authored positive (the door genuinely
+            // travels) and under the fire interval (the door never becomes
+            // the bay's real rate of fire).
             assert!(
-                door.open_seconds > 0.0 && door.open_seconds < bay.ignition_delay + f32::EPSILON,
-                "{}: the iris must finish opening inside the cold coast",
+                door.open_seconds > 0.0 && door.open_seconds < 1.0 / bay.fire_rate,
+                "{}: the door gate must be shorter than the fire interval",
                 section.base.id
             );
         }
@@ -1379,13 +1388,15 @@ mod tests {
     }
 
     /// The promoted bay is a 1x1x2 tube. Its collider has to claim both cells
-    /// (or half the bay is a ghost the editor and weapons fire through), and
-    /// its launch point has to clear the longer tube by the same 1.5 units the
-    /// unit-cube bay launched with. Checked over every bay THIS module builds
-    /// - the ships' own torpedo pods author their own hull-fitted shapes and
-    /// are not the tube.
+    /// (or half the bay is a ghost the editor and weapons fire through), its
+    /// muzzle point has to sit ON the door plane (the launch flash and sound
+    /// play at the spawner, and the door-gated ejection means the flash
+    /// belongs at the iris), and its recess has to birth the torpedo INSIDE
+    /// the tube so it slides out through the open door. Checked over every
+    /// bay THIS module builds - the ships' own torpedo pods author their own
+    /// hull-fitted shapes and are not the tube.
     #[test]
-    fn every_bay_claims_both_cells_and_launches_clear_of_its_tube() {
+    fn every_bay_claims_both_cells_and_births_its_torpedo_inside_the_tube() {
         let catalog = crate::generation::build_section_catalog();
         for id in [
             "torpedo_section",
@@ -1404,10 +1415,15 @@ mod tests {
                 Some(SectionCollider::Cuboid { size: BAY_CELLS }),
                 "`{id}` claims its two cells"
             );
+            assert_eq!(
+                bay.spawn_offset.z,
+                -BAY_CELLS.z * 0.5,
+                "`{id}` puts its muzzle point off the door plane"
+            );
+            let birth = bay.spawn_offset.z + bay.spawn_recess;
             assert!(
-                bay.spawn_offset.z <= -(BAY_CELLS.z * 0.5 + 1.0),
-                "`{id}` launches at {} - inside or too close to its own tube",
-                bay.spawn_offset.z
+                bay.spawn_recess > 0.0 && birth.abs() <= BAY_CELLS.z * 0.5,
+                "`{id}` births its torpedo at {birth} - outside its own tube"
             );
             // Nine sockets: the back plate, and one per cell on each flank so
             // unit neighbours mate against either half of the tube.

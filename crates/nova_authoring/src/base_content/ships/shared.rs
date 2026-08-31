@@ -329,6 +329,9 @@ fn torpedo_kind(
         // the one face `link_points` leaves unlinkable so it can be
         // a muzzle. Without it the tube ejected through its own roof.
         spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+        // The cut-cube pods author no muzzle door, so nothing would reveal a
+        // recessed birth - they launch at their muzzle as before.
+        spawn_recess: 0.0,
         fire_rate: 1.0,
         spawner_speed: 8.0,
         projectile_lifetime: 100.0,

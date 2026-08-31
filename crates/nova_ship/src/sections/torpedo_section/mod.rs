@@ -81,6 +81,18 @@ pub struct TorpedoSectionConfig {
     pub spawn_offset: Vec3,
     /// The rotation of the spawn point of the projectile relative to the torpedo section.
     pub spawn_rotation: Quat,
+    /// How far BEHIND the muzzle the torpedo is born, in units back along the
+    /// launch axis. `spawn_offset` is the muzzle point - the launch flash and
+    /// the spatial sound play there - and the recess starts the torpedo this
+    /// deep inside the tube so it slides out through the (open) muzzle door
+    /// instead of materializing in front of it. `0.0` births it at the
+    /// muzzle, the old behavior; the cold coast makes any recess physically
+    /// safe, because the torpedo has no colliders until ignition.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "is_zero_recess")
+    )]
+    pub spawn_recess: f32,
     /// The fire rate of the turret in rounds per second.
     pub fire_rate: f32,
     /// The muzzle speed of the turret in units per second.
@@ -214,6 +226,7 @@ impl Default for TorpedoSectionConfig {
             projectile_render_mesh: None,
             spawn_offset: Vec3::Y * 2.0,
             spawn_rotation: Quat::IDENTITY,
+            spawn_recess: 0.0,
             fire_rate: 1.0,
             spawner_speed: 1.0,
             projectile_lifetime: 100.0,
@@ -414,6 +427,16 @@ fn default_ignition_delay() -> f32 {
 )]
 fn is_default_ignition_delay(delay: &f32) -> bool {
     *delay == default_ignition_delay()
+}
+
+/// Serde skip for [`TorpedoSectionConfig::spawn_recess`], so content authored
+/// before the field round-trips byte-identical.
+#[cfg_attr(
+    not(feature = "serde"),
+    expect(dead_code, reason = "only the serde attribute calls it")
+)]
+fn is_zero_recess(recess: &f32) -> bool {
+    *recess == 0.0
 }
 
 /// Bundle factory for a torpedo launch bay from its [`TorpedoSectionConfig`],
@@ -809,8 +832,11 @@ impl Plugin for TorpedoSectionPlugin {
                 // on a body physics is about to step has to appear on physics'
                 // own clock or the ship it was dropped from meets it mid-step.
                 ignite_cold_torpedoes,
-                // After the spawn so the launch tick's `MuzzleDoorHold`
-                // insert is visible and the iris starts opening same-tick.
+                // After the spawn: the trigger's door intent and the launch
+                // tick's `MuzzleDoorHold` refresh are both visible same-tick,
+                // and the spawn's own door gate reads the progress the frame
+                // before - which is the point, the ejection waits for the
+                // iris.
                 drive_muzzle_doors,
             )
                 .chain()

@@ -154,6 +154,7 @@ pub(super) fn shoot_spawn_projectile(
             &ChildOf,
             &TorpedoSectionConfigHelper,
             &TorpedoSectionInput,
+            Option<&SectionAnimations>,
             Option<&mut SectionAmmo>,
             Option<&mut SectionReload>,
         ),
@@ -163,7 +164,7 @@ pub(super) fn shoot_spawn_projectile(
     q_chain: Query<(&Transform, &ChildOf)>,
     q_hot: Query<&WeaponsHot>,
 ) {
-    for (section, spawner, ChildOf(spaceship), config, input, mut ammo, mut reload) in
+    for (section, spawner, ChildOf(spaceship), config, input, animations, mut ammo, mut reload) in
         &mut q_section
     {
         if !**input {
@@ -203,6 +204,18 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         }
 
+        // The muzzle door gates the ejection: a bay with an authored
+        // `MuzzleDoor` track launches only through a fully open iris. The held
+        // trigger is what opens it (`drive_muzzle_doors`), so the first shot
+        // of a salvo waits out the door travel and the rest leave on cadence
+        // through the held-open door. A doorless bay launches immediately.
+        if animations
+            .and_then(|animations| animations.cue_progress(SectionAnimationCue::MuzzleDoor))
+            .is_some_and(|progress| progress < 1.0)
+        {
+            continue;
+        }
+
         // Bay pose on the RAW physics clock: the root's avian pose composed
         // with the local mount chain (section -> spawner). This system runs
         // in FixedUpdate, where `GlobalTransform` still holds the previous
@@ -220,9 +233,14 @@ pub(super) fn shoot_spawn_projectile(
             continue;
         };
         let spawner_rotation = rotation.0 * bay_local_rot;
-        let projectile_position = position.0 + rotation.mul_vec3(bay_local_pos);
         // The spawner launches along its +Y (the bay's "up", as authored).
         let spawner_direction = spawner_rotation * Vec3::Y;
+        // Born `spawn_recess` behind the muzzle: the spawner entity stays ON
+        // the muzzle - the launch flash and the spatial sound play there -
+        // and the torpedo starts this deep inside the tube, sliding its whole
+        // travel out through the open iris.
+        let projectile_position =
+            position.0 + rotation.mul_vec3(bay_local_pos) - spawner_direction * config.spawn_recess;
         // Born NOSE ALONG TRAVEL. A torpedo's nose is its own -Z and the tube
         // ejects along the spawner's +Y, so spawning it in the spawner's raw
         // frame laid the warhead across its own velocity - by construction,
@@ -465,9 +483,10 @@ pub(super) fn shoot_spawn_projectile(
         // Start the next launch wait.
         fire_state.trigger();
 
-        // Swing the muzzle door open for the launch: the iris opens across
-        // the cold coast and closes once the hold runs out. Insert-refresh,
-        // so sustained fire holds the door open instead of cycling it.
+        // The door was already open to let this launch out; the hold keeps it
+        // open until the torpedo has coasted clear. Insert-refresh, so a
+        // follow-up launch extends the clearance window instead of cycling
+        // the door.
         commands
             .entity(section)
             .insert(MuzzleDoorHold::for_launch(config.ignition_delay));
@@ -498,25 +517,55 @@ impl MuzzleDoorHold {
     }
 }
 
-/// Steer the `MuzzleDoor` cue: open while a launch hold is live, closed the
-/// tick it expires. On the fixed clock with the launch chain, so the door
-/// starts opening on the launch tick and its timing is deterministic.
+/// Steer the `MuzzleDoor` cue. Two things hold it open: the trigger and the
+/// clearance hold. The HELD TRIGGER is the door intent - press fire and the
+/// iris starts opening (the ejection itself waits on it, see
+/// `shoot_spawn_projectile`), keep holding and it gapes ready across
+/// cooldowns and reloads. The [`MuzzleDoorHold`] covers the launched torpedo:
+/// it spans the cold coast plus a closing margin, so a tap-fired door still
+/// closes behind the round, not on it. Everything else reads closed.
+///
+/// The trigger only counts when the bay could genuinely fire - weapons
+/// safety and an empty magazine keep the doors shut - so an open iris always
+/// telegraphs a live launch threat, for the player and for whoever is
+/// reading the raider carrying it.
+///
+/// On the fixed clock with the launch chain, so the door starts opening on
+/// the intent tick and its timing is deterministic.
 pub(super) fn drive_muzzle_doors(
     mut commands: Commands,
     time: Res<Time>,
     mut q_section: Query<
-        (Entity, &mut SectionAnimations, &mut MuzzleDoorHold),
-        With<TorpedoSectionMarker>,
+        (
+            Entity,
+            &mut SectionAnimations,
+            &TorpedoSectionInput,
+            &ChildOf,
+            Option<&mut MuzzleDoorHold>,
+            Option<&SectionAmmo>,
+        ),
+        (With<TorpedoSectionMarker>, Without<SectionInactiveMarker>),
     >,
+    q_hot: Query<&WeaponsHot>,
 ) {
-    for (section, mut animations, mut hold) in &mut q_section {
-        hold.remaining -= time.delta_secs();
-        if hold.remaining > 0.0 {
-            animations.set_cue(SectionAnimationCue::MuzzleDoor, 1.0);
-        } else {
-            animations.set_cue(SectionAnimationCue::MuzzleDoor, 0.0);
-            commands.entity(section).remove::<MuzzleDoorHold>();
-        }
+    for (section, mut animations, input, ChildOf(spaceship), hold, ammo) in &mut q_section {
+        let safety_on = q_hot.get(*spaceship).is_ok_and(|hot| !hot.0);
+        let wants_fire = **input && !safety_on && !ammo.is_some_and(SectionAmmo::is_empty);
+
+        let clearing = match hold {
+            Some(mut hold) => {
+                hold.remaining -= time.delta_secs();
+                let live = hold.remaining > 0.0;
+                if !live {
+                    commands.entity(section).remove::<MuzzleDoorHold>();
+                }
+                live
+            }
+            None => false,
+        };
+
+        let target = if wants_fire || clearing { 1.0 } else { 0.0 };
+        animations.set_cue(SectionAnimationCue::MuzzleDoor, target);
     }
 }
 
@@ -526,39 +575,52 @@ mod tests {
 
     use super::*;
 
+    /// Advance the manual clock by `dt_ms` and run one frame - for the door
+    /// tests, whose apps drive `Time` by hand.
+    fn step(app: &mut App, dt_ms: u64) {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_millis(dt_ms));
+        app.update();
+    }
+
+    /// The section's `MuzzleDoor` progress: 0 closed, 1 fully open.
+    fn door_progress(app: &mut App, section: Entity) -> f32 {
+        app.world_mut()
+            .get::<SectionAnimations>(section)
+            .unwrap()
+            .cue_progress(SectionAnimationCue::MuzzleDoor)
+            .unwrap()
+    }
+
+    /// The bay's authored door track, fast, for the door tests.
+    fn door_track(open_seconds: f32, close_seconds: f32) -> SectionAnimations {
+        SectionAnimations::new(vec![SectionAnimation {
+            cue: SectionAnimationCue::MuzzleDoor,
+            node_prefix: "door_petal_".to_string(),
+            motion: SectionAnimationMotion::RotateX { degrees: 105.0 },
+            open_seconds,
+            close_seconds,
+        }])
+    }
+
     /// The launch inserts a hold; the door opens across it, and once the
     /// hold expires the cue closes again and the hold component is gone.
     #[test]
     fn a_launch_hold_opens_the_muzzle_door_and_expiry_closes_it() {
-        fn step(app: &mut App, dt_ms: u64) {
-            app.world_mut()
-                .resource_mut::<Time>()
-                .advance_by(std::time::Duration::from_millis(dt_ms));
-            app.update();
-        }
-        fn door_progress(app: &mut App, section: Entity) -> f32 {
-            app.world_mut()
-                .get::<SectionAnimations>(section)
-                .unwrap()
-                .cue_progress(SectionAnimationCue::MuzzleDoor)
-                .unwrap()
-        }
-
         let mut app = App::new();
         app.init_resource::<Time>();
         app.add_plugins(SectionAnimationPlugin);
         app.add_systems(Update, drive_muzzle_doors);
+        let ship = app.world_mut().spawn_empty().id();
         let section = app
             .world_mut()
             .spawn((
                 TorpedoSectionMarker,
-                SectionAnimations::new(vec![SectionAnimation {
-                    cue: SectionAnimationCue::MuzzleDoor,
-                    node_prefix: "door_petal_".to_string(),
-                    motion: SectionAnimationMotion::RotateX { degrees: 105.0 },
-                    open_seconds: 0.1,
-                    close_seconds: 0.1,
-                }]),
+                // Trigger released: the door stays open on the hold alone.
+                TorpedoSectionInput(false),
+                ChildOf(ship),
+                door_track(0.1, 0.1),
                 // ignition_delay 0: the hold is exactly the closing linger.
                 MuzzleDoorHold::for_launch(0.0),
             ))
@@ -581,6 +643,100 @@ mod tests {
             app.world_mut().get::<MuzzleDoorHold>(section).is_none(),
             "the hold is removed once it expires"
         );
+    }
+
+    /// The held trigger is the door intent: pressing fire opens the iris and
+    /// keeps it open with no launch and no hold, releasing closes it - and a
+    /// bay whose magazine is empty keeps its doors shut however hard the
+    /// trigger is held, so an open iris always telegraphs a live threat.
+    #[test]
+    fn the_held_trigger_opens_the_muzzle_door_and_an_empty_magazine_refuses() {
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.add_plugins(SectionAnimationPlugin);
+        app.add_systems(Update, drive_muzzle_doors);
+        let ship = app.world_mut().spawn_empty().id();
+        let section = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionMarker,
+                TorpedoSectionInput(true),
+                ChildOf(ship),
+                door_track(0.1, 0.1),
+            ))
+            .id();
+        let empty = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionMarker,
+                TorpedoSectionInput(true),
+                ChildOf(ship),
+                door_track(0.1, 0.1),
+                SectionAmmo::new(0),
+            ))
+            .id();
+
+        // Warm-up tick (dt 0), then let the open travel finish.
+        step(&mut app, 0);
+        step(&mut app, 150);
+        assert_eq!(door_progress(&mut app, section), 1.0, "held trigger opens");
+        assert_eq!(door_progress(&mut app, empty), 0.0, "empty bay stays shut");
+
+        // Release: no launch ever happened, so nothing holds the door.
+        app.world_mut()
+            .get_mut::<TorpedoSectionInput>(section)
+            .unwrap()
+            .0 = false;
+        step(&mut app, 150);
+        assert_eq!(door_progress(&mut app, section), 0.0, "release closes");
+    }
+
+    /// The door gates the ejection: a bay with an authored `MuzzleDoor` track
+    /// holds its launch until the iris is FULLY open, then fires - so the
+    /// torpedo emerges through an open door instead of materializing on a
+    /// closed one. The doorless bays in the other tests are the control: no
+    /// track, and the same trigger launches on the first ready tick.
+    #[test]
+    fn the_muzzle_door_gates_the_launch_until_it_is_fully_open() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(SectionAnimationPlugin);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(0.05),
+        ));
+        app.add_systems(
+            Update,
+            (
+                update_spawner_fire_state,
+                shoot_spawn_projectile,
+                drive_muzzle_doors,
+            )
+                .chain(),
+        );
+        let section = spawn_firing_bay(&mut app, None);
+        app.world_mut()
+            .entity_mut(section)
+            .insert(door_track(0.2, 0.2));
+
+        // Warm-up tick (dt 0), then two 0.05 s ticks: the door is mid-travel
+        // (0.2 s open), so the ready and triggered bay must not have fired.
+        app.update();
+        app.update();
+        app.update();
+        let mid = door_progress(&mut app, section);
+        assert!(0.0 < mid && mid < 1.0, "door mid-travel, at {mid}");
+        assert_eq!(
+            torpedo_count(&mut app),
+            0,
+            "no launch through a moving door"
+        );
+
+        // Let the door finish opening: the pending trigger fires through it.
+        for _ in 0..4 {
+            app.update();
+        }
+        assert_eq!(door_progress(&mut app, section), 1.0, "door fully open");
+        assert!(torpedo_count(&mut app) >= 1, "the launch went through");
     }
 
     /// A minimal app running ONLY `shoot_spawn_projectile` on a manual clock, so
