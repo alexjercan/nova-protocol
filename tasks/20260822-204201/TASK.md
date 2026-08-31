@@ -43,6 +43,49 @@ exhaust plume (thruster_section.rs:119-170), juice impact rings + shake
 (integrity/spew.rs). The authored vocabulary is `DamageEffect`
 (damage_effects.rs:59-74: Cracks, Sparks, Plume).
 
+## Vacuum roles, one line each
+
+Closes the first `## Done when` item. Every shipped family, what it is for in
+vacuum, and where the full reasoning lives. All four hanabi graphs now declare
+an explicit `OrientModifier` and no graph uses `ScreenSpaceSizeModifier`, so
+the square-billboard fix is verified across every family that draws a quad.
+Every graph's SHORTEST life is 0.05 s or more, which is three frames at 60
+fps, so none of them is eaten by the one-step extraction delay.
+
+| Family | Vacuum role | Authority |
+|---|---|---|
+| Torpedo blast ejecta | fast incandescent fragments leaving the burst, oriented along their own travel | `torpedo_section/render.rs` |
+| Torpedo blast core | the brief fireball, gone while the fragments still fly; carries the detonation light | same |
+| Torpedo launch puff | cold propellant venting as the tube ejects, riding the firing ship | same |
+| Torpedo ignition light | the drive catching, a second beat after the drop | same |
+| Turret muzzle flash | a ball of burning gas at the bore with a gas cone leaving it, sized in metres | `turret_section/render.rs` |
+| PDC tracer | one round stretched along its own travel, so a burst reads as a stream | same |
+| Impact sparks | the INSTANT a round landed - the burst, not the leak | `nova_gameplay/impact_spark.rs` |
+| Carve shards | mass that came off a body and the way it went; looks come from the body hit | `nova_gameplay/integrity/spew.rs` |
+| Severed geometry | real geometry off the carve field when a hit severs a body | `nova_gameplay/integrity/chunk.rs` |
+| Damage sparks | STATE, not event: a section failing without losing geometry | `sections/damage_sparks.rs` |
+| Damage cracks | a section failing where the surface can show it | `sections/damage_cracks.rs` |
+| Damage plume | a drive that still pushes, badly - grades the exhaust the thruster already draws | `sections/damage_plume.rs` |
+| Thruster exhaust | shader cone off the section's own throttle | `sections/thruster_section.rs` |
+| Camera shake | the felt half of a hit; kept deliberately when the rings went | `nova_gameplay/shake.rs` |
+| Gizmo impact rings | DELETED. A diagram of a hit rather than a hit | - |
+
+Tiers and budgets, for the seventh `## Done when` item. The tier policy is
+`GraphicsBudget::for_quality` and it already covers everything this task
+added. All four hanabi graphs check `budget.particles` and build nothing on
+Low. The transient-light budget is `GraphicsBudget::transient_lights` (6 on
+High, none on Low) and stage 1 measured it. The concurrent-effect budget is
+the per-instance GPU capacity each graph declares, and all four now derive
+that number in a doc comment instead of picking it - see
+`MUZZLE_FLASH_CAPACITY` for the worked form.
+
+The new impact sparks and the carve shards do NOT consult the budget, and
+that is the stated policy rather than an omission: they are meshes, and
+`for_quality` says scatter and object counts are gameplay content that a
+quality tier never thins. It is also the right call for these two in
+particular. The spark burst is what REPLACED the gizmo rings, so gating it on
+Low would leave a low-end player with no mark at the point of impact at all.
+
 ## Decisions
 
 Taken by the owner in the 2026-08-30 session. Each overrides any earlier
@@ -146,6 +189,7 @@ Three passes per row, reported mean fps / mean ms and the worst frame:
 | 3 - muzzle, unseen | c92dbf0f | 63.2 / 64.7 / 64.8 | 15.83 / 15.47 / 15.42 | 45.29 / 25.34 / 24.02 |
 | 3 - muzzle, drawn | 2cc9053e | 57.2 / 61.2 / 60.3 | 17.48 / 16.35 / 16.58 | 37.74 / 28.99 / 27.82 |
 | 4 - cold launch | d19ef956 | 59.7 / 63.3 / 60.3 | 16.76 / 15.79 / 16.58 | 31.06 / 28.80 / 30.02 |
+| 5 - muzzle halved | 420e9ae4 | 63.3 / 59.2 / 63.1 | 15.79 / 16.89 / 15.84 | 33.03 / 33.64 / 24.92 |
 
 Read the spread before reading a delta: the three baseline passes differ by
 7% in the mean with nothing changed between them, so anything under about
@@ -202,8 +246,8 @@ So row 3-drawn is where the stage actually lands, and it lands back on the
 16.67 ms line with `fps_within_baseline WARN worst +13.3%`. NOT accepted as
 final: 32 particles a frame was picked while the flash was invisible, and 230
 overlapping quads inside one 0.55-unit ball is the kind of overdraw that
-halves cheaply. The count is the lever, and pulling it is deferred to after
-stage 4 so it costs one rebuild instead of two.
+halves cheaply. Row 5 pulls that lever and shows the reasoning here was
+wrong.
 
 **Row 4 is free.** The mean sits between rows 3-drawn and 1 and the worst
 frame is the tightest spread in the table (28.8 to 31.1 ms, no outlier), and
@@ -213,6 +257,23 @@ the honest reading is that the cold launch costs nothing measurable. That is
 what it should cost: the ignition light is one transient inside the budget
 stage 1 built, and the stage REMOVED work by minting one shared launch-puff
 asset instead of one per bay spawner.
+
+**Row 5 pulled the deferred lever and the millisecond did not come back.**
+Halving the muzzle count from 32 to 16 a frame - about 230 overlapping quads
+down to 115, and the per-barrel buffer from 512 to 256 - moved the average of
+the three means from 16.38 to 16.17 ms. That is a fifth of the cost row
+3-drawn was supposed to be paying and a third of this host's pass-to-pass
+spread, so it is not a result. Two of the three passes are the fastest means
+in the table and the third is the slowest of its own row.
+
+Keep the change anyway: it draws the same ball (verified side by side at the
+same frames of the same script) for half the fill and half the buffer, so it
+costs nothing to hold. But it refutes the attribution. The 1.0 ms between
+row 3-unseen and row 3-drawn is not muzzle overdraw, because removing half
+the overdraw did not return it. What else changed in that commit was the
+blast core's orient fix, which turned a sliver drawn edge-on into a full-area
+billboard - a much larger quad than any muzzle particle, and the one
+remaining suspect.
 
 The suspected cost is entity count, not pixels. A PDC hit throws 5 sparks and a
 kill throws 20, each its own kinematic body living 0.28 s, so a sustained burst
