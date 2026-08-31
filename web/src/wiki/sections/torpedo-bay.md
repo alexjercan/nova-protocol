@@ -20,6 +20,8 @@ The torpedo bay fires **guided torpedoes** that home on the combat lock with pro
 
 A torpedo is a section like any other, so it inherits the same physics and mounting rules as the rest of the build. Where turret fire is precise and pointed, torpedoes are about zoning and catching clustered or fragile targets.
 
+**A torpedo is dropped, not fired.** The bay kicks it clear on a cold charge and the drive catches about six tenths of a second later, a few body lengths out - lighting a torch inside the hull that launched it is how a ship kills itself. For that window the torpedo is cargo: no thrust, no guidance, no fuze, and nothing that can be hit. It cannot be shot down, and it cannot touch the ship it is leaving.
+
 **The warhead bursts just before contact.** Against a locked ship or rock the fuze fires about thirty metres from the nearest part of that body. That clears the physical torpedo while landing almost full pressure on the plating. A torpedo with nothing left to touch - one sent at a bare point in space, or one whose target dies mid-flight - bursts a half-radius out instead.
 
 A blast then works from the outside in. A section that survives shields everything behind it; a destroyed section lets 65 percent of the remaining pressure continue. One hit can gut a thin craft, while a deep capital loses a local breach instead of its whole hull. Later hits travel farther through the opened hole.

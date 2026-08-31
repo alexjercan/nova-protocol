@@ -502,10 +502,11 @@ kind: Torpedo((
     spawn_offset: (0.0, 0.0, -2.0),
     spawn_rotation: (0.0, 0.0, 0.0, 1.0),
     fire_rate: 1.0,
-    spawner_speed: 1.0,
+    spawner_speed: 8.0,
     projectile_lifetime: 100.0,
     arm_time: 0.5,
     arm_distance: 5.0,
+    ignition_delay: 0.6,
     nav_constant: 3.0,
     linear_damping: 0.8,
     blast_radius: 30.0,
@@ -536,11 +537,19 @@ kind: Torpedo((
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - where the
   torpedo leaves the bay, relative to the section.
 - `fire_rate` - launches per second.
-- `spawner_speed` - launch speed in units per second.
+- `spawner_speed` - the ejection charge, in units per second. A torpedo is not
+  fired, it is dropped: this is the cold kick that pushes it clear of the hull,
+  not the speed it flies at. That comes from the drive, once it lights.
 - `projectile_lifetime` - torpedo lifetime in seconds.
 - `arm_time`, `arm_distance` - the torpedo may detonate only after this many
   seconds OR this distance from the muzzle (arms on whichever comes first), so
   it clears the firing ship.
+- `ignition_delay` - seconds the torpedo coasts INERT before its drive lights.
+  For that whole window it has no thrust, no guidance, no fuze and no colliders:
+  it can neither be shot down nor touch the ship it is leaving. Size it against
+  `spawner_speed` so the motor catches once the torpedo is clear of the hull.
+  `0.0` lights it on the first tick, which is the old launch-under-power
+  behavior.
 - `nav_constant` - the proportional-navigation constant `N` (typically 3-5;
   higher leads a moving target harder).
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
