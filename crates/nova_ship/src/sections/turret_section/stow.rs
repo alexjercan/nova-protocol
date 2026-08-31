@@ -147,7 +147,7 @@ pub(super) fn drive_turret_stow(
             Entity,
             &mut TurretStow,
             &mut SectionAnimations,
-            &ChildOf,
+            Option<&ChildOf>,
             Option<&TurretSectionTargetEntity>,
             Option<&TurretDefenseTarget>,
         ),
@@ -162,12 +162,18 @@ pub(super) fn drive_turret_stow(
     )>,
 ) {
     let dt = time.delta_secs();
-    for (turret, mut stow, mut animations, ChildOf(ship), tracked, assignment) in &mut q_turret {
-        let hot = q_hot.get(*ship).map_or(true, |hot| hot.0);
+    for (turret, mut stow, mut animations, ship, tracked, assignment) in &mut q_turret {
+        // A parentless section is unmanaged the same way a ship with no
+        // WeaponsHot is: it reads as hot, deploys and never stows, instead of
+        // arming a machine nothing can ever drive back up.
+        let hot = ship.is_none_or(|child_of| q_hot.get(child_of.0).map_or(true, |hot| hot.0));
         let tracked = tracked.is_some_and(|tracked| tracked.is_some());
         let assigned = assignment.is_some_and(|assignment| assignment.is_some());
         let wants_deployed = hot || tracked || assigned;
 
+        // An absent cue reads as already satisfied: a mount that authors only
+        // one of the two stow tracks cycles on the track it has, instead of
+        // jamming forever in a phase whose gate no track can ever report.
         let lift = animations.cue_progress(SectionAnimationCue::StowLift);
         let doors = animations.cue_progress(SectionAnimationCue::StowDoors);
         match stow.phase {
@@ -193,9 +199,9 @@ pub(super) fn drive_turret_stow(
                 if settled {
                     animations.set_cue(SectionAnimationCue::StowLift, 1.0);
                 }
-                let sunk = lift == Some(1.0);
+                let sunk = settled && lift.is_none_or(|lift| lift == 1.0);
                 animations.set_cue(SectionAnimationCue::StowDoors, if sunk { 1.0 } else { 0.0 });
-                if sunk && doors == Some(1.0) {
+                if sunk && doors.is_none_or(|doors| doors == 1.0) {
                     stow.phase = TurretStowPhase::Stowed;
                     stow.quiet_secs = 0.0;
                 }
@@ -216,9 +222,9 @@ pub(super) fn drive_turret_stow(
                 // hinges back only once the phase flips to Deployed.
                 command_stow_attitude(turret, &mut q_joint);
                 animations.set_cue(SectionAnimationCue::StowDoors, 0.0);
-                if doors == Some(0.0) {
+                if doors.is_none_or(|doors| doors == 0.0) {
                     animations.set_cue(SectionAnimationCue::StowLift, 0.0);
-                    if lift == Some(0.0) {
+                    if lift.is_none_or(|lift| lift == 0.0) {
                         stow.phase = TurretStowPhase::Deployed;
                         stow.quiet_secs = 0.0;
                         command_rest_attitude(turret, &mut q_joint);
@@ -517,6 +523,26 @@ mod tests {
     }
 
     #[test]
+    fn a_point_defense_assignment_deploys_a_cold_mount() {
+        // The Flight Computer deploys a mount by assigning it: a cold player
+        // battery's only deploy demand is `TurretDefenseTarget`, so the
+        // assignment alone must bring the mount up.
+        let mut app = stow_app(0.05);
+        let (_, turret) = spawn_stowable_turret(&mut app, false, 0.2);
+        app.update();
+        app.update();
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowed);
+
+        let torpedo = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretDefenseTarget(Some(torpedo)));
+        app.update();
+        app.update();
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deploying);
+    }
+
+    #[test]
     fn an_unmanaged_turret_deploys_and_never_stows() {
         // The fire path's fail-open, mirrored: a ship with no WeaponsHot is
         // unmanaged, so its mounts deploy at spawn and hold - bare rigs and
@@ -568,5 +594,71 @@ mod tests {
             app.world().get::<TurretStow>(turret).is_none(),
             "only a section authoring a StowLift track gets the machine"
         );
+    }
+
+    #[test]
+    fn a_mount_authoring_only_the_lift_track_cycles_without_doors() {
+        // The armer admits a section on StowLift alone, so the driver must
+        // let it through: an absent doors cue reads as satisfied, and the
+        // mount sinks and rises on the lift instead of jamming in a phase
+        // whose doors gate no track can ever report.
+        let mut app = stow_app(0.05);
+        let ship = app.world_mut().spawn(WeaponsHot(false)).id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut().entity_mut(turret).insert((
+            ChildOf(ship),
+            Transform::default(),
+            SectionAnimations::new(vec![SectionAnimation {
+                cue: SectionAnimationCue::StowLift,
+                node_prefix: "stow_lift".to_string(),
+                motion: SectionAnimationMotion::Translate {
+                    offset: Vec3::new(0.0, -0.8, 0.0),
+                },
+                open_seconds: 0.2,
+                close_seconds: 0.2,
+            }]),
+        ));
+        app.world_mut().flush();
+        app.update();
+        app.update();
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowed);
+
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
+        for _ in 0..20 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+        assert_eq!(cue(&app, turret, SectionAnimationCue::StowLift), 0.0);
+
+        // And back down: the full stow completes on the lift alone.
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(false));
+        for _ in 0..160 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowed);
+    }
+
+    #[test]
+    fn a_parentless_turret_reads_as_unmanaged_and_deploys() {
+        // No ChildOf at all: the machine still arms, and the driver treats
+        // the missing parent as unmanaged-hot, so the mount deploys instead
+        // of parking behind lids nothing can ever reopen.
+        let mut app = stow_app(0.05);
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig::default()))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((Transform::default(), stow_tracks(0.2)));
+        app.world_mut().flush();
+
+        for _ in 0..30 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
     }
 }

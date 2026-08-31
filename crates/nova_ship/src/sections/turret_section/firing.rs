@@ -99,14 +99,16 @@ pub(super) fn shoot_spawn_projectile(
         stow,
     ) in &mut q_turret
     {
-        // BEFORE the safety and its point-defence exemption: a mount that is
-        // not fully deployed cannot fire at all - a gun inside its housing
-        // has no line of fire, and the deploy travel is the design's cost.
-        // The Flight Computer deploys a mount by assigning it (the stow
-        // machine reads `TurretDefenseTarget`); it never shoots through it.
-        if stow.is_some_and(|stow| !stow.is_deployed()) {
-            continue;
-        }
+        // A mount that is not fully deployed cannot fire at all - a gun
+        // inside its housing has no line of fire, and the deploy travel is
+        // the design's cost. The gate outranks the safety and its
+        // point-defence exemption (the Flight Computer deploys a mount by
+        // assigning it - the stow machine reads `TurretDefenseTarget` - it
+        // never shoots through it), but it holds only the SHOT below: the
+        // muzzle cooldown keeps elapsing through a stow, per its own
+        // invariant, so deploying costs the authored travel and not a
+        // hidden rearm on top.
+        let deployed = stow.is_none_or(TurretStow::is_deployed);
         // The weapons safety is a LIVE predicate: a managed ship (player,
         // mirrored AI) cannot fire
         // while SAFE even mid-held-trigger - the input bool is latched, so a
@@ -171,7 +173,7 @@ pub(super) fn shoot_spawn_projectile(
             let before = fire_state.elapsed_secs();
             fire_state.tick(Duration::from_secs_f32(dt));
 
-            if !**input || !fire_state.is_finished() {
+            if !deployed || !**input || !fire_state.is_finished() {
                 continue;
             }
 

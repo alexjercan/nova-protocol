@@ -290,6 +290,16 @@ fn drive_section_animations(
 ) {
     let dt = time.delta_secs();
     for mut animations in &mut q_sections {
+        // Settle check through `Deref` only: every section carries this
+        // component and most rigs are empty or at rest, so skipping before
+        // any mutable deref keeps them out of downstream change detection.
+        if animations
+            .tracks
+            .iter()
+            .all(|track| track.progress == track.target && !track.dirty)
+        {
+            continue;
+        }
         for track in &mut animations.tracks {
             if track.progress != track.target {
                 let seconds = if track.target > track.progress {

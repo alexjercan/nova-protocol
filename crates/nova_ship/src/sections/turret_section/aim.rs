@@ -528,10 +528,29 @@ pub(super) fn update_turret_target_joints_system(
                             }
                             Some(heading)
                         } else {
-                            stored
-                                .as_ref()
-                                .and_then(|stored| stored.0)
-                                .map(|heading| Quat::from_axis_angle(a, out) * heading)
+                            // The forward sits ON the hinge axis, but the
+                            // muzzle's up vector still turns with the joint,
+                            // and its projection is exactly where the forward
+                            // lands once the barrel comes off the pole (sign
+                            // per which pole). Measuring it here is what lets
+                            // a mount that WAKES UP parked on a pole - the
+                            // stow's barrel-up snap - find its bearing at
+                            // all; the stored copy alone only covers a pole
+                            // crossed while already tracking.
+                            let ul = w2j.transform_vector3(muzzle_transform.up().into());
+                            let u_perp = ul - a * ul.dot(a);
+                            if u_perp.length() > AIM_HINGE_POLE_SIN {
+                                let heading = (u_perp * -dl.dot(a).signum()).normalize();
+                                if let Some(stored) = stored.as_mut() {
+                                    stored.0 = Some(Quat::from_axis_angle(a, -out) * heading);
+                                }
+                                Some(heading)
+                            } else {
+                                stored
+                                    .as_ref()
+                                    .and_then(|stored| stored.0)
+                                    .map(|heading| Quat::from_axis_angle(a, out) * heading)
+                            }
                         };
 
                         // A target ON the hinge axis has no bearing to steer to.
@@ -1156,6 +1175,72 @@ mod tests {
             error < 5.0,
             "turret must swing around to a target behind, not freeze forward: \
              aim error {error} deg"
+        );
+    }
+
+    #[test]
+    fn a_turret_woken_parked_on_the_zenith_finds_a_target_behind() {
+        // COLD-POLE REGRESSION: the stow snaps a cold mount's pitch onto its
+        // +90 stop, so the first solve ever runs with the muzzle exactly on
+        // the yaw pole and NO stored heading. The yaw pass must measure its
+        // bearing off the muzzle's up vector and swing; before it did, the
+        // yaw froze at rest and the pitch pinned against its stop demanding
+        // the over-the-top path - a whole battery permanently blind.
+        let mut app = aim_convergence_app();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, Transform::IDENTITY))
+            .id();
+        let turret = app
+            .world_mut()
+            .spawn(turret_section(TurretSectionConfig {
+                muzzle_speed: 1000.0,
+                ..Default::default()
+            }))
+            .id();
+        app.world_mut()
+            .entity_mut(turret)
+            .insert((ChildOf(ship), Transform::IDENTITY));
+        app.world_mut().flush();
+
+        // Park the barrel straight up before the first solve, the way the
+        // stow's snap does: every hinge output and target lands on its top
+        // stop (the free yaw stays home).
+        let joints: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, (With<TurretSectionPartOf>, With<SmoothLookRotation>)>()
+            .iter(app.world())
+            .collect();
+        for joint in joints {
+            let look = *app.world().get::<SmoothLookRotation>(joint).unwrap();
+            let parked = look.max.unwrap_or(look.initial);
+            **app
+                .world_mut()
+                .get_mut::<SmoothLookRotationTarget>(joint)
+                .unwrap() = parked;
+            **app
+                .world_mut()
+                .get_mut::<SmoothLookRotationOutput>(joint)
+                .unwrap() = parked;
+        }
+
+        // Dead behind and level: reachable only by a 180 yaw swing, which is
+        // exactly the bearing the pole solve used to lose.
+        let target = Vec3::new(0.0, 0.0, 30.0);
+        app.world_mut()
+            .entity_mut(turret)
+            .insert(TurretSectionTargetInput(Some(target)));
+        let muzzle = muzzle_entity(&app, turret);
+
+        for _ in 0..240 {
+            app.update();
+        }
+
+        let error = muzzle_aim_error_deg(&mut app, muzzle, target);
+        assert!(
+            error < 5.0,
+            "a mount woken on the zenith must find its bearing, not pin \
+             against its stop: aim error {error} deg"
         );
     }
 
