@@ -219,10 +219,21 @@ pub(super) fn shoot_spawn_projectile(
             );
             continue;
         };
-        let projectile_rotation = rotation.0 * bay_local_rot;
+        let spawner_rotation = rotation.0 * bay_local_rot;
         let projectile_position = position.0 + rotation.mul_vec3(bay_local_pos);
         // The spawner launches along its +Y (the bay's "up", as authored).
-        let spawner_direction = projectile_rotation * Vec3::Y;
+        let spawner_direction = spawner_rotation * Vec3::Y;
+        // Born NOSE ALONG TRAVEL. A torpedo's nose is its own -Z and the tube
+        // ejects along the spawner's +Y, so spawning it in the spawner's raw
+        // frame laid the warhead across its own velocity - by construction,
+        // whatever `spawn_rotation` was authored as. Thrust from tick one hid
+        // it, because the controller swung the nose round inside the frames
+        // it took the drive to matter. The cold coast does not: the torpedo
+        // now spends `ignition_delay` seconds visibly broadside to the way it
+        // is travelling. This quarter turn puts its nose on the launch axis
+        // and keeps the bay's roll about that axis.
+        let projectile_rotation =
+            spawner_rotation * Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
 
         // Inherit the full motion of the bay, not just the ship's linear
         // velocity: a bay offset from the center of mass of a rotating ship
@@ -305,16 +316,13 @@ pub(super) fn shoot_spawn_projectile(
                     nav_constant: config.nav_constant,
                     max_speed: config.torpedo_type.max_speed,
                 },
-                // The LAUNCH direction and not the transform's forward. A
-                // torpedo leaves along the bay's +Y while its own nose is its
-                // -Z, so seeding the attitude command from `forward()` asked
-                // for a nose 90 degrees off the way it was travelling. Under
-                // thrust from the first tick nobody saw it: PN guidance
-                // overwrote the seed before the controller could act on it.
-                // The cold coast is 0.6 s with guidance suspended, and the
-                // controller spent all of it turning the warhead sideways -
-                // the drive then lit across the run-in and threw the flight
-                // 13 u off the line.
+                // The LAUNCH direction, which `projectile_rotation` above now
+                // agrees with: the torpedo is born pointing this way and is
+                // asked to hold it. Seeding this from the spawner's own frame
+                // instead asked for a nose 90 degrees off the way the torpedo
+                // was travelling, and the coast gave the controller the whole
+                // window to act on it - the drive then lit across the run-in
+                // and threw the flight 13 u off the line.
                 TorpedoSteering(spawner_direction),
                 LinearDamping(config.linear_damping),
                 TorpedoBlast {
@@ -1032,6 +1040,23 @@ mod tests {
         assert!(
             steering.normalize().dot(travel.normalize()) > 0.999,
             "the nose must be held along the exit axis: steering {steering:?}, travel {travel:?}"
+        );
+
+        // And it must already BE pointed there, not merely commanded to turn.
+        // The torpedo used to be born in the spawner's own frame, which laid
+        // its -Z nose across the +Y it was leaving on - a right angle by
+        // construction, for every authored `spawn_rotation`. The coast has no
+        // thrust to swing it round inside, so the warhead flew visibly
+        // broadside for `ignition_delay` seconds.
+        let nose = app
+            .world()
+            .get::<Transform>(torpedo)
+            .expect("a launched torpedo has a transform")
+            .forward()
+            .as_vec3();
+        assert!(
+            nose.dot(travel.normalize()) > 0.999,
+            "the nose must be BORN on the exit axis: nose {nose:?}, travel {travel:?}"
         );
     }
 
