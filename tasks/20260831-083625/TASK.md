@@ -134,8 +134,11 @@ section declares an animation before modelling the second one.
 
 ## Remaining
 
-- Section animation authoring, then the bay doors use it: a sliding door
-  over the muzzle face during the `ignition_delay` window.
+- Section animation authoring, then the bay doors use it. Owner settled
+  the look (2026-08-31): an IRIS APERTURE over the muzzle face, in the
+  style of Alien Isolation's ventilation doors - petals iris open on
+  fire, then the torpedo comes out, across the `ignition_delay` window.
+  In flight on the `bay-doors` sprout.
 - PDC stow animation (future promise `20260831-083622`): barrel points up,
   the mount slides down, a cover closes over the face. May want a 1x1x2
   mount like the bay.

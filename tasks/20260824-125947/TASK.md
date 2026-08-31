@@ -44,8 +44,10 @@ Four mockups fielded on the `railgun-mockups` sprout (`e80756d9`):
 twin (1x1x3 open rails), quad (1x1x2 vented muzzle brake), coil (1x1x3
 ring stack), blade (1x1x2 vertical blade rails). Owner verdict: blend -
 the twin's open-rail read with the quad's vented muzzle brake, SINGLE
-bore, 1x1x3; the four originals stay on disk labelled dropped. The
-blend round is running on the same sprout.
+bore, 1x1x3. The blend (`railgun_lance`, `40ea4068`) is SETTLED as the
+main design idea. Final round in flight: 2-3 thickness variants (owner
+leans toward 0.75 of a cell in cross-section) for the last pick, and
+the four dropped mockups come OFF disk - git history is their record.
 
 ## Done when
 
