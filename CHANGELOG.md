@@ -15,22 +15,41 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
-### Scenarios & Objectives
+## [0.12.0] - 2026-08-31
 
+### Combat & Weapons
+- A torpedo is dropped, then lit. The bay kicks it clear inert and the motor
+  catches a few body lengths out; until it does it can neither be shot down nor
+  damage anything.
+- A bay authors `ignition_delay`: the seconds its torpedo coasts before the
+  drive lights. Zero keeps the old launch-under-power behavior.
+
+### Ships & Sections
+- The placeholder thruster nozzle glows. It called itself a hot red and had
+  albedo only, so the side away from the key light read as painted plastic.
+- The basic thruster now wears an authored exposed bell with its exhaust fitted
+  to the nozzle instead of the placeholder barrel and plume.
+- Real 3x3x2 vector and 5x5x3 capital drives join the editor, with full-size
+  mass, mounting faces, thrust, skin footprints and exhaust clearance.
+- Large WFC arena ships fly with a seeded stern stamp: one capital drive or a
+  bank of two to three vector drives.
+- Sections keep a stable name for as long as they exist, so a ship read back
+  after a trip out to flight is the ship that was built.
+
+### Scenarios & Objectives
 - A handler can say `once: true` and retire itself the first time its filters
   pass, so a beat that happens one time no longer needs a latch variable, a
   filter reading it and an action writing it.
 - A `Sequence` action runs ordered beats, each behind its own delay or event
   gate, and the engine holds the cursor - a paced chain costs one action
   instead of a handler and a step counter per beat.
-- The `OnUpdate` pulse sleeps: it fires only when a variable its filters read is
-  written, or when the clock crosses a threshold they compare against. A
-  value-gated scenario wakes on about 2% of frames.
+- The `OnUpdate` pulse sleeps: it fires only when a variable its filters read
+  is written, or when the clock crosses a threshold they compare against. A
+  value-gated scenario wakes on 2% of frames.
 - A scenario says how bright its sky comes up: `skybox_brightness`, in lux,
   defaulted so that a file authoring none still comes up at the shipped 1000.
 
 ### Modding & Mod Portal
-
 - The Ledger (1.25.0 -> 1.26.0): all five chapters rewritten onto `once`, keyed
   timers and `Sequence` - 74 handlers down to 65, and half the latch variables
   gone, 51 to 25.
@@ -44,13 +63,12 @@ does NOT get an entry - and it is the only place they are written down.
   Scenarios list without a restart.
 
 ### Interface & HUD
-
 - The editor holds a scenario of ships under a real scene tree: a click picks a
   node and two enter one, entering isolates that ship in the tree and on the
   stage, and Play compiles the scenario root.
-- Add Ship starts a blank ship - a pad marker shows where the first armed
-  part founds it - and dragging a ship at the scenario node slides it on the
-  ground plane.
+- Add Ship starts a blank ship - a pad marker shows where the first armed part
+  founds it - and dragging a ship at the scenario node slides it on the ground
+  plane.
 - The sandbox range is part of the document: its planetoid, hulks, pickets,
   beacons and lights come up as scene-tree nodes, and Play flies the range the
   tree holds rather than a fixed one.
@@ -85,29 +103,29 @@ does NOT get an entry - and it is the only place they are written down.
   the ordinal in a column the rail cannot clip, so six alike hulls stay apart.
 - Every tree row wears an icon for what it is, and resting on one reveals the
   kind that icon stands for and the whole id the row had to clip.
-- The right-hand Inspector lists a node's own fields - a thruster's, a rock's,
-  a ship's driver - read off its config by reflection; typing into one writes
-  it back, so a placed object keeps what you set.
+- The Inspector lists a node's own fields - a thruster's, a rock's, a ship's
+  driver - read off its config by reflection; typing into one writes it back,
+  so a placed object keeps what you set.
 - Inspector rows are typed to what they hold: a colour paints a swatch beside
   its hex, and an enum of bare names becomes a row of choices you can switch
   rather than a readout you cannot.
 - The Inspector opens on what a kind is authored through - a turret's fire rate
-  and ammunition, not its joint offsets - and View > All Fields brings the whole
-  config back.
-- The Inspector says a node's id under its title, and View > Ids reads the whole
-  tree as ids rather than names: what an event's filter will name them by.
+  and ammunition, not its joint offsets - and View > All Fields brings the
+  whole config back.
+- The Inspector says a node's id under its title, and View > Ids reads the
+  whole tree as ids rather than names: what an event's filter will name them
+  by.
 - SCENE and EVENTS are two modes of one screen: the world beside the Inspector,
   or the whole window given to the script - the scenario, its handlers, and
   their filters, actions, steps and gates.
 - The Inspector edits a handler like a rock: what it fires on, whether it
-  retires, and every field of every filter and action, read off the config
-  by reflection.
+  retires, and every field of every filter and action, read off the config by
+  reflection.
 - A filter or an action is switched to any other kind from its own row, and
   keeps the operands the new kind can hold.
 - An expression filter opens its condition as one page: every operator and
-  every leaf on its own row, offered the kinds its place in the grammar allows.
-  A leaf takes any expression as text, or picks one of the scenario's
-  variables.
+  every leaf on its own row, offered the kinds the grammar allows there. A leaf
+  takes text, or one of the scenario's variables.
 - A `Variable Set` action builds the value it writes on that same page, and its
   tree row reads as the assignment - `beat = beat + 1` - rather than as the
   name of a kind.
@@ -130,8 +148,8 @@ does NOT get an entry - and it is the only place they are written down.
   images, sounds and models, written as the `dep://` ref that resolves - and
   reads `unknown` beside a path no bundle ships.
 - The script opens where you are working: containers arrive shut, two clicks
-  open one, and a caret says which way each goes - a shipped scenario no
-  longer fills the rail four times over.
+  open one, and a caret says which way each goes - a shipped scenario no longer
+  fills the rail four times over.
 - A seeded spacecraft IS a ship: it wears the driver's mark, opens on a double
   click like any other, and its panel reads the hull it flies, who flies it and
   which side it is on.
@@ -146,9 +164,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Both side panels are wider and scroll: a bar beside each says how far down
   the list runs and can be dragged, and a wheel notch moves three lines of the
   list rather than one.
-- Pressing a colour's swatch opens a floating picker: four channel sliders over
-  a live preview, dragged by its bar and closed by pressing the swatch again.
-  It belongs to that row and goes away with it.
+- Pressing a colour's swatch opens a picker: four channel sliders over a live
+  preview, dragged by its bar and closed by pressing the swatch again. It
+  belongs to that row and goes away with it.
 - Back to Main Menu ends the session and deletes the scenario draft; Play
   round-trips still return to it.
 - File > Save writes the whole document, ships and range together, and File >
@@ -166,13 +184,13 @@ does NOT get an entry - and it is the only place they are written down.
   action already holding the key - instead of only in a log nobody is reading.
 - Nothing throws a document away without asking: File > New Scenario and Back
   to Main Menu both put the question up first.
-- The selected node wears a phosphor outline in every context, and resting on
-  a tree row lights the thing on the stage - and the other way round.
+- The selected node wears a phosphor outline in every context, and resting on a
+  tree row lights the thing on the stage - and the other way round.
 - A field knows what it holds: a unit, a floor and the step it drags by. A
   number is scrubbed by pulling its row's name, the pointer wrapping at the
   screen edge; a typed negative radius is refused.
-- A ship carries a name of its own, and the tree shows it with the minted id
-  on hover. The Key row is the button that arms the rebind.
+- A ship carries a name of its own, and the tree shows it with the minted id on
+  hover. The Key row is the button that arms the rebind.
 - The scenario node reports what the document holds - ships, objects, the ship
   the player flies - and authors what the range is: its name, its blurb, its
   sky and how bright that sky burns.
@@ -180,9 +198,9 @@ does NOT get an entry - and it is the only place they are written down.
   edge, and every refusal names the key that resolves it.
 - Link points read at any distance, the socket the ghost would take is marked
   apart from the rest, and a part's keybind chip stands off it on a leader.
-- The parts gallery is framed to its parts: each thumbnail fitted to the
-  part's own bounds, sockets drawn on the focus preview, and the filter
-  visible while it is set.
+- The parts gallery is framed to its parts: each thumbnail fitted to the part's
+  own bounds, sockets drawn on the focus preview, and the filter visible while
+  it is set.
 - The rail reads the ship back: turn rate, mass, thrust, hull and part count,
   and it names what holds the turn down - shorten the hull, or fit another
   computer.
@@ -195,9 +213,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Labels pinned to something in the world - a keybind chip, a NOVA OS blip -
   sat a label's height off target on a HiDPI screen. They point where they mean
   at any scale and landscape size.
-- The Controls list reads the bindings the game actually flies with, so a key
-  it prints is the key that fires. It also names what it used to omit: RCS,
-  the wheel's lock cycle, and the scenario advance.
+- The Controls list reads the bindings the game flies with, so a key it prints
+  is the key that fires. It also names what it used to omit: RCS, the wheel's
+  lock cycle, and the scenario advance.
 - The Settings panel is sized for a binding row and holds that size, and its
   body scrolls, so a longer list cannot push Back off the bottom of the card.
 - The comms stack drops its V and B keys. Dismissing the oldest card and
@@ -245,20 +263,11 @@ does NOT get an entry - and it is the only place they are written down.
 - The OBJECTIVES affordance draws the key the NOVA OS is bound to now, not the
   Tab it ships with.
 
-### Combat & Weapons
-
-- A torpedo is dropped, then lit. The bay kicks it clear inert and the motor
-  catches a few body lengths out; until it does it can neither be shot down nor
-  damage anything.
-- A bay authors `ignition_delay`: the seconds its torpedo coasts before the
-  drive lights. Zero keeps the old launch-under-power behavior.
-
 ### Audio & Visuals
-
 - A torpedo's drive lights with a flash on the bay it just left, so a launch is
   two events - the drop and the burn - instead of one.
-- A launch puff rides the ship that fired it, instead of hanging at the point in
-  space the bay had been at.
+- A launch puff rides the ship that fired it, instead of hanging at the point
+  in space the bay had been at.
 - A PDC burst reads as a stream. Each round is stretched along its own travel,
   so the gap the eye was seeing between them closes at any frame rate. It was a
   dotted line at every fire rate.
@@ -290,23 +299,11 @@ does NOT get an entry - and it is the only place they are written down.
   untextured one is a square, and no colour gradient fixes a corner.
 
 ### Performance
-
 - The target inset renders at the size of the panel it fills. It drew the whole
   scene a second time at 512 px into a 256 px panel and threw three quarters of
   those pixels away in the downscale.
 
-### Ships & Sections
-
-- The placeholder thruster nozzle glows. It called itself a hot red and had
-  albedo only, so the side away from the key light read as painted plastic.
-- The basic thruster now wears an authored exposed bell with its exhaust fitted to the nozzle instead of the placeholder barrel and plume.
-- Real 3x3x2 vector and 5x5x3 capital drives join the editor, with full-size mass, mounting faces, thrust, skin footprints and exhaust clearance.
-- Large WFC arena ships fly with a seeded stern stamp: one capital drive or a bank of two to three vector drives.
-- Sections keep a stable name for as long as they exist, so a ship read back
-  after a trip out to flight is the ship that was built.
-
 ### Fixes
-
 - A launched torpedo is pointed the way it is thrown. It was born in the bay's
   own frame, which laid its nose at a right angle to the way it was travelling
   whatever the bay authored.
@@ -319,20 +316,20 @@ does NOT get an entry - and it is the only place they are written down.
 - RCS fine adjust moves off the pad's left trigger onto the left stick click:
   it shared the trigger with Raise Weapons, so one pull did both at once.
 - The editor reads in the game's own typeface. Its text went out unmarked and
-  rendered in bevy's built-in face, which has none of the line art the panel is
-  drawn with: every picker chip was an empty box.
-- Destroyed sections keep burnt damage on detached wreckage instead of reverting
-  to pristine, and wreck meshes no longer retain dead grading references.
+  rendered in bevy's built-in face, which has none of the panel's line art:
+  every picker chip was an empty box.
+- Destroyed sections keep burnt damage on detached wreckage instead of
+  reverting to pristine, and wreck meshes no longer retain dead grading
+  references.
 - Editor section key chips no longer carry Bevy's 4 px default text shadow.
 - Typing a backquote at the NOVA OS prompt no longer cycles the HUD behind the
   monitor: the cycle key answers in flight only, so the instruments are the
   ones you left.
 
 ### Internals & Tooling
-
 - A VFX range stands a shooter and a parked target and fires muzzle, impact,
-  launch and blast on a fixed cycle, three passes to a run. It records the
-  docs loop and claims the frame-time number.
+  launch and blast on a fixed cycle, three passes to a run. It records the docs
+  loop and claims the frame-time number.
 - A `--correctness-only` run no longer claims it armed a frame-time capture it
   never planned. An example wiring `nova_frametime()` graded `armed and silent`
   on a pass the operator had declined.
@@ -370,8 +367,8 @@ does NOT get an entry - and it is the only place they are written down.
 - Autopilot scripts can press a widget twice as one gesture, so a driven walk
   can spell a double-click.
 - One arbiter owns the keyboard: a verb answers in normal mode alone, and a
-  mode - a focused field, the parts gallery, a keybind capture - takes every key
-  from the verbs, which never hear of it.
+  mode - a focused field, the parts gallery, a keybind capture - takes every
+  key from the verbs, which never hear of it.
 - A driven range presses an action by NAME - `press_action("radar_hold")` - and
   the registry decides which key that is. Twenty-six hardcoded copies of the
   binding table are gone from the fleet.
@@ -381,6 +378,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The editor's section-key chip and the NOVA OS ship viewer's read the LIVE
   binding table rather than the shipped defaults, so a moved verb takes its
   conflict warning with it.
+- A news post's images and loops are frozen under its own `news-` name: a
+  capture run refuses to overwrite one, a post may show nothing else, and no
+  living page may show one.
 - The menu tests read a scratch config root. The fixture was loading the
   developer's own `settings.ron`, so a keybind saved by playing the game
   rewrote what they asserted on.
@@ -1609,7 +1609,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/alexjercan/nova-protocol/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/alexjercan/nova-protocol/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/alexjercan/nova-protocol/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/alexjercan/nova-protocol/compare/v0.9.0...v0.9.1
