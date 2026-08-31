@@ -40,14 +40,21 @@ exist.
 
 ## Design round (2026-08-31)
 
-Four mockups fielded on the `railgun-mockups` sprout (`e80756d9`):
-twin (1x1x3 open rails), quad (1x1x2 vented muzzle brake), coil (1x1x3
-ring stack), blade (1x1x2 vertical blade rails). Owner verdict: blend -
-the twin's open-rail read with the quad's vented muzzle brake, SINGLE
-bore, 1x1x3. The blend (`railgun_lance`, `40ea4068`) is SETTLED as the
-main design idea. Final round in flight: 2-3 thickness variants (owner
-leans toward 0.75 of a cell in cross-section) for the last pick, and
-the four dropped mockups come OFF disk - git history is their record.
+Four mockups fielded on the `railgun-mockups` sprout: twin (1x1x3 open
+rails), quad (1x1x2 vented muzzle brake), coil (1x1x3 ring stack),
+blade (1x1x2 vertical blade rails). Owner verdict: blend - the twin's
+open-rail read with the quad's vented muzzle brake, SINGLE bore, 1x1x3.
+The blend (`railgun_lance`) is SETTLED as the main design idea. A
+thickness round fielded brake diameters 0.50 / 0.60 / 0.75 of the cell
+(0.90 skipped - its clamp yokes would leave the cell box); owner picked
+0.60.
+
+Landed as squash `020e3306`: the lance recipe
+(`scripts/section-part-recipes/railgun_lance.json`), the staged mockup
+(`art/part-candidates/sections/railgun_lance.glb`), and a railgun row
+in the default `screenshot_section_gallery` grid - no env switch. The
+dropped mockups and thickness variants are off disk; this section is
+their record. Design side quest CLOSED - next work here is gameplay.
 
 ## Done when
 
