@@ -104,6 +104,19 @@ section declares an animation before modelling the second one.
    the shape bench. New `screenshot_section_trials` is the live-fire
    acceptance range; `screenshot_section_weapons` gains the twin closeup.
 
+3. `0c64e2cf` - the WFC generator learns two-cell parts. Regression from 2,
+   found by the owner running `wfc_arena`: the solver was single-cell by
+   construction, so the 1x1x2 bay produced no tiles, every generated hull
+   came out bay-less, and the arena's draft panicked past its seed cap. A
+   multi-cell part now collapses as a chain of segment tiles joined across
+   their shared faces (a joint accepts exactly its own next segment; the
+   pruning passes drop a part's cells together), and the arena's drive stamp
+   carves by body rather than by position. The segment chain is the
+   mechanism the spinal railgun (`20260824-125947`) will reuse. Proof: two
+   segment tests plus the stamp suite (5 pass); both examples' walks pass
+   under Xvfb - the arena drafts bay-armed hulls again and fights to its
+   capture, and the clad posed row skins cleanly.
+
 ## Proof
 
 - 12 `standard.rs` tests pass, including: the twin splits the gatling total
