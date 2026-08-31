@@ -24,6 +24,29 @@ exist.
 - Author it in the content builders, lint it, and give the AI a firing
   rule or explicitly deny it to raiders for now - record the decision.
 
+## Owner notes (2026-08-31)
+
+- Damage: "really really powerful pierce damage that basically goes
+  through the entire ship" - one slug should cross the target's whole
+  section stack, not stop at the first hull.
+- Aiming is the ship: "you have to align the ship to be able to hit" - a
+  custom shoot mechanic, not a turret cone. The gun fires where the hull
+  points, and the skill is getting the hull pointed.
+- Cadence: "takes some time to load, has only one shot every X seconds
+  (so it's really slow reload time)" - a charge-up before the shot AND a
+  long reload after it. One shell in the air per gun, ever.
+- Model: 1x1x3 is fair. The WFC segment chain (`0c64e2cf`) already
+  places multi-cell parts, so the shape costs the generator nothing.
+
+## Design round (2026-08-31)
+
+Four mockups fielded on the `railgun-mockups` sprout (`e80756d9`):
+twin (1x1x3 open rails), quad (1x1x2 vented muzzle brake), coil (1x1x3
+ring stack), blade (1x1x2 vertical blade rails). Owner verdict: blend -
+the twin's open-rail read with the quad's vented muzzle brake, SINGLE
+bore, 1x1x3; the four originals stay on disk labelled dropped. The
+blend round is running on the same sprout.
+
 ## Done when
 
 - The railgun is a section a player can place in the editor, charge and
