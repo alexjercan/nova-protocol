@@ -1,8 +1,8 @@
 # Make particle effects credible in vacuum
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.12.0,art,vfx
+- TAGS: v0.12.0, art, vfx
 
 Rewritten 2026-08-24 for v0.12.0 with the round 4 inventory:
 `tasks/20260815-231945/CONTENT-AND-ART.md` section 3. The torpedo baseline
