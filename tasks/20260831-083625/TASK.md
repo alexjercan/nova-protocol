@@ -169,8 +169,8 @@ section declares an animation before modelling the second one.
 
 ## Remaining
 
-- PDC stow animation (future promise `20260831-083622`): barrel points up,
-  the mount slides down, a cover closes over the face. May want a 1x1x2
-  mount like the bay. Needs a slide/translate `motion` variant and a
-  `Stow` cue - deliberate skips of the door round, recorded here.
 - Changelog entry for the remodel when the release entry is written.
+
+The PDC stow promise (`20260831-083622`) is delivered: `864124bb` lands
+the Translate motion, the StowLift/StowDoors cues and the housed pit,
+closing the deliberate skips recorded here after the door round.

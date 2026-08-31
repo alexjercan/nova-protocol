@@ -1,6 +1,6 @@
 # Stow the PDC out of combat
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 70
 - TAGS: v0.13.0, ship, gameplay, art
 
@@ -144,6 +144,8 @@ published:
   attitude (the stow attitude had survived the deploy).
 - record commit: changelog entry, wiki stow section, creator `name`
   field, this file.
+
+Squash-landed on master as `864124bb` (2026-09-01).
 
 ## Proof
 
