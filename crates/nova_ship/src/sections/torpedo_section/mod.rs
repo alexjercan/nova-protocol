@@ -809,6 +809,9 @@ impl Plugin for TorpedoSectionPlugin {
                 // on a body physics is about to step has to appear on physics'
                 // own clock or the ship it was dropped from meets it mid-step.
                 ignite_cold_torpedoes,
+                // After the spawn so the launch tick's `MuzzleDoorHold`
+                // insert is visible and the iris starts opening same-tick.
+                drive_muzzle_doors,
             )
                 .chain()
                 .in_set(super::SpaceshipSectionSystems),

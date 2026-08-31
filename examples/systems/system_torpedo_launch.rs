@@ -924,10 +924,23 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// so a slow load or a slow intercept delays the walk instead of truncating it.
 /// No beat reads a quantity an assertion decides; the two settles state their
 /// reasons on [`LAUNCH_SETTLE_SECS`] and [`LEAD_SETTLE_SECS`]. The
-/// per-step deadlines NAME the beat that stalled; their
-/// runtime sum (20 + 28 + 15 + 28 + 20 + 5 = 116s, counting `fire_round`'s
-/// beats once per CALL) stays under `DEFAULT_DEADLINE_SECS` (120s) so a named
-/// stall wins the race against the generic collector deadline.
+/// per-step deadlines NAME the beat that stalled. Their sum outgrew
+/// `DEFAULT_DEADLINE_SECS` when the loop encode (60s) and the door beats
+/// joined the walk, so a stall late in the walk can hit the generic
+/// collector deadline first; raise `NOVA_AUTOPILOT_DEADLINE` when
+/// diagnosing one to get the stalled beat's name.
+///
+/// The DOOR beats run as their own short round BEFORE the gate round: shut
+/// frame at rest, one trigger pull, a fresh cold-coasting torpedo caught in
+/// the open iris, salvo taken back (see [`clear_the_door_salvo`] for why it
+/// must not fly on), close watched, shut frame again. They cannot follow the
+/// gate round: this range's 30 u blasts out-reach the 30 u near gate, so the
+/// round's own ordnance destroys the firing ship ~1.4 s after the first pair
+/// launches - which no earlier beat ever noticed, because everything after
+/// the launch reads resources and the crossing round loads a fresh ship.
+/// Each door beat waits on the muzzle-door progress the driver writes, so a
+/// door that never opens or never closes stalls the walk by name instead of
+/// shipping a wrong frame.
 #[cfg(feature = "debug")]
 fn torpedo_script() -> Script {
     let script = Script::new()
@@ -938,6 +951,45 @@ fn torpedo_script() -> Script {
         .enter(GameStates::Loading)
         .until(and(scenario_is(RANGE_ID), player_ship_present()))
         .deadline(20.0)
+        .add()
+        .step("frame the bay muzzle")
+        .on_enter(frame_the_bay_muzzle)
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("capture the iris shut")
+        .on_enter(|world: &mut World| shoot(world, "bay-doors-shut.png"))
+        .until(and(
+            the_iris_is_open(false),
+            shot_written("bay-doors-shut.png"),
+        ))
+        .deadline(5.0)
+        .add()
+        // The stance stays raised from here on; the gate round's own "raise
+        // the weapons" then passes on the already-hot safety.
+        .step("raise the weapons for the door proof")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().combat = true)
+        .until(weapons_are_hot())
+        .deadline(6.0)
+        .add()
+        .step("catch a torpedo in the open iris")
+        .on_enter(|world: &mut World| world.resource_mut::<HeldInput>().fire = true)
+        .until(and(the_iris_is_open(true), a_torpedo_is_emerging()))
+        .deadline(6.0)
+        .add()
+        .step("capture the iris open")
+        .on_enter(|world: &mut World| shoot(world, "bay-doors-open.png"))
+        .until(shot_written("bay-doors-open.png"))
+        .deadline(5.0)
+        .add()
+        .step("let the iris close")
+        .on_enter(clear_the_door_salvo)
+        .until(the_iris_is_open(false))
+        .deadline(8.0)
+        .add()
+        .step("capture the iris shut again")
+        .on_enter(|world: &mut World| shoot(world, "bay-doors-shut-again.png"))
+        .until(shot_written("bay-doors-shut-again.png"))
+        .deadline(5.0)
         .add();
     let script = fire_round(script, GATE_ROUND);
     let script = script
@@ -1035,6 +1087,33 @@ fn clear_torpedoes(world: &mut World) {
     }
 }
 
+/// End the door proof: release the trigger and take back the salvo it fired.
+///
+/// The despawn is the load-bearing half. This range's 30 u blasts out-reach
+/// the near gate 30 u away, so a torpedo allowed to fly on detonates the
+/// whole SHIP out from under the walk ~1.4 s after launch - which the gate
+/// round itself never notices (its assertions read resources, and the
+/// crossing round loads a fresh ship), but the door proof does: the closing
+/// iris it waits on would despawn with the bay. RELEASE Space too, not
+/// merely stop re-pressing it - `hold_inputs` never releases, and the bay
+/// keeps launching (and so keeps refreshing the door hold) while the key is
+/// down. Not [`clear_torpedoes`]: that one also flips the comparison shot's
+/// `TrailOnly` dressing, which must stay off here.
+#[cfg(feature = "debug")]
+fn clear_the_door_salvo(world: &mut World) {
+    world.resource_mut::<HeldInput>().fire = false;
+    world
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::Space);
+    let torpedoes: Vec<Entity> = world
+        .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
+        .iter(world)
+        .collect();
+    for torpedo in torpedoes {
+        world.despawn(torpedo);
+    }
+}
+
 #[cfg(feature = "debug")]
 fn torpedo_pair_present() -> Arc<nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
@@ -1088,6 +1167,35 @@ fn frame_the_weave(world: &mut World) {
         centre + Vec3::new(0.0, height, height * 0.27),
         centre,
     );
+}
+
+/// Put the camera off the ship's bow, looking back at a torpedo bay's muzzle
+/// face: the frame all three door captures share.
+///
+/// Framed on ONE bay - the ship mounts two, and both fire (and so open and
+/// close) in lockstep off the same trigger, so either tells the story and a
+/// shot sized to catch both head-on puts each iris a few pixels wide. A 3/4
+/// view rather than straight down the bore: edge-on, the petals' outward
+/// fold vanishes into a line, while from here it reads as depth against the
+/// recessed throat.
+#[cfg(feature = "debug")]
+fn frame_the_bay_muzzle(world: &mut World) {
+    // The HUD reticle sits exactly where the muzzle is at this framing.
+    nova_protocol::nova_debug::harness::hide_hud(world);
+    let Some(section) = world
+        .try_query_filtered::<&GlobalTransform, With<TorpedoSectionMarker>>()
+        .and_then(|mut query| query.iter(world).next().copied())
+    else {
+        return;
+    };
+    // transform_point, not translation + offset: it carries the section's
+    // rotation AND any assembly scale into the framing.
+    let muzzle = section.transform_point(Vec3::new(0.0, 0.0, -1.0));
+    // Far enough out that a caught torpedo (up to ~5 u past the muzzle, see
+    // `a_torpedo_is_emerging`) sits between the bay and the camera instead
+    // of on the near plane.
+    let eye = section.transform_point(Vec3::new(2.6, 1.9, -7.0));
+    nova_protocol::nova_debug::harness::pose_camera(world, eye, muzzle);
 }
 
 /// One full launch chain - fired, armed, detonated, target damaged - appended to
@@ -1240,6 +1348,60 @@ fn crosser_present() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 #[cfg(feature = "debug")]
 fn torpedo_armed() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     resource_where::<RangeOutcome>(|outcome| outcome.fired && outcome.armed)
+}
+
+/// Every torpedo bay's muzzle door sits at the asked-for end of its travel.
+///
+/// ALL bays, not any: the ship mounts two firing in lockstep, and the shut
+/// frames must show no cracked-open iris anywhere. False while no bay
+/// exists, so a beat waits out a scene load instead of passing vacuously.
+/// Reads the same [`SectionAnimations`] progress the driver writes - a door
+/// that never opens or never closes stalls its beat by name.
+#[cfg(feature = "debug")]
+fn the_iris_is_open(open: bool) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&SectionAnimations, With<TorpedoSectionMarker>>()
+            .is_some_and(|mut query| {
+                let mut seen = false;
+                let all_at_end = query.iter(world).all(|animations| {
+                    seen = true;
+                    animations
+                        .cue_progress(SectionAnimationCue::MuzzleDoor)
+                        .is_some_and(|progress| {
+                            if open {
+                                progress >= 1.0
+                            } else {
+                                progress <= 0.0
+                            }
+                        })
+                });
+                seen && all_at_end
+            })
+    })
+}
+
+/// A cold-launched torpedo hangs a couple of units past the muzzle: far
+/// enough out to be IN the iris frame, not yet on top of the camera.
+///
+/// `remaining` counts down from the bay's 0.6 s `ignition_delay`, so
+/// 0.2..0.4 puts the launch 0.2-0.4 s old - 3.1 to 4.7 u past the muzzle
+/// face on the 8 u/s ejection charge, mid-frame for
+/// [`frame_the_bay_muzzle`]'s pose. Sized to OVERLAP the door: the iris
+/// finishes opening 0.25 s after the launch that triggered it, so on the
+/// proof's single trigger pull the catch lands in the 0.25-0.4 s slice
+/// where the door reads fully open and the round is still framed.
+#[cfg(feature = "debug")]
+fn a_torpedo_is_emerging() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        world
+            .try_query::<&TorpedoColdLaunch>()
+            .is_some_and(|mut query| {
+                query
+                    .iter(world)
+                    .any(|cold| (0.2..=0.4).contains(&cold.remaining))
+            })
+    })
 }
 
 /// Some torpedo in the air has flown far enough for its trail to SHOW the

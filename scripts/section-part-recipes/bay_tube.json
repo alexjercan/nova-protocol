@@ -1,5 +1,5 @@
 {
-  "_comment": "BAY CANDIDATE: the straightforward launcher, 1x1x2. Full-cell end frames with an inset gunmetal body (the panel-line read the skin clads over), a proud steel muzzle collar with a dark recessed throat on the -Z face, twin copper feed conduits along the roof, a flank junction box and a status strip. The classic single-tube read: a player sees the dark circle and knows where the torpedo comes from.",
+  "_comment": "BAY WINNER: the straightforward launcher, 1x1x2. Full-cell end frames with an inset gunmetal body (the panel-line read the skin clads over), a proud steel muzzle collar, twin copper feed conduits along the roof, a flank junction box and a status strip. The muzzle is an IRIS: six gunmetal petal plates (named nodes door_petal_0..5) tile a hexagonal aperture on the collar, each authored in its own hinge frame - origin on the outer edge, X along the hinge - so the runtime MuzzleDoor track folds them outward with a local-X rotation. Behind them a recessed dark throat reads as the open bore. Closed is the rest pose the cell-box check grades.",
   "frame": "bay",
   "cells": [
     1,
@@ -131,7 +131,7 @@
     },
     {
       "primitive": "disc",
-      "radius": 0.36,
+      "radius": 0.34,
       "thickness": 0.02,
       "sides": 16,
       "rotate": [
@@ -142,7 +142,7 @@
       "at": [
         0.0,
         0.0,
-        -0.99
+        -0.865
       ],
       "material": "part_throat"
     },
@@ -248,6 +248,200 @@
         0.6
       ],
       "material": "part_glow"
+    }
+  ],
+  "nodes": [
+    {
+      "name": "door_petal_0",
+      "rotate": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.34641,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
+    },
+    {
+      "name": "door_petal_1",
+      "rotate": [
+        0.0,
+        0.0,
+        60.0
+      ],
+      "at": [
+        -0.3,
+        0.173205,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
+    },
+    {
+      "name": "door_petal_2",
+      "rotate": [
+        0.0,
+        0.0,
+        120.0
+      ],
+      "at": [
+        -0.3,
+        -0.173205,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
+    },
+    {
+      "name": "door_petal_3",
+      "rotate": [
+        0.0,
+        0.0,
+        180.0
+      ],
+      "at": [
+        0.0,
+        -0.34641,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
+    },
+    {
+      "name": "door_petal_4",
+      "rotate": [
+        0.0,
+        0.0,
+        240.0
+      ],
+      "at": [
+        0.3,
+        -0.173205,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
+    },
+    {
+      "name": "door_petal_5",
+      "rotate": [
+        0.0,
+        0.0,
+        300.0
+      ],
+      "at": [
+        0.3,
+        0.173205,
+        -0.99
+      ],
+      "parts": [
+        {
+          "primitive": "disc",
+          "radius": 0.226,
+          "thickness": 0.02,
+          "sides": 3,
+          "rotate": [
+            90.0,
+            0.0,
+            -90.0
+          ],
+          "at": [
+            0.0,
+            -0.113,
+            0.0
+          ],
+          "material": "part_gunmetal"
+        }
+      ]
     }
   ]
 }

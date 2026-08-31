@@ -1829,6 +1829,17 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
@@ -2011,6 +2022,17 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
@@ -2194,6 +2216,17 @@
                 Cracks,
                 Sparks,
             ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
         ),
         kind: Torpedo((
             render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),

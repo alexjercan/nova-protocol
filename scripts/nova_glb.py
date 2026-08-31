@@ -80,10 +80,22 @@ def write_glb(triangles, materials, material_index, generator):
     Triangles are grouped into one primitive per material. Each primitive gets a
     flat-shaded NORMAL and an explicit index buffer.
     """
-    by_material = defaultdict(list)
-    for tri in triangles:
-        by_material[tri.material].append(tri)
+    return write_glb_nodes(triangles, (), materials, material_index, generator)
 
+
+def write_glb_nodes(triangles, nodes, materials, material_index, generator):
+    """`write_glb`, plus extra NAMED child nodes a runtime can animate.
+
+    - `triangles`: the static root geometry, exactly as in `write_glb`.
+    - `nodes`: ordered [(name, translation, rotation, node_triangles)]. Each
+      entry becomes one named glTF node with its own mesh; `translation` is
+      (x, y, z), `rotation` a quaternion (x, y, z, w), and `node_triangles`
+      are authored in the NODE'S LOCAL frame - the node transform places
+      them, so a runtime that rotates the node about a local axis gets the
+      authored hinge for free.
+
+    With `nodes` empty the output is byte-identical to `write_glb`.
+    """
     bin_blob = bytearray()
     buffer_views = []
     accessors = []
@@ -98,63 +110,83 @@ def write_glb(triangles, materials, material_index, generator):
         )
         return len(buffer_views) - 1
 
-    primitives = []
-    for material_name in sorted(by_material, key=lambda m: (m is None, m)):
-        tris = by_material[material_name]
-        positions = []
-        normals = []
-        for tri in tris:
-            n = flat_normal(tri)
-            for v in tri.verts():
-                positions.append(v)
-                normals.append(n)
-        indices = list(range(len(positions)))
+    def add_mesh(mesh_triangles):
+        by_material = defaultdict(list)
+        for tri in mesh_triangles:
+            by_material[tri.material].append(tri)
 
-        pos_bytes = b"".join(struct.pack("<3f", *v) for v in positions)
-        pos_view = add_view(pos_bytes, ARRAY_BUFFER)
-        lo = [min(v[k] for v in positions) for k in range(3)]
-        hi = [max(v[k] for v in positions) for k in range(3)]
-        pos_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": pos_view,
-                "componentType": FLOAT,
-                "count": len(positions),
-                "type": "VEC3",
-                "min": lo,
-                "max": hi,
-            }
-        )
+        primitives = []
+        for material_name in sorted(by_material, key=lambda m: (m is None, m)):
+            tris = by_material[material_name]
+            positions = []
+            normals = []
+            for tri in tris:
+                n = flat_normal(tri)
+                for v in tri.verts():
+                    positions.append(v)
+                    normals.append(n)
+            indices = list(range(len(positions)))
 
-        nrm_bytes = b"".join(struct.pack("<3f", *v) for v in normals)
-        nrm_view = add_view(nrm_bytes, ARRAY_BUFFER)
-        nrm_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": nrm_view,
-                "componentType": FLOAT,
-                "count": len(normals),
-                "type": "VEC3",
-            }
-        )
+            pos_bytes = b"".join(struct.pack("<3f", *v) for v in positions)
+            pos_view = add_view(pos_bytes, ARRAY_BUFFER)
+            lo = [min(v[k] for v in positions) for k in range(3)]
+            hi = [max(v[k] for v in positions) for k in range(3)]
+            pos_acc = len(accessors)
+            accessors.append(
+                {
+                    "bufferView": pos_view,
+                    "componentType": FLOAT,
+                    "count": len(positions),
+                    "type": "VEC3",
+                    "min": lo,
+                    "max": hi,
+                }
+            )
 
-        idx_bytes = b"".join(struct.pack("<I", i) for i in indices)
-        idx_view = add_view(idx_bytes, ELEMENT_ARRAY_BUFFER)
-        idx_acc = len(accessors)
-        accessors.append(
-            {
-                "bufferView": idx_view,
-                "componentType": UINT,
-                "count": len(indices),
-                "type": "SCALAR",
-            }
-        )
+            nrm_bytes = b"".join(struct.pack("<3f", *v) for v in normals)
+            nrm_view = add_view(nrm_bytes, ARRAY_BUFFER)
+            nrm_acc = len(accessors)
+            accessors.append(
+                {
+                    "bufferView": nrm_view,
+                    "componentType": FLOAT,
+                    "count": len(normals),
+                    "type": "VEC3",
+                }
+            )
 
-        primitives.append(
+            idx_bytes = b"".join(struct.pack("<I", i) for i in indices)
+            idx_view = add_view(idx_bytes, ELEMENT_ARRAY_BUFFER)
+            idx_acc = len(accessors)
+            accessors.append(
+                {
+                    "bufferView": idx_view,
+                    "componentType": UINT,
+                    "count": len(indices),
+                    "type": "SCALAR",
+                }
+            )
+
+            primitives.append(
+                {
+                    "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
+                    "indices": idx_acc,
+                    "material": material_index.get(material_name, 0),
+                }
+            )
+        return primitives
+
+    meshes = [{"primitives": add_mesh(triangles)}]
+    node_list = [{"mesh": 0}]
+    for name, translation, rotation, node_triangles in nodes:
+        mesh_id = len(meshes)
+        meshes.append({"primitives": add_mesh(node_triangles)})
+        node_list.append(
             {
-                "attributes": {"POSITION": pos_acc, "NORMAL": nrm_acc},
-                "indices": idx_acc,
-                "material": material_index.get(material_name, 0),
+                "mesh": mesh_id,
+                "name": name,
+                "rotation": list(rotation),
+                "translation": list(translation),
             }
         )
 
@@ -167,9 +199,9 @@ def write_glb(triangles, materials, material_index, generator):
     gltf = {
         "asset": {"version": "2.0", "generator": generator},
         "scene": 0,
-        "scenes": [{"nodes": [0]}],
-        "nodes": [{"mesh": 0}],
-        "meshes": [{"primitives": primitives}],
+        "scenes": [{"nodes": list(range(len(node_list)))}],
+        "nodes": node_list,
+        "meshes": meshes,
         "materials": materials,
         "accessors": accessors,
         "bufferViews": buffer_views,

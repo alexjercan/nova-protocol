@@ -239,6 +239,9 @@ fn base_config(
         // hiding it was waiting for.
         hide_in_editor: false,
         damage_effects: role_damage_effects(spec.role),
+        // Cut-cube art has no named animation nodes - the pod bays launch
+        // through their cut hulls, not through the tube's iris.
+        animations: Vec::new(),
     }
 }
 

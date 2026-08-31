@@ -355,6 +355,7 @@ fn pdc_turret_prototype(
                 normal: Vec3::NEG_Y,
             }],
             hide_in_editor: false,
+            animations: Vec::new(),
         },
         kind: SectionKind::Turret(TurretSectionConfig {
             root: turret_joint_tree(
@@ -446,6 +447,7 @@ fn large_thruster_prototype(meshes: &BaseContentAssets, spec: LargeDriveSpec<'_>
                 DamageEffect::Sparks,
                 DamageEffect::Plume,
             ]),
+            animations: Vec::new(),
         },
         kind: SectionKind::Thruster(ThrusterSectionConfig {
             magnitude: spec.magnitude,
@@ -486,6 +488,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 link_points: unit_cube_link_points(),
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -522,6 +525,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                     normal: Vec3::NEG_Z,
                 }],
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Thruster(ThrusterSectionConfig {
                 magnitude: 1.0,
@@ -587,6 +591,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 link_points: unit_cube_link_points(),
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
                 steering_lag: 0.5,
@@ -631,6 +636,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 link_points: unit_cube_link_points(),
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull.clone()),
@@ -655,6 +661,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 link_points: unit_cube_link_points(),
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull_cargo.clone()),
@@ -675,6 +682,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: None,
                 link_points: unit_cube_link_points(),
                 hide_in_editor: false,
+                animations: Vec::new(),
             },
             kind: SectionKind::Hull(HullSectionConfig {
                 render_mesh: Some(meshes.hull_tank.clone()),
@@ -770,6 +778,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // much deeper than standard ordnance, so the editor gallery
                 // does not offer it.
                 hide_in_editor: true,
+                // The same tube art, so the same iris: see `bay_muzzle_door`.
+                animations: bay_muzzle_door(),
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
                 render_mesh: Some(meshes.torpedo_bay.clone()),
@@ -817,6 +827,27 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
     sections
 }
 
+/// The bay's muzzle-door track: the six iris petals modelled into
+/// `bay_tube.glb` as the named nodes `door_petal_0..5`, folded outward on
+/// their authored hinges. One authored fact shared by every bay that uses
+/// the tube art, which is all of them.
+///
+/// The bay's fire path steers the `MuzzleDoor` cue across the cold-coast
+/// window (`ignition_delay`, 0.6 s): the iris must be fully open well
+/// before the drive lights, so it opens fast, and it closes at an
+/// unhurried service pace once the torpedo is away.
+fn bay_muzzle_door() -> Vec<SectionAnimation> {
+    vec![SectionAnimation {
+        cue: SectionAnimationCue::MuzzleDoor,
+        node_prefix: "door_petal_".to_string(),
+        // Past vertical, so the open petals read as a flared crown around
+        // the dark throat rather than six posts.
+        motion: SectionAnimationMotion::RotateX { degrees: 105.0 },
+        open_seconds: 0.25,
+        close_seconds: 0.7,
+    }]
+}
+
 /// One assault torpedo bay, named for the ORDNANCE it loads.
 ///
 /// Everything a bay is - the tube art, the cadence, the warhead, the rack and
@@ -851,6 +882,8 @@ fn torpedo_bay_prototype(
             // A launcher is loading machinery: it arcs and sparks as it fails,
             // and the tube it fires down stays a tube.
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
+            // The iris petals modelled into the tube art: see `bay_muzzle_door`.
+            animations: bay_muzzle_door(),
         },
         kind: SectionKind::Torpedo(TorpedoSectionConfig {
             render_mesh: Some(meshes.torpedo_bay.clone()),
@@ -922,6 +955,56 @@ fn torpedo_bay_prototype(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every catalog bay that shows the tube art declares the muzzle-door
+    /// track, and the track's node prefix matches real named nodes in the
+    /// committed `bay_tube.glb` - the authored declaration and the art are
+    /// one contract, so a renamed petal node or a dropped track breaks here
+    /// rather than as doors that silently stop moving.
+    #[test]
+    fn every_tube_bay_declares_the_muzzle_door_over_the_iris_nodes() {
+        let glb = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../assets/base/gltf/bay_tube.glb"
+        ))
+        .expect("the promoted bay tube art");
+        for petal in 0..6 {
+            let name = format!("\"door_petal_{petal}\"");
+            assert!(
+                glb.windows(name.len())
+                    .any(|window| window == name.as_bytes()),
+                "bay_tube.glb has no {name} node"
+            );
+        }
+
+        for section in crate::generation::build_section_catalog() {
+            let SectionKind::Torpedo(bay) = &section.kind else {
+                continue;
+            };
+            let tube_art = bay
+                .render_mesh
+                .as_ref()
+                .and_then(|mesh| mesh.path())
+                .is_some_and(|path| path.contains("bay_tube.glb"));
+            if !tube_art {
+                continue;
+            }
+            let door = section
+                .base
+                .animations
+                .iter()
+                .find(|track| track.cue == SectionAnimationCue::MuzzleDoor)
+                .unwrap_or_else(|| {
+                    panic!("{}: tube bay without a MuzzleDoor track", section.base.id)
+                });
+            assert_eq!(door.node_prefix, "door_petal_", "{}", section.base.id);
+            assert!(
+                door.open_seconds > 0.0 && door.open_seconds < bay.ignition_delay + f32::EPSILON,
+                "{}: the iris must finish opening inside the cold coast",
+                section.base.id
+            );
+        }
+    }
 
     /// A turret a builder can PLACE stands on the section it mounts through:
     /// its turntable sits on that section's own bottom face, not on a unit

@@ -464,6 +464,59 @@ pub(super) fn shoot_spawn_projectile(
 
         // Start the next launch wait.
         fire_state.trigger();
+
+        // Swing the muzzle door open for the launch: the iris opens across
+        // the cold coast and closes once the hold runs out. Insert-refresh,
+        // so sustained fire holds the door open instead of cycling it.
+        commands
+            .entity(section)
+            .insert(MuzzleDoorHold::for_launch(config.ignition_delay));
+    }
+}
+
+/// Seconds the muzzle door stays open past ignition, so the closing petals
+/// never overlap the drive lighting right outside them.
+const MUZZLE_DOOR_LINGER: f32 = 0.3;
+
+/// Keeps a bay's muzzle-door cue open while a launched torpedo clears the
+/// tube. Inserted (or refreshed) by [`shoot_spawn_projectile`] on every
+/// launch; [`drive_muzzle_doors`] ticks it down and closes the door when it
+/// expires. The art itself is the section's authored `MuzzleDoor` animation
+/// track - a bay authoring none carries this harmlessly.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub(super) struct MuzzleDoorHold {
+    /// Seconds until the door may close.
+    remaining: f32,
+}
+
+impl MuzzleDoorHold {
+    /// The hold for one launch: the cold coast plus the closing margin.
+    fn for_launch(ignition_delay: f32) -> Self {
+        Self {
+            remaining: ignition_delay + MUZZLE_DOOR_LINGER,
+        }
+    }
+}
+
+/// Steer the `MuzzleDoor` cue: open while a launch hold is live, closed the
+/// tick it expires. On the fixed clock with the launch chain, so the door
+/// starts opening on the launch tick and its timing is deterministic.
+pub(super) fn drive_muzzle_doors(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut q_section: Query<
+        (Entity, &mut SectionAnimations, &mut MuzzleDoorHold),
+        With<TorpedoSectionMarker>,
+    >,
+) {
+    for (section, mut animations, mut hold) in &mut q_section {
+        hold.remaining -= time.delta_secs();
+        if hold.remaining > 0.0 {
+            animations.set_cue(SectionAnimationCue::MuzzleDoor, 1.0);
+        } else {
+            animations.set_cue(SectionAnimationCue::MuzzleDoor, 0.0);
+            commands.entity(section).remove::<MuzzleDoorHold>();
+        }
     }
 }
 
@@ -472,6 +525,63 @@ mod tests {
     use bevy::time::TimeUpdateStrategy;
 
     use super::*;
+
+    /// The launch inserts a hold; the door opens across it, and once the
+    /// hold expires the cue closes again and the hold component is gone.
+    #[test]
+    fn a_launch_hold_opens_the_muzzle_door_and_expiry_closes_it() {
+        fn step(app: &mut App, dt_ms: u64) {
+            app.world_mut()
+                .resource_mut::<Time>()
+                .advance_by(std::time::Duration::from_millis(dt_ms));
+            app.update();
+        }
+        fn door_progress(app: &mut App, section: Entity) -> f32 {
+            app.world_mut()
+                .get::<SectionAnimations>(section)
+                .unwrap()
+                .cue_progress(SectionAnimationCue::MuzzleDoor)
+                .unwrap()
+        }
+
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.add_plugins(SectionAnimationPlugin);
+        app.add_systems(Update, drive_muzzle_doors);
+        let section = app
+            .world_mut()
+            .spawn((
+                TorpedoSectionMarker,
+                SectionAnimations::new(vec![SectionAnimation {
+                    cue: SectionAnimationCue::MuzzleDoor,
+                    node_prefix: "door_petal_".to_string(),
+                    motion: SectionAnimationMotion::RotateX { degrees: 105.0 },
+                    open_seconds: 0.1,
+                    close_seconds: 0.1,
+                }]),
+                // ignition_delay 0: the hold is exactly the closing linger.
+                MuzzleDoorHold::for_launch(0.0),
+            ))
+            .id();
+
+        // Warm-up tick (dt 0), then run inside the hold window.
+        step(&mut app, 0);
+        step(&mut app, 150);
+        assert_eq!(
+            door_progress(&mut app, section),
+            1.0,
+            "open during the hold"
+        );
+
+        // Run past the remaining hold, then let the close travel finish.
+        step(&mut app, 200);
+        step(&mut app, 200);
+        assert_eq!(door_progress(&mut app, section), 0.0, "closed after expiry");
+        assert!(
+            app.world_mut().get::<MuzzleDoorHold>(section).is_none(),
+            "the hold is removed once it expires"
+        );
+    }
 
     /// A minimal app running ONLY `shoot_spawn_projectile` on a manual clock, so
     /// bay ammo is observed by counting launched torpedoes without the physics /

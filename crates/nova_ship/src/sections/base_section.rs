@@ -310,6 +310,16 @@ pub struct BaseSectionConfig {
         serde(default, skip_serializing_if = "DamageEffects::is_default")
     )]
     pub damage_effects: DamageEffects,
+    /// Authored animation tracks on this section's render scene: named scene
+    /// nodes driven by gameplay cues (the bay's muzzle doors; the railgun
+    /// charge and PDC stow to come). Empty - the default, elided from the
+    /// RON - means the section's art never moves. See
+    /// [`SectionAnimation`](super::section_animation::SectionAnimation).
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Vec::is_empty")
+    )]
+    pub animations: Vec<super::section_animation::SectionAnimation>,
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false: omit it
@@ -410,6 +420,9 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // because the components it names live in the render half and a
         // headless server builds this bundle too.
         config.damage_effects,
+        // The authored animation tracks, at rest. Kind systems steer the
+        // cues; the SectionAnimationPlugin systems move the scene nodes.
+        super::section_animation::SectionAnimations::new(config.animations),
         ImpactDestroySounds {
             impact: config.impact_sound.clone(),
             destroy: config.destroy_sound,

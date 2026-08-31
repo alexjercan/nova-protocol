@@ -18,6 +18,7 @@ pub mod hull_section;
 pub mod integrity;
 pub mod link_points;
 pub mod placeholder_art;
+pub mod section_animation;
 pub mod shell_shape;
 pub mod shell_skin;
 pub mod skin_decor;
@@ -36,11 +37,11 @@ pub mod prelude {
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
-        live_structure_anchor, placeholder_art::prelude::*, shell_shape::prelude::*,
-        shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
-        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
-        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
-        SpaceshipSectionSystems,
+        live_structure_anchor, placeholder_art::prelude::*, section_animation::prelude::*,
+        shell_shape::prelude::*, shell_skin::prelude::*, skin_decor::prelude::*,
+        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
+        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
+        SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -218,6 +219,10 @@ impl Plugin for SpaceshipSectionPlugin {
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
         app.add_plugins(integrity::ShipIntegrityPlugin);
+        // The authored-animation rig and driver. Unconditional, not
+        // render-gated: the components must exist headless (a server loads
+        // the same content), and without spawned scenes the rigs stay empty.
+        app.add_plugins(section_animation::SectionAnimationPlugin);
         // A successful shot resets reload progress. Run the reload pass after
         // every section fire system so the shot wins an exact completion tick.
         app.add_systems(

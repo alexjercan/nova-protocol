@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import math
 import os
 import sys
 
@@ -100,7 +101,7 @@ def _load_greebles():
 sys.path.insert(0, SCRIPT_DIR)
 gg = _load_greebles()
 
-from nova_glb import write_glb  # noqa: E402  (path set up just above)
+from nova_glb import write_glb, write_glb_nodes  # noqa: E402  (path set up just above)
 
 
 def _cells(recipe, name):
@@ -144,19 +145,80 @@ def _check_cell_box(triangles, cells, name):
     return lo, hi
 
 
+def _quat_mul(q1, q2):
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
+
+
+def _euler_quat(degrees):
+    """Euler degrees -> (x, y, z, w) quaternion, matching the X-then-Y-then-Z
+    order the recipe layer's `rotate` applies to points. Rounded so the glb
+    JSON stays byte-stable."""
+    hx, hy, hz = (math.radians(float(d)) / 2.0 for d in degrees)
+    qx = (math.sin(hx), 0.0, 0.0, math.cos(hx))
+    qy = (0.0, math.sin(hy), 0.0, math.cos(hy))
+    qz = (0.0, 0.0, math.sin(hz), math.cos(hz))
+    q = _quat_mul(qz, _quat_mul(qy, qx))
+    return tuple(round(c, gg.PRECISION) for c in q)
+
+
+def _build_nodes(recipe, name):
+    """The recipe's optional `nodes` list -> named animatable glTF nodes.
+
+    Each entry is {"name", "at", "rotate", "parts"}: `parts` are authored in
+    the NODE'S LOCAL frame (origin on the hinge, X along the hinge axis, by
+    convention - the runtime's motion archetypes rotate about local axes),
+    and `at`/`rotate` place the node in the section box. Returns
+    (writer_nodes, world_triangles, local_triangles)."""
+    writer_nodes = []
+    world = []
+    local = []
+    seen = set()
+    for node in recipe.get("nodes", ()):
+        node_name = node.get("name")
+        if not node_name or not isinstance(node_name, str):
+            raise ValueError("%s: every node needs a non-empty 'name'" % name)
+        if node_name in seen:
+            raise ValueError("%s: duplicate node name %r" % (name, node_name))
+        seen.add(node_name)
+        _, _, triangles = _build_triangles(
+            recipe, node.get("parts"), "%s/%s" % (name, node_name)
+        )
+        rotate = node.get("rotate", (0.0, 0.0, 0.0))
+        at = tuple(round(float(c), gg.PRECISION) for c in node.get("at", (0.0, 0.0, 0.0)))
+        placed = gg.quantize(gg.translate(gg.rotate(triangles, rotate), at))
+        writer_nodes.append((node_name, at, _euler_quat(rotate), triangles))
+        world.extend(placed)
+        local.extend(triangles)
+    return writer_nodes, world, local
+
+
 def build_boxed(recipe, name, frame):
-    """A bay or core recipe -> (blob, triangles). Raises on any budget or
-    structural violation, so a bad recipe fails here and never reaches the
-    gallery."""
+    """A bay or core recipe -> (blob, world triangles, mesh-local triangles).
+    Raises on any budget or structural violation, so a bad recipe fails here
+    and never reaches the gallery. The box, budget and muzzle checks grade
+    the WORLD-placed rest pose; the glb stores node meshes in local frames."""
     materials, index, triangles = _build_triangles(recipe, recipe.get("parts"), name)
+    writer_nodes, node_world, node_local = _build_nodes(recipe, name)
     cells = _cells(recipe, name)
-    lo, hi = _check_cell_box(triangles, cells, name)
+    world = triangles + node_world
+    lo, hi = _check_cell_box(world, cells, name)
     if frame == "bay" and lo[2] > -0.25 * cells[2] * CELL:
         # A bay with nothing near -Z has no mouth to launch out of.
         raise ValueError(
             "%s: forward-most geometry at z=%.4f, no muzzle presence" % (name, lo[2])
         )
-    return write_glb(triangles, materials, index, GENERATOR), triangles
+    if writer_nodes:
+        blob = write_glb_nodes(triangles, writer_nodes, materials, index, GENERATOR)
+    else:
+        blob = write_glb(triangles, materials, index, GENERATOR)
+    return blob, world, triangles + node_local
 
 
 TURRET_PARTS = ("yaw", "pitch", "barrel")
@@ -183,13 +245,18 @@ def build_turret(recipe, name):
                 "%s: %d triangles, budget %d"
                 % (full, len(triangles), MAX_TRIANGLES_PER_CELL)
             )
-        outputs[part_name] = (write_glb(triangles, materials, index, GENERATOR), triangles)
+        outputs[part_name] = (
+            write_glb(triangles, materials, index, GENERATOR),
+            triangles,
+            triangles,
+        )
     return outputs
 
 
 def build_recipe(recipe, name):
-    """A whole recipe -> {output name: (blob, triangles)}, keyed by the glb
-    stem each build writes."""
+    """A whole recipe -> {output name: (blob, world triangles, mesh-local
+    triangles)}, keyed by the glb stem each build writes. World and local
+    triangles differ only for recipes with animatable `nodes`."""
     frame = recipe.get("frame")
     if frame not in FRAMES:
         raise ValueError("%s: 'frame' must be one of %s, got %r" % (name, FRAMES, frame))
@@ -215,16 +282,16 @@ def run(recipe_dir, out_dir, check):
     stale = []
     count = 0
     for name, recipe in recipes:
-        for stem, (blob, triangles) in sorted(build_recipe(recipe, name).items()):
+        for stem, (blob, world, local) in sorted(build_recipe(recipe, name).items()):
             count += 1
             path = os.path.join(out_dir, stem + ".glb")
             if use_promoted_layout:
                 path = PROMOTED_OUTPUTS.get(stem, path)
             rel = os.path.relpath(path, REPO_ROOT)
-            lo, hi = gg.bounds(triangles)
+            lo, hi = gg.bounds(world)
             size = tuple(hi[k] - lo[k] for k in range(3))
             summary = "%-24s %4d tris  %5d B  size %.3fx%.3fx%.3f  z %.3f..%.3f" % (
-                stem, len(triangles), len(blob), size[0], size[1], size[2], lo[2], hi[2],
+                stem, len(world), len(blob), size[0], size[1], size[2], lo[2], hi[2],
             )
             if check:
                 if not os.path.exists(path):
@@ -235,7 +302,9 @@ def run(recipe_dir, out_dir, check):
                 continue
             with open(path, "wb") as handle:
                 handle.write(blob)
-            gg.verify(path, blob, triangles)
+            # Verified against the MESH-LOCAL triangles: that is what the
+            # file stores; node placement is graded in build_boxed.
+            gg.verify(path, blob, local)
             print("  %s" % summary)
 
     if check:
@@ -286,6 +355,54 @@ def self_test():
     again = build_recipe(bay, "probe")
     assert built.keys() == again.keys() == {"probe"}
     assert built["probe"][0] == again["probe"][0], "the same recipe produced different bytes"
+
+    # A recipe with animatable nodes: named glTF nodes land in the file, the
+    # bytes stay reproducible, and world/local triangles diverge only by the
+    # node placement.
+    doors = {
+        **bay,
+        "nodes": [
+            {
+                "name": "door_petal_%d" % k,
+                "rotate": [0.0, 0.0, 60.0 * k],
+                "at": [0.0, 0.3, -0.99],
+                "parts": [
+                    {
+                        "primitive": "disc",
+                        "radius": 0.2,
+                        "thickness": 0.02,
+                        "sides": 3,
+                        "rotate": [90.0, 0.0, -90.0],
+                    }
+                ],
+            }
+            for k in range(2)
+        ],
+    }
+    with_doors = build_recipe(doors, "probe")["probe"]
+    assert with_doors[0] == build_recipe(doors, "probe")["probe"][0], (
+        "a node recipe produced different bytes"
+    )
+    assert b'"name":"door_petal_1"' in with_doors[0], "node names missing from the glb"
+    assert len(with_doors[1]) == len(with_doors[2]) > len(built["probe"][1]), (
+        "node triangles missing from the check sets"
+    )
+    assert with_doors[1][-1].verts() != with_doors[2][-1].verts(), (
+        "world triangles ignore the node placement"
+    )
+
+    # Node placement is graded where the node ENDS UP, and names are unique.
+    for bad, why in (
+        ({**doors, "nodes": [{**doors["nodes"][0], "at": [0.0, 0.6, -0.99]}]}, "cell box"),
+        ({**doors, "nodes": [doors["nodes"][0], doors["nodes"][0]]}, "duplicate node name"),
+        ({**doors, "nodes": [{**doors["nodes"][0], "name": ""}]}, "non-empty 'name'"),
+    ):
+        try:
+            build_recipe(bad, "probe")
+        except ValueError as err:
+            assert why in str(err), (why, str(err))
+        else:
+            raise AssertionError("node check not enforced: %s" % why)
 
     # A turret recipe emits one glb per joint part.
     turret = {
