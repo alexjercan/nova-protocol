@@ -36,6 +36,20 @@
         "gltf/turret-pitch-01.glb",
         "gltf/turret-barrel-01.glb",
         "gltf/torpedo-bay-01.glb",
+        // Generated section parts (scripts/gen-section-parts.py), promoted by
+        // the section remodel: the catalog's hulls, controller core, PDC
+        // mounts and torpedo bay.
+        "gltf/hull_personnel.glb",
+        "gltf/hull_cargo.glb",
+        "gltf/hull_tank.glb",
+        "gltf/core_wires.glb",
+        "gltf/pdc_gatling_yaw.glb",
+        "gltf/pdc_gatling_pitch.glb",
+        "gltf/pdc_gatling_barrel.glb",
+        "gltf/pdc_twin_yaw.glb",
+        "gltf/pdc_twin_pitch.glb",
+        "gltf/pdc_twin_barrel.glb",
+        "gltf/bay_tube.glb",
         // Semantic ship parts generated from the approved Kenney recipes.
         "gltf/parts/cargoa/engine_port.glb",
         "gltf/parts/cargoa/engine_starboard.glb",

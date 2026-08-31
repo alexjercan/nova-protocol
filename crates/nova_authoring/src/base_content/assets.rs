@@ -18,17 +18,28 @@ pub struct BaseContentAssets {
     pub cubemap_alt: AssetRef<Image>,
     /// Default procedural-asteroid surface texture.
     pub asteroid_texture: AssetRef<Image>,
-    /// Standard hull mesh.
+    /// Standard hull mesh: the crew cell, a hatch on every face.
     pub hull: AssetRef<WorldAsset>,
+    /// Cargo hull variant: caged freight bags, every face alike.
+    pub hull_cargo: AssetRef<WorldAsset>,
+    /// Tank hull variant: a pressure vessel in open frame rails.
+    pub hull_tank: AssetRef<WorldAsset>,
+    /// Controller core: the cable-wrapped computer cell.
+    pub controller_core: AssetRef<WorldAsset>,
     /// Exposed bell body used by the basic thruster section.
     pub thruster_bell: AssetRef<WorldAsset>,
     /// Vectoring body used by the 3x3x2 drive.
     pub thruster_vector: AssetRef<WorldAsset>,
     /// Vectoring body used by the 5x5x3 capital drive.
     pub thruster_capital: AssetRef<WorldAsset>,
+    /// The default PDC's parts (the gatling mount).
     pub turret_yaw: AssetRef<WorldAsset>,
     pub turret_pitch: AssetRef<WorldAsset>,
     pub turret_barrel: AssetRef<WorldAsset>,
+    /// The twin PDC's parts: one barrel block, two muzzles.
+    pub turret_twin_yaw: AssetRef<WorldAsset>,
+    pub turret_twin_pitch: AssetRef<WorldAsset>,
+    pub turret_twin_barrel: AssetRef<WorldAsset>,
     pub torpedo_bay: AssetRef<WorldAsset>,
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
@@ -132,14 +143,22 @@ impl BaseContentAssets {
             cubemap: AssetRef::from("self://textures/cubemap.png".to_string()),
             cubemap_alt: AssetRef::from("self://textures/cubemap_alt.png".to_string()),
             asteroid_texture: AssetRef::from("self://textures/asteroid.png".to_string()),
-            hull: AssetRef::from("self://gltf/hull-01.glb#Scene0".to_string()),
+            hull: AssetRef::from("self://gltf/hull_personnel.glb#Scene0".to_string()),
+            hull_cargo: AssetRef::from("self://gltf/hull_cargo.glb#Scene0".to_string()),
+            hull_tank: AssetRef::from("self://gltf/hull_tank.glb#Scene0".to_string()),
+            controller_core: AssetRef::from("self://gltf/core_wires.glb#Scene0".to_string()),
             thruster_bell: AssetRef::from("self://gltf/shell_bell.glb#Scene0".to_string()),
             thruster_vector: AssetRef::from("self://gltf/shell_vector.glb#Scene0".to_string()),
             thruster_capital: AssetRef::from("self://gltf/shell_capital.glb#Scene0".to_string()),
-            turret_yaw: AssetRef::from("self://gltf/turret-yaw-01.glb#Scene0".to_string()),
-            turret_pitch: AssetRef::from("self://gltf/turret-pitch-01.glb#Scene0".to_string()),
-            turret_barrel: AssetRef::from("self://gltf/turret-barrel-01.glb#Scene0".to_string()),
-            torpedo_bay: AssetRef::from("self://gltf/torpedo-bay-01.glb#Scene0".to_string()),
+            turret_yaw: AssetRef::from("self://gltf/pdc_gatling_yaw.glb#Scene0".to_string()),
+            turret_pitch: AssetRef::from("self://gltf/pdc_gatling_pitch.glb#Scene0".to_string()),
+            turret_barrel: AssetRef::from("self://gltf/pdc_gatling_barrel.glb#Scene0".to_string()),
+            turret_twin_yaw: AssetRef::from("self://gltf/pdc_twin_yaw.glb#Scene0".to_string()),
+            turret_twin_pitch: AssetRef::from("self://gltf/pdc_twin_pitch.glb#Scene0".to_string()),
+            turret_twin_barrel: AssetRef::from(
+                "self://gltf/pdc_twin_barrel.glb#Scene0".to_string(),
+            ),
+            torpedo_bay: AssetRef::from("self://gltf/bay_tube.glb#Scene0".to_string()),
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),

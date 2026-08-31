@@ -304,8 +304,11 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
             SectionSpec::new("hull", "reinforced_hull_section", Vec3::new(0.0, 0.0, 1.0)),
-            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.0)),
-            SectionSpec::new("lance", "lance_torpedo_section", Vec3::new(1.0, 0.0, -1.0)),
+            // The bays are 1x1x2: centred at -1.5 their two cells sit on the
+            // grid, the serpent tube's aft socket mates the controller and the
+            // lance tube mates the serpent's flank.
+            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.5)),
+            SectionSpec::new("lance", "lance_torpedo_section", Vec3::new(1.0, 0.0, -1.5)),
         ],
     )
 }

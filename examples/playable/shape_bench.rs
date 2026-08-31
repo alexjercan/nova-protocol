@@ -270,12 +270,14 @@ fn roster_subjects() -> Vec<Subject> {
                 },
                 // The bay's -Z bow face is a hole, not a socket: unrotated on
                 // the bow it mates the hull behind it and fires forward, with
-                // the torpedo born two cells out into vacuum.
+                // the torpedo born clear into vacuum. The tube is 1x1x2, so
+                // the half-cell seat puts both of its cells on the grid and
+                // its aft socket against the bow face.
                 Fitting {
                     prototype: "torpedo_section",
                     cell: IVec3::new(1, 0, -1),
                     rotation: Quat::IDENTITY,
-                    offset: Vec3::ZERO,
+                    offset: Vec3::NEG_Z * 0.5,
                 },
                 // A mount bolts down by -Y and traverses out of +Y: one on the
                 // roof as authored...

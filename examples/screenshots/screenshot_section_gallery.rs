@@ -11,8 +11,8 @@
 //!   row leads with its unit-cube placeholder on purpose: that cube is why
 //!   the row exists. The controller stand is EMPTY - the shipped controller
 //!   authors no render mesh at all.
-//! - CANDIDATES: the recipe-generated parts under
-//!   `art/part-candidates/sections/` (`scripts/gen-section-parts.py`), in the
+//! - KEEPERS: the recipe-generated parts the owner picked, promoted into
+//!   `assets/base/gltf/` (`scripts/gen-section-parts.py`), in the
 //!   cross-faction mechanical voice the thruster shells set, decoded straight
 //!   off disk by `shared/glb.rs` and shown at NATIVE size - they are authored
 //!   in cell units, so what stands here is what a grid cell gets. PDC
@@ -64,8 +64,10 @@ const SUBJECT_YAW: f32 = std::f32::consts::PI - 0.55;
 /// VLS block's half height.
 const LABEL_DROP: f32 = 2.0;
 
-/// Where the candidate glbs live, relative to the crate root.
-const CANDIDATES_DIR: &str = "art/part-candidates/sections";
+/// Where the generated keeper glbs live, relative to the crate root. The
+/// picked parts promoted out of `art/part-candidates/sections/` into the
+/// asset tree; the dropped candidates stay behind as the task record.
+const PARTS_DIR: &str = "assets/base/gltf";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -306,11 +308,11 @@ fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
-/// The candidates root, resolved from the crate root like the sibling
+/// The generated-parts root, resolved from the crate root like the sibling
 /// galleries do.
-fn candidates_root() -> PathBuf {
+fn parts_root() -> PathBuf {
     let root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-    Path::new(&root).join(CANDIDATES_DIR)
+    Path::new(&root).join(PARTS_DIR)
 }
 
 fn load_gallery(
@@ -390,7 +392,7 @@ fn spawn_candidate(
     file: &str,
     pose: Transform,
 ) {
-    let path = candidates_root().join(file);
+    let path = parts_root().join(file);
     let primitives = glb::read_glb(&path);
     let (_, size) = glb::bounds(&primitives);
     info!(
@@ -418,7 +420,7 @@ fn spawn_assembly_part(
     materials: &mut Assets<StandardMaterial>,
     part: &AssemblyPart,
 ) {
-    let path = candidates_root().join(part.file);
+    let path = parts_root().join(part.file);
     for primitive in glb::read_glb(&path) {
         parent.spawn((
             Mesh3d(meshes.add(primitive.mesh())),

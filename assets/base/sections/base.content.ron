@@ -89,7 +89,7 @@
             ],
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
         )),
     )),
     Section((
@@ -831,6 +831,7 @@
         kind: Controller((
             steering_lag: 0.5,
             max_torque: 1501.0,
+            render_mesh: Some("self://gltf/core_wires.glb#Scene0"),
             lock_on_sound: Some("self://sounds/lock_on.wav"),
             lock_off_sound: Some("self://sounds/lock_off.wav"),
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
@@ -929,7 +930,193 @@
             ],
         ),
         kind: Hull((
-            render_mesh: Some("self://gltf/hull-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/hull_personnel.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "cargo_hull_section",
+            name: "Cargo Hull Section",
+            description: "A hull section packed with caged freight; every face reads the same.",
+            health: 200.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_cargo.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
+            id: "tank_hull_section",
+            name: "Tank Hull Section",
+            description: "A hull section carrying a pressure vessel in open frame rails.",
+            health: 200.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+        ),
+        kind: Hull((
+            render_mesh: Some("self://gltf/hull_tank.glb#Scene0"),
         )),
     )),
     Section((
@@ -993,7 +1180,7 @@
                             1.0,
                             0.0,
                         )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
                             scale: (
                                 0.5,
@@ -1005,8 +1192,8 @@
                             (
                                 offset: (
                                     0.0,
-                                    0.166353,
-                                    0.151977,
+                                    0.2,
+                                    0.0,
                                 ),
                                 axis: Some((
                                     1.0,
@@ -1015,7 +1202,7 @@
                                 )),
                                 min: Some(-0.17453294),
                                 max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1027,10 +1214,10 @@
                                     (
                                         offset: (
                                             0.0,
-                                            0.0642185,
-                                            -0.0553645,
+                                            0.01,
+                                            -0.05,
                                         ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1043,7 +1230,7 @@
                                                 offset: (
                                                     0.0,
                                                     0.0,
-                                                    -0.6,
+                                                    -0.475,
                                                 ),
                                                 muzzle: Some((
                                                     fire_rate: 100.0,
@@ -1131,7 +1318,7 @@
                             1.0,
                             0.0,
                         )),
-                        render_mesh: Some("self://gltf/turret-yaw-01.glb#Scene0"),
+                        render_mesh: Some("self://gltf/pdc_gatling_yaw.glb#Scene0"),
                         render_mesh_transform: Some((
                             scale: (
                                 0.5,
@@ -1143,8 +1330,8 @@
                             (
                                 offset: (
                                     0.0,
-                                    0.166353,
-                                    0.151977,
+                                    0.2,
+                                    0.0,
                                 ),
                                 axis: Some((
                                     1.0,
@@ -1153,7 +1340,7 @@
                                 )),
                                 min: Some(-0.17453294),
                                 max: Some(1.5707964),
-                                render_mesh: Some("self://gltf/turret-pitch-01.glb#Scene0"),
+                                render_mesh: Some("self://gltf/pdc_gatling_pitch.glb#Scene0"),
                                 render_mesh_transform: Some((
                                     scale: (
                                         0.5,
@@ -1165,10 +1352,10 @@
                                     (
                                         offset: (
                                             0.0,
-                                            0.0642185,
-                                            -0.0553645,
+                                            0.01,
+                                            -0.05,
                                         ),
-                                        render_mesh: Some("self://gltf/turret-barrel-01.glb#Scene0"),
+                                        render_mesh: Some("self://gltf/pdc_gatling_barrel.glb#Scene0"),
                                         render_mesh_transform: Some((
                                             scale: (
                                                 0.5,
@@ -1181,10 +1368,306 @@
                                                 offset: (
                                                     0.0,
                                                     0.0,
-                                                    -0.6,
+                                                    -0.475,
                                                 ),
                                                 muzzle: Some((
                                                     fire_rate: 100.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 2.0,
+            bullet_kind: Pierce,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_twin_kinetic_turret_section",
+            name: "Twin PDC Turret (Kinetic)",
+            description: "The same slugs from a two-barrel mount. Each tube fires at half the gatling\'s cadence, so the magazine drains no faster - the trade is two offset streams instead of one dense one.",
+            health: 130.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh_transform: Some((
+                    scale: (
+                        0.5,
+                        0.5,
+                        0.5,
+                    ),
+                )),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.05,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
+                        render_mesh_transform: Some((
+                            scale: (
+                                0.5,
+                                0.5,
+                                0.5,
+                            ),
+                        )),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.225,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.17453294),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.0,
+                                            -0.1,
+                                        ),
+                                        render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.06,
+                                                    0.0,
+                                                    -0.475,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 50.0,
+                                                )),
+                                            ),
+                                            (
+                                                offset: (
+                                                    -0.06,
+                                                    0.0,
+                                                    -0.475,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 50.0,
+                                                )),
+                                            ),
+                                        ],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+            muzzle_speed: 100.0,
+            projectile_lifetime: 2.0,
+            bullet_damage: 4.0,
+            bullet_kind: Kinetic,
+            fire_sound: Some("self://sounds/turret_fire.wav"),
+            dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            ammo_capacity: Some(500),
+            reload: Some((
+                delay: 3.0,
+                amount: 200,
+            )),
+        )),
+    )),
+    Section((
+        base: (
+            id: "pdc_twin_pierce_turret_section",
+            name: "Twin PDC Turret (Pierce)",
+            description: "Penetrators from the two-barrel mount: half per-hit damage dealt through every layer, split across two offset streams at the same total rate.",
+            health: 130.0,
+            impact_sound: Some("self://sounds/impact.wav"),
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    0.5,
+                    0.5,
+                    0.5,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "base",
+                    position: (
+                        0.0,
+                        -0.25,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Turret((
+            root: (
+                offset: (
+                    0.0,
+                    -0.25,
+                    0.0,
+                ),
+                render_mesh_transform: Some((
+                    scale: (
+                        0.5,
+                        0.5,
+                        0.5,
+                    ),
+                )),
+                children: [
+                    (
+                        offset: (
+                            0.0,
+                            0.05,
+                            0.0,
+                        ),
+                        axis: Some((
+                            0.0,
+                            1.0,
+                            0.0,
+                        )),
+                        render_mesh: Some("self://gltf/pdc_twin_yaw.glb#Scene0"),
+                        render_mesh_transform: Some((
+                            scale: (
+                                0.5,
+                                0.5,
+                                0.5,
+                            ),
+                        )),
+                        children: [
+                            (
+                                offset: (
+                                    0.0,
+                                    0.225,
+                                    0.0,
+                                ),
+                                axis: Some((
+                                    1.0,
+                                    0.0,
+                                    0.0,
+                                )),
+                                min: Some(-0.17453294),
+                                max: Some(1.5707964),
+                                render_mesh: Some("self://gltf/pdc_twin_pitch.glb#Scene0"),
+                                render_mesh_transform: Some((
+                                    scale: (
+                                        0.5,
+                                        0.5,
+                                        0.5,
+                                    ),
+                                )),
+                                children: [
+                                    (
+                                        offset: (
+                                            0.0,
+                                            0.0,
+                                            -0.1,
+                                        ),
+                                        render_mesh: Some("self://gltf/pdc_twin_barrel.glb#Scene0"),
+                                        render_mesh_transform: Some((
+                                            scale: (
+                                                0.5,
+                                                0.5,
+                                                0.5,
+                                            ),
+                                        )),
+                                        children: [
+                                            (
+                                                offset: (
+                                                    0.06,
+                                                    0.0,
+                                                    -0.475,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 50.0,
+                                                )),
+                                            ),
+                                            (
+                                                offset: (
+                                                    -0.06,
+                                                    0.0,
+                                                    -0.475,
+                                                ),
+                                                muzzle: Some((
+                                                    fire_rate: 50.0,
                                                 )),
                                             ),
                                         ],
@@ -1216,70 +1699,129 @@
             health: 100.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
             link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        0.5,
+                        1.0,
                     ),
                     normal: (
                         0.0,
                         0.0,
                         1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1289,11 +1831,11 @@
             ]),
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -2.5,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1339,70 +1881,129 @@
             health: 100.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
             link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        0.5,
+                        1.0,
                     ),
                     normal: (
                         0.0,
                         0.0,
                         1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1412,11 +2013,11 @@
             ]),
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -2.5,
             ),
             spawn_rotation: (
                 -0.70710677,
@@ -1462,70 +2063,129 @@
             health: 100.0,
             impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
             link_points: [
-                (
-                    id: "positive_x",
-                    position: (
-                        0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_x",
-                    position: (
-                        -0.5,
-                        0.0,
-                        0.0,
-                    ),
-                    normal: (
-                        -1.0,
-                        0.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "positive_y",
-                    position: (
-                        0.0,
-                        0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        1.0,
-                        0.0,
-                    ),
-                ),
-                (
-                    id: "negative_y",
-                    position: (
-                        0.0,
-                        -0.5,
-                        0.0,
-                    ),
-                    normal: (
-                        0.0,
-                        -1.0,
-                        0.0,
-                    ),
-                ),
                 (
                     id: "positive_z",
                     position: (
                         0.0,
                         0.0,
-                        0.5,
+                        1.0,
                     ),
                     normal: (
                         0.0,
                         0.0,
                         1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
                     ),
                 ),
             ],
@@ -1536,11 +2196,11 @@
             ]),
         ),
         kind: Torpedo((
-            render_mesh: Some("self://gltf/torpedo-bay-01.glb#Scene0"),
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
             spawn_offset: (
                 0.0,
                 0.0,
-                -2.0,
+                -2.5,
             ),
             spawn_rotation: (
                 -0.70710677,

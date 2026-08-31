@@ -415,6 +415,14 @@ path = "examples/screenshots/screenshot_thruster_gallery.rs"
 name = "screenshot_section_gallery"
 path = "examples/screenshots/screenshot_section_gallery.rs"
 
+# The remodel's acceptance range: both PDC mounts and the two-cell bay under
+# live scripted fire at columns built from the new hull/controller models,
+# with the walk failing unless every weapon demonstrably lands its damage
+# (task 20260831-083625).
+[[example]]
+name = "screenshot_section_trials"
+path = "examples/screenshots/screenshot_section_trials.rs"
+
 # The same ship at five damage levels, side by side: the row somebody decides
 # off whether a cracked, de-plated, scorched hull reads as broken. The row and
 # its per-level closeups are one comparison, so they stay one producer.

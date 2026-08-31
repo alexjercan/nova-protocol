@@ -78,10 +78,10 @@ fn setup_ship(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
     commands.trigger(LoadScenario(section_ship(&game_assets, &sections)));
 }
 
-/// The two weapons, one on each flank. Mount points match the ship layout in
-/// `section_ship`.
+/// The three weapons: the gatling and the bay on the flanks, the twin on the
+/// front hull's roof. Mount points match the ship layout in `section_ship`.
 #[cfg(feature = "debug")]
-fn section_shots() -> [SectionShot; 2] {
+fn section_shots() -> [SectionShot; 3] {
     [
         // Turret: the flank it is mounted on, turned enough that the barrel
         // rakes across the frame instead of foreshortening into a dot.
@@ -91,12 +91,21 @@ fn section_shots() -> [SectionShot; 2] {
             distance: 3.6,
             path: "wiki-section-turret.png",
         },
-        // Torpedo bay: the opposite flank, so the ship turns most of a
-        // revolution. Angled to keep the launch slot on the top face readable.
+        // Twin turret: on the roof, turned so both tubes read side by side
+        // instead of eclipsing each other.
         SectionShot {
-            mount: Vec3::new(-1.0, 0.0, 0.0),
+            mount: Vec3::new(0.0, 0.75, -1.0),
+            faces: Vec3::new(0.55, 0.0, -1.0),
+            distance: 3.6,
+            path: "wiki-section-turret-twin.png",
+        },
+        // Torpedo bay: the opposite flank, so the ship turns most of a
+        // revolution. Angled to keep the open muzzle and a flank of the
+        // two-cell tube in one read.
+        SectionShot {
+            mount: Vec3::new(-1.0, 0.0, 0.5),
             faces: Vec3::new(-1.0, 0.0, -0.5),
-            distance: 4.0,
+            distance: 4.5,
             path: "wiki-section-torpedo-bay.png",
         },
     ]

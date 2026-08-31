@@ -61,6 +61,19 @@ const KINETIC_PDC_BULLET_DAMAGE: f32 = 4.0;
 /// turn once the two are flown side by side.
 const PIERCE_PDC_BULLET_DAMAGE: f32 = KINETIC_PDC_BULLET_DAMAGE * 0.5;
 
+/// The gatling PDC's cadence, rounds per second out of its one muzzle. The
+/// whole gunnery curve prices itself against this number (see
+/// `KINETIC_PDC_BULLET_DAMAGE`).
+const GATLING_FIRE_RATE: f32 = 100.0;
+
+/// The twin PDC's cadence PER MUZZLE: half the gatling's, so its two streams
+/// spend the shared magazine at the same total rate and the two mounts stay
+/// the same gun in DPS terms. What the twin buys is coverage - two offset
+/// streams walking onto a target - not more damage. A playtest knob;
+/// `the_twin_mount_splits_the_same_total_rate_across_two_muzzles` pins the
+/// relation so a retune of one mount cannot silently outgun the other.
+const TWIN_FIRE_RATE: f32 = GATLING_FIRE_RATE * 0.5;
+
 /// Side of the shared PDC turret's mount box - and the scale its art is
 /// assembled at, which is the point of having one number: the collider, the
 /// sockets and the gun agree, instead of a unit-cube turret balanced on a small
@@ -87,9 +100,66 @@ const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 /// assembled at this scale needs no art transform at all.
 const UNIT_TURRET_SCALE: f32 = 1.0;
 
-/// Build the shipped turret's kinematic joint tree: base(fixed, on the mount
-/// face) -> yaw(Y, meshed) -> pitch(X, meshed, -10..90 deg) -> barrel(fixed,
-/// meshed) -> muzzle(fixed, fire point). `fire_rate` is per-muzzle.
+/// One mount's authored geometry: the three meshed parts and where each joint
+/// stands, in unit-turret space. Turret parts are generated around their own
+/// joint origins (`scripts/gen-section-parts.py`), so these offsets ARE the
+/// assembly - the section gallery example poses candidates with the same
+/// numbers, which is how they were read off in the first place.
+struct TurretArt<'a> {
+    yaw_mesh: &'a AssetRef<WorldAsset>,
+    pitch_mesh: &'a AssetRef<WorldAsset>,
+    barrel_mesh: &'a AssetRef<WorldAsset>,
+    /// The yaw turntable, above the base plate.
+    yaw_at: Vec3,
+    /// The pitch hinge, above the turntable.
+    pitch_at: Vec3,
+    /// The barrel root, off the hinge.
+    barrel_at: Vec3,
+    /// One fire point per barrel, each just past its own tip. Every muzzle
+    /// fires: the engine keeps a cadence timer and a bearing gate per muzzle
+    /// over the section's one magazine, so a second entry here IS the
+    /// double stream.
+    muzzles_at: &'a [Vec3],
+}
+
+/// The gatling's one fire point, just past its barrel tip (the barrel part
+/// reaches z -0.9 from its root).
+const GATLING_MUZZLES: [Vec3; 1] = [Vec3::new(0.0, 0.0, -0.95)];
+
+/// The twin's two fire points, one past each tube of the barrel block.
+const TWIN_MUZZLES: [Vec3; 2] = [Vec3::new(0.12, 0.0, -0.95), Vec3::new(-0.12, 0.0, -0.95)];
+
+/// The gatling mount, the default PDC: one rotary barrel cluster, one muzzle.
+fn gatling_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
+    TurretArt {
+        yaw_mesh: &meshes.turret_yaw,
+        pitch_mesh: &meshes.turret_pitch,
+        barrel_mesh: &meshes.turret_barrel,
+        yaw_at: Vec3::new(0.0, 0.1, 0.0),
+        pitch_at: Vec3::new(0.0, 0.4, 0.0),
+        barrel_at: Vec3::new(0.0, 0.02, -0.1),
+        muzzles_at: &GATLING_MUZZLES,
+    }
+}
+
+/// The twin mount: one barrel block carrying two tubes at x +-0.12, so two
+/// muzzles - and two independent fire streams over the shared magazine.
+fn twin_art(meshes: &BaseContentAssets) -> TurretArt<'_> {
+    TurretArt {
+        yaw_mesh: &meshes.turret_twin_yaw,
+        pitch_mesh: &meshes.turret_twin_pitch,
+        barrel_mesh: &meshes.turret_twin_barrel,
+        yaw_at: Vec3::new(0.0, 0.1, 0.0),
+        pitch_at: Vec3::new(0.0, 0.45, 0.0),
+        barrel_at: Vec3::new(0.0, 0.0, -0.2),
+        muzzles_at: &TWIN_MUZZLES,
+    }
+}
+
+/// Build a turret's kinematic joint tree: base(fixed, on the mount face) ->
+/// yaw(Y, meshed) -> pitch(X, meshed, -10..90 deg) -> barrel(fixed, meshed) ->
+/// one muzzle leaf (fixed, fire point) per entry in `art.muzzles_at`.
+/// `fire_rate` is per-muzzle.
 ///
 /// `mount` is the section's own half-height, and it is a PARAMETER because the
 /// base offset is where the turret STANDS: hardcoded at the unit cube's -0.5, a
@@ -104,23 +174,40 @@ const UNIT_TURRET_SCALE: f32 = 1.0;
 /// primitive a full unit across (see `insert_turret_joint_render`), so a turret
 /// mounted on anything but a unit cube wore a hull-sized dinner plate.
 ///
-/// Every shipped caller is the shared PDC, which passes its own half-size and
-/// its own size: the mount, the sockets and the gun agree by construction.
-pub(crate) fn turret_joint_tree(
-    yaw_mesh: &AssetRef<WorldAsset>,
-    pitch_mesh: &AssetRef<WorldAsset>,
-    barrel_mesh: &AssetRef<WorldAsset>,
+/// Every shipped caller is a PDC, which passes its own half-size and its own
+/// size: the mount, the sockets and the gun agree by construction.
+fn turret_joint_tree(
+    art_spec: &TurretArt<'_>,
     fire_rate: f32,
     mount: f32,
     scale: f32,
 ) -> TurretJoint {
-    // Authored at unit size and multiplied through, so the numbers below stay
-    // the ones the art was drawn against and there is one place to read them.
+    // Authored at unit size and multiplied through, so the numbers stay the
+    // ones the art was drawn against and `TurretArt` is the one place to read
+    // them.
     let at = |offset: Vec3| offset * scale;
     let art = (scale != UNIT_TURRET_SCALE).then(|| RenderMeshTransform {
         scale: Vec3::splat(scale),
         ..default()
     });
+    let muzzles = art_spec
+        .muzzles_at
+        .iter()
+        .map(|&muzzle_at| TurretJoint {
+            offset: at(muzzle_at),
+            axis: None,
+            speed: std::f32::consts::PI,
+            min: None,
+            max: None,
+            render_mesh: None,
+            render_mesh_transform: None,
+            muzzle: Some(MuzzleConfig {
+                fire_rate,
+                muzzle_effect: None,
+            }),
+            children: vec![],
+        })
+        .collect();
 
     TurretJoint {
         offset: Vec3::new(0.0, -mount, 0.0),
@@ -134,16 +221,16 @@ pub(crate) fn turret_joint_tree(
         render_mesh_transform: art,
         muzzle: None,
         children: vec![TurretJoint {
-            offset: at(Vec3::new(0.0, 0.1, 0.0)),
+            offset: at(art_spec.yaw_at),
             axis: Some(Vec3::Y),
             speed: std::f32::consts::PI, // 180 degrees per second
             min: None,
             max: None,
-            render_mesh: Some(yaw_mesh.clone()),
+            render_mesh: Some(art_spec.yaw_mesh.clone()),
             render_mesh_transform: art,
             muzzle: None,
             children: vec![TurretJoint {
-                offset: at(Vec3::new(0.0, 0.332706, 0.303954)),
+                offset: at(art_spec.pitch_at),
                 axis: Some(Vec3::X),
                 speed: std::f32::consts::PI, // 180 degrees per second
                 // Depression floor: every shipped turret is HULL-MOUNTED, so a
@@ -154,32 +241,19 @@ pub(crate) fn turret_joint_tree(
                 // stays at 90: straight up is the point-defense arc.
                 min: Some(-TURRET_DEPRESSION_LIMIT),
                 max: Some(std::f32::consts::FRAC_PI_2),
-                render_mesh: Some(pitch_mesh.clone()),
+                render_mesh: Some(art_spec.pitch_mesh.clone()),
                 render_mesh_transform: art,
                 muzzle: None,
                 children: vec![TurretJoint {
-                    offset: at(Vec3::new(0.0, 0.128437, -0.110729)),
+                    offset: at(art_spec.barrel_at),
                     axis: None,
                     speed: std::f32::consts::PI,
                     min: None,
                     max: None,
-                    render_mesh: Some(barrel_mesh.clone()),
+                    render_mesh: Some(art_spec.barrel_mesh.clone()),
                     render_mesh_transform: art,
                     muzzle: None,
-                    children: vec![TurretJoint {
-                        offset: at(Vec3::new(0.0, 0.0, -1.2)),
-                        axis: None,
-                        speed: std::f32::consts::PI,
-                        min: None,
-                        max: None,
-                        render_mesh: None,
-                        render_mesh_transform: None,
-                        muzzle: Some(MuzzleConfig {
-                            fire_rate,
-                            muzzle_effect: None,
-                        }),
-                        children: vec![],
-                    }],
+                    children: muzzles,
                 }],
             }],
         }],
@@ -188,30 +262,60 @@ pub(crate) fn turret_joint_tree(
 
 use crate::base_content::assets::BaseContentAssets;
 
-/// The unit cube's six sockets minus the one facing `open`.
+/// The bay's footprint: one cell across, two cells long down the firing axis.
+/// The promoted tube art (`bay_tube.glb`) is drawn at this size, muzzle
+/// toward -Z.
+const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
+
+/// The bay's sockets: the back plate, and one per cell on each flank - nine
+/// in all, every closed face flush with the unit grid.
 ///
-/// A hole in the art is not a mating surface. The face a bay fires through
-/// carries no structure to bolt to, and leaving it socketed let a builder
-/// plate over the muzzle - the section mated, the salvo then launched inside
-/// its own ship. Dropping the socket is what makes that placement impossible
-/// rather than merely unwise.
-fn unit_cube_link_points_without(open: Vec3) -> Vec<LinkPoint> {
-    unit_cube_link_points()
-        .into_iter()
-        .filter(|point| point.normal.dot(open) < 0.5)
-        .collect()
+/// The muzzle face (-Z) carries NONE. A hole in the art is not a mating
+/// surface: the face a bay fires through has no structure to bolt to, and
+/// leaving it socketed let a builder plate over the muzzle - the section
+/// mated, the salvo then launched inside its own ship. Dropping the socket is
+/// what makes that placement impossible rather than merely unwise.
+/// `no_bay_sockets_the_face_it_fires_through` holds every bay to it.
+fn bay_link_points() -> Vec<LinkPoint> {
+    let mut points = vec![LinkPoint {
+        id: "positive_z".to_string(),
+        position: Vec3::Z * (BAY_CELLS.z * 0.5),
+        normal: Vec3::Z,
+    }];
+    let flanks = [
+        ("positive_x", Vec3::X),
+        ("negative_x", Vec3::NEG_X),
+        ("positive_y", Vec3::Y),
+        ("negative_y", Vec3::NEG_Y),
+    ];
+    // Fore is the muzzle cell; a socket per cell is what lets a neighbouring
+    // unit section mate against either half of the tube.
+    for (face, normal) in flanks {
+        for (cell, z) in [("fore", -0.5), ("aft", 0.5)] {
+            points.push(LinkPoint {
+                id: format!("{face}_{cell}"),
+                position: normal * 0.5 + Vec3::Z * z,
+                normal,
+            });
+        }
+    }
+    points
 }
 
-/// One compact PDC prototype, parameterised on the ROUND it loads.
+/// One compact PDC prototype, parameterised on the MOUNT it wears and the
+/// ROUND it loads.
 ///
-/// The two shipped PDCs share the mount, the joint tree, the fire rate and the
-/// magazine, and differ in the only two things a round's identity needs: its
-/// type and its per-hit damage. Sharing one builder is what keeps the
+/// The shipped PDCs share the mount box, the magazine and the ballistics, and
+/// differ in exactly two authored things: the art assembly with its per-muzzle
+/// cadence (gatling: one muzzle at full rate; twin: two muzzles at half), and
+/// the round's type and per-hit damage. Sharing one builder is what keeps the
 /// side-by-side comparison honest - a mount or cadence retune cannot drift one
 /// copy against the other, so what the player feels is the punch-versus-rake
-/// difference and nothing else.
+/// (or single-versus-twin-stream) difference and nothing else.
 fn pdc_turret_prototype(
     meshes: &BaseContentAssets,
+    art: &TurretArt<'_>,
+    fire_rate: f32,
     id: &str,
     name: &str,
     description: &str,
@@ -254,10 +358,8 @@ fn pdc_turret_prototype(
         },
         kind: SectionKind::Turret(TurretSectionConfig {
             root: turret_joint_tree(
-                &meshes.turret_yaw,
-                &meshes.turret_pitch,
-                &meshes.turret_barrel,
-                100.0,
+                art,
+                fire_rate,
                 // The turret stands on THIS mount's face, not on a unit cube's,
                 // and is assembled at THIS mount's size.
                 PDC_TURRET_SIZE * 0.5,
@@ -501,7 +603,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // `DisableVerb` section modification or the `SetControllerVerb`
                 // action (the shakedown's GOTO-off intro) rather than baking it
                 // into this shared catalog entry, which the pirate reuses too.
-                render_mesh: None,
+                //
+                // The cable-wrapped computer cell: the first controller with a
+                // body of its own instead of an invisible cube. Every face
+                // carries the same signal pattern, so its rotation never shows.
+                render_mesh: Some(meshes.controller_core.clone()),
                 render_mesh_transform: None,
                 lock_on_sound: Some(meshes.controller_lock_on_sound.clone()),
                 lock_off_sound: Some(meshes.controller_lock_off_sound.clone()),
@@ -531,8 +637,54 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 render_mesh_transform: None,
             }),
         },
+        // The cargo and tank hulls are the reinforced hull in different
+        // clothes: same stats on purpose, so today they are a visual choice.
+        // The models are the investment - when real hull TYPES arrive
+        // (resources, cargo capacity), these two are where the stats land.
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "cargo_hull_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
+                name: "Cargo Hull Section".to_string(),
+                description: "A hull section packed with caged freight; every \
+                              face reads the same."
+                    .to_string(),
+                health: 200.0,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
+                link_points: unit_cube_link_points(),
+                hide_in_editor: false,
+            },
+            kind: SectionKind::Hull(HullSectionConfig {
+                render_mesh: Some(meshes.hull_cargo.clone()),
+                render_mesh_transform: None,
+            }),
+        },
+        SectionConfig {
+            base: BaseSectionConfig {
+                id: "tank_hull_section".to_string(),
+                damage_effects: DamageEffects(vec![DamageEffect::Cracks]),
+                name: "Tank Hull Section".to_string(),
+                description: "A hull section carrying a pressure vessel in \
+                              open frame rails."
+                    .to_string(),
+                health: 200.0,
+                impact_sound: Some(meshes.section_impact_sound.clone()),
+                destroy_sound: Some(meshes.section_destroy_sound.clone()),
+                collider: None,
+                link_points: unit_cube_link_points(),
+                hide_in_editor: false,
+            },
+            kind: SectionKind::Hull(HullSectionConfig {
+                render_mesh: Some(meshes.hull_tank.clone()),
+                render_mesh_transform: None,
+            }),
+        },
         pdc_turret_prototype(
             meshes,
+            &gatling_art(meshes),
+            GATLING_FIRE_RATE,
             PDC_KINETIC_TURRET_SECTION_ID,
             "PDC Turret (Kinetic)",
             "A compact point-defense mount that fits any hull face. Slugs: the \
@@ -543,12 +695,38 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         ),
         pdc_turret_prototype(
             meshes,
+            &gatling_art(meshes),
+            GATLING_FIRE_RATE,
             "pdc_pierce_turret_section",
             "PDC Turret (Pierce)",
             "The same mount firing penetrators. Half the damage per hit, dealt \
              to EVERY section the round rakes through - closing fast buys depth, \
              not damage. Worse against one thin target, better against a deep \
              one.",
+            DamageType::Pierce,
+            PIERCE_PDC_BULLET_DAMAGE,
+        ),
+        pdc_turret_prototype(
+            meshes,
+            &twin_art(meshes),
+            TWIN_FIRE_RATE,
+            "pdc_twin_kinetic_turret_section",
+            "Twin PDC Turret (Kinetic)",
+            "The same slugs from a two-barrel mount. Each tube fires at half \
+             the gatling's cadence, so the magazine drains no faster - the \
+             trade is two offset streams instead of one dense one.",
+            DamageType::Kinetic,
+            KINETIC_PDC_BULLET_DAMAGE,
+        ),
+        pdc_turret_prototype(
+            meshes,
+            &twin_art(meshes),
+            TWIN_FIRE_RATE,
+            "pdc_twin_pierce_turret_section",
+            "Twin PDC Turret (Pierce)",
+            "Penetrators from the two-barrel mount: half per-hit damage dealt \
+             through every layer, split across two offset streams at the same \
+             total rate.",
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
         ),
@@ -585,9 +763,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 health: TORPEDO_BASE_HEALTH,
                 impact_sound: Some(meshes.section_impact_sound.clone()),
                 destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                collider: None,
+                collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
                 // The same bay art at siege grade, so the same open muzzle.
-                link_points: unit_cube_link_points_without(Vec3::NEG_Z),
+                link_points: bay_link_points(),
                 // Scene dressing, not player kit: this armoured finisher cuts
                 // much deeper than standard ordnance, so the editor gallery
                 // does not offer it.
@@ -597,7 +775,9 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 render_mesh: Some(meshes.torpedo_bay.clone()),
                 render_mesh_transform: None,
                 projectile_render_mesh: None,
-                spawn_offset: Vec3::NEG_Z * 2.0,
+                // The muzzle face sits at -1; same 1.5 units of launch
+                // clearance as the standard bay.
+                spawn_offset: Vec3::NEG_Z * 2.5,
                 // Aim the tube out of the open face. The launch axis is
                 // the spawner's +Y and this turns it onto the section's -Z,
                 // the one face `link_points` leaves unlinkable so it can be
@@ -661,10 +841,12 @@ fn torpedo_bay_prototype(
             health: TORPEDO_BASE_HEALTH,
             impact_sound: Some(meshes.section_impact_sound.clone()),
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
-            collider: None,
-            // Sides and backblast only: the tube fires out of -Z
+            // Two cells long: the tube art earns its length, and the collider
+            // has to claim it or half the bay would be a ghost.
+            collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
+            // Back and flanks only: the tube fires out of -Z
             // (`spawn_offset`), so the bow face is the open muzzle.
-            link_points: unit_cube_link_points_without(Vec3::NEG_Z),
+            link_points: bay_link_points(),
             hide_in_editor: false,
             // A launcher is loading machinery: it arcs and sparks as it fails,
             // and the tube it fires down stays a tube.
@@ -674,7 +856,9 @@ fn torpedo_bay_prototype(
             render_mesh: Some(meshes.torpedo_bay.clone()),
             render_mesh_transform: None,
             projectile_render_mesh: None,
-            spawn_offset: Vec3::NEG_Z * 2.0,
+            // The muzzle face sits at -1, so this keeps the same 1.5 units of
+            // clearance the unit-cube bay launched with.
+            spawn_offset: Vec3::NEG_Z * 2.5,
             // Aim the tube out of the open face. The launch axis is
             // the spawner's +Y and this turns it onto the section's -Z,
             // the one face `link_points` leaves unlinkable so it can be
@@ -787,7 +971,12 @@ mod tests {
     /// share the builder, so both are held to it.
     #[test]
     fn the_shared_mount_sockets_only_its_base_plate() {
-        for id in ["pdc_kinetic_turret_section", "pdc_pierce_turret_section"] {
+        for id in [
+            "pdc_kinetic_turret_section",
+            "pdc_pierce_turret_section",
+            "pdc_twin_kinetic_turret_section",
+            "pdc_twin_pierce_turret_section",
+        ] {
             let mount = crate::generation::build_section_catalog()
                 .into_iter()
                 .find(|section| section.base.id == id)
@@ -917,7 +1106,22 @@ mod tests {
     fn a_scaled_turret_tree_scales_its_offsets_and_its_art_together() {
         let mesh = |name: &str| AssetRef::<WorldAsset>::from(name.to_string());
         let (yaw, pitch, barrel) = (mesh("yaw"), mesh("pitch"), mesh("barrel"));
-        let tree = |scale: f32| turret_joint_tree(&yaw, &pitch, &barrel, 100.0, 0.5, scale);
+        let tree = |scale: f32| {
+            turret_joint_tree(
+                &TurretArt {
+                    yaw_mesh: &yaw,
+                    pitch_mesh: &pitch,
+                    barrel_mesh: &barrel,
+                    yaw_at: Vec3::new(0.0, 0.1, 0.0),
+                    pitch_at: Vec3::new(0.0, 0.4, 0.0),
+                    barrel_at: Vec3::new(0.0, 0.02, -0.1),
+                    muzzles_at: &[Vec3::new(0.0, 0.0, -0.95)],
+                },
+                100.0,
+                0.5,
+                scale,
+            )
+        };
 
         let unit = tree(UNIT_TURRET_SCALE);
         let half = tree(0.5);
@@ -990,46 +1194,151 @@ mod tests {
         assert_eq!(CONTROLLER_BASE_HEALTH, TORPEDO_BASE_HEALTH);
     }
 
-    /// The two shipped PDCs exist to be COMPARED: mount one of each and the only
-    /// difference the player can feel is the ROUND - its type and its per-hit
-    /// damage. Mount, joint tree, fire rate and magazine must be identical, or
-    /// the comparison measures something else. Debug strings stand in for
-    /// structural equality (`TurretSectionConfig` has no `PartialEq`), which is
-    /// enough to catch any other field drifting between them.
+    fn catalog_turret(id: &str) -> TurretSectionConfig {
+        crate::generation::build_section_catalog()
+            .into_iter()
+            .find(|section| section.base.id == id)
+            .map(|section| match section.kind {
+                SectionKind::Turret(turret) => turret,
+                other => panic!("`{id}` is not a turret: {other:?}"),
+            })
+            .unwrap_or_else(|| panic!("the catalog ships `{id}`"))
+    }
+
+    /// Every fire rate in a turret tree, one per muzzle leaf.
+    fn muzzle_rates(joint: &TurretJoint) -> Vec<f32> {
+        let mut rates: Vec<f32> = joint
+            .muzzle
+            .as_ref()
+            .map(|muzzle| muzzle.fire_rate)
+            .into_iter()
+            .collect();
+        for child in &joint.children {
+            rates.extend(muzzle_rates(child));
+        }
+        rates
+    }
+
+    /// Each mount's two PDCs exist to be COMPARED: mount one of each and the
+    /// only difference the player can feel is the ROUND - its type and its
+    /// per-hit damage. Mount, joint tree, fire rate and magazine must be
+    /// identical, or the comparison measures something else. Debug strings
+    /// stand in for structural equality (`TurretSectionConfig` has no
+    /// `PartialEq`), which is enough to catch any other field drifting between
+    /// them. Both the gatling pair and the twin pair are held to it.
     #[test]
     fn the_two_pdcs_differ_only_in_the_round_they_load() {
-        let turret = |id: &str| {
-            crate::generation::build_section_catalog()
-                .into_iter()
-                .find(|section| section.base.id == id)
-                .map(|section| match section.kind {
-                    SectionKind::Turret(turret) => turret,
-                    other => panic!("`{id}` is not a turret: {other:?}"),
-                })
-                .unwrap_or_else(|| panic!("the catalog ships `{id}`"))
-        };
-        let kinetic = turret("pdc_kinetic_turret_section");
-        let mut pierce = turret("pdc_pierce_turret_section");
+        for (kinetic_id, pierce_id) in [
+            ("pdc_kinetic_turret_section", "pdc_pierce_turret_section"),
+            (
+                "pdc_twin_kinetic_turret_section",
+                "pdc_twin_pierce_turret_section",
+            ),
+        ] {
+            let kinetic = catalog_turret(kinetic_id);
+            let mut pierce = catalog_turret(pierce_id);
 
-        assert_eq!(kinetic.bullet_kind, DamageType::Kinetic);
-        assert_eq!(pierce.bullet_kind, DamageType::Pierce);
-        // The trade: a rake gives up per-hit damage for depth, so the slug must
-        // stay the harder single hit. Without this the two guns would be a
-        // strict upgrade rather than a choice.
-        assert!(
-            pierce.bullet_damage < kinetic.bullet_damage,
-            "the pierce PDC must hit softer per contact ({} vs {})",
-            pierce.bullet_damage,
-            kinetic.bullet_damage
-        );
+            assert_eq!(kinetic.bullet_kind, DamageType::Kinetic);
+            assert_eq!(pierce.bullet_kind, DamageType::Pierce);
+            // The trade: a rake gives up per-hit damage for depth, so the slug
+            // must stay the harder single hit. Without this the two guns would
+            // be a strict upgrade rather than a choice.
+            assert!(
+                pierce.bullet_damage < kinetic.bullet_damage,
+                "`{pierce_id}` must hit softer per contact ({} vs {})",
+                pierce.bullet_damage,
+                kinetic.bullet_damage
+            );
 
-        pierce.bullet_kind = kinetic.bullet_kind;
-        pierce.bullet_damage = kinetic.bullet_damage;
+            pierce.bullet_kind = kinetic.bullet_kind;
+            pierce.bullet_damage = kinetic.bullet_damage;
+            assert_eq!(
+                format!("{kinetic:?}"),
+                format!("{pierce:?}"),
+                "`{kinetic_id}` and `{pierce_id}` must be the same gun apart \
+                 from the round they load"
+            );
+        }
+    }
+
+    /// The twin is the gatling's coverage variant, not its upgrade: two
+    /// muzzles, each at half the gatling's cadence, so both mounts spend the
+    /// shared magazine at the same total rate and the choice between them is
+    /// stream shape, not DPS. The mirrored muzzle offsets are the coverage:
+    /// two streams a barrel-spacing apart instead of one dense one.
+    #[test]
+    fn the_twin_mount_splits_the_same_total_rate_across_two_muzzles() {
+        let gatling = muzzle_rates(&catalog_turret("pdc_kinetic_turret_section").root);
+        let twin = muzzle_rates(&catalog_turret("pdc_twin_kinetic_turret_section").root);
+        assert_eq!(gatling.len(), 1, "the gatling fires one stream");
+        assert_eq!(twin.len(), 2, "the twin fires two streams");
         assert_eq!(
-            format!("{kinetic:?}"),
-            format!("{pierce:?}"),
-            "the two PDCs must be the same gun apart from the round they load"
+            gatling.iter().sum::<f32>(),
+            twin.iter().sum::<f32>(),
+            "the two mounts must drain the shared magazine at the same total rate"
         );
+
+        // Walk to the barrel joint: its children are the muzzle leaves.
+        let root = catalog_turret("pdc_twin_kinetic_turret_section").root;
+        let mut barrel = &root;
+        while barrel.children.len() == 1 {
+            barrel = &barrel.children[0];
+        }
+        let [port, starboard] = barrel.children.as_slice() else {
+            panic!("the twin barrel carries two muzzle leaves");
+        };
+        assert!(
+            port.offset.x > 0.0 && (port.offset.x + starboard.offset.x).abs() < 1e-6,
+            "the twin's muzzles mirror across the barrel line ({} vs {})",
+            port.offset.x,
+            starboard.offset.x
+        );
+    }
+
+    /// The promoted bay is a 1x1x2 tube. Its collider has to claim both cells
+    /// (or half the bay is a ghost the editor and weapons fire through), and
+    /// its launch point has to clear the longer tube by the same 1.5 units the
+    /// unit-cube bay launched with. Checked over every bay THIS module builds
+    /// - the ships' own torpedo pods author their own hull-fitted shapes and
+    /// are not the tube.
+    #[test]
+    fn every_bay_claims_both_cells_and_launches_clear_of_its_tube() {
+        let catalog = crate::generation::build_section_catalog();
+        for id in [
+            "torpedo_section",
+            "lance_torpedo_section",
+            "heavy_torpedo_section",
+        ] {
+            let section = catalog
+                .iter()
+                .find(|section| section.base.id == id)
+                .unwrap_or_else(|| panic!("the catalog ships `{id}`"));
+            let SectionKind::Torpedo(bay) = &section.kind else {
+                panic!("`{id}` is a torpedo bay");
+            };
+            assert_eq!(
+                section.base.collider,
+                Some(SectionCollider::Cuboid { size: BAY_CELLS }),
+                "`{id}` claims its two cells"
+            );
+            assert!(
+                bay.spawn_offset.z <= -(BAY_CELLS.z * 0.5 + 1.0),
+                "`{id}` launches at {} - inside or too close to its own tube",
+                bay.spawn_offset.z
+            );
+            // Nine sockets: the back plate, and one per cell on each flank so
+            // unit neighbours mate against either half of the tube.
+            assert_eq!(section.base.link_points.len(), 9, "`{id}` sockets");
+            for point in &section.base.link_points {
+                assert!(
+                    (point.position.dot(point.normal) - point.normal.abs().dot(BAY_CELLS) * 0.5)
+                        .abs()
+                        < 1e-6,
+                    "`{id}` socket `{}` floats off its face",
+                    point.id
+                );
+            }
+        }
     }
 
     /// Anti-regression guard for the PDC one-shot fix: the player PDC's per-hit

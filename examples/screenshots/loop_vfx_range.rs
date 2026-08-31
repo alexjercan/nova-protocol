@@ -217,7 +217,9 @@ fn shooter(sections: &GameSections) -> ScenarioObjectConfig {
             PDC_KINETIC_TURRET_SECTION_ID,
             Vec3::new(0.0, TURRET_MOUNT_Y, 0.0),
         ),
-        SectionSpec::new("bay", TORPEDO_BAY_SECTION_ID, Vec3::new(0.0, -1.0, 0.0)),
+        // The bay is 1x1x2: the half-cell shift puts both of its cells on the
+        // grid, roof sockets against the spine and the controller.
+        SectionSpec::new("bay", TORPEDO_BAY_SECTION_ID, Vec3::new(0.0, -1.0, 0.5)),
     ];
     toughened(
         SHOOTER_ID,

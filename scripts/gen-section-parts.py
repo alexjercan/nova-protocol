@@ -48,6 +48,27 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 RECIPE_DIR = os.path.join(SCRIPT_DIR, "section-part-recipes")
 OUT_DIR = os.path.join(REPO_ROOT, "art", "part-candidates", "sections")
 
+# The owner-picked parts ship: their builds land on the asset paths the
+# section catalog references (same contract as gen-thruster-shells.py).
+# Everything else stays a candidate under `art/`.
+PROMOTED_STEMS = (
+    "bay_tube",
+    "pdc_gatling_yaw",
+    "pdc_gatling_pitch",
+    "pdc_gatling_barrel",
+    "pdc_twin_yaw",
+    "pdc_twin_pitch",
+    "pdc_twin_barrel",
+    "hull_personnel",
+    "hull_cargo",
+    "hull_tank",
+    "core_wires",
+)
+PROMOTED_OUTPUTS = {
+    stem: os.path.join(REPO_ROOT, "assets", "base", "gltf", stem + ".glb")
+    for stem in PROMOTED_STEMS
+}
+
 GENERATOR = "gen-section-parts"
 
 CELL = 1.0
@@ -186,6 +207,9 @@ def run(recipe_dir, out_dir, check):
         print("no recipes in %s" % recipe_dir, file=sys.stderr)
         return 1
 
+    # Promoted paths apply only to the default layout; a custom --out-dir
+    # gets every part side by side for comparison.
+    use_promoted_layout = os.path.abspath(out_dir) == os.path.abspath(OUT_DIR)
     if not check:
         os.makedirs(out_dir, exist_ok=True)
     stale = []
@@ -194,6 +218,8 @@ def run(recipe_dir, out_dir, check):
         for stem, (blob, triangles) in sorted(build_recipe(recipe, name).items()):
             count += 1
             path = os.path.join(out_dir, stem + ".glb")
+            if use_promoted_layout:
+                path = PROMOTED_OUTPUTS.get(stem, path)
             rel = os.path.relpath(path, REPO_ROOT)
             lo, hi = gg.bounds(triangles)
             size = tuple(hi[k] - lo[k] for k in range(3))

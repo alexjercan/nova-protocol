@@ -83,7 +83,8 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
                     Vec3::new(0.0, 0.0, 2.0),
                     Quat::IDENTITY,
                 ),
-                // Turret on the right flank, torpedo bay on the left - both upright.
+                // Turret on the right flank, torpedo bay on the left - both
+                // upright. The twin mount stands on the front hull's roof.
                 at(
                     "turret",
                     "pdc_kinetic_turret_section",
@@ -91,9 +92,19 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
                     turret_rot,
                 ),
                 at(
+                    "turret_twin",
+                    "pdc_twin_kinetic_turret_section",
+                    Vec3::new(0.0, 0.75, -1.0),
+                    upright,
+                ),
+                // The bay is 1x1x2, so a half-cell shift back puts its two
+                // cells on the spine's grid and its fore flank socket against
+                // the controller cell; centred at z 0 nothing mated and the
+                // tube hung off the ship as a disconnected component.
+                at(
                     "torpedo",
                     "torpedo_section",
-                    Vec3::new(-1.0, 0.0, 0.0),
+                    Vec3::new(-1.0, 0.0, 0.5),
                     upright,
                 ),
             ],
