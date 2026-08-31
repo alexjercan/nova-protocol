@@ -781,9 +781,14 @@ fn load_lances(hull: &mut ShipHull, seed: u64) {
 }
 
 /// Collapse one hull for a roster slot and load its tubes.
-fn combat_hull(tiles: &[wfc::Tile], seed: u64, style: StyleId) -> ShipHull {
+fn combat_hull(
+    tiles: &[wfc::Tile],
+    seed: u64,
+    style: StyleId,
+    sections: &GameSections,
+) -> ShipHull {
     let mut hull = wfc_hull(tiles, seed, true, style);
-    wfc::stamp_large_drives(&mut hull, seed);
+    wfc::stamp_large_drives(&mut hull, seed, sections);
     load_lances(&mut hull, seed);
     hull
 }
@@ -799,13 +804,14 @@ fn draft_roster(
     ships: &[ShipSpec],
     looks: &[StyleId],
     from: u64,
+    sections: &GameSections,
 ) -> Vec<(u64, ShipHull)> {
     let mut cursor = from;
     let mut drafted = Vec::new();
     for (slot, ship) in ships.iter().enumerate() {
         let style = looks[slot];
         if let Some(seed) = ship.seed {
-            let hull = combat_hull(tiles, seed, style);
+            let hull = combat_hull(tiles, seed, style, sections);
             let arms = armament(&hull);
             if !arms.viable() {
                 // A pin is an instruction, so it is honored - but a hull that
@@ -819,7 +825,7 @@ fn draft_roster(
         let mut found = None;
         for offset in 0..DRAFT_SCAN_CAP {
             let seed = cursor.wrapping_add(offset);
-            let hull = combat_hull(tiles, seed, style);
+            let hull = combat_hull(tiles, seed, style, sections);
             let arms = armament(&hull);
             if arms.viable() {
                 cursor = seed.wrapping_add(1);
@@ -1304,7 +1310,7 @@ fn arena(
         .iter()
         .map(|ship| ship_style(styles, ship, run_style))
         .collect();
-    let drafted = draft_roster(&tiles, &roster.ships, &looks, roster.seed);
+    let drafted = draft_roster(&tiles, &roster.ships, &looks, roster.seed, sections);
     roster.drafted = drafted.iter().map(|(seed, _)| *seed).collect();
 
     let places = line_places(&roster.ships);

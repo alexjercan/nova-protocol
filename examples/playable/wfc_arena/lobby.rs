@@ -105,7 +105,7 @@ fn load_or_open_lobby(
         .iter()
         .map(|ship| style_at(&styles, side_styles[ship.team]))
         .collect();
-    let drafted = draft_roster(&tiles, &roster.ships, &looks, roster.seed);
+    let drafted = draft_roster(&tiles, &roster.ships, &looks, roster.seed, &sections);
     let drafted_seeds: Vec<u64> = drafted.iter().map(|(seed, _)| *seed).collect();
     for (ship, seed) in roster.ships.iter_mut().zip(drafted_seeds.iter().copied()) {
         ship.seed = Some(seed);
@@ -426,7 +426,7 @@ fn viable_seed(sections: &GameSections, styles: &GameStyles, style: usize, from:
     let tiles = tile_set(sections);
     for offset in 0..DRAFT_SCAN_CAP {
         let seed = from.wrapping_add(offset);
-        let hull = combat_hull(&tiles, seed, style_at(styles, style));
+        let hull = combat_hull(&tiles, seed, style_at(styles, style), sections);
         if armament(&hull).viable() {
             return seed;
         }

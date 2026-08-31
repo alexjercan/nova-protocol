@@ -202,6 +202,16 @@ pub struct Tile {
     /// order, or `None` for a part that does none of those. See
     /// [`exit_normal`].
     exit: Option<usize>,
+    /// Per-face, the tile index of the NEXT SEGMENT of the same multi-cell
+    /// part, or `None` on a face that is the part's own surface. A joint face
+    /// accepts exactly its partner: not vacuum, not another part, not another
+    /// copy of the same part ([`compatible`]). Filled by [`tile_set`], which is
+    /// the point the segments' final indices exist.
+    joints: [Option<usize>; 6],
+    /// Whether this tile emits the placed section. Every single-cell tile
+    /// does; of a multi-cell part's segments exactly one does, and the rest
+    /// only occupy their cells.
+    emits: bool,
 }
 
 impl Tile {
@@ -229,6 +239,8 @@ fn vacuum_tile() -> Tile {
         family: None,
         faces: [false; 6],
         exit: None,
+        joints: [None; 6],
+        emits: false,
     }
 }
 
@@ -291,7 +303,86 @@ fn tile(family: usize, config: &SectionConfig, rotation: Quat) -> Option<Tile> {
         family: Some(family),
         faces,
         exit,
+        joints: [None; 6],
+        emits: true,
     })
+}
+
+/// Read one MULTI-CELL prototype at one rotation as a chain of segment tiles,
+/// or reject it. Returned joints are LOCAL segment indices; [`tile_set`] remaps
+/// them once the segments' final indices exist.
+///
+/// The bar a segment part has to clear is stricter than [`tile`]'s: every
+/// socket must sit exactly on the face centre of one of the part's own cells,
+/// so each cell presents the same face-centre socket a unit part would. The
+/// part spans its LOCAL z axis only - the shape both shipped multi-cell wishes
+/// have (the 1x1x2 bay tube, the spinal railgun to come) - and the first
+/// segment is the -z end, which for anything that fires is the muzzle.
+///
+/// One segment emits the placed section: the first, carrying the offset that
+/// puts the part's centre back over the chain. The rest only occupy cells.
+fn segment_tiles(family: usize, config: &SectionConfig, rotation: Quat) -> Option<Vec<Tile>> {
+    let footprint = SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0;
+    assert_eq!(
+        (footprint.x, footprint.y),
+        (1, 1),
+        "wfc_ships: '{}' spans cells off its own z axis, which the segment \
+         chain does not model",
+        config.base.id
+    );
+    let length = footprint.z as usize;
+    let centre_of = |segment: usize| Vec3::Z * (segment as f32 - (length as f32 - 1.0) * 0.5);
+
+    let mut segments: Vec<Tile> = (0..length)
+        .map(|segment| Tile {
+            part: Some(TileBody {
+                prototype: config.base.id.clone(),
+                rotation,
+                offset: snapped(rotation * -centre_of(segment)),
+            }),
+            family: Some(family),
+            faces: [false; 6],
+            exit: None,
+            joints: [None; 6],
+            emits: segment == 0,
+        })
+        .collect();
+
+    for point in &config.base.link_points {
+        let face = face_index(rotation * point.normal)?;
+        let position = rotation * point.position;
+        let segment = (0..length).find(|segment| {
+            (position - rotation * centre_of(*segment)).abs_diff_eq(FACES[face] * 0.5, GRID_EPSILON)
+        })?;
+        segments[segment].faces[face] = true;
+    }
+
+    if let Some(exit) = exit_normal(&config.kind) {
+        let out = face_index(rotation * exit)?;
+        // The exit face has to be an END of the chain, so exactly one segment
+        // carries it - the muzzle cell.
+        assert!(
+            exit.abs().abs_diff_eq(Vec3::Z, GRID_EPSILON),
+            "wfc_ships: '{}' fires across its own chain rather than out of an \
+             end of it",
+            config.base.id
+        );
+        let muzzle = if exit.z < 0.0 { 0 } else { length - 1 };
+        assert!(
+            !segments[muzzle].faces[out],
+            "wfc_ships: '{}' carries a socket on the face it fires through, so \
+             a hull slab could be bolted across its muzzle",
+            config.base.id
+        );
+        segments[muzzle].exit = Some(out);
+    }
+
+    let ahead = face_index(rotation * Vec3::Z)?;
+    for segment in 0..length - 1 {
+        segments[segment].joints[ahead] = Some(segment + 1);
+        segments[segment + 1].joints[ahead ^ 1] = Some(segment);
+    }
+    Some(segments)
 }
 
 /// Put a derived placement back on the grid's exact arithmetic, see
@@ -343,6 +434,8 @@ pub fn tile_set(sections: &GameSections) -> Vec<Tile> {
             part.prototype
         );
 
+        let single = SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0
+            == UVec3::ONE;
         let mut seen = HashSet::new();
         for x in 0..4 {
             for y in 0..4 {
@@ -354,10 +447,19 @@ pub fn tile_set(sections: &GameSections) -> Vec<Tile> {
                     let Some(basis) = rotated_basis(rotation) else {
                         continue;
                     };
-                    let Some(tile) = tile(family, config, rotation) else {
+                    if !seen.insert(basis) {
                         continue;
+                    }
+                    let group = if single {
+                        tile(family, config, rotation).into_iter().collect()
+                    } else {
+                        segment_tiles(family, config, rotation).unwrap_or_default()
                     };
-                    if seen.insert(basis) {
+                    let base = tiles.len();
+                    for mut tile in group {
+                        for joint in &mut tile.joints {
+                            *joint = joint.map(|local| base + local);
+                        }
                         tiles.push(tile);
                     }
                 }
@@ -569,6 +671,15 @@ fn hull_vacuum_weight(cell: usize) -> f32 {
 /// see. The rest of the lane, and the cladding the lane must not be given, is
 /// [`erode_blocked_exits`].
 fn compatible(tiles: &[Tile], here: usize, face: usize, there: usize) -> bool {
+    // A joint face is the INSIDE of a multi-cell part, and it accepts exactly
+    // the part's own next segment - before the solid early-out, because vacuum
+    // across a joint would be half a part.
+    if let Some(partner) = tiles[here].joints[face] {
+        return there == partner;
+    }
+    if let Some(partner) = tiles[there].joints[face ^ 1] {
+        return here == partner;
+    }
     let (here, there) = (&tiles[here], &tiles[there]);
     if !here.is_solid() || !there.is_solid() {
         return true;
@@ -649,10 +760,11 @@ fn upright_tile(tiles: &[Tile], prototype: &str) -> usize {
     tiles
         .iter()
         .position(|tile| {
-            tile.part.as_ref().is_some_and(|part| {
-                part.prototype == prototype
-                    && part.rotation.abs_diff_eq(Quat::IDENTITY, GRID_EPSILON)
-            })
+            tile.emits
+                && tile.part.as_ref().is_some_and(|part| {
+                    part.prototype == prototype
+                        && part.rotation.abs_diff_eq(Quat::IDENTITY, GRID_EPSILON)
+                })
         })
         .unwrap_or_else(|| panic!("wfc_ships: no upright tile for '{prototype}'"))
 }
@@ -846,6 +958,24 @@ fn draw<W: Fn(usize) -> f32, B: Fn(usize, usize) -> f32>(
     last
 }
 
+/// Take a cell off the ship, and with it every other cell of the same
+/// multi-cell part: half a bay is not a part, and the cell a dead half leaves
+/// behind would be packed with hull INSIDE the surviving half's body.
+fn drop_part(tiles: &[Tile], chosen: &[usize], kept: &mut [bool], cell: usize) {
+    if !kept[cell] {
+        return;
+    }
+    kept[cell] = false;
+    for face in 0..FACES.len() {
+        let Some(next) = HULL_GRID.neighbour(cell, face) else {
+            continue;
+        };
+        if tiles[chosen[cell]].joints[face] == Some(chosen[next]) {
+            drop_part(tiles, chosen, kept, next);
+        }
+    }
+}
+
 /// How many neighbours a section wants before it counts as part of a hull
 /// rather than as a stud on one.
 const SPIKE_SUPPORT: usize = 3;
@@ -888,7 +1018,7 @@ fn erode_studs(tiles: &[Tile], chosen: &[usize], kept: &mut [bool]) {
             }
             let wanted = tile.faces.iter().filter(|open| **open).count();
             if neighbours < wanted.min(SPIKE_SUPPORT) {
-                kept[cell] = false;
+                drop_part(tiles, chosen, kept, cell);
                 changed = true;
             }
         }
@@ -987,8 +1117,10 @@ fn keel_component(tiles: &[Tile], chosen: &[usize], standing: &[bool]) -> Vec<bo
             // without either carrying a socket there - a drive's flank against
             // a mount's housing - and a pair like that is touching, not joined.
             // Walking plain adjacency would call such a piece attached and
-            // leave it in the hull for the graph check to find floating.
-            let joined = tiles[chosen[cell]].faces[face] && tiles[chosen[next]].faces[face ^ 1];
+            // leave it in the hull for the graph check to find floating. A
+            // JOINT is joined by definition: the two cells are one body.
+            let joined = (tiles[chosen[cell]].faces[face] && tiles[chosen[next]].faces[face ^ 1])
+                || tiles[chosen[cell]].joints[face] == Some(chosen[next]);
             if !kept[next] && standing[next] && tiles[chosen[next]].is_solid() && joined {
                 kept[next] = true;
                 pending.push_back(next);
@@ -1137,7 +1269,7 @@ fn erode_blocked_exits(tiles: &[Tile], chosen: &[usize], kept: &mut [bool]) {
         else {
             return;
         };
-        kept[starboard_of(blocked.part)] = false;
+        drop_part(tiles, chosen, kept, starboard_of(blocked.part));
     }
 }
 
@@ -1195,7 +1327,9 @@ pub fn wfc_hull(tiles: &[Tile], seed: u64, clad: bool, style: StyleId) -> ShipHu
 
     let mut sections = Vec::new();
     for cell in 0..HULL_GRID.cells() {
-        if !kept[cell] {
+        // A non-emitting segment's cell is claimed, but the section it is part
+        // of is emitted once, by the segment that carries the offset.
+        if !kept[cell] || !tiles[chosen[cell]].emits {
             continue;
         }
         let Some(part) = &tiles[chosen[cell]].part else {
@@ -1259,7 +1393,7 @@ fn stamped_section(id: String, prototype: &str, position: Vec3) -> SpaceshipSect
 /// arena only needs a deterministic fleet for judging one capital drive against
 /// two or three vector drives.
 #[allow(dead_code, reason = "shared module: the stamp is arena-only")]
-pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64) {
+pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64, sections: &GameSections) {
     const SUPPORT_Z: f32 = 4.0;
     let (prototype, length, centres): (&str, f32, Vec<Vec3>) = match seed % 3 {
         0 => (
@@ -1291,12 +1425,23 @@ pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64) {
             ],
         ),
     };
+    // The carve reads BODIES, not positions: a two-cell bay centred one row
+    // forward of the transom still pokes its aft cell into the deck being
+    // cleared, and keeping it would stand the stamp's own beam inside it.
+    let beam = (Vec3::new(0.0, 0.0, SUPPORT_Z), Vec3::new(4.0, 0.5, 0.5));
     hull.sections.retain(|section| {
-        let at = section.position;
-        at.z <= 4.5
-            && !((at.z - SUPPORT_Z).abs() <= GRID_EPSILON
-                && at.y.abs() <= GRID_EPSILON
-                && at.x.abs() <= 3.5 + GRID_EPSILON)
+        let SectionSource::Prototype(id) = &section.source else {
+            panic!("wfc_ships: every generated section is a catalog prototype");
+        };
+        let config = sections
+            .get_section(id)
+            .unwrap_or_else(|| panic!("wfc_ships: no section prototype '{id}'"));
+        let half = rotated_half_extents(config.base.collider.unwrap_or_default(), section.rotation);
+        let inside_beam = (section.position - beam.0)
+            .abs()
+            .cmplt(half + beam.1 - Vec3::splat(GRID_EPSILON))
+            .all();
+        section.position.z + half.z <= 4.5 + GRID_EPSILON && !inside_beam
     });
 
     for index in 0..8 {
@@ -1327,13 +1472,14 @@ mod stamp_tests {
 
     #[test]
     fn arena_stamps_one_capital_or_two_to_three_vector_drives() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
         for (seed, prototype, count) in [
             (0, "capital_thruster_section", 1),
             (1, "vector_thruster_section", 2),
             (2, "vector_thruster_section", 3),
         ] {
             let mut hull = ShipHull::default();
-            stamp_large_drives(&mut hull, seed);
+            stamp_large_drives(&mut hull, seed, &sections);
             assert_eq!(
                 hull.sections
                     .iter()
@@ -1355,22 +1501,23 @@ mod stamp_tests {
 
     #[test]
     fn arena_stamp_replaces_only_the_central_support_beam() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
         let mut hull = ShipHull {
             sections: vec![
                 stamped_section(
                     "old_support_cell".to_string(),
-                    "basic_hull_section",
+                    "reinforced_hull_section",
                     Vec3::new(2.5, 0.0, 4.0),
                 ),
                 stamped_section(
                     "outside_drive_face".to_string(),
-                    "basic_hull_section",
+                    "reinforced_hull_section",
                     Vec3::new(2.5, -2.0, 4.0),
                 ),
             ],
             ..default()
         };
-        stamp_large_drives(&mut hull, 20_260_829);
+        stamp_large_drives(&mut hull, 20_260_829, &sections);
         assert!(hull
             .sections
             .iter()
@@ -1387,10 +1534,97 @@ mod stamp_tests {
         let tiles = tile_set(&sections);
         for seed in [6, 7, 8, 20_260_829] {
             let mut hull = wfc_hull(&tiles, seed, true, None);
-            stamp_large_drives(&mut hull, seed);
+            stamp_large_drives(&mut hull, seed, &sections);
             let placed = place(&hull, &sections);
             refuse_unmated_contacts(&placed, &hull);
         }
+    }
+}
+
+#[cfg(test)]
+mod segment_tests {
+    use super::*;
+
+    fn catalog_tiles() -> (GameSections, Vec<Tile>) {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = tile_set(&sections);
+        (sections, tiles)
+    }
+
+    #[test]
+    fn the_two_cell_bay_becomes_a_pair_of_tiles_joined_across_their_shared_face() {
+        let (_, tiles) = catalog_tiles();
+        let bays: Vec<usize> = (0..tiles.len())
+            .filter(|index| {
+                tiles[*index]
+                    .part
+                    .as_ref()
+                    .is_some_and(|part| part.prototype == "torpedo_section")
+            })
+            .collect();
+        assert!(
+            !bays.is_empty(),
+            "the 1x1x2 bay produced no tiles at all, which is the regression \
+             that emptied every generated hull of bays"
+        );
+
+        let hull = upright_tile(&tiles, "reinforced_hull_section");
+        for &index in &bays {
+            let tile = &tiles[index];
+            let joints: Vec<usize> = (0..FACES.len())
+                .filter(|face| tile.joints[*face].is_some())
+                .collect();
+            assert_eq!(joints.len(), 1, "a two-cell segment has exactly one joint");
+            let face = joints[0];
+            let partner = tile.joints[face].expect("just filtered on it");
+
+            assert_eq!(
+                tiles[partner].joints[face ^ 1],
+                Some(index),
+                "the partner joints back across the shared face"
+            );
+            assert!(
+                tile.emits != tiles[partner].emits,
+                "exactly one segment of the pair emits the placed section"
+            );
+            assert!(
+                compatible(&tiles, index, face, partner),
+                "a joint accepts its own partner"
+            );
+            assert!(
+                !compatible(&tiles, index, face, VACUUM),
+                "a joint refuses vacuum: half a bay is not a part"
+            );
+            assert!(
+                !compatible(&tiles, index, face, hull),
+                "a joint refuses a hull cube pressed into the part's inside"
+            );
+        }
+
+        let emitting = bays.iter().filter(|index| tiles[**index].emits);
+        for &index in emitting {
+            let tile = &tiles[index];
+            assert!(
+                tile.exit.is_some(),
+                "the emitting segment is the muzzle end, and it carries the exit"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_hulls_roll_two_cell_bays_again() {
+        let (sections, tiles) = catalog_tiles();
+        let carries_bay = |hull: &ShipHull| {
+            hull.sections.iter().any(|section| {
+                matches!(&section.source, SectionSource::Prototype(id) if id == "torpedo_section")
+            })
+        };
+        let armed = (0..64)
+            .map(|seed| wfc_hull(&tiles, seed, true, None))
+            .find(|hull| carries_bay(hull))
+            .expect("no hull in seeds 0..64 rolled a bay, which is what starved the arena draft");
+        let placed = place(&armed, &sections);
+        refuse_unmated_contacts(&placed, &armed);
     }
 }
 
