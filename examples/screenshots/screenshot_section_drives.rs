@@ -70,6 +70,10 @@ const BENCH_CENTRE: Vec3 = Vec3::new(-1.0, 0.0, 0.0);
 /// changed and it is the only face that carries one. Off the axis in X and Y
 /// so the bells read as cones rather than as rings, and biased the way the row
 /// grows so the capital cannot stand in front of the two behind it.
+///
+/// Only the driven walk poses a camera, so this is gated with it - the scene
+/// itself builds under default features and never reads it.
+#[cfg(feature = "debug")]
 const BENCH_BEARING: Vec3 = Vec3::new(0.42, 0.24, 1.0);
 
 fn main() -> bevy::app::AppExit {
