@@ -145,6 +145,7 @@ Three passes per row, reported mean fps / mean ms and the worst frame:
 | 2 - impact | 07be5d6d | 59.8 / 60.8 / 58.9 | 16.72 / 16.46 / 16.97 | 35.04 / 29.38 / 29.07 |
 | 3 - muzzle, unseen | c92dbf0f | 63.2 / 64.7 / 64.8 | 15.83 / 15.47 / 15.42 | 45.29 / 25.34 / 24.02 |
 | 3 - muzzle, drawn | 2cc9053e | 57.2 / 61.2 / 60.3 | 17.48 / 16.35 / 16.58 | 37.74 / 28.99 / 27.82 |
+| 4 - cold launch | d19ef956 | 59.7 / 63.3 / 60.3 | 16.76 / 15.79 / 16.58 | 31.06 / 28.80 / 30.02 |
 
 Read the spread before reading a delta: the three baseline passes differ by
 7% in the mean with nothing changed between them, so anything under about
@@ -203,6 +204,15 @@ final: 32 particles a frame was picked while the flash was invisible, and 230
 overlapping quads inside one 0.55-unit ball is the kind of overdraw that
 halves cheaply. The count is the lever, and pulling it is deferred to after
 stage 4 so it costs one rebuild instead of two.
+
+**Row 4 is free.** The mean sits between rows 3-drawn and 1 and the worst
+frame is the tightest spread in the table (28.8 to 31.1 ms, no outlier), and
+the gate reads `fps_within_baseline PASS improved; best -4.1%`. Every
+difference from row 3-drawn is inside this host's 7% pass-to-pass spread, so
+the honest reading is that the cold launch costs nothing measurable. That is
+what it should cost: the ignition light is one transient inside the budget
+stage 1 built, and the stage REMOVED work by minting one shared launch-puff
+asset instead of one per bay spawner.
 
 The suspected cost is entity count, not pixels. A PDC hit throws 5 sparks and a
 kill throws 20, each its own kinematic body living 0.28 s, so a sustained burst
