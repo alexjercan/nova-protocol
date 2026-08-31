@@ -309,7 +309,7 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("section-trials-stowed.png"))
         .deadline(30.0)
         .add()
-        .step("weapons hot, trigger held - catch the assembly rising")
+        .step("weapons hot, trigger held - rising with not one round fired")
         .on_enter(|world| {
             set_weapons_hot(world, true);
             set_triggers(world, true);
@@ -317,12 +317,18 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(and(mount_rising(), no_bullets()))
         .deadline(15.0)
         .add()
+        // The shot asserts its own subject: a frame that lands after the
+        // rise finished stalls this beat instead of writing a mislabelled
+        // still of the deployed pose.
         .step("shoot the deploy mid-rise")
         .on_enter(|world| shoot(world, "section-trials-deploying.png"))
-        .until(shot_written("section-trials-deploying.png"))
+        .until(and(
+            mount_rising(),
+            shot_written("section-trials-deploying.png"),
+        ))
         .deadline(30.0)
         .add()
-        .step("fully deployed, and not one round fired on the way up")
+        .step("both mounts fully up, trigger released")
         .on_enter(|world| set_triggers(world, false))
         .until(and(mounts_deployed(), no_bullets()))
         .deadline(15.0)

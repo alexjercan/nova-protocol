@@ -109,8 +109,8 @@ const UNIT_TURRET_SCALE: f32 = 1.0;
 /// numbers, which is how they were read off in the first place.
 struct TurretArt<'a> {
     /// The stow housing the assembly sinks into, worn by the fixed base
-    /// joint. Authored at the SHIPPED mount size (its recipe is the full
-    /// 1x1x0.5 cell footprint, base on the joint origin), so unlike the
+    /// joint. Sized to the host hull CELL it bolts onto (a 1x1 footprint,
+    /// 0.5 tall, base on the joint origin), not to the mount, so unlike the
     /// unit-drawn parts it never takes the tree's scale transform; a
     /// differently sized mount authors its own housing.
     housing_mesh: &'a AssetRef<WorldAsset>,

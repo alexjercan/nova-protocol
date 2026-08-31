@@ -1,10 +1,11 @@
-//! screenshot_section_weapons: the wiki closeups of the two weapon sections -
-//! `wiki-section-turret.png` and `wiki-section-torpedo-bay.png`.
+//! screenshot_section_weapons: the wiki closeups of the weapon sections -
+//! `wiki-section-turret.png`, `wiki-section-turret-twin.png` and
+//! `wiki-section-torpedo-bay.png`.
 //!
 //! The showcase ship and the turntable are `shared/showcase.rs`: the camera
 //! holds one bearing inside the photo rig's good wedge and the SHIP yaws to
-//! bring each section round to it. Both weapons sit on a flank, so this walk
-//! turns the ship most of a revolution between its two shots.
+//! bring each section round to it, most of a revolution across the three
+//! shots.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - turn the ship through both

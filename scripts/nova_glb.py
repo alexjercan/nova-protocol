@@ -84,7 +84,11 @@ def write_glb(triangles, materials, material_index, generator):
 
 
 def write_glb_nodes(triangles, nodes, materials, material_index, generator):
-    """`write_glb`, plus extra NAMED child nodes a runtime can animate.
+    """`write_glb`, plus extra NAMED nodes a runtime can animate.
+
+    The named nodes are written as SIBLING root nodes of scene 0, beside the
+    static geometry's node, so `translation`/`rotation` are in the same frame
+    as the static root - there is no parent transform to compose with.
 
     - `triangles`: the static root geometry, exactly as in `write_glb`.
     - `nodes`: ordered [(name, translation, rotation, node_triangles)]. Each

@@ -58,8 +58,9 @@ pub mod prelude {
 /// nothing comes out of it.
 pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
     match kind {
-        // The tube fires down `spawn_offset`, and the torpedo is BORN at the
-        // far end of it rather than at the muzzle.
+        // The tube fires down `spawn_offset`. Only its DIRECTION is read
+        // here: the offset itself is the muzzle point and the torpedo is
+        // born recessed behind it, but the lane cares about the axis alone.
         SectionKind::Torpedo(bay) => Some(bay.spawn_offset.normalize()),
         // Thrust is -Z (`thruster_impulse_system`), so the bell opens on +Z and
         // the plume leaves through it.
@@ -127,9 +128,9 @@ pub struct BlockedExit {
 /// leaves the ship.
 ///
 /// A COLUMN, not a cone and not one cell. One cell is not enough for any of the
-/// three: a torpedo is BORN two cells out, a plume is drawn several cells long,
-/// and a round leaves down the whole line. A cone would be guessing at a
-/// traverse the caller cannot know.
+/// three: a torpedo slides its whole length out and coasts down the lane, a
+/// plume is drawn several cells long, and a round leaves down the whole line.
+/// A cone would be guessing at a traverse the caller cannot know.
 ///
 /// It stops one cell outside the ship's own extent, because that is as far as a
 /// blocked lane can reach: past there no neighbour of a lane cell can hold
@@ -269,7 +270,7 @@ mod tests {
     }
 
     /// A bay: one socket on the face it bolts down through, firing the other
-    /// way, with the torpedo born two cells out.
+    /// way down its lane.
     fn bay(position: Vec3, rotation: Quat) -> PlacedPart<'static> {
         static POINTS: std::sync::OnceLock<Vec<LinkPoint>> = std::sync::OnceLock::new();
         PlacedPart {

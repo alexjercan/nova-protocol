@@ -206,9 +206,10 @@ pub fn ship_stats(
         stats.hp += hp_override.unwrap_or(config.base.health);
         match &config.kind {
             SectionKind::Turret(turret) => {
-                // Fire rate is per-muzzle now; burst DPS sums every muzzle in
-                // the joint tree. The shipped turrets each carry one muzzle, so
-                // this is unchanged for the catalog.
+                // Fire rate is per-muzzle; burst DPS sums every muzzle leaf in
+                // the joint tree. The catalog ships one- and two-muzzle mounts
+                // (the twin splits the gatling's total across two barrels), so
+                // the recursion is what keeps their totals comparable.
                 stats.dps += turret_total_fire_rate(&turret.root) * turret.bullet_damage;
                 stats.max_effective_range = stats
                     .max_effective_range
