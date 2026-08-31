@@ -65,3 +65,65 @@ section declares an animation before modelling the second one.
 - An authored section can declare an animation, and the bay doors use it.
 - Every non-thruster section has a model at the thruster's standard.
 - Silhouettes stay readable at combat range.
+
+## Decisions
+
+- One style for all sections. Skins add faction detail on top. Hull and
+  controller interiors read as machinery and wires when exposed.
+- The bay is `bay_tube`, 1x1x2. The -Z muzzle face stays open and unlinkable.
+  One back socket plus eight flank sockets (two cells x four faces). A 1x1x2
+  section centred on an integer cell sits off the section grid, so authored
+  ships seat bays with a half-cell shift.
+- The gatling mount is THE PDC. The twin mount is a variant, not a
+  replacement: two muzzles, each at half the gatling rate, so both mounts
+  spend ammo at the same total rate. Both mounts ship in kinetic and pierce.
+- Hulls become three same-stat prototypes: personnel (default), cargo, tank.
+  The models are the investment; distinct hull TYPES come later if wanted.
+- The controller catalog prototype gets the `core_wires` cube. Ships author
+  their own controller visuals, so only the editor shows it.
+- Dropped candidates stay in `art/part-candidates/sections/` as the record
+  of the gallery round. Promoted stems build straight into
+  `assets/base/gltf/` via `scripts/gen-section-parts.py`.
+- `assets/base/base.bundle.ron` is hand-authored, not generated -
+  `content gen` does not write it and `89091f2e` edited it by hand. The
+  eleven new resources are declared there directly. All `*.content.ron`
+  changes went through `content gen` only.
+
+## Landed
+
+1. `c4719077` - the candidate gallery. `scripts/gen-section-parts.py` builds
+   23 parametric parts; `screenshot_section_gallery` renders them beside the
+   shipped originals for the pick.
+
+2. `dc82bd30` - promotion and integration. The eleven winners move to
+   `assets/base/gltf/` (byte-identical renames; `--check` stays byte-clean).
+   Catalog rebuilt on the new models: hull trio, controller core, four PDCs
+   (`pdc_twin_*_turret_section` are new), every bay a 1x1x2 tube with
+   `spawn_offset` 2.5 out of the muzzle. Bays reseated with the half-cell
+   shift in the showcase ship, the VFX range, the torpedo-launch example and
+   the shape bench. New `screenshot_section_trials` is the live-fire
+   acceptance range; `screenshot_section_weapons` gains the twin closeup.
+
+## Proof
+
+- 12 `standard.rs` tests pass, including: the twin splits the gatling total
+  across two mirrored muzzles; every bay claims both cells, keeps nine
+  sockets on its faces, and launches clear of its tube.
+- `content lint` 0 errors. `gen-section-parts.py --check`: 23 parts match a
+  fresh build byte for byte. `cargo check --examples --features debug` clean.
+- Six live runs under Xvfb, all exit 0, renders inspected:
+  `screenshot_section_trials` (both PDC lanes scar their columns - the twin
+  shows two tracer streams - and the bay torpedo flies 70u and erases the
+  marked section; walk asserts all three), `screenshot_section_weapons`,
+  `screenshot_section_gallery`, `loop_vfx_range`, `system_torpedo_launch`.
+- Stills in this folder: `section-trials-{range,twin,launch}.png`,
+  `wiki-section-{turret,turret-twin,torpedo-bay}.png`.
+
+## Remaining
+
+- Section animation authoring, then the bay doors use it: a sliding door
+  over the muzzle face during the `ignition_delay` window.
+- PDC stow animation (future promise `20260831-083622`): barrel points up,
+  the mount slides down, a cover closes over the face. May want a 1x1x2
+  mount like the bay.
+- Changelog entry for the remodel when the release entry is written.
