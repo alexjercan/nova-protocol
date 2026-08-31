@@ -1,8 +1,8 @@
 # Stow the PDC out of combat
 
 - STATUS: OPEN
-- PRIORITY: 0
-- TAGS: backlog,idea,ship,gameplay
+- PRIORITY: 70
+- TAGS: v0.13.0, ship, gameplay, art
 
 ## Goal
 
@@ -19,6 +19,41 @@ Stays in the backlog as a future promise beyond v0.14.0. The section model
 pass (`20260831-083625`, v0.13.0) does not wait on it: it models the
 turret mount with room for a future stow and records the shape decision
 there.
+
+Re-slotted into v0.13.0 (owner, 2026-08-31 evening): "let's do it now" -
+the bay's iris doors landed the section animation interface the stow was
+waiting on, and the owner settled the design the same day.
+
+## Owner design (2026-08-31, agreed in review)
+
+- The PDC starts STOWED and deploys "when I enter combat mode or have
+  lock on something", then stays deployed for the fight.
+- Housing: a 1x1 footprint, 0.5 tall box the turret disappears into -
+  "make the PDC fit in its original cube but as a 0.5x1x1". The current
+  mount is a ~0.3 box with nothing around it. Collider stays the
+  authored spec; growing the hitbox is a separate balance call, recorded
+  as deliberately NOT taken here.
+- Stow choreography: barrel points up, the assembly slides down, doors
+  shut above it. Deploy is the exact reverse.
+- The lids are two sliding slab halves that part along the top and store
+  flush against the flanks - a TRANSLATE read, deliberately distinct
+  from the bay's rotating petals at silhouette range.
+- Ownership split: the barrel-up is a commanded aim attitude through the
+  existing look system (SmoothLookRotation REPLACES rotation, so a
+  track composed onto the joints would fight it); the animation tracks
+  own only what the aim stack does not - the lids and the lift.
+- Sequencing lives in the kind system, not in track data: a state
+  machine (Deployed / Stowing / Stowed / Deploying) steers the StowLift
+  and StowDoors cues in order and advances phases by reading
+  cue_progress, the same trick as the bay's ejection gate.
+- Deploy on weapons hot OR a live tracking target (point defense comes
+  up autonomously against an inbound); stow only after weapons are cold
+  AND no target for a few settle seconds. Deploy fast, stow lazy.
+- A turret cannot track or fire until fully deployed - the deploy time
+  is a real combat cost.
+- Rest pose = deployed (editor, gallery and animation-less apps keep
+  showing the gun); scenes start stowed via a snap-to-stow when the rig
+  first resolves, so a cold start has no spawn wiggle.
 
 ## This is a combat change wearing an animation costume
 
