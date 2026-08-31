@@ -105,6 +105,13 @@ const sectionDocPages = (section) => {
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.12.0",
+        version: "v0.12.0",
+        date: "2026-08-31",
+        description:
+            "Nova Protocol v0.12.0: the editor holds a whole mission - ships, range and script under one scene tree, every node opened by a reflected Inspector, handlers and expressions authored in the panel - and saves it as an ordinary mod. Every key and pad button rebinds from a real Settings panel and the change reaches the flight rig on the spot. Combat learns it happens in a vacuum: torpedoes are dropped inert and lit clear of the hull, a muzzle flash is a ball of burning gas measured in metres, and a detonation lights the hulls around it.",
+    },
+    {
         slug: "0.11.0",
         version: "v0.11.0",
         date: "2026-08-22",

@@ -121,6 +121,9 @@ FIGURES = [
     ("wiki-sandbox-range.png",           "screenshot_editor"),
     ("news-0110-collider-before.png",    "screenshot_editor"),
     ("news-0110-collider-after.png",     "screenshot_editor"),
+    # The script half of the document, authored in EVENTS mode: a handler with
+    # its filters and action, and an expression opened as a page of rows.
+    ("feature-editor-events.png",        "screenshot_editor"),
     ("news-0110-damage-levels.png",      "screenshot_damage_levels"),
     ("greeble-catalog.png",              "greeble_catalog"),
     # Isolated recipe-part cards from the deterministic parts viewer.
@@ -185,6 +188,9 @@ COMPOSITE_SIZE = (1920, 1080)
 # (it takes precedence - see process_group).
 ALIASES = {
     "wiki-scenarios-picker.png": "news-090-scenario-campaigns.png",
+    # The v0.12.0 post card. The release's face is the editor, and the editor
+    # figure is already a 16:9 capture of exactly that.
+    "thumb-news-0.12.0.png": "feature-editor.png",
     "news-0110-greeble-atlas.png": "greeble-catalog.png",
     # Section variants that share geometry intentionally share a product card.
     "catalog-basic-controller-section.png": "wiki-section-controller.png",

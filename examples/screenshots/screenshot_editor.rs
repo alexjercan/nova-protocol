@@ -55,6 +55,12 @@ struct Cli;
 const EDITOR_LOOP: &str = "landing-editor-build";
 #[cfg(feature = "debug")]
 const EDITOR_SKIN_LOOP: &str = "news-0110-editor-skin";
+/// The script half: leaving the ship through the tree, switching to EVENTS,
+/// and building a handler out of the Add menu. A still of the finished script
+/// says what was authored; only a loop says that it was authored by pointing
+/// at rows rather than by typing a file.
+#[cfg(feature = "debug")]
+const EDITOR_EVENTS_LOOP: &str = "news-0120-editor-events";
 
 /// What the inspector's Id row is showing.
 ///
@@ -280,7 +286,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
 
     // The last steps prove the finished build can leave the editor and capture
     // the ordinary free-flight range that players receive from Play.
-    script
+    let mut script = script
         .step("capture the editor with the built ship")
         .on_enter(shot("feature-editor.png"))
         .until(shot_written("feature-editor.png"))
@@ -302,7 +308,16 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("hide the collider diagnostic")
         .on_enter(|world| set_colliders(world, false))
-        .add()
+        .add();
+
+    if capturing() {
+        script = script
+            .step("open the editor events loop")
+            .on_enter(|world| loop_start(world, EDITOR_EVENTS_LOOP))
+            .add();
+    }
+
+    script = script
         // Play compiles the document from the scenario node, so the walk
         // steps out of the ship through the tree's root row first: one click
         // on a row you are inside is the way back out.
@@ -339,7 +354,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             "make it an expression",
             "Inspector Choice Filter Expression",
         )
-        .click("compare the other way", "Inspector Choice Compare >")
+        .click("compare the other way", "Inspector Choice Compare >");
+
+    if capturing() {
+        script = script
+            .step("close the editor events loop")
+            .on_enter(|world| loop_end(world, EDITOR_EVENTS_LOOP))
+            .until(loop_written(EDITOR_EVENTS_LOOP))
+            .deadline(60.0)
+            .add();
+    }
+
+    script
         .step("capture the authored script")
         .on_enter(shot("feature-editor-events.png"))
         .until(shot_written("feature-editor-events.png"))

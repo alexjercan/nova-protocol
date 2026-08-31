@@ -61,8 +61,17 @@ use nova_protocol::prelude::*;
 #[command(about = "Fire every combat effect once, on a fixed cycle")]
 struct Cli;
 
+/// The wide loop: the whole cycle, guns through detonation, from the range
+/// pose that keeps both ships in frame.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "vfx-range";
+
+/// The close loop, over the last pass's torpedo only. A launch is a small
+/// event at range framing - the coast is under four units of a thirty-six unit
+/// shot - so the one thing the release changed about it is invisible from
+/// there. Two loops rather than one long one: only one may be open at a time.
+#[cfg(feature = "debug")]
+const LAUNCH_LOOP: &str = "vfx-cold-launch";
 
 const SHOOTER_ID: &str = "vfx_shooter";
 const TARGET_ID: &str = "vfx_target";
@@ -87,6 +96,19 @@ const RANGE: f32 = 36.0;
 /// the first thing that breaks it.
 #[cfg(feature = "debug")]
 const TORPEDO_FLIGHT_FRAMES: u32 = 70;
+
+/// The pass whose torpedo the close loop takes. The last one: the wide loop
+/// keeps every pass before it, so nothing is lost from either.
+#[cfg(feature = "debug")]
+const LAUNCH_PASS: u32 = 3;
+
+/// Frames the close loop records of the last pass's torpedo.
+///
+/// Short on purpose. The subject leaves the close pose about here, and the
+/// rest of `TORPEDO_FLIGHT_FRAMES` is the empty sky it left behind - which on
+/// a page that loops the file forever is two thirds of a clip showing nothing.
+#[cfg(feature = "debug")]
+const LAUNCH_LOOP_FRAMES: u32 = 60;
 
 /// Health every section on both ships is authored to.
 ///
@@ -300,22 +322,57 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             .step(format!("pass {pass}: cease fire, watch the rounds land"))
             .on_enter(|world| set_triggers(world, false))
             .until(frames(30))
-            .add()
+            .add();
+
+        // The wide loop has both its torpedoes by now, so it hands the last
+        // one to the close pose. The gun half of pass 3 still rides the wide
+        // loop, which is why the hand-off is here and not before the pass.
+        if pass == LAUNCH_PASS {
+            plugin = plugin
+                .step("close the vfx loop")
+                .on_enter(|world| loop_end(world, LOOP_NAME))
+                .until(loop_written(LOOP_NAME))
+                .deadline(60.0)
+                .add()
+                .step("close on the bay for the launch")
+                .on_enter(frame_launch)
+                .until(frames(6))
+                .add()
+                .step("open the cold launch loop")
+                .on_enter(|world| loop_start(world, LAUNCH_LOOP))
+                .until(frames(1))
+                .add();
+        }
+
+        plugin = plugin
             .step(format!("pass {pass}: torpedo away"))
             .on_enter(order_torpedo)
-            .until(frames(TORPEDO_FLIGHT_FRAMES))
-            .add()
+            .until(frames(if pass == LAUNCH_PASS {
+                LAUNCH_LOOP_FRAMES
+            } else {
+                TORPEDO_FLIGHT_FRAMES
+            }))
+            .add();
+
+        if pass == LAUNCH_PASS {
+            plugin = plugin
+                .step("close the cold launch loop")
+                .on_enter(|world| loop_end(world, LAUNCH_LOOP))
+                .until(loop_written(LAUNCH_LOOP))
+                .deadline(60.0)
+                .add()
+                .step(format!("pass {pass}: the rest of the flight"))
+                .until(frames(TORPEDO_FLIGHT_FRAMES - LAUNCH_LOOP_FRAMES))
+                .add();
+        }
+
+        plugin = plugin
             .step(format!("pass {pass}: hold the aftermath"))
             .until(frames(30))
             .add();
     }
 
     plugin
-        .step("close the vfx loop")
-        .on_enter(|world| loop_end(world, LOOP_NAME))
-        .until(loop_written(LOOP_NAME))
-        .deadline(60.0)
-        .add()
 }
 
 /// Both ships are in the world.
@@ -357,6 +414,29 @@ fn frame_range(world: &mut World) {
     world.entity_mut(camera).insert(ScriptedCameraPose {
         position: midpoint + Vec3::new(RANGE * 0.98, RANGE * 0.28, RANGE * 0.22),
         look_at: midpoint,
+    });
+}
+
+/// Close on the shooter's bow, along the way the torpedo leaves.
+///
+/// The bay ejects out of the ship's -Z and the coast is about 3.8 units, so
+/// the frame is sized to that rather than to `RANGE`: the drop, the inert
+/// travel and the moment the drive catches all have to happen inside it. It
+/// is centred a coast and a burn down range rather than on the bay, so the lit
+/// torpedo is still in shot when `LAUNCH_LOOP_FRAMES` runs out. Held off the
+/// launch axis rather than on it, because a torpedo coming straight at the
+/// camera does not read as travelling at all.
+#[cfg(feature = "debug")]
+fn frame_launch(world: &mut World) {
+    let camera = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .next()
+        .expect("the vfx range has a camera");
+    let look_at = Vec3::new(0.0, 0.0, -7.0);
+    world.entity_mut(camera).insert(ScriptedCameraPose {
+        position: look_at + Vec3::new(11.0, 3.2, 6.5),
+        look_at,
     });
 }
 

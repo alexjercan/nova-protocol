@@ -6589,6 +6589,421 @@ function initBattlefieldLoad(host: HTMLElement): void {
     update();
 }
 
+// ---- v0.12.0: the cold torpedo launch ------------------------------------
+
+// A bay ejects its torpedo inert and lights the drive `ignition_delay` seconds
+// later. Damping is avian's per-substep `v /= 1 + dt*k`, which at the fixed
+// step is exponential decay to within a rounding error, so the widget models
+// the coast as `v(t) = v0 * exp(-k t)`.
+const TORPEDO_LINEAR_DAMPING = 0.8; // torpedo_section/mod.rs:224
+const TORPEDO_EJECT_SPEED = 8.0; // base_content/sections/standard.rs:607
+const TORPEDO_IGNITION_DELAY = 0.6; // torpedo_section/mod.rs:406
+// The shipped warhead mesh is `nose_cone_mesh(0.16, 0.65, 0.35)` - a 0.65 body
+// under a 0.35 nose, so one unit end to end (torpedo_section/render.rs:130).
+const TORPEDO_BODY_LENGTH = 1.0;
+
+function coastDistance(speed: number, seconds: number): number {
+    const k = TORPEDO_LINEAR_DAMPING;
+    return (speed / k) * (1 - Math.exp(-k * seconds));
+}
+
+function initIgnitionDelay(host: HTMLElement): void {
+    header(
+        host,
+        "Dropped, then lit",
+        "The bay kicks the torpedo clear inert and the motor catches out in the open. Move the coast and the ejection charge to see how far the warhead gets before the drive has it."
+    );
+
+    const controls = el("div", "widget__controls");
+    const delay = control(
+        "ignition delay",
+        0,
+        2,
+        0.05,
+        TORPEDO_IGNITION_DELAY,
+        (v) => `${v.toFixed(2)} s`,
+        () => update()
+    );
+    const charge = control(
+        "ejection charge",
+        1,
+        20,
+        0.5,
+        TORPEDO_EJECT_SPEED,
+        (v) => `${v.toFixed(1)} u/s`,
+        () => update()
+    );
+    controls.appendChild(delay.row);
+    controls.appendChild(charge.row);
+    host.appendChild(controls);
+
+    // A side elevation: the firing hull at the left, the tube's axis running
+    // right, and the drive lighting wherever the coast ends.
+    const W = 640;
+    const H = 150;
+    const X0 = 70;
+    const X1 = 610;
+    const AXIS = 84;
+    const FULL_SCALE = 12; // units of travel across the drawn axis
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}` });
+    const px = (u: number): number =>
+        X0 + Math.min(u / FULL_SCALE, 1) * (X1 - X0);
+
+    svg.appendChild(
+        svgEl("line", {
+            x1: String(X0),
+            y1: String(AXIS),
+            x2: String(X1),
+            y2: String(AXIS),
+            class: "widget-mark--axis",
+        })
+    );
+    for (let u = 0; u <= FULL_SCALE; u += 2) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(px(u)),
+                y1: String(AXIS - 5),
+                x2: String(px(u)),
+                y2: String(AXIS + 5),
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(px(u)),
+                    y: String(AXIS + 20),
+                    "text-anchor": "middle",
+                    class: "widget-mark--detail",
+                },
+                `${u}u`
+            )
+        );
+    }
+    // The hull the bay is mounted in.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(X0 - 54),
+            y: String(AXIS - 26),
+            width: "48",
+            height: "52",
+            rx: "4",
+            class: "widget-mark--ship",
+        })
+    );
+    const coastBand = svgEl("rect", {
+        y: String(AXIS - 10),
+        height: "20",
+        class: "widget-mark--band",
+    });
+    svg.appendChild(coastBand);
+    const burn = svgEl("line", {
+        y1: String(AXIS),
+        y2: String(AXIS),
+        class: "widget-mark--plume",
+    });
+    svg.appendChild(burn);
+    const gate = svgEl("line", {
+        y1: String(AXIS - 34),
+        y2: String(AXIS + 34),
+        class: "widget-mark--gate",
+    });
+    svg.appendChild(gate);
+    const gateLabel = svgEl(
+        "text",
+        {
+            y: String(AXIS - 42),
+            "text-anchor": "middle",
+            class: "widget-mark--label-gate",
+        },
+        "IGNITION"
+    );
+    svg.appendChild(gateLabel);
+    const dart = svgEl("polygon", { class: "widget-mark--dart" });
+    svg.appendChild(dart);
+
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+    host.appendChild(plot);
+
+    const stats = el("div", "widget__stats");
+    const coastStat = stat(stats, "coast");
+    const lengthStat = stat(stats, "body lengths");
+    const catchStat = stat(stats, "speed at ignition");
+    host.appendChild(stats);
+    const readout = el("p", "widget__readout");
+    host.appendChild(readout);
+
+    const update = (): void => {
+        const seconds = Number(delay.input.value);
+        const speed = Number(charge.input.value);
+        const distance = coastDistance(speed, seconds);
+        const catchSpeed = speed * Math.exp(-TORPEDO_LINEAR_DAMPING * seconds);
+        const x = px(distance);
+
+        coastBand.setAttribute("x", String(X0));
+        coastBand.setAttribute("width", String(Math.max(0, x - X0)));
+        burn.setAttribute("x1", String(x));
+        burn.setAttribute("x2", String(X1));
+        gate.setAttribute("x1", String(x));
+        gate.setAttribute("x2", String(x));
+        gateLabel.setAttribute("x", String(x));
+        dart.setAttribute(
+            "points",
+            `${x + 14},${AXIS} ${x - 10},${AXIS - 7} ${x - 10},${AXIS + 7}`
+        );
+
+        coastStat.textContent = `${distance.toFixed(2)} u`;
+        lengthStat.textContent = (distance / TORPEDO_BODY_LENGTH).toFixed(1);
+        catchStat.textContent = `${catchSpeed.toFixed(2)} u/s`;
+
+        readout.classList.remove("is-warn", "is-fault");
+        if (seconds === 0) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                "Zero is the old behaviour: the drive is already lit when the torpedo leaves the tube, so there is no inert phase to see or to shoot at.";
+        } else if (distance < TORPEDO_BODY_LENGTH * 1.5) {
+            readout.classList.add("is-fault");
+            readout.textContent =
+                "The warhead is still alongside its own hull when the motor catches. The coast has to clear the ship to read as a launch rather than as a muzzle.";
+        } else {
+            readout.textContent =
+                "Through the shaded coast the torpedo is inert: it cannot be shot down and it cannot damage anything. The drive picks it up already moving.";
+        }
+    };
+    update();
+}
+
+// ---- v0.12.0: the sleeping OnUpdate pulse --------------------------------
+
+function initPulseSleep(host: HTMLElement): void {
+    header(
+        host,
+        "A pulse that sleeps",
+        "An OnUpdate handler used to evaluate its filters on every frame. It now wakes only when a variable it reads is written, or when the clock crosses a threshold it compares against."
+    );
+
+    const controls = el("div", "widget__controls");
+    const writes = control(
+        "variable writes",
+        0,
+        60,
+        1,
+        1,
+        (v) => `${v} / s`,
+        () => update()
+    );
+    const gates = control(
+        "clock thresholds",
+        0,
+        6,
+        1,
+        0,
+        (v) => `${v} / s`,
+        () => update()
+    );
+    controls.appendChild(writes.row);
+    controls.appendChild(gates.row);
+    host.appendChild(controls);
+
+    const keys = el("div", "widget__keys");
+    const buttons: HTMLButtonElement[] = [];
+    let sleeping = true;
+
+    // One second of frames at 60 fps, one tick each.
+    const FRAMES = 60;
+    const W = 640;
+    const H = 56;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}` });
+    svg.appendChild(
+        svgEl("rect", {
+            x: "1",
+            y: "1",
+            width: String(W - 2),
+            height: String(H - 2),
+            rx: "3",
+            class: "widget-mark--barframe",
+        })
+    );
+    const ticks: SVGRectElement[] = [];
+    const slotWidth = (W - 12) / FRAMES;
+    for (let i = 0; i < FRAMES; i += 1) {
+        const tick = svgEl("rect", {
+            x: String(6 + i * slotWidth + 1),
+            y: "8",
+            width: String(Math.max(2, slotWidth - 2)),
+            height: String(H - 16),
+            class: "widget-mark--old",
+        });
+        ticks.push(tick);
+        svg.appendChild(tick);
+    }
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stats");
+    const wokeStat = stat(stats, "frames woken");
+    const shareStat = stat(stats, "share of the second");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const perSecond = sleeping
+            ? Math.min(
+                  FRAMES,
+                  Number(writes.input.value) + Number(gates.input.value)
+              )
+            : FRAMES;
+        // Spread the wakes evenly through the second so the strip reads as a
+        // rate rather than as a burst at the front.
+        const lit = new Set<number>();
+        for (let i = 0; i < perSecond; i += 1) {
+            lit.add(Math.floor((i * FRAMES) / Math.max(1, perSecond)));
+        }
+        ticks.forEach((tick, i) => {
+            tick.setAttribute(
+                "class",
+                lit.has(i) ? "widget-mark--now" : "widget-mark--old"
+            );
+        });
+        wokeStat.textContent = `${lit.size} / ${FRAMES}`;
+        shareStat.textContent = `${((lit.size / FRAMES) * 100).toFixed(1)}%`;
+        readout.classList.remove("is-warn");
+        if (!sleeping) {
+            readout.classList.add("is-warn");
+            readout.textContent =
+                "Every frame: the handler's filters run 60 times a second whether or not anything they read has changed. This is what the pulse used to cost.";
+        } else if (lit.size === 0) {
+            readout.textContent =
+                "Nothing writes and no threshold is crossed, so the handler costs nothing at all this second. It is still armed.";
+        } else {
+            readout.textContent =
+                "The handler evaluates only on the frames something it reads actually moved. A value-gated scenario lands near the bottom of this range.";
+        }
+    };
+
+    for (const [label, wanted] of [
+        ["SLEEPING PULSE", true],
+        ["EVERY FRAME", false],
+    ] as [string, boolean][]) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        button.classList.toggle("is-on", wanted === sleeping);
+        button.setAttribute("aria-pressed", String(wanted === sleeping));
+        button.addEventListener("click", () => {
+            sleeping = wanted;
+            for (const other of buttons) {
+                const on = other === button;
+                other.classList.toggle("is-on", on);
+                other.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        buttons.push(button);
+        keys.appendChild(button);
+    }
+    host.appendChild(keys);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    update();
+}
+
+// ---- v0.12.0: the transient-light budget ---------------------------------
+
+// GraphicsBudget::transient_lights per quality tier
+// (crates/nova_gameplay/src/settings.rs:251,260,273).
+const TRANSIENT_LIGHT_BUDGET: [string, number][] = [
+    ["HIGH", 6],
+    ["MEDIUM", 3],
+    ["LOW", 0],
+];
+
+function initTransientLights(host: HTMLElement): void {
+    header(
+        host,
+        "Six lights, then no more",
+        "A detonation lights the hulls around it, and brief lights are capped per graphics tier. Ask for more than the tier allows and the extra requests are refused outright rather than dimmed."
+    );
+
+    const keys = el("div", "widget__keys");
+    const buttons: HTMLButtonElement[] = [];
+    let tier = 0;
+
+    const controls = el("div", "widget__controls");
+    const salvo = control(
+        "detonations at once",
+        1,
+        12,
+        1,
+        8,
+        (v) => String(v),
+        () => update()
+    );
+    controls.appendChild(salvo.row);
+
+    const stack = el("div", "widget__stack");
+    const stats = el("div", "widget__stats");
+    const capStat = stat(stats, "tier cap");
+    const litStat = stat(stats, "lit");
+    const refusedStat = stat(stats, "refused");
+    const readout = el("p", "widget__readout");
+
+    const update = (): void => {
+        const [name, cap] = TRANSIENT_LIGHT_BUDGET[tier];
+        const asked = Number(salvo.input.value);
+        const lit = Math.min(asked, cap);
+        stack.replaceChildren();
+        for (let i = 0; i < asked; i += 1) {
+            const granted = i < lit;
+            stack.appendChild(
+                sectionCell(
+                    granted ? "LIT" : "OFF",
+                    granted ? " burning" : " refused",
+                    granted ? "is-live" : "is-dead"
+                )
+            );
+        }
+        capStat.textContent = cap === 0 ? "none" : String(cap);
+        litStat.textContent = String(lit);
+        refusedStat.textContent = String(asked - lit);
+        readout.classList.remove("is-warn", "is-fault");
+        if (cap === 0) {
+            readout.classList.add("is-fault");
+            readout.textContent = `${name} draws no brief lights at all. The fireball still reads; the hulls around it simply do not catch it.`;
+        } else if (asked > cap) {
+            readout.classList.add("is-warn");
+            readout.textContent = `${name} burns ${cap} and refuses the rest. A light that faded in as the tier filled would make the tier visible, and the point of a budget is that you do not see it.`;
+        } else {
+            readout.textContent = `${name} has room for all ${asked}. The cap only bites once a salvo lands together.`;
+        }
+    };
+
+    for (const [index, [label]] of TRANSIENT_LIGHT_BUDGET.entries()) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        button.classList.toggle("is-on", index === tier);
+        button.setAttribute("aria-pressed", String(index === tier));
+        button.addEventListener("click", () => {
+            tier = index;
+            for (const [other, otherButton] of buttons.entries()) {
+                const on = other === index;
+                otherButton.classList.toggle("is-on", on);
+                otherButton.setAttribute("aria-pressed", String(on));
+            }
+            update();
+        });
+        buttons.push(button);
+        keys.appendChild(button);
+    }
+    host.appendChild(keys);
+    host.appendChild(controls);
+    host.appendChild(stack);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    update();
+}
+
 // ---- activation -----------------------------------------------------------
 
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
@@ -6613,6 +7028,9 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "relation-matrix": initRelationMatrix,
     "hud-context": initHudContext,
     "nova-os-surfaces": initNovaOsSurfaces,
+    "ignition-delay": initIgnitionDelay,
+    "pulse-sleep": initPulseSleep,
+    "transient-lights": initTransientLights,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

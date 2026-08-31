@@ -60,6 +60,8 @@ LOOPS=(
     "screenshot_editor|landing-editor-build||"
     "screenshot_editor|news-0110-editor-skin||"
     "screenshot_damage_levels|news-0110-damage-levels||"
+    "screenshot_editor|news-0120-editor-events||"
+    "loop_vfx_range|vfx-cold-launch||"
 )
 
 # Section pages reuse an ordinary outcome already captured above when a second
@@ -73,6 +75,10 @@ ALIASES=(
     "loop-section-thruster|landing-player-flight|loop_player_flight"
     "loop-section-turret|news-0110-point-defense|stress_point_defense"
     "loop-section-torpedo-bay|news-0110-torpedo-types|system_torpedo_launch"
+    "news-0120-release-lead|landing-editor-build|screenshot_editor"
+    "news-0120-point-defense|news-0110-point-defense|stress_point_defense"
+    "news-0120-blast|torpedo-blast|loop_torpedo_blast"
+    "news-0120-cold-launch|vfx-cold-launch|loop_vfx_range"
 )
 
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
