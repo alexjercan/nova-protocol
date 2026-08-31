@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Keybinds - Nova Protocol Wiki</title>
-        <meta name="description" content="The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad." />
+        <meta name="description" content="The full control reference: flight, autopilot verbs, radar locking, weapons, camera and interface, for keyboard and gamepad - and all of it rebindable under Settings &gt; Controls." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
     <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
@@ -41,7 +41,7 @@
                     <h1>Keybinds</h1>
                     <div class="wiki__tags" id="wiki-tags"></div>
                     
-                    <p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. The same bindings are viewable in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu.</p>
+                    <p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back.</p>
 <p>A dash means the action has no binding on that device.</p>
 <h2 id="flight" tabindex="-1">Flight</h2>
 <table class="controls controls--split">
@@ -124,7 +124,19 @@
                     aria-label="Scroll wheel"
                 ></span>
             </td>
-            <td>-</td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-stick-left"
+                    role="img"
+                    aria-label="Left stick"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
@@ -309,16 +321,6 @@
             </td>
         </tr>
         <tr>
-            <td>Dismiss oldest visible comms card</td>
-            <td><kbd>V</kbd></td>
-            <td>-</td>
-        </tr>
-        <tr>
-            <td>Skip queued comms backlog into view</td>
-            <td><kbd>B</kbd></td>
-            <td>-</td>
-        </tr>
-        <tr>
             <td>Pause menu</td>
             <td><kbd>Esc</kbd></td>
             <td>
@@ -343,13 +345,53 @@
     </tbody>
 </table>
 <h2 id="editor" tabindex="-1">Editor</h2>
-<p>The editor is mouse-first and has no gamepad bindings; these are the keys that
-save a trip to the rail. The bottom-left legend shows the ones that apply to
-whatever you are holding.</p>
+<p>The editor is mouse-first and has no gamepad bindings. Every key below is also
+a row on the top bar - <strong>File</strong>, <strong>Edit</strong>, <strong>View</strong>, <strong>Add</strong>, <strong>Ship</strong> - with
+the key printed beside it, so this table is a shortcut list and not a second
+interface. The bottom-left legend shows the gestures that apply to whatever you
+are holding right now; <strong>View &gt; Key Legend</strong> hides it.</p>
+<p>Keys are verbs only while nothing else has the keyboard. With the parts gallery
+up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
+than backing out of the ship; with the caret in a text field, every key is a
+character; and while a rebind waits for a key, it takes all of them except
+<kbd>Esc</kbd>. <kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a
+field and a pending rebind.</p>
 <table class="controls">
     <tr>
-        <td>Open or close the parts gallery</td>
-        <td><kbd>Tab</kbd> &nbsp;(or click <b>Parts</b> in the rail)</td>
+        <td>Fly the stage camera</td>
+        <td>
+            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
+            <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
+            right-drag to look
+        </td>
+    </tr>
+    <tr>
+        <td>Select a node; enter the ship you selected</td>
+        <td>left click; double click</td>
+    </tr>
+    <tr>
+        <td>Slide a ship or object on the ground plane (scenario node only)</td>
+        <td>drag its body</td>
+    </tr>
+    <tr>
+        <td>Move it along one axis; turn it about one</td>
+        <td>drag an arrow; drag a ring</td>
+    </tr>
+    <tr>
+        <td>Put the camera on the selection</td>
+        <td><kbd>F</kbd> &nbsp;(or <b>View &gt; Frame Selection</b>)</td>
+    </tr>
+    <tr>
+        <td>Delete the selection</td>
+        <td><kbd>Del</kbd> &nbsp;(or <b>Edit &gt; Delete</b>)</td>
+    </tr>
+    <tr>
+        <td>Save the document</td>
+        <td><kbd>Ctrl</kbd>+<kbd>S</kbd> &nbsp;(or <b>File &gt; Save</b>)</td>
+    </tr>
+    <tr>
+        <td>Open or close the parts gallery (inside a ship)</td>
+        <td><kbd>Tab</kbd> &nbsp;(or <b>Ship &gt; Parts...</b>)</td>
     </tr>
     <tr>
         <td>Gallery: take the part under the cursor and go build it</td>
@@ -384,17 +426,50 @@ whatever you are holding.</p>
         <td><kbd>Q</kbd></td>
     </tr>
     <tr>
-        <td>Back out: leave the search field, the gallery, then the part</td>
+        <td>Bind a flight key to the selected part</td>
+        <td>
+            <b>Ship &gt; Rebind Key...</b> or the inspector's Key row, then
+            press the key
+        </td>
+    </tr>
+    <tr>
+        <td>Leave the ship you are inside</td>
+        <td><kbd>Bksp</kbd></td>
+    </tr>
+    <tr>
+        <td>Back out one rung</td>
         <td><kbd>Esc</kbd></td>
     </tr>
 </table>
-<p><strong>Ship Skin</strong>, in the rail's Tools block, dresses the build in the cladding the
-ship would fly with. Nothing places a plate: the skin is derived from the
-structure you have assembled, and it is re-derived as you build - including
-around the part you are still holding, so a hull is dragged about UNDER the skin
-and the plating closes over it before you click. A placement the editor refuses
-stays bare. The toggle carries through to Play, so the ship you built clad is
-the ship you fly clad.</p>
+<p><kbd>Esc</kbd> takes one rung per press, in this order: an open top-bar menu,
+the search field, the gallery, a pending rebind, the part in hand, the ship you
+are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
+of that - it leaves the ship from wherever you are, unless a text field has the
+caret, where it deletes a character instead.</p>
+<h3 id="the-inspector" tabindex="-1">The inspector</h3>
+<p>The right-hand panel shows the selected node's own fields, read off the thing
+itself rather than from a list the editor keeps - so a part that grows a setting
+grows a row. It opens on the fields that matter for that kind; <strong>View &gt; All
+Fields</strong> shows the rest. A field the editor cannot edit is still listed, greyed,
+rather than hidden.</p>
+<p><strong>A number's NAME is its grip.</strong> Drag the name left or right and the value
+follows, one step per pixel, live - there is nothing to confirm. A vector row
+has three of them, one per axis letter. Click into the box instead to type a
+number. Lengths are in <code>u</code>, the authored world unit, and the unit is printed
+beside the box; the HUD converts to metres for the player, but the editor is
+content, and content is authored in <code>u</code>.</p>
+<p>The two gestures are not the same rule. A drag ARRIVES at a field's floor and
+stops there - dragging a radius past zero is asking for the smallest value there
+is. A typed number below the floor is REFUSED, because typing <code>-3</code> into a radius
+is a mistake. A drag that runs out of screen wraps the pointer to the other
+side, so a 0.05-per-pixel field is still reachable on a narrow window.</p>
+<p><strong>Ship Skin</strong>, in the left rail's <strong>Ship Settings</strong> block, dresses the build in
+the cladding the ship would fly with. Nothing places a plate: the skin is derived
+from the structure you have assembled, and it is re-derived as you build -
+including around the part you are still holding, so a hull is dragged about UNDER
+the skin and the plating closes over it before you click. A placement the editor
+refuses stays bare. The toggle carries through to Play, so the ship you built
+clad is the ship you fly clad.</p>
 <p>Button glyphs from <a href="https://shinmera.com/promptfont/">PromptFont</a> by Yukari &quot;Shinmera&quot; Hafner (SIL Open Font License).</p>
 
                     <div id="wiki-seealso"></div>

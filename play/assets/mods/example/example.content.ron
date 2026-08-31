@@ -430,7 +430,9 @@
                         )),
                     )),
                     // Win state: `destroyed` counts kills (0..2); `arena_done`
-                    // makes the OnUpdate win check fire exactly once.
+                    // tells the timed beats below that the range is not clear
+                    // yet. The win check itself needs no flag - it carries
+                    // `once`.
                     VariableSet((
                         key: "destroyed",
                         expression: Term(Factor(Literal(Number(0.0)))),
@@ -439,18 +441,10 @@
                         key: "arena_done",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    // One-shot flags for the TIMED beats below. Seeding them
-                    // here matters: an undefined variable in a filter fails
-                    // closed, so an unseeded `nudge_sent == 0` gate would
-                    // never pass and the beat would never fire.
-                    VariableSet((
-                        key: "nudge_sent",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "drifter_sent",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
+                    // Seeding matters for every variable a filter reads: an
+                    // undefined variable fails closed, so an unseeded
+                    // `arena_done == 0` gate would never pass and the beat it
+                    // guards would never fire.
                     Objective((
                         id: "clear_range",
                         message: "Destroy the two derelict rocks. Aim with the mouse, [Left Mouse] fires.",
@@ -470,6 +464,7 @@
             // the integrity bridge fires OnDestroyed under.
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("example_target_1"),
@@ -490,6 +485,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("example_target_2"),
@@ -508,21 +504,21 @@
                     )),
                 ],
             ),
-            // The win, checked every frame but gated to fire once. `> 1` (not
-            // `== 2`): if a target ever fired OnDestroyed twice the counter
-            // would overshoot and an `== 2` gate would be skipped forever
-            // (an uncompletable arena). OnUpdate, not the last OnDestroyed, so
-            // it never depends on handler order within one destroy event.
+            // The win, checked every frame until it fires. `once: true` is
+            // what makes it fire exactly once: the handler retires the moment
+            // its filters pass, so the beat needs no flag of its own. `> 1`
+            // (not `== 2`): if a target ever fired OnDestroyed twice the
+            // counter would overshoot and an `== 2` gate would be skipped
+            // forever (an uncompletable arena). OnUpdate, not the last
+            // OnDestroyed, so it never depends on handler order within one
+            // destroy event.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("destroyed"))),
                         Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("arena_done"))),
-                        Term(Factor(Literal(Number(0.0)))),
                     ))),
                 ],
                 actions: [
@@ -544,15 +540,17 @@
             // TIMED beats, gated on the engine's scenario clock: the
             // reserved `scenario_elapsed` variable counts live, unpaused
             // seconds (the engine ticks it - never write it yourself; the
-            // content gate errors on a VariableSet to it). Compose a
-            // one-shot as clock threshold + your own fired-flag, exactly
-            // like any other act gate. A repeating wave is the same shape
-            // gating on `elapsed > next_at` and rearming `next_at` in the
-            // action.
+            // content gate errors on a VariableSet to it). A clock threshold
+            // plus `once: true` IS the one-shot; the only filter left is the
+            // one about the game (`arena_done == 0` - do not nag a player who
+            // already finished). A repeating wave is the same shape WITHOUT
+            // `once`, gating on `elapsed > next_at` and rearming `next_at` in
+            // the action.
             //
             // Beat one: a friendly nudge if the range is not clear by 25s.
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -562,16 +560,8 @@
                         Term(Factor(Name("arena_done"))),
                         Term(Factor(Literal(Number(0.0)))),
                     ))),
-                    Expression((Equal(
-                        Term(Factor(Name("nudge_sent"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "nudge_sent",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Range Control",
                         text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
@@ -583,6 +573,7 @@
             // first two).
             (
                 name: OnUpdate,
+                once: true,
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("scenario_elapsed"))),
@@ -592,16 +583,8 @@
                         Term(Factor(Name("arena_done"))),
                         Term(Factor(Literal(Number(0.0)))),
                     ))),
-                    Expression((Equal(
-                        Term(Factor(Name("drifter_sent"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
                 ],
                 actions: [
-                    VariableSet((
-                        key: "drifter_sent",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
                     StoryMessage((
                         speaker: "Range Control",
                         text: "Late contact drifting onto the range - bonus target if you want it.",
@@ -626,6 +609,7 @@
             // Lose condition: if the player's ship is destroyed, end in Defeat.
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),

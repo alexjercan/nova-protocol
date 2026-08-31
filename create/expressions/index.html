@@ -43,7 +43,7 @@
                     <div class="wiki__tags" id="wiki-tags"></div>
                     <nav class="wiki-toc" aria-label="Contents">
                         <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
+                        <ol><li><a href="#values-the-literal-types">Values: the literal types</a><ol></ol></li><li><a href="#factors-the-atoms">Factors: the atoms</a><ol></ol></li><li><a href="#terms-multiply-divide">Terms: multiply / divide</a><ol></ol></li><li><a href="#expressions-add-subtract-the-value-root">Expressions: add / subtract (the value root)</a><ol></ol></li><li><a href="#conditions-the-boolean-root">Conditions: the boolean root</a><ol></ol></li><li><a href="#queries-and-watched-variables">Queries and watched variables</a><ol></ol></li><li><a href="#the-typed-form-in-the-editor">The typed form (in the editor)</a><ol></ol></li><li><a href="#recipes">Recipes</a><ol></ol></li><li><a href="#traps-for-the-unwary">Traps for the unwary</a><ol></ol></li></ol>
                     </nav>
                     <p>Scenario state lives in ONE flat variable store: string keys, typed values.
 <a href="../actions/#variableset"><code>VariableSet</code></a> writes it,
@@ -279,6 +279,80 @@ snapshot when the action runs:</p>
 </table>
 <p><code>Entity</code> is strict-single. Zero matches, multiple matches, or a missing velocity
 make the query unavailable. Expressions fail closed. Missing is not zero.</p>
+<h2 id="the-typed-form-in-the-editor" tabindex="-1">The typed form (in the editor)</h2>
+<p>The RON above is the authored form, and it is the one the file holds. In the
+in-game editor an expression filter is ONE ROW in the tree; selecting it opens
+the condition as a PAGE, a row per node: <code>Compare</code> at the top with <code>Left</code> and
+<code>Right</code> stepped in under it, each offering the operators its place allows. A
+leaf holds one value, typed in the short form below rather than as a nest of
+<code>Add(Term(Factor(...</code>. A leaf that names a variable can PICK one instead of
+spelling it: the chip beside the box lists what the scenario declares.</p>
+<p>A <code>VariableSet</code> action opens the SAME page under its <code>Key</code>, headed <code>Value</code>
+instead of <code>Condition</code>: what it writes is an expression, so <code>Writes</code> sits where
+<code>Compare</code> does and takes the operators a value may have - <code>+ - * /</code> and a leaf,
+never a comparison. The tree row of that action reads as the assignment it
+makes, <code>beat = beat + 1</code>.</p>
+<table>
+<thead>
+<tr>
+<th>you type</th>
+<th>the file holds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>4</code></td>
+<td><code>Term(Factor(Literal(Number(4.0))))</code></td>
+</tr>
+<tr>
+<td><code>&quot;act_two&quot;</code></td>
+<td><code>Term(Factor(Literal(String(&quot;act_two&quot;))))</code></td>
+</tr>
+<tr>
+<td><code>true</code></td>
+<td><code>Term(Factor(Literal(Boolean(true))))</code></td>
+</tr>
+<tr>
+<td><code>beat</code></td>
+<td><code>Term(Factor(Name(&quot;beat&quot;)))</code></td>
+</tr>
+<tr>
+<td><code>beat + 1</code></td>
+<td><code>Add(Factor(Name(&quot;beat&quot;)), Term(Factor(Literal(Number(1.0)))))</code></td>
+</tr>
+<tr>
+<td><code>(a + b) * 2</code></td>
+<td><code>Term(Multiply(Parens(..), Factor(Literal(Number(2.0)))))</code></td>
+</tr>
+<tr>
+<td><code>scenario.elapsed</code></td>
+<td><code>Term(Factor(Query(Scenario((property: Elapsed)))))</code></td>
+</tr>
+<tr>
+<td><code>entity(&quot;courier&quot;).speed</code></td>
+<td><code>Term(Factor(Query(Entity((filter: (id: &quot;courier&quot;), property: Speed)))))</code></td>
+</tr>
+<tr>
+<td><code>beat == 3</code></td>
+<td><code>Equal(Term(Factor(Name(&quot;beat&quot;))), Term(Factor(Literal(Number(3.0)))))</code></td>
+</tr>
+</tbody>
+</table>
+<p>Operators are <code>+ - * /</code> for values, <code>&lt; &gt; ==</code> for conditions, and <code>( )</code> groups.
+Strings are double-quoted, with <code>\&quot;</code> for a quote inside one. There is nothing
+here the grammar above does not already have: no <code>!=</code>, no <code>&amp;&amp;</code>, no operator the
+engine cannot evaluate.</p>
+<p>There is no unary minus. <code>-3</code> is the literal -3, read only where a value may
+start, so the <code>-</code> in <code>a - 3</code> stays an operator.</p>
+<p>The text round-trips. Reading a file and writing it back gives the same tree,
+and the same text - so opening a scenario in the editor and saving it does not
+rewrite a condition you did not touch. <code>a - b - c</code> still groups RIGHTWARD, as
+<code>Subtract(a, Subtract(b, c))</code> does; parenthesize when you mean otherwise.</p>
+<p>A line that does not parse is REFUSED: the field says why (<code>'&amp;' is not part of an expression</code>, <code>unterminated string</code>) and the config keeps the value it had.</p>
+<p>Typing a whole expression into one leaf is allowed - <code>(a + b) * 2</code> in a single
+row reads exactly as it does here - so the tree is how deep you want it to be.
+The brackets come back on the way out wherever the shape needs them: a sum
+hanging under a product is written <code>(a + b) * 2</code>, never <code>a + b * 2</code>.</p>
 <h2 id="recipes" tabindex="-1">Recipes</h2>
 <p>The compositions every shipped scenario is built from. All of them depend on
 one rule: <strong>seed every variable in <code>OnStart</code></strong> - expression filters
@@ -289,41 +363,42 @@ one rule: <strong>seed every variable in <code>OnStart</code></strong> - express
     <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Add</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;crates_recovered&quot;</span><span class="ron-punct">)),</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">))))),</span>
 <span class="ron-punct">))</span>
 </code></pre>
-<p>The count-gate + one-shot flag - a second handler (often <code>OnUpdate</code>, so it
-never depends on handler order) that fires ONCE when the counter crosses a
-threshold. Prefer <code>&gt; n-1</code> over <code>== n</code> on a count gate: a double-fire that
-jumps the counter past <code>n</code> cannot skip a <code>&gt;</code> gate, but sails clean over an
-<code>==</code> one.</p>
+<p>The count gate - a second handler (often <code>OnUpdate</code>, so it never depends on
+handler order) that fires when the counter crosses a threshold.
+<a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once: true</code></a> is what makes
+it fire one time. Prefer <code>&gt; n-1</code> over <code>== n</code> on a count gate: a double-fire
+that jumps the counter past <code>n</code> cannot skip a <code>&gt;</code> gate, but sails clean over
+an <code>==</code> one.</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;crates_recovered&quot;</span><span class="ron-punct">))),</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>      <span class="ron-comment">// fires at 2 or more</span>
         <span class="ron-punct">))),</span>
-        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;quota_done&quot;</span><span class="ron-punct">))),</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Boolean</span><span class="ron-punct">(</span><span class="ron-literal">false</span><span class="ron-punct">)))),</span>
-        <span class="ron-punct">))),</span>
     <span class="ron-punct">],</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span><span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;quota_done&quot;</span><span class="ron-punct">,</span> <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Boolean</span><span class="ron-punct">(</span><span class="ron-literal">true</span><span class="ron-punct">)))))),</span>
         <span class="ron-comment">// ... the beat ...</span>
     <span class="ron-punct">],</span>
 <span class="ron-punct">),</span>
 </code></pre>
-<p>A one-shot timed beat (clock threshold + flag):</p>
-<pre><code class="hljs language-ron"><span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-    <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
-        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;scenario_elapsed&quot;</span><span class="ron-punct">))),</span>
-        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">30.0</span><span class="ron-punct">)))),</span>
-    <span class="ron-punct">))),</span>
-    <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
-        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;beat_fired&quot;</span><span class="ron-punct">))),</span>
-        <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">)))),</span>
-    <span class="ron-punct">))),</span>
-<span class="ron-punct">],</span>
+<p>A timed beat is the same shape - a clock threshold and <code>once</code>:</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;scenario_elapsed&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">30.0</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">))),</span>
+    <span class="ron-punct">],</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span> <span class="ron-comment">/* ... */</span> <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
 </code></pre>
+<p>Keep a flag only where it is a SIGNAL some OTHER handler reads - &quot;the quota is
+met&quot;, &quot;wave two is on the board&quot;. A flag whose only reader is its own filter
+is what <code>once</code> replaces.</p>
 <p>A repeating wave - gate on <code>elapsed &gt; next_at</code>, re-arm inside the action:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
     <span class="ron-type">VariableSet</span><span class="ron-punct">((</span>

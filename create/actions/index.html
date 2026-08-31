@@ -43,12 +43,12 @@
                     <div class="wiki__tags" id="wiki-tags"></div>
                     <nav class="wiki-toc" aria-label="Contents">
                         <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#storymessage">StoryMessage</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#forcetorpedolaunch">ForceTorpedoLaunch</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol>
+                        <ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#storymessage">StoryMessage</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#setspeedcap">SetSpeedCap</a></li><li><a href="#setcontrollerverb">SetControllerVerb</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#forcetorpedolaunch">ForceTorpedoLaunch</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol>
                     </nav>
                     <p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 25 at a glance:</p>
+never panics a scenario). All 26 at a glance:</p>
 <table>
 <thead>
 <tr>
@@ -117,6 +117,11 @@ never panics a scenario). All 25 at a glance:</p>
 <td><a href="#hintemphasisclear"><code>HintEmphasisClear</code></a></td>
 <td><a href="#mission-story">mission</a></td>
 <td>drop the gold emphasis on one chip</td>
+</tr>
+<tr>
+<td><a href="#sequence"><code>Sequence</code></a></td>
+<td><a href="#pacing">pacing</a></td>
+<td>run an ordered list of beats, each behind its own delay or gate</td>
 </tr>
 <tr>
 <td><a href="#outcome"><code>Outcome</code></a></td>
@@ -726,6 +731,134 @@ grants the verb (<a href="#setcontrollerverb"><code>SetControllerVerb</code></a>
 </tbody>
 </table>
 </details>
+<h2 id="pacing" tabindex="-1">Pacing</h2>
+<h3 id="sequence" tabindex="-1">Sequence</h3>
+<p>Run an ordered list of BEATS. The ENGINE holds the cursor, so a paced chain
+costs one action and no scenario variable.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Sequence</span><span class="ron-punct">((</span>
+    <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;opening&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">steps</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span>
+            <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">2.0</span><span class="ron-punct">),</span>
+            <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+                <span class="ron-type">StoryMessage</span><span class="ron-punct">((</span>
+                    <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Capt. Halloran&quot;</span><span class="ron-punct">,</span>
+                    <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Kestrel, you are cleared to burn.&quot;</span><span class="ron-punct">,</span>
+                <span class="ron-punct">)),</span>
+            <span class="ron-punct">],</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-punct">(</span>
+            <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">8.4</span><span class="ron-punct">),</span>
+            <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+                <span class="ron-type">Objective</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;b1_burn&quot;</span><span class="ron-punct">,</span> <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Fly to BEACON 1.&quot;</span><span class="ron-punct">)),</span>
+            <span class="ron-punct">],</span>
+        <span class="ron-punct">),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code></td>
+<td>string</td>
+<td>required</td>
+<td>scenario-local chain key; the engine files the cursor under it</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td>list</td>
+<td>required</td>
+<td>the beats, in order; at least one</td>
+</tr>
+</tbody>
+</table>
+<p>A step:</p>
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>after</code></td>
+<td>seconds</td>
+<td>none</td>
+<td>scenario time to wait, from when this step became current</td>
+</tr>
+<tr>
+<td><code>until</code></td>
+<td>event + filters</td>
+<td>none</td>
+<td>an event that must arrive, qualified by its filters</td>
+</tr>
+<tr>
+<td><code>deadline</code></td>
+<td>seconds</td>
+<td>none</td>
+<td>how long the step may wait before the chain is called stuck; REQUIRED with <code>until</code></td>
+</tr>
+<tr>
+<td><code>actions</code></td>
+<td>list</td>
+<td><code>[]</code></td>
+<td>what the beat does</td>
+</tr>
+</tbody>
+</table>
+<p>Both waits may sit on one step, and they run TOGETHER: a gate that opens early
+still owes the delay, and a delay that elapses first still owes the gate. A
+step with neither runs the moment it becomes current - which is how a hand-off
+beat rides the end of a chain.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">6.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">until</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+        <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;surveyed&quot;</span><span class="ron-punct">))),</span>
+            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>
+        <span class="ron-punct">)))],</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-key">deadline</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">600.0</span><span class="ron-punct">),</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span> <span class="ron-comment">/* the beat */</span> <span class="ron-punct">],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<p>The semantics are WAIT, never SKIP: a step whose gate stays shut blocks the
+beats behind it. That is why a gated step must carry a <code>deadline</code> - when it
+expires the chain STOPS and logs an error, so a soft-lock is loud instead of
+silent. <code>content lint</code> refuses a gated step without one.</p>
+<p>Delays ride the pause-frozen scenario clock, so a gap measures play time, not
+wall time.</p>
+<p>One cursor per key. Starting a key whose chain is still running is refused and
+logged; a chain that has finished frees its key. Several handlers MAY start the
+same key when only one of them can ever fire - every win variant of a scenario
+starting one shared outro chain is the idiom.</p>
+<p>A step's actions are a FRAME of their own, landing seconds after the handler
+that queued them, and everything else applies inside a step unchanged: an
+objective still must not share a beat with a comms line, and a beat may start
+a chain of its own.</p>
+<p><strong>What it replaces.</strong> A paced chain used to be sibling <code>OnUpdate</code> handlers
+strung together by hand: a counter variable seeded in <code>OnStart</code>, a
+<code>VariableSet</code> per beat to advance it, and a filter per beat reading both the
+counter and <code>scenario_elapsed</code> against a stamped deadline. All of that is
+about the machine. Reach for a chain whenever the only thing a beat is waiting
+for is &quot;later&quot;; keep a handler where the beat must still ASK something when it
+lands - which of two lines to speak, whether the fight is still live - because
+a step runs when its wait ends and only a handler can re-check.</p>
+</details>
 <h2 id="flow-outcomes-transitions" tabindex="-1">Flow: outcomes &amp; transitions</h2>
 <h3 id="outcome" tabindex="-1">Outcome</h3>
 <p>Declare the scenario's win or lose: the gold VICTORY / red DEFEAT banner,
@@ -1011,6 +1144,9 @@ number. Invalid values log an error and leave an existing timer unchanged.</p>
 <p>Timers freeze under pause and clear on retry or teardown. Use an
 <a href="../events/#ontimerend"><code>OnTimerEnd</code></a> handler with a
 <a href="../filters/#timer"><code>Timer</code></a> filter to react once.</p>
+<p>A timer earns its handler when the beat must still ASK something when it
+lands - is the wing still alive, which line fits. A run of beats that only
+waits for later is a <a href="#sequence"><code>Sequence</code></a> instead.</p>
 </details>
 <h3 id="timercancel" tabindex="-1">TimerCancel</h3>
 <p>Cancel a running timer. A missing key is a no-op.</p>
@@ -1052,6 +1188,10 @@ the write half of the whole
 </tr>
 </tbody>
 </table>
+<p>In the in-game editor the expression is not a text field: the action opens a
+<code>Value</code> page under its <code>Key</code>, a row per node, exactly as an expression filter
+opens its condition. See
+<a href="../expressions/#the-typed-form-in-the-editor">the typed form</a>.</p>
 </details>
 <h3 id="debugmessage" tabindex="-1">DebugMessage</h3>
 <p>Log a line (debug builds; run with <code>--features dev</code> while iterating). No

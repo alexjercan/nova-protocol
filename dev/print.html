@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -258,7 +258,7 @@ prose depth, follow the chapter linked at each group heading.</p>
 </thead>
 <tbody>
 <tr><td>Scenario engine, mission scripting</td><td><code>nova_scenario</code>, <code>nova_events</code></td><td><code>crates/nova_scenario/src/lib.rs</code>, <code>crates/nova_events/src/engine.rs</code></td><td><code>NovaScenarioPlugin</code></td><td>A scenario is handlers = event + filters + actions over <code>NovaEventWorld</code>; the generic queue/dispatch (<code>EventHandler</code>) is <code>nova_events</code>.</td></tr>
-<tr><td>Scenario events, filters, actions (modding events)</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/events.rs</code>, <code>crates/nova_scenario/src/filters.rs</code>, <code>crates/nova_scenario/src/actions/mod.rs</code></td><td><code>EventConfig</code>, <code>EventFilterConfig</code>, <code>EventActionConfig</code></td><td>One dispatch enum each; actions fan out to the flow/mission/ship/spawn/timer/view submodules beside <code>mod.rs</code>.</td></tr>
+<tr><td>Scenario events, filters, actions (modding events)</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/events.rs</code>, <code>crates/nova_scenario/src/filters.rs</code>, <code>crates/nova_scenario/src/actions/mod.rs</code></td><td><code>EventConfig</code>, <code>EventFilterConfig</code>, <code>EventActionConfig</code></td><td>One dispatch enum each; actions fan out to the flow/mission/sequence/ship/spawn/timer/view submodules beside <code>mod.rs</code>.</td></tr>
 <tr><td>Scenario variables, expressions, watches</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/variables.rs</code>, <code>crates/nova_scenario/src/world.rs</code></td><td><code>VariableExpressionNode</code>, <code>NovaEventWorld</code></td><td>Typed literals + expression tree (<code>VariableConditionNode</code> for filters); watches sample typed world queries into variables.</td></tr>
 <tr><td>Scenario objects (asteroid, spaceship, beacon, crate, light, anchor)</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/objects/mod.rs</code>, <code>crates/nova_scenario/src/actions/spawn.rs</code></td><td><code>ScenarioObjectsPlugin</code>, <code>ScenarioObjectKind</code></td><td>One module per kind under <code>objects/</code>; the spawn action dispatches on the kind enum.</td></tr>
 <tr><td>Scenario loading, lifetime scoping, teardown</td><td><code>nova_scenario</code></td><td><code>crates/nova_scenario/src/loader/mod.rs</code>, <code>crates/nova_scenario/src/loader/lifecycle.rs</code></td><td><code>ScenarioLoaderPlugin</code></td><td><code>LoadScenario</code>/<code>UnloadScenario</code> observers; everything tagged <code>ScenarioScopedMarker</code> dies at teardown; <code>scenario_is_live</code> gates the ship sets.</td></tr>
@@ -275,6 +275,7 @@ prose depth, follow the chapter linked at each group heading.</p>
 </thead>
 <tbody>
 <tr><td>NOVA OS (terminal, shell, ship computer apps)</td><td><code>nova_os</code>, <code>nova_os_ui</code></td><td><code>crates/nova_os/src/command.rs</code>, <code>crates/nova_os/src/app.rs</code>, <code>crates/nova_os_ui/src/lib.rs</code></td><td><code>NovaOsUiPlugin</code></td><td>Pure model in <code>nova_os</code> (<code>NovaOsCommandRegistry</code>, <code>NovaOsAppRuntime</code>); the Tab CRT monitor and the map/ship apps in <code>nova_os_ui</code>.</td></tr>
+<tr><td>Keybinds: the action table, rebinding, the capture</td><td><code>nova_input</code>, <code>nova_menu</code></td><td><code>crates/nova_input/src/registry.rs</code>, <code>crates/nova_input/src/poll.rs</code>, <code>crates/nova_menu/src/settings.rs</code></td><td><code>InputBindings</code>, <code>InputSources</code></td><td>One table of named actions; each owner registers its own defaults, every rig is BUILT from it, and every rebind surface reads it. Settings’ Controls tab takes the next press through <code>InputSources</code>; overrides persist in <code>settings_store</code>.</td></tr>
 <tr><td>Flight HUD widgets</td><td><code>nova_hud</code></td><td><code>crates/nova_hud/src/lib.rs</code></td><td><code>NovaHudPlugin</code></td><td>One module per instrument (crosshairs, ammo, markers, comms, keybind dock); reads the ship, never drives it.</td></tr>
 <tr><td>Main menu, menu backdrops</td><td><code>nova_menu</code></td><td><code>crates/nova_menu/src/lib.rs</code>, <code>crates/nova_menu/src/ambience.rs</code></td><td><code>NovaMenuPlugin</code></td><td>The backdrop is a random <code>menu_backdrop</code>-flagged scenario drawn live (<code>load_menu_ambience</code>); <code>NOVA_MENU_BACKDROP</code> pins one id for capture.</td></tr>
 <tr><td>Shared UI theme, widgets, skins</td><td><code>nova_ui</code></td><td><code>crates/nova_ui/src/lib.rs</code>, <code>crates/nova_ui/src/widget/mod.rs</code></td><td><code>NovaUiPlugin</code></td><td>Theme tokens, the <code>UiSkin</code> switch, and the widget factories every UI-drawing crate consumes.</td></tr>
@@ -313,6 +314,9 @@ target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland),
 those yourself. Bare <code>cargo</code> is not on PATH under Nix: run every cargo/rust
 command via <code>nix develop --command &lt;cmd&gt;</code> (the commands below assume you are
 inside <code>nix develop</code>).</li>
+<li><strong>Playing it</strong>, as opposed to working on it: <code>nix run</code> builds and launches
+the packaged game with no checkout and no development shell. See
+<a href="#the-nix-package">The nix package</a>.</li>
 </ul>
 <h2 id="everyday-commands"><a class="header" href="#everyday-commands">Everyday commands</a></h2>
 <pre><code class="language-sh">cargo run                         # the game (boots into the main menu)
@@ -567,7 +571,16 @@ objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
 <code>bug_neutralized_quiet</code> (a wreck’s point defence stands down) and
 <code>system_borrowed_battery</code> (the Flight Computer works idle player PDCs). Then
 the interface, driven by synthesized pointer input: <code>system_ship_editor</code>
-(build a ship and inspect it, refusals included), <code>system_hud_indicators</code>
+(build a ship and inspect it, refusals included), <code>system_field_controls</code>
+(the inspector’s number rows: the unit a field’s declaration gives it, the
+step a drag on its name moves it by, and the floor that drag ARRIVES at
+where a typed value is refused), <code>system_input_modes</code> (one owner of the
+keyboard at a time - the same key pressed under a text field, the gallery, a
+pending rebind and none of them, each verdict a NEGATIVE read after a settle
+because a key that went nowhere raises no event), <code>system_ui_scale</code> (a
+world-anchored label holds its LOGICAL offset when the scale factor doubles
+and the window changes shape, and the top bar and the stage’s nameplates are
+read at every shape alongside it), <code>system_hud_indicators</code>
 (where a screen-projected indicator lands), <code>system_menu_boot</code> (the shipped
 boot flow) and
 <code>bug_menu_picker</code> (the Scenarios picker, whose pane split must not depend on
@@ -1077,6 +1090,66 @@ parsing HTML.</p>
 <li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.</li>
 <li>Packaging assets (icons, installer, .app) live under <code>build/</code>.</li>
 </ul>
+<h3 id="the-nix-package"><a class="header" href="#the-nix-package">The nix package</a></h3>
+<p>The flake packages the game as well as the development shell, so a player
+needs neither a checkout nor a toolchain:</p>
+<pre><code class="language-sh">nix run github:alexjercan/nova-protocol         # build it and play
+nix profile install github:alexjercan/nova-protocol
+nix build .#default                             # ./result/bin/nova-protocol
+</code></pre>
+<p>Three outputs, and which one you want depends on what you are doing:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>output</th><th>what it is</th></tr>
+</thead>
+<tbody>
+<tr><td><code>packages.default</code></td><td>the wrapped game - the one to install</td></tr>
+<tr><td><code>packages.nova-protocol</code></td><td>the same derivation, under its own name</td></tr>
+<tr><td><code>packages.nova-protocol-unwrapped</code></td><td>the bare cargo binary</td></tr>
+</tbody>
+</table>
+</div>
+<p>The unwrapped binary finds no assets and opens no window on its own. It is
+split out so that editing the desktop entry, the icon or the asset wiring
+costs a second instead of a fat-LTO relink of the whole Bevy graph. The
+wrapper is what makes it a game:</p>
+<ul>
+<li><code>assets/</code> and <code>credits/</code> are installed under <code>share/nova-protocol</code>, and
+<code>BEVY_ASSET_ROOT</code> points bevy’s reader at them. Without it the reader falls
+back to the directory the executable sits in, which in the store holds the
+binary and nothing else. It is set as a DEFAULT, so a modder can still point
+a packaged build at a working tree.</li>
+<li>The libraries Bevy opens with <code>dlopen</code> - vulkan, wayland, X11, xkbcommon,
+alsa, udev - go on <code>LD_LIBRARY_PATH</code>. The linker never records them, so a
+packaged binary finds none of them without this. It is the same list the
+development shell exports, shared in <code>flake.nix</code> rather than written twice.</li>
+</ul>
+<p>The package builds with <code>--profile dist</code>, the profile
+<code>.github/workflows/release.yaml</code> ships, so <code>nix run</code> gets the binary a player
+gets. Fat LTO and one codegen unit: budget half an hour for a cold build.</p>
+<p><code>webmods/</code> is NOT in the package. Those are the portal’s development fixtures,
+served by <code>scripts/serve-mods.sh</code>; the <code>mods://</code> source reads installed mods
+out of the player’s data directory (<code>~/.local/share/nova-protocol/mods</code>), which
+no store path can hold.</p>
+<p>The package’s toolchain is <code>rust-project.toolchain</code>, set to the same
+<code>rustNightly</code> value the development shell uses. Left alone, rust-flake resolves
+its own from <code>rust-toolchain.toml</code>, and the package and the shell could drift
+apart on a <code>nix flake update</code> - so there is still ONE pin in <code>flake.nix</code>, the
+one the comment beside it names.</p>
+<h3 id="the-desktop-entry"><a class="header" href="#the-desktop-entry">The desktop entry</a></h3>
+<p><code>nix profile install</code> also installs
+<code>share/applications/nova-protocol.desktop</code> and the icon into the hicolor
+theme, so <code>rofi -show drun</code>, wofi, and the GTK and KDE menus list “Nova
+Protocol” with its mark. <code>~/.nix-profile/share</code> is already on <code>XDG_DATA_DIRS</code>,
+so nothing else has to be wired; <code>nix run</code> and <code>nix build</code> do not install it,
+because neither adds anything to a profile.</p>
+<p>The icon is rendered from <code>web/src/favicon.svg</code>, the site’s brand mark, into
+the eight hicolor sizes plus the scalable SVG. A launcher resolves
+<code>Icon=nova-protocol</code> by name against the theme, so the sizes have to exist as
+files: an icon theme with no <code>scalable</code> support finds nothing otherwise. The
+art under <code>build/</code> is still bevy_game_template’s placeholder bird and is
+deliberately not used.</p>
 <h3 id="cutting-a-release"><a class="header" href="#cutting-a-release">Cutting a release</a></h3>
 <p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
 (<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
@@ -1242,6 +1315,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_menu</code></td><td>Main menu + the ESC pause overlay; hands off to <code>Playing</code>.</td></tr>
+<tr><td><code>nova_input</code></td><td>The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface.</td></tr>
 <tr><td><code>nova_ui</code></td><td>Shared theme, skin, themed widgets, screen composition, unit formatting. A leaf: every UI-drawing crate (<code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code>, <code>nova_assets</code>) draws from it.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays); compiled under the <code>debug</code> feature.</td></tr>
 <tr><td><code>nova_info</code></td><td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td></tr>
@@ -1393,6 +1467,7 @@ creator pages on the site; linked names are chapters of this book.</p>
 <tr><td>What a frame COSTS, or how it is measured (<code>nova_probe/capabilities/{frametime,framecost,census}</code>, <code>nova_core</code> render setup, anything with a millisecond in its justification)</td><td></td><td><a href="#measuring-performance">Measuring performance</a> - and re-read the Xvfb section before quoting an absolute number anywhere</td><td>CHANGELOG (Performance)</td></tr>
 <tr><td>App assembly, plugin order, states, the game binary’s own flags (<code>nova_core</code>, <code>nova_assets</code>, <code>src/main.rs</code>)</td><td></td><td><a href="#architecture">Architecture</a>, <a href="#project-tour">Project tour</a>, <a href="#development">Building and running</a> (“Launching a scenario from the command line”)</td><td>CHANGELOG</td></tr>
 <tr><td>Content CLI: gen/lint subcommands, the base content builders (<code>nova_authoring</code>, the game binary’s <code>content</code> subcommand)</td><td></td><td><code>/create/author-a-scenario/</code>, <code>/create/sections/</code>, <a href="#add-a-ship-section">Add a ship section</a>, <code>/create/publish-a-mod/</code>, <code>/create/mod-files/</code>, <a href="#scenario--modding-system">Scenario engine</a>, <a href="#spaceship-sections-and-integrity">Ship sections internals</a>, <code>/create/base-content/</code> (the id/asset catalog - a builder change that adds, renames or rebalances an id lands there)</td><td>CHANGELOG</td></tr>
+<tr><td>Packaging: the nix package, the desktop entry, the icon (<code>flake.nix</code>)</td><td></td><td><a href="#development">Building and running</a> (“The nix package”, “The desktop entry”)</td><td>README.md quick start, CHANGELOG (Internals)</td></tr>
 <tr><td>The website itself (<code>web/</code>)</td><td></td><td><a href="#development">Building and running</a>, this page</td><td></td></tr>
 <tr><td>Local dev servers (<code>scripts/serve-web.sh</code>, <code>scripts/serve-mods.sh</code>, <code>scripts/preview-web.sh</code>, <code>web/webpack.config.js</code>, <code>Trunk.toml</code>)</td><td></td><td><a href="#development">Building and running</a> (“Local web preview”), <code>/create/publish-a-mod/</code> (“Preview the repository portal”)</td><td>README.md quick start + scripts table</td></tr>
 </tbody>
@@ -1422,10 +1497,13 @@ Give the sweep its own step (or lane) whenever <code>crates/*</code> changes sha
 <a href="#development">Building and running -&gt; Versioning and release</a>. At the doc
 level, a release means:</p>
 <ol>
-<li><strong><code>CHANGELOG.md</code></strong>: promote <code>## [Unreleased]</code> to <code>## [&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty <code>[Unreleased]</code>, merge any duplicate
+<li>
+<p><strong><code>CHANGELOG.md</code></strong>: promote <code>## [Unreleased]</code> to <code>## [&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty <code>[Unreleased]</code>, merge any duplicate
 subsystem headings that grew during the cycle, and update the compare links
-at the bottom.</li>
-<li><strong>News</strong>: a <strong>feature release</strong> (<code>0.X.0</code>) gets a new post at
+at the bottom.</p>
+</li>
+<li>
+<p><strong>News</strong>: a <strong>feature release</strong> (<code>0.X.0</code>) gets a new post at
 <code>web/src/news/&lt;version&gt;.md</code>, registered in <code>NEWS_POSTS</code> in
 <code>web/webpack.config.js</code> with a card added to <code>web/src/news.html</code>. A <strong>patch
 release</strong> (<code>0.X.Y</code>) gets <strong>no post of its own</strong> - fold it into its parent
@@ -1435,17 +1513,34 @@ structure the body as <code>##</code> sections with <code>###</code> subsections
 derives the sticky TOC sidebar from those headings, so a flat post gets an
 empty TOC; and use the figure-placeholder format (a <code>.figure</code> block that
 auto-upgrades to its screenshot once <code>scripts/gen-web-screenshots.py</code>
-packages the image) rather than inlining an <code>&lt;img&gt;</code>.</li>
-<li><strong>Wiki and creator docs</strong>: sync any player or creator pages the release’s
+packages the image) rather than inlining an <code>&lt;img&gt;</code>.</p>
+<p>Name every figure <code>news-&lt;version&gt;-&lt;subject&gt;</code> and nothing else. A post
+argues about one release, so its media is frozen: both packagers refuse to
+overwrite a <code>news-</code> file that already exists (<code>NOVA_UNFREEZE=news-0120</code>
+re-opens the post being authored), and a <code>news-</code> name is a leaf that
+nothing else may source from. A figure named for a living asset is re-cut
+every cycle and silently reillustrates the post; a living page borrowing a
+<code>news-</code> figure is pinned to an old release and can never update.
+<code>web/tests/assets.test.js</code> fails the build on either, so authoring a
+figure means adding an alias in <code>scripts/gen-web-screenshots.py</code> (stills)
+or <code>scripts/capture-web-media.sh</code> (loops).</p>
+</li>
+<li>
+<p><strong>Wiki and creator docs</strong>: sync any player or creator pages the release’s
 changes touched (use the map above). Do this as you go during the cycle,
-not in a scramble at release.</li>
-<li><strong>This book</strong>: same rule - chapters stay current through the cycle, and
+not in a scramble at release.</p>
+</li>
+<li>
+<p><strong>This book</strong>: same rule - chapters stay current through the cycle, and
 <code>nix develop --command mdbook build</code> must be green (a broken link is a
 build warning; treat warnings as failures). There is no release-time wipe
-step: <code>docs/</code> carries no transient content to wipe.</li>
-<li><strong>Build check</strong>: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, test, build)
+step: <code>docs/</code> carries no transient content to wipe.</p>
+</li>
+<li>
+<p><strong>Build check</strong>: <code>cd web &amp;&amp; npm run ci</code> (format check, lint, test, build)
 must be green; confirm <code>/news/</code> and the new post render, and the section
-TOC sidebar is populated.</li>
+TOC sidebar is populated.</p>
+</li>
 </ol>
 <h2 id="adding-or-renaming-a-page"><a class="header" href="#adding-or-renaming-a-page">Adding or renaming a page</a></h2>
 <ul>
@@ -1478,10 +1573,10 @@ real code lives under <code>crates/</code>.</p>
 <tbody>
 <tr><td><code>nova-protocol</code> (root)</td><td><code>src/main.rs</code> = clap CLI + entrypoint. <code>src/lib.rs</code> re-exports <code>nova_core</code>. Runnable examples in <code>examples/</code>.</td></tr>
 <tr><td><code>nova_core</code></td><td>Thin wiring only: <code>AppBuilder</code> assembles every plugin (window/log/asset setup, status UI). No gameplay logic.</td></tr>
-<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage).</td></tr>
+<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in <code>nova_input</code>, one binding group at a time) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage), keybind overrides included.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>). Comes up on entering <code>Playing</code>, only in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the generic SFX engine <code>nova_menu</code> and <code>nova_os_ui</code> also use), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td></tr>
-<tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the <code>reference</code> keybind table), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
+<tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into <code>nova_input</code>), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> render-gated, and the crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td></tr>
 <tr><td><code>nova_os</code></td><td>NOVA OS logic with no UI in it: the terminal model (<code>terminal</code>), the shell command language and typo suggestions (<code>shell</code>), and the app runtime seam (<code>app</code>).</td></tr>
 <tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (<code>terminal</code>), and the two apps that run on it - <code>map</code> (schematic local space) and <code>ship</code> (schematic player ship). A PEER of the flight HUD, not one of its widgets: <code>nova_core</code> adds it, and nothing in <code>nova_hud</code> reaches into it (it reads <code>NovaHudAssets</code> and <code>NovaHudSystems</code>, so it sits ABOVE <code>nova_hud</code>).</td></tr>
@@ -1491,7 +1586,8 @@ real code lives under <code>crates/</code>.</p>
 <tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game’s own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a>.</td></tr>
-<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>) and the generic <code>status_bar</code>. Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
+<tr><td><code>nova_input</code></td><td>The bindings registry, a leaf crate under every rig and every rebind surface: the one table (<code>InputBindings</code>) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (<code>poll::InputSources</code>) every rebind row reads and the by-name <code>dispatch</code>. Owners register their own defaults into it; nothing here knows what an action DOES.</td></tr>
+<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>), the generic <code>status_bar</code> and the keyboard-ownership arbiter (<code>input_mode</code>: one app-global <code>InputMode</code> resolved from per-frame claims, with <code>InputModeSystems</code> as the ordering handle every keyboard consumer gates behind). Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays). Compiled only under the <code>debug</code> feature.</td></tr>
 <tr><td><code>nova_info</code></td><td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td></tr>
 <tr><td><code>nova_autopilot</code></td><td>Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; <code>nova_debug</code>, <code>nova_probe</code> and <code>nova_probe_cli</code> all build on it. See <a href="#the-automation-harness">Automation harness</a>.</td></tr>
@@ -1530,6 +1626,12 @@ real code lives under <code>crates/</code>.</p>
     editor --&gt; ui
     gameplay --&gt; events
     gameplay --&gt; ui
+    ship --&gt; input["nova_input"]
+    hud --&gt; input
+    osui --&gt; input
+    menu --&gt; input
+    editor --&gt; input
+    scenario --&gt; input
     scenario --&gt; events
     scenario --&gt; gameplay
     scenario --&gt; ship
@@ -1688,6 +1790,11 @@ sets; <code>nova_hud</code> slots <code>NovaHudSystems</code> into the gap itsel
 <li><code>PostUpdate</code> hosts the chase camera’s final move and the HUD’s world-to-screen
 projection, ordered after it.</li>
 <li>While <code>Paused</code>, the input and section sets are gated off and the clocks freeze.</li>
+<li><code>PreUpdate</code> hosts <code>nova_ui</code>’s <code>InputModeSystems</code>, which resolves that frame’s
+<code>ClaimKeyboard</code> messages into the one <code>InputMode</code> every keyboard system then
+gates on. A claimant writes its claim <code>.before(InputModeSystems)</code>; a consumer
+reads the resolved mode with <code>in_input_mode</code>, <code>in_input_mode_at_most</code> or
+<code>owns_or_enters</code>.</li>
 </ul>
 <p>The render-rate chain (run in both <code>Update</code> and <code>FixedUpdate</code>) versus the
 fixed-timestep physics step and the interpolation that smooths rendering between
@@ -1813,6 +1920,9 @@ game binary and CLI flags - <code>src/main.rs</code>.</li>
 <li>Frame-flow sets: <code>SpaceshipSystems</code> - <code>crates/nova_gameplay/src/plugin.rs</code>;
 chained in <code>Update</code> + <code>FixedUpdate</code> by <code>NovaShipPlugin</code> -
 <code>crates/nova_ship/src/lib.rs</code>.</li>
+<li>Who owns the keyboard: <code>InputMode</code>, <code>ClaimKeyboard</code> and <code>InputModeSystems</code> -
+<code>crates/nova_ui/src/input_mode.rs</code>; the editor’s claimant -
+<code>declare_editor_keyboard_owner</code> in <code>crates/nova_editor/src/lib.rs</code>.</li>
 <li>The two damage readings: <code>DamageLevel</code> -
 <code>crates/nova_gameplay/src/integrity/erosion.rs</code>; <code>DamageMarks</code> and the carve
 cost model - <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>
@@ -1940,7 +2050,10 @@ to the unit cube (<code>Cuboid { size: (1,1,1) }</code>) - the shape every secti
 before colliders were authorable. <code>base_section</code> hands avian a density of 1,
 so this shape’s volume IS the section’s mass and a larger collider is a
 heavier one. The render mesh never contributes; a section masses its authored
-box.</li>
+box. An integral cuboid at least one unit wide on every axis also derives a
+<code>SectionFootprint</code> of those dimensions. <code>read_structure</code> expands that one
+entity across every occupied cell, and clearance emits one exit lane from
+every cell on its exhaust face. Other collider shapes remain one-cell parts.</li>
 </ul>
 <h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
 <p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a
@@ -2642,10 +2755,23 @@ missions, objectives, and reactive world behavior. A scenario is a list of
 event handlers; each pairs an event with filters (all must pass) and actions
 (run in order). It builds on <code>GameEventsPlugin</code>/<code>EventWorld</code> from
 <code>nova_events</code>; nova_scenario provides <code>NovaEventWorld</code> and the enums below.</p>
+<p>Three surfaces write that list: a RON file, a Rust builder under
+<code>nova_authoring</code>, and the editor’s EVENTS mode, which lifts a handler into nodes
+you select and inspect - a condition included, drawn as a page of its own - and
+lowers them back on save (<code>crates/nova_editor/src/event.rs</code>). All three produce
+the same <code>ScenarioEventConfig</code>, so nothing below cares which one wrote it. The
+editor reads its TOOLTIPS off these configs too: a field’s doc comment is what
+the panel says about it, through <code>bevy/reflect_documentation</code>.</p>
 <h2 id="scenario-structure"><a class="header" href="#scenario-structure">Scenario structure</a></h2>
 <ul>
-<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox), <code>events</code>.</li>
-<li><code>ScenarioEventConfig</code> - one handler: <code>name: EventConfig</code>, <code>filters</code>, <code>actions</code>.</li>
+<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox),
+<code>skybox_brightness</code> (lux, defaults to <code>DEFAULT_SKYBOX_BRIGHTNESS</code>), <code>events</code>.</li>
+<li><code>ScenarioEventConfig</code> - one handler: <code>label</code> (optional, what the handler is
+for in the author’s words - the editor’s tree reads it beside the trigger),
+<code>name: EventConfig</code>, <code>once</code>, <code>filters</code>, <code>actions</code>. <code>once</code> retires the handler the first time its filters PASS (not
+the first time its event fires): the loader-spawned entity is despawned, and
+<code>ScenarioEventConfig::build_handler</code> is the single place a config becomes a
+runtime handler, so the loader and every headless rig honour the same fields.</li>
 <li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
 populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
 <li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
@@ -2735,6 +2861,16 @@ event’s exact firing condition, every filter field, every action’s RON and
 defaults are the authored CONTRACT and have to be exact; a second copy here
 would be nobody’s job to update, and a reader would have no way to tell which
 one was true. This chapter covers what the enums do not show.</p>
+<p>A config is held together by STRINGS, and to the type system every one of them
+is a <code>String</code>: <code>SetAllegiance</code> names a ship, <code>TimerCancel</code> names a timer,
+<code>NextScenario</code> names a scenario. <code>Names</code> (<code>names.rs</code>) puts the difference on the
+field as a reflect attribute - <code>#[reflect(@Names::Object)]</code> and its
+<code>NewObject</code> / <code>Variable</code> / <code>Timer</code> / <code>Objective</code> / <code>Scenario</code> siblings - so
+anything walking a config by reflection can offer the ids in scope and mark one
+that resolves against nothing. The editor’s inspector is the reader that exists;
+a surface keeping its own list of which field names what goes stale the day an
+action is added, which is the failure the attribute removes. A new string field
+that refers to something declares what, or it is a blank box.</p>
 <p>Events carry identity, not payload-by-position: entities wear
 <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
@@ -2754,8 +2890,16 @@ Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touc
   Actions --&gt; Vars["Mutate variables"]
   Actions --&gt; World["Mutate event world"]
   Actions --&gt; Objects["Spawn / affect objects"]
+  Filters --&gt;|"all pass + once"| Retire["Handler despawns"]
 </pre>
 
+<p>A <code>once</code> handler retires on the PASS edge, so a refused event leaves it live
+and a beat waiting on a condition keeps every later chance at it. Retirement
+is a despawn, which <code>maintain_handler_index</code> turns into an index removal
+before the next dispatch; the dispatcher also holds a pass-local spent set,
+because one drain pass walks the whole queue against a single index snapshot
+and two queued events of the same name would otherwise reach the same handler
+twice.</p>
 <h3 id="what-an-action-does-that-its-ron-cannot-show"><a class="header" href="#what-an-action-does-that-its-ron-cannot-show">What an action does that its RON cannot show</a></h3>
 <p>Most actions are a straight write into <code>NovaEventWorld</code>. Four are not, and the
 difference is engine behaviour rather than authored syntax:</p>
@@ -2784,8 +2928,50 @@ verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
-<code>flow</code>, <code>mission</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding one is
-<a href="#extend-the-scenario-engine">Extend the scenario engine</a>.</p>
+<code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding
+one is <a href="#extend-the-scenario-engine">Extend the scenario engine</a>.</p>
+<h3 id="sequence-keeps-its-cursor-in-the-engine"><a class="header" href="#sequence-keeps-its-cursor-in-the-engine"><code>Sequence</code> keeps its cursor in the engine</a></h3>
+<p><code>Sequence</code> is the one action whose state does not live in the action. A
+<code>SequenceActionConfig</code> is an authored LITERAL key plus an ordered list of
+steps; running it calls <code>NovaEventWorld::start_sequence</code>, which files a
+<code>SequenceRun</code> - key, steps, cursor, the time the step became current - in the
+event world beside the keyed timers. The config is immutable and shared
+(<code>Arc&lt;Vec&lt;SequenceStepConfig&gt;&gt;</code>), so the same chain can be authored once and
+started from several handlers.</p>
+<p>The cursor CANNOT live in the action: handlers are dispatched from an index
+snapshot and an action config is read-only during a pass, so a step counter
+held there would be per-fire, not per-run. Keying it by an authored literal
+also keeps <code>content lint</code> whole-program - no id in authored content is
+computed, so the linter still resolves every reference statically.</p>
+<p>Three pieces move a chain forward:</p>
+<ul>
+<li><code>advance_scenario_sequences</code> runs in <code>Update</code>, chained after
+<code>sample_scenario_queries</code> and before <code>tick_scenario_timers</code> and
+<code>fire_on_update</code>. It drains <code>take_ready_sequence_step</code> and runs the actions
+the step returns. Queries are sampled first so a gate filter reads this
+frame’s values.</li>
+<li>A step’s <code>until</code> gate is a real handler. <code>sequence_gate_handlers</code> walks a
+handler’s actions and spawns one extra <code>EventHandler</code> per gated step,
+carrying a private <code>SequenceGateAction { key, step }</code>. It is inert unless
+the cursor stands on exactly that step, so a gate cannot open a chain it
+does not belong to, and the gate opens the run rather than running the beat.
+That costs one frame of latency between the gate event and the beat.</li>
+<li><code>take_ready_sequence_step</code> stamps <code>since = now</code> on the step it hands back,
+so ONE clock jump delivers at most one step of any one chain. Steps with no
+delay still collapse into a single pass, because the driver loops.</li>
+</ul>
+<p>Both waits on a step apply together, and the semantics are WAIT, never SKIP.
+That makes a shut gate a soft-lock, which is why a gated step carries a
+<code>deadline</code>: expiry stops the run and logs an <code>error!</code> naming the key, the step
+and the event it waited for. <code>start_sequence</code> holds the other loud half - a
+restart on a live key is refused and logged, because one key is one cursor.</p>
+<p>Because a step’s action list is a FRAME of its own, four walkers had to learn
+to recurse into it: <code>inline_queries</code>, <code>object_count</code>, the lint’s
+<code>collect_declared</code> / <code>check_action</code>, and the per-event spawn-id pass. The
+shared helpers are <code>EventActionConfig::walk</code> and
+<code>ScenarioEventConfig::action_groups</code>, which returns a handler’s own actions
+plus one group per <code>Sequence</code> step it starts, however deeply nested. Any new
+rule that reasons about “one frame” reads <code>action_groups</code>, not <code>actions</code>.</p>
 <h2 id="variables-and-the-event-world-worldrs-variablesrs"><a class="header" href="#variables-and-the-event-world-worldrs-variablesrs">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</a></h2>
 <p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
 <code>next_scenario</code>, and a queue of deferred command closures. Filters and actions
@@ -2818,6 +3004,23 @@ past.</p>
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
 (multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
 <code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<p>The tree has a TEXT form (<code>syntax.rs</code>): <code>Display</code> renders it as
+<code>scenario.elapsed &gt; 90</code> and <code>FromStr</code> parses that back. The authored form is
+still the RON nest - the text is what one editor row can hold, and what a tree
+row reads as when it is shut. Round trip is the contract in both directions,
+parse-of-render and render-of-parse, which is what lets a panel own a condition
+without a save quietly rewriting it. The syntax spells the grammar and nothing
+more: no operator the crate cannot evaluate, and <code>a - b - c</code> parses rightward
+because <code>Subtract(Term, Expression)</code> nests that way.</p>
+<p>The editor takes a condition APART along the same grammar: each operator is one
+document node with its two sides as children, and a leaf holds whatever fits one
+row of the text form. Those nodes are NOT part of the tree - the rail shows the
+filter and stops - and the panel draws the whole condition as a page instead,
+one row per node, each writing to its own entity. <code>Parens</code> is dropped on the way
+in - the nesting says what the brackets said - and put back on the way out
+wherever the position needs it, so a sum under a product lowers as <code>(a + b) * 2</code>.
+What a switched operator cannot hold it does not keep: an operand a value has no
+place for is dropped rather than left hanging where no row would show it.</p>
 <h3 id="two-clocks-pace-a-transition"><a class="header" href="#two-clocks-pace-a-transition">Two clocks pace a transition</a></h3>
 <p><code>/create/actions/</code> documents the three gears a scenario switch has - hard cut,
 delayed cut and modal hold. The engine fact underneath them is that they do not
@@ -2882,12 +3085,73 @@ that adds a new place an expression can be authored has to be added to
 </ul>
 <p>Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.</p>
+<h3 id="the-onupdate-pulse-sleeps-loaderwakers"><a class="header" href="#the-onupdate-pulse-sleeps-loaderwakers">The <code>OnUpdate</code> pulse SLEEPS (<code>loader/wake.rs</code>)</a></h3>
+<p><code>fire_on_update</code> used to queue an event every frame, and the dispatcher then
+walked the whole bucket re-evaluating filters that could not have changed their
+answer. It now runs behind a gate, and a scenario with nothing to react to
+queues nothing. The rigidbody analogy is exact: the scenario sleeps until
+something wakes it.</p>
+<p>Two things wake it, both derived at load by <code>wake.rs</code> and held in a
+<code>WakeProfile</code>:</p>
+<ul>
+<li><strong>A write.</strong> <code>NovaEventWorld::insert_variable</code> is the single write path, so
+every write joins a dirty set; the pulse fires when that set meets a variable
+an <code>OnUpdate</code> filter reads. What an <code>OnUpdate</code> handler WRITES joins what it
+reads, or a counter it advances itself would freeze the moment nothing else
+in the scenario writes.</li>
+<li><strong>A scheduled time.</strong> <code>GreaterThan(scenario_elapsed, 95.0)</code> is known at load,
+so the crossing is scheduled rather than polled. Only a bare clock read
+against a literal schedules; <code>scenario_elapsed * 2</code> is arithmetic.</li>
+</ul>
+<p>Three properties are worth knowing before reading the code:</p>
+<ul>
+<li><strong>Nothing is authored.</strong> The filters already declare all of it. An authored
+wake list would be a second source of truth that can disagree with them -
+name two variables, read three, and the handler silently never fires on the
+third. <code>/create/</code> does not grow.</li>
+<li><strong>The default is <code>EveryFrame</code>, and it is the fail-safe.</strong> A filterless
+<code>OnUpdate</code>, an <code>Entity</code> or <code>Timer</code> filter, an inline <code>Query(..)</code>, a watch fed
+by a per-frame sample, or a clock compared against a variable all fall back to
+the old behaviour. A case the analyser does not understand is SLOW, never
+wrong.</li>
+<li><strong>The decision is per SCENARIO, not per handler.</strong> The gate either queues the
+event or does not; per-handler gating would mean changing the <code>nova_events</code>
+dispatcher. One per-frame handler therefore holds the whole scenario awake,
+and that is sometimes correct - a speed ladder and a HUD countdown are both
+continuous questions.</li>
+</ul>
+<p>A <code>Sequence</code> step’s <code>until</code> gate is a real handler the loader spawns, so it is
+scanned with the authored ones. A gate waiting on <code>OnUpdate</code> that was not a
+reason to wake would stall its chain forever.</p>
+<p>Measured on a headless run, as the share of frames that queue the event:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>scenario</th><th>pulses / frames</th><th>why</th></tr>
+</thead>
+<tbody>
+<tr><td><code>final_tally</code></td><td>308 / 18300</td><td>value-gated milestones</td></tr>
+<tr><td><code>broadside</code></td><td>355 / 13500</td><td>value-gated milestones</td></tr>
+<tr><td><code>shakedown_run</code></td><td>425 / 16800</td><td>value-gated milestones</td></tr>
+<tr><td><code>ledger_ch1</code></td><td>350 / 22500</td><td>milestones plus four scheduled lines</td></tr>
+<tr><td><code>ledger_ch3</code></td><td>every frame</td><td>a <code>player_speed</code> ladder, correctly polling</td></tr>
+<tr><td><code>lifeline</code></td><td>every frame</td><td>recomputes a HUD countdown per frame</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="scenario-patterns"><a class="header" href="#scenario-patterns">Scenario patterns</a></h2>
-<p>The event vocabulary has no built-in “state” beyond scenario variables, so the
-shipped mods build their control flow out of one numeric variable plus
-<code>Expression</code> filters. Two idioms recur; both are worked end to end in the
-<a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts here are
-verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<p>The engine holds three facts for content - <code>once</code>, keyed timers, and a
+<code>Sequence</code> cursor - and everything past those is one numeric variable plus
+<code>Expression</code> filters. Two variable idioms recur; both are worked end to end in
+the <a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts
+here are verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<p><code>once</code> and <code>Sequence</code> are what a variable is NOT for. A flag whose only reader
+is its own filter - seeded in <code>OnStart</code>, read by one gate, written by that
+gate’s own action - is the engine’s fact, and <code>once</code> carries it. A step
+counter whose only job is to keep paced beats in order is the engine’s fact
+too, and a <code>Sequence</code> cursor carries it. Keep a variable where another handler
+reads it: an ORDERING counter like <code>gate</code> below, driven by where the PLAYER
+is, or a signal like “the convoy lost a ship”.</p>
 <h3 id="the-gate-counter-ordering-pattern"><a class="header" href="#the-gate-counter-ordering-pattern">The gate-counter ordering pattern</a></h3>
 <p>A single numeric variable acts as a state machine that enforces ORDERED entry:
 each stage’s handler is guarded on the counter holding that stage’s value, and
@@ -3135,7 +3399,8 @@ the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>object
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
-<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/<code>view</code>), plus an
+<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/
+<code>view</code>), plus an
 <code>EventActionConfig</code> variant in <code>actions/mod.rs</code>.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
@@ -3151,11 +3416,17 @@ generic dispatch: <code>EventHandler</code> - <code>crates/nova_events/src/engin
 <code>EventFilterConfig</code> - <code>crates/nova_scenario/src/filters.rs</code>;
 <code>EventActionConfig</code> - <code>crates/nova_scenario/src/actions/mod.rs</code>.</li>
 <li>The state seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>;
-variables and expressions - <code>crates/nova_scenario/src/variables.rs</code>.</li>
+variables and expressions - <code>crates/nova_scenario/src/variables.rs</code>; their
+text form: <code>crates/nova_scenario/src/syntax.rs</code>.</li>
+<li>What an authored string names: <code>Names</code> -
+<code>crates/nova_scenario/src/names.rs</code>; the editor that reads it -
+<code>crates/nova_editor/src/event.rs</code> (the script as nodes).</li>
 <li>Loading and scoping: <code>ScenarioLoaderPlugin</code>, <code>ScenarioScopedMarker</code>,
 <code>scenario_is_live</code> - <code>crates/nova_scenario/src/loader/mod.rs</code>; the glTF
 warm-up: <code>ScenarioPreload</code>, <code>scenario_render_meshes</code> -
-<code>crates/nova_scenario/src/loader/preload.rs</code>.</li>
+<code>crates/nova_scenario/src/loader/preload.rs</code>; what the pulse wakes for:
+<code>WakeProfile</code>, <code>configure_scenario_shape</code> -
+<code>crates/nova_scenario/src/loader/wake.rs</code>.</li>
 <li>Objects: <code>ScenarioObjectsPlugin</code> - <code>crates/nova_scenario/src/objects/mod.rs</code>;
 kind dispatch: <code>ScenarioObjectKind</code> -
 <code>crates/nova_scenario/src/actions/spawn.rs</code>.</li>
@@ -3320,12 +3591,70 @@ seconds” is a shrug.</p>
 state, wait N seconds - is sugar for
 <code>step("hold:&lt;state&gt;").enter(state).until(elapsed(secs))</code> rather than a second
 mechanism. The vocabulary is in <code>nova_autopilot::predicate</code> (<code>elapsed</code>,
-<code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>and</code>, <code>not</code>), the
+<code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>ui_node_present</code>,
+<code>pointer_pressed</code>, <code>pointer_released</code>, <code>pointer_at</code>, <code>shot_written</code>,
+<code>loop_written</code>, <code>and</code>, <code>or</code>, <code>not</code>), the
 gestures in <code>nova_autopilot::input</code> (<code>press_key</code>, <code>release_key</code>, <code>type_text</code>,
-<code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>), and the Nova-typed
+<code>press_edit_key</code>, <code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>,
+<code>scroll_lines</code>, <code>scroll_pixels</code>), and the Nova-typed
 predicates in <code>nova_debug::harness</code> (<code>scenario_variable_is</code>, <code>section_gone</code>,
-<code>player_ship_present</code>). Anything the vocabulary cannot express is a plain
-closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
+<code>player_ship_present</code>, and the <code>editor_*</code> set below). Anything the vocabulary
+cannot express is a plain closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
+<h3 id="a-key-press-is-two-channels-and-a-beat-has-to-pick"><a class="header" href="#a-key-press-is-two-channels-and-a-beat-has-to-pick">A key press is two channels, and a beat has to pick</a></h3>
+<p>Bevy delivers a key twice. <code>press_key</code> writes <code>ButtonInput&lt;KeyCode&gt;</code>, which is
+what a VERB reads. <code>press_edit_key</code> writes a <code>KeyboardInput</code> message, which is
+what a TEXT FIELD reads. Nothing bridges them, so a beat that drives one channel
+proves nothing about the other: pressing only <code>KeyCode::Delete</code> at a focused
+field asserts that the verb stayed quiet while the field was never asked to
+delete anything, and pressing only <code>Key::Delete</code> asserts the opposite half.</p>
+<p>A beat about who owns the keyboard therefore drives BOTH and reads both
+outcomes - see <code>examples/systems/system_input_modes.rs</code>, which presses each key
+down both channels and then asserts what the field holds as well as what the
+document holds.</p>
+<h3 id="a-ui-gesture-is-three-waits-not-three-sleeps"><a class="header" href="#a-ui-gesture-is-three-waits-not-three-sleeps">A UI gesture is three waits, not three sleeps</a></h3>
+<p>A click on a widget owes the app three acks, and each one is a predicate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Beat</th><th>Waits on</th><th>Why a frame count is not that</th></tr>
+</thead>
+<tbody>
+<tr><td>the widget is up</td><td><code>ui_node_present(name)</code></td><td><code>click_named</code> WARNS and continues on an unresolved name, so a press at a panel that has not laid out is a beat silently lost</td></tr>
+<tr><td>press</td><td><code>pointer_pressed()</code></td><td>the picking backend turns the button event into pointer state a <code>PreUpdate</code> later, and a release before that is a click the widget never saw</td></tr>
+<tr><td>release</td><td><code>pointer_released()</code></td><td><code>Activate</code> fires on the release edge, so this is the beat the button’s effect belongs after</td></tr>
+</tbody>
+</table>
+</div>
+<p>Two things those predicates are careful about, because both were wrong once.
+<code>ui_node_present</code> waits for a BOX, not for an entity: a node that has not been
+through <code>ui_layout_system</code> carries <code>ComputedNode::default()</code> - zero size at the
+origin, the same value a <code>Display::None</code> node keeps - and advancing on that
+hands <code>click_named</code> a degenerate rect at the window corner, which is the race
+the settles existed for. And the pointer acks answer for <code>PointerId::Mouse</code>
+alone, because that is the pointer the gestures drive; an app may carry others
+(Nova’s terminal parks a forwarded one), and a second pointer sitting in the
+opposite state would otherwise ack for the one the beat actually moved.</p>
+<p>What the button DID is the caller’s next beat, and it is a condition too. The
+editor publishes its own decisions as data for exactly this: <code>nova_editor</code>’s
+public, read-only <code>EditorProbe</code> carries the armed tool, what a click would build
+right now (solved, refused with the reason, or nothing), whether the parts
+gallery is up, whether its filter holds the caret, and which prototype the
+selection resolves to. <code>nova_debug::harness</code> wraps those as <code>editor_tool_is</code>,
+<code>editor_part_armed</code>, <code>editor_placement_solved</code>, <code>editor_placement_refused</code>,
+<code>editor_placement_clear</code>, <code>editor_gallery_open</code>, <code>editor_gallery_closed</code>,
+<code>editor_filter_focused</code> and <code>editor_gallery_selected</code>.</p>
+<p>So a placing gesture reads: aim, hold until the editor SOLVED a placement there;
+press, hold until the pointer registered it; release; hold until the section
+landed. <code>system_ship_editor</code> and the <code>screenshot_editor</code> walk are written that
+way end to end, and neither counts a frame outside a pre-shot settle.</p>
+<p><strong>Where the only observable IS the outcome, the beat may share the assert’s
+quantity</strong> - the exception to the strictly-weaker rule below. “The socket
+filled” has no stimulus-side twin: the count is both what the beat waits for and
+what the verdict states. The trade is deliberate, and it is the better half: an
+unmet <code>until</code> aborts naming the beat that missed, where a snapshot assertion a
+fixed number of frames later reported a wrong number and left which gesture
+produced it to be guessed. Keep the assert anyway - it is where the claim is
+written down.</p>
 <p>Typing is its own gesture because a key has two halves. <code>press_key</code> writes the
 HELD state (<code>ButtonInput&lt;KeyCode&gt;</code>), which is what flight code polls;
 <code>type_text</code> writes the keyboard MESSAGE carrying the text a keypress produced,
@@ -3468,9 +3797,31 @@ script never branches its step timing on <code>capturing()</code>.</p>
 per-example splits that preceded it were each carrying the write latency on top
 of the stillness, which is why they disagreed.</p>
 <p>The scene dressing is separate from the steps and lives in <code>nova_debug::harness</code>
-too: <code>force_capture_resolution</code> (a known 16:9 for every shot in the fleet),
+too: <code>force_capture_resolution</code> (a known framing for every shot in the fleet),
 <code>hide_dev_overlays</code> / <code>hide_hud</code>, and <code>freeze_bodies</code> for a posed set that must
 not drift between framings.</p>
+<p>A moving figure is the same idiom on a longer beat: <code>loop_start</code> / <code>loop_end</code>
+around the action, <code>loop_written</code> to hold the closing step, and
+<code>LoopCapturePlugin</code> next to the script. Every size and rate that recorder uses
+is ONE value, <code>LoopProfile</code> - the window it renders into, the resolution it
+encodes to, the frame clock, the CRF and the frame cap:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>app.add_plugins(LoopCapturePlugin::default());          // 1920x1080 -&gt; 720p30
+app.add_plugins(LoopCapturePlugin::new(LoopProfile {    // a portrait master
+    window_resolution: (1080, 1920),
+    output_resolution: (1080, 1920),
+    fps: 60,
+    crf: 18,
+    frame_cap: 1200,
+}));
+<span class="boring">}</span></code></pre>
+<p><code>LoopCapturePlugin::default()</code> is what the docs fleet captures with; a
+production caller passes its own profile and changes nothing else.
+<code>force_capture_resolution</code> reads the profile the plugin publishes (armed or
+not), so the window, the frame clock and the encode cannot disagree about the
+framing - and a profile whose output equals its window encodes with no scale
+filter at all, rather than resampling a master through itself.</p>
 <p>Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
 frames, which puts timing and framing in different files - and they drift. A
@@ -3646,6 +3997,21 @@ environment half exists at all. See
 <p><code>NOVA_MUTE</code> unset still mutes a run that has <code>NOVA_AUTOPILOT</code> or
 <code>NOVA_CAPTURE</code> set; <code>NOVA_MUTE=0</code> forces sound through one. The flag wins over
 both, and a muted run says <code>nova audio: output muted for this run</code> once.</p>
+<h2 id="the-replay-seed"><a class="header" href="#the-replay-seed">The replay seed</a></h2>
+<p>Owned by <code>nova_gameplay</code>, next to the entropy plugin it seeds.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Gates</th><th>For</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NOVA_SEED</code></td><td>seeds the gameplay RNG with one <code>u64</code>, so a driven run replays byte for byte; unset, the OS seeds it and no two runs agree</td><td>harness</td></tr>
+</tbody>
+</table>
+</div>
+<p>A value that does not parse as a <code>u64</code> refuses the boot rather than running
+unseeded - a replay that silently lost its seed is the failure the knob exists
+to prevent.</p>
 <h2 id="modding-and-the-settings-store"><a class="header" href="#modding-and-the-settings-store">Modding, and the settings store</a></h2>
 <p>Owned by <code>nova_assets</code>. See <code>/create/publish-a-mod/</code> for the portal.</p>
 <div class="table-wrapper">
@@ -4419,13 +4785,23 @@ EventFilterConfig::VariablePresent(config) =&gt; config.filter(world, info),
 <p>Export the config struct from the module <code>prelude</code> (the <code>pub use super::{...}</code>
 block at the top of <code>filters.rs</code>).</p>
 </li>
+<li>
+<p>Make it authorable in the editor (see <a href="#two-surfaces-author-the-vocabulary">Two surfaces author the
+vocabulary</a>): derive <code>Reflect</code> on the
+config, tag any string that names something with the <a href="#the-vocabulary-and-who-documents-it"><code>Names</code>
+attribute</a>, and add
+the <code>FilterChoice</code> variant in <code>crates/nova_editor/src/event.rs</code> -
+<code>ALL</code>, <code>label</code>, <code>stem</code>, <code>operands</code>, <code>stock</code>, plus the <code>filter_choice</code>,
+<code>filter_config</code> and <code>filter_config_mut</code> arms. The matches are exhaustive, so
+the compiler names every one of them.</p>
+</li>
 </ol>
 <h2 id="recipe-3-add-an-event-action"><a class="header" href="#recipe-3-add-an-event-action">Recipe 3: add an event action</a></h2>
 <p>An action runs when a handler passes, in order. Everything lives in
 <code>crates/nova_scenario/src/actions/</code>: the <code>EventActionConfig</code> enum and its
 dispatch in <code>actions/mod.rs</code>, each action’s config and impl in the submodule
-for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>ship.rs</code>,
-<code>spawn.rs</code>, <code>timer.rs</code>).</p>
+for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>sequence.rs</code>,
+<code>ship.rs</code>, <code>spawn.rs</code>, <code>timer.rs</code>).</p>
 <ol>
 <li>
 <p>Define the config struct and its <code>EventAction&lt;NovaEventWorld&gt;</code> impl.
@@ -4469,6 +4845,13 @@ EventActionConfig::VariableClear(config) =&gt; {
 </li>
 <li>
 <p>Export the config struct from the <code>actions/mod.rs</code> <code>prelude</code> block.</p>
+</li>
+<li>
+<p>Make it authorable in the editor, as in recipe 2: derive <code>Reflect</code>, tag the
+naming strings, and add the <code>ActionChoice</code> variant in
+<code>crates/nova_editor/src/event.rs</code> - <code>ALL</code>, <code>label</code>, <code>stem</code>, <code>stock</code>, plus the
+<code>action_choice</code>, <code>leaf_config</code> and <code>leaf_config_mut</code> arms. Only <code>Sequence</code>
+holds children; a new leaf action needs nothing from the tree.</p>
 </li>
 </ol>
 <p>Templates: the tests at the bottom of the <code>actions/</code> submodules are the
@@ -4584,12 +4967,54 @@ ScenarioObjectKind::Mine(config) =&gt; {
     kind: Mine(MineConfig(radius: 5.0, damage: 40.0)),
 ))
 </code></pre>
+<h2 id="two-surfaces-author-the-vocabulary"><a class="header" href="#two-surfaces-author-the-vocabulary">Two surfaces author the vocabulary</a></h2>
+<p>A RON file is one way to write a handler; the editor’s EVENTS mode is the other,
+and it draws every row it shows by REFLECTION off the same config structs. So a
+config that is not <code>Reflect</code> is a construct the editor cannot show, and a string
+field with no <a href="#the-vocabulary-and-who-documents-it"><code>Names</code></a>
+attribute is a blank box where the panel could have offered the ids the document
+actually spawns.</p>
+<p>AN <code>AssetRef&lt;A&gt;</code> FIELD PICKS ITS OWN FILE. The panel reads the sort off the
+type, so a field typed <code>AssetRef&lt;Image&gt;</code> offers the images the installed bundles
+DECLARE in their <code>resources</code> lists, written as the <code>dep://&lt;mod&gt;/&lt;file&gt;</code> ref that
+resolves - and marks a <code>dep://</code> path no bundle ships. Do not add
+<code>#[reflect(ignore)]</code> to an asset field a builder is meant to change: an ignored
+field has no row at all.</p>
+<p>A FIELD’S DOC COMMENT IS ITS TOOLTIP. <code>nova_editor</code> builds against
+<code>bevy/reflect_documentation</code>, so the first paragraph of the <code>///</code> above a field</p>
+<ul>
+<li>or above the variant a choice row stands on - is what the panel says when the
+pointer rests on that row. Write it for the person filling the box in, not for
+the person calling the constructor: a field nobody documented is a row the
+editor cannot explain.</li>
+</ul>
+<p>What each of the four recipes owes the editor:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Recipe</th><th>What the editor needs</th></tr>
+</thead>
+<tbody>
+<tr><td>Event kind</td><td>Nothing. <code>EventConfig</code> is a <code>Reflect</code> enum of unit variants and the handler’s trigger row is walked off it, so a new event appears in the list.</td></tr>
+<tr><td>Filter</td><td><code>Reflect</code> + <code>Names</code> on the config, and a <code>FilterChoice</code> variant with its <code>stock</code> value.</td></tr>
+<tr><td>Action</td><td><code>Reflect</code> + <code>Names</code> on the config, and an <code>ActionChoice</code> variant with its <code>stock</code> value.</td></tr>
+<tr><td>Object kind</td><td><code>Reflect</code> + <code>Names</code> on the config, an <code>ObjectChoice</code> variant in <code>crates/nova_editor/src/node.rs</code> to place it with, and the arms the compiler then asks for (<code>glyph</code>, <code>preview</code>, <code>stage</code>, <code>inspect</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>stock</code> is what the kind switch puts on a node the moment it is switched TO -
+a valid config with empty ids, never a <code>Default</code> that lowers into something the
+lint refuses.</p>
 <h2 id="checklist-1"><a class="header" href="#checklist-1">Checklist</a></h2>
 <p>Whichever recipe you follow, the change is done when: the config struct derives
-<code>Clone</code>, <code>Debug</code>, and the serde pair; the dispatch enum has the variant; the
+<code>Clone</code>, <code>Debug</code>, <code>Reflect</code> and the serde pair; every field says what it is for
+in a doc comment; every string that names something carries its <code>Names</code>
+attribute; every file a builder may change is an <code>AssetRef&lt;A&gt;</code> the reflection
+can see; the dispatch enum has the variant; the
 trait impl has the delegating arm; the type is exported from its module prelude;
-and (for an event) something fires it. Then it is reachable both from code-built
-scenarios and from a RON data file.</p>
+the editor has the choice variant (events excepted); and (for an event)
+something fires it. Then it is reachable from code-built scenarios, from a RON
+data file, and from the editor.</p>
 <h2 id="find-it-in-the-code-6"><a class="header" href="#find-it-in-the-code-6">Find it in the code</a></h2>
 <ul>
 <li>Events: <code>EventConfig</code> - <code>crates/nova_scenario/src/events.rs</code>; event types and
@@ -4600,6 +5025,9 @@ the <code>EventKind</code> derive - <code>crates/nova_events/src/lib.rs</code>.<
 <li>Objects: <code>ScenarioObjectKind</code> - <code>crates/nova_scenario/src/actions/spawn.rs</code>;
 kind modules under <code>crates/nova_scenario/src/objects/</code>.</li>
 <li>The seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>.</li>
+<li>What a string names: <code>Names</code> - <code>crates/nova_scenario/src/names.rs</code>; the
+editor’s choices: <code>FilterChoice</code>, <code>ActionChoice</code> -
+<code>crates/nova_editor/src/event.rs</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
 <code>-p nova_events</code>).</li>
 </ul>

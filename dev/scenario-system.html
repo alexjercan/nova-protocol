@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -188,10 +188,23 @@ missions, objectives, and reactive world behavior. A scenario is a list of
 event handlers; each pairs an event with filters (all must pass) and actions
 (run in order). It builds on <code>GameEventsPlugin</code>/<code>EventWorld</code> from
 <code>nova_events</code>; nova_scenario provides <code>NovaEventWorld</code> and the enums below.</p>
+<p>Three surfaces write that list: a RON file, a Rust builder under
+<code>nova_authoring</code>, and the editor’s EVENTS mode, which lifts a handler into nodes
+you select and inspect - a condition included, drawn as a page of its own - and
+lowers them back on save (<code>crates/nova_editor/src/event.rs</code>). All three produce
+the same <code>ScenarioEventConfig</code>, so nothing below cares which one wrote it. The
+editor reads its TOOLTIPS off these configs too: a field’s doc comment is what
+the panel says about it, through <code>bevy/reflect_documentation</code>.</p>
 <h2 id="scenario-structure"><a class="header" href="#scenario-structure">Scenario structure</a></h2>
 <ul>
-<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox), <code>events</code>.</li>
-<li><code>ScenarioEventConfig</code> - one handler: <code>name: EventConfig</code>, <code>filters</code>, <code>actions</code>.</li>
+<li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox),
+<code>skybox_brightness</code> (lux, defaults to <code>DEFAULT_SKYBOX_BRIGHTNESS</code>), <code>events</code>.</li>
+<li><code>ScenarioEventConfig</code> - one handler: <code>label</code> (optional, what the handler is
+for in the author’s words - the editor’s tree reads it beside the trigger),
+<code>name: EventConfig</code>, <code>once</code>, <code>filters</code>, <code>actions</code>. <code>once</code> retires the handler the first time its filters PASS (not
+the first time its event fires): the loader-spawned entity is despawned, and
+<code>ScenarioEventConfig::build_handler</code> is the single place a config becomes a
+runtime handler, so the loader and every headless rig honour the same fields.</li>
 <li><code>GameScenarios(HashMap&lt;ScenarioId, ScenarioConfig&gt;)</code> - all known scenarios,
 populated by <code>nova_assets</code> (ready at <code>GameAssetsStates::Loaded</code>).</li>
 <li><code>CampaignConfig</code> - <code>id</code>, <code>name</code>, <code>scenarios</code> (ordered member scenario ids,
@@ -281,6 +294,16 @@ event’s exact firing condition, every filter field, every action’s RON and
 defaults are the authored CONTRACT and have to be exact; a second copy here
 would be nobody’s job to update, and a reader would have no way to tell which
 one was true. This chapter covers what the enums do not show.</p>
+<p>A config is held together by STRINGS, and to the type system every one of them
+is a <code>String</code>: <code>SetAllegiance</code> names a ship, <code>TimerCancel</code> names a timer,
+<code>NextScenario</code> names a scenario. <code>Names</code> (<code>names.rs</code>) puts the difference on the
+field as a reflect attribute - <code>#[reflect(@Names::Object)]</code> and its
+<code>NewObject</code> / <code>Variable</code> / <code>Timer</code> / <code>Objective</code> / <code>Scenario</code> siblings - so
+anything walking a config by reflection can offer the ids in scope and mark one
+that resolves against nothing. The editor’s inspector is the reader that exists;
+a surface keeping its own list of which field names what goes stale the day an
+action is added, which is the failure the attribute removes. A new string field
+that refers to something declares what, or it is a blank box.</p>
 <p>Events carry identity, not payload-by-position: entities wear
 <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
@@ -300,8 +323,16 @@ Actions take <code>&amp;mut NovaEventWorld</code> and run in order. Neither touc
   Actions --&gt; Vars["Mutate variables"]
   Actions --&gt; World["Mutate event world"]
   Actions --&gt; Objects["Spawn / affect objects"]
+  Filters --&gt;|"all pass + once"| Retire["Handler despawns"]
 </pre>
 
+<p>A <code>once</code> handler retires on the PASS edge, so a refused event leaves it live
+and a beat waiting on a condition keeps every later chance at it. Retirement
+is a despawn, which <code>maintain_handler_index</code> turns into an index removal
+before the next dispatch; the dispatcher also holds a pass-local spent set,
+because one drain pass walks the whole queue against a single index snapshot
+and two queued events of the same name would otherwise reach the same handler
+twice.</p>
 <h3 id="what-an-action-does-that-its-ron-cannot-show"><a class="header" href="#what-an-action-does-that-its-ron-cannot-show">What an action does that its RON cannot show</a></h3>
 <p>Most actions are a straight write into <code>NovaEventWorld</code>. Four are not, and the
 difference is engine behaviour rather than authored syntax:</p>
@@ -330,8 +361,50 @@ verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
-<code>flow</code>, <code>mission</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding one is
-<a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
+<code>flow</code>, <code>mission</code>, <code>sequence</code>, <code>ship</code>, <code>spawn</code>, <code>timer</code>, <code>view</code> - and adding
+one is <a href="guide-extend-scenarios.html">Extend the scenario engine</a>.</p>
+<h3 id="sequence-keeps-its-cursor-in-the-engine"><a class="header" href="#sequence-keeps-its-cursor-in-the-engine"><code>Sequence</code> keeps its cursor in the engine</a></h3>
+<p><code>Sequence</code> is the one action whose state does not live in the action. A
+<code>SequenceActionConfig</code> is an authored LITERAL key plus an ordered list of
+steps; running it calls <code>NovaEventWorld::start_sequence</code>, which files a
+<code>SequenceRun</code> - key, steps, cursor, the time the step became current - in the
+event world beside the keyed timers. The config is immutable and shared
+(<code>Arc&lt;Vec&lt;SequenceStepConfig&gt;&gt;</code>), so the same chain can be authored once and
+started from several handlers.</p>
+<p>The cursor CANNOT live in the action: handlers are dispatched from an index
+snapshot and an action config is read-only during a pass, so a step counter
+held there would be per-fire, not per-run. Keying it by an authored literal
+also keeps <code>content lint</code> whole-program - no id in authored content is
+computed, so the linter still resolves every reference statically.</p>
+<p>Three pieces move a chain forward:</p>
+<ul>
+<li><code>advance_scenario_sequences</code> runs in <code>Update</code>, chained after
+<code>sample_scenario_queries</code> and before <code>tick_scenario_timers</code> and
+<code>fire_on_update</code>. It drains <code>take_ready_sequence_step</code> and runs the actions
+the step returns. Queries are sampled first so a gate filter reads this
+frame’s values.</li>
+<li>A step’s <code>until</code> gate is a real handler. <code>sequence_gate_handlers</code> walks a
+handler’s actions and spawns one extra <code>EventHandler</code> per gated step,
+carrying a private <code>SequenceGateAction { key, step }</code>. It is inert unless
+the cursor stands on exactly that step, so a gate cannot open a chain it
+does not belong to, and the gate opens the run rather than running the beat.
+That costs one frame of latency between the gate event and the beat.</li>
+<li><code>take_ready_sequence_step</code> stamps <code>since = now</code> on the step it hands back,
+so ONE clock jump delivers at most one step of any one chain. Steps with no
+delay still collapse into a single pass, because the driver loops.</li>
+</ul>
+<p>Both waits on a step apply together, and the semantics are WAIT, never SKIP.
+That makes a shut gate a soft-lock, which is why a gated step carries a
+<code>deadline</code>: expiry stops the run and logs an <code>error!</code> naming the key, the step
+and the event it waited for. <code>start_sequence</code> holds the other loud half - a
+restart on a live key is refused and logged, because one key is one cursor.</p>
+<p>Because a step’s action list is a FRAME of its own, four walkers had to learn
+to recurse into it: <code>inline_queries</code>, <code>object_count</code>, the lint’s
+<code>collect_declared</code> / <code>check_action</code>, and the per-event spawn-id pass. The
+shared helpers are <code>EventActionConfig::walk</code> and
+<code>ScenarioEventConfig::action_groups</code>, which returns a handler’s own actions
+plus one group per <code>Sequence</code> step it starts, however deeply nested. Any new
+rule that reasons about “one frame” reads <code>action_groups</code>, not <code>actions</code>.</p>
 <h2 id="variables-and-the-event-world-worldrs-variablesrs"><a class="header" href="#variables-and-the-event-world-worldrs-variablesrs">Variables and the event world (<code>world.rs</code>, <code>variables.rs</code>)</a></h2>
 <p><code>NovaEventWorld</code> holds the scenario state: variables, objectives,
 <code>next_scenario</code>, and a queue of deferred command closures. Filters and actions
@@ -364,6 +437,23 @@ past.</p>
 expression tree: <code>VariableExpressionNode</code> (add/subtract), <code>VariableTermNode</code>
 (multiply/divide), <code>VariableFactorNode</code> (literal/name/parens);
 <code>VariableConditionNode</code> (less/greater/equal) yields booleans for filters.</p>
+<p>The tree has a TEXT form (<code>syntax.rs</code>): <code>Display</code> renders it as
+<code>scenario.elapsed &gt; 90</code> and <code>FromStr</code> parses that back. The authored form is
+still the RON nest - the text is what one editor row can hold, and what a tree
+row reads as when it is shut. Round trip is the contract in both directions,
+parse-of-render and render-of-parse, which is what lets a panel own a condition
+without a save quietly rewriting it. The syntax spells the grammar and nothing
+more: no operator the crate cannot evaluate, and <code>a - b - c</code> parses rightward
+because <code>Subtract(Term, Expression)</code> nests that way.</p>
+<p>The editor takes a condition APART along the same grammar: each operator is one
+document node with its two sides as children, and a leaf holds whatever fits one
+row of the text form. Those nodes are NOT part of the tree - the rail shows the
+filter and stops - and the panel draws the whole condition as a page instead,
+one row per node, each writing to its own entity. <code>Parens</code> is dropped on the way
+in - the nesting says what the brackets said - and put back on the way out
+wherever the position needs it, so a sum under a product lowers as <code>(a + b) * 2</code>.
+What a switched operator cannot hold it does not keep: an operand a value has no
+place for is dropped rather than left hanging where no row would show it.</p>
 <h3 id="two-clocks-pace-a-transition"><a class="header" href="#two-clocks-pace-a-transition">Two clocks pace a transition</a></h3>
 <p><code>/create/actions/</code> documents the three gears a scenario switch has - hard cut,
 delayed cut and modal hold. The engine fact underneath them is that they do not
@@ -428,12 +518,73 @@ that adds a new place an expression can be authored has to be added to
 </ul>
 <p>Watches freeze under pause and clear at teardown, like every other piece of
 scenario-scoped state.</p>
+<h3 id="the-onupdate-pulse-sleeps-loaderwakers"><a class="header" href="#the-onupdate-pulse-sleeps-loaderwakers">The <code>OnUpdate</code> pulse SLEEPS (<code>loader/wake.rs</code>)</a></h3>
+<p><code>fire_on_update</code> used to queue an event every frame, and the dispatcher then
+walked the whole bucket re-evaluating filters that could not have changed their
+answer. It now runs behind a gate, and a scenario with nothing to react to
+queues nothing. The rigidbody analogy is exact: the scenario sleeps until
+something wakes it.</p>
+<p>Two things wake it, both derived at load by <code>wake.rs</code> and held in a
+<code>WakeProfile</code>:</p>
+<ul>
+<li><strong>A write.</strong> <code>NovaEventWorld::insert_variable</code> is the single write path, so
+every write joins a dirty set; the pulse fires when that set meets a variable
+an <code>OnUpdate</code> filter reads. What an <code>OnUpdate</code> handler WRITES joins what it
+reads, or a counter it advances itself would freeze the moment nothing else
+in the scenario writes.</li>
+<li><strong>A scheduled time.</strong> <code>GreaterThan(scenario_elapsed, 95.0)</code> is known at load,
+so the crossing is scheduled rather than polled. Only a bare clock read
+against a literal schedules; <code>scenario_elapsed * 2</code> is arithmetic.</li>
+</ul>
+<p>Three properties are worth knowing before reading the code:</p>
+<ul>
+<li><strong>Nothing is authored.</strong> The filters already declare all of it. An authored
+wake list would be a second source of truth that can disagree with them -
+name two variables, read three, and the handler silently never fires on the
+third. <code>/create/</code> does not grow.</li>
+<li><strong>The default is <code>EveryFrame</code>, and it is the fail-safe.</strong> A filterless
+<code>OnUpdate</code>, an <code>Entity</code> or <code>Timer</code> filter, an inline <code>Query(..)</code>, a watch fed
+by a per-frame sample, or a clock compared against a variable all fall back to
+the old behaviour. A case the analyser does not understand is SLOW, never
+wrong.</li>
+<li><strong>The decision is per SCENARIO, not per handler.</strong> The gate either queues the
+event or does not; per-handler gating would mean changing the <code>nova_events</code>
+dispatcher. One per-frame handler therefore holds the whole scenario awake,
+and that is sometimes correct - a speed ladder and a HUD countdown are both
+continuous questions.</li>
+</ul>
+<p>A <code>Sequence</code> step’s <code>until</code> gate is a real handler the loader spawns, so it is
+scanned with the authored ones. A gate waiting on <code>OnUpdate</code> that was not a
+reason to wake would stall its chain forever.</p>
+<p>Measured on a headless run, as the share of frames that queue the event:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>scenario</th><th>pulses / frames</th><th>why</th></tr>
+</thead>
+<tbody>
+<tr><td><code>final_tally</code></td><td>308 / 18300</td><td>value-gated milestones</td></tr>
+<tr><td><code>broadside</code></td><td>355 / 13500</td><td>value-gated milestones</td></tr>
+<tr><td><code>shakedown_run</code></td><td>425 / 16800</td><td>value-gated milestones</td></tr>
+<tr><td><code>ledger_ch1</code></td><td>350 / 22500</td><td>milestones plus four scheduled lines</td></tr>
+<tr><td><code>ledger_ch3</code></td><td>every frame</td><td>a <code>player_speed</code> ladder, correctly polling</td></tr>
+<tr><td><code>lifeline</code></td><td>every frame</td><td>recomputes a HUD countdown per frame</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="scenario-patterns"><a class="header" href="#scenario-patterns">Scenario patterns</a></h2>
-<p>The event vocabulary has no built-in “state” beyond scenario variables, so the
-shipped mods build their control flow out of one numeric variable plus
-<code>Expression</code> filters. Two idioms recur; both are worked end to end in the
-<a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts here are
-verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<p>The engine holds three facts for content - <code>once</code>, keyed timers, and a
+<code>Sequence</code> cursor - and everything past those is one numeric variable plus
+<code>Expression</code> filters. Two variable idioms recur; both are worked end to end in
+the <a href="#the-gauntlet-worked-example">Gauntlet worked example</a> below. Excerpts
+here are verbatim from <code>webmods/gauntlet/gauntlet.content.ron</code>.</p>
+<p><code>once</code> and <code>Sequence</code> are what a variable is NOT for. A flag whose only reader
+is its own filter - seeded in <code>OnStart</code>, read by one gate, written by that
+gate’s own action - is the engine’s fact, and <code>once</code> carries it. A step
+counter whose only job is to keep paced beats in order is the engine’s fact
+too, and a <code>Sequence</code> cursor carries it. Keep a variable where another handler
+reads it: an ORDERING counter like <code>gate</code> below, driven by where the PLAYER
+is, or a signal like “the convoy lost a ship”.</p>
 <h3 id="the-gate-counter-ordering-pattern"><a class="header" href="#the-gate-counter-ordering-pattern">The gate-counter ordering pattern</a></h3>
 <p>A single numeric variable acts as a state machine that enforces ORDERED entry:
 each stage’s handler is guarded on the counter holding that stage’s value, and
@@ -681,7 +832,8 @@ the orbit/lock trackers in <code>trackers.rs</code>; area events in <code>object
 <code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
 <code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
-<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/<code>view</code>), plus an
+<code>actions/</code> submodule (<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/<code>spawn</code>/<code>timer</code>/
+<code>view</code>), plus an
 <code>EventActionConfig</code> variant in <code>actions/mod.rs</code>.</li>
 <li>Filter: same pattern in <code>filters.rs</code> (<code>EventFilterConfig</code>).</li>
 <li>Object: a module under <code>objects/</code> (config + bundle function, plugin in
@@ -697,11 +849,17 @@ generic dispatch: <code>EventHandler</code> - <code>crates/nova_events/src/engin
 <code>EventFilterConfig</code> - <code>crates/nova_scenario/src/filters.rs</code>;
 <code>EventActionConfig</code> - <code>crates/nova_scenario/src/actions/mod.rs</code>.</li>
 <li>The state seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>;
-variables and expressions - <code>crates/nova_scenario/src/variables.rs</code>.</li>
+variables and expressions - <code>crates/nova_scenario/src/variables.rs</code>; their
+text form: <code>crates/nova_scenario/src/syntax.rs</code>.</li>
+<li>What an authored string names: <code>Names</code> -
+<code>crates/nova_scenario/src/names.rs</code>; the editor that reads it -
+<code>crates/nova_editor/src/event.rs</code> (the script as nodes).</li>
 <li>Loading and scoping: <code>ScenarioLoaderPlugin</code>, <code>ScenarioScopedMarker</code>,
 <code>scenario_is_live</code> - <code>crates/nova_scenario/src/loader/mod.rs</code>; the glTF
 warm-up: <code>ScenarioPreload</code>, <code>scenario_render_meshes</code> -
-<code>crates/nova_scenario/src/loader/preload.rs</code>.</li>
+<code>crates/nova_scenario/src/loader/preload.rs</code>; what the pulse wakes for:
+<code>WakeProfile</code>, <code>configure_scenario_shape</code> -
+<code>crates/nova_scenario/src/loader/wake.rs</code>.</li>
 <li>Objects: <code>ScenarioObjectsPlugin</code> - <code>crates/nova_scenario/src/objects/mod.rs</code>;
 kind dispatch: <code>ScenarioObjectKind</code> -
 <code>crates/nova_scenario/src/actions/spawn.rs</code>.</li>

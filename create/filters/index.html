@@ -278,9 +278,11 @@ lint warns on reads of never-set, unwatched variables.</li>
 log): every <code>Entity</code> filter reads &quot;no match&quot; for that event.</li>
 <li><strong>Repeating events + an ungated filter = repeated actions.</strong> <code>OnUpdate</code>
 fires every frame, and the lifecycle edges re-fire on every genuine
-transition (a lock landing again, orbit stability recovered). Pair the
-condition with a one-shot flag the actions flip - the
-<a href="../expressions/#recipes">count-gate idiom</a>.</li>
+transition (a lock landing again, orbit stability recovered). When the beat
+happens one time, mark the handler
+<a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once: true</code></a> and it
+retires the first time its filters pass. When the beat repeats, re-arm it in
+its own actions - the <a href="../expressions/#recipes">recipes</a>.</li>
 </ul>
 </details>
 

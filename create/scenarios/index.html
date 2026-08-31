@@ -43,7 +43,7 @@
                     <div class="wiki__tags" id="wiki-tags"></div>
                     <nav class="wiki-toc" aria-label="Contents">
                         <p class="wiki-toc__title">Contents</p>
-                        <ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol>
+                        <ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol>
                     </nav>
                     <p>A scenario defines one playable mission, continuation, or menu backdrop. Its
 <code>events</code> list is the script: events decide when a handler runs, filters decide
@@ -166,6 +166,12 @@ pose of its own.</p>
 <td>Trigger such as <code>OnStart</code>, <code>OnUpdate</code>, or <code>OnDestroyed</code>.</td>
 </tr>
 <tr>
+<td><code>once</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Retire this handler the first time its filters pass.</td>
+</tr>
+<tr>
 <td><code>filters</code></td>
 <td>list</td>
 <td><code>[]</code></td>
@@ -181,6 +187,7 @@ pose of its own.</p>
 </table>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDestroyed</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;lane_blocker&quot;</span><span class="ron-punct">))),</span>
     <span class="ron-punct">],</span>
@@ -193,6 +200,42 @@ pose of its own.</p>
     <span class="ron-punct">],</span>
 <span class="ron-punct">),</span>
 </code></pre>
+<h3 id="once---a-beat-that-happens-one-time" tabindex="-1"><code>once</code> - a beat that happens one time</h3>
+<p>A beat that can only happen once says so, and the engine holds the fact.
+Without <code>once</code> the same handler needs a flag of its own: a <code>VariableSet</code> in
+<code>OnStart</code> to seed it, a filter reading it, and an action writing it - three
+lines of ceremony that are about the machine, not about the game.</p>
+<p><code>once</code> retires the handler the first time its filters PASS, not the first time
+its event fires. A refused event leaves it live, so a beat waiting on a
+condition still gets every later chance at it.</p>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>Use it for anything with a single occurrence: a story line, an objective post,
+a one-time spawn, an act transition, an outcome. Leave it OFF for anything
+that genuinely repeats - a per-frame HUD readout, a re-armable warning, a
+cycle a player can ride more than once.</p>
+<p>Keep a variable only where it is a SIGNAL another handler reads (&quot;wave two is
+on the board&quot;, &quot;the convoy lost a ship&quot;). Delete it where its only reader was
+its own filter - that is what <code>once</code> replaces.</p>
+<p>A retired handler is gone: it stops being walked every frame, and it cannot
+fire again even if the same event repeats in the same frame.</p>
+</details>
+<h3 id="sequence---beats-that-follow-each-other" tabindex="-1"><code>Sequence</code> - beats that follow each other</h3>
+<p>A run of beats that only wait for LATER is one
+<a href="../actions/#sequence"><code>Sequence</code></a> action holding the ordered steps. The
+engine holds the cursor, so the chain needs no step counter, no stamped
+deadline, and no handler per beat.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">Sequence</span><span class="ron-punct">((</span>
+    <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;opening&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">steps</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+        <span class="ron-punct">(</span><span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">2.0</span><span class="ron-punct">),</span> <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span> <span class="ron-comment">/* first line */</span> <span class="ron-punct">]),</span>
+        <span class="ron-punct">(</span><span class="ron-key">after</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">8.4</span><span class="ron-punct">),</span> <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span> <span class="ron-comment">/* second line */</span> <span class="ron-punct">]),</span>
+    <span class="ron-punct">],</span>
+<span class="ron-punct">)),</span>
+</code></pre>
+<p>Keep a HANDLER where the beat must still ASK something when it lands - which
+of two lines to speak, whether the fight is still live. A step runs when its
+wait ends; only a handler re-checks.</p>
 <h2 id="scenario-scripting-chapters" tabindex="-1">Scenario scripting chapters</h2>
 <ul>
 <li><a href="../events/">Events</a> - when handlers run and what entity data they carry.</li>
@@ -209,7 +252,8 @@ section items do not use them.</p>
 <ol>
 <li>The game tears down the previous scenario and loads the selected scenario.</li>
 <li>All handlers are registered, then <code>OnStart</code> fires.</li>
-<li>Events fire while the scenario is active. Filters gate actions.</li>
+<li>Events fire while the scenario is active. Filters gate actions, and a
+<code>once</code> handler retires the first time its filters pass.</li>
 <li>A switch or retry removes all scenario-scoped objects and clears variables,
 objectives, story messages, HUD readouts, and pending transitions.</li>
 </ol>

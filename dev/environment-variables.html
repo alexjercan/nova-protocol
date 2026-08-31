@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -289,6 +289,21 @@ environment half exists at all. See
 <p><code>NOVA_MUTE</code> unset still mutes a run that has <code>NOVA_AUTOPILOT</code> or
 <code>NOVA_CAPTURE</code> set; <code>NOVA_MUTE=0</code> forces sound through one. The flag wins over
 both, and a muted run says <code>nova audio: output muted for this run</code> once.</p>
+<h2 id="the-replay-seed"><a class="header" href="#the-replay-seed">The replay seed</a></h2>
+<p>Owned by <code>nova_gameplay</code>, next to the entropy plugin it seeds.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Variable</th><th>Gates</th><th>For</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NOVA_SEED</code></td><td>seeds the gameplay RNG with one <code>u64</code>, so a driven run replays byte for byte; unset, the OS seeds it and no two runs agree</td><td>harness</td></tr>
+</tbody>
+</table>
+</div>
+<p>A value that does not parse as a <code>u64</code> refuses the boot rather than running
+unseeded - a replay that silently lost its seed is the failure the knob exists
+to prevent.</p>
 <h2 id="modding-and-the-settings-store"><a class="header" href="#modding-and-the-settings-store">Modding, and the settings store</a></h2>
 <p>Owned by <code>nova_assets</code>. See <code>/create/publish-a-mod/</code> for the portal.</p>
 <div class="table-wrapper">

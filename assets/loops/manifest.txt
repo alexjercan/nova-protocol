@@ -1,25 +1,36 @@
-# captured at commit 89b9a622 on master
-# file<TAB>example<TAB>duration_s<TAB>bytes
-hero-wfc-duel.webm	wfc_arena	6.1	1266674
-landing-wfc-2v2.webm	wfc_arena	6.1	754677
-torpedo-blast.webm	loop_torpedo_blast	5.3	247884
-spine-cut.webm	loop_spine_cut	5.3	169087
-goto-arrival.webm	loop_goto_arrival	10.8	175488
-landing-player-flight.webm	loop_player_flight	4.8	504633
-news-0110-derived-skin.webm	loop_derived_skin	6.9	114029
-news-0110-round-types.webm	loop_round_types	15.0	1036973
-news-0110-torpedo-types.webm	system_torpedo_launch	4.1	111627
-news-0110-point-defense.webm	stress_point_defense	4.1	415034
-landing-cockpit.webm	loop_cockpit	7.7	221417
-loop-section-controller.webm	screenshot_flip_burn	3.6	62276
-lock-dwell.webm	screenshot_radar_lock	2.2	48876
-landing-editor-build.webm	screenshot_editor	11.2	185082
-news-0110-editor-skin.webm	screenshot_editor	10.5	118553
-news-0110-damage-levels.webm	screenshot_damage_levels	5.7	119125
-news-0110-release-lead.webm	loop_spine_cut	5.3	169087
-news-0110-parts-gallery.webm	screenshot_editor	11.2	185082
-nova-os-open.webm	loop_cockpit	7.7	221417
-loop-section-hull.webm	screenshot_damage_levels	5.7	119125
-loop-section-thruster.webm	loop_player_flight	4.8	504633
-loop-section-turret.webm	stress_point_defense	4.1	415034
-loop-section-torpedo-bay.webm	system_torpedo_launch	4.1	111627
+# captured at commit fe53663e on master
+# a frozen row shipped with an earlier post and predates that commit
+# file<TAB>example<TAB>duration_s<TAB>bytes<TAB>state
+hero-wfc-duel.webm	wfc_arena	6.1	1130145	fresh
+landing-wfc-2v2.webm	wfc_arena	6.1	1178779	fresh
+torpedo-blast.webm	loop_torpedo_blast	5.6	194145	fresh
+spine-cut.webm	loop_spine_cut	5.3	171646	fresh
+goto-arrival.webm	loop_goto_arrival	10.8	175400	fresh
+landing-player-flight.webm	loop_player_flight	4.8	507535	fresh
+news-0110-derived-skin.webm	loop_derived_skin	6.9	114029	frozen
+news-0110-round-types.webm	loop_round_types	15.0	1036973	frozen
+loop-section-torpedo-bay.webm	system_torpedo_launch	4.1	92053	fresh
+loop-section-turret.webm	stress_point_defense	4.1	482727	fresh
+landing-cockpit.webm	loop_cockpit	7.7	221451	fresh
+loop-section-controller.webm	screenshot_flip_burn	3.6	62025	fresh
+lock-dwell.webm	screenshot_radar_lock	2.2	49103	fresh
+landing-editor-build.webm	screenshot_editor	3.0	130589	fresh
+news-0110-editor-skin.webm	screenshot_editor	10.5	118553	frozen
+loop-section-hull.webm	screenshot_damage_levels	5.7	110499	fresh
+news-0120-editor-events.webm	screenshot_editor	2.9	140961	frozen
+vfx-range.webm	loop_vfx_range	15.9	621380	fresh
+vfx-cold-launch.webm	loop_vfx_range	2.1	60257	fresh
+landing-damage-sequence.webm	loop_damage_sequence	5.5	157833	fresh
+nova-os-open.webm	loop_cockpit	7.7	221451	fresh
+loop-section-thruster.webm	loop_player_flight	4.8	507535	fresh
+news-0110-release-lead.webm	loop_spine_cut	5.3	169087	frozen
+news-0110-spine-cut.webm	loop_spine_cut	5.3	169087	frozen
+news-0110-parts-gallery.webm	screenshot_editor	11.2	185082	frozen
+news-0110-damage-levels.webm	screenshot_damage_levels	5.7	119125	frozen
+news-0110-point-defense.webm	stress_point_defense	4.1	415034	frozen
+news-0110-torpedo-types.webm	system_torpedo_launch	4.1	111627	frozen
+news-0120-release-lead.webm	screenshot_editor	3.0	130589	frozen
+news-0120-point-defense.webm	stress_point_defense	4.1	482727	frozen
+news-0120-blast.webm	loop_torpedo_blast	5.6	194145	frozen
+news-0120-cold-launch.webm	loop_vfx_range	2.1	60257	frozen
+news-0120-vfx-range.webm	loop_vfx_range	15.9	621380	fresh

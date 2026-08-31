@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>v0.12.0 - Build the mission - Nova Protocol</title>
+        <meta name="description" content="Nova Protocol v0.12.0: the editor holds a whole mission - ships, range and script under one scene tree, every node opened by a reflected Inspector, handlers and expressions authored in the panel - and saves it as an ordinary mod. Every key and pad button rebinds from a real Settings panel and the change reaches the flight rig on the spot. Combat learns it happens in a vacuum: torpedoes are dropped inert and lit clear of the hull, a muzzle flash is a ball of burning gas measured in metres, and a detonation lights the hulls around it." />
+        <link rel="icon" href="/nova-protocol/favicon.svg" />
+    <script defer src="/nova-protocol/news.js"></script></head>
+    <body>
+        <header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/dev/">Dev</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+
+        <main>
+            <div class="news">
+                <nav class="news__toc" aria-label="On this page">
+                    <p class="news__toc-title">On this page</p>
+                    <a href="#the-editor-holds-a-whole-mission" class="news__toc-link">The editor holds a whole mission</a>
+                    <a href="#one-document-one-tree" class="news__toc-link news__toc-link--sub">One document, one tree</a>
+                    <a href="#the-range-is-part-of-the-document" class="news__toc-link news__toc-link--sub">The range is part of the document</a>
+                    <a href="#every-node-opens" class="news__toc-link news__toc-link--sub">Every node opens</a>
+                    <a href="#the-script-is-authored-in-the-panel" class="news__toc-link">The script is authored in the panel</a>
+                    <a href="#scene-and-events-are-two-modes-of-one-screen" class="news__toc-link news__toc-link--sub">SCENE and EVENTS are two modes of one screen</a>
+                    <a href="#a-condition-is-a-page-not-a-string" class="news__toc-link news__toc-link--sub">A condition is a page, not a string</a>
+                    <a href="#the-language-got-shorter" class="news__toc-link news__toc-link--sub">The language got shorter</a>
+                    <a href="#save-it-and-it-is-a-mod" class="news__toc-link">Save it and it is a mod</a>
+                    <a href="#the-controls-are-yours" class="news__toc-link">The controls are yours</a>
+                    <a href="#combat-happens-in-a-vacuum" class="news__toc-link">Combat happens in a vacuum</a>
+                    <a href="#a-torpedo-is-dropped-then-lit" class="news__toc-link news__toc-link--sub">A torpedo is dropped, then lit</a>
+                    <a href="#the-muzzle-flash-is-an-object" class="news__toc-link news__toc-link--sub">The muzzle flash is an object</a>
+                    <a href="#a-hit-throws-sparks-not-a-diagram" class="news__toc-link news__toc-link--sub">A hit throws sparks, not a diagram</a>
+                    <a href="#a-detonation-lights-the-room" class="news__toc-link news__toc-link--sub">A detonation lights the room</a>
+                    <a href="#drives-you-can-see" class="news__toc-link">Drives you can see</a>
+                    <a href="#performance" class="news__toc-link">Performance</a>
+                    <a href="#more-in-v0120" class="news__toc-link">More in v0.12.0</a>
+                    <a href="#modding-and-compatibility" class="news__toc-link news__toc-link--sub">Modding and compatibility</a>
+                </nav>
+                <article class="prose news__body">
+                <p class="prose__meta">
+                    <a href="/nova-protocol/news/">&larr; News</a>
+                    &nbsp;//&nbsp; 2026-08-31 &nbsp;//&nbsp; v0.12.0
+                </p>
+                <h1>v0.12.0 - Build the mission</h1>
+                <p>For eleven releases the editor built one thing: a ship. You placed sections on
+a grid, watched a skin close around them, and pressed Play to fly the result
+around a fixed sandbox. Everything else about a mission - who else is out
+there, what the range holds, what has to happen for you to win - lived in a RON
+file you wrote by hand, in a format the editor could not read and would not
+write.</p>
+<p>v0.12.0 closes that gap. The editor now holds a whole scenario under one scene
+tree: your ship, the other ships, the planetoid, the derelicts, the pickets,
+the beacons and the lights - and, on a second tab, the script that runs them.
+Every node opens in an Inspector that reads its fields off the config itself,
+so a thruster shows thrust and a beacon shows the sphere it triggers in.
+Handlers, filters and actions are built from a menu and edited the same way. An
+expression is a page you author rather than a string you get right.</p>
+<p>Then File &gt; Save writes the whole document out as an ordinary mod - each ship a
+design, the range a scenario naming them - and F5 brings it back without a
+restart. What comes out is not an editor save file. It is the same kind of
+bundle the campaign ships as.</p>
+<p>The release carries two more arcs. Every key and pad button in the game became
+rebindable from a real Settings panel, and the rebind reaches the flight,
+camera and scenario rigs on the spot. And combat learned that it happens in a
+vacuum: a torpedo is dropped inert and lights a few body lengths out, a muzzle
+flash is a ball of burning gas measured in metres rather than a hundred screen
+dots, and a detonation is the first thing in this game that has ever cast
+light on the hulls around it.</p>
+<div class="callout">
+<p class="callout__title">v0.12.0 is the editor release</p>
+<p>Play it in the browser or download the native build from the landing page. The complete compatibility notes are at the end of this post.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-release-lead.webm -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-release-lead.webm</span>
+        <span class="figure__placeholder-note">The editor building a mission: a ship assembled part by part on the stage, the scene tree filling beside it, and the skin closing around the finished structure.</span>
+    </div>
+    <figcaption class="figure__caption">One document holds the ships, the range and the script. Play compiles it.</figcaption>
+</figure>
+<h2 id="the-editor-holds-a-whole-mission" tabindex="-1">The editor holds a whole mission</h2>
+<h3 id="one-document-one-tree" tabindex="-1">One document, one tree</h3>
+<p>The left rail is a scene tree of the actual document. The scenario is the root.
+Under it sit the ships and the world objects; under a ship sit its sections.
+One click picks a node. Two clicks enter it - entering a ship isolates that
+ship, in the tree and on the stage, so you are building one thing rather than
+hunting for it inside five. Backspace leaves, and so does a single click on any
+rung above you. Going back up stopped needing a double click on the root.</p>
+<p>Rows step in by depth and print a section as its part name, with the ordinal in
+a column the rail cannot clip, so six alike hulls stay six distinguishable
+rows. Every row wears an icon for what it is, and resting on one tells you the
+kind that icon stands for and the whole id the row had to shorten. Resting on a
+row lights the thing on the stage, and resting on the stage lights the row.</p>
+<p>Names are for reading and ids are for scripting, so the tree does both: a ship
+carries a name of its own, the minted id is on hover, and View &gt; Ids reads the
+whole tree as ids instead - which is what an event's filter will name them by.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-editor.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-editor.png</span>
+        <span class="figure__placeholder-note">The editor on a built ship: the scene tree down the left rail with a row per section, the stage in the middle, and the Inspector open on the right.</span>
+    </div>
+    <figcaption class="figure__caption">Entering a ship isolates it. The tree, the stage and the Inspector all agree about where you are.</figcaption>
+</figure>
+<h3 id="the-range-is-part-of-the-document" tabindex="-1">The range is part of the document</h3>
+<p>The sandbox was previously a fixed backdrop the editor flew you to. Now it is
+nodes. The planetoid, the hulks, the pickets, the beacons and the lights all
+come up in the tree, and Play flies the range the tree holds rather than the
+one that was compiled in.</p>
+<p>The top bar's Add menu places anchors, asteroids, beacons, salvage crates and
+lights in front of the camera. Dragging or deleting a world object works
+exactly as it does for a ship, and Add obeys where you are: the world palette
+greys out inside a ship, and Add offers that ship's own parts instead.</p>
+<p>Two problems come with editing in three dimensions, and both are answered by
+drawing something. The first is where things are. The stage stands on a world
+grid whose cells step by decades as the camera pulls back, with the origin's own
+X and Z lines picked out and a plumb line under the selection - and the selected
+node carries move and turn handles, so a node can go somewhere other than the
+ground plane. The second is what a thing does. A beacon and a salvage crate have
+no body worth looking at; what matters is the sphere they trigger in. So objects
+draw what they have no body to show - trigger spheres, a lamp's reach, a sun's
+direction, each in its own colour. View &gt; World Grid and View &gt; Object Volumes
+turn both off when you want the shot.</p>
+<h3 id="every-node-opens" tabindex="-1">Every node opens</h3>
+<p>The right-hand Inspector is not a hand-written panel per kind. It reads a
+node's own fields off its config by reflection, and typing into one writes it
+back - so a placed object keeps what you set, and a kind that gains a field
+gains a row without anyone editing the editor.</p>
+<p>Reflection alone gives you a column of untyped boxes, so the rows are typed to
+what they hold. A colour paints a swatch beside its hex, and pressing the swatch
+opens a floating picker: four channel sliders over a live preview, dragged by
+its bar and closed by pressing the swatch again. An enum of bare names becomes a
+row of choices you can switch rather than a readout you cannot. Every vector is
+three axis-tinted boxes - position, rotation in yaw, pitch and roll degrees, and
+every offset in a config. There is no scale row: Nova sections mate, they do not
+stretch.</p>
+<p>A field knows what it holds - a unit, a floor, and the step it drags by. A
+number is scrubbed by pulling its row's name, with the pointer wrapping at the
+screen edge, and a typed negative radius is refused. Units stand in a column of
+their own, so every box, chip and checkbox down the panel ends on the same line.</p>
+<p>Two field kinds do more than hold text. A row that names an OBJECT opens a
+picker of the ids the document actually spawns, and reads <code>unknown</code> beside one
+that names nothing - the handler a save would quietly drop. A row that names a
+FILE picks from what the installed bundles declare - images, sounds and models,
+written as the <code>dep://</code> ref that resolves - and reads <code>unknown</code> beside a path no
+bundle ships. Both are the same idea: the panel offers what exists instead of
+letting you type what does not.</p>
+<p>The Inspector also reaches into a node's lists. A turret's fire rate lives on a
+muzzle inside its joint tree, and the panel draws that as an indented tree of
+ruled headings rather than a column of long paths. By default it opens on what
+a kind is actually authored through - a turret's fire rate and ammunition, not
+its joint offsets - and View &gt; All Fields brings the whole config back.</p>
+<p>Every Inspector row says what it is for on hover: its whole name, then the
+sentence the config author wrote beside that field. The panel is what gets
+read, rather than the documentation.</p>
+<h2 id="the-script-is-authored-in-the-panel" tabindex="-1">The script is authored in the panel</h2>
+<h3 id="scene-and-events-are-two-modes-of-one-screen" tabindex="-1">SCENE and EVENTS are two modes of one screen</h3>
+<p>SCENE gives you the world beside the Inspector. EVENTS gives the whole window
+to the script: the scenario, its handlers, and their filters, actions, steps and
+gates, as one tree.</p>
+<p>A handler is edited like a rock. What it fires on, whether it retires, and every
+field of every filter and action are all read off the config by reflection, the
+same way a thruster's thrust is. A filter or an action is switched to any other
+kind from its own row, and keeps the operands the new kind can hold. Add builds
+the script - Handler, Filter, Action, Sequence, Step and Gate land under the
+marked node - and the menu offers only what the mode you are in can place.</p>
+<p>A handler can be named, and the tree reads both, so <code>On Enter - picket warden wakes</code> is a row you can find. Six handlers on one trigger used to be six
+identical rows.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-editor-events.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-editor-events.webm</span>
+        <span class="figure__placeholder-note">Authoring a handler: a click on the scenario rung leaves the ship, the EVENTS tab takes the window, then Add drops a handler, a filter under it, the ship named from the id picker rather than typed, and an action underneath.</span>
+    </div>
+    <figcaption class="figure__caption">The ship is picked from what the document spawns. A filter cannot name a ship that is not there.</figcaption>
+</figure>
+<h3 id="a-condition-is-a-page-not-a-string" tabindex="-1">A condition is a page, not a string</h3>
+<p>The interesting half of a scenario is its conditions, and a condition is a tree
+whether or not you get to see it as one. An expression filter now opens its
+condition as one page: every operator and every leaf on its own row, offered the
+kinds its place in the grammar allows. A leaf takes any expression as text, or
+picks one of the scenario's variables.</p>
+<p>A <code>Variable Set</code> action builds the value it writes on that same page, and then
+its tree row reads as the assignment it is - <code>beat = beat + 1</code> - rather than as
+the name of a kind. That is the difference the whole EVENTS mode is chasing: the
+tree should read as what the script does.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-condition-page.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-condition-page.png</span>
+        <span class="figure__placeholder-note">The EVENTS tree with a handler expanded: its trigger, a filter scoped to a named ship, an expression filter opened as a page of operator and leaf rows, and an action underneath.</span>
+    </div>
+    <figcaption class="figure__caption">Every operator and every leaf is a row. The grammar decides what each row may become.</figcaption>
+</figure>
+<p>The script also opens where you are working. Containers arrive shut, two clicks
+open one, and a caret says which way each goes. A shipped scenario no longer
+fills the rail four times over the moment you switch to EVENTS.</p>
+<h3 id="the-language-got-shorter" tabindex="-1">The language got shorter</h3>
+<p>The editor made the scenario language's rough edges obvious, because it had to
+draw them. Three of them are gone.</p>
+<p>A handler can say <code>once: true</code> and retire itself the first time its filters
+pass. A beat that happens one time used to need a latch variable, a filter
+reading it, and an action writing it - three authored things to express &quot;not
+again&quot;.</p>
+<p>A <code>Sequence</code> action runs ordered beats, each behind its own delay or event gate,
+and the engine holds the cursor. A paced chain costs one action instead of a
+handler and a step counter per beat.</p>
+<p>The proof is the story mod. The Ledger (1.25.0 to 1.26.0) rewrote all five
+chapters onto <code>once</code>, keyed timers and <code>Sequence</code>: 74 handlers down to 65, and
+half the latch variables gone, 51 down to 25.</p>
+<p>The third is not about authoring at all. <code>OnUpdate</code> used to mean &quot;run these
+filters every frame&quot;, which is what a value-gated scenario spends its budget
+on. The pulse now sleeps: it fires only when a variable its filters read is
+written, or when the clock crosses a threshold they compare against.</p>
+<!-- Game sources: `once` and Sequence in the scenario handler/action config;
+     the OnUpdate wake conditions in the scenario pulse. Ledger counts are the
+     1.25.0 -> 1.26.0 rewrite recorded in CHANGELOG.md. -->
+<div class="widget" data-widget="pulse-sleep">
+<p>An <code>OnUpdate</code> handler used to evaluate its filters on every frame. It now wakes only when a variable its filters read is written, or when the clock crosses a threshold they compare against - about 2% of frames for a value-gated scenario.</p>
+</div>
+<p>A scenario also says how bright its sky comes up. <code>skybox_brightness</code> is in lux,
+and defaults so that a file authoring none still comes up at the shipped 1000.</p>
+<h2 id="save-it-and-it-is-a-mod" tabindex="-1">Save it and it is a mod</h2>
+<p>File &gt; Save writes the whole document - ships and range together - and File &gt;
+Open reads it back on the same ids and poses. Ctrl+S saves, and the rail's line
+reports what happened.</p>
+<p>What it writes is not a private format. A range saved in the editor is an
+ordinary mod: each built ship a design, the range a scenario naming them.
+Editing a design moves every instance of it. The script comes with it - every
+handler the editor wrote survives Save and Open on the ids it was authored
+with, objectives and outcome included.</p>
+<p>F5 reads every content file off disk behind a loading screen, as does leaving
+the editor or the mods panel, so a range saved in the editor reaches the
+Scenarios list without a restart.</p>
+<p>Play flies the whole document: every ship stands where it was dragged and faces
+where it was turned, and every non-empty AI design spawns as a neutral AI ship
+beside the player's. A seeded spacecraft IS a ship - it wears the driver's
+mark, opens on a double click like any other, and its panel reads the hull it
+flies, who flies it and which side it is on.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-range.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-range.png</span>
+        <span class="figure__placeholder-note">The sandbox range in flight after Play, with the ship built in the editor standing where it was placed.</span>
+    </div>
+    <figcaption class="figure__caption">Play compiles the document from the scenario node. What you dragged is where it stands.</figcaption>
+</figure>
+<p>Nothing throws a document away without asking. File &gt; New Scenario and Back to
+Main Menu both put the question up first, and Back to Main Menu is the one that
+ends the session and deletes the draft - Play round-trips still return to it.</p>
+<h2 id="the-controls-are-yours" tabindex="-1">The controls are yours</h2>
+<p>Settings opens on tabs - Audio, Graphics, Controls, Interface - and Controls
+lists one binding group at a time, from the main menu and the pause overlay
+alike. A row draws the button it is bound to as a picture, keycap or pad glyph,
+and a key that cannot move, like Escape, wears the same chip greyed rather than
+falling back to plain text.</p>
+<p>A binding moves by pressing its chip and then the key or pad button you want. A
+source another action already holds is refused by name, and so is one a live
+ship section holds - and Reset Defaults puts the whole table back. Radar hold
+and tap are one row, so rebinding the gesture moves both halves; they could
+previously end up on different keys.</p>
+<p>The part that took the work is that a rebind made in flight reaches everything
+that answers it. The flight, camera and scenario rigs rebuild on the spot, and
+the HUD dock redraws on the new key rather than the one it shipped with. The
+editor's section-key chip and the NOVA OS ship viewer's chip both read the LIVE
+binding table rather than the shipped defaults, so a moved verb takes its
+conflict warning with it. The OBJECTIVES affordance draws the key the NOVA OS
+is bound to now, not the Tab it ships with.</p>
+<p>The Controls list is also honest about what it holds. It reads the bindings the
+game actually flies with, so a key it prints is the key that fires, and it names
+what it used to omit: RCS, the wheel's lock cycle, and the scenario advance. Tab
+and the HUD cycle key are named actions now - the list prints them, the settings
+file remembers a move, and both answer a rebind like every flight key already
+did.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-controls.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-controls.png</span>
+        <span class="figure__placeholder-note">The Settings panel on its Controls tab: one binding group at a time, each row drawing its key or pad button as a glyph chip.</span>
+    </div>
+    <figcaption class="figure__caption">A chip is pressed, then the key. A source something else holds is refused by name.</figcaption>
+</figure>
+<p>Gamepad support caught up at the same time. The shortcuts outside the flight rig
+fire again - pause, the HUD cycle, the NOVA OS, and the editor's place and
+Sandbox-return chords all read a resource Bevy no longer has. RCS fine adjust
+moved off the left trigger, which it shared with Raise Weapons, onto the left
+stick click. The NOVA OS viewers answer a pad: orbit, pan, cycle, GOTO and
+reload reuse the flight rig's buttons, which the context rule keeps from ever
+being live beside them. And the pad's left stick translates under RCS - a held
+deflection is full authority in that direction, where the mouse only nudges per
+frame.</p>
+<p>Two smaller ones. Graphics offers Windowed or Borderless fullscreen, applied at
+once and remembered, so the window is no longer stuck at the size it was created
+with. And the NOVA OS prompt edits like a shell: Home and End, Ctrl+A/E/U/K,
+and the first deliberate key finishes the boot banner rather than making you
+wait the reveal out.</p>
+<h2 id="combat-happens-in-a-vacuum" tabindex="-1">Combat happens in a vacuum</h2>
+<p>The combat effects were built to read on a screen. Several of them were reading
+as diagrams: a ring where a hit landed, a dotted line where a burst should be, a
+hundred screen-space dots where a muzzle flash should be. v0.12.0 rebuilt them
+as things with size, heat and momentum.</p>
+<h3 id="a-torpedo-is-dropped-then-lit" tabindex="-1">A torpedo is dropped, then lit</h3>
+<p>A torpedo bay no longer fires. It kicks the torpedo clear inert, and the motor
+catches a few body lengths out. Until it does, the torpedo can neither be shot
+down nor damage anything - it is a heavy object being pushed away from a hull,
+which is what a launch tube does.</p>
+<p>A bay authors the coast as <code>ignition_delay</code>, in seconds. Zero keeps the old
+launch-under-power behaviour, and the shipped bays coast for 0.6 s: ejected at 8
+units a second into 0.8 linear damping, which carries the warhead about 3.8
+units - several body lengths, and clear of the hull - and hands the drive a
+torpedo already doing about 5 units a second.</p>
+<!-- Game sources: `ignition_delay` default (0.6) and `linear_damping` (0.8) in
+     crates/nova_ship/src/sections/torpedo_section/mod.rs; the authored
+     `spawner_speed` of 8.0 in
+     crates/nova_authoring/src/base_content/sections/standard.rs. -->
+<div class="widget" data-widget="ignition-delay">
+<p>A shipped bay ejects its torpedo at 8 units a second into 0.8 linear damping and lights the drive 0.6 seconds later. The torpedo coasts about 3.8 units - several body lengths - and the motor catches it at roughly 5 units a second. It cannot be intercepted or do damage until then.</p>
+</div>
+<p>Two bugs were hiding underneath that, and both only became visible once there
+was a cold coast to see them in. A launched torpedo was born in the bay's own
+frame, which laid its nose at a right angle to the way it was travelling -
+whatever the bay authored. Thrust from the first tick had always hidden it,
+because the controller swung the nose round inside the frames it took the drive
+to matter. The other is simpler: a bay was ejecting sideways out of its own
+roof, across whatever was mounted above it, instead of out of its bow face - the
+one face on a section that cannot take another section, so it is free to be a
+muzzle.</p>
+<p>The launch reads as two events now, which is what it is. The bay throws a puff
+as the torpedo leaves, and the drive lights with a flash on the bay it just
+left. Both of them ride the ship that fired them, rather than hanging at the
+point in space the bay used to be at - which is the difference between a moving
+ship and a firing range.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-cold-launch.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-cold-launch.webm</span>
+        <span class="figure__placeholder-note">A single torpedo launch held close: the bay puffs, the torpedo coasts out inert and nose-first, and the drive lights a few body lengths clear of the hull.</span>
+    </div>
+    <figcaption class="figure__caption">The drop and the burn are two events. The coast is the part you could not see before.</figcaption>
+</figure>
+<h3 id="the-muzzle-flash-is-an-object" tabindex="-1">The muzzle flash is an object</h3>
+<p>The old muzzle flash was 100 dots three pixels across, at any range. A gun
+firing nearby looked like a flash; the same gun at 300 units looked like
+confetti, because screen-space dots do not get smaller.</p>
+<p>It is now a real object at the barrel: a ball of burning gas with a cone leaving
+it, sized in metres. It shrinks with distance because it is a thing in the
+world.</p>
+<p>The rounds themselves had the opposite problem. A point-defence cannon at a high
+fire rate was drawing a dotted line, because each round was a point and the gaps
+between them were wider than the points. Each round is now stretched along its
+own travel, so the gap the eye was seeing closes at any frame rate and a burst
+reads as a stream. And every glowing particle is drawn through a round mask:
+close to the camera an untextured one is a square, and no colour gradient fixes
+a corner.</p>
+<p>Like the launch puff, a muzzle flash rides the ship that fired it. It used to
+hang at the point in space the shot left from, which on a manoeuvring ship
+walked a trail of flashes across the sky behind the barrel.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-point-defense.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-point-defense.webm</span>
+        <span class="figure__placeholder-note">A bank of point-defence turrets firing down its lanes: a burning gas ball at each barrel and every round stretched along its own travel.</span>
+    </div>
+    <figcaption class="figure__caption">Four mounts at full rate. The flash has a size in metres and the burst is a stream rather than a dotted line.</figcaption>
+</figure>
+<h3 id="a-hit-throws-sparks-not-a-diagram" tabindex="-1">A hit throws sparks, not a diagram</h3>
+<p>The gizmo impact rings are gone. A hit throws a burst of incandescent sparks
+where it landed, thinned by distance the way the camera shake already is. A ring
+was a diagram of a hit.</p>
+<p>Two details make the debris read as material rather than as particles. A chip
+carved off a hull leaves near-white and cools to gunmetal in under a second - it
+was just cut out of a ship, so it was never cold. And a body says what it is made
+of, so a shot rock spalls rock: dusty, slower, more of it, and not glowing.
+Every rock in the game used to throw the hull's gunmetal chips.</p>
+<h3 id="a-detonation-lights-the-room" tabindex="-1">A detonation lights the room</h3>
+<p>Nothing in combat cast light before this release. A torpedo would detonate
+against a hull and the fireball would be the only thing in the frame that knew
+the warhead had gone off. A detonation now lights the hulls around it.</p>
+<p>Brief lights are not free, so the number that may burn at once is a
+graphics-tier budget rather than a constant: six on High, three on Medium, none
+on Low. A salvo asking for more is refused rather than dimmed - a light that
+fades in as the tier fills would make the tier visible, and the point of a
+budget is that you do not see it.</p>
+<!-- Game source: `GraphicsBudget::transient_lights` per quality tier in
+     crates/nova_gameplay/src/settings.rs:251,260,273; the burn-down and refusal
+     in crates/nova_gameplay/src/transient_light.rs. -->
+<div class="widget" data-widget="transient-lights">
+<p>Brief combat lights are capped per graphics tier: six on High, three on Medium, none on Low. A salvo asking for more lights than the tier allows has the extra requests refused outright rather than dimmed.</p>
+</div>
+<p>The blast itself gained two things. It carries the torpedo's velocity, so an
+intercept throws its fireball along the closing course instead of expanding
+about a point the warhead was only passing through. And it has a core: a
+white-hot flash that cools through amber while the ejecta leaves through it.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-blast.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-blast.webm</span>
+        <span class="figure__placeholder-note">A torpedo detonating against a hull: the fireball core, the ejecta leaving through it, and the warm light the wreckage around the blast takes.</span>
+    </div>
+    <figcaption class="figure__caption">The first thing in this game to cast light. The hulls around a warhead now know it went off.</figcaption>
+</figure>
+<h2 id="drives-you-can-see" tabindex="-1">Drives you can see</h2>
+<p>The basic thruster wore a placeholder barrel with a plume stuck on the end. It
+now wears an authored exposed bell with its exhaust fitted to the nozzle. The
+placeholder nozzle also learned to glow: it called itself a hot red and had
+albedo only, so the side away from the key light read as painted plastic.</p>
+<p>Two larger drives join the editor as real multi-cell sections - a 3x3x2 vector
+drive and a 5x5x3 capital drive - with full-size mass, mounting faces, thrust,
+skin footprints and exhaust clearance. Large WFC arena ships fly with a seeded
+stern stamp: one capital drive, or a bank of two to three vector drives.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-drives.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-drives.png</span>
+        <span class="figure__placeholder-note">The three shipped drives on one bench, read off their nozzles: the 1x1x1 basic thruster, the 3x3x2 vector drive and the 5x5x3 capital drive, each on the hull it mounts to.</span>
+    </div>
+    <figcaption class="figure__caption">One cell, then nine, then twenty-five. A drive mounts out of its bow face and nothing else, so the plate behind it is the whole mount.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/news-0120-thruster-bell.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image planned</span>
+        <span class="figure__placeholder-name">assets/news-0120-thruster-bell.png</span>
+        <span class="figure__placeholder-note">The basic thruster read off its nozzle's axis: the authored exposed bell with the exhaust fitted into it, rather than the placeholder barrel with a plume on the end.</span>
+    </div>
+    <figcaption class="figure__caption">The bell is art now, not a barrel with a cone stuck to it.</figcaption>
+</figure>
+<p>Sections also keep a stable name for as long as they exist, so a ship read back
+after a trip out to flight is the ship that was built.</p>
+<h2 id="performance" tabindex="-1">Performance</h2>
+<p>This is a small performance release and the post will not pretend otherwise.
+The cycle spent its budget on the editor, and the one measured win is a
+straightforward piece of waste: the target inset was drawing the whole scene a
+second time at 512 px into a 256 px panel and throwing three quarters of those
+pixels away in the downscale. It now renders at the size of the panel it fills.</p>
+<p>Two of the release's other changes are structural rather than measured, and
+both are worth naming because they bound work instead of trimming it. The
+<code>OnUpdate</code> pulse sleeping takes a value-gated scenario from evaluating its
+filters every frame to about 2% of them. And the transient-light budget is a
+ceiling, so a fifty-torpedo salvo costs the same six lights a two-torpedo one
+does on High.</p>
+<p>The VFX rework was measured on the new range example at every stage rather
+than guessed at, and the finished tree measures no slower than the one the work
+started from - which is the result worth having, because the effects it draws
+are larger, lit, and more numerous.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0120-vfx-range.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Loop planned</span>
+        <span class="figure__placeholder-name">assets/loops/news-0120-vfx-range.webm</span>
+        <span class="figure__placeholder-note">The measured range: a gun platform lays four PDC mounts and a torpedo bay on a target thirty-six units down range, and fires the whole cycle three times over.</span>
+    </div>
+    <figcaption class="figure__caption">The load the numbers were taken under. Both ships are authored tough enough to survive three passes, so every pass draws the same four effects and the figure is the measurement, not an illustration of it.</figcaption>
+</figure>
+<p>One attributed cost did not survive its own check, and the post would rather
+say so than quietly drop it. Drawing the muzzle flash cost about a millisecond
+a frame, and that millisecond was attributed to the overdraw of its particles.
+Halving the particle count returned a fifth of it - less than this host's
+pass-to-pass spread, so not a result at all. The attribution was therefore
+wrong, and the remaining suspect is a different change in the same commit: a
+blast core that had been drawn edge-on as a sliver became a full-area
+billboard. The halving was kept regardless, because it draws the same ball for
+half the fill.</p>
+<h2 id="more-in-v0120" tabindex="-1">More in v0.12.0</h2>
+<p>The feature story above is the release, but several shipped behaviours also got
+cleaner:</p>
+<ul>
+<li><strong>The editor reads in the game's own typeface.</strong> Its text went out unmarked
+and rendered in Bevy's built-in face, which has none of the line art the
+panel is drawn with, so every picker chip was an empty box.</li>
+<li><strong>What is selected is what Delete deletes</strong>, at any depth - a trash on the
+tree row, the Del key, or Edit &gt; Delete. The delete brush that had to be armed
+is gone.</li>
+<li><strong>Every refusal answers on the editor's own line.</strong> A rebind conflict names
+the action already holding the key, instead of saying so only in a log nobody
+is reading. The placement verdict is said beside the ghost rather than at the
+window edge.</li>
+<li><strong>The parts gallery is framed to its parts:</strong> each thumbnail fitted to the
+part's own bounds, sockets drawn on the focus preview, and the filter visible
+while it is set.</li>
+<li><strong>The rail reads the ship back</strong> - turn rate, mass, thrust, hull and part
+count - and it names what holds the turn down: shorten the hull, or fit
+another computer.</li>
+<li><strong>Link points read at any distance</strong>, the socket the ghost would take is
+marked apart from the rest, and a part's keybind chip stands off it on a
+leader.</li>
+<li><strong>Hulls carry their name on the stage</strong>, and anything else takes one while it
+is selected or under the pointer, so five derelicts stop being five identical
+grey shapes.</li>
+<li><strong>Labels pinned to something in the world</strong> - a keybind chip, a NOVA OS blip -
+sat a label's height off target on a HiDPI screen. They point where they mean
+at any scale and landscape size.</li>
+<li><strong>A combat lock that lets go says why</strong> in the NOVA OS log: target gone, out
+of range, no longer hostile, or the idle clock running out. It used to just
+vanish.</li>
+<li><strong>A ship flown under a manual speed cap reads <code>current / rated</code></strong> on the speed
+chip, so a held burn levelling off reads as the cap it is against rather than
+as a drive that quit pulling.</li>
+<li><strong>The targeting reds are three named families</strong> - inbound, lock, hot metal -
+one hue at whatever opacity a widget wants. Five that had drifted snap back
+onto the family they meant.</li>
+<li><strong>Destroyed sections keep burnt damage on detached wreckage</strong> instead of
+reverting to pristine.</li>
+<li><strong>Typing a backquote at the NOVA OS prompt no longer cycles the HUD</strong> behind
+the monitor: the cycle key answers in flight only, so the instruments are the
+ones you left.</li>
+<li><strong>The comms stack dropped its V and B keys.</strong> Dismissing the oldest card and
+skipping the backlog were near-identical shortcuts, and the paced window
+already flows on its own.</li>
+<li><strong>Both side panels are wider and scroll</strong>, with a draggable bar beside each
+saying how far down the list runs, and a wheel notch moving three lines rather
+than one.</li>
+<li><strong>The path in the top bar is a control:</strong> press a rung to go there. View holds
+front, side, top and iso presets, and an axis rose in the corner says which way
+is up.</li>
+<li><strong><code>nix run</code> launches the game.</strong> The flake packages the binary with its
+assets, the libraries Bevy opens by hand, a desktop entry and an icon, so <code>nix profile install</code> puts Nova Protocol in the application menu.</li>
+</ul>
+<h3 id="modding-and-compatibility" tabindex="-1">Modding and compatibility</h3>
+<p>v0.12.0 adds more than it breaks, and the additions are all defaulted:</p>
+<ul>
+<li><code>ignition_delay</code> is a new field on a torpedo bay, in seconds. It defaults to
+0.6 and is skipped when it holds that, so bays authored before this release
+round-trip byte-identical - but they now coast. Author <code>0.0</code> for the old
+launch-under-power behaviour.</li>
+<li>A torpedo bay's <code>spawn_rotation</code> must aim the launch axis - the spawner's +Y -
+out of the section's bow face. The shipped bays author the quarter turn that
+does it. A bay that authored nothing was ejecting through its own roof, so a
+mod relying on the old attitude is relying on a bug.</li>
+<li><code>skybox_brightness</code> is a new scenario field in lux. A file authoring none
+comes up at the shipped 1000.</li>
+<li>A handler may author <code>once: true</code>, and <code>Sequence</code> is a new action with ordered
+beats behind delays or event gates. Both are additions; nothing that used the
+latch-variable pattern stopped working.</li>
+<li>The scenario format's private copy of the input-source type is gone. Content
+bindings, the weapon components and every rebind surface all speak
+<code>nova_input</code>'s type now.</li>
+<li>Ranges saved by the editor are ordinary mod bundles - designs plus a scenario
+<ul>
+<li>so they load, lint and ship like any other bundle.</li>
+</ul>
+</li>
+</ul>
+<p>Run <code>cargo run content lint</code> against each bundle. The current <code>/create/</code>
+reference owns the authored vocabulary, and the bundled content shows the
+migrated forms.</p>
+<div class="callout callout--breaking">
+<p class="callout__title">Build a mission, then fly it</p>
+<p>v0.12.0 is available from the Nova Protocol landing page. Play in the browser, download the native build, or open the editor, drag a range together, write the handler that ends it, and press Play.</p>
+</div>
+<p>The terse list is in <code>CHANGELOG.md</code>. This post is the visible version: an
+editor that holds the whole mission, controls that are yours, and combat that
+finally behaves like it is happening in a vacuum.</p>
+
+                <footer class="post-footer">
+                    <p class="post-footer__discuss">
+                        Got a reaction, a question, or a ship you want to show
+                        off?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/discussions"
+                            target="_blank"
+                            rel="noopener"
+                            >Talk about this release on GitHub Discussions</a
+                        >.
+                    </p>
+                    <p class="post-footer__discuss">
+                        Want the terse, complete list for every version
+                        (patch releases included)?
+                        <a
+                            href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md"
+                            target="_blank"
+                            rel="noopener"
+                            >Read CHANGELOG.md on GitHub</a
+                        >.
+                    </p>
+                    <p class="post-footer__nav">
+                        <a href="/nova-protocol/news/">&larr; All news</a>
+                    </p>
+                </footer>
+            </article>
+            </div>
+        </main>
+        <footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+    <nav aria-label="Footer">
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a
+            href="https://github.com/alexjercan/nova-protocol"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+        >
+    </nav>
+</footer>
+
+    </body>
+</html>

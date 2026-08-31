@@ -422,8 +422,9 @@ Hint: type `help` and press Enter.
      prompt text: scene.rs:805-809. Capture one key/button:
      crates/nova_os_ui/src/ship/rebind.rs:43-52; Esc cancels: rebind.rs:33-38
      (Escape swallowed: crates/nova_os_ui/src/terminal/input.rs:110-112);
-     reserved flight controls refused: rebind.rs:8-13,64-70 with the list in
-     crates/nova_ship/src/input/player/hints.rs:164-194; sharing allowed:
+     reserved flight controls refused: rebind.rs:8-13,64-70 against the LIVE
+     table (crates/nova_input/src/registry.rs, `holder_in`), whose flight
+     defaults are crates/nova_ship/src/input/bindings.rs; sharing allowed:
      rebind.rs:126-150; success note: rebind.rs:96. -->
 <p>Your weapon and thruster sections fire on rebindable inputs, and the SHIP app is where you rebind them:</p>
 <ol>
@@ -431,7 +432,7 @@ Hint: type `help` and press Enter.
 <li>The panel arms: <code>PRESS A KEY OR MOUSE BUTTON - ESC CANCELS</code>.</li>
 <li>The next key or mouse button you press becomes that section's whole binding: <code>Bound engine_port to LMB</code>.</li>
 </ol>
-<p>A reserved flight control is refused on the spot - <code>SPACE is already used by flight control: burn</code> - and the capture stays armed for another try. Several sections may share one input (one key can fire every tube), and <kbd>Esc</kbd> backs out with <code>Rebind cancelled</code> without leaving the app.</p>
+<p>A reserved flight control is refused on the spot - <code>Space is already used by flight control: Main Drive</code> - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with <code>Left Mouse stays the pointer</code>: it is the button you click the blips with. Several sections may share one input (one key can fire every tube), and <kbd>Esc</kbd> backs out with <code>Rebind cancelled</code> without leaving the app.</p>
 <h2 id="the-monitor" tabindex="-1">The monitor</h2>
 <figure class="figure">
     <!-- Capture: assets/wiki-nova-os-terminal.png -->

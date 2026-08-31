@@ -26,10 +26,6 @@
                         key: "hauler_lost",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    VariableSet((
-                        key: "gun_obj_posted",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "player_spaceship",
@@ -278,9 +274,23 @@
                         speaker: "Rust Tally",
                         text: "You cost me two pickers, belt rat. The Rust Tally pays its debts in torpedoes.",
                     )),
-                    VariableSet((
-                        key: "gun_obj_gate",
-                        expression: Term(Factor(Literal(Number(8.399999618530273)))),
+                    Sequence((
+                        key: "gun_objective",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    Objective((
+                                        id: "screen",
+                                        message: "Lock the incoming torpedoes and screen them with your PDC.",
+                                    )),
+                                    Objective((
+                                        id: "break",
+                                        message: "Break the Rust Tally, section by section.",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "gunship",
@@ -373,42 +383,8 @@
                 ],
             ),
             (
-                name: OnUpdate,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("gun_obj_posted"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("gun_obj_gate"))),
-                        Term(Factor(Literal(Number(0.0)))),
-                    ))),
-                    Expression((GreaterThan(
-                        Term(Factor(Name("scenario_elapsed"))),
-                        Term(Factor(Name("gun_obj_gate"))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "gun_obj_posted",
-                        expression: Term(Factor(Literal(Number(1.0)))),
-                    )),
-                    Objective((
-                        id: "screen",
-                        message: "Lock the incoming torpedoes and screen them with your PDC.",
-                    )),
-                    Objective((
-                        id: "break",
-                        message: "Break the Rust Tally, section by section.",
-                    )),
-                ],
-            ),
-            (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -426,10 +402,6 @@
                     VariableSet((
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
-                    )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
                     ObjectiveComplete((
                         id: "screen",
@@ -444,10 +416,42 @@
                         speaker: "Belt Relay",
                         text: "The Rust Tally breaks apart - and the Ceres Queen is still whole to see it.",
                     )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "lifeline",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
                 ],
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -466,10 +470,6 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen",
                     )),
@@ -483,10 +483,42 @@
                         speaker: "Belt Relay",
                         text: "The Rust Tally breaks apart - too late for the Ceres Queen.",
                     )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "lifeline",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
                 ],
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -505,10 +537,6 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen",
                     )),
@@ -522,10 +550,42 @@
                         speaker: "Belt Relay",
                         text: "The Rust Tally hangs dead in the void, guns cold and engines dark - and the Ceres Queen is still whole to see it.",
                     )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "lifeline",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
                 ],
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("gunship"),
@@ -544,10 +604,6 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    TimerStart((
-                        key: "outro_tease",
-                        seconds: Term(Factor(Literal(Number(4.0)))),
-                    )),
                     ObjectiveComplete((
                         id: "screen",
                     )),
@@ -561,10 +617,42 @@
                         speaker: "Belt Relay",
                         text: "The Rust Tally hangs dead in the void, guns cold and engines dark - too late for the Ceres Queen.",
                     )),
+                    Sequence((
+                        key: "outro",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Belt Relay",
+                                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.0),
+                                actions: [
+                                    VariableSet((
+                                        key: "act",
+                                        expression: Term(Factor(Literal(Number(2.0)))),
+                                    )),
+                                    Outcome((
+                                        outcome: Victory,
+                                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
+                                    )),
+                                    NextScenario((
+                                        scenario_id: "lifeline",
+                                        linger: true,
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
                 ],
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("hauler"),
@@ -590,6 +678,7 @@
             ),
             (
                 name: OnDestroyed,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -616,6 +705,7 @@
             ),
             (
                 name: OnNeutralized,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("player_spaceship"),
@@ -636,54 +726,6 @@
                     )),
                     NextScenario((
                         scenario_id: "broadside_gunship",
-                        linger: true,
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_tease",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    StoryMessage((
-                        speaker: "Belt Relay",
-                        text: "The deep scan still is not quiet: the gang\'s traffic keeps moving, and all of it is inbound to the freight lane.",
-                    )),
-                    TimerStart((
-                        key: "outro_banner",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
-                filters: [
-                    Timer((
-                        key: "outro_banner",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("act"))),
-                        Term(Factor(Literal(Number(4.0)))),
-                    ))),
-                ],
-                actions: [
-                    VariableSet((
-                        key: "act",
-                        expression: Term(Factor(Literal(Number(2.0)))),
-                    )),
-                    Outcome((
-                        outcome: Victory,
-                        message: Some("The Rust Tally is finished. The gang still holds the lane - and the belt\'s convoys are the next thing it reaches for."),
-                    )),
-                    NextScenario((
-                        scenario_id: "lifeline",
                         linger: true,
                     )),
                 ],

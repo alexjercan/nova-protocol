@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -292,7 +292,10 @@ to the unit cube (<code>Cuboid { size: (1,1,1) }</code>) - the shape every secti
 before colliders were authorable. <code>base_section</code> hands avian a density of 1,
 so this shape’s volume IS the section’s mass and a larger collider is a
 heavier one. The render mesh never contributes; a section masses its authored
-box.</li>
+box. An integral cuboid at least one unit wide on every axis also derives a
+<code>SectionFootprint</code> of those dimensions. <code>read_structure</code> expands that one
+entity across every occupied cell, and clearance emits one exit lane from
+every cell on its exhaust face. Other collider shapes remain one-cell parts.</li>
 </ul>
 <h2 id="building-a-ship"><a class="header" href="#building-a-ship">Building a ship</a></h2>
 <p>A <code>SpaceshipConfig</code> (<code>crates/nova_scenario/src/objects/spaceship.rs</code>) has a

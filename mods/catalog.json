@@ -47,13 +47,13 @@
     },
     {
       "id": "the-ledger",
-      "version": "1.25.0",
+      "version": "1.26.0",
       "bundle": "the-ledger.bundle.ron",
       "meta": {
         "name": "The Ledger",
         "description": "A salvage crew in over its head: four chapters and a reward finale, one sealed crate everyone in the belt wants.",
         "author": "Nova Protocol",
-        "version": "1.25.0",
+        "version": "1.26.0",
         "dependencies": [
           "base"
         ],
@@ -83,28 +83,28 @@
         },
         {
           "path": "ledger_ch1.content.ron",
-          "size": 51266,
-          "sha256": "914552ed48c89be54d8db541a7df7555ced94fbb5c738efdc9971f91727f157f"
+          "size": 45818,
+          "sha256": "0ec60eb51bff460cbf6c7b2a8e864f52d591caf480f857cce54cd7670096c299"
         },
         {
           "path": "ledger_ch2.content.ron",
-          "size": 58974,
-          "sha256": "c2f22938b3d9df6ee10af4e04d1c07120d2771de0135c6091c20b81e0ebfa0e6"
+          "size": 57748,
+          "sha256": "6509c8566ce56709b3d2a64ade6863b96d5f34d62cf55fbd1237400ed5a9c989"
         },
         {
           "path": "ledger_ch2b.content.ron",
-          "size": 57782,
-          "sha256": "74f3513b300ab205a0035d06567a07d8be4b695235a01cf9778c519c29073701"
+          "size": 56644,
+          "sha256": "81a96e2268488a53530af0a67e46e816cc1fe7f92257f14c345e45da418516fa"
         },
         {
           "path": "ledger_ch3.content.ron",
-          "size": 87610,
-          "sha256": "ca532d65d64f91367e96dd13c71d502a681e8cb6ab9c2692bc8500149289b353"
+          "size": 82358,
+          "sha256": "febdca612fdc1d2bf0e46f0eda8ccd4f7d47cda5d2b3b843b074c0f91f0f9809"
         },
         {
           "path": "ledger_ch4.content.ron",
-          "size": 35729,
-          "sha256": "29a6d9d4ea89d450767343d9adfe622913fd91c41fd320dd1e59e542508ea352"
+          "size": 34075,
+          "sha256": "614996e796cd9d1f612900c2dacdf731eb4c818ab1c2c54395b8313c90fcaf27"
         },
         {
           "path": "ledger_ch5_the_raid.content.ron",
@@ -114,7 +114,7 @@
         {
           "path": "the-ledger.bundle.ron",
           "size": 1930,
-          "sha256": "2e3fd8d8cbbc7a0057b1a4b55f420604436a625bdf151269dfffaa45103a6889"
+          "sha256": "a88644ce2bd336cfab55e1468b29571fd79466928696db708a18acdbd512e8e5"
         },
         {
           "path": "thumbnails/ledger_ch1_dead_weight.png",
@@ -147,7 +147,7 @@
           "sha256": "5862dea24c8250f2ccea88c83bbd0f74a8029611bde9b758b7a80fb5a0841234"
         }
       ],
-      "total_size": 419453
+      "total_size": 404735
     }
   ]
 }

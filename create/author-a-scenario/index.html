@@ -47,6 +47,14 @@ it your own, and run it in the game. No code changes are required.</p>
 <p>This page teaches one happy path. Use the
 <a href="../reference/">modding reference</a> when you need the complete list of events,
 filters, actions, objects, and expression nodes.</p>
+<p>There is a second way in. Sandbox, on the main menu, opens the editor. SCENE and
+EVENTS are two MODES of it: SCENE lays out the range beside the Inspector, and
+EVENTS gives the whole window to the same script this page writes by hand - a
+row per handler, its filters and actions under it, and a condition as the
+operator with its two sides hanging beneath. Save writes it as an ordinary mod. The editor owns one
+save slot (the <code>editor_save</code> mod) and never writes a hand-authored mod like the
+one below, so the two paths do not fight over a file. Read on for what the rows
+mean either way.</p>
 <h2 id="1-start-with-the-working-example" tabindex="-1">1. Start with the working example</h2>
 <p>The repository includes a playable starter at <code>assets/mods/example/</code>. It
 already contains the long but routine scene setup: lights, a player ship, and
@@ -111,9 +119,12 @@ playable flow works.</p>
 <li>Every filter must pass.</li>
 <li>The actions then run in order.</li>
 </ul>
+<p>A handler can also say <code>once: true</code>, which retires it the first time its
+filters pass - see <a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once</code></a>.</p>
 <p>This handler reacts only when the first target is destroyed:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDestroyed</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">Entity</span><span class="ron-punct">((</span>
             <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;example_target_1&quot;</span><span class="ron-punct">),</span>
@@ -165,14 +176,11 @@ grammar is in <a href="../expressions/">Variables and expressions</a>.</p>
 rocks are gone and only once:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;destroyed&quot;</span><span class="ron-punct">))),</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>
-        <span class="ron-punct">))),</span>
-        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;arena_done&quot;</span><span class="ron-punct">))),</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">)))),</span>
         <span class="ron-punct">))),</span>
     <span class="ron-punct">],</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
@@ -190,9 +198,11 @@ rocks are gone and only once:</p>
     <span class="ron-punct">],</span>
 <span class="ron-punct">),</span>
 </code></pre>
-<p><code>destroyed &gt; 1</code> means two or more targets are gone. <code>arena_done == 0</code> is the
-one-shot guard. The first action changes it to <code>1</code>, so this repeating
-<code>OnUpdate</code> event cannot show victory again.</p>
+<p><code>destroyed &gt; 1</code> means two or more targets are gone. <code>once: true</code> is what
+stops this repeating <code>OnUpdate</code> event from showing victory again: the handler
+retires the moment the count gate passes. <code>arena_done</code> stays a variable
+because the TIMED beats below read it - they must not nag a player who has
+already finished.</p>
 <p>The remaining actions complete the HUD objective and show the victory screen.
 This is enough for a complete first scenario.</p>
 <h2 id="7-make-it-yours" tabindex="-1">7. Make it yours</h2>

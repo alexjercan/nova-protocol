@@ -54,12 +54,15 @@ assets" below:
   ([itch.io](https://juliocacko.itch.io/free-input-prompts),
   [Fab](https://fab.com/s/c8a60c1330f4)), released under [CC0 1.0
   Universal](licenses/FREE-Input-Prompts_CC0-1.0.md) (public domain). Obtained
-  2026-07-25, imported 2026-07-28. No attribution is required; credited as a
-  courtesy. Only the Keyboard_Mouse `Alt` style ships; the pack's other styles
-  and the gamepad sets are not imported. CC0 waives copyright, not trademark:
-  these key/mouse glyphs carry no console-hardware trademarks (the
-  not-imported gamepad face-button sets would), and using a key glyph to tell a
-  player which key to press is ordinary functional use.
+  2026-07-25, imported 2026-07-28; the XGamepad set added 2026-08-27. No
+  attribution is required; credited as a courtesy. Only the `Alt` style ships,
+  from Keyboard_Mouse (`assets/input-prompts/keyboard/Alt/`) and XGamepad
+  (`assets/input-prompts/gamepad/Alt/`, the pad glyphs the settings Controls
+  rows draw beside the keycaps); the pack's other styles and its PlayStation
+  and Switch sets are not imported. CC0 waives copyright, not trademark: these
+  glyphs are geometric letters, arrows and shapes carrying no console-hardware
+  trademark or logo, and using one to tell a player which button to press is
+  ordinary functional use.
 - **Iosevka Term font** (`assets/fonts/SGr-IosevkaTerm-Medium.ttf`, the NOVA
   OS terminal typeface) - a build of [Iosevka](https://typeof.net/Iosevka/) by
   Renzhi Li (Belleve Invis), under the [SIL Open Font License

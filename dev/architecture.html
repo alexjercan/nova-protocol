@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -191,10 +191,10 @@ real code lives under <code>crates/</code>.</p>
 <tbody>
 <tr><td><code>nova-protocol</code> (root)</td><td><code>src/main.rs</code> = clap CLI + entrypoint. <code>src/lib.rs</code> re-exports <code>nova_core</code>. Runnable examples in <code>examples/</code>.</td></tr>
 <tr><td><code>nova_core</code></td><td>Thin wiring only: <code>AppBuilder</code> assembles every plugin (window/log/asset setup, status UI). No gameplay logic.</td></tr>
-<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, read-only keybind reference) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage).</td></tr>
+<tr><td><code>nova_menu</code></td><td>Main menu (owns the <code>MainMenu</code> state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write <code>GameMode</code> and hand off to <code>Playing</code>. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in <code>nova_input</code>, one binding group at a time) is shared by both entry points and persisted cross-platform in <code>settings_store</code> (RON file / localStorage), keybind overrides included.</td></tr>
 <tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>). Comes up on entering <code>Playing</code>, only in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_gameplay</code></td><td>The shared gameplay layer under the ship: <code>integrity/</code> (health, the two damage readings <code>erosion</code> and <code>carve</code>, and the debris a carve leaves in <code>spew</code>/<code>chunk</code>), <code>damage</code>, <code>gravity</code> (gravity wells), <code>markers</code> (the entity markers the ship tags with and this layer reads), <code>math</code>, <code>audio</code> (the generic SFX engine <code>nova_menu</code> and <code>nova_os_ui</code> also use), <code>juice</code>, <code>shake</code>, <code>settings</code> (<code>MasterVolume</code>/<code>GraphicsQuality</code> + apply systems), <code>mesh</code> (the procedural <code>TriangleMeshBuilder</code>, plus the <code>SignedField</code> an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), <code>transform</code>, <code>relations</code>, <code>beacon</code>, <code>objectives</code> (the <code>GameObjectives</code> list, its panel and the conveyance tags), <code>lifetime</code> (<code>TempEntity</code>/<code>DespawnEntity</code>), <code>cooldown</code>, <code>plugin</code>. Also owns <code>GameStates</code>, <code>PauseStates</code>, and the <code>GameMode</code> resource. Knows nothing about a ship.</td></tr>
-<tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, the <code>reference</code> keybind table), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
+<tr><td><code>nova_ship</code></td><td>The ship and how it is flown: <code>sections/</code> (the modular hull, its ammo, and the authored damage looks in <code>damage_effects</code>/<code>damage_cracks</code>/<code>damage_sparks</code>/<code>damage_plume</code>), <code>input/</code> (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into <code>nova_input</code>), <code>flight/</code> (the diegetic controller and its autopilot verbs), <code>camera/</code> (the chase-camera controller and the chase/skybox/post/WASD rigs under it), <code>physics/</code> (the PD attitude controller) and <code>ship_audio/</code> (the soundtrack those five produce). Depends on <code>nova_gameplay</code> and never the reverse; <code>NovaShipPlugin</code> owns the <code>SpaceshipSystems</code> brackets and <code>nova_core</code> adds it after <code>NovaGameplayPlugin</code>.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs <code>nova_hud -&gt; nova_gameplay</code>. <code>nova_core</code> adds <code>NovaHudPlugin</code> render-gated, and the crate places <code>NovaHudSystems</code> between the section and camera sets itself.</td></tr>
 <tr><td><code>nova_os</code></td><td>NOVA OS logic with no UI in it: the terminal model (<code>terminal</code>), the shell command language and typo suggestions (<code>shell</code>), and the app runtime seam (<code>app</code>).</td></tr>
 <tr><td><code>nova_os_ui</code></td><td>The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (<code>terminal</code>), and the two apps that run on it - <code>map</code> (schematic local space) and <code>ship</code> (schematic player ship). A PEER of the flight HUD, not one of its widgets: <code>nova_core</code> adds it, and nothing in <code>nova_hud</code> reaches into it (it reads <code>NovaHudAssets</code> and <code>NovaHudSystems</code>, so it sits ABOVE <code>nova_hud</code>).</td></tr>
@@ -204,7 +204,8 @@ real code lives under <code>crates/</code>.</p>
 <tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup. Loads glb/textures/shaders/sounds, and loads the base game’s own generated content (<code>assets/base/</code>) through the same bundle machinery as mods. Owns the mod merge (<code>register_bundles</code>, <code>EnabledMods</code>, <code>ModCatalog</code>), the portal client and downloads (<code>portal/</code>), and prefs persistence.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog ASSET LOADERS and the <code>Content</code> routing enum. See <a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (bundle manifests, catalog declarations, the portal wire schema). Engine-free; re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>, not a crate. See <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a>.</td></tr>
-<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>) and the generic <code>status_bar</code>. Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
+<tr><td><code>nova_input</code></td><td>The bindings registry, a leaf crate under every rig and every rebind surface: the one table (<code>InputBindings</code>) that says which named actions exist, what each is called on screen, and which physical sources it holds, plus the shared capture (<code>poll::InputSources</code>) every rebind row reads and the by-name <code>dispatch</code>. Owners register their own defaults into it; nothing here knows what an action DOES.</td></tr>
+<tr><td><code>nova_ui</code></td><td>Shared UI, a leaf crate everything that renders UI draws from: the theme palette/metrics (<code>theme::*</code>), the <code>UiSkin</code> visual-language switch (<code>skin</code>), the themed widgets (<code>widget</code>: button, slider, segmented control, list rows, panel chrome), screen-level composition (<code>screen</code>: scrollable viewports and the list-beside-details layout the menu screens and the NOVA OS drawer share), the flight-HUD chip language (<code>hud</code>), player-facing unit formatting (<code>units</code>), the shared typeface (<code>font</code>), the generic <code>status_bar</code> and the keyboard-ownership arbiter (<code>input_mode</code>: one app-global <code>InputMode</code> resolved from per-frame claims, with <code>InputModeSystems</code> as the ordering handle every keyboard consumer gates behind). Consumed by <code>nova_gameplay</code>, <code>nova_hud</code>, <code>nova_os_ui</code>, <code>nova_menu</code>, <code>nova_editor</code> and <code>nova_assets</code>.</td></tr>
 <tr><td><code>nova_debug</code></td><td>Debug-only plugin (inspector, overlays). Compiled only under the <code>debug</code> feature.</td></tr>
 <tr><td><code>nova_info</code></td><td>Exposes <code>APP_VERSION</code>, injected by <code>build.rs</code>.</td></tr>
 <tr><td><code>nova_autopilot</code></td><td>Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; <code>nova_debug</code>, <code>nova_probe</code> and <code>nova_probe_cli</code> all build on it. See <a href="automation-harness.html">Automation harness</a>.</td></tr>
@@ -243,6 +244,12 @@ real code lives under <code>crates/</code>.</p>
     editor --&gt; ui
     gameplay --&gt; events
     gameplay --&gt; ui
+    ship --&gt; input["nova_input"]
+    hud --&gt; input
+    osui --&gt; input
+    menu --&gt; input
+    editor --&gt; input
+    scenario --&gt; input
     scenario --&gt; events
     scenario --&gt; gameplay
     scenario --&gt; ship
@@ -401,6 +408,11 @@ sets; <code>nova_hud</code> slots <code>NovaHudSystems</code> into the gap itsel
 <li><code>PostUpdate</code> hosts the chase camera’s final move and the HUD’s world-to-screen
 projection, ordered after it.</li>
 <li>While <code>Paused</code>, the input and section sets are gated off and the clocks freeze.</li>
+<li><code>PreUpdate</code> hosts <code>nova_ui</code>’s <code>InputModeSystems</code>, which resolves that frame’s
+<code>ClaimKeyboard</code> messages into the one <code>InputMode</code> every keyboard system then
+gates on. A claimant writes its claim <code>.before(InputModeSystems)</code>; a consumer
+reads the resolved mode with <code>in_input_mode</code>, <code>in_input_mode_at_most</code> or
+<code>owns_or_enters</code>.</li>
 </ul>
 <p>The render-rate chain (run in both <code>Update</code> and <code>FixedUpdate</code>) versus the
 fixed-timestep physics step and the interpolation that smooths rendering between
@@ -526,6 +538,9 @@ game binary and CLI flags - <code>src/main.rs</code>.</li>
 <li>Frame-flow sets: <code>SpaceshipSystems</code> - <code>crates/nova_gameplay/src/plugin.rs</code>;
 chained in <code>Update</code> + <code>FixedUpdate</code> by <code>NovaShipPlugin</code> -
 <code>crates/nova_ship/src/lib.rs</code>.</li>
+<li>Who owns the keyboard: <code>InputMode</code>, <code>ClaimKeyboard</code> and <code>InputModeSystems</code> -
+<code>crates/nova_ui/src/input_mode.rs</code>; the editor’s claimant -
+<code>declare_editor_keyboard_owner</code> in <code>crates/nova_editor/src/lib.rs</code>.</li>
 <li>The two damage readings: <code>DamageLevel</code> -
 <code>crates/nova_gameplay/src/integrity/erosion.rs</code>; <code>DamageMarks</code> and the carve
 cost model - <code>crates/nova_gameplay/src/integrity/carve.rs</code>.</li>

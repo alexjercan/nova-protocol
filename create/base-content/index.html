@@ -93,7 +93,21 @@ Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</co
 <td>Thruster</td>
 <td>Basic Thruster Section</td>
 <td>70</td>
-<td>magnitude 1.0; one socket, on the <code>-Z</code> face it bolts by - the rest of the part is barrel, nozzle and plume</td>
+<td>magnitude 1.0; authored 1x1 shell bell; one socket on the <code>-Z</code> mounting face; cone plume starts at <code>Z = 0.51</code> with radius 0.24 and exits <code>+Z</code></td>
+</tr>
+<tr>
+<td><code>vector_thruster_section</code></td>
+<td>Thruster</td>
+<td>Vector Thruster Section</td>
+<td>480</td>
+<td>3x3x2 collider and footprint; magnitude 9; nine <code>-Z</code> mounting sockets; one vectoring bell and plume</td>
+</tr>
+<tr>
+<td><code>capital_thruster_section</code></td>
+<td>Thruster</td>
+<td>Capital Thruster Section</td>
+<td>1250</td>
+<td>5x5x3 collider and footprint; magnitude 25; 25 <code>-Z</code> mounting sockets; one capital bell and plume</td>
 </tr>
 <tr>
 <td><code>basic_controller_section</code></td>
@@ -417,7 +431,13 @@ declaring it is warned and ignored.</p>
 (<code>assets/base/&lt;path&gt;</code>), gated on <code>&lt;path&gt;</code> being in the base bundle's declared
 <code>resources</code> list - an undeclared path is a lint/merge Error, not a silent
 404. A <code>#Scene0</code>-style gltf label is stripped before the membership check,
-so <code>dep://base/gltf/hull-01.glb#Scene0</code> is fine. The declared list, complete:</p>
+so <code>dep://base/gltf/hull-01.glb#Scene0</code> is fine.</p>
+<p>The editor reads this same list. A row holding an image, a sound or a model
+opens a picker of the files the installed bundles declare, writes the <code>dep://</code>
+ref for the one you pick (with the <code>#Scene0</code> label where a mesh needs it), and
+marks a <code>dep://</code> path no bundle ships - so you never type one of these paths
+from memory.</p>
+<p>The declared list, complete:</p>
 <h3 id="meshes-26-glb" tabindex="-1">Meshes (26 glb)</h3>
 <p>Named meshes:</p>
 <ul>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -326,12 +326,70 @@ seconds” is a shrug.</p>
 state, wait N seconds - is sugar for
 <code>step("hold:&lt;state&gt;").enter(state).until(elapsed(secs))</code> rather than a second
 mechanism. The vocabulary is in <code>nova_autopilot::predicate</code> (<code>elapsed</code>,
-<code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>and</code>, <code>not</code>), the
+<code>frames</code>, <code>state_is</code>, <code>resource_where</code>, <code>any_entity</code>, <code>ui_node_present</code>,
+<code>pointer_pressed</code>, <code>pointer_released</code>, <code>pointer_at</code>, <code>shot_written</code>,
+<code>loop_written</code>, <code>and</code>, <code>or</code>, <code>not</code>), the
 gestures in <code>nova_autopilot::input</code> (<code>press_key</code>, <code>release_key</code>, <code>type_text</code>,
-<code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>), and the Nova-typed
+<code>press_edit_key</code>, <code>press_mouse</code>, <code>release_mouse</code>, <code>move_cursor</code>, <code>click_at</code>,
+<code>scroll_lines</code>, <code>scroll_pixels</code>), and the Nova-typed
 predicates in <code>nova_debug::harness</code> (<code>scenario_variable_is</code>, <code>section_gone</code>,
-<code>player_ship_present</code>). Anything the vocabulary cannot express is a plain
-closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
+<code>player_ship_present</code>, and the <code>editor_*</code> set below). Anything the vocabulary
+cannot express is a plain closure: <code>Arc::new(|world: &amp;World| ...)</code>.</p>
+<h3 id="a-key-press-is-two-channels-and-a-beat-has-to-pick"><a class="header" href="#a-key-press-is-two-channels-and-a-beat-has-to-pick">A key press is two channels, and a beat has to pick</a></h3>
+<p>Bevy delivers a key twice. <code>press_key</code> writes <code>ButtonInput&lt;KeyCode&gt;</code>, which is
+what a VERB reads. <code>press_edit_key</code> writes a <code>KeyboardInput</code> message, which is
+what a TEXT FIELD reads. Nothing bridges them, so a beat that drives one channel
+proves nothing about the other: pressing only <code>KeyCode::Delete</code> at a focused
+field asserts that the verb stayed quiet while the field was never asked to
+delete anything, and pressing only <code>Key::Delete</code> asserts the opposite half.</p>
+<p>A beat about who owns the keyboard therefore drives BOTH and reads both
+outcomes - see <code>examples/systems/system_input_modes.rs</code>, which presses each key
+down both channels and then asserts what the field holds as well as what the
+document holds.</p>
+<h3 id="a-ui-gesture-is-three-waits-not-three-sleeps"><a class="header" href="#a-ui-gesture-is-three-waits-not-three-sleeps">A UI gesture is three waits, not three sleeps</a></h3>
+<p>A click on a widget owes the app three acks, and each one is a predicate:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Beat</th><th>Waits on</th><th>Why a frame count is not that</th></tr>
+</thead>
+<tbody>
+<tr><td>the widget is up</td><td><code>ui_node_present(name)</code></td><td><code>click_named</code> WARNS and continues on an unresolved name, so a press at a panel that has not laid out is a beat silently lost</td></tr>
+<tr><td>press</td><td><code>pointer_pressed()</code></td><td>the picking backend turns the button event into pointer state a <code>PreUpdate</code> later, and a release before that is a click the widget never saw</td></tr>
+<tr><td>release</td><td><code>pointer_released()</code></td><td><code>Activate</code> fires on the release edge, so this is the beat the button’s effect belongs after</td></tr>
+</tbody>
+</table>
+</div>
+<p>Two things those predicates are careful about, because both were wrong once.
+<code>ui_node_present</code> waits for a BOX, not for an entity: a node that has not been
+through <code>ui_layout_system</code> carries <code>ComputedNode::default()</code> - zero size at the
+origin, the same value a <code>Display::None</code> node keeps - and advancing on that
+hands <code>click_named</code> a degenerate rect at the window corner, which is the race
+the settles existed for. And the pointer acks answer for <code>PointerId::Mouse</code>
+alone, because that is the pointer the gestures drive; an app may carry others
+(Nova’s terminal parks a forwarded one), and a second pointer sitting in the
+opposite state would otherwise ack for the one the beat actually moved.</p>
+<p>What the button DID is the caller’s next beat, and it is a condition too. The
+editor publishes its own decisions as data for exactly this: <code>nova_editor</code>’s
+public, read-only <code>EditorProbe</code> carries the armed tool, what a click would build
+right now (solved, refused with the reason, or nothing), whether the parts
+gallery is up, whether its filter holds the caret, and which prototype the
+selection resolves to. <code>nova_debug::harness</code> wraps those as <code>editor_tool_is</code>,
+<code>editor_part_armed</code>, <code>editor_placement_solved</code>, <code>editor_placement_refused</code>,
+<code>editor_placement_clear</code>, <code>editor_gallery_open</code>, <code>editor_gallery_closed</code>,
+<code>editor_filter_focused</code> and <code>editor_gallery_selected</code>.</p>
+<p>So a placing gesture reads: aim, hold until the editor SOLVED a placement there;
+press, hold until the pointer registered it; release; hold until the section
+landed. <code>system_ship_editor</code> and the <code>screenshot_editor</code> walk are written that
+way end to end, and neither counts a frame outside a pre-shot settle.</p>
+<p><strong>Where the only observable IS the outcome, the beat may share the assert’s
+quantity</strong> - the exception to the strictly-weaker rule below. “The socket
+filled” has no stimulus-side twin: the count is both what the beat waits for and
+what the verdict states. The trade is deliberate, and it is the better half: an
+unmet <code>until</code> aborts naming the beat that missed, where a snapshot assertion a
+fixed number of frames later reported a wrong number and left which gesture
+produced it to be guessed. Keep the assert anyway - it is where the claim is
+written down.</p>
 <p>Typing is its own gesture because a key has two halves. <code>press_key</code> writes the
 HELD state (<code>ButtonInput&lt;KeyCode&gt;</code>), which is what flight code polls;
 <code>type_text</code> writes the keyboard MESSAGE carrying the text a keypress produced,
@@ -474,9 +532,31 @@ script never branches its step timing on <code>capturing()</code>.</p>
 per-example splits that preceded it were each carrying the write latency on top
 of the stillness, which is why they disagreed.</p>
 <p>The scene dressing is separate from the steps and lives in <code>nova_debug::harness</code>
-too: <code>force_capture_resolution</code> (a known 16:9 for every shot in the fleet),
+too: <code>force_capture_resolution</code> (a known framing for every shot in the fleet),
 <code>hide_dev_overlays</code> / <code>hide_hud</code>, and <code>freeze_bodies</code> for a posed set that must
 not drift between framings.</p>
+<p>A moving figure is the same idiom on a longer beat: <code>loop_start</code> / <code>loop_end</code>
+around the action, <code>loop_written</code> to hold the closing step, and
+<code>LoopCapturePlugin</code> next to the script. Every size and rate that recorder uses
+is ONE value, <code>LoopProfile</code> - the window it renders into, the resolution it
+encodes to, the frame clock, the CRF and the frame cap:</p>
+<pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>app.add_plugins(LoopCapturePlugin::default());          // 1920x1080 -&gt; 720p30
+app.add_plugins(LoopCapturePlugin::new(LoopProfile {    // a portrait master
+    window_resolution: (1080, 1920),
+    output_resolution: (1080, 1920),
+    fps: 60,
+    crf: 18,
+    frame_cap: 1200,
+}));
+<span class="boring">}</span></code></pre>
+<p><code>LoopCapturePlugin::default()</code> is what the docs fleet captures with; a
+production caller passes its own profile and changes nothing else.
+<code>force_capture_resolution</code> reads the profile the plugin publishes (armed or
+not), so the window, the frame clock and the encode cannot disagree about the
+framing - and a profile whose output equals its window encodes with no scale
+filter at all, rather than resampling a master through itself.</p>
 <p>Do not add a second capture idiom beside it. A driver that walks its own list
 of shots builds that list away from the script producing the state each shot
 frames, which puts timing and framing in different files - and they drift. A

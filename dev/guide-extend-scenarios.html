@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -327,13 +327,23 @@ EventFilterConfig::VariablePresent(config) =&gt; config.filter(world, info),
 <p>Export the config struct from the module <code>prelude</code> (the <code>pub use super::{...}</code>
 block at the top of <code>filters.rs</code>).</p>
 </li>
+<li>
+<p>Make it authorable in the editor (see <a href="#two-surfaces-author-the-vocabulary">Two surfaces author the
+vocabulary</a>): derive <code>Reflect</code> on the
+config, tag any string that names something with the <a href="scenario-system.html#the-vocabulary-and-who-documents-it"><code>Names</code>
+attribute</a>, and add
+the <code>FilterChoice</code> variant in <code>crates/nova_editor/src/event.rs</code> -
+<code>ALL</code>, <code>label</code>, <code>stem</code>, <code>operands</code>, <code>stock</code>, plus the <code>filter_choice</code>,
+<code>filter_config</code> and <code>filter_config_mut</code> arms. The matches are exhaustive, so
+the compiler names every one of them.</p>
+</li>
 </ol>
 <h2 id="recipe-3-add-an-event-action"><a class="header" href="#recipe-3-add-an-event-action">Recipe 3: add an event action</a></h2>
 <p>An action runs when a handler passes, in order. Everything lives in
 <code>crates/nova_scenario/src/actions/</code>: the <code>EventActionConfig</code> enum and its
 dispatch in <code>actions/mod.rs</code>, each action’s config and impl in the submodule
-for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>ship.rs</code>,
-<code>spawn.rs</code>, <code>timer.rs</code>).</p>
+for what it touches (<code>view.rs</code>, <code>flow.rs</code>, <code>mission.rs</code>, <code>sequence.rs</code>,
+<code>ship.rs</code>, <code>spawn.rs</code>, <code>timer.rs</code>).</p>
 <ol>
 <li>
 <p>Define the config struct and its <code>EventAction&lt;NovaEventWorld&gt;</code> impl.
@@ -377,6 +387,13 @@ EventActionConfig::VariableClear(config) =&gt; {
 </li>
 <li>
 <p>Export the config struct from the <code>actions/mod.rs</code> <code>prelude</code> block.</p>
+</li>
+<li>
+<p>Make it authorable in the editor, as in recipe 2: derive <code>Reflect</code>, tag the
+naming strings, and add the <code>ActionChoice</code> variant in
+<code>crates/nova_editor/src/event.rs</code> - <code>ALL</code>, <code>label</code>, <code>stem</code>, <code>stock</code>, plus the
+<code>action_choice</code>, <code>leaf_config</code> and <code>leaf_config_mut</code> arms. Only <code>Sequence</code>
+holds children; a new leaf action needs nothing from the tree.</p>
 </li>
 </ol>
 <p>Templates: the tests at the bottom of the <code>actions/</code> submodules are the
@@ -492,12 +509,54 @@ ScenarioObjectKind::Mine(config) =&gt; {
     kind: Mine(MineConfig(radius: 5.0, damage: 40.0)),
 ))
 </code></pre>
+<h2 id="two-surfaces-author-the-vocabulary"><a class="header" href="#two-surfaces-author-the-vocabulary">Two surfaces author the vocabulary</a></h2>
+<p>A RON file is one way to write a handler; the editor’s EVENTS mode is the other,
+and it draws every row it shows by REFLECTION off the same config structs. So a
+config that is not <code>Reflect</code> is a construct the editor cannot show, and a string
+field with no <a href="scenario-system.html#the-vocabulary-and-who-documents-it"><code>Names</code></a>
+attribute is a blank box where the panel could have offered the ids the document
+actually spawns.</p>
+<p>AN <code>AssetRef&lt;A&gt;</code> FIELD PICKS ITS OWN FILE. The panel reads the sort off the
+type, so a field typed <code>AssetRef&lt;Image&gt;</code> offers the images the installed bundles
+DECLARE in their <code>resources</code> lists, written as the <code>dep://&lt;mod&gt;/&lt;file&gt;</code> ref that
+resolves - and marks a <code>dep://</code> path no bundle ships. Do not add
+<code>#[reflect(ignore)]</code> to an asset field a builder is meant to change: an ignored
+field has no row at all.</p>
+<p>A FIELD’S DOC COMMENT IS ITS TOOLTIP. <code>nova_editor</code> builds against
+<code>bevy/reflect_documentation</code>, so the first paragraph of the <code>///</code> above a field</p>
+<ul>
+<li>or above the variant a choice row stands on - is what the panel says when the
+pointer rests on that row. Write it for the person filling the box in, not for
+the person calling the constructor: a field nobody documented is a row the
+editor cannot explain.</li>
+</ul>
+<p>What each of the four recipes owes the editor:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Recipe</th><th>What the editor needs</th></tr>
+</thead>
+<tbody>
+<tr><td>Event kind</td><td>Nothing. <code>EventConfig</code> is a <code>Reflect</code> enum of unit variants and the handler’s trigger row is walked off it, so a new event appears in the list.</td></tr>
+<tr><td>Filter</td><td><code>Reflect</code> + <code>Names</code> on the config, and a <code>FilterChoice</code> variant with its <code>stock</code> value.</td></tr>
+<tr><td>Action</td><td><code>Reflect</code> + <code>Names</code> on the config, and an <code>ActionChoice</code> variant with its <code>stock</code> value.</td></tr>
+<tr><td>Object kind</td><td><code>Reflect</code> + <code>Names</code> on the config, an <code>ObjectChoice</code> variant in <code>crates/nova_editor/src/node.rs</code> to place it with, and the arms the compiler then asks for (<code>glyph</code>, <code>preview</code>, <code>stage</code>, <code>inspect</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>stock</code> is what the kind switch puts on a node the moment it is switched TO -
+a valid config with empty ids, never a <code>Default</code> that lowers into something the
+lint refuses.</p>
 <h2 id="checklist"><a class="header" href="#checklist">Checklist</a></h2>
 <p>Whichever recipe you follow, the change is done when: the config struct derives
-<code>Clone</code>, <code>Debug</code>, and the serde pair; the dispatch enum has the variant; the
+<code>Clone</code>, <code>Debug</code>, <code>Reflect</code> and the serde pair; every field says what it is for
+in a doc comment; every string that names something carries its <code>Names</code>
+attribute; every file a builder may change is an <code>AssetRef&lt;A&gt;</code> the reflection
+can see; the dispatch enum has the variant; the
 trait impl has the delegating arm; the type is exported from its module prelude;
-and (for an event) something fires it. Then it is reachable both from code-built
-scenarios and from a RON data file.</p>
+the editor has the choice variant (events excepted); and (for an event)
+something fires it. Then it is reachable from code-built scenarios, from a RON
+data file, and from the editor.</p>
 <h2 id="find-it-in-the-code"><a class="header" href="#find-it-in-the-code">Find it in the code</a></h2>
 <ul>
 <li>Events: <code>EventConfig</code> - <code>crates/nova_scenario/src/events.rs</code>; event types and
@@ -508,6 +567,9 @@ the <code>EventKind</code> derive - <code>crates/nova_events/src/lib.rs</code>.<
 <li>Objects: <code>ScenarioObjectKind</code> - <code>crates/nova_scenario/src/actions/spawn.rs</code>;
 kind modules under <code>crates/nova_scenario/src/objects/</code>.</li>
 <li>The seam: <code>NovaEventWorld</code> - <code>crates/nova_scenario/src/world.rs</code>.</li>
+<li>What a string names: <code>Names</code> - <code>crates/nova_scenario/src/names.rs</code>; the
+editor’s choices: <code>FilterChoice</code>, <code>ActionChoice</code> -
+<code>crates/nova_editor/src/event.rs</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
 <code>-p nova_events</code>).</li>
 </ul>

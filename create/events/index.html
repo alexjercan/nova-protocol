@@ -49,6 +49,13 @@
 the SIXTEEN event kinds below, written bare (they are unit variants):
 <code>name: OnStart</code>, <code>name: OnEnter</code>, and so on. When the event fires, the
 handler's <a href="../filters/">filters</a> gate it and its <a href="../actions/">actions</a> run.</p>
+<p>A handler that describes a beat happening ONCE says
+<a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once: true</code></a> beside its
+name, and the engine retires it the first time its filters pass. Every
+repeating event below composes with it.</p>
+<p>An event name also appears inside a
+<a href="../actions/#sequence"><code>Sequence</code></a> step's <code>until</code> gate, where it names the
+event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <p>The whole vocabulary at a glance:</p>
 <table>
 <thead>
@@ -179,27 +186,20 @@ EVERY frame, so always gate it.</p>
 <p>The chain order is guaranteed: the scenario clock ticks, typed queries and
 watches update, ended timers fire, then <code>OnUpdate</code> fires. Query-backed gates
 see one coherent frame snapshot.</p>
-<p>Gate it with <code>Expression</code> filters plus a one-shot flag (the
-<a href="../expressions/#recipes">count-gate idiom</a>); this is the workhorse for
-clock-driven beats and count thresholds that must not depend on handler
-order. Seed <code>briefing_sent</code> to <code>0</code> in <code>OnStart</code>, then write the handler as:</p>
+<p>This is the workhorse for clock-driven beats and count thresholds that must
+not depend on handler order. Gate it with <code>Expression</code> filters, and add
+<a href="../scenarios/#once-a-beat-that-happens-one-time"><code>once: true</code></a> when the beat
+happens one time - then the only filter left is the one about the game:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnUpdate</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
     <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
         <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">GreaterThan</span><span class="ron-punct">(</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;scenario_elapsed&quot;</span><span class="ron-punct">))),</span>
             <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">10.0</span><span class="ron-punct">)))),</span>
         <span class="ron-punct">))),</span>
-        <span class="ron-type">Expression</span><span class="ron-punct">((</span><span class="ron-type">Equal</span><span class="ron-punct">(</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Name</span><span class="ron-punct">(</span><span class="ron-string">&quot;briefing_sent&quot;</span><span class="ron-punct">))),</span>
-            <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">)))),</span>
-        <span class="ron-punct">))),</span>
     <span class="ron-punct">],</span>
     <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
-        <span class="ron-type">VariableSet</span><span class="ron-punct">((</span>
-            <span class="ron-key">key</span><span class="ron-punct">:</span> <span class="ron-string">&quot;briefing_sent&quot;</span><span class="ron-punct">,</span>
-            <span class="ron-key">expression</span><span class="ron-punct">:</span> <span class="ron-type">Term</span><span class="ron-punct">(</span><span class="ron-type">Factor</span><span class="ron-punct">(</span><span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-type">Number</span><span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">)))),</span>
-        <span class="ron-punct">)),</span>
         <span class="ron-type">StoryMessage</span><span class="ron-punct">((</span>
             <span class="ron-key">speaker</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Control&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Ten seconds elapsed.&quot;</span><span class="ron-punct">,</span>
@@ -207,6 +207,8 @@ order. Seed <code>briefing_sent</code> to <code>0</code> in <code>OnStart</code>
     <span class="ron-punct">],</span>
 <span class="ron-punct">),</span>
 </code></pre>
+<p>A beat that genuinely repeats leaves <code>once</code> off and re-arms itself in its own
+actions - see the <a href="../expressions/#recipes">recipes</a>.</p>
 </details>
 <h2 id="ontimerend" tabindex="-1">OnTimerEnd</h2>
 <p>Fires exactly once when a keyed scenario timer reaches its deadline. Payload:

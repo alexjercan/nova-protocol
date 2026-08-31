@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-57a9b287.js";
+            window.path_to_searchindex_js = "searchindex-e1d17872.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6c135d9b.js"></script>
@@ -184,6 +184,9 @@ target, all system libs Bevy needs (udev, alsa, vulkan, X11/wayland),
 those yourself. Bare <code>cargo</code> is not on PATH under Nix: run every cargo/rust
 command via <code>nix develop --command &lt;cmd&gt;</code> (the commands below assume you are
 inside <code>nix develop</code>).</li>
+<li><strong>Playing it</strong>, as opposed to working on it: <code>nix run</code> builds and launches
+the packaged game with no checkout and no development shell. See
+<a href="#the-nix-package">The nix package</a>.</li>
 </ul>
 <h2 id="everyday-commands"><a class="header" href="#everyday-commands">Everyday commands</a></h2>
 <pre><code class="language-sh">cargo run                         # the game (boots into the main menu)
@@ -438,7 +441,16 @@ objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
 <code>bug_neutralized_quiet</code> (a wreck’s point defence stands down) and
 <code>system_borrowed_battery</code> (the Flight Computer works idle player PDCs). Then
 the interface, driven by synthesized pointer input: <code>system_ship_editor</code>
-(build a ship and inspect it, refusals included), <code>system_hud_indicators</code>
+(build a ship and inspect it, refusals included), <code>system_field_controls</code>
+(the inspector’s number rows: the unit a field’s declaration gives it, the
+step a drag on its name moves it by, and the floor that drag ARRIVES at
+where a typed value is refused), <code>system_input_modes</code> (one owner of the
+keyboard at a time - the same key pressed under a text field, the gallery, a
+pending rebind and none of them, each verdict a NEGATIVE read after a settle
+because a key that went nowhere raises no event), <code>system_ui_scale</code> (a
+world-anchored label holds its LOGICAL offset when the scale factor doubles
+and the window changes shape, and the top bar and the stage’s nameplates are
+read at every shape alongside it), <code>system_hud_indicators</code>
 (where a screen-projected indicator lands), <code>system_menu_boot</code> (the shipped
 boot flow) and
 <code>bug_menu_picker</code> (the Scenarios picker, whose pane split must not depend on
@@ -948,6 +960,66 @@ parsing HTML.</p>
 <li><code>nova_info::APP_VERSION</code> comes from the <code>APP_VERSION</code> env var via <code>build.rs</code>.</li>
 <li>Packaging assets (icons, installer, .app) live under <code>build/</code>.</li>
 </ul>
+<h3 id="the-nix-package"><a class="header" href="#the-nix-package">The nix package</a></h3>
+<p>The flake packages the game as well as the development shell, so a player
+needs neither a checkout nor a toolchain:</p>
+<pre><code class="language-sh">nix run github:alexjercan/nova-protocol         # build it and play
+nix profile install github:alexjercan/nova-protocol
+nix build .#default                             # ./result/bin/nova-protocol
+</code></pre>
+<p>Three outputs, and which one you want depends on what you are doing:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>output</th><th>what it is</th></tr>
+</thead>
+<tbody>
+<tr><td><code>packages.default</code></td><td>the wrapped game - the one to install</td></tr>
+<tr><td><code>packages.nova-protocol</code></td><td>the same derivation, under its own name</td></tr>
+<tr><td><code>packages.nova-protocol-unwrapped</code></td><td>the bare cargo binary</td></tr>
+</tbody>
+</table>
+</div>
+<p>The unwrapped binary finds no assets and opens no window on its own. It is
+split out so that editing the desktop entry, the icon or the asset wiring
+costs a second instead of a fat-LTO relink of the whole Bevy graph. The
+wrapper is what makes it a game:</p>
+<ul>
+<li><code>assets/</code> and <code>credits/</code> are installed under <code>share/nova-protocol</code>, and
+<code>BEVY_ASSET_ROOT</code> points bevy’s reader at them. Without it the reader falls
+back to the directory the executable sits in, which in the store holds the
+binary and nothing else. It is set as a DEFAULT, so a modder can still point
+a packaged build at a working tree.</li>
+<li>The libraries Bevy opens with <code>dlopen</code> - vulkan, wayland, X11, xkbcommon,
+alsa, udev - go on <code>LD_LIBRARY_PATH</code>. The linker never records them, so a
+packaged binary finds none of them without this. It is the same list the
+development shell exports, shared in <code>flake.nix</code> rather than written twice.</li>
+</ul>
+<p>The package builds with <code>--profile dist</code>, the profile
+<code>.github/workflows/release.yaml</code> ships, so <code>nix run</code> gets the binary a player
+gets. Fat LTO and one codegen unit: budget half an hour for a cold build.</p>
+<p><code>webmods/</code> is NOT in the package. Those are the portal’s development fixtures,
+served by <code>scripts/serve-mods.sh</code>; the <code>mods://</code> source reads installed mods
+out of the player’s data directory (<code>~/.local/share/nova-protocol/mods</code>), which
+no store path can hold.</p>
+<p>The package’s toolchain is <code>rust-project.toolchain</code>, set to the same
+<code>rustNightly</code> value the development shell uses. Left alone, rust-flake resolves
+its own from <code>rust-toolchain.toml</code>, and the package and the shell could drift
+apart on a <code>nix flake update</code> - so there is still ONE pin in <code>flake.nix</code>, the
+one the comment beside it names.</p>
+<h3 id="the-desktop-entry"><a class="header" href="#the-desktop-entry">The desktop entry</a></h3>
+<p><code>nix profile install</code> also installs
+<code>share/applications/nova-protocol.desktop</code> and the icon into the hicolor
+theme, so <code>rofi -show drun</code>, wofi, and the GTK and KDE menus list “Nova
+Protocol” with its mark. <code>~/.nix-profile/share</code> is already on <code>XDG_DATA_DIRS</code>,
+so nothing else has to be wired; <code>nix run</code> and <code>nix build</code> do not install it,
+because neither adds anything to a profile.</p>
+<p>The icon is rendered from <code>web/src/favicon.svg</code>, the site’s brand mark, into
+the eight hicolor sizes plus the scalable SVG. A launcher resolves
+<code>Icon=nova-protocol</code> by name against the theme, so the sizes have to exist as
+files: an icon theme with no <code>scalable</code> support finds nothing otherwise. The
+art under <code>build/</code> is still bevy_game_template’s placeholder bird and is
+deliberately not used.</p>
 <h3 id="cutting-a-release"><a class="header" href="#cutting-a-release">Cutting a release</a></h3>
 <p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
 (<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>

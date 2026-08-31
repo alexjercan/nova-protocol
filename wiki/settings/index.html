@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Settings - Nova Protocol Wiki</title>
-        <meta name="description" content="The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the read-only keybind reference - reachable from the main menu and the pause menu, remembered across restarts." />
+        <meta name="description" content="The Settings menu: a master audio volume slider, the Low/Medium/High graphics-quality preset (juice plus low-end visual gating and render scale), and the Controls tab that rebinds every action - reachable from the main menu and the pause menu, remembered across restarts." />
         <link rel="icon" href="/nova-protocol/favicon.svg" />
     <script defer src="/nova-protocol/docs.js"></script></head>
     <body>
@@ -50,7 +50,7 @@ on the web.</p>
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu: the master volume slider, the Low/Medium/High graphics preset selector, and the keybind reference panel.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the master volume slider and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
@@ -105,12 +105,34 @@ fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
 fully clickable; only the 3D world softens. On a strong discrete GPU the speed
 win is small, so Low is a knob for the low end rather than a general speed-up.</p>
 </details>
-<h2 id="controls-reference" tabindex="-1">Controls reference</h2>
-<p>The <strong>Controls</strong> panel is a read-only reference of the current keyboard and
-gamepad bindings - flight, targeting, camera and pause - the same reference laid
-out on the <a href="../keybinds/">Keybinds</a> page. It is there to check a binding without
-leaving the game; the bindings themselves are fixed (weapon fire is the one thing
-you assign, per section, in the editor).</p>
+<h2 id="controls" tabindex="-1">Controls</h2>
+<figure class="figure">
+    <!-- Capture: assets/wiki-controls.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Screenshot needed</span>
+        <span class="figure__placeholder-name">assets/wiki-controls.png</span>
+        <span class="figure__placeholder-note">The Controls tab open on the FLIGHT group: one row per action, with the keyboard keycap and the pad glyph in their own columns.</span>
+    </div>
+    <figcaption class="figure__caption">One group at a time, drawn as the buttons you press.</figcaption>
+</figure>
+<p>The <strong>Controls</strong> tab is where you REBIND. It shows one binding group at a time -
+FLIGHT, TARGETING, CAMERA, SCENARIO, SYSTEM, NOVA OS and the two viewer apps -
+with the keyboard and gamepad columns side by side, drawn as the keycaps and pad
+glyphs you actually press. The same table is laid out on the
+<a href="../keybinds/">Keybinds</a> page.</p>
+<p>Click a chip and it prompts <code>PRESS A KEY</code>; the next key, mouse button or pad
+button you press becomes that column's whole binding. <kbd>Esc</kbd> backs out,
+which is why no row can be bound to it, and <strong>Reset Defaults</strong> puts the whole
+table back.</p>
+<p>A press something else could answer at the same instant is refused by name -
+<code>W is already bound to Main Drive</code> - and the chip stays armed for another try.
+Sharing a key across screens is fine and deliberate: <kbd>G</kbd> is GO TO in
+flight and the mates overlay in the ship computer, and only one of them is ever
+listening.</p>
+<p>Two rows are read-only, drawn greyed: <kbd>Esc</kbd> and the pad's pause chord.
+They are the way out of every other screen, including this one.</p>
+<p>A section's weapon or thruster trigger is not here - that is per ship, assigned
+in the editor or in the ship computer's SHIP app.</p>
 
                     <div id="wiki-seealso"></div>
                 </article>

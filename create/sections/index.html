@@ -166,6 +166,12 @@ along local Y. The collider is also what the section WEIGHS: every section runs
 at a density of 1, so its mass is the volume of this shape and a bigger box is
 a heavier part. There is no density knob - a section is solid ship, and the
 render mesh never counts.</p>
+<p>An integral cuboid of at least one cell on every axis is also the section's cell
+footprint. For example, <code>Cuboid(size: (3.0, 3.0, 2.0))</code> occupies 18 cells as one
+machine. Skin and clearance read every occupied cell. Put mounting sockets at
+the centres of the cells on each face that can attach; collider contact alone
+never creates structure. Non-integral cuboids and non-cuboid shapes remain
+one-cell footprints.</p>
 <h3 id="damage-effects" tabindex="-1">Damage effects</h3>
 <p>What a section LOOKS like as it takes damage, authored as a list:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">damage_effects</span><span class="ron-punct">:</span> <span class="ron-punct">([</span><span class="ron-type">Cracks</span><span class="ron-punct">,</span> <span class="ron-type">Sparks</span><span class="ron-punct">,</span> <span class="ron-type">Plume</span><span class="ron-punct">]),</span>
@@ -630,10 +636,11 @@ torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
     <span class="ron-key">spawn_offset</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-2.0</span><span class="ron-punct">),</span>
     <span class="ron-key">spawn_rotation</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">1.0</span><span class="ron-punct">),</span>
     <span class="ron-key">fire_rate</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
-    <span class="ron-key">spawner_speed</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">spawner_speed</span><span class="ron-punct">:</span> <span class="ron-literal">8.0</span><span class="ron-punct">,</span>
     <span class="ron-key">projectile_lifetime</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">,</span>
     <span class="ron-key">arm_time</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
     <span class="ron-key">arm_distance</span><span class="ron-punct">:</span> <span class="ron-literal">5.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">ignition_delay</span><span class="ron-punct">:</span> <span class="ron-literal">0.6</span><span class="ron-punct">,</span>
     <span class="ron-key">nav_constant</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">,</span>
     <span class="ron-key">linear_damping</span><span class="ron-punct">:</span> <span class="ron-literal">0.8</span><span class="ron-punct">,</span>
     <span class="ron-key">blast_radius</span><span class="ron-punct">:</span> <span class="ron-literal">30.0</span><span class="ron-punct">,</span>
@@ -677,7 +684,9 @@ torpedo leaves the bay, relative to the section.</p>
 <p><code>fire_rate</code> - launches per second.</p>
 </li>
 <li>
-<p><code>spawner_speed</code> - launch speed in units per second.</p>
+<p><code>spawner_speed</code> - the ejection charge, in units per second. A torpedo is not
+fired, it is dropped: this is the cold kick that pushes it clear of the hull,
+not the speed it flies at. That comes from the drive, once it lights.</p>
 </li>
 <li>
 <p><code>projectile_lifetime</code> - torpedo lifetime in seconds.</p>
@@ -686,6 +695,14 @@ torpedo leaves the bay, relative to the section.</p>
 <p><code>arm_time</code>, <code>arm_distance</code> - the torpedo may detonate only after this many
 seconds OR this distance from the muzzle (arms on whichever comes first), so
 it clears the firing ship.</p>
+</li>
+<li>
+<p><code>ignition_delay</code> - seconds the torpedo coasts INERT before its drive lights.
+For that whole window it has no thrust, no guidance, no fuze and no colliders:
+it can neither be shot down nor touch the ship it is leaving. Size it against
+<code>spawner_speed</code> so the motor catches once the torpedo is clear of the hull.
+<code>0.0</code> lights it on the first tick, which is the old launch-under-power
+behavior.</p>
 </li>
 <li>
 <p><code>nav_constant</code> - the proportional-navigation constant <code>N</code> (typically 3-5;
