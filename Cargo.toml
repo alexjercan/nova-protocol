@@ -336,6 +336,12 @@ path = "examples/screenshots/screenshot_section_frame.rs"
 name = "screenshot_section_weapons"
 path = "examples/screenshots/screenshot_section_weapons.rs"
 
+# The shipped drive family on one bench: the size comparison, then each large
+# drive on its own.
+[[example]]
+name = "screenshot_section_drives"
+path = "examples/screenshots/screenshot_section_drives.rs"
+
 # The Tab ship computer: the terminal, then an app filling the same tube.
 [[example]]
 name = "screenshot_nova_os_terminal"

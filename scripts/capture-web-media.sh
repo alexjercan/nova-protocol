@@ -132,15 +132,43 @@ for alias in "${ALIASES[@]}"; do
     cp "$STAGE/${source}.webm" "$STAGE/${destination}.webm"
 done
 
+# A shipped news loop is FROZEN, the same rule the stills packager applies
+# (`frozen` in scripts/gen-web-screenshots.py). The living loops - the landing
+# page, the wiki section pages - show what the game does now and are re-cut
+# every cycle. A news loop is the evidence for what one release changed, so
+# re-cutting it hands an old post footage of a game it was never about.
+#
+# The producers still RUN and still stage: an alias for the current cycle reads
+# its source out of the stage, so skipping the run would break it. Only the
+# copy into the shipped tree is held. NOVA_UNFREEZE takes a comma-separated
+# prefix list to re-open the post being authored (`NOVA_UNFREEZE=news-0120`).
+is_frozen() {
+    local loop="$1" prefix
+    [[ "$loop" == news-* ]] || return 1
+    [[ -s "$OUT/${loop}.webm" ]] || return 1
+    IFS=',' read -r -a unfrozen <<<"${NOVA_UNFREEZE:-}"
+    for prefix in "${unfrozen[@]}"; do
+        [[ -n "$prefix" && "$loop" == "$prefix"* ]] && return 1
+    done
+    return 0
+}
+
 MANIFEST="$OUT/manifest.txt"
 {
     echo "# captured at commit $(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
-    echo "# file<TAB>example<TAB>duration_s<TAB>bytes"
+    echo "# a frozen row shipped with an earlier post and predates that commit"
+    echo "# file<TAB>example<TAB>duration_s<TAB>bytes<TAB>state"
 } >"$MANIFEST"
 
 package_loop() {
-    local loop="$1" example="$2" file duration width height bytes
-    file="$STAGE/${loop}.webm"
+    local loop="$1" example="$2" file duration width height bytes state
+    if is_frozen "$loop"; then
+        file="$OUT/${loop}.webm"
+        state=frozen
+    else
+        file="$STAGE/${loop}.webm"
+        state=fresh
+    fi
     duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file")"
     width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$file")"
     height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$file")"
@@ -155,9 +183,12 @@ package_loop() {
         exit 1
     }
 
-    cp "$file" "$OUT/${loop}.webm"
-    printf '%s\t%s\t%.1f\t%s\n' "${loop}.webm" "$example" "$duration" "$bytes" >>"$MANIFEST"
-    echo ">> ${loop}.webm: ${duration%.*}s, ${bytes} bytes (${example})"
+    if [[ "$state" == fresh ]]; then
+        cp "$file" "$OUT/${loop}.webm"
+    fi
+    printf '%s\t%s\t%.1f\t%s\t%s\n' \
+        "${loop}.webm" "$example" "$duration" "$bytes" "$state" >>"$MANIFEST"
+    echo ">> ${loop}.webm: ${duration%.*}s, ${bytes} bytes (${example}, ${state})"
 }
 
 for pair in "${LOOPS[@]}"; do

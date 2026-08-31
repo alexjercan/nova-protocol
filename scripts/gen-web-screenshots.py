@@ -66,6 +66,31 @@ DEFAULT_STAGE = os.path.join(REPO_ROOT, "target", "shots")
 WEB_SRC = os.path.join(REPO_ROOT, "web", "src")
 WEB_ASSETS = os.path.join(REPO_ROOT, "web", "src", "assets")
 
+# A shipped news figure is FROZEN. The living assets - the wiki pages, the
+# landing page, the part catalog - document what the game does now, and are
+# meant to be re-captured every cycle. A news figure documents what one release
+# changed, so re-capturing it replaces the evidence with footage of a game that
+# post was never about: v0.11.0's collider figures came back showing the
+# v0.12.0 editor.
+#
+# The rule is the NAME. Anything in the `news-` namespace is frozen once it
+# exists under web/src/assets, which is also the moment it ships. While a post
+# is still being authored its own prefix has to stay open, so NOVA_UNFREEZE
+# takes a comma-separated prefix list: `NOVA_UNFREEZE=news-0120`.
+FROZEN_NAMESPACE = ("news-", "thumb-news-")
+UNFROZEN_PREFIXES = [
+    prefix for prefix in os.environ.get("NOVA_UNFREEZE", "").split(",") if prefix
+]
+
+
+def frozen(name):
+    """Whether writing `name` would overwrite a figure a post already ships."""
+    if not name.startswith(FROZEN_NAMESPACE):
+        return False
+    if any(name.startswith(prefix) for prefix in UNFROZEN_PREFIXES):
+        return False
+    return os.path.exists(os.path.join(WEB_ASSETS, name))
+
 # Every screenshot the site references, grouped by kind. `stage` is the filename
 # the capture examples write; `web` is the destination name (identical here).
 # 16:9 figures and thumbnails are copied as-is (the site sizes them). The example
@@ -112,6 +137,11 @@ FIGURES = [
     ("wiki-section-thruster.png",       "screenshot_section_frame"),
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
     ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
+    # The drive family on one bench: the size comparison, then each large
+    # drive on its own.
+    ("wiki-section-drives.png",         "screenshot_section_drives"),
+    ("wiki-section-vector-drive.png",   "screenshot_section_drives"),
+    ("wiki-section-capital-drive.png",  "screenshot_section_drives"),
     # The ship computer: terminal output, map and live ship schematic.
     ("wiki-nova-os-terminal.png",       "screenshot_nova_os_terminal"),
     ("wiki-nova-os-map.png",            "screenshot_nova_os_apps"),
@@ -188,13 +218,23 @@ COMPOSITE_SIZE = (1920, 1080)
 # (it takes precedence - see process_group).
 ALIASES = {
     "wiki-scenarios-picker.png": "news-090-scenario-campaigns.png",
-    # The v0.12.0 post card. The release's face is the editor, and the editor
-    # figure is already a 16:9 capture of exactly that.
-    "thumb-news-0.12.0.png": "feature-editor.png",
+    # The v0.12.0 post's figures, frozen under its own namespace. A news figure
+    # is evidence for what one release changed, so it takes a copy of the
+    # living shot rather than pointing at one that will be re-cut next cycle
+    # (see `frozen`). The card comes off the frozen copy for the same reason.
+    "news-0120-editor.png": "feature-editor.png",
+    "news-0120-condition-page.png": "feature-editor-events.png",
+    "news-0120-range.png": "wiki-sandbox-range.png",
+    "news-0120-controls.png": "wiki-controls.png",
+    "news-0120-thruster-bell.png": "wiki-section-thruster.png",
+    "news-0120-drives.png": "wiki-section-drives.png",
+    "thumb-news-0.12.0.png": "news-0120-editor.png",
     "news-0110-greeble-atlas.png": "greeble-catalog.png",
     # Section variants that share geometry intentionally share a product card.
     "catalog-basic-controller-section.png": "wiki-section-controller.png",
     "catalog-basic-thruster-section.png": "wiki-section-thruster.png",
+    "catalog-vector-thruster-section.png": "wiki-section-vector-drive.png",
+    "catalog-capital-thruster-section.png": "wiki-section-capital-drive.png",
     "catalog-light-hull-section.png": "wiki-section-hull.png",
     "catalog-reinforced-hull-section.png": "wiki-section-hull.png",
     "catalog-torpedo-section.png": "wiki-section-torpedo-bay.png",
@@ -554,7 +594,11 @@ def draw_icon(section, accent):
 def process_group(entries, kind, stage_dir, expect_aspect):
     """Validate + copy each present staged file; report pending/failed."""
     copied, pending, failed = [], [], []
+    held = []
     for name, example in entries:
+        if frozen(name):
+            held.append(name)
+            continue
         src = os.path.join(stage_dir, name)
         if not os.path.exists(src):
             pending.append((name, example))
@@ -578,6 +622,8 @@ def process_group(entries, kind, stage_dir, expect_aspect):
     for name, example in pending:
         hint = f" (run {example})" if example else " (no capture example yet)"
         print(f"  pending {name}{hint}")
+    for name in held:
+        print(f"  frozen  {name} (shipped with its post; NOVA_UNFREEZE to re-cut)")
     return copied, pending, failed
 
 
@@ -589,6 +635,9 @@ def build_composites(stage_dir):
     built, pending, failed = [], [], []
     out_w, out_h = COMPOSITE_SIZE
     for name, left, right in COMPOSITES:
+        if frozen(name):
+            print(f"  frozen  {name} (shipped with its post)")
+            continue
         staged = os.path.join(stage_dir, name)
         if os.path.exists(staged):
             # A distinct capture was staged; validate + copy it, it wins.
@@ -628,6 +677,9 @@ def build_triptychs(stage_dir):
     built, pending, failed = [], [], []
     out_w, out_h = COMPOSITE_SIZE
     for name, *panels in TRIPTYCHS:
+        if frozen(name):
+            print(f"  frozen  {name} (shipped with its post)")
+            continue
         staged = os.path.join(stage_dir, name)
         if os.path.exists(staged):
             shutil.copyfile(staged, os.path.join(WEB_ASSETS, name))
@@ -1010,6 +1062,9 @@ def main():
     for alias, source in ALIASES.items():
         if os.path.exists(os.path.join(args.stage_dir, alias)):
             continue  # a distinct capture exists; process_group handled it
+        if frozen(alias):
+            print(f"  frozen  {alias} (shipped with its post)")
+            continue
         source_path = os.path.join(WEB_ASSETS, source)
         if os.path.exists(source_path):
             shutil.copyfile(source_path, os.path.join(WEB_ASSETS, alias))
