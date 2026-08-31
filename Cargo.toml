@@ -407,6 +407,14 @@ path = "examples/screenshots/screenshot_flip_burn.rs"
 name = "screenshot_thruster_gallery"
 path = "examples/screenshots/screenshot_thruster_gallery.rs"
 
+# A named grid of section model candidates - torpedo bays, PDC mounts, hull
+# and controller cores under art/part-candidates/sections, each row led by
+# the shipped art it would replace - the showcase half of the section remodel
+# (task 20260831-083625).
+[[example]]
+name = "screenshot_section_gallery"
+path = "examples/screenshots/screenshot_section_gallery.rs"
+
 # The same ship at five damage levels, side by side: the row somebody decides
 # off whether a cracked, de-plated, scorched hull reads as broken. The row and
 # its per-level closeups are one comparison, so they stay one producer.

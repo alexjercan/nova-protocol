@@ -1,0 +1,345 @@
+{
+  "_comment": "HULL CANDIDATE: pressure-vessel cell, 1x1x1. Four corner rails and two open end frames holding a horizontal gunmetal tank with steel reinforcement bands, a copper pipe run down each open flank, a valve wheel, an amber stencil bar on the tank shoulder and a glow inspection dot. Reads as what a hull section IS in this game - stored structure and plumbing - and shows a curved silhouette through shot-off cladding.",
+  "frame": "core",
+  "cells": [
+    1,
+    1,
+    1
+  ],
+  "materials": {
+    "part_steel": {
+      "color": [
+        0.42,
+        0.44,
+        0.47
+      ],
+      "metallic": 0.7,
+      "roughness": 0.45
+    },
+    "part_gunmetal": {
+      "color": [
+        0.18,
+        0.19,
+        0.22
+      ],
+      "metallic": 0.55,
+      "roughness": 0.6
+    },
+    "part_copper": {
+      "color": [
+        0.5,
+        0.26,
+        0.13
+      ],
+      "metallic": 0.8,
+      "roughness": 0.35
+    },
+    "part_glow": {
+      "color": [
+        0.25,
+        0.8,
+        0.9
+      ],
+      "metallic": 0.1,
+      "roughness": 0.25
+    },
+    "part_amber": {
+      "color": [
+        0.85,
+        0.55,
+        0.12
+      ],
+      "metallic": 0.4,
+      "roughness": 0.5
+    }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.14,
+        1.0
+      ],
+      "at": [
+        0.42,
+        0.42,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.14,
+        1.0
+      ],
+      "at": [
+        -0.42,
+        0.42,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.14,
+        1.0
+      ],
+      "at": [
+        0.42,
+        -0.42,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.14,
+        1.0
+      ],
+      "at": [
+        -0.42,
+        -0.42,
+        0.0
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        0.14,
+        0.1
+      ],
+      "at": [
+        0.0,
+        0.43,
+        -0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        0.14,
+        0.1
+      ],
+      "at": [
+        0.0,
+        -0.43,
+        -0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.72,
+        0.1
+      ],
+      "at": [
+        0.43,
+        0.0,
+        -0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.72,
+        0.1
+      ],
+      "at": [
+        -0.43,
+        0.0,
+        -0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        0.14,
+        0.1
+      ],
+      "at": [
+        0.0,
+        0.43,
+        0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        0.14,
+        0.1
+      ],
+      "at": [
+        0.0,
+        -0.43,
+        0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.72,
+        0.1
+      ],
+      "at": [
+        0.43,
+        0.0,
+        0.45
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.14,
+        0.72,
+        0.1
+      ],
+      "at": [
+        -0.43,
+        0.0,
+        0.45
+      ]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.36,
+      "height": 0.8,
+      "sides": 12,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.39,
+      "thickness": 0.06,
+      "sides": 12,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.15
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.39,
+      "thickness": 0.06,
+      "sides": 12,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.15
+      ]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.05,
+      "height": 0.8,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.43,
+        0.3,
+        0.0
+      ],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.05,
+      "height": 0.8,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        -0.43,
+        -0.3,
+        0.0
+      ],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.08,
+      "thickness": 0.03,
+      "sides": 10,
+      "rotate": [
+        0.0,
+        0.0,
+        90.0
+      ],
+      "at": [
+        0.44,
+        0.3,
+        -0.2
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.014,
+        0.12,
+        0.3
+      ],
+      "at": [
+        0.372,
+        0.08,
+        0.05
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.04,
+      "thickness": 0.02,
+      "sides": 8,
+      "rotate": [
+        0.0,
+        0.0,
+        90.0
+      ],
+      "at": [
+        0.372,
+        -0.12,
+        0.1
+      ],
+      "material": "part_glow"
+    }
+  ]
+}

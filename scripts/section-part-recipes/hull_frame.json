@@ -1,0 +1,99 @@
+{
+  "_comment": "HULL CANDIDATE: open girder frame, 1x1x1. All twelve cell edges as box-section girders, X-braces on both side faces, and the innards on show: a vertical tank drum, copper pipe runs, a junction box with a glow lamp and a hanging cable drop. The under-skin argument taken furthest - cladding closes it into a wall, losing plates exposes girders and guts, which is exactly the 'mechanical + wires' read the owner asked for.",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_copper": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.12, 0.12, 1.0], "at": [0.44, 0.44, 0.0] },
+    { "primitive": "box", "size": [0.12, 0.12, 1.0], "at": [-0.44, 0.44, 0.0] },
+    { "primitive": "box", "size": [0.12, 0.12, 1.0], "at": [0.44, -0.44, 0.0] },
+    { "primitive": "box", "size": [0.12, 0.12, 1.0], "at": [-0.44, -0.44, 0.0] },
+    { "primitive": "box", "size": [1.0, 0.12, 0.12], "at": [0.0, 0.44, 0.44] },
+    { "primitive": "box", "size": [1.0, 0.12, 0.12], "at": [0.0, 0.44, -0.44] },
+    { "primitive": "box", "size": [1.0, 0.12, 0.12], "at": [0.0, -0.44, 0.44] },
+    { "primitive": "box", "size": [1.0, 0.12, 0.12], "at": [0.0, -0.44, -0.44] },
+    { "primitive": "box", "size": [0.12, 1.0, 0.12], "at": [0.44, 0.0, 0.44] },
+    { "primitive": "box", "size": [0.12, 1.0, 0.12], "at": [-0.44, 0.0, 0.44] },
+    { "primitive": "box", "size": [0.12, 1.0, 0.12], "at": [0.44, 0.0, -0.44] },
+    { "primitive": "box", "size": [0.12, 1.0, 0.12], "at": [-0.44, 0.0, -0.44] },
+    {
+      "primitive": "box",
+      "size": [0.06, 1.15, 0.06],
+      "rotate": [45.0, 0.0, 0.0],
+      "at": [0.44, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 1.15, 0.06],
+      "rotate": [-45.0, 0.0, 0.0],
+      "at": [0.44, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 1.15, 0.06],
+      "rotate": [45.0, 0.0, 0.0],
+      "at": [-0.44, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 1.15, 0.06],
+      "rotate": [-45.0, 0.0, 0.0],
+      "at": [-0.44, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.26,
+      "height": 0.7,
+      "sides": 12,
+      "at": [0.0, -0.05, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.6,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.15, -0.3, 0.2],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.6,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.15, -0.3, -0.1],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "box",
+      "size": [0.18, 0.22, 0.14],
+      "at": [0.0, 0.28, 0.1],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.016],
+      "at": [0.0, 0.28, 0.025],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.04, 0.7, 0.04],
+      "at": [0.32, 0.0, 0.32],
+      "material": "part_cable"
+    }
+  ]
+}

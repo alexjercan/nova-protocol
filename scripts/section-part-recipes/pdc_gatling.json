@@ -1,0 +1,135 @@
+{
+  "_comment": "PDC CANDIDATE: rotary gatling. Yaw: a faceted turntable with a riser drum, a feed chute and a loose cable. Pitch: a trunnion tube between fork cheeks with a glow-lensed sight box. Barrel: a six-tube rotary cluster around a central shaft, clamp ring mid-run, muzzle ring at the front. One muzzle joint like today's tree - the spin is the read, the rate is authored. Parts are authored around their own joint origins at unit-turret scale; the gallery poses them, the tree ships them at 0.5.",
+  "frame": "turret",
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 }
+  },
+  "material": "part_steel",
+  "yaw": [
+    { "primitive": "cylinder", "radius": 0.42, "height": 0.1, "sides": 16, "at": [0.0, 0.05, 0.0] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.3,
+      "height": 0.22,
+      "sides": 12,
+      "at": [0.0, 0.21, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.18, 0.3, 0.18],
+      "at": [0.28, 0.25, 0.05],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.04, 0.26, 0.04],
+      "at": [-0.3, 0.13, 0.08],
+      "material": "part_cable"
+    }
+  ],
+  "pitch": [
+    {
+      "primitive": "cylinder",
+      "radius": 0.12,
+      "height": 0.4,
+      "sides": 10,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, 0.0, 0.0]
+    },
+    { "primitive": "box", "size": [0.06, 0.36, 0.34], "at": [0.23, -0.02, 0.02] },
+    { "primitive": "box", "size": [0.06, 0.36, 0.34], "at": [-0.23, -0.02, 0.02] },
+    {
+      "primitive": "box",
+      "size": [0.12, 0.1, 0.2],
+      "at": [0.0, 0.17, 0.02],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.06, 0.02],
+      "at": [0.0, 0.17, -0.09],
+      "material": "part_glow"
+    }
+  ],
+  "barrel": [
+    { "primitive": "box", "size": [0.24, 0.24, 0.3], "at": [0.0, 0.0, 0.08] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.05,
+      "height": 0.9,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.45],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.09, 0.0, -0.42]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.045, 0.078, -0.42]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.045, 0.078, -0.42]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.09, 0.0, -0.42]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.045, -0.078, -0.42]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.032,
+      "height": 0.85,
+      "sides": 6,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.045, -0.078, -0.42]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.16,
+      "thickness": 0.05,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.5]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.15,
+      "thickness": 0.04,
+      "sides": 12,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, -0.82],
+      "material": "part_gunmetal"
+    }
+  ]
+}

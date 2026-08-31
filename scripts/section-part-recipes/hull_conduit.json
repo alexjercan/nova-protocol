@@ -1,0 +1,114 @@
+{
+  "_comment": "HULL CANDIDATE: sealed machinery block, 1x1x1. A steel core with proud recessed-looking access panels on five faces, three copper conduits chasing different edges, junction boxes where they turn, a ribbed vent grille on the sixth face, a proud cable clip run, and a glow strip plus amber stencil bar on the forward panel. The quiet middle option: closed and hull-like at a glance, but every surface says machine when the skin comes off.",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_copper": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 },
+    "part_amber": { "color": [0.85, 0.55, 0.12], "metallic": 0.4, "roughness": 0.5 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.9, 0.9, 0.9], "at": [0.0, 0.0, 0.0] },
+    {
+      "primitive": "box",
+      "size": [0.7, 0.7, 0.05],
+      "at": [0.0, 0.0, -0.46],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.7, 0.7, 0.05],
+      "at": [0.0, 0.0, 0.46],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.7, 0.05, 0.7],
+      "at": [0.0, 0.46, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.7, 0.05, 0.7],
+      "at": [0.0, -0.46, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.7, 0.7],
+      "at": [-0.46, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 0.9,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.43, 0.43, 0.0],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 0.9,
+      "sides": 8,
+      "rotate": [0.0, 0.0, 90.0],
+      "at": [0.0, -0.43, 0.43],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 0.9,
+      "sides": 8,
+      "at": [-0.43, 0.0, -0.43],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.14, 0.14],
+      "at": [0.43, 0.43, 0.33],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.14, 0.14, 0.14],
+      "at": [-0.43, 0.31, -0.43],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "ribs",
+      "size": [0.5, 0.03, 0.4],
+      "count": 4,
+      "rib_height": 0.022,
+      "rib_width": 0.06,
+      "across": "z",
+      "rotate": [0.0, 0.0, -90.0],
+      "at": [0.462, -0.1, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.04, 0.34, 0.04],
+      "at": [-0.465, -0.2, 0.3],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.05, 0.016],
+      "at": [0.0, -0.2, -0.492],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.4, 0.06, 0.014],
+      "at": [-0.1, 0.25, -0.491],
+      "material": "part_amber"
+    }
+  ]
+}

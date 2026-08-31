@@ -1,0 +1,292 @@
+{
+  "_comment": "BAY CANDIDATE: double-barrel battery, 2x1x3. Two full tube mouths side by side on the -Z face, a shared loader spine ridge on the roof, staggered reload hatches, ribbed vent grilles on both flanks, and a full-width amber hazard stripe over the muzzles. The one that needs a game-code follow-up if picked: TorpedoSectionConfig carries a single spawn point today, so a two-at-a-time (or alternating) salvo is a small engine change.",
+  "frame": "bay",
+  "cells": [
+    2,
+    1,
+    3
+  ],
+  "materials": {
+    "part_steel": {
+      "color": [
+        0.42,
+        0.44,
+        0.47
+      ],
+      "metallic": 0.7,
+      "roughness": 0.45
+    },
+    "part_gunmetal": {
+      "color": [
+        0.18,
+        0.19,
+        0.22
+      ],
+      "metallic": 0.55,
+      "roughness": 0.6
+    },
+    "part_throat": {
+      "color": [
+        0.04,
+        0.04,
+        0.045
+      ],
+      "metallic": 0.2,
+      "roughness": 0.9
+    },
+    "part_glow": {
+      "color": [
+        0.25,
+        0.8,
+        0.9
+      ],
+      "metallic": 0.1,
+      "roughness": 0.25
+    },
+    "part_amber": {
+      "color": [
+        0.85,
+        0.55,
+        0.12
+      ],
+      "metallic": 0.4,
+      "roughness": 0.5
+    }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        2.0,
+        1.0,
+        0.1
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -1.43
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        2.0,
+        1.0,
+        0.14
+      ],
+      "at": [
+        0.0,
+        0.0,
+        1.43
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.94,
+        0.94,
+        2.72
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.5,
+        0.12,
+        2.7
+      ],
+      "at": [
+        0.0,
+        0.44,
+        0.0
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.42,
+      "thickness": 0.03,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.5,
+        0.0,
+        -1.481
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.42,
+      "thickness": 0.03,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        -0.5,
+        0.0,
+        -1.481
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.34,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.5,
+        0.0,
+        -1.492
+      ],
+      "material": "part_throat"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.34,
+      "thickness": 0.012,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        -0.5,
+        0.0,
+        -1.492
+      ],
+      "material": "part_throat"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.8,
+        0.06,
+        0.014
+      ],
+      "at": [
+        0.0,
+        0.4,
+        -1.492
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.4,
+        0.05,
+        0.7
+      ],
+      "at": [
+        0.5,
+        0.475,
+        0.4
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.4,
+        0.05,
+        0.7
+      ],
+      "at": [
+        -0.5,
+        0.475,
+        0.8
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "ribs",
+      "size": [
+        0.7,
+        0.04,
+        0.5
+      ],
+      "count": 4,
+      "rib_height": 0.03,
+      "rib_width": 0.06,
+      "across": "z",
+      "rotate": [
+        0.0,
+        0.0,
+        -90.0
+      ],
+      "at": [
+        0.93,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "primitive": "ribs",
+      "size": [
+        0.7,
+        0.04,
+        0.5
+      ],
+      "count": 4,
+      "rib_height": 0.03,
+      "rib_width": 0.06,
+      "across": "z",
+      "rotate": [
+        0.0,
+        0.0,
+        90.0
+      ],
+      "at": [
+        -0.93,
+        0.0,
+        0.6
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.1,
+        0.05,
+        0.014
+      ],
+      "at": [
+        0.5,
+        -0.35,
+        -1.492
+      ],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.1,
+        0.05,
+        0.014
+      ],
+      "at": [
+        -0.5,
+        -0.35,
+        -1.492
+      ],
+      "material": "part_glow"
+    }
+  ]
+}

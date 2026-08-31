@@ -1,0 +1,129 @@
+{
+  "_comment": "PDC CANDIDATE: twin-barrel flak mount. Yaw: an octagonal base with a collar, paired ammo boxes riding the turntable and a cable drop. Pitch: a boxy receiver between cheek plates, top rail, glow sensor lens facing forward. Barrel: two parallel tubes with muzzle brakes off one yoke, recoil springs in copper behind. The two-muzzles idea made concrete: the joint tree already takes several muzzle children (fire_rate is per muzzle), so this ships without engine work - the authoring question it raises is cadence, two at a time or double rate.",
+  "frame": "turret",
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_copper": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 }
+  },
+  "material": "part_steel",
+  "yaw": [
+    { "primitive": "cylinder", "radius": 0.4, "height": 0.12, "sides": 8, "at": [0.0, 0.06, 0.0] },
+    {
+      "primitive": "disc",
+      "radius": 0.3,
+      "thickness": 0.06,
+      "sides": 8,
+      "at": [0.0, 0.15, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.2, 0.24],
+      "at": [0.18, 0.28, 0.26],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.22, 0.2, 0.24],
+      "at": [-0.18, 0.28, 0.26],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.2, 0.05],
+      "at": [0.0, 0.16, 0.36],
+      "material": "part_cable"
+    }
+  ],
+  "pitch": [
+    { "primitive": "box", "size": [0.5, 0.26, 0.44], "at": [0.0, 0.03, 0.04] },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.34, 0.5],
+      "at": [0.29, 0.0, 0.02],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.34, 0.5],
+      "at": [-0.29, 0.0, 0.02],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.3, 0.05, 0.4],
+      "at": [0.0, 0.19, 0.0],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.1, 0.08, 0.03],
+      "at": [0.0, 0.06, -0.2],
+      "material": "part_glow"
+    }
+  ],
+  "barrel": [
+    { "primitive": "box", "size": [0.36, 0.14, 0.12], "at": [0.0, 0.0, -0.02] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.95,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.12, 0.0, -0.43]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.045,
+      "height": 0.95,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.12, 0.0, -0.43]
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.07,
+      "height": 0.12,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.12, 0.0, -0.86],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.07,
+      "height": 0.12,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.12, 0.0, -0.86],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.34, 0.1, 0.06],
+      "at": [0.0, 0.0, -0.55],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.06,
+      "height": 0.3,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.12, 0.0, 0.12],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.06,
+      "height": 0.3,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.12, 0.0, 0.12],
+      "material": "part_copper"
+    }
+  ]
+}

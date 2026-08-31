@@ -1,0 +1,111 @@
+{
+  "_comment": "CONTROLLER CANDIDATE: harness node, 1x1x1. A central gunmetal computer column between floor and ceiling plates, steel collars top and bottom, a bright glow band at its waist, four corner cabinets fed by diagonal cable harnesses, copper bus bars under the ceiling, and forward status lamps on the front cabinets. The controller as a nerve center: every wire in the ship visibly runs to the thing you are supposed to protect.",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_copper": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 }
+  },
+  "material": "part_steel",
+  "parts": [
+    { "primitive": "box", "size": [0.96, 0.08, 0.96], "at": [0.0, -0.45, 0.0] },
+    { "primitive": "box", "size": [0.96, 0.08, 0.96], "at": [0.0, 0.45, 0.0] },
+    {
+      "primitive": "cylinder",
+      "radius": 0.18,
+      "height": 0.82,
+      "sides": 12,
+      "at": [0.0, 0.0, 0.0],
+      "material": "part_gunmetal"
+    },
+    { "primitive": "disc", "radius": 0.22, "thickness": 0.06, "sides": 12, "at": [0.0, 0.25, 0.0] },
+    { "primitive": "disc", "radius": 0.22, "thickness": 0.06, "sides": 12, "at": [0.0, -0.25, 0.0] },
+    {
+      "primitive": "disc",
+      "radius": 0.2,
+      "thickness": 0.03,
+      "sides": 12,
+      "at": [0.0, 0.05, 0.0],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.24, 0.7, 0.24],
+      "at": [0.36, -0.06, 0.36],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.24, 0.7, 0.24],
+      "at": [-0.36, -0.06, 0.36],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.24, 0.7, 0.24],
+      "at": [0.36, -0.06, -0.36],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.24, 0.7, 0.24],
+      "at": [-0.36, -0.06, -0.36],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.36],
+      "rotate": [0.0, 45.0, 0.0],
+      "at": [0.22, 0.15, 0.22],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.36],
+      "rotate": [0.0, -45.0, 0.0],
+      "at": [-0.22, 0.15, 0.22],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.36],
+      "rotate": [0.0, -45.0, 0.0],
+      "at": [0.22, 0.15, -0.22],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [0.03, 0.03, 0.36],
+      "rotate": [0.0, 45.0, 0.0],
+      "at": [-0.22, 0.15, -0.22],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.03, 0.9],
+      "at": [0.2, 0.4, 0.0],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "box",
+      "size": [0.05, 0.03, 0.9],
+      "at": [-0.2, 0.4, 0.0],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.04, 0.016],
+      "at": [0.36, 0.18, -0.489],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.06, 0.04, 0.016],
+      "at": [-0.36, 0.18, -0.489],
+      "material": "part_glow"
+    }
+  ]
+}

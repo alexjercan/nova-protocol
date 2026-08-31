@@ -21,13 +21,10 @@
 //!   `scripts/gen-thruster-shells.py`, task 20260817-013639) and the pack
 //!   conversions with an engine or thruster silhouette (Fertile Soil blocks
 //!   pack, Kenney cast cuts, Quaternius cuts - all CC0, provenance in
-//!   `art/README.md`). Not through the asset server: `art/` is deliberately
-//!   not an asset source (it ships in no build), and bevy's default
-//!   `UnapprovedPathMode::Forbid` refuses a `../` escape from `assets/` -
-//!   rightly, for the game. Every candidate glb comes out of the repo's own
-//!   writer (`scripts/nova_glb.py`: one node, float32 POSITION + NORMAL,
-//!   u32 indices, flat `baseColorFactor` materials), so the decode is a page
-//!   of code against a format this repo controls.
+//!   `art/README.md`). Not through the asset server: every candidate glb
+//!   comes out of the repo's own writer, so the shared decoder
+//!   (`shared/glb.rs`) reads it off disk - see that module for why `art/`
+//!   cannot be an asset source here.
 //!
 //! Hand-run (free-fly with WASD; the roster idles on a slow orbit until the
 //! rig is touched):
@@ -43,16 +40,15 @@
 
 use std::path::{Path, PathBuf};
 
-use bevy::{
-    asset::RenderAssetUsages,
-    mesh::{Indices, PrimitiveTopology},
-    prelude::*,
-};
+use bevy::prelude::*;
 use clap::Parser;
 // Direct, not through `nova_protocol::nova_debug`: that path only exists under
 // the `debug` feature, and `capturing()` gates the idle orbit in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
+
+#[path = "shared/glb.rs"]
+mod glb;
 
 #[derive(Parser)]
 #[command(name = "screenshot_thruster_gallery")]
@@ -554,16 +550,8 @@ fn spawn_candidate(
 ) {
     let root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
     let path: PathBuf = Path::new(&root).join(CANDIDATES_DIR).join(dir).join(file);
-    let primitives = read_candidate_glb(&path);
-
-    let (low, high) = primitives
-        .iter()
-        .flat_map(|primitive| &primitive.positions)
-        .fold((Vec3::MAX, Vec3::MIN), |(low, high), position| {
-            let position = Vec3::from_array(*position);
-            (low.min(position), high.max(position))
-        });
-    let (centre, size) = ((low + high) * 0.5, high - low);
+    let primitives = glb::read_glb(&path);
+    let (centre, size) = glb::bounds(&primitives);
     let fit = fit_size / size.max_element();
     info!(
         "thruster_gallery: `{}`: {dir}/{file}, native {:.2} x {:.2} x {:.2}, fit x{fit:.2}",
@@ -579,131 +567,13 @@ fn spawn_candidate(
         ))
         .with_children(|parent| {
             for primitive in primitives {
-                let mesh = Mesh::new(
-                    PrimitiveTopology::TriangleList,
-                    RenderAssetUsages::default(),
-                )
-                .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, primitive.positions)
-                .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, primitive.normals)
-                .with_inserted_indices(Indices::U32(primitive.indices));
-                let material = StandardMaterial {
-                    // glTF factors are linear, as bevy's own loader reads
-                    // them; double-sided without culling matches it too.
-                    base_color: Color::linear_rgba(
-                        primitive.colour[0],
-                        primitive.colour[1],
-                        primitive.colour[2],
-                        primitive.colour[3],
-                    ),
-                    metallic: primitive.metallic,
-                    perceptual_roughness: primitive.roughness,
-                    double_sided: true,
-                    cull_mode: None,
-                    ..default()
-                };
                 parent.spawn((
-                    Mesh3d(meshes.add(mesh)),
-                    MeshMaterial3d(materials.add(material)),
+                    Mesh3d(meshes.add(primitive.mesh())),
+                    MeshMaterial3d(materials.add(primitive.material())),
                     Transform::from_translation(-centre),
                 ));
             }
         });
-}
-
-/// One flat-colour primitive out of a candidate glb.
-struct CandidatePrimitive {
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    indices: Vec<u32>,
-    colour: [f32; 4],
-    metallic: f32,
-    roughness: f32,
-}
-
-/// Decode a `scripts/nova_glb.py` glb: one node, one mesh, one primitive per
-/// material, float32 POSITION + NORMAL, u32 indices, flat `baseColorFactor`
-/// materials. Panics on a missing file or a shape the writer never produces -
-/// these are our own generated files, and a gallery silently skipping a
-/// candidate would defeat it.
-fn read_candidate_glb(path: &Path) -> Vec<CandidatePrimitive> {
-    let bytes =
-        std::fs::read(path).unwrap_or_else(|e| panic!("thruster_gallery: read {path:?}: {e}"));
-    let word =
-        |at: usize| u32::from_le_bytes(bytes[at..at + 4].try_into().expect("glb header word"));
-    assert_eq!(word(0), 0x4654_6C67, "{path:?} is not a glb (magic)");
-
-    // The two chunks: JSON first, then the one binary buffer.
-    let mut json: Option<&[u8]> = None;
-    let mut bin: &[u8] = &[];
-    let mut at = 12;
-    while at + 8 <= bytes.len() {
-        let (length, kind) = (word(at) as usize, word(at + 4));
-        let data = &bytes[at + 8..at + 8 + length];
-        match kind {
-            0x4E4F_534A => json = Some(data),
-            0x004E_4942 => bin = data,
-            _ => {}
-        }
-        at += 8 + length;
-    }
-    let doc: serde_json::Value = serde_json::from_slice(json.expect("glb JSON chunk"))
-        .unwrap_or_else(|e| panic!("thruster_gallery: parse {path:?}: {e}"));
-
-    // An accessor's raw bytes: the writer packs one accessor per buffer view,
-    // tightly, at the view's offset.
-    let accessor_bytes = |index: u64| -> &[u8] {
-        let accessor = &doc["accessors"][index as usize];
-        let view = &doc["bufferViews"][accessor["bufferView"].as_u64().expect("view") as usize];
-        let offset = view["byteOffset"].as_u64().unwrap_or(0) as usize;
-        let length = view["byteLength"].as_u64().expect("view length") as usize;
-        &bin[offset..offset + length]
-    };
-    let floats3 = |index: u64| -> Vec<[f32; 3]> {
-        accessor_bytes(index)
-            .as_chunks::<12>()
-            .0
-            .iter()
-            .map(|chunk| {
-                [
-                    f32::from_le_bytes(chunk[0..4].try_into().expect("f32")),
-                    f32::from_le_bytes(chunk[4..8].try_into().expect("f32")),
-                    f32::from_le_bytes(chunk[8..12].try_into().expect("f32")),
-                ]
-            })
-            .collect()
-    };
-
-    let factor = |material: &serde_json::Value, name: &str, default: f64| -> f32 {
-        material["pbrMetallicRoughness"][name]
-            .as_f64()
-            .unwrap_or(default) as f32
-    };
-    doc["meshes"][0]["primitives"]
-        .as_array()
-        .expect("glb primitives")
-        .iter()
-        .map(|primitive| {
-            let material =
-                &doc["materials"][primitive["material"].as_u64().expect("material") as usize];
-            let colour = material["pbrMetallicRoughness"]["baseColorFactor"]
-                .as_array()
-                .map(|values| std::array::from_fn(|i| values[i].as_f64().unwrap_or(1.0) as f32))
-                .unwrap_or([1.0; 4]);
-            CandidatePrimitive {
-                positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos")),
-                normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm")),
-                indices: accessor_bytes(primitive["indices"].as_u64().expect("idx"))
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .map(|chunk| u32::from_le_bytes(*chunk))
-                    .collect(),
-                colour,
-                metallic: factor(material, "metallicFactor", 1.0),
-                roughness: factor(material, "roughnessFactor", 1.0),
-            }
-        })
-        .collect()
 }
 
 /// An item's nameplate, anchored under its stand in world space.

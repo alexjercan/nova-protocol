@@ -1,0 +1,101 @@
+{
+  "_comment": "CONTROLLER CANDIDATE: avionics rack, 1x1x1. A gunmetal cabinet with five steel drawer faces proud on the forward face, cyan and amber status lamps per drawer, a triple cable loom down the right flank, a copper coolant line over the roof, and a finned radiator on the back. The controller as a server room: today the section renders NOTHING, so any of these is the first time a cored ship shows its brain.",
+  "frame": "core",
+  "cells": [1, 1, 1],
+  "materials": {
+    "part_steel": { "color": [0.42, 0.44, 0.47], "metallic": 0.7, "roughness": 0.45 },
+    "part_gunmetal": { "color": [0.18, 0.19, 0.22], "metallic": 0.55, "roughness": 0.6 },
+    "part_copper": { "color": [0.5, 0.26, 0.13], "metallic": 0.8, "roughness": 0.35 },
+    "part_cable": { "color": [0.07, 0.07, 0.08], "metallic": 0.0, "roughness": 0.95 },
+    "part_glow": { "color": [0.25, 0.8, 0.9], "metallic": 0.1, "roughness": 0.25 },
+    "part_amber": { "color": [0.85, 0.55, 0.12], "metallic": 0.4, "roughness": 0.5 }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [0.9, 0.96, 0.7],
+      "at": [0.0, 0.0, 0.1],
+      "material": "part_gunmetal"
+    },
+    { "primitive": "box", "size": [0.8, 0.14, 0.06], "at": [0.0, 0.34, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.14, 0.06], "at": [0.0, 0.16, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.14, 0.06], "at": [0.0, -0.02, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.14, 0.06], "at": [0.0, -0.2, -0.27] },
+    { "primitive": "box", "size": [0.8, 0.14, 0.06], "at": [0.0, -0.38, -0.27] },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.014],
+      "at": [0.3, 0.34, -0.308],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.014],
+      "at": [0.3, 0.16, -0.308],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.014],
+      "at": [0.3, -0.02, -0.308],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.014],
+      "at": [0.3, -0.2, -0.308],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [0.08, 0.05, 0.014],
+      "at": [0.3, -0.38, -0.308],
+      "material": "part_glow"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.035,
+      "height": 0.9,
+      "sides": 8,
+      "at": [0.462, 0.0, 0.0],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.035,
+      "height": 0.9,
+      "sides": 8,
+      "at": [0.462, 0.0, 0.15],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.035,
+      "height": 0.9,
+      "sides": 8,
+      "at": [0.462, 0.0, 0.3],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 0.5,
+      "sides": 8,
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [-0.25, 0.44, 0.2],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "ribs",
+      "size": [0.7, 0.04, 0.7],
+      "count": 5,
+      "rib_height": 0.02,
+      "rib_width": 0.07,
+      "across": "x",
+      "rotate": [90.0, 0.0, 0.0],
+      "at": [0.0, 0.0, 0.45],
+      "material": "part_gunmetal"
+    }
+  ]
+}

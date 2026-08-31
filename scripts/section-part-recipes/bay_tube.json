@@ -1,0 +1,253 @@
+{
+  "_comment": "BAY CANDIDATE: the straightforward launcher, 1x1x2. Full-cell end frames with an inset gunmetal body (the panel-line read the skin clads over), a proud steel muzzle collar with a dark recessed throat on the -Z face, twin copper feed conduits along the roof, a flank junction box and a status strip. The classic single-tube read: a player sees the dark circle and knows where the torpedo comes from.",
+  "frame": "bay",
+  "cells": [
+    1,
+    1,
+    2
+  ],
+  "materials": {
+    "part_steel": {
+      "color": [
+        0.42,
+        0.44,
+        0.47
+      ],
+      "metallic": 0.7,
+      "roughness": 0.45
+    },
+    "part_gunmetal": {
+      "color": [
+        0.18,
+        0.19,
+        0.22
+      ],
+      "metallic": 0.55,
+      "roughness": 0.6
+    },
+    "part_throat": {
+      "color": [
+        0.04,
+        0.04,
+        0.045
+      ],
+      "metallic": 0.2,
+      "roughness": 0.9
+    },
+    "part_copper": {
+      "color": [
+        0.5,
+        0.26,
+        0.13
+      ],
+      "metallic": 0.8,
+      "roughness": 0.35
+    },
+    "part_cable": {
+      "color": [
+        0.07,
+        0.07,
+        0.08
+      ],
+      "metallic": 0.0,
+      "roughness": 0.95
+    },
+    "part_glow": {
+      "color": [
+        0.25,
+        0.8,
+        0.9
+      ],
+      "metallic": 0.1,
+      "roughness": 0.25
+    },
+    "part_amber": {
+      "color": [
+        0.85,
+        0.55,
+        0.12
+      ],
+      "metallic": 0.4,
+      "roughness": 0.5
+    }
+  },
+  "material": "part_steel",
+  "parts": [
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        1.0,
+        0.1
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.93
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        1.0,
+        1.0,
+        0.12
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.94
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.94,
+        0.94,
+        1.76
+      ],
+      "at": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "material": "part_gunmetal"
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.44,
+      "thickness": 0.03,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.98
+      ]
+    },
+    {
+      "primitive": "disc",
+      "radius": 0.36,
+      "thickness": 0.02,
+      "sides": 16,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.0,
+        0.0,
+        -0.99
+      ],
+      "material": "part_throat"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.9,
+        0.05,
+        0.012
+      ],
+      "at": [
+        0.0,
+        0.42,
+        -0.986
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.9,
+        0.05,
+        0.012
+      ],
+      "at": [
+        0.0,
+        -0.42,
+        -0.986
+      ],
+      "material": "part_amber"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 1.76,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        0.14,
+        0.455,
+        0.0
+      ],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "cylinder",
+      "radius": 0.04,
+      "height": 1.76,
+      "sides": 8,
+      "rotate": [
+        90.0,
+        0.0,
+        0.0
+      ],
+      "at": [
+        -0.14,
+        0.455,
+        0.0
+      ],
+      "material": "part_copper"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.05,
+        0.3,
+        0.5
+      ],
+      "at": [
+        0.475,
+        0.0,
+        0.3
+      ]
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.02,
+        0.02,
+        1.2
+      ],
+      "at": [
+        0.478,
+        -0.3,
+        0.1
+      ],
+      "material": "part_cable"
+    },
+    {
+      "primitive": "box",
+      "size": [
+        0.012,
+        0.05,
+        0.3
+      ],
+      "at": [
+        0.478,
+        0.3,
+        0.6
+      ],
+      "material": "part_glow"
+    }
+  ]
+}
