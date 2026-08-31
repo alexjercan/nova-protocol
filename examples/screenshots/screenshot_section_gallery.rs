@@ -30,6 +30,11 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - load the gallery, frame it, exit clean.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the full grid and one
 //!   close pass per row (staged under `NOVA_CAPTURE_DIR`).
+//!
+//! The railgun row shows the SETTLED lance design (task 20260824-125947,
+//! picked at diameter 0.60 of the cell): still a mockup staged under
+//! `art/part-candidates/sections/` until the railgun task promotes it into
+//! the catalog. The pick rounds that led here live in this branch's history.
 
 use std::path::{Path, PathBuf};
 
@@ -68,6 +73,11 @@ const LABEL_DROP: f32 = 2.0;
 /// picked parts promoted out of `art/part-candidates/sections/` into the
 /// asset tree; the dropped candidates stay behind as the task record.
 const PARTS_DIR: &str = "assets/base/gltf";
+
+/// Where un-promoted mockups stage: the railgun row reads the settled lance
+/// straight from the art tree, nothing enters `assets/base` until its task
+/// promotes it.
+const CANDIDATES_DIR: &str = "art/part-candidates/sections";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -131,6 +141,9 @@ enum Look {
     /// A recipe-generated candidate glb, decoded off disk and shown at
     /// native (cell-unit) size.
     Candidate { file: &'static str },
+    /// A mockup still staged under `art/part-candidates/sections/`, decoded
+    /// and shown exactly like a promoted candidate.
+    Mockup { file: &'static str },
     /// The shipped mount: three Blender glbs posed at the joint tree's own
     /// cumulative offsets.
     ShippedTurret,
@@ -276,6 +289,16 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                 },
             ],
         ),
+        (
+            "railgun (task 20260824-125947)",
+            vec![Item {
+                id: "railgun_lance",
+                look: Look::Mockup {
+                    file: "railgun_lance.glb",
+                },
+                note: "SETTLED - 1x1x3 spinal lance, diameter 0.60",
+            }],
+        ),
     ]
 }
 
@@ -308,11 +331,11 @@ fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
     }
 }
 
-/// The generated-parts root, resolved from the crate root like the sibling
+/// A generated-parts root, resolved from the crate root like the sibling
 /// galleries do.
-fn parts_root() -> PathBuf {
+fn parts_root(dir: &str) -> PathBuf {
     let root = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-    Path::new(&root).join(PARTS_DIR)
+    Path::new(&root).join(dir)
 }
 
 fn load_gallery(
@@ -343,7 +366,26 @@ fn load_gallery(
                     info!("section_gallery: `{}`: shipped {path}", item.id);
                 }
                 Look::Candidate { file } => {
-                    spawn_candidate(&mut commands, &mut meshes, &mut materials, item, file, pose);
+                    spawn_candidate(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        item,
+                        PARTS_DIR,
+                        file,
+                        pose,
+                    );
+                }
+                Look::Mockup { file } => {
+                    spawn_candidate(
+                        &mut commands,
+                        &mut meshes,
+                        &mut materials,
+                        item,
+                        CANDIDATES_DIR,
+                        file,
+                        pose,
+                    );
                 }
                 Look::ShippedTurret => {
                     let shipped = [
@@ -389,10 +431,11 @@ fn spawn_candidate(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
     item: &Item,
+    dir: &str,
     file: &str,
     pose: Transform,
 ) {
-    let path = parts_root().join(file);
+    let path = parts_root(dir).join(file);
     let primitives = glb::read_glb(&path);
     let (_, size) = glb::bounds(&primitives);
     info!(
@@ -420,7 +463,7 @@ fn spawn_assembly_part(
     materials: &mut Assets<StandardMaterial>,
     part: &AssemblyPart,
 ) {
-    let path = parts_root().join(part.file);
+    let path = parts_root(PARTS_DIR).join(part.file);
     for primitive in glb::read_glb(&path) {
         parent.spawn((
             Mesh3d(meshes.add(primitive.mesh())),
@@ -618,10 +661,8 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .until(shot_written("section-gallery.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add();
-    for (row, name) in ["bays", "pdcs", "hulls", "controllers"]
-        .into_iter()
-        .enumerate()
-    {
+    let row_names: Vec<&'static str> = vec!["bays", "pdcs", "hulls", "controllers", "railgun"];
+    for (row, name) in row_names.into_iter().enumerate() {
         let shot = format!("section-gallery-{name}.png");
         script = script
             .step("frame a row")

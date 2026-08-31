@@ -1,0 +1,497 @@
+{
+ "_comment": "RAILGUN LANCE, settled at diameter 0.60 (brake face, 1.0 = the full cell): single-bore open clamped rails out of a rear capacitor casing into a vented muzzle brake, 1x1x3. The 0.50/0.75 variants and the four first-round mockups live in git history.",
+ "frame": "bay",
+ "cells": [
+  1,
+  1,
+  3
+ ],
+ "materials": {
+  "part_steel": {
+   "color": [
+    0.42,
+    0.44,
+    0.47
+   ],
+   "metallic": 0.7,
+   "roughness": 0.45
+  },
+  "part_gunmetal": {
+   "color": [
+    0.18,
+    0.19,
+    0.22
+   ],
+   "metallic": 0.55,
+   "roughness": 0.6
+  },
+  "part_throat": {
+   "color": [
+    0.04,
+    0.04,
+    0.045
+   ],
+   "metallic": 0.2,
+   "roughness": 0.9
+  },
+  "part_rail": {
+   "color": [
+    0.72,
+    0.45,
+    0.2
+   ],
+   "metallic": 0.9,
+   "roughness": 0.25
+  },
+  "part_copper": {
+   "color": [
+    0.5,
+    0.26,
+    0.13
+   ],
+   "metallic": 0.8,
+   "roughness": 0.35
+  },
+  "part_glow": {
+   "color": [
+    0.25,
+    0.8,
+    0.9
+   ],
+   "metallic": 0.1,
+   "roughness": 0.25
+  },
+  "part_amber": {
+   "color": [
+    0.85,
+    0.55,
+    0.12
+   ],
+   "metallic": 0.4,
+   "roughness": 0.5
+  }
+ },
+ "material": "part_steel",
+ "parts": [
+  {
+   "primitive": "box",
+   "size": [
+    1.0,
+    1.0,
+    0.12
+   ],
+   "at": [
+    0.0,
+    0.0,
+    1.44
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    1.0,
+    1.0,
+    0.1
+   ],
+   "at": [
+    0.0,
+    0.0,
+    0.05
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.86,
+    0.86,
+    1.28
+   ],
+   "at": [
+    0.0,
+    0.0,
+    0.74
+   ],
+   "material": "part_gunmetal"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.045,
+   "height": 1.28,
+   "sides": 8,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    -0.12,
+    0.45,
+    0.74
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.045,
+   "height": 1.28,
+   "sides": 8,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.12,
+    0.45,
+    0.74
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.1,
+   "height": 0.7,
+   "sides": 10,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    -0.38,
+    0.18,
+    0.85
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.1,
+   "height": 0.7,
+   "sides": 10,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.38,
+    0.18,
+    0.85
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.1,
+   "height": 0.7,
+   "sides": 10,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    -0.38,
+    -0.18,
+    0.85
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "cylinder",
+   "radius": 0.1,
+   "height": 0.7,
+   "sides": 10,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.38,
+    -0.18,
+    0.85
+   ],
+   "material": "part_copper"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.66,
+    0.66,
+    0.3
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -0.15
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.192,
+    0.192,
+    1.3
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -0.65
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.24,
+    0.12,
+    1.24
+   ],
+   "at": [
+    0.0,
+    0.204,
+    -0.62
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.24,
+    0.12,
+    1.24
+   ],
+   "at": [
+    0.0,
+    -0.204,
+    -0.62
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.168,
+    0.06,
+    1.28
+   ],
+   "at": [
+    0.0,
+    0.126,
+    -0.64
+   ],
+   "material": "part_rail"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.168,
+    0.06,
+    1.28
+   ],
+   "at": [
+    0.0,
+    -0.126,
+    -0.64
+   ],
+   "material": "part_rail"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.0144,
+    0.072,
+    1.1
+   ],
+   "at": [
+    0.0996,
+    0.0,
+    -0.6
+   ],
+   "material": "part_glow"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.0144,
+    0.072,
+    1.1
+   ],
+   "at": [
+    -0.0996,
+    0.0,
+    -0.6
+   ],
+   "material": "part_glow"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.528,
+    0.72,
+    0.1
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -0.35
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.528,
+    0.72,
+    0.1
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -0.72
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.528,
+    0.72,
+    0.1
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -1.09
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.6,
+    0.6,
+    0.28
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -1.34
+   ]
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.024,
+    0.384,
+    0.18
+   ],
+   "at": [
+    0.306,
+    0.0,
+    -1.34
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.024,
+    0.384,
+    0.18
+   ],
+   "at": [
+    -0.306,
+    0.0,
+    -1.34
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.384,
+    0.024,
+    0.18
+   ],
+   "at": [
+    0.0,
+    0.306,
+    -1.34
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.384,
+    0.024,
+    0.18
+   ],
+   "at": [
+    0.0,
+    -0.306,
+    -1.34
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "disc",
+   "radius": 0.192,
+   "thickness": 0.04,
+   "sides": 12,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -1.475
+   ]
+  },
+  {
+   "primitive": "disc",
+   "radius": 0.132,
+   "thickness": 0.02,
+   "sides": 12,
+   "rotate": [
+    90.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -1.49
+   ],
+   "material": "part_throat"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.9,
+    0.05,
+    0.012
+   ],
+   "at": [
+    0.0,
+    0.42,
+    -0.006
+   ],
+   "material": "part_amber"
+  },
+  {
+   "primitive": "box",
+   "size": [
+    0.9,
+    0.05,
+    0.012
+   ],
+   "at": [
+    0.0,
+    -0.42,
+    -0.006
+   ],
+   "material": "part_amber"
+  }
+ ]
+}
