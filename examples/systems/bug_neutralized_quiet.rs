@@ -255,7 +255,9 @@ fn boat(sections: &GameSections) -> SpaceshipConfig {
                     "basic_controller_section",
                     Vec3::new(0.0, 0.0, 1.0),
                 ),
-                SectionSpec::new("boat_tube", "torpedo_section", Vec3::new(0.0, 0.0, -1.0)),
+                // The 1x1x2 tube seats on the half cell so both of its cells
+                // land on the grid and its back plate mates the hull.
+                SectionSpec::new("boat_tube", "torpedo_section", Vec3::new(0.0, 0.0, -1.5)),
             ],
         )
     }

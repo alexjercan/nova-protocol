@@ -85,10 +85,12 @@ pub fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> Scena
                     source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
                     modifications: vec![],
                 },
+                // The 1x1x2 tube seats on the half cell; its aft flank socket
+                // at z 1.0 mates the hull's -X face.
                 at(
                     "player_torpedo",
                     "torpedo_section",
-                    Vec3::new(-1.0, 0.0, 1.0),
+                    Vec3::new(-1.0, 0.0, 0.5),
                 ),
             ],
             ..default()

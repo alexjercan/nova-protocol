@@ -541,7 +541,9 @@ fn bay_position(i: usize) -> Vec3 {
     Vec3::new(
         (i % side as usize) as f32 - half,
         (i / side as usize) as f32 - half,
-        0.0,
+        // The 1x1x2 tube seats on the half cell so both of its cells land on
+        // the grid and its fore flank sockets mate the controller at z 0.
+        0.5,
     )
 }
 
