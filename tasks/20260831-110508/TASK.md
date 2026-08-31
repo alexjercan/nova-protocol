@@ -69,6 +69,10 @@ The menu-backed stills print the workspace version in their corner, so
 until the release bump lands. Re-run `screenshot_menu` and
 `gen-web-screenshots.py` after step 2 of "Cutting a release".
 
+RESOLVED in `df7fc315`: the bump landed in `dbed1dcc`, the three stills and
+the post's `news-0120-controls.png` were re-cut, and the menu card now reads
+`v0.12.0`.
+
 ## Rejected
 
 - A figure on the wide `vfx-range` loop. The pose is sized for the frame-time
