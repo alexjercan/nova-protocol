@@ -52,6 +52,7 @@ shared `base` block and one kind-specific block:
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
 | `base.hide_in_editor` | bool | `false` | `true` hides the prototype from the editor palette. Ships can still reference it. |
 | `base.damage_effects` | effect list | `([Cracks])` | The damage looks this section wears. Omitted means its surface cracks, which is what every section does unless it says otherwise. |
+| `base.animations` | track list | `[]` | Art the section moves when a gameplay cue calls for it - a bay's iris, a turret's stow. Omitted means the section has no moving parts. |
 | `kind` | section kind | required | `Hull((...))`, `Thruster((...))`, `Controller((...))`, `Turret((...))`, or `Torpedo((...))`. |
 
 Collider forms:
@@ -208,6 +209,89 @@ Resizing a whole ASSEMBLY (a turret's joint tree) takes both halves: scale every
 joint's mesh AND every joint offset by the same factor, or the parts stay spaced
 for the size they used to be.
 
+### Animation tracks
+
+`base.animations` is what makes a section's art MOVE. It is a list of TRACKS,
+and one track binds a gameplay CUE to a set of named nodes and says what their
+travelled pose is:
+
+```ron
+animations: [
+    (
+        cue: MuzzleDoor,
+        node_prefix: "door_petal_",
+        motion: RotateX(degrees: 105.0),
+        open_seconds: 0.25,
+        close_seconds: 0.7,
+    ),
+],
+```
+
+That is the shipped torpedo bay, whole: the six iris petals modelled into
+`bay_tube.glb` as `door_petal_0..5`, folding 105 degrees out of the muzzle in a
+quarter second and closing again over 0.7.
+
+The runtime holds one PROGRESS number per track, 0 at rest and 1 fully
+travelled, and every frame it composes `motion` at that progress onto the pose
+the node was modelled at. Content owns WHAT moves; the section kind's own
+systems own WHEN, by steering the cue.
+
+- `cue` - the gameplay moment that drives this track. The set is closed
+  (`MuzzleDoor`, `StowLift`, `StowDoors` - see the table below); a mod picks
+  from it rather than inventing one. Several tracks may share a cue, and a cue
+  no system on this section steers simply rests at 0.
+- `node_prefix` - which nodes move, by NAME PREFIX: `"door_petal_"` takes
+  `door_petal_0` through `door_petal_5`. A prefix and not a list, so art can
+  change the part count without the track being re-authored. The match runs
+  over every named node under the section, which is why a turret joint given a
+  `name` is steered by exactly the same track machinery as a node modelled
+  inside a glb.
+- `motion` - the pose at full progress, one of two:
+  - `RotateX(degrees: N)` turns each node about its own LOCAL X axis. Local X
+    is the hinge convention: the part is modelled with its origin ON the hinge
+    line and X along it, and its placement transform aims the hinge. That is
+    how ONE track swings the bay's six petals on six different hinges.
+  - `Translate(offset: (x, y, z))` slides each node by `offset`, measured in
+    that node's own rest frame. Same one-track-many-nodes rule: the PDC's two
+    housing lids are modelled mirror-rotated, so one signed travel closes both
+    toward each other.
+- `open_seconds` - seconds progress takes to run 0 -> 1.
+- `close_seconds` - seconds progress takes to run 1 -> 0. Either value at zero
+  or below SNAPS that direction instead of travelling it.
+
+Which direction reads as "opening" is yours to choose, because progress 1 is
+whatever the track says it is. The bay's 1 is an open iris, so it opens in
+`open_seconds`. The PDC's 1 is a STOWED gun, so `close_seconds` is the number
+that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.
+
+Who raises each cue:
+
+| cue | steered by | progress 1 is |
+|---|---|---|
+| `MuzzleDoor` | The torpedo bay's fire path, on the HELD trigger - and only while the bay could genuinely fire, so weapons safety or an empty magazine keeps the iris shut. A launched round holds it open across the cold coast, so a tapped trigger closes the doors behind the torpedo rather than on it. | open |
+| `StowLift` | The turret's stow machine. | sunk into the housing |
+| `StowDoors` | The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it. | shut over the sunk gun |
+
+Authoring a `StowLift` track is what MAKES a turret retractable - the stow
+machine is armed on turrets that have one and on no others. Such a turret
+spawns stowed, deploys when its ship goes weapons hot, tracks a body, or is
+assigned to point defense, and folds away again after four quiet seconds. It
+cannot track or fire until it is fully up, which is the cost the mount pays for
+being a smaller target. A ship that manages no weapons safety of its own reads
+as hot, so a bare test rig deploys at spawn and stays up; an editor preview
+carries no stow machine at all and shows the deployed gun, which is the pose
+the art is modelled at.
+
+Tracks move ART. A section's collider, its link points and its mass stay where
+they were authored whatever a track is doing, so a bay with a shut iris weighs
+the same and occupies the same cells as an open one, and its launch point does
+not budge. A track that moves a turret JOINT is the one case that carries
+gameplay geometry with it - the joints above it swing down too, muzzles
+included - which is exactly why a stowed mount is held off tracking and firing
+until it is back up.
+
+<!-- Grammar verified against crates/nova_ship/src/sections/section_animation.rs (cues :35-49, motions :55-97, fields :105-118, prefix match :267, travel + snap :303-321) and crates/nova_ship/src/sections/turret_section/stow.rs (armed on StowLift :101, live turrets only :82-92, spawns stowed :104-105, deploy gate :72-74, demand and unmanaged fail-open :169-172, settle 4.0 s :21, sequencing :190-231) and crates/nova_ship/src/sections/torpedo_section/bay.rs (held trigger :551-568). Values from assets/base/sections/base.content.ron (bay :2008-2018, PDC :1156-1183). -->
+
 ## Hull
 
 `HullSectionConfig` - passive armor. One optional field:
@@ -355,12 +439,13 @@ fires bullets. The mount is an arbitrary tree of joints (`root`): each joint
 sits at an `offset` from its parent, optionally rotates about an `axis` (a hinge
 the aim solver drives), optionally carries a `render_mesh`, optionally is a
 `muzzle` (a fire point), and hangs `children` joints off itself. Today's turret
-is one specific tree - base(fixed) -> yaw(axis Y) -> pitch(axis X) ->
-barrel(fixed) -> muzzle - but you can build twin barrels, extra hinges, or a
-turret whose elevation lives two joints down. The shipped
+is one specific tree - housing(fixed) -> stow lift(fixed, named) -> yaw(axis Y)
+-> pitch(axis X) -> barrel(fixed) -> muzzle - but you can build twin barrels,
+extra hinges, or a turret whose elevation lives two joints down. The shipped
 `pdc_kinetic_turret_section` is the reference. Its `base` block is half the
 part - a 0.5 mount box with ONE socket on its underside is why the same gun
-bolts to any hull face:
+bolts to any hull face, and the two stow tracks are why it sinks out of sight
+between fights:
 
 ```ron
 base: (
@@ -369,30 +454,51 @@ base: (
     collider: Some(Cuboid(size: (0.5, 0.5, 0.5))),
     link_points: [(id: "base", position: (0.0, -0.25, 0.0), normal: (0.0, -1.0, 0.0))],
     damage_effects: ([Cracks, Sparks]),
+    animations: [
+        (
+            cue: StowLift,
+            node_prefix: "stow_lift",
+            motion: Translate(offset: (0.0, -0.8, 0.0)),              // sink the column
+            open_seconds: 0.9,
+            close_seconds: 0.35,
+        ),
+        (
+            cue: StowDoors,
+            node_prefix: "stow_lid_",
+            motion: Translate(offset: (-0.24, 0.0, 0.0)),             // slide both lids shut
+            open_seconds: 0.5,
+            close_seconds: 0.25,
+        ),
+    ],
     // name, description and sounds omitted
 ),
 kind: Turret((
     root: (
-        offset: (0.0, -0.25, 0.0),                                    // base (fixed)
-        render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
+        offset: (0.0, -0.25, 0.0),                                    // housing (fixed)
+        render_mesh: Some("dep://base/gltf/pdc_housing.glb#Scene0"),
         children: [(
-            offset: (0.0, 0.05, 0.0),
-            axis: Some((0.0, 1.0, 0.0)),                              // yaw hinge (Y)
-            render_mesh: Some("dep://base/gltf/turret-yaw-01.glb#Scene0"),
-            render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
+            offset: (0.0, 0.0, 0.0),                                  // stow elevator (fixed)
+            name: Some("stow_lift"),
+            render_mesh_transform: Some((position: (0.0, 0.33, 0.0), scale: (0.44, 0.44, 0.44))),
             children: [(
-                offset: (0.0, 0.166353, 0.151977),
-                axis: Some((1.0, 0.0, 0.0)),                          // pitch hinge (X)
-                min: Some(-0.17453294), max: Some(1.5707964),         // pitch limits
-                render_mesh: Some("dep://base/gltf/turret-pitch-01.glb#Scene0"),
+                offset: (0.0, 0.4, 0.0),
+                axis: Some((0.0, 1.0, 0.0)),                          // yaw hinge (Y)
+                render_mesh: Some("dep://base/gltf/pdc_gatling_yaw.glb#Scene0"),
                 render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
                 children: [(
-                    offset: (0.0, 0.0642185, -0.0553645),             // barrel (fixed)
-                    render_mesh: Some("dep://base/gltf/turret-barrel-01.glb#Scene0"),
+                    offset: (0.0, 0.2, 0.0),
+                    axis: Some((1.0, 0.0, 0.0)),                      // pitch hinge (X)
+                    min: Some(-0.17453294), max: Some(1.5707964),     // -10 deg to +90 deg
+                    render_mesh: Some("dep://base/gltf/pdc_gatling_pitch.glb#Scene0"),
                     render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
                     children: [(
-                        offset: (0.0, 0.0, -0.6),                     // muzzle (fixed)
-                        muzzle: Some((fire_rate: 100.0)),
+                        offset: (0.0, 0.01, -0.05),                   // barrel (fixed)
+                        render_mesh: Some("dep://base/gltf/pdc_gatling_barrel.glb#Scene0"),
+                        render_mesh_transform: Some((scale: (0.5, 0.5, 0.5))),
+                        children: [(
+                            offset: (0.0, 0.0, -0.475),               // muzzle (fixed)
+                            muzzle: Some((fire_rate: 100.0)),
+                        )],
                     )],
                 )],
             )],
@@ -428,11 +534,14 @@ Per-joint fields (on every `root`/`children` node):
 - `render_mesh_transform` (optional) - re-seats or resizes this joint's render
   mesh visually without moving the hinge or the collider. It also sizes the
   DEFAULT primitive an unmeshed joint gets, which is a full unit across - scale
-  it with the rest, or a small turret wears a hull-sized base plate.
-- `name` (optional) - names this joint so a section animation track can steer
-  it, exactly as a track matches a named node inside a scene mesh (the shipped
-  PDC names its elevator joint `stow_lift` and its stow track targets that).
-  Omit it on a joint no track touches.
+  it with the rest, or a small turret wears a hull-sized base plate. The PDC's
+  elevator joint is that primitive put to work: no mesh of its own, shrunk and
+  lifted into the disc the gun stands on.
+- `name` (optional) - names this joint so a section
+  [animation track](#animation-tracks) can steer it, exactly as a track matches
+  a named node inside a scene mesh (the shipped PDC names its elevator joint
+  `stow_lift`, and the `StowLift` track above targets that name). Omit it on a
+  joint no track touches.
 - `muzzle` (optional) - marks this joint a fire point: `Some((fire_rate: N))`
   (rounds per second), plus an optional `muzzle_effect` flash asset ref. A turret
   aims and fires ALL of its muzzles: hang two off one barrel for a twin PDC, or
@@ -536,7 +645,10 @@ kind: Torpedo((
   down. Omit for a silent detonation.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh. Omit `projectile_render_mesh` and the warhead flies as the
-  built-in coned body, nose along its direction of travel.
+  built-in coned body, nose along its direction of travel. The shipped tube
+  carries the `door_petal_*` iris nodes its `MuzzleDoor`
+  [animation track](#animation-tracks) folds open; a bay drawn with other art
+  simply has no doors to move.
 - `render_mesh_transform` (optional) - visual-only bay mesh position, rotation
   and scale. It does not move the launch point.
 - `spawn_offset` (`Vec3`), `spawn_rotation` (`Quat`, a bare 4-tuple) - the
