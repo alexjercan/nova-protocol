@@ -45,7 +45,9 @@
 //! example's own cameras stand down - no `Q`/`E`/`1-4`, no idle orbit, the
 //! chase-camera authority owns the view. REFUSED under `NOVA_AUTOPILOT`: a hull
 //! waiting on human input would stall the fight predicate into its deadline, so
-//! a run that asks for both fails loudly.
+//! a run that asks for both fails loudly. Its guns come bound
+//! ([`player_bindings`]): turrets on the left mouse, tubes on `F`, the bow
+//! lance on `R`.
 //!
 //! ```text
 //! cargo run --example wfc_arena --features debug
@@ -306,6 +308,9 @@ const SERPENT_BAY: &str = "torpedo_section";
 const LANCE_BAY: &str = "lance_torpedo_section";
 const KINETIC_MOUNT: &str = "pdc_kinetic_turret_section";
 const PIERCE_MOUNT: &str = "pdc_pierce_turret_section";
+/// The bow gun [`wfc::stamp_spinal_lance`] bolts on. Aliased rather than
+/// spelled out: the stamp and the keybind have to name the same section.
+const SPINAL_LANCE: &str = RAILGUN_LANCE_SECTION_ID;
 
 /// The scenario id prefix every combatant spawns under, so the follow cameras
 /// can find a roster SLOT in the live world.
@@ -879,9 +884,16 @@ fn spawn_position(team: usize, index: usize, strength: usize) -> Vec3 {
 
 /// The player's weapon bindings for a drafted hull, by prototype: every gun
 /// the collapse mounted on the left mouse (the campaign's own turret binding,
-/// gamepad right trigger beside it) and every tube on `F` - the mouse's right
-/// button is the raise-weapons gesture and the reserved flight-rig sources
-/// (`flight_rig_reserved_sources`) are all keys the rig already spends.
+/// gamepad right trigger beside it), every tube on `F`, and the bow lance on
+/// `R` - the mouse's right button is the raise-weapons gesture and the
+/// reserved flight-rig sources (`flight_rig_reserved_sources`) are all keys
+/// the rig already spends.
+///
+/// The lance gets a key of its OWN rather than joining the turrets on the
+/// mouse: it is one committed shot on a twelve-second reload, and a pilot
+/// holding fire on a swarm would burn it on the first frame of every reload.
+/// `R` is free in the flight context - NOVA OS spends it, but that is the
+/// viewer context, exactly as it already spends the tubes' `F`.
 fn player_bindings(
     hull: &ShipHull,
     slot: usize,
@@ -899,6 +911,7 @@ fn player_bindings(
                     GamepadButton::RightTrigger2.into(),
                 ],
                 SERPENT_BAY | LANCE_BAY => vec![KeyCode::KeyF.into()],
+                SPINAL_LANCE => vec![KeyCode::KeyR.into()],
                 _ => return None,
             };
             Some((
@@ -2262,4 +2275,65 @@ fn arena_script(
         .until(loop_written(loop_name))
         .deadline(60.0)
         .add()
+}
+
+#[cfg(test)]
+mod binding_tests {
+    use super::*;
+
+    /// A bound weapon that the flight rig ALSO answers double-drives the ship:
+    /// both rigs run with `consume_input: false`, so one press would fire the
+    /// gun and fly the hull. This is the guard the doc on [`player_bindings`]
+    /// promises, over every gun the arena hands a player.
+    #[test]
+    fn no_arena_weapon_binding_lands_on_a_key_the_flight_rig_spends() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = wfc::tile_set(&sections);
+        let reserved: Vec<InputSource> = flight_rig_reserved_sources()
+            .into_iter()
+            .map(|(source, _)| source)
+            .collect();
+
+        for seed in 0..6u64 {
+            let mut hull = wfc_hull(&tiles, seed, true, None);
+            wfc::stamp_large_drives(&mut hull, seed, &sections);
+            wfc::stamp_spinal_lance(&mut hull, &sections);
+            for (id, sources) in player_bindings(&hull, 0, &BTreeMap::new()) {
+                for source in sources {
+                    assert!(
+                        !reserved.contains(&source),
+                        "seed {seed}: '{id}' is bound to a source the flight rig \
+                         already answers: {source:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The bow gun is useless to a player it is not bound for, and it does NOT
+    /// join the turrets on the mouse: one shell on a long reload cannot share
+    /// a trigger with guns a pilot holds down.
+    #[test]
+    fn the_bow_lance_gets_its_own_key_and_not_the_turrets_button() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let mut hull = ShipHull::default();
+        wfc::stamp_spinal_lance(&mut hull, &sections);
+        let lance = hull
+            .sections
+            .last()
+            .expect("the stamp pushed one")
+            .id
+            .clone();
+
+        let bindings = player_bindings(&hull, 0, &BTreeMap::new());
+        assert_eq!(
+            bindings.get(&lance),
+            Some(&vec![InputSource::from(KeyCode::KeyR)]),
+            "the lance answers R"
+        );
+        assert!(
+            !bindings[&lance].contains(&InputSource::from(MouseButton::Left)),
+            "and never the turrets' held trigger"
+        );
+    }
 }

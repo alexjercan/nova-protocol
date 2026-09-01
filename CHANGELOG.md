@@ -66,8 +66,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 - A section declares animation tracks on its base config: a cue, nodes by name
@@ -110,8 +110,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 - The Ledger (1.25.0 -> 1.26.0): all five chapters rewritten onto `once`, keyed
@@ -691,8 +691,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1078,8 +1078,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1199,8 +1199,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1317,8 +1317,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1406,8 +1406,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1458,8 +1458,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1681,8 +1681,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1692,8 +1692,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Tooling & Examples
 - The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, and carves whatever the collapse hung in
-  front of the bore.
+  answer to its stern drive stamp, carves whatever the collapse hung in front of
+  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 

@@ -179,7 +179,9 @@ Flown in the sandbox, and three things came back.
   contact mating with the gun on. Whether the AI actually SPENDS it is
   `20260901-104359`'s problem, not this one's: the envelope is deliberately
   crude and only commits when an orbit happens to sweep the bore across a
-  target.
+  target. A `:player` slot gets the gun on `R` - its own key and not the
+  turrets' held mouse button, because one shell on a long reload cannot share
+  a trigger with guns a pilot leans on.
 - **Mouse sensitivity makes it hard to aim**, and the owner's read was that
   this is fair for a one-shot weapon. Left alone.
 
