@@ -161,6 +161,31 @@ the stance takes away, and a second way to do it would be a mechanic to teach
 for no new capability. `rcs_modifier` is the shape to copy if playtest
 disagrees.
 
+## Third pass: what the first playtest said
+
+Flown in the sandbox, and three things came back.
+
+- **The sight went away during the reload, and that read as broken.** It was
+  written to draw only a LOADED lance - "no shell, no shot to aim". Wrong: the
+  reload is twelve seconds and it is exactly when a pilot is lining the next
+  shot up, so taking the only aiming instrument away for it was taking it away
+  when it was needed most. It now stays up DIMMED, with the rings still on what
+  the next shot would take off. The dim is the "not yet"; the ammo gauge is the
+  countdown.
+- **The arena wants one.** `wfc_arena` now stamps a spinal lance on every
+  generated bow - the nose's answer to `stamp_large_drives` - standing on the
+  bow keel cell `seed_keel` guarantees is solid, with everything the collapse
+  hung past the bow face carved off first. The arena's own lint reports every
+  contact mating with the gun on. Whether the AI actually SPENDS it is
+  `20260901-104359`'s problem, not this one's: the envelope is deliberately
+  crude and only commits when an orbit happens to sweep the bore across a
+  target.
+- **Mouse sensitivity makes it hard to aim**, and the owner's read was that
+  this is fair for a one-shot weapon. Left alone.
+
+Open: the frame rate is down since this pass. Unresolved, and the cause is not
+yet established - see the note in the session, not guessed at here.
+
 Verified: the range passes all five invariants under autopilot at damage 300;
 the lance's cycle, the charge glow and the fire kick run clean in a live Xvfb
 session; the sight has four tests over the real system, including the two that

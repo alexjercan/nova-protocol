@@ -27,8 +27,12 @@
 //! of its own: holding the combat stance freezes the hull's heading, but a
 //! COMBAT LOCK keeps the weapons hot with the stance released - so the sight
 //! is live in normal flight, where the mouse still steers, and the loop is
-//! lock the target, align, then commit. A lance with an empty magazine draws
-//! nothing: there is no shot to aim.
+//! lock the target, align, then commit.
+//!
+//! A lance with an EMPTY magazine still draws, DIMMED. The reload is twelve
+//! seconds and it is exactly when a pilot wants to be lining the next shot up,
+//! so taking the only aiming instrument away for it made the sight look
+//! broken. The dim is the "not yet"; the ammo gauge is the countdown.
 //!
 //! # What it is drawn with
 //!
@@ -64,9 +68,15 @@ const MARK_RADIUS: f32 = 0.55;
 /// Kill-ring tube thickness, world units.
 const MARK_MINOR_RADIUS: f32 = 0.045;
 
-/// Opacity of the sight line and of a kill ring.
+/// Opacity of the sight line and of a kill ring on a LOADED lance.
 const LINE_ALPHA: f32 = 0.5;
 const MARK_ALPHA: f32 = 0.85;
+
+/// What the sight's opacity is multiplied by while the magazine is empty.
+///
+/// Faint enough that "cannot fire" is the first thing read off it, solid
+/// enough to still aim down through a twelve-second reload.
+const EMPTY_ALPHA_SCALE: f32 = 0.3;
 
 /// Ceiling on how many layers the trace will walk in one frame.
 ///
@@ -107,8 +117,39 @@ pub struct BoreSightMark {
 struct BoreSightAssets {
     line_mesh: Option<Handle<Mesh>>,
     mark_mesh: Option<Handle<Mesh>>,
-    line_material: Option<Handle<StandardMaterial>>,
-    mark_material: Option<Handle<StandardMaterial>>,
+    /// Indexed by [`SightState`]: the loaded look, then the reloading one.
+    line_material: [Option<Handle<StandardMaterial>>; 2],
+    mark_material: [Option<Handle<StandardMaterial>>; 2],
+}
+
+/// Whether the lance this sight belongs to could fire right now. The ONLY
+/// thing that changes about the sight, and it changes opacity and nothing
+/// else: the line still ends where the shot would end and the rings still
+/// name what it would take off, because that is what a pilot is reading
+/// through the reload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SightState {
+    /// A shell is loaded.
+    Loaded,
+    /// The magazine is empty and the reload is running.
+    Reloading,
+}
+
+impl SightState {
+    fn index(self) -> usize {
+        match self {
+            Self::Loaded => 0,
+            Self::Reloading => 1,
+        }
+    }
+
+    /// What the base opacity is scaled by in this state.
+    fn alpha_scale(self) -> f32 {
+        match self {
+            Self::Loaded => 1.0,
+            Self::Reloading => EMPTY_ALPHA_SCALE,
+        }
+    }
 }
 
 impl BoreSightAssets {
@@ -132,18 +173,20 @@ impl BoreSightAssets {
     fn line_material(
         &mut self,
         materials: &mut Assets<StandardMaterial>,
+        state: SightState,
     ) -> Handle<StandardMaterial> {
-        self.line_material
-            .get_or_insert_with(|| materials.add(sight_material(LINE_ALPHA)))
+        self.line_material[state.index()]
+            .get_or_insert_with(|| materials.add(sight_material(LINE_ALPHA * state.alpha_scale())))
             .clone()
     }
 
     fn mark_material(
         &mut self,
         materials: &mut Assets<StandardMaterial>,
+        state: SightState,
     ) -> Handle<StandardMaterial> {
-        self.mark_material
-            .get_or_insert_with(|| materials.add(sight_material(MARK_ALPHA)))
+        self.mark_material[state.index()]
+            .get_or_insert_with(|| materials.add(sight_material(MARK_ALPHA * state.alpha_scale())))
             .clone()
     }
 }
@@ -259,9 +302,12 @@ fn trace_bore(
     }
 }
 
-/// Own the sight: one line and N kill rings per LOADED player lance while the
+/// Own the sight: one line and N kill rings per live player lance while the
 /// weapons are hot, updated every frame, gone the moment any of that stops
 /// being true.
+///
+/// An empty magazine DIMS the sight rather than removing it - see the module
+/// doc. A destroyed lance and a cold ship still take it away entirely.
 ///
 /// A reconcile pass rather than spawn/despawn observers, for the reasons the
 /// rest of the HUD uses one: a lance dies mid-fight, a magazine empties, and
@@ -295,8 +341,24 @@ fn sync_bore_sight(
     q_collider_of: Query<&ColliderOf>,
     q_health: Query<&Health>,
     q_global: Query<&GlobalTransform>,
-    mut q_segment: Query<(Entity, &BoreSightSegment, &mut Transform), Without<BoreSightMark>>,
-    mut q_mark: Query<(Entity, &BoreSightMark, &mut Transform), Without<BoreSightSegment>>,
+    mut q_segment: Query<
+        (
+            Entity,
+            &BoreSightSegment,
+            &mut Transform,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        Without<BoreSightMark>,
+    >,
+    mut q_mark: Query<
+        (
+            Entity,
+            &BoreSightMark,
+            &mut Transform,
+            &mut MeshMaterial3d<StandardMaterial>,
+        ),
+        Without<BoreSightSegment>,
+    >,
 ) {
     // A ship with no `WeaponsHot` is unmanaged (a bare rig); it has no player
     // looking at a HUD either, so it draws nothing rather than reading as hot.
@@ -305,17 +367,25 @@ fn sync_bore_sight(
         .find(|(_, hot)| hot.is_some_and(|hot| hot.0))
         .map(|(ship, _)| ship);
 
-    let mut drawn: Vec<(Entity, Transform, Vec<Transform>)> = Vec::new();
+    /// One lance's sight for this frame.
+    struct Drawn {
+        lance: Entity,
+        state: SightState,
+        line: Transform,
+        marks: Vec<Transform>,
+    }
+
+    let mut drawn: Vec<Drawn> = Vec::new();
     if let Some(ship) = hot_player {
         for (lance, &ChildOf(parent), global, config, charge, ammo) in &q_lance {
             if parent != ship {
                 continue;
             }
-            // Nothing loaded is nothing to aim. The reload's own tell is the
-            // ammo gauge; the sight simply leaves.
-            if ammo.is_some_and(SectionAmmo::is_empty) {
-                continue;
-            }
+            let state = if ammo.is_some_and(SectionAmmo::is_empty) {
+                SightState::Reloading
+            } else {
+                SightState::Loaded
+            };
             // The RENDERED pose, unlike the shot itself: the sight has to leave
             // the muzzle the player can see, and inside `Update` that is the
             // eased transform rather than the raw physics one.
@@ -357,57 +427,76 @@ fn sync_bore_sight(
                     ..default()
                 })
                 .collect();
-            drawn.push((lance, line, marks));
+            drawn.push(Drawn {
+                lance,
+                state,
+                line,
+                marks,
+            });
         }
     }
 
     // Re-pose what is already there, and drop anything whose lance stopped
-    // drawing (destroyed, empty, safed, or simply fewer kills this frame).
-    for (entity, segment, mut transform) in &mut q_segment {
-        match drawn.iter().find(|(lance, ..)| *lance == segment.lance) {
-            Some((_, line, _)) => *transform = *line,
+    // drawing (destroyed, safed, or simply fewer kills this frame). The
+    // material is reconciled too, and only WRITTEN when it changes: a swap
+    // every frame would flag the whole sight dirty for nothing.
+    for (entity, segment, mut transform, mut material) in &mut q_segment {
+        match drawn.iter().find(|d| d.lance == segment.lance) {
+            Some(d) => {
+                *transform = d.line;
+                let wanted = assets.line_material(&mut materials, d.state);
+                if material.0 != wanted {
+                    material.0 = wanted;
+                }
+            }
             None => commands.entity(entity).despawn(),
         }
     }
-    for (entity, mark, mut transform) in &mut q_mark {
+    for (entity, mark, mut transform, mut material) in &mut q_mark {
         match drawn
             .iter()
-            .find(|(lance, ..)| *lance == mark.lance)
-            .and_then(|(_, _, marks)| marks.get(mark.index))
+            .find(|d| d.lance == mark.lance)
+            .and_then(|d| d.marks.get(mark.index).map(|pose| (d.state, pose)))
         {
-            Some(pose) => *transform = *pose,
+            Some((state, pose)) => {
+                *transform = *pose;
+                let wanted = assets.mark_material(&mut materials, state);
+                if material.0 != wanted {
+                    material.0 = wanted;
+                }
+            }
             None => commands.entity(entity).despawn(),
         }
     }
 
     // Spawn what is missing. Counting what already exists is cheaper than a
     // second pass and keeps this one idempotent.
-    for (lance, line, marks) in &drawn {
-        if !q_segment.iter().any(|(_, seg, _)| seg.lance == *lance) {
+    for d in &drawn {
+        if !q_segment.iter().any(|(_, seg, ..)| seg.lance == d.lance) {
             let mesh = assets.line_mesh(&mut meshes);
-            let material = assets.line_material(&mut materials);
+            let material = assets.line_material(&mut materials, d.state);
             commands.spawn((
                 Name::new("Bore Sight"),
-                BoreSightSegment { lance: *lance },
+                BoreSightSegment { lance: d.lance },
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
-                *line,
+                d.line,
                 NotShadowCaster,
             ));
         }
-        for (index, pose) in marks.iter().enumerate() {
+        for (index, pose) in d.marks.iter().enumerate() {
             if q_mark
                 .iter()
-                .any(|(_, mark, _)| mark.lance == *lance && mark.index == index)
+                .any(|(_, mark, ..)| mark.lance == d.lance && mark.index == index)
             {
                 continue;
             }
             let mesh = assets.mark_mesh(&mut meshes);
-            let material = assets.mark_material(&mut materials);
+            let material = assets.mark_material(&mut materials, d.state);
             commands.spawn((
                 Name::new("Bore Sight Kill"),
                 BoreSightMark {
-                    lance: *lance,
+                    lance: d.lance,
                     index,
                 },
                 Mesh3d(mesh),
@@ -619,10 +708,24 @@ mod tests {
         assert_eq!(lines(&mut app), 1, "hot, and the sight comes up");
     }
 
-    /// An empty magazine is nothing to aim. The reload has its own tell on the
-    /// ammo gauge; the sight just leaves rather than promising a shot.
+    /// The line a segment is currently wearing.
+    fn line_alpha(app: &mut App) -> f32 {
+        let world = app.world_mut();
+        let mut q =
+            world.query_filtered::<&MeshMaterial3d<StandardMaterial>, With<BoreSightSegment>>();
+        let handle = q.iter(world).next().expect("a segment is drawn").0.clone();
+        world
+            .resource::<Assets<StandardMaterial>>()
+            .get(&handle)
+            .expect("its material is live")
+            .base_color
+            .alpha()
+    }
+
+    /// A reload is twelve seconds of holding a heading, so the sight stays up
+    /// through it - dimmed, because the gun cannot answer yet.
     #[test]
-    fn an_empty_lance_draws_no_sight() {
+    fn a_reloading_lance_keeps_a_dimmed_sight() {
         let mut app = sight_app();
         let (_, lance) = spawn_lance_ship(&mut app, RailgunSectionConfig::default(), true);
         spawn_plate(&mut app, -10.0, 100.0);
@@ -631,12 +734,50 @@ mod tests {
             .insert(SectionAmmo::new(1));
         settle(&mut app);
         assert_eq!(lines(&mut app), 1, "a loaded shell draws its line");
+        let loaded = line_alpha(&mut app);
 
         app.world_mut()
             .get_mut::<SectionAmmo>(lance)
             .unwrap()
             .rounds = 0;
         settle(&mut app);
-        assert_eq!(lines(&mut app), 0, "spent, and the line goes with it");
+        assert_eq!(
+            lines(&mut app),
+            1,
+            "spent, and the line is still there to aim"
+        );
+        let reloading = line_alpha(&mut app);
+        assert!(
+            reloading < loaded,
+            "but faint, so the pilot reads 'not yet': {reloading} against {loaded}"
+        );
+
+        app.world_mut()
+            .get_mut::<SectionAmmo>(lance)
+            .unwrap()
+            .rounds = 1;
+        settle(&mut app);
+        assert_eq!(
+            line_alpha(&mut app),
+            loaded,
+            "and the shell coming back is what brings it up again"
+        );
+    }
+
+    /// A destroyed lance is a different thing from an empty one: it takes its
+    /// sight with it.
+    #[test]
+    fn a_dead_lance_draws_no_sight() {
+        let mut app = sight_app();
+        let (_, lance) = spawn_lance_ship(&mut app, RailgunSectionConfig::default(), true);
+        spawn_plate(&mut app, -10.0, 100.0);
+        settle(&mut app);
+        assert_eq!(lines(&mut app), 1, "a live lance draws its line");
+
+        app.world_mut()
+            .entity_mut(lance)
+            .insert(SectionInactiveMarker);
+        settle(&mut app);
+        assert_eq!(lines(&mut app), 0, "shot off, and the line goes with it");
     }
 }

@@ -7,9 +7,12 @@
 //! player's colors, the rest the enemy's, all under the campaign's AI pilot.
 //! This is the flyability bench for wfc ships - thrust against a collapsed
 //! hull's mass, turret arcs on a random silhouette, torpedo lanes that were
-//! only ever checked geometrically. After collapse, an arena-only seeded stern
-//! stamp fits one capital drive or two to three vector drives. It is a simple
-//! PoC for judging large propulsion, not the future game's ship grammar.
+//! only ever checked geometrically. After collapse, two arena-only stamps go
+//! on outside the grammar: a seeded stern stamp fitting one capital drive or
+//! two to three vector drives, and a bow stamp bolting a SPINAL LANCE to the
+//! keel cell at the nose. Both are simple PoCs - one for judging large
+//! propulsion, one for benching a gun the whole ship aims - and neither is the
+//! future game's ship grammar.
 //!
 //! Combatants are DRAFTED: the collapse arms hulls with wild variance, so the
 //! arena walks the seed stream from `--seed` and fields the first hulls that
@@ -789,6 +792,7 @@ fn combat_hull(
 ) -> ShipHull {
     let mut hull = wfc_hull(tiles, seed, true, style);
     wfc::stamp_large_drives(&mut hull, seed, sections);
+    wfc::stamp_spinal_lance(&mut hull, sections);
     load_lances(&mut hull, seed);
     hull
 }

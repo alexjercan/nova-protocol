@@ -1466,9 +1466,133 @@ pub fn stamp_large_drives(hull: &mut ShipHull, seed: u64, sections: &GameSection
     }
 }
 
+/// Bolt a SPINAL LANCE to the bow: the nose's answer to
+/// [`stamp_large_drives`].
+///
+/// Outside the collapse for the same reason the drives are. A three-cell
+/// section is not a WFC tile, and a gun the whole SHIP aims is a placement the
+/// grammar has no vocabulary for yet. The arena wants one anyway, because this
+/// is where the weapon is actually benched: AI against AI, on hulls nobody
+/// designed around it.
+///
+/// It stands on the BOW KEEL CELL, which [`seed_keel`] guarantees is solid, so
+/// the breech always has structure to mate with. The carve is the other half
+/// of the job and the more important one: a lance fires down its own axis and
+/// nothing may stand in front of the bore, so whatever the collapse hung past
+/// the bow face comes off before the gun goes on.
+#[allow(dead_code, reason = "shared module: the stamp is arena-only")]
+pub fn stamp_spinal_lance(hull: &mut ShipHull, sections: &GameSections) {
+    /// The grid's own bow face: the front of the `z = 0` cell row, which is
+    /// also the face the bow keel cell presents.
+    const BOW_FACE: f32 = -(LENGTH as f32) * 0.5;
+    /// Which column the gun stands on. Half a cell off the centreline, exactly
+    /// as the capital drive is - this grid's sections live on the
+    /// half-integer lattice, and the keel cell it bolts to is one of them.
+    /// The lance's own recoil rule makes that offset mean something: an
+    /// off-axis bore yaws the ship as well as pushing it, which on a hull this
+    /// size is a nudge and is the point.
+    const LANCE_X: f32 = 0.5;
+
+    let config = sections
+        .get_section(RAILGUN_LANCE_SECTION_ID)
+        .unwrap_or_else(|| panic!("wfc_arena: no section prototype `{RAILGUN_LANCE_SECTION_ID}`"));
+    let half = rotated_half_extents(config.base.collider.unwrap_or_default(), Quat::IDENTITY);
+
+    // Nothing forward of the bow face survives. A turret hung off the nose or
+    // a bay whose offset pushes it past the last row would sit INSIDE the
+    // barrel, and a plate there is a shot into your own hull.
+    hull.sections.retain(|section| {
+        let SectionSource::Prototype(id) = &section.source else {
+            panic!("wfc_arena: every generated section is a catalog prototype");
+        };
+        let config = sections
+            .get_section(id)
+            .unwrap_or_else(|| panic!("wfc_arena: no section prototype '{id}'"));
+        let extents =
+            rotated_half_extents(config.base.collider.unwrap_or_default(), section.rotation);
+        section.position.z - extents.z >= BOW_FACE - GRID_EPSILON
+    });
+
+    hull.sections.push(stamped_section(
+        "spinal_lance".to_string(),
+        RAILGUN_LANCE_SECTION_ID,
+        Vec3::new(LANCE_X, 0.0, BOW_FACE - half.z),
+    ));
+}
+
 #[cfg(test)]
 mod stamp_tests {
     use super::*;
+
+    /// The bore has to be EMPTY. Everything else about the stamp is taste;
+    /// this is the one thing that would make the gun shoot its own ship.
+    #[test]
+    fn the_bow_stamp_seats_one_lance_and_clears_the_bore_in_front_of_it() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = tile_set(&sections);
+        for seed in 0..6u64 {
+            let mut hull = wfc_hull(&tiles, seed, true, None);
+            stamp_large_drives(&mut hull, seed, &sections);
+            stamp_spinal_lance(&mut hull, &sections);
+
+            let lances: Vec<&SpaceshipSectionConfig> = hull
+                .sections
+                .iter()
+                .filter(|section| {
+                    matches!(&section.source,
+                        SectionSource::Prototype(id) if id == RAILGUN_LANCE_SECTION_ID)
+                })
+                .collect();
+            assert_eq!(lances.len(), 1, "seed {seed}: one bow, one lance");
+            let lance = lances[0];
+
+            let bore = lance.position.z;
+            for section in &hull.sections {
+                if std::ptr::eq(section, lance) {
+                    continue;
+                }
+                let SectionSource::Prototype(id) = &section.source else {
+                    unreachable!("every generated section is a catalog prototype")
+                };
+                let config = sections.get_section(id).expect("a catalog prototype");
+                let half = rotated_half_extents(
+                    config.base.collider.unwrap_or_default(),
+                    section.rotation,
+                );
+                assert!(
+                    section.position.z - half.z >= bore - GRID_EPSILON,
+                    "seed {seed}: '{}' stands in front of the muzzle",
+                    section.id
+                );
+            }
+        }
+    }
+
+    /// The breech has to land ON the bow keel cell's face, or the gun is a
+    /// three-cell section floating half a metre off the nose.
+    #[test]
+    fn the_lance_breech_meets_the_bow_keel_it_bolts_to() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let config = sections
+            .get_section(RAILGUN_LANCE_SECTION_ID)
+            .expect("the lance is in the catalog");
+        let half = rotated_half_extents(config.base.collider.unwrap_or_default(), Quat::IDENTITY);
+
+        let mut hull = ShipHull::default();
+        stamp_spinal_lance(&mut hull, &sections);
+        let lance = hull.sections.last().expect("the stamp pushed one");
+
+        let bow_face = -(LENGTH as f32) * 0.5;
+        assert!(
+            (lance.position.z + half.z - bow_face).abs() < GRID_EPSILON,
+            "the breech face sits on the bow face: {} against {bow_face}",
+            lance.position.z + half.z
+        );
+        // The keel is seeded down the x = 0.5 column, mirrored, so this is the
+        // one x the breech can meet structure at.
+        assert!((lance.position.x - HULL_GRID.origin.x).abs() < GRID_EPSILON);
+        assert!((lance.position.y).abs() < GRID_EPSILON);
+    }
 
     #[test]
     fn arena_stamps_one_capital_or_two_to_three_vector_drives() {
@@ -1535,6 +1659,22 @@ mod stamp_tests {
         for seed in [6, 7, 8, 20_260_829] {
             let mut hull = wfc_hull(&tiles, seed, true, None);
             stamp_large_drives(&mut hull, seed, &sections);
+            let placed = place(&hull, &sections);
+            refuse_unmated_contacts(&placed, &hull);
+        }
+    }
+
+    /// The bow stamp clears the same bar the stern one does: every contact it
+    /// leaves has to MATE. A lance resting a blind flank on a plate the carve
+    /// missed is the failure this catches, and it is invisible in a screenshot.
+    #[test]
+    fn the_bow_lance_mates_to_generated_bows() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let tiles = tile_set(&sections);
+        for seed in [6, 7, 8, 20_260_829] {
+            let mut hull = wfc_hull(&tiles, seed, true, None);
+            stamp_large_drives(&mut hull, seed, &sections);
+            stamp_spinal_lance(&mut hull, &sections);
             let placed = place(&hull, &sections);
             refuse_unmated_contacts(&placed, &hull);
         }
