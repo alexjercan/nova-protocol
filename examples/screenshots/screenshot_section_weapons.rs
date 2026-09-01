@@ -93,19 +93,24 @@ fn section_shots() -> [SectionShot; 3] {
             path: "wiki-section-turret.png",
         },
         // Twin turret: on the roof, turned so both tubes read side by side
-        // instead of eclipsing each other.
+        // instead of eclipsing each other. Framed at the DEPLOYED gun, a
+        // half cell above the housing it authored at - aiming at the mount
+        // coordinate frames the housing wall and leaves the raised gun a
+        // sliver at the top of the hull mass.
         SectionShot {
-            mount: Vec3::new(0.0, 0.75, -1.0),
+            mount: Vec3::new(0.0, 1.15, -1.0),
             faces: Vec3::new(0.55, 0.0, -1.0),
-            distance: 3.6,
+            distance: 2.4,
             path: "wiki-section-turret-twin.png",
         },
         // Torpedo bay: the opposite flank, so the ship turns most of a
-        // revolution. Angled to keep the open muzzle and a flank of the
-        // two-cell tube in one read.
+        // revolution. Muzzle-forward with a sliver of port flank: the iris
+        // has to read first, and the twin's stow housing on the fore roof
+        // stands a full cell tall now, so a flank-on framing buries the
+        // muzzle against it instead of the sky.
         SectionShot {
             mount: Vec3::new(-1.0, 0.0, 0.5),
-            faces: Vec3::new(-1.0, 0.0, -0.5),
+            faces: Vec3::new(-0.5, 0.0, -1.0),
             distance: 4.5,
             path: "wiki-section-torpedo-bay.png",
         },
