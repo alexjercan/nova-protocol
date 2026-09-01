@@ -15,9 +15,15 @@ THIRD-PARTY material the build includes and the licenses it carries.
 All game assets are original to the project unless listed under "Third-party
 assets" below:
 
-- **Sounds** (`assets/sounds/*.wav` UI chrome + `assets/base/sounds/*.wav`
-  world cues) - generated placeholders produced by
-  `scripts/gen-placeholder-sounds.py`; see the README in each directory.
+- **Sounds** (`assets/sounds/*.wav` interface chrome + `assets/base/sounds/*.wav`
+  world and avionics cues) - synthesised from scratch by the project's own
+  renderers: `scripts/gen-nova-os-sfx.py` (the NOVA OS terminal family),
+  `scripts/gen-ui-sfx.py` (the rest of the interface, plus the cockpit's lock,
+  radar and warning cues) and `scripts/gen-world-sfx.py` (guns, ordnance,
+  impacts, destruction, drives and handling), all over the shared DSP toolkit
+  in `scripts/nova_sfx.py`. No sample libraries and no third-party recordings
+  are involved, so they carry the project's own license; see the README in each
+  directory for what each file is and where its variation lives.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender
   sources in `art/blender/`.
 - **Hull cladding** - no files. A ship's skin is derived from the structure it

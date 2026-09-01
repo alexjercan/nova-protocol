@@ -37,17 +37,17 @@ pub(crate) fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
 
 /// The canonical UI-SFX asset paths held by the `GameAssets::ui_sfx` mapped
 /// collection - the single distinct file per entry in
-/// [`nova_gameplay::audio::UI_SFX_FILES`] (which has two keys sharing
-/// `ui_toggle`). The collection's `#[asset(paths(...))]` list MUST mirror this
+/// [`nova_gameplay::audio::UI_SFX_FILES`]. The collection's `#[asset(paths(...))]` list MUST mirror this
 /// (kept adjacent so they move together); `ui_sfx_collection_matches_ui_sfx_files`
 /// pins that this set covers exactly the files `UI_SFX_FILES` references, and
 /// that each file exists on disk.
 #[cfg(test)]
-const UI_SFX_COLLECTION_PATHS: [&str; 14] = [
+const UI_SFX_COLLECTION_PATHS: [&str; 15] = [
     "sounds/objective_new.wav",
     "sounds/objective_complete.wav",
     "sounds/menu_select.wav",
     "sounds/ui_toggle.wav",
+    "sounds/comms_line.wav",
     "sounds/nova_key.wav",
     "sounds/nova_back.wav",
     "sounds/nova_enter.wav",
@@ -219,6 +219,7 @@ pub struct GameAssets {
             "sounds/objective_complete.wav",
             "sounds/menu_select.wav",
             "sounds/ui_toggle.wav",
+            "sounds/comms_line.wav",
             "sounds/nova_key.wav",
             "sounds/nova_back.wav",
             "sounds/nova_enter.wav",

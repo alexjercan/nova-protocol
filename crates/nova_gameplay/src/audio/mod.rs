@@ -134,8 +134,7 @@ pub enum UiSfx {
     /// `On<Activate>` observer.
     MenuSelect,
     /// A comms line just SHOWED on the panel - a soft radio blip so a story
-    /// beat registers mid-fight. PLACEHOLDER AUDIO: reuses ui_toggle.wav until
-    /// real comms art lands (distinct key so the swap is one file-map line).
+    /// beat registers mid-fight.
     CommsLine,
     /// A pause overlay open/close toggle via ESC - a soft two-state UI blip.
     UiToggle,
@@ -173,8 +172,7 @@ pub const UI_SFX_FILES: [(UiSfx, &str); 15] = [
     (UiSfx::ObjectiveComplete, "objective_complete"),
     (UiSfx::MenuSelect, "menu_select"),
     (UiSfx::UiToggle, "ui_toggle"),
-    // Placeholder file (see the key's doc): swap for real comms art.
-    (UiSfx::CommsLine, "ui_toggle"),
+    (UiSfx::CommsLine, "comms_line"),
     // NOVA OS terminal cues.
     (UiSfx::NovaOsKey, "nova_key"),
     (UiSfx::NovaOsBack, "nova_back"),
