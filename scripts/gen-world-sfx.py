@@ -1,21 +1,34 @@
 #!/usr/bin/env python3
 """Offline renderer for Nova Protocol's WORLD sound effects.
 
-The world voice, as specified in `tasks/20260824-125955/INVENTORY.md`: sound
-does not travel in vacuum, so everything the pilot hears is either conducted
-through their own hull or synthesized by the ship's computer as feedback. That
-is a design brief - a gun heard through a deck plate, not through air - and
-every cue here is built the same way:
+The world voice, as specified in `tasks/20260824-125955/INVENTORY.md`: ORDINARY
+game sounds. Combat in a vacuum would be silent and a silent fight is a boring
+fight, so Nova's guns sound the way a film's guns sound - present, bright and
+physical - and the game does not apologise for it.
 
-  1. TRANSIENT (0-8 ms)   the mechanical event: a click, a crack, a strike.
-  2. BODY (10-200 ms)     filtered noise carrying the mass, 80-800 Hz.
-  3. RING (up to ~400 ms) a few detuned modes, the structure answering. Short
-                          and dry - a ring is metal, a tail is a room, and
-                          there are no rooms.
+(A "vacuum sounds" mode, where every cue is instead conducted through the
+player's own hull or synthesized by the ship's computer as feedback, is a
+possible FUTURE setting. It is deliberately not built. Every world sound is mod
+content addressed by an `AssetRef`, so that mode is a second set of files
+behind the same names whenever it is wanted, and nothing here has to change to
+allow it.)
+
+Every cue is built from the same three layers - which is just how a percussive
+sound works, not a physics argument:
+
+  1. TRANSIENT (0-8 ms)   the crack. Broadband and bright: this is where a gun
+                          gets its edge and most of its identity.
+  2. BODY (10-200 ms)     filtered noise carrying the mass, 80-800 Hz. The
+                          chest punch.
+  3. RING (up to ~400 ms) a few detuned modes, the hardware answering.
 
 Mono, 44100 Hz, 16-bit PCM WAV, peak-normalized to -3 dBFS. Balance is NOT set
 here: the per-cue volume constants in `nova_ship/src/ship_audio/mod.rs` do the
 mixing.
+
+A cue is designed for the RATE IT IS HEARD AT, not for solo listening. The PDC
+runs at 100 rounds a second, so the round is shaped to stack into a buzz at a
+10 ms period; auditioning it alone says almost nothing about it.
 
 The INTERFACE voice is a different renderer with a different brief - the NOVA
 OS family in `scripts/gen-nova-os-sfx.py`. Keeping the two voices disjoint is
@@ -169,6 +182,18 @@ def place(target, part, at):
     return target
 
 
+def place_wrapped(target, part, at):
+    """Sum `part` in at `at` seconds, WRAPPING past the end of `target`.
+
+    What makes a fire loop seamless: a round late in the loop spills its tail
+    onto the front, exactly as the round before the loop point would have.
+    """
+    start = n_samples(at) % len(target)
+    index = (np.arange(len(part)) + start) % len(target)
+    np.add.at(target, index, part)
+    return target
+
+
 def pad(x, duration):
     """Fit `x` to exactly `duration`, zero-padding or truncating."""
     n = n_samples(duration)
@@ -201,35 +226,108 @@ def write_wav(path, x):
 # the recipe table below binds it to an output path and a duration.
 
 
-def pdc_gatling_fire(rng):
-    """ONE round from the rotary PDC.
+PDC_RATE = 100.0
+"""Rounds per second for the rotary PDC - the rate the gun actually runs at."""
 
-    The flagship of the world voice. It is fired up to twenty times a second
-    (the cue throttles at 0.05 s while the gun runs ~100 rounds/s), so what the
-    player actually hears is this clip beating against itself into a growl -
-    the Expanse read. That means it must be SHORT, must have a hard front edge
-    to define each beat, and must have almost no tail to smear the next one.
+
+def _pdc_core(rng):
+    """The part of a PDC round that REPEATS: the low body and the mount ring.
+
+    Held identical from round to round on purpose. A gatling's buzz is a
+    periodic waveform at the fire rate, and re-randomizing the dominant low
+    layer every round replaces that periodicity with broadband noise - which
+    is exactly what the first fire loop did, and why it rattled instead of
+    buzzing.
     """
-    # 99.9% of the energy is inside 38 ms, so at the cue's 0.05 s throttle each
-    # round finishes before the next starts and a burst peaks at exactly one
-    # round's level - the growl comes from the BEAT, never from stacking.
     duration = 0.06
     out = silence(duration)
 
-    # The breech: a hard broadband crack, gone in three milliseconds.
-    crack = white(0.012, rng) * env_exp(0.012, 0.0002, 0.0016)
-    out = place(out, highpass(crack, 1400.0) * 0.55, 0.0)
+    body = white(0.045, rng) * env_exp(0.045, 0.0006, 0.0062)
+    body = bandpass(body, 95.0, 450.0, order=3)
+    out = place(out, saturate(body * 2.4, 2.2) * 1.05, 0.001)
 
-    # The body: the round leaving. Low, saturated, the chest punch.
-    body = white(0.05, rng) * env_exp(0.05, 0.0006, 0.010)
-    body = bandpass(body, 90.0, 420.0, order=3)
-    out = place(out, saturate(body * 2.4, 2.2) * 0.9, 0.001)
-
-    # The mount answering. Two short modes only - a third starts to sing.
     strike = white(0.03, rng) * env_exp(0.03, 0.0002, 0.003)
-    ring = modes(strike, [(740.0, 0.035, 1.0), (1310.0, 0.022, 0.55)])
-    out = place(out, ring * 1.8, 0.0015)
+    ring = modes(strike, [(740.0, 0.030, 1.0), (1310.0, 0.020, 0.55)])
+    out = place(out, ring * 1.5, 0.0015)
 
+    return out
+
+
+def _pdc_edge(rng, tint=0.0):
+    """The part of a PDC round that VARIES: primer, muzzle crack, mechanism.
+
+    THIS is the high end the first pass was missing, and it is what a PDC is
+    recognised by - the report and the rotary action, 2-9 kHz. It carries
+    little energy, so varying it per round textures the buzz without breaking
+    the periodicity the body establishes. `tint` shifts it a few percent and is
+    driven from the round index, so the loop stays deterministic.
+    """
+    duration = 0.06
+    out = silence(duration)
+    shift = 1.0 + 0.06 * tint
+
+    # Ignition: the primer. Very short, very bright - the click that lets the
+    # ear place each round inside the buzz.
+    prime = white(0.008, rng) * env_exp(0.008, 0.00008, 0.0009)
+    out = place(out, highpass(prime, 4200.0 * shift, order=3) * 0.34, 0.0)
+
+    # The muzzle crack: a bright report with real energy from 1.5 kHz up,
+    # saturated so it bites.
+    crack = white(0.03, rng) * env_exp(0.03, 0.0002, 0.0026)
+    crack = bandpass(crack, 1500.0 * shift, 8200.0 * shift, order=2)
+    out = place(out, saturate(crack * 2.2, 1.8) * 0.52, 0.0004)
+
+    # The mechanism: the rotary action and the case clearing. Metallic, high,
+    # and gone almost immediately.
+    action = white(0.02, rng) * env_exp(0.02, 0.0001, 0.0018)
+    zing = modes(
+        action,
+        [
+            (2600.0 * shift, 0.020, 1.0),
+            (4900.0 * shift, 0.012, 0.62),
+            (7400.0 * shift, 0.008, 0.34),
+        ],
+    )
+    out = place(out, zing * 1.45, 0.0012)
+
+    return out
+
+
+def pdc_gatling_fire(rng):
+    """One round, for a single shot and for the tail of a burst.
+
+    Auditioning it alone says little: the gun runs at [`PDC_RATE`], so what a
+    player hears is [`pdc_gatling_loop`]. This exists for the ragged edges of a
+    burst, where individual rounds ARE separable.
+    """
+    return _pdc_core(rng) + _pdc_edge(rng)
+
+
+def pdc_gatling_loop(rng):
+    """The PDC firing, as a seamless loop at [`PDC_RATE`].
+
+    A gun that runs at 100 rounds a second cannot be a hundred one-shots a
+    second - that is a hundred audio entities a second, and the game's cue
+    throttles to twenty, which is why the gun currently rattles rather than
+    buzzes. A loop held while the trigger is down is the standard answer and
+    the only one that reaches the real rate.
+
+    The period is an EXACT whole number of rounds (44100 / 100 = 441 samples,
+    no remainder) and every round's tail wraps onto the front, so there is no
+    seam to find.
+    """
+    rounds = 20
+    duration = rounds / PDC_RATE
+    out = silence(duration)
+    core = _pdc_core(rng)
+    for index in range(rounds):
+        # A slow waver over the loop rather than a per-round lottery: the gun
+        # is a machine, and it should sound like one running, not like twenty
+        # different guns.
+        tint = math.sin(2.0 * math.pi * index / rounds)
+        gain = 0.94 + 0.06 * math.cos(2.0 * math.pi * 3.0 * index / rounds)
+        round_ = (core + _pdc_edge(rng, tint)) * gain
+        out = place_wrapped(out, round_, index / PDC_RATE)
     return out
 
 
@@ -277,15 +375,21 @@ def impact_kinetic(rng):
     duration = 0.2
     out = silence(duration)
 
-    strike = white(0.02, rng) * env_exp(0.02, 0.0002, 0.0022)
-    out = place(out, highpass(strike, 1800.0) * 0.4, 0.0)
+    # The strike, bright and instant - the spall coming off the plate.
+    strike = white(0.02, rng) * env_exp(0.02, 0.0002, 0.0018)
+    out = place(out, highpass(strike, 3000.0, order=3) * 0.5, 0.0)
 
     body = white(0.08, rng) * env_exp(0.08, 0.0005, 0.013)
     out = place(out, bandpass(body, 130.0, 620.0, order=3) * 1.5, 0.0)
 
     ring = modes(
         white(0.12, rng) * env_exp(0.12, 0.0002, 0.006),
-        [(430.0, 0.11, 1.0), (960.0, 0.07, 0.6), (1580.0, 0.045, 0.3)],
+        [
+            (430.0, 0.11, 1.0),
+            (960.0, 0.07, 0.6),
+            (1580.0, 0.045, 0.35),
+            (3400.0, 0.022, 0.22),
+        ],
     )
     out = place(out, ring * 2.0, 0.001)
 
@@ -302,9 +406,12 @@ def destroy_section(rng):
     duration = 0.9
     out = silence(duration)
 
-    # The tear: mid-band noise, ragged, over about a tenth of a second.
+    # The tear: ragged noise across the mids and into the top, so the failure
+    # has an edge and not only weight.
     tear = white(0.16, rng) * env_exp(0.16, 0.0015, 0.030)
-    out = place(out, saturate(bandpass(tear, 380.0, 2600.0, order=2) * 1.8, 1.6) * 0.7, 0.0)
+    out = place(out, saturate(bandpass(tear, 380.0, 4800.0, order=2) * 1.8, 1.6) * 0.7, 0.0)
+    shear = white(0.09, rng) * env_exp(0.09, 0.0004, 0.011)
+    out = place(out, highpass(shear, 3600.0, order=3) * 0.42, 0.0)
 
     # The collapse: the mass going.
     collapse = white(0.45, rng) * env_exp(0.45, 0.002, 0.075)
@@ -341,19 +448,24 @@ def thruster_basic_loop(rng):
     duration = 1.0
 
     def spectrum(freq):
-        rumble = 1.0 / (1.0 + (freq / 70.0) ** 2.2)
-        throat = 0.35 / (1.0 + ((freq - 190.0) / 70.0) ** 2)
-        breath = 0.05 / (1.0 + (freq / 900.0) ** 1.6)
-        return rumble + throat + breath
+        # A drive is a low mass of turbulence with the throat and plenum
+        # resonating in it. The broadband term above them is kept DELIBERATELY
+        # small - the first pass let it run and the bed read as hiss rather
+        # than as an engine.
+        rumble = 1.0 / (1.0 + (freq / 58.0) ** 2.6)
+        throat = 0.30 / (1.0 + ((freq - 165.0) / 42.0) ** 2)
+        plenum = 0.16 / (1.0 + ((freq - 322.0) / 78.0) ** 2)
+        breath = 0.013 / (1.0 + (freq / 620.0) ** 2.4)
+        return rumble + throat + plenum + breath
 
     bed = loop_noise(duration, spectrum, rng)
-    bed = saturate(bed / (np.std(bed) + 1e-9) * 0.28, 1.6)
+    bed = saturate(bed / (np.std(bed) + 1e-9) * 0.24, 1.4)
 
-    # Two slow wobbles, both periodic over the loop, so the bed breathes
-    # instead of sitting perfectly still.
+    # One slow wobble, an integer number of cycles over the loop, so the bed
+    # breathes instead of sitting perfectly still. Two of them beat against
+    # each other into something the ear tracks; one does not.
     t = np.arange(n_samples(duration)) / SAMPLE_RATE
-    wobble = 1.0 + 0.09 * np.sin(2.0 * math.pi * 3.0 * t) + 0.05 * np.sin(2.0 * math.pi * 7.0 * t)
-    return bed * wobble
+    return bed * (1.0 + 0.06 * np.sin(2.0 * math.pi * 3.0 * t))
 
 
 # name -> (renderer, output path relative to the repo root)
@@ -364,6 +476,7 @@ def thruster_basic_loop(rng):
 # and retires the shared voices (see the inventory's production list).
 CUES = {
     "pdc_gatling_fire": (pdc_gatling_fire, "assets/base/sounds/turret_fire.wav"),
+    "pdc_gatling_loop": (pdc_gatling_loop, "assets/base/sounds/pdc_gatling_loop.wav"),
     "railgun_fire": (railgun_fire, "assets/base/sounds/railgun_fire.wav"),
     "impact_kinetic": (impact_kinetic, "assets/base/sounds/impact.wav"),
     "destroy_section": (destroy_section, "assets/base/sounds/explosion.wav"),

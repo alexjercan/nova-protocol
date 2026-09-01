@@ -145,36 +145,48 @@ offline from a fixed seed. It is a CRT terminal: thin, electric, tonal, dry.
 
 ### The WORLD voice - new
 
-The frame: **sound does not travel in vacuum, so everything the pilot hears is
-either conducted through their own hull or synthesized by the ship's computer
-as feedback.** That is why the game has sound at all, it is what the Vacuum
-setting turns off, and it is also a sound design brief - a gun heard through a
-deck plate, not through air.
+Ordinary game sounds. Combat in a vacuum would be silent and a silent fight is
+a boring fight, so Nova's guns sound the way a film's guns sound - present,
+bright and physical - and the game does not apologise for it.
 
-Every world sound is built from the same three layers:
+A "vacuum sounds" mode, where every cue is instead conducted through the
+player's own hull or synthesized by the ship's computer as feedback, stays on
+the table as a FUTURE setting. It is deliberately not built now, and keeping it
+open costs nothing: every world sound is mod content addressed by an
+`AssetRef`, so that mode is a second set of files behind the same names.
+Nothing in this pass has to change to allow it.
 
-1. **Transient**, 0-8 ms. The mechanical event: a click, a crack, a strike.
-   Broadband, very fast, quiet in absolute terms - it is the edge, not the
-   weight.
-2. **Body**, 10-200 ms. Filtered noise carrying the mass. Bulk energy 80-800 Hz.
-   This is where a PDC gets its chest punch.
-3. **Ring**, up to ~400 ms. Three to six detuned resonant modes - the structure
-   answering. SHORT and DRY. A ring is metal; a tail is a room, and there are
-   no rooms.
+Every world sound is built from the same three layers - which is how a
+percussive sound works, not a physics argument:
+
+1. **Transient**, 0-8 ms. The crack. Broadband and BRIGHT: this is where a gun
+   gets its edge and most of its identity.
+2. **Body**, 10-200 ms. Filtered noise carrying the mass, 80-800 Hz. This is
+   where a PDC gets its chest punch.
+3. **Ring**, up to ~400 ms. Three to six detuned resonant modes - the hardware
+   answering.
 
 Rules that hold across the whole world set:
 
+- **Designed for the rate it is heard at**, not for solo listening. The PDC
+  runs at 100 rounds a second, so its round is shaped to stack at a 10 ms
+  period and its low body REPEATS from round to round - re-rolling it every
+  round replaces the buzz with broadband noise. Auditioning that cue alone says
+  almost nothing about it.
 - Mono. The engine pans it; a pre-panned file cannot be placed.
+- Full spectrum. Punch lives under 500 Hz, identity lives 2-8 kHz. A cue with
+  only the first is dull; with only the second, thin.
 - No musical intervals, no arpeggios, no bare square waves. Tonal content is
   the interface voice's job and the separation is the point. This is the "no
   bit vibe" rule, stated so it is checkable.
-- Bulk energy under 2 kHz. Air is what carries the top end and there is none.
 - Attack under 5 ms on anything that is an event.
-- Dry. No reverb tail over ~400 ms anywhere.
 - Peak-normalize to -3 dBFS and let the per-cue volume constants in
   `ship_audio/mod.rs` do the mixing. The file is not where balance lives.
-- Loops render seamless: integer cycles for tonal content, an overlap
-  crossfade at the seam for noise.
+- Loops render seamless. Steady beds are synthesized in the FREQUENCY domain
+  (a shaped magnitude spectrum with random phases, inverse-transformed), which
+  is periodic by construction; fire loops place an exact whole number of
+  rounds and wrap each tail onto the front. A time-domain crossfade always
+  leaves a soft spot the ear finds by the third repeat.
 
 ### The AVIONICS sub-voice
 
@@ -217,7 +229,8 @@ The eleven `nova_*.wav` are untouched.
 
 | File | Authored on | Status |
 | --- | --- | --- |
-| `pdc_gatling_fire.wav` | gatling turret `fire_sound` | redo `[site]` - the flagship, the Expanse reference |
+| `pdc_gatling_fire.wav` | gatling turret `fire_sound` | redo `[site]` - one round, for a single shot and a burst's ragged ends |
+| `pdc_gatling_loop.wav` | gatling turret, held fire | new `[hook]` - the gun runs at 100/s and the cue throttles to 20/s, so the shipped gun can only rattle |
 | `pdc_twin_fire.wav` | twin turret `fire_sound` | new `[content]` - retires the shared voice |
 | `pdc_dry_fire.wav` | turret `dry_fire_sound` | redo `[site]` |
 | `pdc_stow_open.wav` | turret housing | new `[hook]` |
@@ -252,8 +265,8 @@ The eleven `nova_*.wav` are untouched.
 | `safety_on.wav` | controller `safety_on_sound` | redo `[site]` |
 | `ammo_dry.wav` | turret / lance, magazine empty | new `[hook]` |
 
-Totals: 15 interface files (11 new or re-voiced, 11 NOVA OS untouched), 23
-world files, 6 avionics files. 40 to render, of which 22 need only content
+Totals: 15 interface files (11 new or re-voiced, 11 NOVA OS untouched), 24
+world files, 6 avionics files. 41 to render, of which 22 need only content
 authoring or already have a fire site.
 
 ## 7. How they get made

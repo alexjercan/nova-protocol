@@ -37,24 +37,23 @@ Decisions taken, in the order they were needed:
 1. THE VOICES. Two, kept deliberately disjoint, plus a sub-voice.
    - INTERFACE is settled and unchanged: the eleven NOVA OS files are the
      standard, and everything in `assets/sounds/` joins them.
-   - WORLD is new, and its brief is the fiction: sound does not travel in
-     vacuum, so what the pilot hears is either conducted through their own hull
-     or synthesized by the ship's computer as feedback. A gun heard through a
-     deck plate, not through air. Three layers - transient, body, ring - and a
-     rule set that is checkable, not vibes: mono, no musical intervals, bulk
-     energy under 2 kHz, attack under 5 ms, nothing dry-ringing past 400 ms.
+   - WORLD is new, and its brief is ordinary game sound. Combat in a vacuum
+     would be silent and a silent fight is a boring fight, so Nova's guns sound
+     the way a film's guns sound - present, bright and physical. Three layers -
+     transient, body, ring - and a rule set that is checkable, not vibes: mono,
+     full spectrum (punch under 500 Hz, identity 2-8 kHz), no musical
+     intervals, attack under 5 ms, designed for the rate it is heard at.
    - AVIONICS is the controller's lock/radar/safety cues: world CONTENT, so a
      mod can reship them, but cockpit instruments rather than machinery. The
      interface recipe darkened, with a touch of the world voice's ring.
-2. THE BUSES. The owner asked for two tracks (UI, SFX) with music reserved, and
-   left the realism toggle open. Two mixer sliders is right, and the toggle
-   wants a line the sliders do not draw: inside the World bus every cue is
-   tagged `Hull` (your own ship - never attenuated, never panned, it is the
-   room you are sitting in) or `Exterior` (everything else - attenuated and
-   panned). `SoundEmulation::Vacuum` silences Exterior and leaves Interface and
-   Hull. The tag also retires the existing `if player { skip attenuation }`
-   special case in `compute_thruster_hum_volume`: your own engines are Hull by
-   definition, not an if-statement.
+2. THE BUSES. Two mixer sliders as asked (Interface, World) with Music
+   reserved so the saved settings format does not break later. Inside the World
+   bus every cue is tagged `Hull` (your own ship - never attenuated, never
+   panned, it is the room you are sitting in) or `Exterior` (everything else -
+   attenuated and panned). The tag retires the existing
+   `if player { skip attenuation }` special case in
+   `compute_thruster_hum_volume`: your own engines are Hull by definition, not
+   an if-statement. NO vacuum toggle is built - see 6.
 3. PANNING keeps our tuned geometric rolloff (NEAR 20 / FAR 320) as the
    amplitude law rather than adopting rodio's 1/d. The engine lane is trying
    the fixed-radius emitter - place the emitter on a sphere around the listener
@@ -70,20 +69,52 @@ Decisions taken, in the order they were needed:
 5. FORMAT stays mono 44100 Hz 16-bit PCM WAV for effects. Music, when it lands,
    is the one thing that should be OGG.
 
+6. VACUUM SOUNDS ARE NOT BUILT. The first probe took "sound does not travel in
+   vacuum" as the design brief and rendered everything as hull-conducted. The
+   owner's call: normal sounds now, and the realism version becomes either a
+   setting or a mod later - undecided. So the ROUTING that would gate it is
+   built (it pays for itself by deleting the player-attenuation hack) and the
+   gate is not. A mod is the cheaper home for it either way: every world sound
+   is content behind an `AssetRef`, so a vacuum mod is a second set of files
+   under the same names and needs no engine support at all.
+
 Not decided here: music itself. The bus and its slider ship now so the saved
-settings format does not break later; the direction is a separate call.
+settings format does not break later; the direction is a separate call. Nor
+whether the vacuum mode is a setting or a mod.
 
-## Probe status (2026-09-01)
+## Probe rounds
 
-Five cues rendered by `scripts/gen-world-sfx.py` and auditioned in
-`audition.html`: the PDC round (and the burst it actually becomes), the railgun
-discharge, a kinetic impact, a section failing, and the main drive bed. Four of
-them replace legacy files in place and are audible in game with no code change;
-the fifth retired a real bug - `railgun_fire_sound` was literally
-`torpedo_launch.wav` - so the lance is now authored onto its own file. `content
-lint` is clean. AWAITING the owner's verdict on the language before the
-remaining thirty-five are produced.
+ROUND ONE (2026-09-01). Five cues on the hull-conducted brief. Verdict: the
+brief itself was wrong for now - see decision 6 - and two cues needed work. The
+railgun was accepted as-is and has not been touched since; per-cue seeding
+means later retuning cannot reach its bytes.
 
+ROUND TWO (2026-09-01). The brief is ordinary game sound, and the notes were
+"the PDC is missing a bit of high pitch", "would also be cool to have the
+100 RPS because that's the standard PDC", and "main drive feels a bit noisy".
+
+- THE PDC got its top end: a primer, a muzzle report and the rotary action
+  across 2-9 kHz, which is what a PDC is recognised by. Centroid moved from
+  987 Hz to 6.0 kHz with the punch under 500 Hz held at 66%.
+- THE FIRE LOOP is new, and it is the real answer to 100 RPS. The first attempt
+  re-rolled every round's noise, which replaced the buzz with broadband hiss;
+  splitting the round into a REPEATING core (low body, mount ring) and a
+  varying edge (primer, crack, mechanism) put 48% of the loop's energy onto
+  exact multiples of 100 Hz. The period is a whole number of rounds
+  (44100/100 = 441 samples, no remainder) and each tail wraps onto the front,
+  so there is no seam.
+- THE DRIVE was hissy because the broadband layer above its resonances ran
+  loose. Cut to a fifth, steeper rumble, a second resonance at the plenum for
+  machine character, and one slow waver instead of two - two beat against each
+  other into something the ear tracks.
+- IMPACT AND SECTION-FAILING were brightened to match, since the rule they were
+  built against ("bulk energy under 2 kHz") is the one the new brief drops.
+
+OPEN, and it is a call rather than a task: the turret cue plays one sound per
+round throttled to 20/s, so the shipped gun can only rattle no matter how good
+the round is. The fire loop needs the cue changed to a held loop with the
+single round kept for a burst's ragged ends. That is `ship_audio`, which the
+engine lane owns, so it waits for that lane to land.
 ## Shape
 
 - Inventory what exists first: which events have sounds today, which are
