@@ -18,7 +18,11 @@
 //!   in cell units, so what stands here is what a grid cell gets. PDC
 //!   candidates are three-part assemblies (yaw, pitch, barrel) posed at each
 //!   candidate's own joint offsets, at unit-turret scale like the art is
-//!   drawn; the shipped mount then scales the whole tree to its 0.5 box.
+//!   drawn; the shipped mount then scales the whole tree to its 0.5 box. The
+//!   stow housing both mounts sink into is one file, so it stands as a single
+//!   subject: body and both lid slabs come off the decoder together, at the
+//!   pose the file bakes - parked clear of the shaft mouth, which is where a
+//!   deployed gun leaves them; the stow cue is what slides them shut.
 //!
 //! Hand-run (free-fly with WASD; the roster idles on a slow orbit until the
 //! rig is touched):
@@ -248,6 +252,13 @@ fn gallery_rows() -> Vec<Row> {
                         ],
                     },
                     note: "PICKED - second pdc, per-muzzle fire rate",
+                },
+                Item {
+                    id: "pdc_housing",
+                    look: Look::Candidate {
+                        file: "pdc_housing.glb",
+                    },
+                    note: "PICKED - the stow housing, lids parked open",
                 },
             ],
         },
