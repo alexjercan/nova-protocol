@@ -29,8 +29,8 @@ does NOT get an entry - and it is the only place they are written down.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
 - A lance slug rakes through everything in the line and kills every layer it
-  crosses. Power, not a layer count, is the only bound on depth, so an aligned
-  shot removes a column of a ship rather than damaging it.
+  crosses. Power, not a layer count, bounds the depth, so an aligned shot
+  removes a column of a ship rather than damaging it.
 - Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
   so a lance mounted off the ship's axis yaws it as well as pushing it back.
 - A lance holds one shell and gets it back on a twelve-second idle reload.
@@ -65,14 +65,43 @@ does NOT get an entry - and it is the only place they are written down.
   chain of segment tiles instead of skipping everything larger than one cell.
 
 ### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
+- The `wfc_arena` bench bolts a spinal lance to every generated bow, answering
+  its stern drive stamp, carves whatever the collapse hung in front of the bore,
+  and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 - A section declares animation tracks on its base config: a cue, nodes by name
   prefix, a motion and travel times. Kind systems steer cues; tracks move art
   only, never colliders.
+- **(breaking)** A section's and an asteroid's `impact_sound` is gone. Each
+  names a `material`, and `Impact` rows pair a damage type with a material, so
+  a mod can voice one round against one surface.
+
+### Audio & Visuals
+- The sound set is re-recorded and twice the size: guns, ordnance, impacts,
+  destruction, drives, cockpit, menus and editor, all synthesised from scratch.
+  Only the ship computer's family is untouched.
+- Sound is positional. A cue out in the world falls off with distance and pans
+  with bearing, so the menu backdrop's traffic is heard passing the camera
+  instead of sitting mute behind it.
+- Your own ship is heard through its hull - its guns, its drives and the damage
+  landing on it never attenuate or pan - while everything else is out there
+  across the gap.
+- A hit is named by the round as well as by what it struck: a slug, a
+  penetrator and a warhead each land differently, and each lands differently
+  again on stone.
+- The cockpit talks: a lock taken or lost, a denied or retargeted radar, the
+  safety, a dry magazine, a hostile's lock arriving, and the hull dropping past
+  thirty percent.
+- Machinery has a voice - a PDC's housing rising and folding away, a bay's iris
+  winding open and shut, and a lance's capacitor bank filling, discharging and
+  re-chambering.
+- A ship coming apart has its own sound, separate from the last section on it
+  failing.
+- The menus answer you: a tick as focus moves, a note for stepping back, and a
+  sound for losing.
+- Four volume sliders - master, interface, world and music - saved with the
+  rest of the settings. Music is reserved: nothing routes to it yet.
 
 ## [0.12.0] - 2026-08-31
 
@@ -107,11 +136,6 @@ does NOT get an entry - and it is the only place they are written down.
   value-gated scenario wakes on 2% of frames.
 - A scenario says how bright its sky comes up: `skybox_brightness`, in lux,
   defaulted so that a file authoring none still comes up at the shipped 1000.
-
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 - The Ledger (1.25.0 -> 1.26.0): all five chapters rewritten onto `once`, keyed
@@ -689,11 +713,6 @@ does NOT get an entry - and it is the only place they are written down.
   hulks, three dormant pickets and two skybox beacons. Dying now offers a
   Retry.
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - **(breaking)** The mod portal and cache take the `NOVA_MODDING_*` prefix: `NOVA_MOD_CACHE_ROOT` is `NOVA_MODDING_CACHE_ROOT` and `NOVA_PORTAL_URL` is `NOVA_MODDING_PORTAL_URL`.
@@ -1076,11 +1095,6 @@ does NOT get an entry - and it is the only place they are written down.
 - `ScatterObjects` gains an optional `min_separation`: scattered bodies are
   kept that far from every body scattered so far, across sibling scatters.
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - **(breaking)** Recurring `OnOrbit` and `orbit_hold_secs` are replaced by
@@ -1197,11 +1211,6 @@ does NOT get an entry - and it is the only place they are written down.
   weapons AND thrusters is NEUTRALIZED, a drifting-wreck state firing a new
   `OnNeutralized` event.
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - New `Campaign` content kind: a bundle declares an ordered campaign->scenario
@@ -1315,11 +1324,6 @@ does NOT get an entry - and it is the only place they are written down.
 - New `SetAllegiance` action: flip a ship's allegiance mid-scenario - the neutral-until-provoked primitive.
 - New reserved `player_speed` variable: the player's live speed, engine-written and read-only, to gate beats on how fast you fly.
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - Gauntlet Run is now a TIME-TRIAL (1.3.0): a live `mm:ss.s` clock and a clean-run bonus, built on `HudReadout`.
@@ -1404,11 +1408,6 @@ does NOT get an entry - and it is the only place they are written down.
 - A ship that loses its last section off the damage path no longer lingers as a 0-HP ghost (structural death backstop).
 - Scenario `OnUpdate` handlers now freeze while the game is paused.
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - Turret mounts are an arbitrary joint tree **(breaking)**: `root` + recursive
@@ -1455,11 +1454,6 @@ does NOT get an entry - and it is the only place they are written down.
 
 - Scenarios picker on the main menu: two-pane overlay listing every base and mod-added scenario, with a details pane and Play button; scenarios gained optional `thumbnail` and `hidden` fields.
 - New `SetSkybox` action swaps the skybox cubemap mid-scenario, deferred until the image loads so a bad path leaves the sky unchanged.
-
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 
@@ -1679,21 +1673,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [0.2.1] - 2025-11-15
 
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
-
 ### Modding & Mod Portal
 
 - Modding documentation and examples; event system refactor.
 
 ## [0.2.0] - 2025-11-08
-
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, the nose's
-  answer to its stern drive stamp, carves whatever the collapse hung in front of
-  the bore, and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 

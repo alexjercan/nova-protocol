@@ -1,6 +1,6 @@
 # An audio direction pass: combat and UI soundscape
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.13.0,audio
 
@@ -389,7 +389,7 @@ Agreed and unchanged: `destroy_sound` stays per section and object (a
 destruction has no second party to key on), `fire_sound` / `dry_fire_sound`
 stay per turret, `detonation_sound` stays per warhead.
 
-### Open: impact_rock is 4.6 dBA hot
+### The rock's level: measured hot, accepted by ear
 
 Measured after the table landed, loudest-50 ms A-weighted at unity:
 
@@ -404,15 +404,18 @@ audibly louder than the same round on plate. That is not the table's doing - it
 arrived with `d33bd9a9`, when asteroids stopped borrowing the hull's voice, and
 nobody has flown it yet.
 
-Not fixed here, deliberately. The lever is in the RENDER, not a constant: the
-rock's saturated body sets its own peak, so peak normalization leaves its
-sustained level high where the kinetic hit's bright strike pulls everything
-else down. Backing the body's saturation drive from 1.8 to about 0.5 lands it
-on -34, and that is a change to how the cue SOUNDS - it is the "broad dull
-body" the recipe is built around. Measured, not auditioned; the owner should
-hear it before it is reshaped.
+The lever is in the RENDER, not a constant: the rock's saturated body sets its
+own peak, so peak normalization leaves its sustained level high where the
+kinetic hit's bright strike pulls everything else down. Backing the body's
+saturation drive from 1.8 to about 0.5 lands it on -34, at the cost of the
+"broad dull body" the recipe is built around.
 
-## Open: the release note wants the before and after
+FLOWN AND ACCEPTED - "it feels good". The measurement stands and the sound is
+not reshaped: a rock reading a little louder than plate is not the same defect
+as a rock reading like plate, which is what the pass set out to fix. Recorded
+here so a later ear knows the number was seen and the call was deliberate.
+
+## Not done: the release note's before and after
 
 The owner's idea. `audition.html` is a REVIEWER's page - 4.4 MB, every cue
 base64'd inline, A/B takes against the neighbour each cue has to be
@@ -429,6 +432,10 @@ leftovers - two of them now, both blocked on the material table.
 If it is built, the sounds should ship as FILES under `web/src/assets/`, the
 way the video loops already do, not inlined - 44 WAVs are 2.2 MB on disk and
 base64 adds a third to that for nothing.
+
+Left undone on purpose. This is the v0.13.0 NEWS POST's work, not the audio
+direction's: the pass is what makes the pairs worth publishing, and publishing
+them is the release's job. Everything it needs is on disk or in git.
 
 ## Shape
 
@@ -450,3 +457,49 @@ base64 adds a third to that for nothing.
 - Flight, combat and UI have a coherent first-pass soundscape.
 - An audio settings surface exists (master/music/effects at minimum).
 - Every shipped sound's licence and attribution are recorded.
+
+## Closed
+
+All four met, and flown.
+
+- **The backdrop is audible and attenuated.** `AudioRoute::Exterior` carries
+  the tuned rolloff and the pan; the duel and the weave came in to poses where
+  their traffic clears it. The gauntlet cannot come in without cropping its
+  beacon and is left as the one open question below.
+- **Flight, combat and UI have a soundscape.** Forty-four cues, every one
+  synthesised by the project's own renderers, reaching the game through the one
+  audio engine - guns, ordnance, the impact table, destruction, drives and RCS,
+  the cockpit's seven avionics cues, the menus, the editor and NOVA OS. Nothing
+  builds a bevy `AudioPlayer` outside `nova_gameplay::audio`, and a test reads
+  the crates' sources to keep it that way.
+- **The settings surface exists.** Master, Interface, World and Music sliders
+  on the Audio tab, persisted. Music is reserved and nothing routes to it - the
+  music direction is a decision recorded, not tracks shipped.
+- **Licence and attribution are recorded.** `credits/CREDITS.md` names the four
+  renderers and states that no sample library or third-party recording is
+  involved, so every cue carries the project's own licence.
+
+What the pass established, in one line each, because the rules outlived the
+files:
+
+- A linear volume is not a loudness. Two cues only compare when they share a
+  spectrum; every level here was set A-weighted against an anchor in the same
+  octave.
+- AUTHORED-OR-SILENT. Content owns its voice through an `AssetRef`, and there
+  is no fallback bank to hide behind.
+- A cue is designed for the rate it is HEARD at, not the rate the hardware runs
+  at.
+- Same event, different hardware: separate them by PITCH, not decoration.
+- When a layer cannot be heard, the fix is usually the layer on top of it.
+
+Deliberately not done:
+
+- **No music.** The bus, the volume and the setting exist; the tracks are a
+  later task. Reserving the route was the decision this pass owed.
+- **No per-scenario listener range.** The gauntlet backdrop is the one place
+  the camera cannot reach and the rolloff cannot either. It is the owner's call
+  whether one backdrop is worth a new authoring knob.
+- **The release note's before-and-after page.** The v0.13.0 news post's work,
+  not this one's - see above.
+- **The rock's 4.6 dB.** Measured, seen, and accepted by ear rather than
+  reshaped.
