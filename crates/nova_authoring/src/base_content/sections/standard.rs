@@ -906,13 +906,17 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // set up the shot is not flying a straight line forever.
                 charge_seconds: 1.5,
                 slug_speed: 1500.0,
-                // Dealt in FULL to every layer crossed. Priced against the
-                // catalog: it kills a light hull (60), a thruster (70) and a
-                // controller or bay (100) outright, leaves a turret (130) and
-                // a reinforced hull block (200) standing. So one aligned shot
-                // guts a ship's internals along the line without deleting its
-                // armour - and killing the core is a shot you have to aim.
-                slug_damage: 120.0,
+                // Dealt in FULL to every layer crossed, and priced to leave
+                // NOTHING standing: the toughest thing in the catalog is a
+                // reinforced hull block at 200, so this kills every shipped
+                // section on the layer it crosses with half again to spare.
+                // An aligned shot does not damage a column, it removes one.
+                //
+                // Past roughly 260 the extra buys nothing against content that
+                // exists - depth is priced in `slug_power`, not here, and
+                // everything already dies. The margin is for what a mod
+                // authors, not for the base game.
+                slug_damage: 300.0,
                 // The owner's brief: through the entire ship. At the 3x
                 // closing-speed ceiling a lance slug spends max_health/3 per
                 // layer, so this crosses 27 reinforced hull blocks - past the

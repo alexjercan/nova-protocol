@@ -361,3 +361,109 @@ fn the_charge_cue_tracks_the_gameplay_charge_and_resets_on_the_shot() {
         "the bolt snaps back to the breech the instant the shell leaves"
     );
 }
+
+/// A bare lance and one charge glow, with no physics and no render observers:
+/// the driver is a pure read of the charge onto a light, and that is all this
+/// exercises.
+fn glow_app(config: RailgunSectionConfig) -> (App, Entity, Entity) {
+    let mut app = App::new();
+    app.add_systems(Update, drive_railgun_charge_glow);
+    let lance = app
+        .world_mut()
+        .spawn((
+            Name::new("lance"),
+            RailgunSectionMarker,
+            RailgunCharge::Ready,
+            RailgunSectionConfigHelper(config),
+        ))
+        .id();
+    let glow = app
+        .world_mut()
+        .spawn((
+            ChildOf(lance),
+            RailgunChargeGlowMarker,
+            Transform::default(),
+            Visibility::Hidden,
+            PointLight {
+                intensity: 0.0,
+                ..default()
+            },
+        ))
+        .id();
+    (app, lance, glow)
+}
+
+#[test]
+fn the_charge_glow_walks_the_bore_and_arrives_at_the_muzzle() {
+    let config = RailgunSectionConfig {
+        muzzle_offset: Vec3::NEG_Z * 1.5,
+        charge_seconds: 2.0,
+        ..default()
+    };
+    let (mut app, lance, glow) = glow_app(config);
+
+    *app.world_mut().get_mut::<RailgunCharge>(lance).unwrap() =
+        RailgunCharge::Charging { elapsed: 1.0 };
+    app.update();
+    assert_eq!(
+        app.world().get::<Transform>(glow).unwrap().translation,
+        Vec3::NEG_Z * 0.75,
+        "half the charge has crossed half the bore"
+    );
+
+    *app.world_mut().get_mut::<RailgunCharge>(lance).unwrap() =
+        RailgunCharge::Charging { elapsed: 2.0 };
+    app.update();
+    assert_eq!(
+        app.world().get::<Transform>(glow).unwrap().translation,
+        Vec3::NEG_Z * 1.5,
+        "a full charge sits on the brake, where the muzzle flash is about to be"
+    );
+}
+
+#[test]
+fn the_bore_stays_nearly_dark_until_the_shot_is_close() {
+    let config = RailgunSectionConfig {
+        charge_seconds: 2.0,
+        ..default()
+    };
+    let (mut app, lance, glow) = glow_app(config);
+
+    *app.world_mut().get_mut::<RailgunCharge>(lance).unwrap() =
+        RailgunCharge::Charging { elapsed: 1.0 };
+    app.update();
+    let half = app.world().get::<PointLight>(glow).unwrap().intensity;
+
+    *app.world_mut().get_mut::<RailgunCharge>(lance).unwrap() =
+        RailgunCharge::Charging { elapsed: 2.0 };
+    app.update();
+    let full = app.world().get::<PointLight>(glow).unwrap().intensity;
+
+    assert_eq!(full, CHARGE_LIGHT_LUMENS, "a full charge burns at the peak");
+    // The curve is the tell: a linear ramp would put half the light on the
+    // screen halfway through, and the pilot would learn nothing from it.
+    assert!(
+        half < full * 0.2,
+        "half the charge is a fraction of the light: {half} against {full}"
+    );
+}
+
+#[test]
+fn an_uncommitted_lance_keeps_its_bore_dark() {
+    let (mut app, _, glow) = glow_app(RailgunSectionConfig {
+        charge_seconds: 2.0,
+        ..default()
+    });
+    app.update();
+
+    assert_eq!(
+        app.world().get::<PointLight>(glow).unwrap().intensity,
+        0.0,
+        "a gun that has not committed shows nothing"
+    );
+    assert_eq!(
+        *app.world().get::<Visibility>(glow).unwrap(),
+        Visibility::Hidden,
+        "and the light is off, not merely dim"
+    );
+}

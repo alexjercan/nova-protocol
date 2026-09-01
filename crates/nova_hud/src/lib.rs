@@ -34,6 +34,7 @@ use crate::prelude::*;
 pub mod allegiance_markers;
 pub mod ammo_readout;
 pub mod beacon_chips;
+pub mod bore_sight;
 pub mod comms_panel;
 pub mod component_lock;
 pub mod edge_indicators;
@@ -66,16 +67,16 @@ mod chip_layout_rig;
 pub mod prelude {
     pub use super::{
         allegiance_markers::prelude::*, ammo_readout::prelude::*, beacon_chips::prelude::*,
-        comms_panel::prelude::*, component_lock::prelude::*, edge_indicators::prelude::*,
-        emphasis::prelude::*, flight_status::prelude::*, holo_instruments::prelude::*,
-        item_highlights::prelude::*, key_glyphs::prelude::*, keybind_dock::prelude::*,
-        lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*, maneuver_instruments::prelude::*,
-        objective_feedback::prelude::*, objective_markers::prelude::*, objective_stack::prelude::*,
-        readout::prelude::*, screen_indicator::prelude::*, situation::prelude::*,
-        target_inset::prelude::*, torpedo_target::prelude::*, turret_lead::prelude::*,
-        velocity::prelude::*, HudContextGate, HudNovaOsExempt, HudSelfDrivenVisibility,
-        HudSituationSensingSystems, HudTier, HudVisibility, NovaHudAssets, NovaHudPlugin,
-        NovaHudSystems,
+        bore_sight::prelude::*, comms_panel::prelude::*, component_lock::prelude::*,
+        edge_indicators::prelude::*, emphasis::prelude::*, flight_status::prelude::*,
+        holo_instruments::prelude::*, item_highlights::prelude::*, key_glyphs::prelude::*,
+        keybind_dock::prelude::*, lock_crosshairs::prelude::*, lock_dwell_ring::prelude::*,
+        maneuver_instruments::prelude::*, objective_feedback::prelude::*,
+        objective_markers::prelude::*, objective_stack::prelude::*, readout::prelude::*,
+        screen_indicator::prelude::*, situation::prelude::*, target_inset::prelude::*,
+        torpedo_target::prelude::*, turret_lead::prelude::*, velocity::prelude::*, HudContextGate,
+        HudNovaOsExempt, HudSelfDrivenVisibility, HudSituationSensingSystems, HudTier,
+        HudVisibility, NovaHudAssets, NovaHudPlugin, NovaHudSystems,
     };
 }
 
@@ -320,6 +321,7 @@ impl Plugin for NovaHudPlugin {
         app.add_plugins(maneuver_instruments::ManeuverInstrumentsPlugin);
         app.add_plugins(keybind_dock::KeybindDockPlugin);
         app.add_plugins(holo_instruments::HoloInstrumentsPlugin);
+        app.add_plugins(bore_sight::BoreSightPlugin);
         app.add_plugins(comms_panel::CommsPanelPlugin);
         app.add_plugins(readout::HudReadoutPlugin);
         app.add_plugins(screen_indicator::ScreenIndicatorPlugin);

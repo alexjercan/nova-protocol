@@ -262,6 +262,9 @@ impl Plugin for RailgunSectionPlugin {
             app.add_observer(insert_railgun_section_render);
             app.add_observer(insert_railgun_slug_render);
             app.add_observer(on_railgun_fired_flash);
+            app.add_observer(on_railgun_fired_kick);
+            app.register_type::<RailgunChargeGlowMarker>();
+            app.add_systems(Update, drive_railgun_charge_glow);
         }
     }
 }

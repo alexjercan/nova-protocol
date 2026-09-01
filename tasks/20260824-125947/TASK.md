@@ -103,7 +103,8 @@ Where it landed, in the order the beat decision set:
   on 6 u centres, one commit, and five markers: the commit outliving the
   trigger, the bolt tracking the charge, one slug raking every layer, the
   recoil moving the ship, and the one-shell magazine. Verified live under
-  Xvfb: all six plates read 380.0 (500 - 120) off a single shot.
+  Xvfb: every plate takes the slug's full damage off a single shot, and the
+  range still passes at the raised damage below.
 - The editor sandbox's third picket - already named `picket_lance` before any
   of this - mounts the gun. Its PDC moves from the nose face to the nose roof
   so the bore is not staring at its own turret. One picket, not three: a
@@ -122,6 +123,50 @@ Two notes for whoever tunes this next:
   `WeaponsHot`. The flag is derived from the held combat stance every frame,
   so a range that pokes it charges for two ticks and dumps. Any future
   weapon range wants the same shape.
+
+## Second pass: aiming it, and seeing it
+
+Three follow-up decisions, all the owner's:
+
+- **The gun aims by hull, so the hull needs a sight.** A pierce-blue thread
+  runs down the bore and RINGS EVERY SECTION THE SHOT WOULD DESTROY - not
+  the first thing hit, the whole depth read. It shares `pierce_remainder` with
+  the round it predicts, so the sight and the shot cannot drift apart.
+  `crates/nova_hud/src/bore_sight.rs`.
+- **The sight is gated on `WeaponsHot`, and that was the whole answer to the
+  aiming problem.** The stance that raises weapons also takes mouse steering
+  away, so a sight that only appeared in Turret mode would be a sight you
+  cannot use. But `WeaponsHot` is `raised OR combat-locked`
+  (`input/targeting/safety.rs`), so a LOCK keeps the gun hot with the stance
+  released: lock the target, line the ship up in Normal flight with the sight
+  live, then commit. No new mechanic, no exception carved for this weapon,
+  and no clutter on a ship that is not fighting.
+- **Damage 300, up from 120.** The toughest thing in the catalog is a
+  reinforced hull block at 200, so an aligned shot does not damage a column,
+  it removes one. Past roughly 260 the extra buys nothing against content
+  that exists; the margin is for what a mod authors. Depth stays priced in
+  `slug_power`, never here.
+
+The charge got its VFX to match. A point light rides the bore from breech to
+brake on `muzzle_offset * progress` - config-derived, so a modded lance ends
+at its own brake - and brightens on a CUBED curve, so the bore is still nearly
+dark at half charge and the light arrives in the last third of a second. It
+lands exactly where `on_railgun_fired_flash` is about to fire from: the charge
+does not cut to the flash, it becomes it. On the shot, sparks off the brake for
+everyone, and camera trauma for the player whose own hull just fired.
+
+Not done, deliberately: **no align key.** An "align while in combat mode"
+modifier was considered and dropped - the lock already gives back the steering
+the stance takes away, and a second way to do it would be a mechanic to teach
+for no new capability. `rcs_modifier` is the shape to copy if playtest
+disagrees.
+
+Verified: the range passes all five invariants under autopilot at damage 300;
+the lance's cycle, the charge glow and the fire kick run clean in a live Xvfb
+session; the sight has four tests over the real system, including the two that
+matter - it rings only what dies, and it stops where the power runs out. NOT
+verified: the sight's on-screen appearance. That needs the sandbox flown with
+a player-built ship carrying a lance, which is the beat this task chose.
 
 ## Done when
 

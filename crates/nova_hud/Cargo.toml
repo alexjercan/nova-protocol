@@ -14,6 +14,12 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
 nova_ui = { path = "../nova_ui" }
 
+[dev-dependencies]
+# The headless avian app the bore-sight test builds on. The sight is a
+# SpatialQuery consumer, so proving it marks the right sections needs a real
+# broadphase rather than a hand-placed hit list.
+nova_gameplay = { path = "../nova_gameplay", features = ["test-support"] }
+
 [lints]
 workspace = true
 

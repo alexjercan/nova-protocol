@@ -28,12 +28,15 @@ does NOT get an entry - and it is the only place they are written down.
 - A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A lance slug rakes through everything in the line. Its power, not a layer
-  count, is the only bound on depth, so one shot can cross a whole hull.
+- A lance slug rakes through everything in the line and kills every layer it
+  crosses. Power, not a layer count, is the only bound on depth, so an aligned
+  shot removes a column of a ship rather than damaging it.
 - Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
   so a lance mounted off the ship's axis yaws it as well as pushing it back.
-- A lance holds one shell and gets it back on a twelve-second idle reload. The
-  charge cue is a readable tell: the glowing bolt climbing the rails.
+- A lance holds one shell and gets it back on a twelve-second idle reload.
+- A charging lance lights its own bore: a bolt climbs the rails behind a glow
+  that brightens sharply as the shot nears, and the discharge throws sparks off
+  the brake and kicks the camera.
 
 ### Scenarios & Objectives
 - The sandbox's farthest picket mounts a lance. It wakes like the others, but
@@ -42,6 +45,9 @@ does NOT get an entry - and it is the only place they are written down.
 ### Interface & HUD
 - A lance carries the same ammo gauge as a turret or a bay, drawn in the
   slug's pierce blue, so a spent shell and its long reload read at a glance.
+- With weapons hot, a lance draws its line of fire: a pierce-blue thread down
+  the bore that rings every section the shot would destroy, so a lock lets you
+  line the ship up before you commit.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull

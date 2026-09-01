@@ -37,6 +37,38 @@ const MUZZLE_LIGHT_RANGE: f32 = 60.0;
 /// How long the muzzle flash burns, in seconds. A discharge, not a burn.
 const MUZZLE_LIGHT_SECS: f32 = 0.18;
 
+/// The rails' own colour, from the lance art (`railgun_lance.glb`'s `part_glow`
+/// material). The charge glow, the muzzle flash and the bore they come out of
+/// all wear it, so the whole cycle reads as one piece of hardware.
+const RAIL_GLOW_COLOR: Color = Color::srgb(0.45, 0.85, 1.0);
+
+/// Peak brightness of the charge glow, in lumens, reached the instant before
+/// the shot.
+///
+/// A sixth of the muzzle flash on purpose: the charge has to be seen building
+/// without ever competing with what it builds to.
+pub(super) const CHARGE_LIGHT_LUMENS: f32 = 150_000.0;
+/// How far the charge glow reaches, in world units. Enough to light the hull
+/// the lance is bolted to and no further - the charge is the firing ship's
+/// business until the shot makes it everyone's.
+const CHARGE_LIGHT_RANGE: f32 = 20.0;
+/// Exponent the charge fraction is raised to before it drives the glow.
+///
+/// CUBED, so the bore is still nearly dark at half charge and most of the
+/// light arrives in the last third of a second. A linear ramp reads as a gun
+/// that is always warm; this one reads as a gun that is ABOUT TO GO OFF, which
+/// is the thing the pilot and the target both need off one glance.
+const CHARGE_LIGHT_CURVE: i32 = 3;
+
+/// Sparks thrown off the brake on the shot: the arc flash of a bank dumping
+/// into a bore.
+const MUZZLE_SPARK_COUNT: u32 = 28;
+/// Camera trauma the player's own lance puts through the hull when it fires.
+///
+/// Between the juice layer's hit and destroy kicks: bigger than being shot,
+/// smaller than something dying, because that is what firing this gun is.
+const FIRE_TRAUMA: f32 = 0.45;
+
 /// The slug's shared mesh and material - one pair for the whole app, like the
 /// turret's projectile art, because every lance in the game fires the same
 /// shell.
@@ -133,6 +165,74 @@ pub(super) fn insert_railgun_section_render(
             )]);
         }
     }
+
+    // The glow is spawned DARK and never despawned. A lance charges many times
+    // a fight, and a light that is only ever a brightness and a position is
+    // cheaper to leave in place than to build on every commit. A preview
+    // section has no `RailgunCharge`, so nothing ever drives it and it stays
+    // exactly this: off.
+    commands.entity(entity).with_child((
+        Name::new("Railgun Charge Glow"),
+        RailgunChargeGlowMarker,
+        Transform::default(),
+        Visibility::Hidden,
+        PointLight {
+            color: RAIL_GLOW_COLOR,
+            intensity: 0.0,
+            range: CHARGE_LIGHT_RANGE,
+            radius: 0.0,
+            // The glow rides INSIDE the bore of the gun that owns it, so a
+            // shadow map here would spend a cascade on the barrel occluding
+            // it and light nothing else differently.
+            shadow_maps_enabled: false,
+            ..default()
+        },
+    ));
+}
+
+/// The travelling light that IS the charge: it rides the bore from the breech
+/// to the brake as the capacitors fill, and arrives exactly where the muzzle
+/// flash is about to be.
+///
+/// One per lance, spawned with the body. See [`drive_railgun_charge_glow`].
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub(super) struct RailgunChargeGlowMarker;
+
+/// Ride every lance's charge glow up its bore and brighten it as the shot
+/// nears.
+///
+/// The line comes from [`RailgunSectionConfig::muzzle_offset`] and NOT from the
+/// art, so a modded lance with a longer bore gets a glow that ends at its OWN
+/// brake. That also means the last frame of the charge puts this light on the
+/// exact point [`on_railgun_fired_flash`] is about to fire from: the charge
+/// does not cut to the flash, it becomes it.
+///
+/// The authored `charge_bolt` node walks the same stretch on the same clock
+/// (see `lance_charge_bolt` in `nova_authoring`), so this reads as that bolt's
+/// corona rather than as a second object.
+pub(super) fn drive_railgun_charge_glow(
+    q_railgun: Query<(&RailgunCharge, &RailgunSectionConfigHelper, &Children)>,
+    mut q_glow: Query<
+        (&mut Transform, &mut Visibility, &mut PointLight),
+        With<RailgunChargeGlowMarker>,
+    >,
+) {
+    for (charge, config, children) in &q_railgun {
+        let progress = charge.progress(config.charge_seconds);
+        for &child in children {
+            let Ok((mut transform, mut visibility, mut light)) = q_glow.get_mut(child) else {
+                continue;
+            };
+            transform.translation = config.muzzle_offset * progress;
+            light.intensity = CHARGE_LIGHT_LUMENS * progress.powi(CHARGE_LIGHT_CURVE);
+            *visibility = if progress > 0.0 {
+                Visibility::Inherited
+            } else {
+                Visibility::Hidden
+            };
+        }
+    }
 }
 
 /// Light the bore when a lance fires.
@@ -144,11 +244,45 @@ pub(super) fn on_railgun_fired_flash(fired: On<RailgunFired>, mut commands: Comm
     trace!("on_railgun_fired_flash: railgun {:?}", fired.entity);
     commands.trigger(LightFlash {
         at: fired.muzzle,
-        // The rails' own colour from the lance art (`railgun_lance.json`
-        // `part_glow`), so the flash and the bore it comes out of agree.
-        color: Color::srgb(0.45, 0.85, 1.0),
+        color: RAIL_GLOW_COLOR,
         peak_intensity: MUZZLE_LIGHT_LUMENS,
         range: MUZZLE_LIGHT_RANGE,
         duration: MUZZLE_LIGHT_SECS,
     });
+}
+
+/// Throw the bore's arc flash, and kick the camera when the lance that fired
+/// is the PLAYER'S OWN.
+///
+/// The sparks are unconditional: an enemy lance discharging is exactly the cue
+/// a pilot needs, and perspective already thins a distant burst.
+///
+/// The kick is not. It is scoped to the player's ship rather than
+/// distance-attenuated the way `nova_gameplay::juice` attenuates a hit,
+/// because this is not a far event that happened to be close - it is a
+/// capacitor bank bolted to the hull the camera is riding. Somebody else's
+/// lance is felt when it LANDS, which the juice path already covers.
+pub(super) fn on_railgun_fired_kick(
+    fired: On<RailgunFired>,
+    mut commands: Commands,
+    q_gun: Query<&ChildOf, With<RailgunSectionMarker>>,
+    q_player: Query<(), (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
+    mut q_shake: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
+) {
+    trace!("on_railgun_fired_kick: railgun {:?}", fired.entity);
+    commands.trigger(ImpactSparks {
+        at: fired.muzzle,
+        count: MUZZLE_SPARK_COUNT,
+        force: 1.0,
+    });
+
+    let Ok(&ChildOf(spaceship)) = q_gun.get(fired.entity) else {
+        return;
+    };
+    if !q_player.contains(spaceship) {
+        return;
+    }
+    for mut shake in &mut q_shake {
+        shake.add_trauma += FIRE_TRAUMA;
+    }
 }

@@ -2470,7 +2470,7 @@
             ),
             charge_seconds: 1.5,
             slug_speed: 1500.0,
-            slug_damage: 120.0,
+            slug_damage: 300.0,
             slug_power: 1800.0,
             slug_lifetime: 1.2,
             recoil_impulse: 45.0,
