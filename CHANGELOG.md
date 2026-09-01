@@ -19,6 +19,29 @@ does NOT get an entry - and it is the only place they are written down.
 - A PDC out of combat sinks into a housed pit and two lids slide shut over it;
   it deploys on weapons hot, a tracked target or a point-defense assignment,
   and cannot track or fire until fully up.
+- A twin PDC mount ships in kinetic and pierce beside the gatling: two muzzles,
+  each at half the single mount's rate, so either choice spends ammo at the
+  same total rate.
+- A torpedo leaves through the bay's muzzle iris: the petals wind open before
+  ejection, the round slides its whole length out of the tube, and held fire
+  keeps the doors gaping.
+
+### Ships & Sections
+- Every section wears an authored model at the thruster's standard: the hull
+  cells, the controller core, the PDC mounts and the torpedo bay replace their
+  placeholder cubes.
+- **(breaking)** The torpedo bay is a 1x1x2 tube with an unlinkable muzzle
+  face; an authored ship seats a bay with a half-cell shift to sit on the
+  section grid.
+- The hull ships in three same-stat builds - personnel, cargo and tank - so a
+  flank can say what the ship carries.
+- Generated hulls carry bays: the WFC solver collapses a multi-cell part as a
+  chain of segment tiles instead of skipping everything larger than one cell.
+
+### Modding & Mod Portal
+- A section declares animation tracks on its base config: a cue, nodes by name
+  prefix, a motion and travel times. Kind systems steer cues; tracks move art
+  only, never colliders.
 
 ## [0.12.0] - 2026-08-31
 

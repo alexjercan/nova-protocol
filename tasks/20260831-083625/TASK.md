@@ -1,8 +1,8 @@
 # Model the sections to the thruster's standard
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.13.0,art,content,ship
+- TAGS: v0.13.0, art, content, ship
 
 ## Goal
 
@@ -167,9 +167,25 @@ section declares an animation before modelling the second one.
 - Stills in this folder: `section-trials-{range,twin,launch}.png`,
   `wiki-section-{turret,turret-twin,torpedo-bay}.png`.
 
+6. Polish round after the owner's review pass (2026-09-01): the wiki and
+   create art trued up to the remodel. First real cards for the twin
+   turret and the cargo/tank hulls (`20ab1185`), the bay card re-cut
+   muzzle-forward around the full-cell stow housing (`807126ba`), the
+   gatling walked one cell fore so the cargo cell stops photobombing its
+   flank read (`2fbb75a4`), the animation-track grammar documented on
+   /create with the shipped gatling tree as the example (`69fe477d`),
+   the stow housing standing in the section gallery as decoder proof
+   (`4d2f2f38`), and every dated figure recaptured and restaged
+   (`f4beb9a8`) - the coverage report reads zero outstanding
+   capturables.
+
 ## Remaining
 
-- Changelog entry for the remodel when the release entry is written.
+Nothing. The remodel's changelog entries are written into `[Unreleased]`
+in the same commit that closes this task: the section models, the
+two-cell bay (marked breaking), the hull trio, the twin mount, the
+launch-through-iris, the WFC segment chains and the creator-facing
+animation-track declaration.
 
 The PDC stow promise (`20260831-083622`) is delivered: `864124bb` lands
 the Translate motion, the StowLift/StowDoors cues and the housed pit,
