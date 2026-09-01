@@ -170,6 +170,74 @@ carry an A/B take against the cue they have to be distinguishable from -
 auditioning the twin PDC alone says nothing, next to the gatling says
 everything.
 
+## The mix pass (2026-09-01)
+
+Three owner notes, and one of them turned out to be a rule rather than a
+number.
+
+THE BACKDROP CAMERA. The engine lane's measurement: the duel framed its fight
+from 313 u with `SFX_FAR_DISTANCE` silent past 320, so peak gain over a 35 s
+run was 0.095 and the backdrop was mute. The owner's call was to move the
+camera rather than retune the rolloff. It reaches two of the four backdrops:
+
+- The DUEL comes in to 200 (fight gain at frame centre 0.004 -> 0.12) and the
+  shot improves - the first cut was mostly empty black above the action.
+- The WEAVE comes in to 353, the closest pose that still frames its 140 u
+  patrol ring at 4:3.
+- The GAUNTLET cannot. Its KP-7 beacon sits at x -150 and a 4:3 frame sees
+  ~0.55 x the camera distance, so 260 already has the beacon exactly on the
+  edge; coming in far enough to matter crops it. Verified by capture, not by
+  arithmetic - the move was made, the beacon was cut, the move was reverted.
+- The WAYSTATION cannot either, and does not need to: the planetoid at the
+  origin IS the shot and the traffic works its flanks at +-140..180, so the
+  near arc is already inside the rolloff.
+
+Both held poses say why at their own `SetCamera`. What the camera cannot reach
+is left open - a per-scenario listener range is the answer neither of us named,
+and it is the owner's call whether the gauntlet is worth one.
+
+A LINEAR VOLUME IS NOT A LOUDNESS. Two cues in the table were set by comparing
+numbers across cues that share no spectrum, which is not a comparison:
+
+- `RCS_MAX_VOLUME` 0.22 sat under `ENGINE_MAX_VOLUME` 0.30 and read as "a touch
+  quieter than the main drive". Measured A-weighted it was 11.4 dB LOUDER: the
+  drive is a 66 Hz spine where the ear is least sensitive, the RCS a 1.6 kHz
+  hiss where it is most. 0.05 makes the old comment true for the first time.
+- `TORPEDO_LAUNCH_VOLUME` 0.45 measured as the LOUDEST cue in the game, over
+  the railgun the table calls loudest and the explosion it is meant to sit
+  under. Same trap, same octave-and-a-half gap. Now 0.30.
+
+The railgun keeps 0.55 and does NOT get the crown its comment claims: its
+report is almost all sub-100 Hz, so it measures ~7 dB under the explosion.
+Raising it is a call for the seat, and the comment now says so rather than
+asserting a rank the numbers do not support.
+
+A SALVO IS ONE REPORT. Every tube on a hull shares a trigger and a 1 s reload,
+so a multi-bay ship launched N thumps into one frame and they summed into a
+clipped one. `ThrottleKey::TorpedoLaunch` keys on the firing SHIP - deliberately
+the opposite policy to `TurretFire`, which keys on the gun because a gun stream
+should read as many guns while a salvo should read as one event. A world cell
+would not have done it: a capital hull's tubes sit further apart than
+`SFX_AREA_CELL`.
+
+## Open: the release note wants the before and after
+
+The owner's idea. `audition.html` is a REVIEWER's page - 4.4 MB, every cue
+base64'd inline, A/B takes against the neighbour each cue has to be
+distinguishable from. A release note wants a different thing: a handful of
+old-against-new pairs a reader can click.
+
+Nothing needs preserving for it. The pre-pass set is in git at `68a2cb38`, and
+the pass changed 17 files, left the 10 NOVA OS files byte-identical, and added
+27 new ones. So "delete the old sounds" is already done - every replaced file
+was overwritten at its own path, and nothing on disk is an orphan. The 22 files
+that nothing plays yet are the `[hook]` cues waiting for observers, not
+leftovers.
+
+If it is built, the sounds should ship as FILES under `web/src/assets/`, the
+way the video loops already do, not inlined - 44 WAVs are 2.2 MB on disk and
+base64 adds a third to that for nothing.
+
 ## Open: impacts want a material table
 
 The owner's idea, recorded here rather than filed. `impact_sound` today sits on
