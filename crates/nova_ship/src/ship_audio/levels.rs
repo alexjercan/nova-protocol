@@ -7,8 +7,19 @@
 pub const ENGINE_MAX_VOLUME: f32 = 0.3;
 
 /// Loudest the RCS fine-adjust loop ever gets (at full-deflection intent).
-/// Below [`ENGINE_MAX_VOLUME`]: RCS is a gentle nudge, not the main drive.
-pub const RCS_MAX_VOLUME: f32 = 0.22;
+///
+/// Set by MEASUREMENT, not by comparing it to [`ENGINE_MAX_VOLUME`]. The two
+/// loops are nothing alike spectrally - the drive is a 66 Hz spine, the RCS a
+/// 1.6 kHz hiss sitting where the ear is most sensitive - so a ceiling that
+/// looked comfortably under the drive's on paper (0.22 against 0.30) measured
+/// 11 dB OVER it A-weighted, and the hiss drowned the burn it is supposed to
+/// sit beneath. At 0.05 the two land within about a dB of each other, which is
+/// what the old comment claimed all along.
+///
+/// The general trap, worth remembering before tuning any other pair here: a
+/// linear volume is not a loudness. Two cues only compare directly when they
+/// occupy the same part of the spectrum.
+pub const RCS_MAX_VOLUME: f32 = 0.05;
 
 /// Map an average per-thruster throttle (0..1) to a linear engine-hum volume:
 /// silent at rest, scaling linearly to [`ENGINE_MAX_VOLUME`] at full throttle.

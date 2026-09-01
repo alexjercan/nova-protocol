@@ -139,7 +139,7 @@ pub(crate) fn menu_weave(
                 // default frame. From (0, 127, 425) a 4:3 window sees
                 // ~+-245 u at origin depth; the loop's worst case is ~225.
                 .chain([
-                    backdrop_camera(Vec3::new(0.0, 127.0, 425.0)),
+                    backdrop_camera(Vec3::new(0.0, 101.0, 338.0)),
                     band,
                     // The carousel's rotation limit: the weave has no natural
                     // ending, so after a couple of laps the menu turns to

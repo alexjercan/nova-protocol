@@ -55,10 +55,18 @@ use self::{
 const TURRET_FIRE_VOLUME: f32 = 0.10;
 const IMPACT_VOLUME: f32 = 0.22;
 const EXPLOSION_VOLUME: f32 = 0.40;
-const TORPEDO_LAUNCH_VOLUME: f32 = 0.45;
-/// The loudest cue in the set, and the only one that should be: a lance fires
-/// once a reload cycle, so it can afford to be the punctuation the PDC stream
-/// never is.
+/// Was 0.45, which measured as the LOUDEST cue in the game A-weighted - louder
+/// than the explosion it is quieter than on paper, and 8 dB over the railgun
+/// the comment below calls the loudest. Same spectral trap as
+/// [`levels::RCS_MAX_VOLUME`]: the launch's energy sits an octave and a half
+/// above the boom's, so equal numbers are not equal loudness. 0.30 puts it
+/// just under the explosion, where a launch belongs.
+const TORPEDO_LAUNCH_VOLUME: f32 = 0.30;
+/// The loudest cue in the set BY NUMBER, and the intent is that it be the
+/// loudest by ear too: a lance fires once a reload cycle, so it can afford to
+/// be the punctuation the PDC stream never is. It is not there yet - the slug
+/// report is almost all sub-100 Hz, so A-weighted it measures ~7 dB under the
+/// explosion. Raising it is a call for the seat, not for a spreadsheet.
 const RAILGUN_FIRE_VOLUME: f32 = 0.55;
 
 /// UI (non-positional) volumes for the lock/safety cues - informational
@@ -88,6 +96,13 @@ const IMPACT_MIN_INTERVAL: f32 = 0.04;
 /// ones (which would clip). Short enough that genuinely separate kills >60ms
 /// apart still each sound.
 const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
+
+/// One report per SALVO. Every bay on a ship shares a trigger and a 1 s reload,
+/// so a multi-bay hull launches its whole load on one frame; without this the
+/// pilot hears N launch thumps summing at once, which is loud rather than
+/// impressive. Comfortably under the bay's own cycle, so a second volley still
+/// sounds.
+const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
 
 /// Plugin wiring the ship's gameplay events to sound effects: the combat
 /// observers, the cockpit cues, and the thruster/RCS loops. Requires the

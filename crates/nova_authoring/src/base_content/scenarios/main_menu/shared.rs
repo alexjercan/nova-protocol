@@ -33,9 +33,19 @@ pub(super) fn backdrop_planetoid(
 /// The backdrop camera contract: every backdrop poses its OWN camera with a
 /// `SetCamera` in its OnStart (lint makes a poseless backdrop an Error).
 /// The menu derives nothing - the authored position IS the framing, fully
-/// deterministic. The reference pose is `(0, 90, 300)` looking at the
-/// origin (a 4:3 window then sees ~+-173 u at origin depth, 16:9 ~+-230);
-/// pull the camera further back for a wider stage.
+/// deterministic. The reference pose is `(0, 57, 192)` looking at the origin
+/// (a 4:3 window then sees ~+-106 u at origin depth, 16:9 ~+-141); a 4:3
+/// half-width is ~0.55 x the camera's distance, so pull further back for a
+/// wider stage.
+///
+/// The pose is an AUDIO decision as well as a framing one. A backdrop is
+/// heard through the same rolloff flight uses
+/// (`nova_gameplay::audio::SFX_FAR_DISTANCE`, 320 u to silence), so an actor
+/// further out than that is mute however good the shot is. The duel and the
+/// weave came IN for that reason - the first cut framed the duel from 313 u,
+/// which put the whole fight past the rolloff's far end. The gauntlet and the
+/// waystation did NOT: each is pinned by its own composition, and both say so
+/// at their own `SetCamera`.
 pub(super) fn backdrop_camera(position: Vec3) -> EventActionConfig {
     EventActionConfig::SetCamera(SetCameraActionConfig {
         position,

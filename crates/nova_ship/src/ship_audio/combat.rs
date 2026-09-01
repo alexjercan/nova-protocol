@@ -15,9 +15,10 @@ use nova_gameplay::{
 };
 
 use super::{
-    routing::route_for, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
-    IMPACT_VOLUME, RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL,
-    TURRET_FIRE_VOLUME,
+    routing::{owning_root, route_for, route_from},
+    EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL, IMPACT_VOLUME,
+    RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME,
+    TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
@@ -197,9 +198,16 @@ pub(super) fn on_turret_fire_play_sfx(
 /// [`TorpedoSectionSpawnerEntity`] back-ref (the same path the launch flash
 /// effect takes). A bay that authors none launches silently; base bays author
 /// it via gen_content, so the shipped game is unchanged.
+///
+/// THROTTLED PER SHIP, not per bay: a hull's tubes share a trigger, so they all
+/// launch on the same frame and eight thumps sum into one clipped one. The key
+/// is the firing ship, so a salvo is a single report while two ships firing at
+/// once are still two.
 pub(super) fn on_torpedo_launch_play_sfx(
     add: On<Add, TorpedoProjectileMarker>,
     asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
     q_projectile: Query<(&Transform, &TorpedoSectionSpawnerEntity)>,
     q_launch_sound: Query<&TorpedoSectionLaunchSound>,
     q_child_of: Query<&ChildOf>,
@@ -219,8 +227,17 @@ pub(super) fn on_torpedo_launch_play_sfx(
     else {
         return;
     };
-    // Routed off the firing BAY, for the same reason the turret is.
-    let route = route_for(spawner.0, &q_child_of, &q_is_root, &q_is_player);
+    // Routed off the firing BAY, for the same reason the turret is - and the
+    // same walk gives the throttle the ship to collapse the salvo onto.
+    let root = owning_root(spawner.0, &q_child_of, &q_is_root);
+    if !throttle.allow(
+        ThrottleKey::TorpedoLaunch(root),
+        time.elapsed_secs(),
+        TORPEDO_LAUNCH_MIN_INTERVAL,
+    ) {
+        return;
+    }
+    let route = route_from(root, &q_is_player);
     commands.play_sfx_at(handle, route, TORPEDO_LAUNCH_VOLUME, source.translation);
 }
 
@@ -407,6 +424,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_torpedo_launch_play_sfx);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
@@ -447,6 +465,52 @@ mod tests {
             app.world().resource::<LastPlayed>().0,
             None,
             "an unauthored bay launches silently"
+        );
+    }
+
+    #[test]
+    fn a_ships_whole_salvo_is_one_report_and_two_ships_are_two() {
+        // The fix for "a lot of torpedo bays is really loud on launch": every
+        // tube on a hull fires on the same frame, so the throttle keys on the
+        // SHIP and the salvo collapses to one thump. Two hulls firing together
+        // are still two, which is what a cell or a global key would have lost.
+        #[derive(Resource, Default)]
+        struct Reports(usize);
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<Reports>();
+        app.add_observer(on_torpedo_launch_play_sfx);
+        app.add_observer(|_: On<PlaySfx>, mut reports: ResMut<Reports>| reports.0 += 1);
+
+        // Two hulls, four bays each, every tube launching on the same frame.
+        for _ in 0..2 {
+            let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
+            for _ in 0..4 {
+                let bay = app
+                    .world_mut()
+                    .spawn((
+                        TorpedoSectionLaunchSound(Some(AssetRef::from(
+                            "base/sounds/torpedo_launch.wav",
+                        ))),
+                        ChildOf(ship),
+                    ))
+                    .id();
+                app.world_mut().spawn((
+                    TorpedoProjectileMarker,
+                    Transform::default(),
+                    TorpedoSectionSpawnerEntity(bay),
+                ));
+            }
+        }
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().resource::<Reports>().0,
+            2,
+            "eight tubes on two hulls must report twice, once per salvo"
         );
     }
 

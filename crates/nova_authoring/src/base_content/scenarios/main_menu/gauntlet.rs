@@ -253,6 +253,13 @@ pub(crate) fn menu_gauntlet(
                 // the 4:3 half-frame is ~150 u at origin depth - the raised
                 // circuit and its intercepts stay in shot, bigger.
                 .chain([
+                    // HELD at 260 against the audio pass that pulled the
+                    // duel's camera in: KP-7 sits at x -150 and a 4:3 frame
+                    // sees +-0.55 x the camera distance, so this pose already
+                    // has the beacon exactly on the left edge. Coming in far
+                    // enough to matter for the rolloff (~200) crops it. The
+                    // corvette reads at ~0.03 of full volume from here, which
+                    // is the cost of keeping the shot.
                     backdrop_camera(Vec3::new(0.0, 80.0, 260.0)),
                     rock_scatter,
                     spawn_ship,

@@ -217,7 +217,7 @@ pub(crate) fn menu_duel(
                 // The scene poses its own camera: the reference backdrop
                 // shot, dead on the arena center the duel fights over.
                 .chain([
-                    backdrop_camera(Vec3::new(0.0, 90.0, 300.0)),
+                    backdrop_camera(Vec3::new(0.0, 57.0, 192.0)),
                     rock_scatter,
                     timer("duel_respawn", 0.5),
                     // Stall watchdog: a duelist can end up crippled without

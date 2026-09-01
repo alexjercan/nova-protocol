@@ -57,6 +57,14 @@ pub enum ThrottleKey {
     Impact(IVec3),
     /// Destruction quantized to a world cell by [`area_cell`].
     Explosion(IVec3),
+    /// One SALVO, keyed by the ship that fired it rather than by the bay or a
+    /// world cell. A ship's tubes share a trigger and a reload, so eight bays
+    /// launch on one frame and the report is "that ship fired", not eight
+    /// thumps summing into a clipped one. Deliberately the opposite policy to
+    /// [`ThrottleKey::TurretFire`]: a gun stream reads as many guns, a salvo
+    /// reads as one event. A cell key would not do it - a capital ship's tubes
+    /// sit further apart than [`SFX_AREA_CELL`].
+    TorpedoLaunch(Entity),
 }
 
 /// Quantize a world position to a [`SFX_AREA_CELL`]-sized integer cell, so

@@ -96,6 +96,11 @@ pub(crate) fn menu_waystation(
                 // the planetoid (the old well-derived pose averaged ~here;
                 // the noise mesh runs to ~120 u, safely inside the frame).
                 .chain([
+                    // HELD at 335: the planetoid at the origin IS the shot,
+                    // and the traffic works its flanks at +-140..180 - so the
+                    // near arc is already inside the rolloff and the far arc
+                    // cannot be brought in without putting the camera through
+                    // the rock. Distance is doing the right thing here.
                     backdrop_camera(Vec3::new(0.0, 100.0, 335.0)),
                     lane_scatter,
                     // The carousel's rotation limit: the waystation's day
