@@ -190,6 +190,27 @@ pub struct TurretSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub dry_fire_sound: Option<AssetRef<AudioSource>>,
+    /// The housing lids parting as this mount rises. Authorable like
+    /// [`Self::fire_sound`]: snapshotted onto the turret as
+    /// `TurretSectionStowSounds`, played by the audio cue when the stow state
+    /// machine first commands the doors open. `None` deploys silently.
+    ///
+    /// A mount that authors no `StowLift` track never stows at all, so these
+    /// two only mean anything on a retractable housing.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub stow_open_sound: Option<AssetRef<AudioSource>>,
+    /// The lids shutting over a sunk mount, the closing half of
+    /// [`Self::stow_open_sound`].
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub stow_close_sound: Option<AssetRef<AudioSource>>,
     /// Magazine size in rounds. `None` fires without limit (the pre-ammo
     /// behavior); `Some(n)` gives the turret a [`SectionAmmo`] of `n` rounds
     /// that depletes one per bullet and blocks firing once empty.
@@ -285,6 +306,8 @@ impl Default for TurretSectionConfig {
             projectile_render_mesh: None,
             fire_sound: None,
             dry_fire_sound: None,
+            stow_open_sound: None,
+            stow_close_sound: None,
             ammo_capacity: None,
             reload: None,
         }

@@ -33,7 +33,7 @@ use render::{
 };
 use setup::{apply_turret_config_to_children, insert_turret_section};
 use stow::{drive_turret_stow, insert_turret_stow};
-pub use stow::{TurretStow, TurretStowPhase};
+pub use stow::{TurretStow, TurretStowDoorsMoved, TurretStowPhase};
 
 use crate::prelude::*;
 
@@ -247,6 +247,24 @@ pub(crate) struct TurretSectionFireSound(#[reflect(ignore)] pub Option<AssetRef<
 /// the audio cue resolves it. `pub(crate)` for the audio module.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub(crate) struct TurretSectionDryFireSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
+
+/// A retractable mount's authored housing sounds, snapshotted from
+/// [`TurretSectionConfig::stow_open_sound`] and
+/// [`TurretSectionConfig::stow_close_sound`] at spawn.
+///
+/// ONE component for the pair: they are two halves of the same mechanic and a
+/// mount that authors one without the other is a housing that only makes noise
+/// in one direction. Authored-or-silent per side, like every other section
+/// sound.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub(crate) struct TurretSectionStowSounds {
+    /// Played when the lids are first commanded open.
+    #[reflect(ignore)]
+    pub open: Option<AssetRef<AudioSource>>,
+    /// Played when the lids are first commanded shut.
+    #[reflect(ignore)]
+    pub close: Option<AssetRef<AudioSource>>,
+}
 
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 struct TurretSectionBarrelMuzzleEffectMarker;

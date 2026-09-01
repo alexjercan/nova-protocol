@@ -1294,6 +1294,8 @@
             bullet_kind: Kinetic,
             fire_sound: Some("self://sounds/turret_fire.wav"),
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 delay: 3.0,
@@ -1476,6 +1478,8 @@
             bullet_kind: Pierce,
             fire_sound: Some("self://sounds/turret_fire.wav"),
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 delay: 3.0,
@@ -1668,6 +1672,8 @@
             bullet_kind: Kinetic,
             fire_sound: Some("self://sounds/pdc_twin_fire.wav"),
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 delay: 3.0,
@@ -1860,6 +1866,8 @@
             bullet_kind: Pierce,
             fire_sound: Some("self://sounds/pdc_twin_fire.wav"),
             dry_fire_sound: Some("self://sounds/dry_fire.wav"),
+            stow_open_sound: Some("self://sounds/pdc_stow_open.wav"),
+            stow_close_sound: Some("self://sounds/pdc_stow_close.wav"),
             ammo_capacity: Some(500),
             reload: Some((
                 delay: 3.0,

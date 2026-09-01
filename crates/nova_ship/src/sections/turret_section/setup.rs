@@ -145,6 +145,10 @@ pub(super) fn insert_turret_section(
             TurretSectionMuzzles(muzzles.clone()),
             TurretSectionFireSound(config.fire_sound.clone()),
             TurretSectionDryFireSound(config.dry_fire_sound.clone()),
+            TurretSectionStowSounds {
+                open: config.stow_open_sound.clone(),
+                close: config.stow_close_sound.clone(),
+            },
         ))
         .add_child(root);
 

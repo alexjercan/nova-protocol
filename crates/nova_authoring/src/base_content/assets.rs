@@ -61,6 +61,11 @@ pub struct BaseContentAssets {
     pub turret_twin_fire_sound: AssetRef<AudioSource>,
     /// The turret dry-fire click, authored like the fire sound.
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
+    /// The retractable housing rising: lids parting, then the assembly up.
+    pub turret_stow_open_sound: AssetRef<AudioSource>,
+    /// The same housing folding away. A separate recording, not the rise
+    /// played backwards - the fold is unhurried where the rise is not.
+    pub turret_stow_close_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
     /// The warhead. A hard front and a spray of fragments - deliberately not
@@ -190,6 +195,8 @@ impl BaseContentAssets {
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_twin_fire_sound: AssetRef::from("self://sounds/pdc_twin_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
+            turret_stow_open_sound: AssetRef::from("self://sounds/pdc_stow_open.wav".to_string()),
+            turret_stow_close_sound: AssetRef::from("self://sounds/pdc_stow_close.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
             torpedo_detonation_sound: AssetRef::from(
                 "self://sounds/torpedo_detonate.wav".to_string(),

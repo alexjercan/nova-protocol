@@ -495,6 +495,10 @@ fn pdc_turret_prototype(
             projectile_render_mesh: None,
             fire_sound: Some(fire_sound.clone()),
             dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
+            // The housing this prototype already authors `pdc_stow_tracks` for
+            // - so every mount that can fold has a voice for folding.
+            stow_open_sound: Some(meshes.turret_stow_open_sound.clone()),
+            stow_close_sound: Some(meshes.turret_stow_close_sound.clone()),
             ammo_capacity: Some(500),
             reload: Some(SectionReloadConfig {
                 delay: 3.0,

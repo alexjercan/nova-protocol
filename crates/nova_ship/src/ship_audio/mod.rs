@@ -34,6 +34,7 @@ mod combat;
 mod cues;
 mod levels;
 mod loops;
+mod machinery;
 mod routing;
 
 #[cfg(test)]
@@ -46,6 +47,7 @@ use self::{
     },
     cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue},
     loops::{drive_rcs_loops, drive_thruster_loops},
+    machinery::on_stow_doors_play_sfx,
 };
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -82,6 +84,15 @@ const RADAR_DENY_VOLUME: f32 = 0.26;
 /// [`LOCK_ON_VOLUME`] acquire cue.
 const DRY_FIRE_VOLUME: f32 = 0.22;
 const RADAR_RETARGET_VOLUME: f32 = 0.18;
+
+/// The retractable PDC housing, rising and folding. Background machinery, so
+/// both land just under the dry-fire click and above the PDC's own report.
+///
+/// The two numbers differ because the two RECORDINGS differ - matching the
+/// gains would put the fold 4 dB over the rise. Set A-weighted, like every
+/// level in this table now is.
+const STOW_OPEN_VOLUME: f32 = 0.09;
+const STOW_CLOSE_VOLUME: f32 = 0.14;
 
 /// Minimum seconds between successive turret-fire and impact one-shots. Without
 /// this the ~100/s PDC and the many-collider blast hits would each spawn a
@@ -123,6 +134,7 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
         app.add_observer(on_railgun_fire_play_sfx);
+        app.add_observer(on_stow_doors_play_sfx);
 
         // Lock/safety UI cues: message-driven one-shots, so no gating needed
         // - the writers (radar search, tap observer) are themselves
