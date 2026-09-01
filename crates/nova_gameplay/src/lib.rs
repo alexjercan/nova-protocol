@@ -29,6 +29,7 @@ pub mod beacon;
 pub mod cooldown;
 pub mod damage;
 pub mod gravity;
+pub mod impact_sound;
 pub mod impact_spark;
 pub mod integrity;
 pub mod juice;
@@ -98,12 +99,13 @@ pub mod prelude {
     // the lesson outlives it: adding a name below is a decision.
     pub use super::{
         asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cooldown::prelude::*,
-        damage::prelude::*, gravity::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
-        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, math::prelude::*,
-        mesh::prelude::*, objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
-        relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, PauseStates,
+        damage::prelude::*, gravity::prelude::*, impact_sound::prelude::*,
+        impact_spark::prelude::*, integrity::prelude::*, juice::prelude::*, lifetime::prelude::*,
+        markers::prelude::*, math::prelude::*, mesh::prelude::*, objectives::prelude::*,
+        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
+        rounds::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
+        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
+        PauseStates,
     };
 }
 

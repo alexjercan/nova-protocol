@@ -46,7 +46,7 @@ shared `base` block and one kind-specific block:
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. |
-| `base.impact_sound` | `Option` asset ref | `None` | Sound played when this section is hit. Omitted means silent. |
+| `base.material` | `Option` string | `None` | What the section is MADE of, looked up in the [impact table](../impacts/) against the round that hit it. Omitted means `"hull"`. |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
 | `base.collider` | `Option` collider | `None` | Physics shape. Omitted means a 1 x 1 x 1 cube. |
 | `base.link_points` | link-point list | `[]` | Structural sockets. Multi-section ships must derive one connected graph from their mates. |
@@ -313,11 +313,13 @@ Section((
 - `render_mesh` (optional) - the hull mesh; omit for a default 1x1x1 cuboid.
 - `render_mesh_transform` (optional) - visual-only position, rotation and
   scale; does not move or resize the collider.
-- every section's `base` block also takes `impact_sound` + `destroy_sound`
-  (optional) - the sounds a hit on / the destruction of THIS section plays,
-  asset refs like the meshes (`dep://base/sounds/impact.wav` /
-  `dep://base/sounds/explosion.wav` are the base voices); an omitted sound is
-  silent. Per-target = per-material: your reinforced hull can clang.
+- every section's `base` block also takes `destroy_sound` (optional) - the
+  sound THIS section's destruction plays, an asset ref like the meshes
+  (`dep://base/sounds/explosion.wav` is the base voice); an omitted sound is
+  silent.
+- what a HIT sounds like is not authored here. A hit has two halves - the round
+  and what it struck - so the section names only its `material` and the
+  [impact table](../impacts/) pairs that with the damage type.
 
 ## Thruster
 

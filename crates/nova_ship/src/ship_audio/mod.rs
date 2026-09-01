@@ -42,8 +42,8 @@ mod test_support;
 
 use self::{
     combat::{
-        on_collapse_play_hull_loss, on_damage_play_impact, on_destroyed_play_explosion,
-        on_railgun_fire_play_sfx, on_reload_complete_play_sfx, on_torpedo_launch_play_sfx,
+        on_collapse_play_hull_loss, on_destroyed_play_explosion, on_railgun_fire_play_sfx,
+        on_reload_complete_play_sfx, on_surface_impact_play_sfx, on_torpedo_launch_play_sfx,
         on_turret_fire_play_sfx,
     },
     cues::{
@@ -187,7 +187,7 @@ impl Plugin for ShipAudioPlugin {
         }
 
         app.add_observer(on_destroyed_play_explosion);
-        app.add_observer(on_damage_play_impact);
+        app.add_observer(on_surface_impact_play_sfx);
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
         app.add_observer(on_railgun_fire_play_sfx);

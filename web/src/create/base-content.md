@@ -147,6 +147,16 @@ mix them - the two loads are two catalog SHIPS, `cargob` and `cargob_lance`
 takes Lances so a player's first torpedo fight is one point defense can answer,
 and the Final Tally flagship takes Serpents.
 
+## Impact rows
+
+The four rows of the [impact table](../impacts/), re-declarable by id to
+re-voice a hit for the whole game: `impact_kinetic` (the Kinetic default),
+`impact_kinetic_rock` (a slug on `"rock"`), `impact_pierce`, and
+`impact_explosive`.
+
+The two materials the base game names are `"hull"` (every section) and
+`"rock"` (every asteroid).
+
 ## Scenario ids
 
 What `NextScenario((scenario_id: ...))`, a `Campaign` member list, and the
@@ -240,13 +250,17 @@ prove the pipeline.
 All are generated from committed JSON recipes (`scripts/gen-greebles.py`,
 `scripts/greeble-recipes/`), and a mod can ship its own `.glb` the same way.
 
-### Sounds (13 wav)
+### Sounds (31 wav)
 
-All under `dep://base/sounds/`: `dry_fire.wav`, `explosion.wav`,
-`impact.wav`, `lock_off.wav`, `lock_on.wav`, `radar_deny.wav`,
-`radar_retarget.wav`, `rcs_loop.wav`, `safety_on.wav`,
-`salvage_pickup.wav`, `thruster_loop.wav`, `torpedo_launch.wav`,
-`turret_fire.wav`.
+All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
+`destroy_rock.wav`, `destroy_ship.wav`, `dry_fire.wav`, `explosion.wav`,
+`impact.wav`, `impact_explosive.wav`, `impact_pierce.wav`, `impact_rock.wav`,
+`lock_off.wav`, `lock_on.wav`, `pdc_stow_close.wav`, `pdc_stow_open.wav`,
+`pdc_twin_fire.wav`, `radar_deny.wav`, `radar_retarget.wav`,
+`railgun_charge.wav`, `railgun_fire.wav`, `railgun_reload.wav`, `rcs_loop.wav`,
+`safety_on.wav`, `salvage_pickup.wav`, `thruster_capital_loop.wav`,
+`thruster_loop.wav`, `thruster_vector_loop.wav`, `torpedo_detonate.wav`,
+`torpedo_launch.wav`, `turret_fire.wav`, `warn_hull.wav`, `warn_lock.wav`.
 
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)

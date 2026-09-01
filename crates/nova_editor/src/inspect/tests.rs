@@ -172,7 +172,7 @@ fn stock_asteroid() -> AsteroidConfig {
     AsteroidConfig {
         radius: 3.0,
         texture: default(),
-        impact_sound: None,
+        material: None,
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1255,7 +1255,7 @@ fn a_scrub_of_a_whole_number_stays_whole() {
     let mut config = AsteroidConfig {
         radius: 3.0,
         texture: default(),
-        impact_sound: None,
+        material: None,
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1283,7 +1283,7 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
     let mut config = AsteroidConfig {
         radius: 3.0,
         texture: default(),
-        impact_sound: None,
+        material: None,
         destroy_sound: None,
         mass: None,
         invulnerable: false,
@@ -1314,7 +1314,7 @@ fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
         radius: 3.0,
         texture: default(),
-        impact_sound: None,
+        material: None,
         destroy_sound: None,
         mass: None,
         invulnerable: false,

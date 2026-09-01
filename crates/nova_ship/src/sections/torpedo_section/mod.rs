@@ -191,7 +191,7 @@ pub struct TorpedoSectionConfig {
     pub door_sound: Option<AssetRef<AudioSource>>,
     /// The sound this torpedo's DETONATION plays (the blast destroying the
     /// projectile fires the destroy observer). Snapshotted onto the projectile
-    /// as [`ImpactDestroySounds`] (destroy slot). AUTHORED-OR-SILENT.
+    /// as [`DestroySound`]. AUTHORED-OR-SILENT.
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",

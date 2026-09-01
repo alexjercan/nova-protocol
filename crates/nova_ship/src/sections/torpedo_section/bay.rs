@@ -323,10 +323,7 @@ pub(super) fn shoot_spawn_projectile(
             // this snapshot.
             (
                 TorpedoSectionSpawnerEntity(**spawner),
-                ImpactDestroySounds {
-                    impact: None,
-                    destroy: config.detonation_sound.clone(),
-                },
+                DestroySound(config.detonation_sound.clone()),
             ),
             TorpedoProjectileRenderMesh(config.projectile_render_mesh.clone()),
             // No `TorpedoTargetPosition` yet: it is inserted only once a target is

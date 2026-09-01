@@ -294,7 +294,7 @@ fn lane_boulders(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some(AssetRef::from("self://sounds/impact_rock.wav")),
+            material: None,
             destroy_sound: None,
             radius,
             texture: asteroid_texture.clone(),
@@ -331,7 +331,7 @@ fn lane_chaff(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some(AssetRef::from("self://sounds/impact_rock.wav")),
+                material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: 1.0,
                 texture: asteroid_texture.clone(),

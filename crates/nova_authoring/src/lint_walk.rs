@@ -66,6 +66,7 @@ impl WalkedBundle {
                 Content::Campaign(cfg) => cfg.id.as_str(),
                 Content::Style(cfg) => cfg.id.as_str(),
                 Content::Ship(cfg) => cfg.id.as_str(),
+                Content::Impact(cfg) => cfg.id.as_str(),
             };
             (id == element_id).then_some(file.as_str())
         })
@@ -116,10 +117,10 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
-            // Styles have no cross-content references of their own - a style
-            // names asset paths and nothing else - so they are walked for their
-            // resource refs (below) and need no bucket here.
-            Content::Style(_) => {}
+            // Styles and impact rows have no cross-content references of their
+            // own - each names asset paths and nothing else - so they are
+            // walked for their resource refs (below) and need no bucket here.
+            Content::Style(_) | Content::Impact(_) => {}
         }
     }
     WalkedBundle {
@@ -309,6 +310,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             Content::Campaign(cfg) => (cfg.id.clone(), "campaign"),
             Content::Style(cfg) => (cfg.id.clone(), "style"),
             Content::Ship(cfg) => (cfg.id.clone(), "ship"),
+            Content::Impact(cfg) => (cfg.id.clone(), "impact"),
         };
         for message in nova_assets::mod_refs::resource_ref_violations(item, &scope) {
             issues.push((

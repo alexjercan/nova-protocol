@@ -914,7 +914,7 @@ fn stock_object() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: 3.0,
             texture: AssetRef::from(crate::node::ASTEROID_TEXTURE),
-            impact_sound: Some(AssetRef::from(crate::node::IMPACT_SOUND)),
+            material: None,
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),
             mass: None,
             invulnerable: false,

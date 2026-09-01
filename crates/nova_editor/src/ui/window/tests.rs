@@ -99,7 +99,7 @@ fn asteroid(app: &mut App, scenario: Entity) -> Entity {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: 3.0,
                     texture: default(),
-                    impact_sound: None,
+                    material: None,
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

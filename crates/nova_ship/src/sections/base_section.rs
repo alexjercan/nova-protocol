@@ -19,7 +19,7 @@ use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
-    prelude::{destructible_body, ConnectedTo, ExplodableEntity},
+    prelude::{destructible_body, ConnectedTo, ExplodableEntity, SurfaceMaterial, MATERIAL_HULL},
 };
 
 use super::prelude::*;
@@ -28,7 +28,7 @@ use super::prelude::*;
 /// collider and render-mesh transforms.
 pub mod prelude {
     pub use super::{
-        base_section, preview_section, BaseSectionConfig, GameSections, ImpactDestroySounds,
+        base_section, preview_section, BaseSectionConfig, DestroySound, GameSections,
         RenderMeshTransform, SectionCollider, SectionConfig, SectionFootprint, SectionKind,
         SectionRenderMeshTransform, SectionRenderOf,
     };
@@ -243,7 +243,7 @@ pub struct SectionRenderOf(pub Entity);
 /// The data every section carries regardless of kind: identity, physics and the
 /// authored hit/destroy sounds and collider. Authored in the section RON as the
 /// `base` of a [`SectionConfig`]; snapshotted into runtime components (collider,
-/// [`ImpactDestroySounds`]) by [`base_section`] / [`preview_section`].
+/// [`DestroySound`]) by [`base_section`] / [`preview_section`].
 #[derive(Component, Clone, Debug, Default, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseSectionConfig {
@@ -255,18 +255,23 @@ pub struct BaseSectionConfig {
     pub description: String,
     /// Section hit points; reaching zero destroys the section.
     pub health: f32,
-    /// The sound a hit on THIS section plays - per-target, so the target IS
-    /// the material (a rock, a light hull and a reinforced hull can each sound
-    /// different). Authorable asset ref like the meshes; AUTHORED-OR-SILENT.
-    /// Snapshotted into [`ImpactDestroySounds`] by [`base_section`].
-    #[reflect(ignore)]
+    /// What this section is MADE of - an open material id looked up in the
+    /// impact table ([`GameImpacts`]) against the damage type that struck it,
+    /// snapshotted into [`SurfaceMaterial`] by [`base_section`].
+    ///
+    /// `None` is [`MATERIAL_HULL`], because a section IS ship plate. The field
+    /// exists so a mod can say otherwise - ceramic, ice, a fielded screen -
+    /// not so the base catalog can restate what every section already is.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub impact_sound: Option<AssetRef<AudioSource>>,
-    /// The sound this section's destruction plays; same rules as
-    /// [`Self::impact_sound`].
+    pub material: Option<String>,
+    /// The sound this section's destruction plays. Unlike the hit voice this
+    /// stays per-target: a section failing is one event with one sound, and
+    /// nothing about what killed it changes how the structure lets go.
+    /// Authorable asset ref like the meshes; AUTHORED-OR-SILENT, snapshotted
+    /// into [`DestroySound`] by [`base_section`].
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
@@ -329,21 +334,18 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-/// A damage target's authored impact/destroy sounds, snapshotted UNRESOLVED
-/// from its config ([`BaseSectionConfig`] via [`base_section`]; the asteroid
-/// bundle and the torpedo projectile snapshot their own). The audio observers
-/// find it by walking up from the hit/destroyed entity (asteroids keep their
-/// Health on a child node), resolve, and play - authored-or-silent. `pub`
-/// because nova_scenario's asteroid bundle constructs it.
+/// A damage target's authored destruction voice, snapshotted UNRESOLVED from
+/// its config ([`BaseSectionConfig`] via [`base_section`]; the asteroid bundle
+/// and the torpedo projectile snapshot their own). The destroy observer finds
+/// it by walking up from the destroyed entity (asteroids keep their Health on a
+/// child node), resolves, and plays - authored-or-silent. `pub` because
+/// nova_scenario's asteroid bundle constructs it.
+///
+/// It used to carry the HIT voice too. That half is the impact table's now
+/// ([`GameImpacts`]), because what a hit sounds like depends on the round as
+/// well as the target and a per-target field can only say one of those.
 #[derive(Component, Clone, Debug, Default, Reflect)]
-pub struct ImpactDestroySounds {
-    /// Sound played when this target is hit but not destroyed.
-    #[reflect(ignore)]
-    pub impact: Option<AssetRef<AudioSource>>,
-    /// Sound played when this target is destroyed.
-    #[reflect(ignore)]
-    pub destroy: Option<AssetRef<AudioSource>>,
-}
+pub struct DestroySound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 /// Which kind of section this is, tagging the matching kind-specific config.
 /// The discriminant that selects a section's behavior plugin and the config it
@@ -425,10 +427,8 @@ pub fn base_section(config: BaseSectionConfig) -> impl Bundle {
         // The authored animation tracks, at rest. Kind systems steer the
         // cues; the SectionAnimationPlugin systems move the scene nodes.
         super::section_animation::SectionAnimations::new(config.animations),
-        ImpactDestroySounds {
-            impact: config.impact_sound.clone(),
-            destroy: config.destroy_sound,
-        },
+        DestroySound(config.destroy_sound),
+        SurfaceMaterial::new(config.material.unwrap_or_else(|| MATERIAL_HULL.to_string())),
     )
 }
 
@@ -586,7 +586,7 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
-            impact_sound: None,
+            material: None,
             destroy_sound: None,
             collider: Some(SectionCollider::Cuboid {
                 size: Vec3::new(0.8, 0.8, 0.8),
@@ -624,7 +624,7 @@ mod tests {
             name: "s".to_string(),
             description: String::new(),
             health: 100.0,
-            impact_sound: None,
+            material: None,
             destroy_sound: None,
             collider: None,
             link_points: Vec::new(),

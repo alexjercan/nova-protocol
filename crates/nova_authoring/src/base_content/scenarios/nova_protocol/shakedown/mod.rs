@@ -546,7 +546,7 @@ fn belt_rock(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some(AssetRef::from("self://sounds/impact_rock.wav")),
+            material: None,
             destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
             radius,
             texture: asteroid_texture,
@@ -648,7 +648,7 @@ pub(crate) fn shakedown_run(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some(AssetRef::from("self://sounds/impact_rock.wav")),
+            material: None,
             destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
             radius: PLANETOID_NOMINAL_RADIUS,
             texture: asteroid_texture.clone(),
@@ -667,7 +667,7 @@ pub(crate) fn shakedown_run(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some(AssetRef::from("self://sounds/impact_rock.wav")),
+                material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius,
                 texture: asteroid_texture.clone(),

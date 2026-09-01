@@ -1,0 +1,23 @@
+[
+    Impact((
+        id: "impact_kinetic",
+        damage: Kinetic,
+        sound: "self://sounds/impact.wav",
+    )),
+    Impact((
+        id: "impact_kinetic_rock",
+        damage: Kinetic,
+        material: Some("rock"),
+        sound: "self://sounds/impact_rock.wav",
+    )),
+    Impact((
+        id: "impact_pierce",
+        damage: Pierce,
+        sound: "self://sounds/impact_pierce.wav",
+    )),
+    Impact((
+        id: "impact_explosive",
+        damage: Explosive,
+        sound: "self://sounds/impact_explosive.wav",
+    )),
+]

@@ -5,7 +5,6 @@
             name: "Reinforced Hull Section",
             description: "A reinforced hull section for spaceships.",
             health: 200.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -98,7 +97,6 @@
             name: "Basic Thruster Section",
             description: "A basic thruster section for spaceships.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -169,7 +167,6 @@
             name: "Vector Thruster Section",
             description: "A 3x3x2 vectoring drive for larger ships.",
             health: 480.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -351,7 +348,6 @@
             name: "Capital Thruster Section",
             description: "A 5x5x3 capital drive for the largest ships.",
             health: 1250.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -741,7 +737,6 @@
             name: "Basic Controller Section",
             description: "A basic controller section for spaceships.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -850,7 +845,6 @@
             name: "Light Hull Section",
             description: "A thin-walled hull section; scavenger grade.",
             health: 60.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -943,7 +937,6 @@
             name: "Cargo Hull Section",
             description: "A hull section packed with caged freight; every face reads the same.",
             health: 200.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -1036,7 +1029,6 @@
             name: "Tank Hull Section",
             description: "A hull section carrying a pressure vessel in open frame rails.",
             health: 200.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             link_points: [
                 (
@@ -1129,7 +1121,6 @@
             name: "PDC Turret (Kinetic)",
             description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
             health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1313,7 +1304,6 @@
             name: "PDC Turret (Pierce)",
             description: "The same mount firing penetrators. Half the damage per hit, dealt to EVERY section the round rakes through - closing fast buys depth, not damage. Worse against one thin target, better against a deep one.",
             health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1497,7 +1487,6 @@
             name: "Twin PDC Turret (Kinetic)",
             description: "The same slugs from a two-barrel mount. Each tube fires at half the gatling\'s cadence, so the magazine drains no faster - the trade is two offset streams instead of one dense one.",
             health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1691,7 +1680,6 @@
             name: "Twin PDC Turret (Pierce)",
             description: "Penetrators from the two-barrel mount: half per-hit damage dealt through every layer, split across two offset streams at the same total rate.",
             health: 130.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -1885,7 +1873,6 @@
             name: "Torpedo Bay (Serpent)",
             description: "The standard bay, loaded with Serpent assault torpedoes. They run in on a terminal weave, so point defense spends roughly three times the rounds to stop one and only kills it on the doorstep. The corkscrew is a longer path: a Serpent arrives later than a Lance and gains less on a target that is running.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2080,7 +2067,6 @@
             name: "Torpedo Bay (Lance)",
             description: "The same bay and the same warhead, loaded with Lance bombardment torpedoes: no weave, the bare intercept. The shortest path there is - it arrives soonest and keeps closing on a runner - which is also the path point defense is built to solve. Ordnance for a target that will not shoot back.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2275,7 +2261,6 @@
             name: "Railgun Lance",
             description: "A spinal kinetic lance: no traverse, so the HULL aims it. Tapping the trigger COMMITS - the bolt walks the bore and the shot leaves when it arrives, whether or not the nose is still on the target. What leaves rakes through everything in the line, and shoves the ship that fired.",
             health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2504,7 +2489,6 @@
             name: "Siege Torpedo Bay Section",
             description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",
             health: 100.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2696,7 +2680,6 @@
             name: "Racer // Engine Starboard",
             description: "The Racer\'s engine starboard section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2794,7 +2777,6 @@
             name: "Racer // Engine Port",
             description: "The Racer\'s engine port section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2892,7 +2874,6 @@
             name: "Racer // Wing Starboard",
             description: "The Racer\'s wing starboard section.",
             health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -2960,7 +2941,6 @@
             name: "Racer // Wing Port",
             description: "The Racer\'s wing port section.",
             health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3028,7 +3008,6 @@
             name: "Racer // Nose",
             description: "The Racer\'s nose section.",
             health: 120.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3070,7 +3049,6 @@
             name: "Racer // Tail",
             description: "The Racer\'s tail section.",
             health: 120.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3138,7 +3116,6 @@
             name: "Racer // Fuselage",
             description: "The Racer\'s fuselage section.",
             health: 240.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3235,7 +3212,6 @@
             name: "CargoB // Engine Starboard",
             description: "The CargoB\'s engine starboard section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3320,7 +3296,6 @@
             name: "CargoB // Engine Port",
             description: "The CargoB\'s engine port section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3405,7 +3380,6 @@
             name: "CargoB // Pod Starboard",
             description: "The CargoB\'s pod starboard section.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3517,7 +3491,6 @@
             name: "CargoB // Pod Starboard (Lance)",
             description: "The CargoB\'s pod starboard section. Loaded with straight-running Lance torpedoes.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3629,7 +3602,6 @@
             name: "CargoB // Pod Port",
             description: "The CargoB\'s pod port section.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3741,7 +3713,6 @@
             name: "CargoB // Pod Port (Lance)",
             description: "The CargoB\'s pod port section. Loaded with straight-running Lance torpedoes.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3853,7 +3824,6 @@
             name: "CargoB // Nose",
             description: "The CargoB\'s nose section.",
             health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3895,7 +3865,6 @@
             name: "CargoB // Tail",
             description: "The CargoB\'s tail section.",
             health: 150.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -3937,7 +3906,6 @@
             name: "CargoB // Fuselage",
             description: "The CargoB\'s fuselage section.",
             health: 300.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4034,7 +4002,6 @@
             name: "CargoA // Engine Starboard",
             description: "The CargoA\'s engine starboard section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4119,7 +4086,6 @@
             name: "CargoA // Engine Port",
             description: "The CargoA\'s engine port section.",
             health: 70.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4204,7 +4170,6 @@
             name: "CargoA // Pod Starboard",
             description: "The CargoA\'s pod starboard section.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4259,7 +4224,6 @@
             name: "CargoA // Pod Port",
             description: "The CargoA\'s pod port section.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4314,7 +4278,6 @@
             name: "CargoA // Nose",
             description: "The CargoA\'s nose section.",
             health: 180.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4382,7 +4345,6 @@
             name: "CargoA // Tail",
             description: "The CargoA\'s tail section.",
             health: 150.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (
@@ -4424,7 +4386,6 @@
             name: "CargoA // Fuselage",
             description: "The CargoA\'s fuselage section.",
             health: 350.0,
-            impact_sound: Some("self://sounds/impact.wav"),
             destroy_sound: Some("self://sounds/explosion.wav"),
             collider: Some(Cuboid(
                 size: (

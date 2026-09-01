@@ -48,10 +48,10 @@ const SHIP_NODE_SPACING: f32 = 24.0;
 /// runtime outside the mod merge, so a scheme ref placed here would never be
 /// rewritten and would resolve to nothing.
 pub(crate) const ASTEROID_TEXTURE: &str = "base/textures/asteroid.png";
-/// The sound a hit on a placed rock plays.
-pub(crate) const IMPACT_SOUND: &str = "base/sounds/impact.wav";
-/// The sound a placed rock's destruction plays.
-pub(crate) const DESTROY_SOUND: &str = "base/sounds/explosion.wav";
+/// The sound a placed rock's destruction plays. The rock's own, not the hull's
+/// - a placed asteroid takes the base catalog's rock material for its HIT voice
+/// (see `GameImpacts`) and must not borrow ship plate for the other half.
+pub(crate) const DESTROY_SOUND: &str = "base/sounds/destroy_rock.wav";
 /// The ding a placed salvage crate is picked up with.
 pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
 
@@ -338,7 +338,7 @@ impl ObjectChoice {
             ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: 3.0,
                 texture: AssetRef::from(ASTEROID_TEXTURE),
-                impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+                material: None,
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 mass: None,
                 invulnerable: false,
@@ -1307,7 +1307,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: 3.0,
                     texture: default(),
-                    impact_sound: None,
+                    material: None,
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,
@@ -1341,7 +1341,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: 3.0,
                     texture: default(),
-                    impact_sound: None,
+                    material: None,
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

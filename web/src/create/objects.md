@@ -60,8 +60,8 @@ default mass and radar signature together.
 | `texture` | asset ref | required | surface texture (`dep://base/textures/asteroid.png` is the stock rock) |
 | `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
 | `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2). `Some` ALWAYS makes this rock a well: pull is `a = mu / r^2`; size it by the sphere of influence you want (`mu = soi_cutoff_accel * soi^2`). `None` = the global rule (a default mass only if the radius qualifies it as a well) |
-| `impact_sound` | `Option` asset ref | `None` | played on hit (`Some("dep://base/sounds/impact.wav")`); omitted = silent |
-| `destroy_sound` | `Option` asset ref | `None` | played on destruction; omitted = silent |
+| `material` | `Option` string | `None` | what the rock is MADE of, looked up in the [impact table](../impacts/) against the round that hit it. `None` = `"rock"` |
+| `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override; `None` = the radius (big rocks lock far) |
 | `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
 

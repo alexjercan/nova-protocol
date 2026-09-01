@@ -332,42 +332,85 @@ reporting the hull coming apart must not be louder than the hull coming apart.
 With this, `impact_pierce` and `impact_explosive` are the only two rendered
 files nothing plays, and they wait on the table below.
 
-## Queued: the impact material table
+## The impact table (2026-09-01)
 
-The owner's idea. `impact_sound` today sits on the thing being HIT, so the game
-already models half of "what on what" and has no notion of the other half. The
-proposal is to key impacts on a material pair.
+The owner's idea, landed. `impact_sound` sat on the thing being HIT, so the
+game modelled half of "what on what" and had no notion of the other half - a
+slug and a penetrator on the same plate made the same noise. It is now a table:
+content authors `(damage type, material) -> sound`, and a target only says what
+it is MADE of.
 
-The shape needs one correction: it is two lookups, not one.
+The queued design said TWO tables, and that was wrong. It read a body-on-body
+ram as symmetric - an unordered material pair needing its own mechanism. But
+`on_impact_collision_deal_damage` (`nova_gameplay/src/integrity/core.rs`)
+already routes every ram through `apply_damage(.., DamageType::Kinetic, at)`,
+so a ram IS `(Kinetic, material)` under the asymmetric table and was already
+audible. A second mechanism answering a question the first answers is the
+compatibility machinery the conventions forbid. ONE table.
 
-- A ROUND hitting a surface is asymmetric, and the "what hit it" half already
-  exists - the round carries a `DamageType`. So the key is
-  `(DamageType, Material)`: three by roughly four, sparse, falling back to the
-  damage type's default. That is exactly the cross product this pass rendered
-  without naming it - `impact_kinetic` / `impact_pierce` / `impact_explosive`
-  against `impact_rock`. This is the half that still blocks two files:
-  `impact_pierce` and `impact_explosive` describe the ROUND, and there is
-  nowhere on a target to author them.
-- Two BODIES colliding is symmetric - an unordered material pair. A different
-  table, and the one that would make ship-into-asteroid audible at all.
+What it is made of:
 
-There is no material concept in the codebase today. When it lands,
-`impact_sound` should be DELETED rather than kept as an override: two
-mechanisms for one question is the compatibility machinery the conventions
-forbid, and if one
-thing must sound special, giving it its own material is the more expressive
-knob. That makes it a `**(breaking)**` content-format change.
+- `SurfaceImpact { entity, kind, at }` in `nova_gameplay::damage`, emitted by
+  `apply_damage` exactly when the caller knew WHERE the hit was - the same
+  condition that earns a crater, so a scripted `destroy` and a test rig stay
+  silent. `apply_blast_damage` emits it too, at the blast centre, which is what
+  makes `Explosive` reachable at all.
+- It does NOT propagate, and that deleted a guard rather than adding one. The
+  old cue rode `HealthApplyDamage` up `ChildOf` to the ship root and had to
+  filter the hops back out with `damage.entity != original_event_target()`. It
+  also carries the CONTACT POINT, so the cue plays where the round bit instead
+  of at the struck body's origin.
+- `SurfaceMaterial(String)` - open strings, not an enum, for the reason style
+  ids are: a mod adds ice or ceramic by naming it. `None` on a section is
+  `"hull"` and on an asteroid is `"rock"`, because the field exists so a mod
+  can say otherwise, not so the base catalog can restate what everything
+  already is.
+- `ImpactSoundConfig` + `Content::Impact` + `GameImpacts`, one content item per
+  ROW so a mod re-voices one pair by re-declaring that row's id alone.
+- The base table is four rows in `assets/base/impacts/base.content.ron`: three
+  defaults, one per damage type, plus `(Kinetic, "rock")`. The lookup falls
+  back exactly once - to the damage type's default - and is otherwise silent.
+  A material with no `Pierce` row does not borrow its own `Kinetic` row.
 
-Not started, and second in the queue behind `warn_hull`: it is engine work in
-the damage path, and the bigger of the two by a wide margin - a material
-concept, two lookup tables, an authoring surface for both, and a content
-migration. `warn_hull` is a latch and a threshold field.
+`impact_sound` is DELETED, not kept as an override, on both `BaseSectionConfig`
+and `AsteroidConfig` - a `**(breaking)**` content-format change. That closed
+the last two unreachable renders: `impact_pierce.wav` and
+`impact_explosive.wav`. Every file in `assets/base/sounds/` is now authored.
 
-Agreed and unchanged in the same conversation: `destroy_sound` stays per
-section and object (a destruction has no second party to key on), `fire_sound`
-/ `dry_fire_sound` stay per turret, and `detonation_sound` stays per warhead -
-now pointing at a real `torpedo_detonate.wav` instead of aliasing the
-section-failure voice.
+`ImpactDestroySounds` lost its impact half and is `DestroySound`, a newtype - a
+struct with only a destroy field could not keep that name.
+
+Two rocks the wiring pass missed, found here and fixed: the editor's placed
+asteroids and `wfc_arena`/`system_turret_gunnery`'s rocks were still authoring
+`explosion.wav` for their destruction, the hull's voice on stone. They author
+`destroy_rock.wav` now.
+
+Agreed and unchanged: `destroy_sound` stays per section and object (a
+destruction has no second party to key on), `fire_sound` / `dry_fire_sound`
+stay per turret, `detonation_sound` stays per warhead.
+
+### Open: impact_rock is 4.6 dBA hot
+
+Measured after the table landed, loudest-50 ms A-weighted at unity:
+
+    impact.wav            -34.3 dBA
+    impact_pierce.wav     -34.7 dBA
+    impact_explosive.wav  -34.0 dBA
+    impact_rock.wav       -29.7 dBA
+
+The three defaults are within 0.7 dB of each other. The rock is 4.6 dB over
+them, and all four play at the one `IMPACT_VOLUME`, so a hit on stone is
+audibly louder than the same round on plate. That is not the table's doing - it
+arrived with `d33bd9a9`, when asteroids stopped borrowing the hull's voice, and
+nobody has flown it yet.
+
+Not fixed here, deliberately. The lever is in the RENDER, not a constant: the
+rock's saturated body sets its own peak, so peak normalization leaves its
+sustained level high where the kinetic hit's bright strike pulls everything
+else down. Backing the body's saturation drive from 1.8 to about 0.5 lands it
+on -34, and that is a change to how the cue SOUNDS - it is the "broad dull
+body" the recipe is built around. Measured, not auditioned; the owner should
+hear it before it is reshaped.
 
 ## Open: the release note wants the before and after
 

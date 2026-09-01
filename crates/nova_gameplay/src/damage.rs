@@ -23,6 +23,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::{
+    impact_sound::prelude::{GameImpacts, SurfaceMaterial},
     integrity::{
         carve::prelude::{record_blast_marks, record_damage_mark},
         health::prelude::{Health, HealthApplyDamage, HealthZeroMarker},
@@ -37,7 +38,7 @@ pub mod prelude {
         apply_blast_damage, apply_damage, closing_speed, damage_type_color, hit_bite,
         kinetic_damage_multiplier, nova_blast, pierce_power_multiplier, pierce_remainder,
         representative_kinetic_damage, spend_piercing_damage, DamageType, NovaBlast,
-        NovaDamagePlugin, ProjectileDamage, SectionClass, MAX_PIERCE_LAYERS,
+        NovaDamagePlugin, ProjectileDamage, SectionClass, SurfaceImpact, MAX_PIERCE_LAYERS,
         NEUTRALIZED_BULLET_MASS, PIERCE_BASE_POWER, REFERENCE_CLOSING_SPEED,
     };
 }
@@ -278,6 +279,30 @@ pub fn damage_type_color(kind: DamageType) -> Color {
 /// still one number - but what a hit LOOKS like is a property of the weapon
 /// class, so the carve has to know which one paid.
 ///
+/// A round meeting a SURFACE: where it landed, and which weapon class paid.
+///
+/// The report seam the hit voice reads, and deliberately not
+/// [`HealthApplyDamage`]. Health is a store, and a scripted `destroy` or a test
+/// rig spends hit points through it without anything having struck anything;
+/// this fires only where a weapon knew the point of contact, which is the same
+/// condition that earns a crater.
+///
+/// It does NOT propagate. The hit belongs to the collider that was struck and
+/// to no ancestor of it, so a cue reading this needs no "am I the original
+/// target" guard, and `at` is the contact point rather than the target's
+/// origin.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct SurfaceImpact {
+    /// The collider that was struck.
+    pub entity: Entity,
+    /// Which weapon class paid for the hit - the round-side half of "what hit
+    /// what". The target-side half is the struck body's
+    /// [`SurfaceMaterial`](crate::impact_sound::SurfaceMaterial).
+    pub kind: DamageType,
+    /// Where it landed, in world space.
+    pub at: Vec3,
+}
+
 /// [`DamageMarks`]: crate::integrity::carve::DamageMarks
 pub fn apply_damage(
     commands: &mut Commands,
@@ -289,6 +314,11 @@ pub fn apply_damage(
 ) {
     if let Some(at) = at {
         record_damage_mark(commands, target, at, amount, kind);
+        commands.trigger(SurfaceImpact {
+            entity: target,
+            kind,
+            at,
+        });
     }
     commands.trigger(HealthApplyDamage {
         entity: target,
@@ -324,6 +354,15 @@ pub fn apply_blast_damage(
 ) {
     record_blast_marks(commands, at, max_radius, hits.to_vec(), kind);
     for &(target, amount) in hits {
+        // The blast centre, not each collider's own position: a warhead goes
+        // off in ONE place, and the impact cue is throttled per area cell, so
+        // forty colliders under one detonation are one Explosive hit heard
+        // against whichever material the pressure reached first.
+        commands.trigger(SurfaceImpact {
+            entity: target,
+            kind,
+            at,
+        });
         commands.trigger(HealthApplyDamage {
             entity: target,
             source,
@@ -727,7 +766,12 @@ impl Plugin for NovaDamagePlugin {
             .register_type::<ProjectileDamage>()
             .register_type::<SectionClass>()
             .register_type::<NovaBlast>()
-            .init_resource::<PendingBlastHits>();
+            .register_type::<SurfaceMaterial>()
+            .init_resource::<PendingBlastHits>()
+            // Empty unless the content merge overwrites it, so a rig that
+            // loads no content resolves no hit voice rather than panicking on
+            // a missing resource.
+            .init_resource::<GameImpacts>();
         app.add_observer(collect_nova_blast_collision);
         app.add_systems(
             FixedPostUpdate,

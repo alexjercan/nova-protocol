@@ -319,8 +319,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some("base/sounds/impact.wav".into()),
-            destroy_sound: Some("base/sounds/explosion.wav".into()),
+            material: None,
+            destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
             radius: 2.0,
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,
@@ -360,8 +360,8 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                impact_sound: Some("base/sounds/impact.wav".into()),
-                destroy_sound: Some("base/sounds/explosion.wav".into()),
+                material: None,
+                destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
                 radius: 16.0,
                 texture: game_assets.asteroid_texture.clone().into(),
                 mass: Some(30_000.0),

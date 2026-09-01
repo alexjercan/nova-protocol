@@ -524,7 +524,7 @@ mod tests {
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                         radius: 7.0,
                         texture: default(),
-                        impact_sound: None,
+                        material: None,
                         destroy_sound: None,
                         mass: None,
                         invulnerable: false,

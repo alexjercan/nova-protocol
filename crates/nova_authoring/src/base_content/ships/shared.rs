@@ -230,7 +230,7 @@ fn base_config(
         name: format!("{family} // {}", title_case(spec.id)),
         description: format!("The {family}'s {} section.", spec.id.replace('_', " ")),
         health: spec.health,
-        impact_sound: Some(meshes.section_impact_sound.clone()),
+        material: None,
         destroy_sound: Some(meshes.section_destroy_sound.clone()),
         collider: Some(SectionCollider::Cuboid { size: spec.size() }),
         link_points: links,

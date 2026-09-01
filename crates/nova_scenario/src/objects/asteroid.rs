@@ -45,16 +45,22 @@ pub struct AsteroidConfig {
     /// at spawn time (see `insert_asteroid_render`).
     #[reflect(ignore)]
     pub texture: AssetRef<Image>,
-    /// The sound a hit on this rock plays. Authorable asset ref;
-    /// AUTHORED-OR-SILENT. Snapshotted into [`ImpactDestroySounds`] on the
-    /// asteroid parent (the audio observers walk up from the collider node).
+    /// What this rock is MADE of - an open material id looked up in the impact
+    /// table against the damage type that struck it, snapshotted into
+    /// [`SurfaceMaterial`] on the asteroid parent (the audio observers walk up
+    /// from the collider node).
+    ///
+    /// `None` is [`MATERIAL_ROCK`]. The field exists so a mod can field an ice
+    /// or a metal body, not so every asteroid can restate that it is stone.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    #[reflect(ignore)]
-    pub impact_sound: Option<AssetRef<AudioSource>>,
-    /// The sound this rock's destruction plays; same rules.
+    pub material: Option<String>,
+    /// The sound this rock's destruction plays. Authorable asset ref;
+    /// AUTHORED-OR-SILENT, snapshotted into [`DestroySound`] on the same
+    /// parent. Per-target, unlike the hit voice: a rock breaking up is one
+    /// event whatever broke it.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -190,10 +196,13 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         CarveDebris::Rock,
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
-        ImpactDestroySounds {
-            impact: config.impact_sound.clone(),
-            destroy: config.destroy_sound.clone(),
-        },
+        DestroySound(config.destroy_sound.clone()),
+        SurfaceMaterial::new(
+            config
+                .material
+                .clone()
+                .unwrap_or_else(|| MATERIAL_ROCK.to_string()),
+        ),
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
@@ -1028,7 +1037,7 @@ mod tests {
     /// The authored config every rock test starts from.
     fn rock(radius: f32, mass: Option<f32>) -> AsteroidConfig {
         AsteroidConfig {
-            impact_sound: None,
+            material: None,
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),

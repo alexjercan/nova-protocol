@@ -9,6 +9,8 @@
         // After the sections it is built from: a ship references section
         // prototypes by id, so the catalog it reads must merge first.
         "ships/base.content.ron",
+        // The impact table: what a round sounds like against what it hit.
+        "impacts/base.content.ron",
         "campaigns/nova_protocol.content.ron",
         "scenarios/broadside.content.ron",
         "scenarios/broadside_gunship.content.ron",

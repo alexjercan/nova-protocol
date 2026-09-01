@@ -36,7 +36,7 @@ use crate::{
     event::{named_ids, NamedIds, ScriptNodes},
     node::{
         objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
-        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, IMPACT_SOUND,
+        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND,
     },
 };
 
@@ -678,7 +678,7 @@ fn planetoid() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             // DIRECT paths, not dep://: the editor's world is built at runtime
             // outside the mod merge, so scheme refs would never rewrite.
-            impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+            material: None,
             destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
             radius: PLANETOID_RADIUS,
             texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -942,7 +942,7 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep:// - see `planetoid`.
-                impact_sound: Some(AssetRef::from(IMPACT_SOUND)),
+                material: None,
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: belt.radius.0,
                 texture: AssetRef::from(ASTEROID_TEXTURE),

@@ -105,8 +105,8 @@ pub fn asteroid(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            impact_sound: Some("base/sounds/impact.wav".into()),
-            destroy_sound: Some("base/sounds/explosion.wav".into()),
+            destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
+            material: None,
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,

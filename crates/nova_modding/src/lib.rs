@@ -42,6 +42,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
+use nova_gameplay::prelude::ImpactSoundConfig;
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -90,6 +91,11 @@ pub enum Content {
     /// authored once and spawned by id, so a scenario names a corvette instead
     /// of carrying a copy of one.
     Ship(ShipConfig),
+    /// One row of the impact table ([`ImpactSoundConfig`]) - registers into
+    /// `GameImpacts` keyed by its id. One row per item rather than one nested
+    /// table, so a mod can re-voice a single (damage type, material) pair
+    /// without restating the rest.
+    Impact(ImpactSoundConfig),
 }
 
 /// The content of one `*.content.ron` file: a thin [`Asset`] wrapper around a

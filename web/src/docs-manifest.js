@@ -377,8 +377,8 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, and styles.",
-        related: ["campaigns", "scenarios", "sections", "ships", "styles"],
+            "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, and impacts.",
+        related: ["campaigns", "scenarios", "sections", "ships", "styles", "impacts"],
         headings: [
             "Folder structure",
             "The bundle manifest",
@@ -493,6 +493,25 @@ const CREATE_PAGES = [
             "The scatter is deterministic",
             "The frame a greeble is authored in",
             "Using a style",
+        ],
+    },
+    {
+        slug: "impacts",
+        md: "impacts.md",
+        title: "The impact table for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference"],
+        summary:
+            "Pair a damage type with a material to voice a hit: the Impact item, the single fallback, naming your own materials, and the four base rows.",
+        related: ["sections", "objects", "base-content"],
+        headings: [
+            "The Impact item",
+            "How a hit finds its row",
+            "Naming a material",
+            "Base rows",
+            "Destruction is not here",
         ],
     },
     {
@@ -633,9 +652,10 @@ const CREATE_PAGES = [
         tags: ["modding", "reference", "ships"],
         summary:
             "Every id and asset the base game ships: section prototype ids, ship and style ids, scenario ids, the campaign, dep://base asset paths, and overlay rules.",
-        related: ["sections", "mod-files", "objects"],
+        related: ["sections", "mod-files", "objects", "impacts"],
         headings: [
             "Section prototypes",
+            "Impact rows",
             "Scenario ids",
             "Assets: what dep://base/ can reach",
             "The overlay rule",

@@ -1,7 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
-//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`), linting the
-//! result as it goes.
+//! `GameShips`, `GameScenarios`, `GameCampaigns`, `GameStyles`, `GameImpacts`),
+//! linting the result as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
 /// public API of this module.
@@ -12,6 +12,7 @@ pub mod prelude {
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
+use nova_gameplay::prelude::{GameImpacts, ImpactSoundConfig};
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{GameCampaigns, GameScenarios, GameShips, NewGameStart, ShipConfig};
 use nova_ship::prelude::*;
@@ -228,6 +229,7 @@ pub fn register_bundles(
                         Content::Campaign(cfg) => cfg.id.clone(),
                         Content::Style(cfg) => cfg.id.clone(),
                         Content::Ship(cfg) => cfg.id.clone(),
+                        Content::Impact(cfg) => cfg.id.clone(),
                     };
                     undeclared_ref_issues.push((id, message));
                 }
@@ -365,6 +367,7 @@ pub fn register_bundles(
     commands.insert_resource(outcome.scenarios);
     commands.insert_resource(outcome.campaigns);
     commands.insert_resource(GameStyles(outcome.styles));
+    commands.insert_resource(GameImpacts(outcome.impacts));
     commands.insert_resource(GameShips(outcome.ships));
 }
 
@@ -384,6 +387,10 @@ pub struct MergeOutcome {
     /// Ships in registration order, overlaid last-wins by id - so a mod
     /// rebuilds a base hull by declaring the same id.
     pub ships: Vec<ShipConfig>,
+    /// Impact-table rows in registration order, overlaid last-wins by id - so a
+    /// mod re-voices one (damage type, material) pair by declaring that row's
+    /// id and nothing else.
+    pub impacts: Vec<ImpactSoundConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -413,6 +420,7 @@ where
     let mut campaigns = GameCampaigns::default();
     let mut styles: Vec<ShipStyleConfig> = Vec::new();
     let mut ships: Vec<ShipConfig> = Vec::new();
+    let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
     let mut conflicts: Vec<String> = Vec::new();
 
     for bundle in bundles {
@@ -423,6 +431,7 @@ where
         let mut seen_campaigns: HashSet<&str> = HashSet::new();
         let mut seen_styles: HashSet<&str> = HashSet::new();
         let mut seen_ships: HashSet<&str> = HashSet::new();
+        let mut seen_impacts: HashSet<&str> = HashSet::new();
 
         for item in bundle {
             match item {
@@ -442,6 +451,7 @@ where
                         &mut campaigns,
                         &mut styles,
                         &mut ships,
+                        &mut impacts,
                     );
                 }
                 Content::Scenario(cfg) => {
@@ -460,6 +470,7 @@ where
                         &mut campaigns,
                         &mut styles,
                         &mut ships,
+                        &mut impacts,
                     );
                 }
                 Content::Campaign(cfg) => {
@@ -478,6 +489,7 @@ where
                         &mut campaigns,
                         &mut styles,
                         &mut ships,
+                        &mut impacts,
                     );
                 }
                 Content::Style(cfg) => {
@@ -496,6 +508,7 @@ where
                         &mut campaigns,
                         &mut styles,
                         &mut ships,
+                        &mut impacts,
                     );
                 }
                 Content::Ship(cfg) => {
@@ -514,6 +527,26 @@ where
                         &mut campaigns,
                         &mut styles,
                         &mut ships,
+                        &mut impacts,
+                    );
+                }
+                Content::Impact(cfg) => {
+                    if !seen_impacts.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "impact id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                        &mut ships,
+                        &mut impacts,
                     );
                 }
             }
@@ -526,6 +559,7 @@ where
         campaigns,
         styles,
         ships,
+        impacts,
         conflicts,
     }
 }
@@ -544,6 +578,7 @@ fn merge_content_item(
     campaigns: &mut GameCampaigns,
     styles: &mut Vec<ShipStyleConfig>,
     ships: &mut Vec<ShipConfig>,
+    impacts: &mut Vec<ImpactSoundConfig>,
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
@@ -570,12 +605,19 @@ fn merge_content_item(
             Some(existing) => *existing = cfg.clone(),
             None => ships.push(cfg.clone()),
         },
+        // A Vec once more, and here the order is load-bearing for LOOKUP as
+        // well as authoring: `GameImpacts::sound` takes the first row matching
+        // a pair, so a base row a mod did not re-declare keeps its place.
+        Content::Impact(cfg) => match impacts.iter_mut().find(|i| i.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => impacts.push(cfg.clone()),
+        },
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::prelude::AssetRef;
+    use nova_gameplay::prelude::{AssetRef, DamageType};
     use nova_scenario::prelude::ScenarioConfig;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionKind};
 
@@ -602,6 +644,7 @@ mod tests {
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
+        let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
         let mut ships: Vec<ShipConfig> = Vec::new();
 
         // Base bundle: two sections in palette order.
@@ -612,6 +655,7 @@ mod tests {
             &mut campaigns,
             &mut styles,
             &mut ships,
+            &mut impacts,
         );
         merge_content_item(
             &Content::Section(Box::new(section("thruster", 50.0))),
@@ -620,6 +664,7 @@ mod tests {
             &mut campaigns,
             &mut styles,
             &mut ships,
+            &mut impacts,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
@@ -630,6 +675,7 @@ mod tests {
             &mut campaigns,
             &mut styles,
             &mut ships,
+            &mut impacts,
         );
 
         // No duplicate appended: still two sections, original order kept.
@@ -648,6 +694,7 @@ mod tests {
         let mut scenarios = GameScenarios::default();
         let mut campaigns = GameCampaigns::default();
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
+        let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
         let mut ships: Vec<ShipConfig> = Vec::new();
 
         let id = "shakedown_run".to_string();
@@ -666,6 +713,7 @@ mod tests {
             &mut campaigns,
             &mut styles,
             &mut ships,
+            &mut impacts,
         );
         merge_content_item(
             &Content::Scenario(modded),
@@ -674,6 +722,7 @@ mod tests {
             &mut campaigns,
             &mut styles,
             &mut ships,
+            &mut impacts,
         );
 
         assert_eq!(scenarios.len(), 1, "overlay must replace, not add");
@@ -714,6 +763,71 @@ mod tests {
             vec![("industrial", "Rusted"), ("raider", "Raider")],
             "the mod's style must win in place, and its new one must be added",
         );
+    }
+
+    /// A mod re-voices one impact row by declaring its id, and adds a row of
+    /// its own for a material the base game has never heard of.
+    ///
+    /// The overlay is the whole reason a row is one content item: re-voicing
+    /// "a slug on rock" must not mean restating the other three rows, and the
+    /// order has to survive it, because the lookup takes the FIRST row
+    /// matching a pair.
+    #[test]
+    fn a_mod_overlays_one_impact_row_by_id_and_adds_its_own() {
+        let row = |id: &str, damage: DamageType, material: Option<&str>, sound: &str| {
+            Content::Impact(ImpactSoundConfig {
+                id: id.to_string(),
+                damage,
+                material: material.map(str::to_string),
+                sound: AssetRef::from(sound.to_string()),
+            })
+        };
+        let base = [
+            row("impact_kinetic", DamageType::Kinetic, None, "impact.wav"),
+            row(
+                "impact_kinetic_rock",
+                DamageType::Kinetic,
+                Some("rock"),
+                "rock.wav",
+            ),
+        ];
+        let modded = [
+            row(
+                "impact_kinetic_rock",
+                DamageType::Kinetic,
+                Some("rock"),
+                "mods/x/gravel.wav",
+            ),
+            row(
+                "x_kinetic_ice",
+                DamageType::Kinetic,
+                Some("x_ice"),
+                "mods/x/ice.wav",
+            ),
+        ];
+
+        let outcome = merge_bundles([base.iter(), modded.iter()]);
+
+        assert!(outcome.conflicts.is_empty(), "{:?}", outcome.conflicts);
+        let table = GameImpacts(outcome.impacts);
+        assert_eq!(
+            table
+                .0
+                .iter()
+                .map(|row| row.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["impact_kinetic", "impact_kinetic_rock", "x_kinetic_ice"],
+            "the mod's row must win in place, and its new one must be added",
+        );
+        let path = |material: Option<&str>| match table.sound(DamageType::Kinetic, material) {
+            Some(AssetRef::Path(path)) => path.clone(),
+            other => panic!("expected an authored path, got {other:?}"),
+        };
+        assert_eq!(path(Some("rock")), "mods/x/gravel.wav");
+        assert_eq!(path(Some("x_ice")), "mods/x/ice.wav");
+        // The base default is untouched, so a material nobody named still
+        // sounds like ship plate.
+        assert_eq!(path(Some("hull")), "impact.wav");
     }
 
     /// A mod rebuilds a base hull by declaring a ship with the same id, and

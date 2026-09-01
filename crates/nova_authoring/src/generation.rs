@@ -11,6 +11,7 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
+use nova_gameplay::prelude::ImpactSoundConfig;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipConfig, ShipSource, SpaceshipConfig, SpaceshipSectionConfig,
@@ -24,9 +25,10 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_campaign_contents, build_campaigns, build_scenario_contents, build_scenarios,
-        build_section_catalog, build_section_content, build_ship_content, build_ships,
-        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
+        build_campaign_contents, build_campaigns, build_impact_content, build_impacts,
+        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
+        build_ship_content, build_ships, build_style_content, build_styles, content_files,
+        serialize_content, spawned_ship_sections,
     };
 }
 
@@ -112,6 +114,21 @@ pub fn build_ship_content() -> Vec<Content> {
     build_ships().into_iter().map(Content::Ship).collect()
 }
 
+/// The base game's impact table, in the order the file carries it - which is
+/// also the order `GameImpacts` resolves in.
+pub fn build_impacts() -> Vec<ImpactSoundConfig> {
+    base_content::build().impacts
+}
+
+/// The impact table wrapped as one `Vec<Content>` of `Content::Impact` items -
+/// the shape the committed `assets/base/impacts/base.content.ron` file carries.
+///
+/// ONE file for the whole table: the rows are read against each other (which
+/// pair falls back to which default) and there are four of them.
+pub fn build_impact_content() -> Vec<Content> {
+    build_impacts().into_iter().map(Content::Impact).collect()
+}
+
 /// The built-in scenarios, each wrapped as its own single-item
 /// `Vec<Content>` (`[Content::Scenario(..)]`) keyed by scenario id - the
 /// shape each committed `assets/scenarios/<id>.content.ron` file carries. The
@@ -163,6 +180,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/ships/base.content.ron".to_string(),
             serialize_content(&build_ship_content()),
+        ),
+        (
+            "base/impacts/base.content.ron".to_string(),
+            serialize_content(&build_impact_content()),
         ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {

@@ -59,10 +59,8 @@ content refs and regenerate with `cargo run -- content gen`.
 
 ## Files
 
-`Authored on` is where base content references the file today. Files marked
-`-` are rendered and waiting for the cue that plays them - two of them, both
-waiting on the same thing: an impact keyed by what HIT it as well as by what
-was hit.
+`Authored on` is where base content references the file today. Every file in
+this directory is reachable from shipped content.
 
 ### Guns
 
@@ -84,10 +82,15 @@ was hit.
 | --- | --- |
 | `torpedo_launch.wav` | torpedo bay `launch_sound` |
 | `torpedo_detonate.wav` | the warhead's `detonation_sound` |
-| `impact.wav` | every section's `impact_sound` |
-| `impact_rock.wav` | every asteroid's `impact_sound` |
-| `impact_pierce.wav` | - (`DamageType::Pierce`; needs the material table) |
-| `impact_explosive.wav` | - (`DamageType::Explosive`; needs the material table) |
+| `impact.wav` | impact table `impact_kinetic` - the Kinetic default, so anything with no material row of its own |
+| `impact_rock.wav` | impact table `impact_kinetic_rock` - a slug on stone |
+| `impact_pierce.wav` | impact table `impact_pierce` - the Pierce default |
+| `impact_explosive.wav` | impact table `impact_explosive` - the Explosive default, a warhead's pressure on a surface |
+
+The four impact rows live in `assets/base/impacts/base.content.ron`. A hit
+looks up `(damage type, material)` and falls back once to the damage type's
+default row; a section is `hull` and an asteroid is `rock` unless it says
+otherwise.
 
 ### Destruction
 

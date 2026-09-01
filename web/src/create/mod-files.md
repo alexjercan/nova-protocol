@@ -117,7 +117,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-five item kinds:
+six item kinds:
 
 ```ron
 [
@@ -154,6 +154,12 @@ five item kinds:
         name: "My Look",
         fixtures: [],
     )),
+    Impact((
+        id: "my_kinetic_ceramic",
+        damage: Kinetic,
+        material: Some("my_ceramic"),
+        sound: "self://sounds/kinetic_ceramic.wav",
+    )),
 ]
 ```
 
@@ -161,7 +167,7 @@ Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in `content`.
 
-## The five content chapters
+## The six content chapters
 
 <div id="wiki-children"></div>
 
@@ -174,6 +180,8 @@ Large mods can use one scenario per file and list all of them in `content`.
   that any scenario can spawn by id.
 - A [style](../styles/) defines the look a ship's derived cladding wears: plate
   materials, and the destructible decoration scattered over them.
+- An [impact](../impacts/) row pairs a damage type with a material to voice a
+  hit - what your round sounds like against what it struck.
 
 ## Paths and dependencies
 

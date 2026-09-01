@@ -707,7 +707,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                                 radius: 3.0,
                                 texture: game_assets.asteroid_texture.clone().into(),
-                                impact_sound: None,
+                                material: None,
                                 destroy_sound: None,
                                 mass: None,
                                 invulnerable: false,

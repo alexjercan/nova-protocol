@@ -12,7 +12,8 @@ how sections connect and handles damage, disabling, and cascading destruction.
 
 A section is a `SectionConfig { base: BaseSectionConfig, kind: SectionKind }`.
 `BaseSectionConfig` is shared by all kinds: `id`, `name`, `description`,
-`health`, optional `impact_sound` / `destroy_sound`, optional `collider`,
+`health`, optional `material` (the impact table's target half) and
+`destroy_sound`, optional `collider`,
 structural `link_points`, `hide_in_editor`, and `damage_effects` - the authored
 list of looks this section wears as it is damaged (see [Damage is two
 readings](#damage-is-two-readings)).

@@ -29,20 +29,20 @@ use crate::{
     },
 };
 
-/// Find the nearest [`ImpactDestroySounds`] on `entity` or an ancestor. The
-/// damage/destroy observers' target is the entity carrying Health - for
-/// sections that IS the section entity, but an asteroid keeps its Health on a
-/// child node while the sounds snapshot sits on the rock's parent bundle, so
-/// the lookup walks up (bounded by the hierarchy, like `hum_source_root`).
-fn impact_destroy_sounds<'a>(
+/// Find the nearest `C` on `entity` or an ancestor. The damage/destroy
+/// observers' target is the entity carrying Health - for sections that IS the
+/// section entity, but an asteroid keeps its Health on a child node while the
+/// snapshots sit on the rock's parent bundle, so the lookup walks up (bounded
+/// by the hierarchy, like `hum_source_root`).
+fn nearest<'a, C: Component>(
     entity: Entity,
-    q_sounds: &'a Query<&ImpactDestroySounds>,
+    q: &'a Query<&C>,
     q_child_of: &Query<&ChildOf>,
-) -> Option<&'a ImpactDestroySounds> {
+) -> Option<&'a C> {
     let mut current = entity;
     loop {
-        if let Ok(sounds) = q_sounds.get(current) {
-            return Some(sounds);
+        if let Ok(found) = q.get(current) {
+            return Some(found);
         }
         match q_child_of.get(current) {
             Ok(&ChildOf(parent)) => current = parent,
@@ -58,7 +58,7 @@ pub(super) fn on_destroyed_play_explosion(
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
-    q_sounds: Query<&ImpactDestroySounds>,
+    q_sounds: Query<&DestroySound>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
@@ -73,8 +73,8 @@ pub(super) fn on_destroyed_play_explosion(
     // AUTHORED-OR-SILENT: the destruction voice is the TARGET's authored
     // destroy_sound (per-target = per-material), found on the entity or an
     // ancestor (asteroid node shape) and resolved here.
-    let Some(handle) = impact_destroy_sounds(add.entity, &q_sounds, &q_child_of)
-        .and_then(|s| s.destroy.as_ref())
+    let Some(handle) = nearest(add.entity, &q_sounds, &q_child_of)
+        .and_then(|s| s.0.as_ref())
         .map(|r| r.resolve(&asset_server))
     else {
         return;
@@ -168,51 +168,49 @@ pub(super) fn on_collapse_play_hull_loss(
     commands.play_sfx_at(handle, route, DESTROY_SHIP_VOLUME, at.translation());
 }
 
-/// Impact cue whenever damage is applied. Throttled because a single blast
-/// deals damage to many colliders in one frame.
+/// The hit voice: what the round that just landed sounds like against what it
+/// landed on. Throttled per area cell, because a single blast reaches many
+/// colliders in one frame.
 ///
-/// Propagation caveat: `HealthApplyDamage` auto-propagates up `ChildOf`
-/// (section -> ship root), and ship death depends on that bubbling, so it must
-/// not be stopped here - but a global observer fires once per hop, which would
-/// double the cue whenever the section and root land in different area cells.
-/// Reacting only to the original target keeps one hit = one cue, and the
-/// original target is also the better cue position: the actual hit location,
-/// not the ship root's origin. Any future damage-cue observer needs this same
-/// guard.
-pub(super) fn on_damage_play_impact(
-    damage: On<HealthApplyDamage>,
+/// Both halves of "what hit what" are read here, and neither is a per-target
+/// field any more. The round side is [`SurfaceImpact::kind`]; the target side
+/// is the struck body's [`SurfaceMaterial`], found by walking up from the hit
+/// (an asteroid keeps its Health on a child node). The pair goes to
+/// [`GameImpacts`], which falls back once to the damage type's default row and
+/// is otherwise AUTHORED-OR-SILENT like every other voice.
+///
+/// [`SurfaceImpact`] does not propagate, which is why there is no
+/// "am I the original target" guard here: the old cue rode `HealthApplyDamage`
+/// up `ChildOf` to the ship root and had to filter the hops back out. It also
+/// carries the CONTACT POINT rather than the struck entity's origin, so the cue
+/// plays where the round actually bit.
+pub(super) fn on_surface_impact_play_sfx(
+    impact: On<SurfaceImpact>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
-    q_transform: Query<&GlobalTransform>,
-    q_sounds: Query<&ImpactDestroySounds>,
+    impacts: Res<GameImpacts>,
+    q_material: Query<&SurfaceMaterial>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    if damage.entity != damage.original_event_target() {
-        return;
-    }
-    let Ok(source) = q_transform.get(damage.entity) else {
-        return;
-    };
-    // AUTHORED-OR-SILENT: the hit voice is the TARGET's authored impact_sound
-    // (per-target = per-material), found on the entity or an ancestor.
-    let Some(handle) = impact_destroy_sounds(damage.entity, &q_sounds, &q_child_of)
-        .and_then(|s| s.impact.as_ref())
+    let material = nearest(impact.entity, &q_material, &q_child_of).map(|m| m.0.as_str());
+    let Some(handle) = impacts
+        .sound(impact.kind, material)
         .map(|r| r.resolve(&asset_server))
     else {
         return;
     };
-    let pos = source.translation();
+    let pos = impact.at;
     if throttle_state.allow(
         ThrottleKey::Impact(area_cell(pos)),
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
         // Damage landing on YOUR hull is heard through it, not across the gap.
-        let route = route_for(damage.entity, &q_child_of, &q_is_root, &q_is_player);
+        let route = route_for(impact.entity, &q_child_of, &q_is_root, &q_is_player);
         commands.play_sfx_at(handle, route, IMPACT_VOLUME, pos);
     }
 }
@@ -355,20 +353,116 @@ mod tests {
 
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
-    #[test]
-    fn a_propagated_hit_on_a_straddling_hierarchy_plays_one_impact() {
-        // `HealthApplyDamage` auto-propagates child -> parent, and with the
-        // parent one area cell away the per-cell throttle cannot collapse the
-        // hops, so one hit played two impact sounds. The original-target guard
-        // must keep it at exactly one.
+    fn impact_row(
+        id: &str,
+        damage: DamageType,
+        material: Option<&str>,
+        sound: &str,
+    ) -> ImpactSoundConfig {
+        ImpactSoundConfig {
+            id: id.to_string(),
+            damage,
+            material: material.map(str::to_string),
+            sound: AssetRef::from(sound),
+        }
+    }
+
+    /// App rig for the hit voice: the real observer over a supplied impact
+    /// table, counting cues and capturing the last handle. No bank and no audio
+    /// device - the cue resolves the table's own refs against the
+    /// `AssetServer`.
+    fn impact_app(table: Vec<ImpactSoundConfig>) -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<PlayedSfx>();
-        app.add_observer(on_damage_play_impact);
+        app.init_resource::<LastPlayed>();
+        app.insert_resource(GameImpacts(table));
+        app.add_observer(on_surface_impact_play_sfx);
         app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        app
+    }
 
+    fn base_table() -> Vec<ImpactSoundConfig> {
+        vec![
+            impact_row("kinetic", DamageType::Kinetic, None, "mods/x/thud.wav"),
+            impact_row(
+                "kinetic_rock",
+                DamageType::Kinetic,
+                Some(MATERIAL_ROCK),
+                "mods/x/gravel.wav",
+            ),
+            impact_row("pierce", DamageType::Pierce, None, "mods/x/punch.wav"),
+        ]
+    }
+
+    /// Hit `target` at `at` and flush - the observer plays via `Commands`, so
+    /// the queued `PlaySfx` triggers only fire on the next flush.
+    fn strike(app: &mut App, target: Entity, kind: DamageType, at: Vec3) {
+        app.world_mut().trigger(SurfaceImpact {
+            entity: target,
+            kind,
+            at,
+        });
+        app.world_mut().flush();
+    }
+
+    fn last(app: &App) -> Option<Handle<AudioSource>> {
+        app.world().resource::<LastPlayed>().0.clone()
+    }
+
+    #[test]
+    fn what_a_hit_sounds_like_is_the_round_and_the_material_together() {
+        let mut app = impact_app(base_table());
+        let server = app.world().resource::<AssetServer>().clone();
+        let thud: Handle<AudioSource> = server.load("mods/x/thud.wav");
+        let gravel: Handle<AudioSource> = server.load("mods/x/gravel.wav");
+        let punch: Handle<AudioSource> = server.load("mods/x/punch.wav");
+
+        let rock = app
+            .world_mut()
+            .spawn(SurfaceMaterial::new(MATERIAL_ROCK))
+            .id();
+        let hull = app
+            .world_mut()
+            .spawn(SurfaceMaterial::new(MATERIAL_HULL))
+            .id();
+
+        // Same target, two rounds: the rock has its own kinetic row and no
+        // pierce row, so a penetrator into stone takes the PIERCE default -
+        // never the kinetic rock voice.
+        strike(&mut app, rock, DamageType::Kinetic, Vec3::ZERO);
+        assert_eq!(last(&app), Some(gravel));
+        strike(
+            &mut app,
+            rock,
+            DamageType::Pierce,
+            Vec3::splat(SFX_AREA_CELL * 10.0),
+        );
+        assert_eq!(last(&app), Some(punch));
+
+        // Same round, two materials: the hull names no row of its own and
+        // takes the kinetic default.
+        strike(
+            &mut app,
+            hull,
+            DamageType::Kinetic,
+            Vec3::splat(SFX_AREA_CELL * 20.0),
+        );
+        assert_eq!(last(&app), Some(thud));
+    }
+
+    #[test]
+    fn the_hit_sounds_where_it_landed_and_not_where_the_target_sits() {
+        // The old cue rode `HealthApplyDamage` up `ChildOf` and had to filter
+        // the hops back out, positioning itself at the struck entity's origin.
+        // `SurfaceImpact` does not propagate and carries the contact point, so
+        // one hit is one cue and it is keyed at the point, not the body.
+        let mut app = impact_app(base_table());
         let parent = app
             .world_mut()
             .spawn(GlobalTransform::from(Transform::from_translation(
@@ -380,35 +474,77 @@ mod tests {
             .spawn((
                 GlobalTransform::default(),
                 ChildOf(parent),
-                // Authored-or-silent: the rig's target must author its impact
-                // voice for the cue to fire at all.
-                ImpactDestroySounds {
-                    impact: Some(AssetRef::from("base/sounds/impact.wav")),
-                    destroy: None,
-                },
+                SurfaceMaterial::new(MATERIAL_HULL),
             ))
             .id();
 
-        app.world_mut().trigger(HealthApplyDamage {
-            entity: child,
-            source: None,
-            amount: 10.0,
-        });
-        // The observer plays via `Commands`, so the queued `PlaySfx` triggers
-        // only fire on the next flush.
-        app.world_mut().flush();
+        strike(
+            &mut app,
+            child,
+            DamageType::Kinetic,
+            Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0),
+        );
 
         assert_eq!(
             app.world().resource::<PlayedSfx>().0,
             1,
             "one hit must play exactly one impact sound"
         );
-        // The cue is keyed (and positioned) at the hit location's cell, not the
-        // parent's.
         let throttle = app.world().resource::<SfxThrottle>();
         assert!(throttle
             .tracked_keys()
-            .eq([ThrottleKey::Impact(area_cell(Vec3::ZERO))]));
+            .eq([ThrottleKey::Impact(area_cell(Vec3::new(
+                SFX_AREA_CELL * 4.0,
+                0.0,
+                0.0
+            )))]));
+    }
+
+    #[test]
+    fn the_material_lookup_walks_up_to_the_asteroid_parent() {
+        // The asteroid shape: the colliders that take the hit are CHILD nodes
+        // while the material tag sits on the rock's parent bundle.
+        let mut app = impact_app(base_table());
+        let gravel: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("mods/x/gravel.wav");
+        let rock = app
+            .world_mut()
+            .spawn(SurfaceMaterial::new(MATERIAL_ROCK))
+            .id();
+        let node = app.world_mut().spawn(ChildOf(rock)).id();
+
+        strike(&mut app, node, DamageType::Kinetic, Vec3::ZERO);
+        assert_eq!(
+            last(&app),
+            Some(gravel),
+            "the hit voice must find the parent's material via the walk"
+        );
+    }
+
+    #[test]
+    fn a_round_the_table_never_names_lands_in_silence() {
+        // AUTHORED-OR-SILENT, and the table falls back exactly once - to its
+        // own damage type's default row. Explosive has neither, so a blast on
+        // a tagged hull makes no hit noise at all.
+        let mut app = impact_app(base_table());
+        let hull = app
+            .world_mut()
+            .spawn(SurfaceMaterial::new(MATERIAL_HULL))
+            .id();
+        strike(&mut app, hull, DamageType::Explosive, Vec3::ZERO);
+        assert_eq!(app.world().resource::<PlayedSfx>().0, 0);
+
+        // And an untagged target is not an error: it takes the default row.
+        let bare = app.world_mut().spawn_empty().id();
+        strike(
+            &mut app,
+            bare,
+            DamageType::Kinetic,
+            Vec3::splat(SFX_AREA_CELL * 10.0),
+        );
+        assert_eq!(app.world().resource::<PlayedSfx>().0, 1);
     }
 
     /// App rig for the turret-fire cue: the real `on_turret_fire_play_sfx`
@@ -593,61 +729,40 @@ mod tests {
     }
 
     #[test]
-    fn impact_and_destroy_play_the_targets_authored_sounds_or_stay_silent() {
-        // Per-target voices: the hit/destroyed entity's own authored refs play;
-        // an unauthored target is silent. The authored half is the delivery
-        // guard for the silent half.
+    fn a_destroyed_target_plays_the_voice_it_authored_or_stays_silent() {
+        // The destruction voice stayed per-target when the hit voice moved to
+        // the table: the destroyed entity's own authored ref plays, and an
+        // unauthored target is silent. The authored half is the delivery guard
+        // for the silent half.
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
-        app.add_observer(on_damage_play_impact);
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
             last.0 = Some(ev.handle.clone());
         });
-        let thud: Handle<AudioSource> = app
-            .world()
-            .resource::<AssetServer>()
-            .load("mods/x/thud.wav");
         let boom: Handle<AudioSource> = app
             .world()
             .resource::<AssetServer>()
             .load("mods/x/boom.wav");
 
-        // Authored target: impact plays ITS thud.
         let target = app
             .world_mut()
             .spawn((
                 GlobalTransform::default(),
-                ImpactDestroySounds {
-                    impact: Some(AssetRef::from("mods/x/thud.wav")),
-                    destroy: Some(AssetRef::from("mods/x/boom.wav")),
-                },
+                DestroySound(Some(AssetRef::from("mods/x/boom.wav"))),
             ))
             .id();
-        app.world_mut().trigger(HealthApplyDamage {
-            entity: target,
-            source: None,
-            amount: 1.0,
-        });
-        app.world_mut().flush();
-        assert_eq!(app.world().resource::<LastPlayed>().0, Some(thud));
-
-        // Destruction plays ITS boom (different cell so the throttle is clean).
-        app.world_mut()
-            .entity_mut(target)
-            .insert(GlobalTransform::from(Transform::from_translation(
-                Vec3::splat(SFX_AREA_CELL * 10.0),
-            )));
         app.world_mut()
             .entity_mut(target)
             .insert(IntegrityDestroyMarker);
         app.world_mut().flush();
         assert_eq!(app.world().resource::<LastPlayed>().0, Some(boom));
 
-        // Unauthored target: both cues silent.
+        // Unauthored target: silent (a different cell, so the throttle is not
+        // what is being measured).
         app.world_mut().resource_mut::<LastPlayed>().0 = None;
         let silent = app
             .world_mut()
@@ -655,11 +770,6 @@ mod tests {
                 Vec3::splat(SFX_AREA_CELL * 20.0),
             )))
             .id();
-        app.world_mut().trigger(HealthApplyDamage {
-            entity: silent,
-            source: None,
-            amount: 1.0,
-        });
         app.world_mut()
             .entity_mut(silent)
             .insert(IntegrityDestroyMarker);
@@ -667,15 +777,15 @@ mod tests {
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
             None,
-            "an unauthored target is silent for both cues"
+            "an unauthored target is destroyed in silence"
         );
     }
 
     #[test]
-    fn the_sound_lookup_walks_up_to_the_asteroid_parent() {
+    fn the_destroy_lookup_walks_up_to_the_asteroid_parent() {
         // The asteroid shape: Health (and the destroy marker) live on a CHILD
-        // node while ImpactDestroySounds sits on the rock's parent bundle - the
-        // observers must find it by walking up.
+        // node while the destruction voice sits on the rock's parent bundle -
+        // the observer must find it by walking up.
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
@@ -692,10 +802,9 @@ mod tests {
 
         let rock = app
             .world_mut()
-            .spawn(ImpactDestroySounds {
-                impact: None,
-                destroy: Some(AssetRef::from("base/sounds/explosion.wav")),
-            })
+            .spawn(DestroySound(Some(AssetRef::from(
+                "base/sounds/explosion.wav",
+            ))))
             .id();
         let node = app
             .world_mut()
@@ -783,10 +892,7 @@ mod tests {
                 ShipCollapseSound(Some(AssetRef::from("base/sounds/destroy_ship.wav"))),
                 // A section blowing up in the same cell, first: its cue takes
                 // the Destroy key for this area.
-                ImpactDestroySounds {
-                    impact: None,
-                    destroy: Some(AssetRef::from("base/sounds/explosion.wav")),
-                },
+                DestroySound(Some(AssetRef::from("base/sounds/explosion.wav"))),
             ))
             .id();
         app.world_mut()
