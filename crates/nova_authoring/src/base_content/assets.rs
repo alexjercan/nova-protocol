@@ -54,10 +54,19 @@ pub struct BaseContentAssets {
     /// `base/sounds/turret_fire.wav` resolves to the same handle the global
     /// bank loads, so the audible result is unchanged.
     pub turret_fire_sound: AssetRef<AudioSource>,
+    /// The twin mount's round. The same family one size up, and the size is
+    /// carried by pitch: the body sits lower and the mount rings lower than
+    /// the gatling's. Authored per MOUNT, not per damage type - a kinetic and
+    /// a pierce twin are the same gun firing different ammunition.
+    pub turret_twin_fire_sound: AssetRef<AudioSource>,
     /// The turret dry-fire click, authored like the fire sound.
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
+    /// The warhead. A hard front and a spray of fragments - deliberately not
+    /// [`Self::section_destroy_sound`], which it used to borrow: a section
+    /// failing is structural and a warhead is not.
+    pub torpedo_detonation_sound: AssetRef<AudioSource>,
     /// The lance's discharge: the capacitor bank dumping, the slug leaving,
     /// and the hull taking the recoil, in the order the shot does them.
     pub railgun_fire_sound: AssetRef<AudioSource>,
@@ -75,8 +84,13 @@ pub struct BaseContentAssets {
     /// asteroids author the same two in scenario content.
     pub section_impact_sound: AssetRef<AudioSource>,
     pub section_destroy_sound: AssetRef<AudioSource>,
-    /// The thruster engine hum.
+    /// The thruster engine hums, one per drive size. Three loops on one
+    /// recipe at 34 / 52 / 78 Hz, capital to basic to vector: a pilot should
+    /// hear the SIZE of what just lit its engines, and pitch is the only thing
+    /// separating them.
     pub thruster_loop_sound: AssetRef<AudioSource>,
+    pub thruster_vector_loop_sound: AssetRef<AudioSource>,
+    pub thruster_capital_loop_sound: AssetRef<AudioSource>,
     /// The decoration models a skin style scatters, generated from the recipes
     /// in `scripts/greeble-recipes/`. The `greeble_*` four with no kit in their
     /// name are the scaffolding style's; the rest are the four authored kits.
@@ -174,8 +188,12 @@ impl BaseContentAssets {
             railgun_lance: AssetRef::from("self://gltf/railgun_lance.glb#Scene0".to_string()),
 
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
+            turret_twin_fire_sound: AssetRef::from("self://sounds/pdc_twin_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+            torpedo_detonation_sound: AssetRef::from(
+                "self://sounds/torpedo_detonate.wav".to_string(),
+            ),
             railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
 
             controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
@@ -189,6 +207,12 @@ impl BaseContentAssets {
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
+            thruster_vector_loop_sound: AssetRef::from(
+                "self://sounds/thruster_vector_loop.wav".to_string(),
+            ),
+            thruster_capital_loop_sound: AssetRef::from(
+                "self://sounds/thruster_capital_loop.wav".to_string(),
+            ),
             greeble_blister: AssetRef::from(
                 "self://gltf/greebles/placeholder_blister.glb#Scene0".to_string(),
             ),

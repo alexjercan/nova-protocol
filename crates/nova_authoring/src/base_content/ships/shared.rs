@@ -350,7 +350,7 @@ fn torpedo_kind(
         blast_effect: None,
         launch_effect: None,
         launch_sound: Some(meshes.torpedo_launch_sound.clone()),
-        detonation_sound: Some(meshes.section_destroy_sound.clone()),
+        detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
         // Matches the catalog bay: above the hardest single PDC round, so an
         // intercept costs two or three rounds rather than one.
         projectile_health: 10.0,

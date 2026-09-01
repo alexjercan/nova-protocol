@@ -424,6 +424,9 @@ fn pdc_turret_prototype(
     meshes: &BaseContentAssets,
     art: &TurretArt<'_>,
     fire_rate: f32,
+    // Per MOUNT and not per damage type: a kinetic and a pierce twin are the
+    // same gun firing different ammunition.
+    fire_sound: &AssetRef<AudioSource>,
     id: &str,
     name: &str,
     description: &str,
@@ -490,7 +493,7 @@ fn pdc_turret_prototype(
             bullet_damage,
             bullet_kind,
             projectile_render_mesh: None,
-            fire_sound: Some(meshes.turret_fire_sound.clone()),
+            fire_sound: Some(fire_sound.clone()),
             dry_fire_sound: Some(meshes.turret_dry_fire_sound.clone()),
             ammo_capacity: Some(500),
             reload: Some(SectionReloadConfig {
@@ -530,6 +533,9 @@ struct LargeDriveSpec<'a> {
     health: f32,
     magnitude: f32,
     mesh: &'a AssetRef<WorldAsset>,
+    /// The drive's own hum. The three sizes run 34 / 52 / 78 Hz and are
+    /// separated by pitch alone.
+    loop_sound: &'a AssetRef<AudioSource>,
     exhaust_offset: f32,
     exhaust_radius: f32,
     exhaust_inner_radius: f32,
@@ -561,7 +567,7 @@ fn large_thruster_prototype(meshes: &BaseContentAssets, spec: LargeDriveSpec<'_>
             magnitude: spec.magnitude,
             render_mesh: Some(spec.mesh.clone()),
             render_mesh_transform: None,
-            loop_sound: Some(meshes.thruster_loop_sound.clone()),
+            loop_sound: Some(spec.loop_sound.clone()),
             exhaust: Some(ThrusterExhaust {
                 offset: Vec3::new(0.0, 0.0, spec.exhaust_offset),
                 shape: ThrusterExhaustConfig {
@@ -664,6 +670,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 health: 480.0,
                 magnitude: 9.0,
                 mesh: &meshes.thruster_vector,
+                loop_sound: &meshes.thruster_vector_loop_sound,
                 exhaust_offset: 0.886,
                 exhaust_radius: 0.58,
                 exhaust_inner_radius: 0.18,
@@ -680,6 +687,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 health: 1250.0,
                 magnitude: 25.0,
                 mesh: &meshes.thruster_capital,
+                loop_sound: &meshes.thruster_capital_loop_sound,
                 exhaust_offset: 1.51,
                 exhaust_radius: 1.1,
                 exhaust_inner_radius: 0.35,
@@ -801,6 +809,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             meshes,
             &gatling_art(meshes),
             GATLING_FIRE_RATE,
+            &meshes.turret_fire_sound,
             PDC_KINETIC_TURRET_SECTION_ID,
             "PDC Turret (Kinetic)",
             "A compact point-defense mount that fits any hull face. Slugs: the \
@@ -813,6 +822,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             meshes,
             &gatling_art(meshes),
             GATLING_FIRE_RATE,
+            &meshes.turret_fire_sound,
             "pdc_pierce_turret_section",
             "PDC Turret (Pierce)",
             "The same mount firing penetrators. Half the damage per hit, dealt \
@@ -826,6 +836,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             meshes,
             &twin_art(meshes),
             TWIN_FIRE_RATE,
+            &meshes.turret_twin_fire_sound,
             "pdc_twin_kinetic_turret_section",
             "Twin PDC Turret (Kinetic)",
             "The same slugs from a two-barrel mount. Each tube fires at half \
@@ -838,6 +849,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
             meshes,
             &twin_art(meshes),
             TWIN_FIRE_RATE,
+            &meshes.turret_twin_fire_sound,
             "pdc_twin_pierce_turret_section",
             "Twin PDC Turret (Pierce)",
             "Penetrators from the two-barrel mount: half per-hit damage dealt \
@@ -999,7 +1011,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 blast_effect: None,
                 launch_effect: None,
                 launch_sound: Some(meshes.torpedo_launch_sound.clone()),
-                detonation_sound: Some(meshes.section_destroy_sound.clone()),
+                detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
                 // Armored ordnance: a PDC burst (~800 DPS) cannot chew
                 // through this inside the ~6 s closing window, so point
                 // defense visibly hammers it and still loses.
@@ -1166,7 +1178,7 @@ fn torpedo_bay_prototype(
             launch_sound: Some(meshes.torpedo_launch_sound.clone()),
             // The blast IS the destruction voice: same wav as section
             // destruction (per-target authoring; playtest can diverge it).
-            detonation_sound: Some(meshes.section_destroy_sound.clone()),
+            detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
             // Above the hardest single PDC round (4.0 authored x the 2.0
             // Kinetic speed ceiling), so an intercept costs two or three
             // rounds instead of one lucky tap.
