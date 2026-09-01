@@ -86,7 +86,9 @@ const TOUGH_SECTION_HEALTH: f32 = 20_000.0;
 /// The section id the torpedo must erase for the walk to pass.
 const BAY_MARK_ID: &str = "bay_mark";
 
-/// Where the PDC guns aim: each lane's own column centre.
+/// Where the PDC guns aim: each lane's own column centre. Only the driven
+/// walk writes an aim point, so only the debug build reads this.
+#[cfg(feature = "debug")]
 const AIM_HEIGHT: f32 = 0.5;
 
 fn main() -> bevy::app::AppExit {
