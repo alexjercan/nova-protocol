@@ -178,14 +178,21 @@ pub(super) fn update_contacts_and_locks(
     q_allegiances: Query<&Allegiance>,
     q_neutralized: Query<(), With<NeutralizedMarker>>,
     // Only WEAPON sections carry a trigger, so the filter skips hull,
-    // thrusters and controllers rather than walking every section.
+    // thrusters and controllers rather than walking every section. EVERY
+    // weapon: a pilot fighting with the lance alone is as much in combat as
+    // one holding a PDC trigger, and the decay below is what drops their lock.
     q_triggers: Query<
         (
             &ChildOf,
             Option<&TurretSectionInput>,
             Option<&TorpedoSectionInput>,
+            Option<&RailgunSectionInput>,
         ),
-        Or<(With<TurretSectionInput>, With<TorpedoSectionInput>)>,
+        Or<(
+            With<TurretSectionInput>,
+            With<TorpedoSectionInput>,
+            With<RailgunSectionInput>,
+        )>,
     >,
     mut dropped: MessageWriter<CombatLockDropped>,
     mut spaceship: Query<
@@ -282,10 +289,11 @@ pub(super) fn update_contacts_and_locks(
         if combat_now.is_some() {
             let firing = q_triggers
                 .iter()
-                .any(|(&ChildOf(parent), turret, torpedo)| {
+                .any(|(&ChildOf(parent), turret, torpedo, railgun)| {
                     parent == ship
                         && (turret.is_some_and(|turret| turret.0)
-                            || torpedo.is_some_and(|torpedo| torpedo.0))
+                            || torpedo.is_some_and(|torpedo| torpedo.0)
+                            || railgun.is_some_and(|railgun| railgun.0))
                 });
             if raised.is_some_and(|raised| raised.0) || firing {
                 decay.set_if_neq(CombatDecay(0.0));
@@ -673,6 +681,33 @@ mod tests {
         assert!(
             drops(&mut world).is_empty(),
             "and nothing reports a drop at all"
+        );
+    }
+
+    /// The same rule for the LANCE, which the trigger walk did not know about.
+    /// A pilot fighting with a spinal gun alone holds the commit for as long
+    /// as anyone holds a PDC trigger, and had their lock let go at 30 s for
+    /// it.
+    #[test]
+    fn a_committed_lance_resets_the_decay_the_same_way_a_held_trigger_does() {
+        let (mut world, player, _travel, combat_target) = locked_world();
+        world.spawn((SectionMarker, RailgunSectionInput(true), ChildOf(player)));
+
+        for _ in 0..4 {
+            world
+                .resource_mut::<Time>()
+                .advance_by(Duration::from_secs_f32(COMBAT_DECAY_SECS * 0.5));
+            upkeep(&mut world);
+            assert_eq!(
+                world.get::<CombatDecay>(player).unwrap().0,
+                0.0,
+                "a committed lance is combat activity"
+            );
+        }
+        assert_eq!(
+            world.get::<CombatLock>(player).unwrap().0,
+            Some(combat_target),
+            "a lance-only ship must not lose its lock mid-fight"
         );
     }
 
