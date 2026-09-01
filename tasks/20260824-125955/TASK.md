@@ -220,6 +220,138 @@ should read as many guns while a salvo should read as one event. A world cell
 would not have done it: a capital hull's tubes sit further apart than
 `SFX_AREA_CELL`.
 
+## The wiring pass (2026-09-01)
+
+The renders were done and 22 of them were reachable from nothing. Four commits
+closed that down to five, and the recurring lesson was that a cue's HOOK is
+never the thing its filename suggests - it is whatever the mechanic actually
+has an edge on.
+
+MENUS AND THE EDITOR (`d1d885cd`, `007c6ebd`). Eight interface cues and four
+editor ones. Two of them needed a component read rather than an event, because
+Bevy has no event for either: `Hovered` is written in place, so focus is
+`Changed<Hovered>` plus a rising-edge check with disabled buttons excluded; the
+ghost's rotation is a `Local` compare of `PlacementPose`, which had to grow
+`PartialEq` for it. A back button is a MARKER on the button
+(`back_button(text)`), not a string test on its label - four of them across the
+menus and the pause stack. The settings slider ticks on `value != was` and
+nothing else: `SliderStep` quantisation IS the detent, so there was no second
+mechanism to build. Defeat is gated on `outcome.is_changed()` or a queued
+scenario switch re-plays it on the restack.
+
+THE WORLD (`01a517b1`). Six cues, and each one is a note about where the edge
+lives:
+
+- `warn_lock` reads `CombatLock` on hostile ships and latches. Not
+  `ThreatContacts`, which is the look-ray candidate list and would fire on
+  being GLANCED at. Hostility is the `relation()` test the rest of combat uses,
+  so a scripted defection changes the answer for free.
+- `ammo_dry` is a cockpit gauge on the flight computer, sounding once per ship
+  per frame behind the mounts' own per-gun clicks. Eight dead triggers on a
+  broadside are eight clicks - that is what eight guns sound like - and ONE
+  pip, because a magazine state is one fact.
+- `bay_door` hangs on the muzzle iris's animation TARGET changing.
+  `cue_progress` cannot say it: a door 40% open reads identically whether it is
+  opening or closing. `SectionAnimations::cue_target` is the counterpart that
+  makes a mechanism's direction readable, and it comes out once per SALVO for
+  free, since a held trigger holds the target.
+- `railgun_reload` answers a magazine returning to CAPACITY, reported by
+  `tick_section_reload` as `SectionReloadComplete`. Full is the only reload
+  boundary that means the same thing on every weapon: a PDC trickling rounds
+  back has no moment it finished, a one-shell lance has exactly one.
+- `railgun_charge` is a loop kept deliberately OFF the shared `reconcile_loops`
+  reconciler. A hum must ease; a capacitor must not. It rises in gain from a
+  floor and in playback RATE with the charge, so the gun sounds like it is
+  approaching the shot - which needed `drive_sfx_voices` to push `speed` to a
+  live sink, not only at spawn.
+- `destroy_ship` rides the `StructuralCollapseMarker` edge, not the root's
+  despawn: collapse is the frame a ship stops being a ship, and the peel that
+  follows runs for several frames under the cue. Deliberately unthrottled, or
+  the section explosions it overlaps would swallow it through their shared cell
+  key and a hull dying would sound like one more piece coming off.
+
+THE ROCKS (`d33bd9a9`). Every shipped asteroid authored `impact.wav` and
+`explosion.wav` - the files written for a hull being hit and a section failing -
+so shooting a rock sounded exactly like shooting a ship. `impact_rock` and
+`destroy_rock` needed no material table to reach: the TARGET half of "what hit
+what" is already a per-object field.
+
+Levels throughout were solved, not guessed: each new cue was measured
+A-weighted and placed at a deliberate offset from an anchor in its own part of
+the spectrum, per the mix pass's rule above.
+
+WHAT IS LEFT. Five files, and both reasons are recorded below: `warn_hull`
+wants a mechanic, and `impact_pierce` / `impact_explosive` want the table.
+(`impact_rock` and `destroy_rock` were the other two and are now authored.)
+
+## Queued: warn_hull wants a mechanic that does not exist
+
+`warn_hull.wav` is rendered and reachable from nothing, because the game has no
+hull-integrity ALERT. The data is there and free: `aggregate_ship_health`
+already recomputes the root's `Health` every frame as the sum over standing
+sections against the pinned built maximum, which is exactly the fraction an
+alarm would watch. What is missing is everything around it.
+
+Three decisions, none of them taken:
+
+1. HOW MANY TIERS. One alarm at one threshold is the cheap answer and reads as
+   "you are in trouble". Several (say 50 / 25 / 10 per cent) is a gauge, and
+   wants either separate renders or a pitch ladder - the set already has a rule
+   for that shape ("same event, different hardware, separated by pitch"). More
+   than one tier also needs hysteresis, or a hull sitting on a boundary
+   chatters.
+2. WHERE THE THRESHOLD IS AUTHORED. `warn_lock` and `ammo_dry` went onto
+   `ControllerSectionConfig` by decision 7 - the alarm is a capability of the
+   flight computer, and a cheap civilian one should be allowed to warn later or
+   not at all. The threshold belongs with the sound, so it is a controller
+   field too, not a hull one. Cheap to do and consistent; just not done.
+3. WHETHER IT ARRIVES ALONE. There is no hull readout in `nova_hud` at all
+   today. So this alarm would be the FIRST integrity feedback a player gets,
+   and an audio-only one - a sound that says "you are dying" with nothing on
+   screen saying how much. That may be the right game, or it may mean the cue
+   should wait for a readout to sound against. Owner's call.
+
+Not a big job once those are answered: the latch shape is the one
+`play_threat_lock_cue` already uses, and the routing is `AudioRoute::Hull` with
+the rest of the computer's voice.
+
+## Queued: the impact material table
+
+The owner's idea. `impact_sound` today sits on the thing being HIT, so the game
+already models half of "what on what" and has no notion of the other half. The
+proposal is to key impacts on a material pair.
+
+The shape needs one correction: it is two lookups, not one.
+
+- A ROUND hitting a surface is asymmetric, and the "what hit it" half already
+  exists - the round carries a `DamageType`. So the key is
+  `(DamageType, Material)`: three by roughly four, sparse, falling back to the
+  damage type's default. That is exactly the cross product this pass rendered
+  without naming it - `impact_kinetic` / `impact_pierce` / `impact_explosive`
+  against `impact_rock`. This is the half that still blocks two files:
+  `impact_pierce` and `impact_explosive` describe the ROUND, and there is
+  nowhere on a target to author them.
+- Two BODIES colliding is symmetric - an unordered material pair. A different
+  table, and the one that would make ship-into-asteroid audible at all.
+
+There is no material concept in the codebase today. When it lands,
+`impact_sound` should be DELETED rather than kept as an override: two
+mechanisms for one question is the compatibility machinery the conventions
+forbid, and if one
+thing must sound special, giving it its own material is the more expressive
+knob. That makes it a `**(breaking)**` content-format change.
+
+Not started, and second in the queue behind `warn_hull`: it is engine work in
+the damage path, and the bigger of the two by a wide margin - a material
+concept, two lookup tables, an authoring surface for both, and a content
+migration. `warn_hull` is a latch and a threshold field.
+
+Agreed and unchanged in the same conversation: `destroy_sound` stays per
+section and object (a destruction has no second party to key on), `fire_sound`
+/ `dry_fire_sound` stay per turret, and `detonation_sound` stays per warhead -
+now pointing at a real `torpedo_detonate.wav` instead of aliasing the
+section-failure voice.
+
 ## Open: the release note wants the before and after
 
 The owner's idea. `audition.html` is a REVIEWER's page - 4.4 MB, every cue
@@ -230,43 +362,13 @@ old-against-new pairs a reader can click.
 Nothing needs preserving for it. The pre-pass set is in git at `68a2cb38`, and
 the pass changed 17 files, left the 10 NOVA OS files byte-identical, and added
 27 new ones. So "delete the old sounds" is already done - every replaced file
-was overwritten at its own path, and nothing on disk is an orphan. The 22 files
+was overwritten at its own path, and nothing on disk is an orphan. The files
 that nothing plays yet are the `[hook]` cues waiting for observers, not
-leftovers.
+leftovers - five of them now, see the wiring pass.
 
 If it is built, the sounds should ship as FILES under `web/src/assets/`, the
 way the video loops already do, not inlined - 44 WAVs are 2.2 MB on disk and
 base64 adds a third to that for nothing.
-
-## Open: impacts want a material table
-
-The owner's idea, recorded here rather than filed. `impact_sound` today sits on
-the thing being HIT, so the game already models half of "what on what" and has
-no notion of the other half. The proposal is to key impacts on a material pair.
-
-The shape needs one correction: it is two lookups, not one.
-
-- A ROUND hitting a surface is asymmetric, and the "what hit it" half already
-  exists - the round carries a `DamageType`. So the key is
-  `(DamageType, Material)`: three by roughly four, sparse, falling back to the
-  damage type's default. That is exactly the cross product this pass rendered
-  without naming it - `impact_kinetic` / `impact_pierce` / `impact_explosive`
-  against `impact_rock`.
-- Two BODIES colliding is symmetric - an unordered material pair. A different
-  table, and the one that would make ship-into-asteroid audible at all.
-
-There is no material concept in the codebase today. When it lands, `impact_sound`
-should be DELETED rather than kept as an override: two mechanisms for one
-question is the compatibility machinery the conventions forbid, and if one
-thing must sound special, giving it its own material is the more expressive
-knob. That makes it a `**(breaking)**` content-format change.
-
-Not started: it is engine work in the damage path, which is the sound-engine
-sprout's territory while that is still in flight. Agreed and unchanged in the
-same conversation: `destroy_sound` stays per section and object (a destruction
-has no second party to key on), `fire_sound` / `dry_fire_sound` stay per
-turret, and `detonation_sound` stays per warhead - now pointing at a real
-`torpedo_detonate.wav` instead of aliasing the section-failure voice.
 
 ## Shape
 
