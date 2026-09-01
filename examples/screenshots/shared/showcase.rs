@@ -85,10 +85,13 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
                 ),
                 // Turret on the right flank, torpedo bay on the left - both
                 // upright. The twin mount stands on the front hull's roof.
+                // The gatling rides the FRONT hull's flank: the cargo cell
+                // bulges off the rear starboard flank, and a mid-ship gun
+                // would share its closeup with that bulge.
                 at(
                     "turret",
                     "pdc_kinetic_turret_section",
-                    Vec3::new(0.75, 0.0, 0.0),
+                    Vec3::new(0.75, 0.0, -1.0),
                     turret_rot,
                 ),
                 at(

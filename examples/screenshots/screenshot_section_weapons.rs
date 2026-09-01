@@ -87,7 +87,7 @@ fn section_shots() -> [SectionShot; 3] {
         // Turret: the flank it is mounted on, turned enough that the barrel
         // rakes across the frame instead of foreshortening into a dot.
         SectionShot {
-            mount: Vec3::new(1.0, 0.0, 0.0),
+            mount: Vec3::new(1.0, 0.0, -1.0),
             faces: Vec3::new(1.0, 0.0, 0.55),
             distance: 3.6,
             path: "wiki-section-turret.png",
