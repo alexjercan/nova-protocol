@@ -58,14 +58,67 @@ pub(crate) fn on_settings_back(
     **panel = Visibility::Hidden;
 }
 
-/// The master-volume [`Slider`] entity (bevy's headless slider widget), so the
-/// change observer and the thumb/label sync system can find it.
-#[derive(Component)]
-pub(crate) struct VolumeSlider;
+/// One row of the Audio tab: which mixer track its slider moves.
+///
+/// The tab is four of these, so adding a track is a variant plus its resource
+/// rather than another hand-wired slider.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum VolumeChannel {
+    /// Everything, through bevy's `GlobalVolume`.
+    Master,
+    /// UI chrome.
+    Interface,
+    /// Everything diegetic - the ship, the guns, the world.
+    World,
+    /// RESERVED: the slider moves `MusicVolume` and the store saves it, but no
+    /// sound routes to that bus yet.
+    Music,
+}
 
-/// The "72%" readout beside the volume slider.
+impl VolumeChannel {
+    /// The rows, top to bottom. Master first: it is the one every player
+    /// reaches for.
+    pub(crate) const ALL: [Self; 4] = [Self::Master, Self::Interface, Self::World, Self::Music];
+
+    /// What the row reads.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Master => "Master",
+            Self::Interface => "Interface",
+            Self::World => "World",
+            Self::Music => "Music",
+        }
+    }
+}
+
+/// One track's live level, `0.0..=1.0`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AudioLevels {
+    master: f32,
+    interface: f32,
+    world: f32,
+    music: f32,
+}
+
+impl AudioLevels {
+    fn of(self, channel: VolumeChannel) -> f32 {
+        match channel {
+            VolumeChannel::Master => self.master,
+            VolumeChannel::Interface => self.interface,
+            VolumeChannel::World => self.world,
+            VolumeChannel::Music => self.music,
+        }
+    }
+}
+
+/// A volume [`Slider`] entity (bevy's headless slider widget), tagged with the
+/// track it moves so the change observer and the label sync can find it.
 #[derive(Component)]
-pub(crate) struct VolumeLabel;
+pub(crate) struct VolumeSlider(pub(crate) VolumeChannel);
+
+/// The "72%" readout beside one volume slider.
+#[derive(Component)]
+pub(crate) struct VolumeLabel(pub(crate) VolumeChannel);
 
 /// Format a linear volume factor as a whole-percent label.
 pub(crate) fn volume_label(value: f32) -> String {
@@ -372,6 +425,9 @@ pub(crate) fn refresh_settings_tab(
     active: Res<SettingsActiveTab>,
     group: Res<SettingsControlsGroup>,
     volume: Res<MasterVolume>,
+    interface_volume: Res<InterfaceVolume>,
+    world_volume: Res<WorldVolume>,
+    music_volume: Res<MusicVolume>,
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     window_mode: Res<WindowModeSetting>,
@@ -382,6 +438,12 @@ pub(crate) fn refresh_settings_tab(
     hud_assets: Option<Res<NovaHudAssets>>,
 ) {
     let glyphs = hud_assets.as_deref().map(|assets| &assets.key_glyphs);
+    let levels = AudioLevels {
+        master: volume.factor(),
+        interface: interface_volume.factor(),
+        world: world_volume.factor(),
+        music: music_volume.factor(),
+    };
     // The fixed strip above the body. Emptied on every tab so a group bar left
     // over from Controls cannot sit above the Audio page.
     for strip in &headers {
@@ -395,7 +457,7 @@ pub(crate) fn refresh_settings_tab(
     for body in &bodies {
         commands.entity(body).despawn_related::<Children>();
         commands.entity(body).with_children(|list| match active.0 {
-            SettingsTabKind::Audio => build_audio_tab(list, *volume, *skin),
+            SettingsTabKind::Audio => build_audio_tab(list, levels, *skin),
             SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
             SettingsTabKind::Controls => {
                 build_controls_tab(list, &bindings, &rebind, group.0, glyphs);
@@ -405,13 +467,31 @@ pub(crate) fn refresh_settings_tab(
     }
 }
 
-/// AUDIO - master volume as a draggable slider (bevy's headless `Slider`; drag
+/// AUDIO - one draggable slider per mixer track (bevy's headless `Slider`; drag
 /// handling comes from `UiWidgetsPlugins` in DefaultPlugins, the value is
-/// committed by `slider_self_update` and mirrored to `MasterVolume` by
+/// committed by `slider_self_update` and mirrored to its resource by
 /// `on_volume_slider_change`, both registered in the plugin).
-fn build_audio_tab(list: &mut ChildSpawnerCommands, volume: MasterVolume, skin: UiSkin) {
+///
+/// Master scales everything through bevy's `GlobalVolume`; Interface and World
+/// are the engine's two live buses. Music is RESERVED - the slider and the
+/// saved value are here so the surface and the store do not need a format break
+/// when music lands.
+fn build_audio_tab(list: &mut ChildSpawnerCommands, levels: AudioLevels, skin: UiSkin) {
+    for channel in VolumeChannel::ALL {
+        build_volume_row(list, channel, levels.of(channel), skin);
+    }
+}
+
+/// One track's row: its name, its slider, and its percent readout.
+fn build_volume_row(
+    list: &mut ChildSpawnerCommands,
+    channel: VolumeChannel,
+    value: f32,
+    skin: UiSkin,
+) {
+    let name = channel.label();
     list.spawn((
-        Name::new("Volume Row"),
+        Name::new(format!("{name} Volume Row")),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Row,
@@ -423,9 +503,9 @@ fn build_audio_tab(list: &mut ChildSpawnerCommands, volume: MasterVolume, skin: 
     ))
     .with_children(|row| {
         row.spawn((
-            Name::new("Volume Slider"),
+            Name::new(format!("{name} Volume Label")),
             UiText,
-            Text::new("Volume"),
+            Text::new(name),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -447,23 +527,23 @@ fn build_audio_tab(list: &mut ChildSpawnerCommands, volume: MasterVolume, skin: 
         })
         .with_children(|cell| {
             cell.spawn((
-                Name::new("Volume Slider Track"),
-                VolumeSlider,
+                Name::new(format!("{name} Volume Slider Track")),
+                VolumeSlider(channel),
                 Slider {
                     track_click: TrackClick::Snap,
                     ..default()
                 },
-                SliderValue(volume.factor()),
+                SliderValue(value),
                 SliderRange::new(0.0, 1.0),
                 SliderStep(0.05),
-                slider_track(volume.factor(), skin),
+                slider_track(value, skin),
             ));
         });
         row.spawn((
-            Name::new("Volume Label"),
-            VolumeLabel,
+            Name::new(format!("{name} Volume Readout")),
+            VolumeLabel(channel),
             UiText,
-            Text::new(volume_label(volume.factor())),
+            Text::new(volume_label(value)),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -1044,6 +1124,9 @@ const CHIP_GLYPH_PX: f32 = 20.0;
 /// first frame.
 pub(crate) fn load_persisted_settings(
     mut volume: ResMut<MasterVolume>,
+    mut interface_volume: ResMut<InterfaceVolume>,
+    mut world_volume: ResMut<WorldVolume>,
+    mut music_volume: ResMut<MusicVolume>,
     mut quality: ResMut<GraphicsQuality>,
     mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
@@ -1054,6 +1137,9 @@ pub(crate) fn load_persisted_settings(
         return;
     };
     *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
+    *interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
+    *world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
+    *music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
     *quality = saved.graphics_quality;
     *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
@@ -1128,6 +1214,9 @@ pub(crate) fn persist_settings_on_change(
 #[derive(bevy::ecs::system::SystemParam)]
 pub(crate) struct LiveSettings<'w> {
     volume: Res<'w, MasterVolume>,
+    interface_volume: Res<'w, InterfaceVolume>,
+    world_volume: Res<'w, WorldVolume>,
+    music_volume: Res<'w, MusicVolume>,
     quality: Res<'w, GraphicsQuality>,
     skin: Res<'w, UiSkin>,
     monitor: Res<'w, NovaOsMonitorSettings>,
@@ -1142,6 +1231,12 @@ impl LiveSettings<'_> {
     fn edited(&self) -> bool {
         let moved = |changed: bool, added: bool| changed && !added;
         moved(self.volume.is_changed(), self.volume.is_added())
+            || moved(
+                self.interface_volume.is_changed(),
+                self.interface_volume.is_added(),
+            )
+            || moved(self.world_volume.is_changed(), self.world_volume.is_added())
+            || moved(self.music_volume.is_changed(), self.music_volume.is_added())
             || moved(self.quality.is_changed(), self.quality.is_added())
             || moved(self.skin.is_changed(), self.skin.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
@@ -1153,6 +1248,9 @@ impl LiveSettings<'_> {
     fn snapshot(&self) -> PersistedSettings {
         PersistedSettings::from_resources(
             *self.volume,
+            *self.interface_volume,
+            *self.world_volume,
+            *self.music_volume,
             *self.quality,
             *self.skin,
             *self.monitor,
@@ -1189,34 +1287,46 @@ pub(crate) fn flush_settings_on_exit(
     pending.idle_frames = None;
 }
 
-/// Mirror the volume slider's value onto [`MasterVolume`] as it is dragged.
+/// Mirror a volume slider's value onto its track's resource as it is dragged.
 /// bevy's `slider_self_update` (registered alongside this) commits the value
 /// onto the slider's own `SliderValue`; this copies it to the resource, whose
-/// change then drives the audio (`GlobalVolume` + the thruster loop) and the
-/// save-on-change persistence. Guarded on [`VolumeSlider`] so it ignores any
-/// other slider.
+/// change then drives the audio and the save-on-change persistence. Guarded on
+/// [`VolumeSlider`], whose channel says which resource to write, so it ignores
+/// any other slider.
 pub(crate) fn on_volume_slider_change(
     change: On<ValueChange<f32>>,
-    is_volume: Query<(), With<VolumeSlider>>,
-    mut volume: ResMut<MasterVolume>,
+    sliders: Query<&VolumeSlider>,
+    mut master: ResMut<MasterVolume>,
+    mut interface: ResMut<InterfaceVolume>,
+    mut world: ResMut<WorldVolume>,
+    mut music: ResMut<MusicVolume>,
 ) {
-    if is_volume.contains(change.source) {
-        *volume = MasterVolume(change.value.clamp(0.0, 1.0));
+    let Ok(slider) = sliders.get(change.source) else {
+        return;
+    };
+    let value = change.value.clamp(0.0, 1.0);
+    match slider.0 {
+        VolumeChannel::Master => *master = MasterVolume(value),
+        VolumeChannel::Interface => *interface = InterfaceVolume(value),
+        VolumeChannel::World => *world = WorldVolume(value),
+        VolumeChannel::Music => *music = MusicVolume(value),
     }
 }
 
-/// Keep the volume slider's percent label in sync with its value. The bar fill
-/// is the shared `slider_track`, shown by nova_ui's `sync_slider_tracks` in
-/// either skin - so this only owns the `NN%` text. Runs every frame;
-/// there is at most one slider (main-menu or pause), and none while no settings
-/// panel is open.
+/// Keep each volume slider's percent readout in sync with its own value. The
+/// bar fill is the shared `slider_track`, shown by nova_ui's
+/// `sync_slider_tracks` in either skin - so this only owns the `NN%` text. Runs
+/// every frame; there is at most one Audio tab open (main-menu or pause), and
+/// none while no settings panel is open.
 pub(crate) fn sync_volume_slider(
-    sliders: Query<&SliderValue, With<VolumeSlider>>,
-    mut labels: Query<&mut Text, With<VolumeLabel>>,
+    sliders: Query<(&SliderValue, &VolumeSlider)>,
+    mut labels: Query<(&mut Text, &VolumeLabel)>,
 ) {
-    if let Ok(value) = sliders.single() {
-        for mut text in &mut labels {
-            text.0 = volume_label(value.0);
+    for (value, slider) in &sliders {
+        for (mut text, label) in &mut labels {
+            if label.0 == slider.0 {
+                text.0 = volume_label(value.0);
+            }
         }
     }
 }

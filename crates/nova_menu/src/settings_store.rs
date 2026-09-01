@@ -1,13 +1,20 @@
 //! The persisted form of the player settings.
 //!
-//! The settings menu writes four Bevy resources; this module snapshots them into
-//! one versionable blob and names the store key. Storage, and its best-effort
-//! semantics, belong to [`nova_assets::persist`].
+//! The settings menu writes a handful of Bevy resources; this module snapshots
+//! them into one versionable blob and names the store key. Storage, and its
+//! best-effort semantics, belong to [`nova_assets::persist`].
+//!
+//! Every field carries a serde default, so a store written before a setting
+//! existed still loads and picks that setting's default - which is what lets the
+//! three mixer-bus volumes join `master_volume` without invalidating anyone's
+//! saved file.
 
 use std::collections::BTreeMap;
 
 use nova_assets::persist;
-use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
+use nova_gameplay::prelude::{
+    GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
+};
 use nova_input::prelude::{BindingSpec, InputBindings};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
@@ -26,6 +33,16 @@ pub struct PersistedSettings {
     /// Linear master volume `0.0..=1.0`.
     #[serde(default = "default_volume")]
     pub master_volume: f32,
+    /// Linear volume of the Interface mixer bus (UI chrome).
+    #[serde(default = "default_volume")]
+    pub interface_volume: f32,
+    /// Linear volume of the World mixer bus (everything diegetic).
+    #[serde(default = "default_volume")]
+    pub world_volume: f32,
+    /// Linear volume of the RESERVED Music mixer bus. Saved so the format does
+    /// not break when music lands.
+    #[serde(default = "default_volume")]
+    pub music_volume: f32,
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
@@ -73,6 +90,9 @@ impl Default for PersistedSettings {
         let monitor = NovaOsMonitorSettings::default();
         Self {
             master_volume: MasterVolume::default().0,
+            interface_volume: InterfaceVolume::default().0,
+            world_volume: WorldVolume::default().0,
+            music_volume: MusicVolume::default().0,
             graphics_quality: GraphicsQuality::default(),
             ui_skin: UiSkin::default(),
             nova_os_bright_detent: monitor.bright_detent,
@@ -88,6 +108,9 @@ impl PersistedSettings {
     /// Snapshot the live resources into a persistable value.
     pub fn from_resources(
         volume: MasterVolume,
+        interface_volume: InterfaceVolume,
+        world_volume: WorldVolume,
+        music_volume: MusicVolume,
         quality: GraphicsQuality,
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
@@ -96,6 +119,9 @@ impl PersistedSettings {
     ) -> Self {
         Self {
             master_volume: volume.factor(),
+            interface_volume: interface_volume.factor(),
+            world_volume: world_volume.factor(),
+            music_volume: music_volume.factor(),
             graphics_quality: quality,
             ui_skin: skin,
             nova_os_bright_detent: monitor.bright_detent,
@@ -147,7 +173,7 @@ mod tests {
         persist::{load_from, save_to},
         storage::NativeStorage,
     };
-    use nova_gameplay::prelude::GraphicsQuality;
+    use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
     use nova_os_ui::prelude::NovaOsMonitorSettings;
     use nova_ui::prelude::UiSkin;
 
@@ -178,6 +204,9 @@ mod tests {
         // chin fields persist.
         let settings = PersistedSettings {
             master_volume: 0.4,
+            interface_volume: 0.6,
+            world_volume: 0.7,
+            music_volume: 0.2,
             graphics_quality: GraphicsQuality::Low,
             ui_skin: UiSkin::Hardware,
             nova_os_bright_detent: 3,
@@ -235,8 +264,9 @@ mod tests {
         clear(&store);
     }
 
-    /// An older file missing the graphics field still loads (serde default),
-    /// so adding a setting never invalidates a saved store.
+    /// An older file carrying only `master_volume` still loads (serde
+    /// defaults), so adding a setting - the three mixer buses included - never
+    /// invalidates a saved store.
     #[test]
     fn partial_file_uses_defaults() {
         let store = temp_store("partial");
@@ -246,6 +276,9 @@ mod tests {
             load_from::<PersistedSettings>(&store, KEY),
             Some(PersistedSettings {
                 master_volume: 0.5,
+                interface_volume: InterfaceVolume::default().0,
+                world_volume: WorldVolume::default().0,
+                music_volume: MusicVolume::default().0,
                 graphics_quality: GraphicsQuality::default(),
                 ui_skin: UiSkin::default(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
@@ -284,6 +317,52 @@ mod tests {
             load_from::<PersistedSettings>(&store, KEY).map(|s| s.ui_skin),
             Some(UiSkin::Phosphor),
             "a store written before the ui_skin field defaults to Phosphor"
+        );
+        clear(&store);
+    }
+
+    /// The three mixer-bus volumes persist, and a store written before they
+    /// existed still loads on their defaults - the compatibility the whole
+    /// serde-default rule buys, checked on the setting that just used it.
+    #[test]
+    fn the_mixer_bus_volumes_persist_and_an_older_store_still_loads() {
+        let store = temp_store("bus_volumes");
+        clear(&store);
+
+        let settings = PersistedSettings {
+            interface_volume: 0.35,
+            world_volume: 0.85,
+            music_volume: 0.15,
+            ..PersistedSettings::default()
+        };
+        save_to(&store, KEY, &settings);
+        let saved = load_from::<PersistedSettings>(&store, KEY).expect("the store round-trips");
+        assert_eq!(
+            (
+                saved.interface_volume,
+                saved.world_volume,
+                saved.music_volume
+            ),
+            (0.35, 0.85, 0.15)
+        );
+
+        // A store written before the buses existed: every one falls back to its
+        // default rather than failing the load.
+        write_raw(&store, b"(master_volume: 0.5)");
+        let older =
+            load_from::<PersistedSettings>(&store, KEY).expect("an older store still loads");
+        assert_eq!(older.master_volume, 0.5);
+        assert_eq!(
+            (
+                older.interface_volume,
+                older.world_volume,
+                older.music_volume
+            ),
+            (
+                InterfaceVolume::default().0,
+                WorldVolume::default().0,
+                MusicVolume::default().0
+            )
         );
         clear(&store);
     }

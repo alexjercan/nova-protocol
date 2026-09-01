@@ -25,7 +25,11 @@ pub(crate) fn on_menu_button_activate(
         return;
     }
     if let Some(bank) = bank {
-        commands.play_sfx_volume(bank.get(UiSfx::MenuSelect), MENU_SELECT_VOLUME);
+        commands.play_sfx(
+            bank.get(UiSfx::MenuSelect),
+            AudioRoute::Interface,
+            MENU_SELECT_VOLUME,
+        );
     }
 }
 

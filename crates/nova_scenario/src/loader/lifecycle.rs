@@ -1108,7 +1108,8 @@ mod tests {
             .reserve_handle();
 
         // Menu control: fired before any scenario is live.
-        app.world_mut().trigger(PlaySfx::new(handle.clone()));
+        app.world_mut()
+            .trigger(PlaySfx::new(handle.clone(), AudioRoute::Interface));
         app.update();
         let menu_sfx = app
             .world_mut()
@@ -1126,7 +1127,8 @@ mod tests {
 
         // Fired DURING the scenario. Headless there is no audio device, so no
         // sink ever despawns it: the teardown is its only possible owner.
-        app.world_mut().trigger(PlaySfx::new(handle));
+        app.world_mut()
+            .trigger(PlaySfx::new(handle, AudioRoute::Interface));
         app.update();
         let scenario_sfx = app
             .world_mut()

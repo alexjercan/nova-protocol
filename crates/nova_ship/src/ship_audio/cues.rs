@@ -2,6 +2,10 @@
 //! with, and the dry-fire click on an empty trigger pull. All resolve
 //! the PLAYER controller's authored sounds, so a ship without them is
 //! silent rather than borrowing another hull's voice.
+//!
+//! All on [`AudioRoute::Hull`]: these are the player's own computer talking to
+//! them, so they ride the world track with everything else their ship makes,
+//! and they are never placed, attenuated or panned.
 
 use std::collections::HashMap;
 
@@ -66,7 +70,7 @@ pub(super) fn play_lock_cues(
     // all of them via gen_content.
     let mut play = |ref_opt: &Option<AssetRef<AudioSource>>, volume: f32| {
         if let Some(handle) = ref_opt.as_ref().map(|r| r.resolve(&asset_server)) {
-            commands.play_sfx_volume(handle, volume);
+            commands.play_sfx(handle, AudioRoute::Hull, volume);
         }
     };
     if acquired_now {
@@ -116,7 +120,7 @@ pub(super) fn play_safety_engaged_cue(
                 .and_then(|sounds| sounds.safety_on.as_ref())
                 .map(|r| r.resolve(&asset_server))
             {
-                commands.play_sfx_volume(handle, SAFETY_ON_VOLUME);
+                commands.play_sfx(handle, AudioRoute::Hull, SAFETY_ON_VOLUME);
             }
         }
         *was_hot = is_hot;
@@ -172,7 +176,7 @@ pub(super) fn play_dry_fire_cue(
                 .and_then(|s| s.0.as_ref())
                 .map(|r| r.resolve(&asset_server))
             {
-                commands.play_sfx_volume(handle, DRY_FIRE_VOLUME);
+                commands.play_sfx(handle, AudioRoute::Hull, DRY_FIRE_VOLUME);
             }
         }
         live.insert(turret, dry);

@@ -185,8 +185,9 @@ fn objective_change_feedback(
         // One cue per change kind per frame: a complete+re-add tally swap
         // plays both once, not per objective.
         if !completed.is_empty() {
-            commands.play_sfx_volume(
+            commands.play_sfx(
                 bank.get(UiSfx::ObjectiveComplete),
+                AudioRoute::Interface,
                 OBJECTIVE_COMPLETE_VOLUME,
             );
             // A chime just played: restart any pending blip's clock, or a
@@ -201,7 +202,11 @@ fn objective_change_feedback(
             if completed.is_empty() {
                 // Nothing finished in this change: the posting blip plays
                 // immediately.
-                commands.play_sfx_volume(bank.get(UiSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+                commands.play_sfx(
+                    bank.get(UiSfx::ObjectiveNew),
+                    AudioRoute::Interface,
+                    OBJECTIVE_NEW_VOLUME,
+                );
             } else {
                 // The completion chime just played - hold the posting blip
                 // back so the two cues do not mask each other. Latest change
@@ -258,7 +263,11 @@ fn play_pending_new_cue(
     }
     new_cue.pending = None;
     if let Some(bank) = &bank {
-        commands.play_sfx_volume(bank.get(UiSfx::ObjectiveNew), OBJECTIVE_NEW_VOLUME);
+        commands.play_sfx(
+            bank.get(UiSfx::ObjectiveNew),
+            AudioRoute::Interface,
+            OBJECTIVE_NEW_VOLUME,
+        );
     }
 }
 

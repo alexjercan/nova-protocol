@@ -63,10 +63,9 @@ fn nova_os_ambient_bed_tracks_nova_os_state() {
     assert_eq!(bed_count(&mut app), 1, "one bed while the computer is open");
 
     // Leaving the NOVA OS despawns the bed. (The freeze loop-pause exemption
-    // is structural, not exercised here: `audio::pause_loops` queries only
-    // ThrusterLoopSfx/RcsLoopSfx, so NovaOsBedSfx is never paused - see the
-    // task note. Asserting the sink stays playing would need an audio
-    // device.)
+    // is structural, not exercised here: the engine's `pause_world_voices`
+    // skips every Interface voice, and the bed is one. Asserting the sink stays
+    // playing would need an audio device.)
     app.world_mut()
         .resource_mut::<NextState<PauseStates>>()
         .set(PauseStates::Unpaused);
@@ -104,14 +103,9 @@ fn nova_os_snd_off_silences_cues() {
 }
 
 #[test]
-fn nova_os_bed_gain_respects_snd_and_master() {
-    // The bed's volume logic (the sink write needs an audio device, so the
-    // gain is factored out pure). SND on at full master -> the base volume.
-    assert_eq!(nova_os_bed_gain(true, 1.0), NOVA_OS_BED_VOLUME);
-    // SND off -> dead silent, whatever the master.
-    assert_eq!(nova_os_bed_gain(false, 1.0), 0.0);
-    // A zero master output gain (volume 0 OR a HarnessMute'd run) -> silent.
-    assert_eq!(nova_os_bed_gain(true, 0.0), 0.0);
-    // Half master scales the hum.
-    assert_eq!(nova_os_bed_gain(true, 0.5), NOVA_OS_BED_VOLUME * 0.5);
+fn nova_os_bed_gain_follows_the_snd_toggle() {
+    // The bed's own level. The interface bus, the master and the harness mute
+    // are the engine's, applied on top of this.
+    assert_eq!(nova_os_bed_gain(true), NOVA_OS_BED_VOLUME);
+    assert_eq!(nova_os_bed_gain(false), 0.0, "SND off is dead silent");
 }

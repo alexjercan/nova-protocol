@@ -20,7 +20,7 @@ use std::collections::VecDeque;
 use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
-    audio::{SfxCommandsExt, SoundBank, UiSfx},
+    audio::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx},
 };
 use nova_ui::{hud::ChipTone, theme};
 
@@ -279,7 +279,11 @@ fn drive_comms_stack(
             age_secs: 0.0,
         });
         if let Some(bank) = &bank {
-            commands.play_sfx_volume(bank.get(UiSfx::CommsLine), COMMS_BLIP_VOLUME);
+            commands.play_sfx(
+                bank.get(UiSfx::CommsLine),
+                AudioRoute::Interface,
+                COMMS_BLIP_VOLUME,
+            );
         }
     }
 }

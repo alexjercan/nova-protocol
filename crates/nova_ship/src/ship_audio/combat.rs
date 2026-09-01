@@ -1,19 +1,23 @@
 //! Combat one-shots: explosions, impacts, turret fire, torpedo launches and
 //! the railgun's report, each resolving the target's authored sound or staying
 //! silent.
+//!
+//! Every cue here is ROUTED before it is played: `route_for` walks to the ship
+//! the noise belongs to, and the player's own ship is
+//! [`AudioRoute::Hull`] while everything else is [`AudioRoute::Exterior`]. The
+//! rolloff and the pan follow from that, so no observer here looks up the
+//! listener.
 
 use bevy::prelude::*;
 use nova_gameplay::{
-    audio::{
-        area_cell, listener_position, play_positional_handle, SfxListenerMarker, SfxThrottle,
-        ThrottleKey,
-    },
+    audio::{area_cell, SfxThrottle, ThrottleKey},
     prelude::*,
 };
 
 use super::{
-    EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL, IMPACT_VOLUME,
-    RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
+    routing::route_for, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
+    IMPACT_VOLUME, RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL,
+    TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
@@ -55,7 +59,8 @@ pub(super) fn on_destroyed_play_explosion(
     q_transform: Query<&GlobalTransform>,
     q_sounds: Query<&ImpactDestroySounds>,
     q_child_of: Query<&ChildOf>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -79,13 +84,8 @@ pub(super) fn on_destroyed_play_explosion(
         time.elapsed_secs(),
         EXPLOSION_MIN_INTERVAL,
     ) {
-        play_positional_handle(
-            &mut commands,
-            handle,
-            EXPLOSION_VOLUME,
-            pos,
-            listener_position(&q_camera),
-        );
+        let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
+        commands.play_sfx_at(handle, route, EXPLOSION_VOLUME, pos);
     }
 }
 
@@ -107,7 +107,8 @@ pub(super) fn on_damage_play_impact(
     q_transform: Query<&GlobalTransform>,
     q_sounds: Query<&ImpactDestroySounds>,
     q_child_of: Query<&ChildOf>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -131,13 +132,9 @@ pub(super) fn on_damage_play_impact(
         time.elapsed_secs(),
         IMPACT_MIN_INTERVAL,
     ) {
-        play_positional_handle(
-            &mut commands,
-            handle,
-            IMPACT_VOLUME,
-            pos,
-            listener_position(&q_camera),
-        );
+        // Damage landing on YOUR hull is heard through it, not across the gap.
+        let route = route_for(damage.entity, &q_child_of, &q_is_root, &q_is_player);
+        commands.play_sfx_at(handle, route, IMPACT_VOLUME, pos);
     }
 }
 
@@ -157,7 +154,9 @@ pub(super) fn on_turret_fire_play_sfx(
     time: Res<Time>,
     q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
     q_fire_sound: Query<&TurretSectionFireSound>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
@@ -183,13 +182,10 @@ pub(super) fn on_turret_fire_play_sfx(
         time.elapsed_secs(),
         TURRET_FIRE_MIN_INTERVAL,
     ) {
-        play_positional_handle(
-            &mut commands,
-            handle,
-            TURRET_FIRE_VOLUME,
-            transform.translation,
-            listener_position(&q_camera),
-        );
+        // Routed off the FIRING TURRET, not the round: the shell is a fresh
+        // root with no ship above it, and whose gun it left is the question.
+        let route = route_for(part_of.0, &q_child_of, &q_is_root, &q_is_player);
+        commands.play_sfx_at(handle, route, TURRET_FIRE_VOLUME, transform.translation);
     }
 }
 
@@ -206,7 +202,9 @@ pub(super) fn on_torpedo_launch_play_sfx(
     asset_server: Res<AssetServer>,
     q_projectile: Query<(&Transform, &TorpedoSectionSpawnerEntity)>,
     q_launch_sound: Query<&TorpedoSectionLaunchSound>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     // Freshly-spawned root entity: use local Transform (== world) this frame.
@@ -221,13 +219,9 @@ pub(super) fn on_torpedo_launch_play_sfx(
     else {
         return;
     };
-    play_positional_handle(
-        &mut commands,
-        handle,
-        TORPEDO_LAUNCH_VOLUME,
-        source.translation,
-        listener_position(&q_camera),
-    );
+    // Routed off the firing BAY, for the same reason the turret is.
+    let route = route_for(spawner.0, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(handle, route, TORPEDO_LAUNCH_VOLUME, source.translation);
 }
 
 /// The lance's report, on the tick the shot leaves.
@@ -243,7 +237,9 @@ pub(super) fn on_railgun_fire_play_sfx(
     fired: On<RailgunFired>,
     asset_server: Res<AssetServer>,
     q_fire_sound: Query<&RailgunSectionFireSound>,
-    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let Some(handle) = q_fire_sound
@@ -254,13 +250,8 @@ pub(super) fn on_railgun_fire_play_sfx(
     else {
         return;
     };
-    play_positional_handle(
-        &mut commands,
-        handle,
-        RAILGUN_FIRE_VOLUME,
-        fired.muzzle,
-        listener_position(&q_camera),
-    );
+    let route = route_for(fired.entity, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(handle, route, RAILGUN_FIRE_VOLUME, fired.muzzle);
 }
 
 #[cfg(test)]

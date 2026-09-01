@@ -1,31 +1,36 @@
 //! The NOVA OS audio: keypress and control cues, the continuous power-on bed,
 //! and the power-down sting.
 //!
-//! The bed is a single entity so its gain can track the sound toggle and the
-//! master volume live rather than being restarted.
+//! Every cue and the bed are on [`AudioRoute::Interface`] - the terminal is
+//! chrome, not a thing in the world - so none of them is placed, attenuated or
+//! panned, and the bed keeps humming while the sim behind it is frozen.
+//!
+//! The bed is a single entity so its gain can track the sound toggle live
+//! rather than being restarted.
 //!
 //! Touch this module when adding a sound the monitor makes.
 
-use bevy::{audio::Volume, prelude::*};
-use nova_gameplay::{
-    audio::prelude::{SfxCommandsExt, SoundBank, UiSfx, NOVA_OS_BED_VOLUME, NOVA_OS_POWER_VOLUME},
-    settings::prelude::{HarnessMute, MasterVolume},
+use bevy::prelude::*;
+use nova_gameplay::audio::prelude::{
+    AudioRoute, SfxCommandsExt, SfxVoice, SoundBank, UiSfx, NOVA_OS_BED_VOLUME,
+    NOVA_OS_POWER_VOLUME,
 };
 
 use super::components::*;
 
-/// The looping ambient CRT bed audio entity, spawned while the NOVA OS computer
-/// is open. NOTE: its OWN marker keeps it out of
-/// [`nova_gameplay::audio`]'s `pause_loops` thruster/RCS queries, so the sim-freeze
-/// loop-pause on `OnEnter(NovaOs)` never silences it - the bed is exempt by
-/// construction, not by a guard (`audit-state-gates-on-new-entry-path`). Volume
-/// (and the live SND mute) is applied by [`apply_nova_os_bed_volume`].
+/// The looping ambient CRT bed, spawned while the NOVA OS computer is open.
+///
+/// Its ROUTE is what keeps it playing through the sim freeze on
+/// `OnEnter(NovaOs)`: the engine pauses the world voices and leaves the
+/// interface alone, so the bed is exempt by construction rather than by a guard
+/// (`audit-state-gates-on-new-entry-path`). The SND toggle is applied live by
+/// [`apply_nova_os_bed_volume`].
 #[derive(Component)]
 pub(crate) struct NovaOsBedSfx;
 
 /// Fire a one-shot NOVA OS terminal cue, honoring the SND toggle
-/// ([`NovaOsMonitorSettings::sound_enabled`]). Master volume is applied
-/// downstream by the SFX plugin's `SfxMasterVolume` path, like every other cue.
+/// ([`NovaOsMonitorSettings::sound_enabled`]). The interface-bus and master
+/// gains are applied downstream by the engine, like every other cue.
 pub(crate) fn play_nova_os_cue(
     commands: &mut Commands,
     bank: &SoundBank<UiSfx>,
@@ -36,7 +41,7 @@ pub(crate) fn play_nova_os_cue(
     if !settings.sound_enabled {
         return;
     }
-    commands.play_sfx_volume(bank.get(cue), volume);
+    commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
 }
 
 /// Power-up sweep + start the ambient bed when the computer opens
@@ -60,8 +65,7 @@ pub(crate) fn start_nova_os_sound(
     commands.spawn((
         Name::new("NOVA OS Ambient Bed"),
         NovaOsBedSfx,
-        AudioPlayer(bank.get(UiSfx::NovaOsBed)),
-        PlaybackSettings::LOOP.with_volume(Volume::Linear(0.0)),
+        SfxVoice::looping(bank.get(UiSfx::NovaOsBed), AudioRoute::Interface),
     ));
 }
 
@@ -98,33 +102,24 @@ pub(crate) fn play_nova_os_power_down(
     *was_closing = close.closing;
 }
 
-/// Drive the ambient bed sink volume from [`MasterVolume`] and the SND toggle, so
-/// muting SND (or the master) silences the hum live without despawning the loop.
-/// Uses `output_gain(mute)` like the thruster/RCS loop sinks, so a `HarnessMute`d
-/// smoke/probe run silences the bed too (a per-frame sink write bypasses the
-/// `GlobalVolume` path that mute otherwise masks).
+/// Drive the ambient bed's level from the SND toggle, so muting SND silences the
+/// hum live without despawning the loop. The interface-bus, master and
+/// harness-mute gains are the engine's, applied on top of what this writes.
 pub(crate) fn apply_nova_os_bed_volume(
     settings: Res<NovaOsMonitorSettings>,
-    master: Option<Res<MasterVolume>>,
-    mute: Option<Res<HarnessMute>>,
-    mut q_bed: Query<&mut AudioSink, With<NovaOsBedSfx>>,
+    mut q_bed: Query<&mut SfxVoice, With<NovaOsBedSfx>>,
 ) {
-    let mute = mute.map(|m| *m).unwrap_or_default();
-    let master = master.map(|m| m.output_gain(mute)).unwrap_or(1.0);
-    let target = nova_os_bed_gain(settings.sound_enabled, master);
-    for mut sink in &mut q_bed {
-        sink.set_volume(Volume::Linear(target));
+    let target = nova_os_bed_gain(settings.sound_enabled);
+    for mut voice in &mut q_bed {
+        voice.volume = target;
     }
 }
 
-/// The ambient bed's target sink gain: the base volume scaled by the master
-/// output gain, or ZERO when SND is muted. Pure so the SND-off / master / mute
-/// silence logic is testable without an `AudioSink` (which needs an audio
-/// device). `master` is already the `output_gain(mute)`, so a harness-muted run
-/// (master 0) silences the bed too.
-pub(crate) fn nova_os_bed_gain(sound_enabled: bool, master: f32) -> f32 {
+/// The ambient bed's level: its base volume, or ZERO when SND is muted. Pure so
+/// the SND-off silence is testable without an audio device.
+pub(crate) fn nova_os_bed_gain(sound_enabled: bool) -> f32 {
     if sound_enabled {
-        NOVA_OS_BED_VOLUME * master
+        NOVA_OS_BED_VOLUME
     } else {
         0.0
     }

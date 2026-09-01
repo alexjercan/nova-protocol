@@ -198,7 +198,7 @@ fn on_crate_pickup_play_sfx(
     // ding is the crate's own authored ref.
     if dinged.0.insert(crate_entity) {
         if let Some(handle) = pickup_sound.0.as_ref().map(|r| r.resolve(&asset_server)) {
-            commands.play_sfx_volume(handle, SALVAGE_PICKUP_VOLUME);
+            commands.play_sfx(handle, AudioRoute::Interface, SALVAGE_PICKUP_VOLUME);
         }
     }
 }

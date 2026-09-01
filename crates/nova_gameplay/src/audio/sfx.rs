@@ -1,61 +1,69 @@
-//! Fire-and-forget one-shot sound effects for Bevy games.
+//! Fire-and-forget one-shot sound effects.
 //!
-//! Games trigger a [`PlaySfx`] (or call [`SfxCommandsExt::play_sfx`]) with an
-//! [`AudioSource`] handle and [`SfxPlugin`] spawns a self-despawning
-//! [`AudioPlayer`] for it, so game code never repeats the `AudioPlayer` /
-//! `PlaybackSettings::DESPAWN` boilerplate. A global [`SfxMasterVolume`]
-//! resource scales every sound, giving one place to wire a volume slider or a
-//! mute toggle.
+//! Trigger a [`PlaySfx`] (or call one of the [`SfxCommandsExt`] shorthands) and
+//! [`SfxPlugin`] spawns the [`SfxVoice`] entity for it and retires it when the
+//! clip ends, so game code never repeats the spawn/despawn boilerplate and
+//! never has to remember where the listener is - the engine mixes the cue.
 //!
-//! This is deliberately just one concern: transient, non-looping SFX. It is
-//! not a music player or a mixer; for looping background music spawn an
-//! `AudioPlayer` with `PlaybackSettings::LOOP` directly.
+//! Every cue declares its [`AudioRoute`], because there is no sensible default:
+//! a menu click, your own gun and someone else's gun belong on three different
+//! places in the mix.
 //!
 //! ```rust
 //! # use bevy::prelude::*;
 //! # use nova_gameplay::prelude::*;
-//! # fn demo(mut commands: Commands, slice: Handle<AudioSource>) {
-//! // Simplest: play once at master volume.
-//! commands.play_sfx(slice.clone());
+//! # fn demo(mut commands: Commands, click: Handle<AudioSource>, blast: Handle<AudioSource>) {
+//! // UI chrome: no position, no rolloff, no pan.
+//! commands.play_sfx(click, AudioRoute::Interface, 0.3);
 //!
-//! // Or trigger directly for per-shot volume / pitch control.
-//! commands.trigger(PlaySfx::new(slice).with_volume(0.8).with_speed(1.2));
+//! // Something happening out in the world: attenuated and panned by bearing.
+//! commands.play_sfx_at(blast, AudioRoute::Exterior, 0.4, Vec3::new(80.0, 0.0, -20.0));
 //! # }
 //! ```
-//!
-//! Nova owns this because every cue in the game - the ship's combat
-//! one-shots, the HUD clicks and the menu blips - is fired through [`PlaySfx`],
-//! and the
-//! master volume it scales by is the slider in nova's settings screen.
 
-use bevy::{audio::Volume, prelude::*};
+use bevy::prelude::*;
+
+use super::{
+    bus::AudioRoute,
+    voice::{SfxSource, SfxVoice},
+};
 
 /// Request to play a one-shot sound effect.
 ///
-/// Trigger it with `commands.trigger(PlaySfx::new(handle))`; [`SfxPlugin`]
-/// observes it and spawns the audio entity. Prefer [`SfxCommandsExt`] for the
-/// common cases.
-#[derive(Event, Clone, Debug, Reflect)]
+/// Trigger it with `commands.trigger(PlaySfx::new(handle, route))`; [`SfxPlugin`]
+/// observes it and spawns the voice. Prefer [`SfxCommandsExt`] for the common
+/// cases.
+#[derive(Event, Clone, Debug)]
 pub struct PlaySfx {
     /// The sound to play.
     pub handle: Handle<AudioSource>,
 
-    /// Per-shot linear volume multiplier (1.0 leaves the clip unchanged). It is
-    /// multiplied by [`SfxMasterVolume`] before playback.
+    /// Which track scales the cue, and whether it is placed in the world.
+    pub route: AudioRoute,
+
+    /// Per-shot linear volume multiplier (1.0 leaves the clip unchanged). The
+    /// bus gain, the distance rolloff and the master are applied on top.
     pub volume: f32,
 
     /// Playback speed, which also shifts pitch (1.0 is normal). Handy for
     /// adding variation, e.g. nudging the pitch up as a combo grows.
     pub speed: f32,
+
+    /// Where the cue is heard from. Read only on
+    /// [`AudioRoute::Exterior`]; a hull cue carries its position for the
+    /// reader's benefit and is heard in the cockpit either way.
+    pub source: SfxSource,
 }
 
 impl PlaySfx {
-    /// A sound at full per-shot volume and normal speed.
-    pub fn new(handle: Handle<AudioSource>) -> Self {
+    /// A cue on `route`, at full per-shot volume and normal speed.
+    pub fn new(handle: Handle<AudioSource>, route: AudioRoute) -> Self {
         Self {
             handle,
+            route,
             volume: 1.0,
             speed: 1.0,
+            source: SfxSource::Unplaced,
         }
     }
 
@@ -70,51 +78,63 @@ impl PlaySfx {
         self.speed = speed;
         self
     }
+
+    /// Hear the cue from a world point.
+    pub fn at(mut self, position: Vec3) -> Self {
+        self.source = SfxSource::At(position);
+        self
+    }
 }
 
-/// Marks the audio entity behind one [`PlaySfx`] one-shot.
+/// Marks the voice entity behind one [`PlaySfx`] one-shot.
 ///
 /// Exists for owners OUTSIDE this crate: the entity's own despawn rides its
-/// audio sink (`PlaybackSettings::DESPAWN`), which plays on the wall clock and
-/// is never created without an output device, so nothing else can recognize a
-/// clip that outlived whoever asked for it. nova_scenario scopes on this
-/// marker so a one-shot spawned by a live scenario dies with the teardown
-/// instead of playing into the next scenario.
+/// audio sink (`PlaybackMode::Despawn`), which plays on the wall clock and is
+/// never created without an output device, so nothing else can recognize a clip
+/// that outlived whoever asked for it. nova_scenario scopes on this marker so a
+/// one-shot spawned by a live scenario dies with the teardown instead of
+/// playing into the next scenario.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct SfxAudioMarker;
 
-/// Master linear volume applied to every sound effect (default 1.0).
-///
-/// Set it to scale all SFX at once (a volume slider), or to 0.0 to mute.
-#[derive(Resource, Clone, Debug, Reflect, Deref, DerefMut)]
-pub struct SfxMasterVolume(pub f32);
-
-impl Default for SfxMasterVolume {
-    fn default() -> Self {
-        Self(1.0)
-    }
-}
-
-/// Ergonomic [`Commands`] extension for firing sound effects.
+/// Ergonomic [`Commands`] extension for firing one-shot cues.
 pub trait SfxCommandsExt {
-    /// Play `handle` once at master volume.
-    fn play_sfx(&mut self, handle: Handle<AudioSource>);
+    /// Play `handle` once on `route`, at `volume`.
+    fn play_sfx(&mut self, handle: Handle<AudioSource>, route: AudioRoute, volume: f32);
 
-    /// Play `handle` once with a per-shot volume multiplier.
-    fn play_sfx_volume(&mut self, handle: Handle<AudioSource>, volume: f32);
+    /// Play `handle` once on `route`, heard from `position`. On
+    /// [`AudioRoute::Exterior`] that means distance-attenuated and panned by
+    /// bearing; on [`AudioRoute::Hull`] the position says WHERE on your ship it
+    /// happened and the cue is still heard flat in the cockpit.
+    fn play_sfx_at(
+        &mut self,
+        handle: Handle<AudioSource>,
+        route: AudioRoute,
+        volume: f32,
+        position: Vec3,
+    );
 }
 
 impl SfxCommandsExt for Commands<'_, '_> {
-    fn play_sfx(&mut self, handle: Handle<AudioSource>) {
-        self.trigger(PlaySfx::new(handle));
+    fn play_sfx(&mut self, handle: Handle<AudioSource>, route: AudioRoute, volume: f32) {
+        self.trigger(PlaySfx::new(handle, route).with_volume(volume));
     }
 
-    fn play_sfx_volume(&mut self, handle: Handle<AudioSource>, volume: f32) {
-        self.trigger(PlaySfx::new(handle).with_volume(volume));
+    fn play_sfx_at(
+        &mut self,
+        handle: Handle<AudioSource>,
+        route: AudioRoute,
+        volume: f32,
+        position: Vec3,
+    ) {
+        self.trigger(PlaySfx::new(handle, route).with_volume(volume).at(position));
     }
 }
 
-/// Plugin that enables fire-and-forget SFX playback via [`PlaySfx`].
+/// Plugin that enables fire-and-forget one-shots via [`PlaySfx`].
+///
+/// Playback itself belongs to [`NovaAudioPlugin`](super::NovaAudioPlugin),
+/// which adds this one; on its own this only turns triggers into voices.
 #[derive(Default)]
 pub struct SfxPlugin;
 
@@ -122,28 +142,79 @@ impl Plugin for SfxPlugin {
     fn build(&self, app: &mut App) {
         trace!("SfxPlugin: build");
 
-        app.init_resource::<SfxMasterVolume>();
-        app.register_type::<SfxMasterVolume>();
         app.register_type::<SfxAudioMarker>();
         app.add_observer(on_play_sfx);
     }
 }
 
-/// Spawn a self-despawning [`AudioPlayer`] for each [`PlaySfx`], scaled by the
-/// master volume. `PlaybackSettings::DESPAWN` retires the entity once the clip
-/// finishes, so callers never have to clean it up.
-fn on_play_sfx(event: On<PlaySfx>, mut commands: Commands, master: Res<SfxMasterVolume>) {
-    let volume = (event.volume * master.0).max(0.0);
-    // Rodio does not accept a non-positive playback rate.
-    let speed = event.speed.max(f32::MIN_POSITIVE);
-    trace!("on_play_sfx: volume {volume}, speed {speed}");
+/// Turn each [`PlaySfx`] into a self-retiring [`SfxVoice`]. The mixing - bus
+/// gain, rolloff, pan, and dropping a cue nobody could hear - is the engine's,
+/// one system later.
+fn on_play_sfx(event: On<PlaySfx>, mut commands: Commands) {
+    trace!("on_play_sfx: {:?} at {:?}", event.route, event.source);
 
     commands.spawn((
         Name::new("Sfx"),
         SfxAudioMarker,
-        AudioPlayer(event.handle.clone()),
-        PlaybackSettings::DESPAWN
-            .with_volume(Volume::Linear(volume))
-            .with_speed(speed),
+        SfxVoice {
+            handle: event.handle.clone(),
+            route: event.route,
+            volume: event.volume,
+            speed: event.speed,
+            source: event.source,
+            looping: false,
+        },
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sfx_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_plugins(SfxPlugin);
+        app
+    }
+
+    #[test]
+    fn a_triggered_cue_becomes_a_voice_carrying_its_route_and_place() {
+        let mut app = sfx_app();
+        let where_it_happened = Vec3::new(12.0, 0.0, -3.0);
+        app.world_mut().trigger(
+            PlaySfx::new(Handle::default(), AudioRoute::Exterior)
+                .with_volume(0.4)
+                .at(where_it_happened),
+        );
+        app.update();
+
+        let mut voices = app.world_mut().query::<&SfxVoice>();
+        let voice = voices
+            .iter(app.world())
+            .next()
+            .expect("the trigger spawned a voice");
+        assert_eq!(voice.route, AudioRoute::Exterior);
+        assert_eq!(voice.volume, 0.4);
+        assert_eq!(voice.source, SfxSource::At(where_it_happened));
+        assert!(!voice.looping, "a PlaySfx is always a one-shot");
+    }
+
+    #[test]
+    fn the_commands_shorthands_name_the_route_they_fire_on() {
+        let mut app = sfx_app();
+        let world = app.world_mut();
+        let mut commands = world.commands();
+        commands.play_sfx(Handle::default(), AudioRoute::Interface, 0.25);
+        commands.play_sfx_at(Handle::default(), AudioRoute::Hull, 0.5, Vec3::X);
+        world.flush();
+        app.update();
+
+        let mut voices = app.world_mut().query::<&SfxVoice>();
+        let routes: Vec<AudioRoute> = voices.iter(app.world()).map(|v| v.route).collect();
+        assert_eq!(routes.len(), 2);
+        assert!(routes.contains(&AudioRoute::Interface));
+        assert!(routes.contains(&AudioRoute::Hull));
+    }
 }

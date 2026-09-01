@@ -2,12 +2,13 @@
 //! sound falls off, and the per-source throttle that keeps a burst of events
 //! from stacking into mud. Game-independent - the per-cue volumes and
 //! intervals that use it are the caller's tuning, not this module's.
+//!
+//! This is the AMPLITUDE half of the mix. The stereo half is `spatial`, which
+//! rides on top as a pure left/right ratio and adds no loudness of its own.
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-
-use super::sfx::SfxCommandsExt;
 
 /// Distance-attenuation rolloff for positional cues, in world units. A cue
 /// plays at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
@@ -27,10 +28,9 @@ pub const SFX_FAR_DISTANCE: f32 = 320.0;
 /// far end (before the final remap to true zero).
 const SFX_ROLLOFF_FLOOR: f32 = 0.05;
 
-/// Below this final (attenuated) linear volume a one-shot is not worth
-/// spawning - it would be inaudible. Skipping it avoids audio-entity churn for
-/// far events.
-const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
+/// Below this final (attenuated) linear volume a one-shot is not worth an audio
+/// sink - it would be inaudible. Skipping it avoids sink churn for far events.
+pub const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 
 /// World-cell size (units) for grouping co-located area cues (impact,
 /// explosion). A blast hitting many colliders of one ship, or a ship's sections
@@ -115,27 +115,6 @@ pub fn distance_attenuation(distance: f32) -> f32 {
         let decayed = SFX_ROLLOFF_FLOOR.powf(t);
         (decayed - SFX_ROLLOFF_FLOOR) / (1.0 - SFX_ROLLOFF_FLOOR)
     }
-}
-
-/// The handle-taking counterpart of the [`PlaySfx`](super::sfx::PlaySfx) bank-key
-/// path: same distance attenuation and
-/// audible-threshold gate, but for an already-resolved [`Handle<AudioSource>`]
-/// rather than a bank key. Lets a caller play a section's own authored sound (a
-/// resolved `AssetRef<AudioSource>`) through the exact same positional path the
-/// bank cues use.
-pub fn play_positional_handle(
-    commands: &mut Commands,
-    handle: Handle<AudioSource>,
-    base_volume: f32,
-    source: Vec3,
-    listener: Option<Vec3>,
-) {
-    let attenuation = listener.map_or(1.0, |l| distance_attenuation(l.distance(source)));
-    let volume = base_volume * attenuation;
-    if volume < SFX_AUDIBLE_THRESHOLD {
-        return;
-    }
-    commands.play_sfx_volume(handle, volume);
 }
 
 /// Marks the camera that acts as the SFX/juice listener: distance attenuation

@@ -111,6 +111,9 @@ impl Plugin for NovaMenuPlugin {
         }
 
         app.init_resource::<MasterVolume>();
+        app.init_resource::<InterfaceVolume>();
+        app.init_resource::<WorldVolume>();
+        app.init_resource::<MusicVolume>();
         app.init_resource::<GraphicsQuality>();
         // `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
         // so the invariant survives a future reorder.

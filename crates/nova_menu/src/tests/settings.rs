@@ -19,7 +19,7 @@ use nova_ui::{
 use super::support::{all_texts, entity_by_name, mods_app, shared_config_root};
 use crate::settings::{
     SettingsActiveTab, SettingsControlsGroup, SettingsPanel, SettingsTab, SettingsTabKind,
-    VolumeLabel, VolumeSlider, WindowModeSetting,
+    VolumeChannel, VolumeLabel, VolumeSlider, WindowModeSetting,
 };
 
 /// Open a settings tab and let the body reconcile. The tab BUTTON is exercised
@@ -127,30 +127,50 @@ fn settings_panel_builds_one_tab_at_a_time() {
         "exactly one tab is open"
     );
 
-    // AUDIO, the tab a fresh panel opens on: one volume slider, seeded in
-    // range, wearing the shared block-meter, with a percent label.
-    let slider_value = {
-        let mut q = app
-            .world_mut()
-            .query_filtered::<&SliderValue, With<VolumeSlider>>();
-        let values: Vec<f32> = q.iter(app.world()).map(|v| v.0).collect();
-        assert_eq!(values.len(), 1, "exactly one volume slider");
-        values[0]
+    // AUDIO, the tab a fresh panel opens on: one slider per mixer track, each
+    // seeded in range, wearing the shared block-meter, with a percent readout.
+    let channels: Vec<VolumeChannel> = {
+        let mut q = app.world_mut().query::<(&SliderValue, &VolumeSlider)>();
+        let rows: Vec<(f32, VolumeChannel)> =
+            q.iter(app.world()).map(|(v, s)| (v.0, s.0)).collect();
+        for (value, channel) in &rows {
+            assert!(
+                (0.0..=1.0).contains(value),
+                "the {} slider is seeded in range (got {value})",
+                channel.label()
+            );
+        }
+        rows.into_iter().map(|(_, channel)| channel).collect()
     };
-    assert!(
-        (0.0..=1.0).contains(&slider_value),
-        "the volume slider is seeded in range (got {slider_value})"
+    for channel in VolumeChannel::ALL {
+        assert!(
+            channels.contains(&channel),
+            "the Audio tab is missing the {} track",
+            channel.label()
+        );
+    }
+    assert_eq!(
+        channels.len(),
+        VolumeChannel::ALL.len(),
+        "one slider per track, no duplicates"
     );
     {
         let mut q = app
             .world_mut()
             .query_filtered::<&Children, With<VolumeSlider>>();
-        let bars = q.single(app.world()).map(|c| c.len()).unwrap_or(0);
-        assert!(bars > 0, "the volume slider renders a block-meter");
+        let bars: Vec<usize> = q.iter(app.world()).map(|c| c.len()).collect();
+        assert!(
+            bars.iter().all(|count| *count > 0),
+            "every volume slider renders a block-meter, got {bars:?}"
+        );
     }
     {
         let mut q = app.world_mut().query_filtered::<(), With<VolumeLabel>>();
-        assert_eq!(q.iter(app.world()).count(), 1, "one volume percent label");
+        assert_eq!(
+            q.iter(app.world()).count(),
+            VolumeChannel::ALL.len(),
+            "one percent readout per track"
+        );
     }
 
     // GRAPHICS: one button per tier, exactly one highlighted.
@@ -243,24 +263,35 @@ fn pressing_a_tab_swaps_the_body() {
     );
 }
 
-/// Dragging the volume slider drives `MasterVolume` (which in turn drives
-/// GlobalVolume + the thruster loop + persistence). The drag emits a
-/// `ValueChange<f32>`; `on_volume_slider_change` must mirror it to the
-/// resource. Delete that observer and this goes red.
+/// Dragging a volume slider drives ITS OWN track's resource - and only that
+/// one. The drag emits a `ValueChange<f32>`; `on_volume_slider_change` reads
+/// the slider's channel to pick the resource. Wire two sliders to one resource
+/// and this goes red.
 #[test]
-fn dragging_the_volume_slider_sets_master_volume() {
+fn dragging_a_volume_slider_sets_only_its_own_track() {
     let mut app = mods_app();
-    let slider = entity_by_name(&mut app, "Volume Slider Track").expect("volume slider exists");
-    app.world_mut().trigger(ValueChange::<f32> {
-        source: slider,
-        value: 0.3,
-        is_final: true,
-    });
-    app.update();
+    let drag = |app: &mut App, name: &str, value: f32| {
+        let slider = entity_by_name(app, name).unwrap_or_else(|| panic!("{name} exists"));
+        app.world_mut().trigger(ValueChange::<f32> {
+            source: slider,
+            value,
+            is_final: true,
+        });
+        app.update();
+    };
+
+    drag(&mut app, "Master Volume Slider Track", 0.3);
+    drag(&mut app, "World Volume Slider Track", 0.7);
+    drag(&mut app, "Interface Volume Slider Track", 0.5);
+    drag(&mut app, "Music Volume Slider Track", 0.1);
+
+    let world = app.world();
+    assert!((world.resource::<MasterVolume>().0 - 0.3).abs() < 1e-6);
+    assert!((world.resource::<WorldVolume>().0 - 0.7).abs() < 1e-6);
+    assert!((world.resource::<InterfaceVolume>().0 - 0.5).abs() < 1e-6);
     assert!(
-        (app.world().resource::<MasterVolume>().0 - 0.3).abs() < 1e-6,
-        "the slider value is mirrored onto MasterVolume (got {})",
-        app.world().resource::<MasterVolume>().0
+        (world.resource::<MusicVolume>().0 - 0.1).abs() < 1e-6,
+        "the reserved music track is wired too, so it needs no format break later"
     );
 }
 
@@ -271,7 +302,8 @@ fn dragging_the_volume_slider_sets_master_volume() {
 #[test]
 fn the_settings_volume_slider_reskins_live() {
     let mut app = mods_app();
-    let slider = entity_by_name(&mut app, "Volume Slider Track").expect("volume slider exists");
+    let slider =
+        entity_by_name(&mut app, "Master Volume Slider Track").expect("volume slider exists");
 
     let child_kinds = |app: &mut App| -> (usize, usize) {
         let kids: Vec<Entity> = app
@@ -308,12 +340,12 @@ fn the_settings_volume_slider_reskins_live() {
     );
 
     // And the rebuilt fill carries the CURRENT volume, not a default.
-    let value = {
-        let mut q = app
-            .world_mut()
-            .query_filtered::<&SliderValue, With<VolumeSlider>>();
-        q.single(app.world()).expect("one volume slider").0
-    };
+    let value = app
+        .world()
+        .entity(slider)
+        .get::<SliderValue>()
+        .expect("the master slider carries its value")
+        .0;
     let width = {
         let kids: Vec<Entity> = app
             .world()

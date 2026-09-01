@@ -1,7 +1,7 @@
 //! The ship's soundtrack: the mapping from Nova gameplay events to sounds,
 //! played through the generic engine in [`nova_gameplay::audio`].
 //!
-//! Four cues are one-shots fired from existing seams via observers, so no
+//! Five cues are one-shots fired from existing seams via observers, so no
 //! gameplay system has to know about audio:
 //! - a section/asteroid destroyed or a torpedo detonating -> `Explosion`
 //!   (`On<Add, IntegrityDestroyMarker>`);
@@ -9,18 +9,18 @@
 //! - a turret round spawned -> the firing turret's authored `fire_sound`
 //!   (`On<Add, TurretBulletProjectileMarker>`, authored-or-silent);
 //! - a torpedo spawned -> the bay's authored `launch_sound`
-//!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent).
+//!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent);
+//! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`).
 //!
-//! The fifth cue, the thruster engine hum, is continuous: one looping audio
-//! entity per DISTINCT authored `loop_sound` (thrusters sharing a sound share a
-//! loop), each tracking how hard the ships burning that sound are thrusting.
+//! The continuous cues - the thruster hum and the RCS hiss - are one looping
+//! voice per (ship, authored sound) pair, each following its own ship.
 //!
-//! The four one-shots are distance-attenuated by the engine's rolloff. The
-//! thruster hum attenuates per SHIP: each ship's throttle-driven contribution
-//! is scaled by its root's distance to the listener and the loudest wins PER
-//! HUM SOUND, except the player's own ship, which is never attenuated (the
-//! camera rig sits 11-32 u out by mode and the orbit survey dolly stretches it
-//! to 250 u, deep in the rolloff band; see `compute_thruster_hum_volume`).
+//! Every world cue is ROUTED by `routing`: a cue from the player's own ship is
+//! [`AudioRoute::Hull`] and one from anything else is [`AudioRoute::Exterior`].
+//! That single fact is what decides whether it is distance-attenuated and
+//! panned, so nothing here computes a distance or a bearing - the engine reads
+//! the route and does it. The cockpit cues (lock, safety, dry fire) are Hull
+//! too: they are the player's own computer talking.
 //!
 //! Every system here degrades gracefully (does nothing) until the resources it
 //! needs exist. World sounds carry no bank at all - each cue resolves its
@@ -34,6 +34,7 @@ mod combat;
 mod cues;
 mod levels;
 mod loops;
+mod routing;
 
 #[cfg(test)]
 mod test_support;
@@ -44,11 +45,7 @@ use self::{
         on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue},
-    loops::{
-        apply_rcs_loop_volume, apply_thruster_loop_volume, compute_rcs_loop_volume,
-        compute_thruster_hum_volume, ensure_rcs_loops, ensure_thruster_loops, pause_loops,
-        resume_loops, silence_loops_on_scenario_unload, RcsLoopVolume, ThrusterHumVolume,
-    },
+    loops::{drive_rcs_loops, drive_thruster_loops},
 };
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -106,20 +103,6 @@ impl Plugin for ShipAudioPlugin {
             app.add_plugins(nova_gameplay::audio::NovaAudioPlugin);
         }
 
-        // Audio sinks do not follow Time<Virtual>: without this the thruster
-        // hum keeps roaring at its last volume behind a frozen sim. BOTH
-        // frozen overlays need it - the pause overlay and the Tab
-        // ship-computer NOVA OS, which freezes the same way (see
-        // PauseStates::is_frozen).
-        app.add_systems(OnEnter(nova_gameplay::PauseStates::Paused), pause_loops);
-        app.add_systems(OnExit(nova_gameplay::PauseStates::Paused), resume_loops);
-        app.add_systems(OnEnter(nova_gameplay::PauseStates::NovaOs), pause_loops);
-        app.add_systems(OnExit(nova_gameplay::PauseStates::NovaOs), resume_loops);
-        app.add_systems(
-            OnExit(nova_gameplay::GameStates::Playing),
-            silence_loops_on_scenario_unload,
-        );
-
         app.add_observer(on_destroyed_play_explosion);
         app.add_observer(on_damage_play_impact);
         app.add_observer(on_turret_fire_play_sfx);
@@ -136,40 +119,23 @@ impl Plugin for ShipAudioPlugin {
             (play_lock_cues, play_safety_engaged_cue, play_dry_fire_cue),
         );
 
-        // The thruster hum polls `ThrusterSectionInput`, so it must be gated to
-        // the running simulation exactly like the thruster physics/shader. Joining
-        // `SpaceshipSectionSystems` inherits whatever run condition consumers of
-        // that input use - crucially nova_scenario's `run_if(scenario_is_live)`
-        // - so the hum stays silent while building in the editor (no scenario is
-        // loaded there) and plays wherever one is live, the main menu's ambience
-        // backdrop included. (The one-shot cues need no gating: they fire on
-        // spawn/damage/destroy events that only occur inside this same gated set.)
-        app.init_resource::<ThrusterHumVolume>();
+        // The loop passes poll `ThrusterSectionInput` and `RcsIntent`, so they
+        // must be gated to the running simulation exactly like the thruster
+        // physics/shader. Joining `SpaceshipSectionSystems` inherits whatever
+        // run condition consumers of that input use - crucially nova_scenario's
+        // `run_if(scenario_is_live)` - so the loops stay silent while building
+        // in the editor (no scenario is loaded there) and play wherever one is
+        // live, the main menu's ambience backdrop included. (The one-shot cues
+        // need no gating: they fire on spawn/damage/destroy events that only
+        // occur inside this same gated set.)
+        //
+        // Both write the loops' LEVELS in `Update`; the engine's
+        // `AudioSystems` pass reads them in `PostUpdate` and owns everything
+        // after - the rolloff, the pan, the master, the freeze behind a paused
+        // sim and the teardown on scenario unload.
         app.add_systems(
             Update,
-            (
-                ensure_thruster_loops,
-                compute_thruster_hum_volume,
-                apply_thruster_loop_volume,
-            )
-                .chain()
-                .in_set(SpaceshipSectionSystems),
-        );
-
-        // The RCS fine-adjust loop polls `RcsIntent`, written by the player
-        // modal and the autopilot both, so it joins the same scenario-gated set
-        // as the thruster hum for the same reasons (silent in the editor, muted
-        // on pause).
-        app.init_resource::<RcsLoopVolume>();
-        app.add_systems(
-            Update,
-            (
-                ensure_rcs_loops,
-                compute_rcs_loop_volume,
-                apply_rcs_loop_volume,
-            )
-                .chain()
-                .in_set(SpaceshipSectionSystems),
+            (drive_thruster_loops, drive_rcs_loops).in_set(SpaceshipSectionSystems),
         );
     }
 }
