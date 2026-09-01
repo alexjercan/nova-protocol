@@ -7,6 +7,26 @@ Two lanes run off this document. The ENGINE lane (sprout `sound-engine`) owns
 the plumbing - buses, routing, panning, the loop API. This lane owns the FILES
 and the Python that renders them. Neither touches the other's paths.
 
+## 0. Status (2026-09-01)
+
+ALL 44 FILES ARE RENDERED. Sections 2 to 4 are the record of what was found on
+2026-08-31 and are left as they were; section 6 carries the current state of
+each file. What remains is wiring, not sound design: 18 of the 44 have nothing
+that plays them yet, split between this lane's authoring and the engine lane's
+hooks.
+
+Two things moved after the list below was written:
+
+- `warn_lock` and `warn_hull` are AVIONICS, not interface. They are the ship's
+  threat panel, a mod would want them, and the rule that decides is where the
+  variation lives - so they render into `assets/base/sounds/`.
+- Nine cues render onto LEGACY filenames and KEEP them. `impact.wav`,
+  `explosion.wav`, `turret_fire.wav` and the rest are public modding surface,
+  documented in `web/src/create/sections.md` and `objects.md` and referenced by
+  content we do not own. Renaming them to match the cue names would break other
+  people's mods to make our filenames prettier. The cue name is the design's
+  name, the path is the content's name, and they are allowed to differ.
+
 ## 1. Where sounds live
 
 Two roots, and the split is ownership, not convenience.
@@ -216,8 +236,6 @@ follow-up's. `[content]` = no code at all, just a new file and an `AssetRef`.
 | `objective_complete.wav` | objective completed | re-voice `[site]` |
 | `objective_fail.wav` | objective failed | new `[hook]` |
 | `comms_line.wav` | comms line shown | new `[site]` - retires the `ui_toggle` alias |
-| `warn_lock.wav` | you are being locked | new `[hook]` |
-| `warn_hull.wav` | hull integrity critical | new `[hook]` |
 | `editor_place.wav` | section placed | new `[hook]` |
 | `editor_remove.wav` | section removed | new `[hook]` |
 | `editor_rotate.wav` | rotation step | new `[hook]` |
@@ -229,9 +247,9 @@ The eleven `nova_*.wav` are untouched.
 
 | File | Authored on | Status |
 | --- | --- | --- |
-| `pdc_gatling_fire.wav` | gatling turret `fire_sound` | redo `[site]` - the flagship, tuned for the cue's 20/s throttle |
+| `turret_fire.wav` (cue `pdc_gatling_fire`) | gatling turret `fire_sound` | redo `[site]` - the flagship, tuned for the cue's 20/s throttle |
 | `pdc_twin_fire.wav` | twin turret `fire_sound` | new `[content]` - retires the shared voice |
-| `pdc_dry_fire.wav` | turret `dry_fire_sound` | redo `[site]` |
+| `dry_fire.wav` (cue `pdc_dry_fire`) | turret `dry_fire_sound` | redo `[site]` |
 | `pdc_stow_open.wav` | turret housing | new `[hook]` |
 | `pdc_stow_close.wav` | turret housing | new `[hook]` |
 | `torpedo_launch.wav` | bay `launch_sound` | redo `[site]` |
@@ -240,14 +258,14 @@ The eleven `nova_*.wav` are untouched.
 | `railgun_charge.wav` (loop) | lance | new `[hook]` - the biggest single gap |
 | `railgun_fire.wav` | lance `fire_sound` | new `[content]` - retires the torpedo-launch alias |
 | `railgun_reload.wav` | lance | new `[hook]` |
-| `impact_kinetic.wav` | section `impact_sound` | redo `[site]` |
+| `impact.wav` (cue `impact_kinetic`) | section `impact_sound` | redo `[site]` |
 | `impact_pierce.wav` | section, pierce hits | new `[hook]` - damage type is known at hit time |
 | `impact_explosive.wav` | section, blast hits | new `[hook]` |
 | `impact_rock.wav` | asteroid `impact_sound` | new `[content]` |
-| `destroy_section.wav` | section `destroy_sound` | redo `[site]` |
+| `explosion.wav` (cue `destroy_section`) | section `destroy_sound` | redo `[site]` |
 | `destroy_rock.wav` | asteroid `destroy_sound` | new `[content]` |
 | `destroy_ship.wav` | ship root | new `[hook]` |
-| `thruster_basic_loop.wav` | basic thruster `loop_sound` | redo `[site]` |
+| `thruster_loop.wav` (cue `thruster_basic_loop`) | basic thruster `loop_sound` | redo `[site]` |
 | `thruster_vector_loop.wav` | vector thruster `loop_sound` | new `[content]` |
 | `thruster_capital_loop.wav` | capital thruster `loop_sound` | new `[content]` |
 | `rcs_loop.wav` | controller `rcs_loop_sound` | redo `[site]` |
@@ -263,10 +281,18 @@ The eleven `nova_*.wav` are untouched.
 | `radar_retarget.wav` | controller `radar_retarget_sound` | redo `[site]` |
 | `safety_on.wav` | controller `safety_on_sound` | redo `[site]` |
 | `ammo_dry.wav` | turret / lance, magazine empty | new `[hook]` |
+| `warn_lock.wav` | a hostile has locked you | new `[hook]` - `ThreatContacts` has the data |
+| `warn_hull.wav` | hull integrity critical | new `[hook]` - no threshold alert exists |
 
-Totals: 15 interface files (11 new or re-voiced, 11 NOVA OS untouched), 23
-world files, 6 avionics files. 40 to render, of which 22 need only content
-authoring or already have a fire site.
+Totals: 13 interface files, 23 world files, 8 avionics files - 44 rendered,
+plus the 11 NOVA OS files kept untouched as the interface standard.
+
+Of the 44, 26 have something that plays them today. The remaining 18 split into
+FOUR that need only an `AssetRef` in the content builders (`pdc_twin_fire`,
+`torpedo_detonate`, `thruster_vector_loop`, `thruster_capital_loop` - this
+lane's work), TWO that wait on the material decision (`impact_rock`,
+`destroy_rock`), and TWELVE that need a code hook, which is the engine lane's
+or a follow-up's.
 
 ## 7. How they get made
 
@@ -282,8 +308,20 @@ so adding a sound touches exactly one file.
 The DSP is where the two differ. The NOVA OS script hand-rolls its
 oscillators and biquads in pure stdlib, which is fine for a 30 ms square-wave
 tick and painful for a layered noise-body-plus-resonator hit. The world voice
-wants filter design, resonator banks, convolution and spectral shaping, so it
-wants numpy and scipy - see the flake note in `TASK.md`.
+wants filter design, resonator banks and spectral shaping, so it wants numpy
+and scipy - see the flake note in `TASK.md`.
+
+As built: `scripts/nova_sfx.py` holds the shared toolkit (sources, envelopes,
+filters, resonators, the WAV writer), `scripts/gen-world-sfx.py` renders the 23
+machinery cues, and `scripts/gen-ui-sfx.py` renders the 13 interface and 8
+avionics cues. `scripts/gen-nova-os-sfx.py` is untouched and stays stdlib-only.
+`scripts/gen-placeholder-sounds.py` is DELETED - its whole job was to keep the
+game audible until real assets existed, and running it now would overwrite
+them.
+
+`scripts/gen-sfx-audition.py` renders `audition.html`, the bench the owner
+validates on: every cue grouped by family, with an A/B take against whatever it
+has to be distinguishable from, a scope, and the measurements.
 
 ## 8. Licensing
 

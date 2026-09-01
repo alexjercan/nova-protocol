@@ -1,95 +1,131 @@
-# Sound effects
+# World and avionics sound effects
 
-Nova Protocol plays a sound for each core gameplay and UI moment. The files
-committed here are **tiny generated placeholders** (short noise bursts, pitch
-sweeps and a steady hum) produced by `scripts/gen-placeholder-sounds.py` so the
-game is audible and wired end to end out of the box. They are not the final
-sound design.
+The base mod's WORLD cues - the sounds of things that exist in the game world -
+and its AVIONICS cues, the ship's own cockpit instruments.
 
-The audio layer itself is the generic `SfxPlugin` / `SoundBank`; Nova owns
-both it and the mapping from gameplay events to these files (see
-`crates/nova_gameplay/src/audio/`).
+These live under `assets/base/` because the base game is just a mod (task
+20260717-002228) and a mod can reship or reference any of them. They are
+declared in the base bundle's `resources` list (`assets/base/base.bundle.ron`),
+so a mod reaches them with `dep://base/sounds/<name>.wav` - the same scheme the
+base uses with `self://`. Engine chrome (menus, the editor, objectives, comms)
+lives at the asset ROOT in `assets/sounds/`; see the README there for the rule
+that decides which directory a sound belongs in.
 
-These files live UNDER `assets/base/` because the base game is just a mod
-(task 20260717-002228) and these are its WORLD/GAMEPLAY cues - the sounds of
-things that exist in the game world, which mods can reship or reference. They
-are declared in the base bundle's `resources` list
-(`assets/base/base.bundle.ron`), so a mod can reference any of them with
-`dep://base/sounds/<name>.wav` - the same scheme the base uses with `self://`.
-The UI/interface cues (menu clicks, objective chimes) are engine chrome like
-`assets/icons/` and live at the asset ROOT in `assets/sounds/` instead - see
-the ownership split in spike `tasks/20260717-101524/SPIKE.md`.
+## Authored-or-silent
 
-## Section-authored sounds
+A section or object declares a sound as an authorable `AssetRef<AudioSource>`
+content field, exactly like it declares a render mesh. Content that declares no
+sound plays none - there is no fallback bank, and the transitional `WorldSfx`
+bank was deleted when the migration completed (spike 20260717-101524). So a
+file in this directory that nothing authors is silent until something does.
 
-A section can declare a sound as an authorable `AssetRef<AudioSource>` content
-field, exactly like it declares a render mesh, and ship + reference it through
-the `self://` / `dep://base` / `dep://<id>` pipeline. The weapon and controller
-families own their sounds this way: the turret's `fire_sound` +
-`dry_fire_sound`, the torpedo bay's `launch_sound` + `detonation_sound`,
-every section's / asteroid's `impact_sound` + `destroy_sound`, the thruster's
-`loop_sound`, and the
-controller's
-`lock_on_sound`/`lock_off_sound`/`radar_deny_sound`/`radar_retarget_sound`/
-`safety_on_sound` - plus the salvage crate's `pickup_sound` (base content
-authors `self://sounds/...` for each, so the shipped game sounds unchanged -
-but a mod can ship and name its own). Every cue is AUTHORED-OR-SILENT: content
-that declares no sound plays none. The migration is COMPLETE (spike
-20260717-101524): the transitional `WorldSfx` bank is deleted and no world
-sound plays from any bank.
+Combat and world cues are POSITIONAL (attenuated by distance from the listener
+camera). The avionics cues are the ship talking to its own pilot.
 
-## Dropping in real audio
+## The voices
 
-Replace each file below with a real sound **at the same path and filename**. No
-code changes are needed: the loader (`crates/nova_assets/src/lib.rs`) loads
-these fixed paths and the audio module plays whatever handle it is given.
+Two renderers, kept deliberately disjoint, over the shared DSP toolkit in
+`scripts/nova_sfx.py`:
 
-- Formats: WAV works out of the box (the `bevy` dependency enables the `wav`
-  decoder in `crates/nova_gameplay/Cargo.toml`). Nothing here loads through a
-  bank: each file is the base mod's authored default, referenced from base
-  content (`self://sounds/...`) and resolved by its cue at play time. OGG
-  Vorbis also decodes (vorbis is on by default); to use `.ogg`, change the
-  extension in the base content refs (regenerate via `cargo run content gen`;
-  and in base content refs).
-- Suggested: 44.1 kHz, normalized but not clipping. Keep the one-shots short;
-  `thruster_loop.wav` is the only looping asset and should be seamless (its
-  start and end must meet without a click).
-- To regenerate the placeholders (e.g. after deleting them):
-  `python3 scripts/gen-placeholder-sounds.py` from the repo root.
+    nix develop --command python3 scripts/gen-world-sfx.py
+    nix develop --command python3 scripts/gen-ui-sfx.py
 
-## Required files
+`gen-world-sfx.py` builds machinery from three layers - a broadband transient,
+a filtered-noise body, and a bank of resonator modes - plus saturation for
+weight. `gen-ui-sfx.py` builds the avionics from the interface recipe darkened,
+with a little of the world voice's metal ring underneath, because a lock tone
+is an instrument reporting rather than a thing happening in space.
 
-Every file here is a SECTION/OBJECT-AUTHORED DEFAULT: referenced from base
-content (`self://sounds/...` on the owning config) and in no bank anywhere -
-replacing a file re-voices the base content, and a mod can author its own
-instead (spike 20260717-101524's end state; the transitional WorldSfx bank is
-gone). Combat/world cues are **positional** (distance-attenuated from the
-listener camera); the feedback ticks are **non-positional**.
+Every cue seeds its own generator from a hash of its NAME, so a rerun is
+byte-identical and adding a cue rewrites no other cue's bytes. Files are mono,
+44100 Hz, 16-bit PCM, peak normalized to -3 dBFS: balance is NOT set here, the
+per-cue constants in `nova_ship/src/ship_audio/` do that.
 
-### Authored defaults
+Loops are synthesized in the frequency domain so the last sample joins the
+first exactly. A time-domain crossfade always leaves a soft spot the ear finds
+after the third repeat. Check a new loop by concatenating three copies: the
+step at the joins must sit inside the loop's own internal step range.
 
-| File | Authored on | Character / length |
-| --- | --- | --- |
-| `turret_fire.wav` | turret `fire_sound` (positional) | dry gunshot pop, ~0.07 s, played quietly (fires ~100/s) |
-| `dry_fire.wav` | turret `dry_fire_sound` | dull descending click, ~0.06 s |
-| `torpedo_launch.wav` | torpedo bay `launch_sound` (positional) | airy rising whoosh, ~0.3 s |
-| `lock_on.wav` | controller `lock_on_sound` | quick rising chirp, ~0.09 s |
-| `lock_off.wav` | controller `lock_off_sound` | falling mirror of `lock_on`, ~0.09 s |
-| `radar_deny.wav` | controller `radar_deny_sound` | low flat buzz, ~0.16 s |
-| `radar_retarget.wav` | controller `radar_retarget_sound` | very short quiet tick (subtler than `lock_on`), ~0.045 s |
-| `safety_on.wav` | controller `safety_on_sound` | dull low click, ~0.06 s |
-| `salvage_pickup.wav` | the salvage crate's `pickup_sound` | light rising "ding", quieter than the objective chime, ~0.10 s |
-| `impact.wav` | every section's / asteroid's `impact_sound` (positional) | short low thud, ~0.1 s, played quietly (fires per hit) |
-| `explosion.wav` | every section's / asteroid's `destroy_sound` + the torpedo's `detonation_sound` (positional) | noisy burst, fast decay, ~0.45 s |
-| `thruster_loop.wav` | the thruster's `loop_sound` (one loop per distinct sound; volume tracks the loudest burning ship) | steady low drone, loops seamlessly, ~1 s |
+Two design rules worth keeping when adding one:
 
+- A cue is designed for the RATE IT IS HEARD AT, which is not always the rate
+  the hardware runs at. The PDC authors 50 rounds a second per muzzle and its
+  cue throttles to twenty; twenty is what the round is shaped against.
+- The same event on different hardware is separated by PITCH, not decoration.
+  The drives run 34 / 52 / 78 Hz from capital to basic to vector.
 
-(The UI cues - `menu_select`, `ui_toggle`, `objective_new`,
-`objective_complete` - are engine chrome and live in root `assets/sounds/`.)
+OGG Vorbis also decodes if you prefer it; change the extension in the base
+content refs and regenerate with `cargo run -- content gen`.
+
+## Files
+
+`Authored on` is where base content references the file today. Files marked
+`-` are rendered and waiting for the cue that plays them.
+
+### Guns
+
+| File | Authored on |
+| --- | --- |
+| `turret_fire.wav` | turret `fire_sound` |
+| `pdc_twin_fire.wav` | - (the twin mount shares the gatling's file today) |
+| `dry_fire.wav` | turret `dry_fire_sound` |
+| `pdc_stow_open.wav` | - (the `StowLift` / `StowDoors` animation) |
+| `pdc_stow_close.wav` | - |
+| `bay_door.wav` | - (the `MuzzleDoor` animation) |
+| `railgun_fire.wav` | railgun `fire_sound` |
+| `railgun_charge.wav` | - (a LOOP, meant to be played at a rising rate as the charge fills) |
+| `railgun_reload.wav` | - |
+
+### Ordnance and impacts
+
+| File | Authored on |
+| --- | --- |
+| `torpedo_launch.wav` | torpedo bay `launch_sound` |
+| `torpedo_detonate.wav` | - (warheads play `explosion.wav` today) |
+| `impact.wav` | every section's `impact_sound` |
+| `impact_pierce.wav` | - (`DamageType::Pierce`) |
+| `impact_explosive.wav` | - (`DamageType::Explosive`) |
+| `impact_rock.wav` | - (asteroids are silent on hit today) |
+
+### Destruction
+
+| File | Authored on |
+| --- | --- |
+| `explosion.wav` | every section's `destroy_sound` and the torpedo's `detonation_sound` |
+| `destroy_rock.wav` | - |
+| `destroy_ship.wav` | - (a ship dying is silent today) |
+
+### Drives
+
+| File | Authored on |
+| --- | --- |
+| `thruster_loop.wav` | the basic thruster's `loop_sound` |
+| `thruster_vector_loop.wav` | - (the 3x3x2 drive shares the basic file today) |
+| `thruster_capital_loop.wav` | - (the 5x5x3 drive shares it too) |
+| `rcs_loop.wav` | the controller's `rcs_loop_sound` |
+
+### Avionics
+
+| File | Authored on |
+| --- | --- |
+| `lock_on.wav` | controller `lock_on_sound` |
+| `lock_off.wav` | controller `lock_off_sound` |
+| `radar_deny.wav` | controller `radar_deny_sound` |
+| `radar_retarget.wav` | controller `radar_retarget_sound` |
+| `safety_on.wav` | controller `safety_on_sound` |
+| `ammo_dry.wav` | - (the ammo readout) |
+| `warn_lock.wav` | - (a hostile has locked you; `ThreatContacts` has the data) |
+| `warn_hull.wav` | - (no hull threshold alert exists yet) |
+
+### Handling
+
+| File | Authored on |
+| --- | --- |
+| `salvage_pickup.wav` | the salvage crate's `pickup_sound` |
 
 ## Web (wasm) builds
 
-`index.html` already ships this directory into the web build via
+`index.html` ships this directory into the web build via
 `<link data-trunk rel="copy-dir" href="assets"/>`, so no per-file directive is
-needed. Browser audio needs a user gesture before it will play; the existing
+needed. Browser audio needs a user gesture before it will play; the
 `build/web/sound.js` shim resumes the audio context on the first interaction.

@@ -78,6 +78,32 @@ Decisions taken, in the order they were needed:
    is content behind an `AssetRef`, so a vacuum mod is a second set of files
    under the same names and needs no engine support at all.
 
+7. WHERE A SOUND LIVES. The directory split is not UI against SFX - that
+   question has no stable answer, and "is a lock tone chrome or an effect?"
+   went round twice before the right axis turned up. It is WHERE THE VARIATION
+   LIVES:
+   - The ENGINE plays it uniformly for everyone, and it still has an event to
+     fire on with zero mods loaded -> chrome, `assets/`.
+   - CONTENT authors it per thing, because two of that thing could reasonably
+     differ -> `assets/base/`, behind an `AssetRef`.
+
+   That puts the whole cockpit in the base mod, which is the owner's own
+   argument: locking is a CAPABILITY of a controller section, so a cheap
+   civilian controller and a military one should be allowed to sound
+   different. It costs nothing to allow - `controller_lock_on_sound` is
+   already an `AssetRef` on the controller config, so this was never a
+   question about machinery, only about which directory the defaults sit in.
+   `warn_lock` and `warn_hull` moved there too, by the same argument. What is
+   left in `assets/` is menus, the editor, objectives, comms, and the eleven
+   NOVA OS files.
+
+8. FILENAMES DO NOT FOLLOW CUE NAMES. Nine cues render onto legacy paths -
+   `impact.wav`, `explosion.wav`, `turret_fire.wav` - and keep them. Those are
+   public modding surface, documented in `web/src/create/` and referenced by
+   content we do not own. The cue name is the design's name, the path is the
+   content's name, and a rename would break other people's mods to make ours
+   prettier.
+
 Not decided here: music itself. The bus and its slider ship now so the saved
 settings format does not break later; the direction is a separate call. Nor
 whether the vacuum mode is a setting or a mod.
@@ -117,8 +143,62 @@ texture over the top rather than the substance. 90% of its energy is now under
 120 Hz.
 
 Accepted and settled: the railgun (round one), the kinetic round and the
-section failing (round two). Per-cue name-seeding is what makes "settled" mean
-something here - a later round cannot reach an accepted cue's bytes.
+section failing (round two), the PDC and the drive (round three).
+
+ROUND FOUR (2026-09-01). "Sounds good let's use these" closed the probe, and
+the other 39 files were produced in the accepted language. The five accepted
+cues are byte-identical except `thruster_loop.wav`, which changed by DC removal
+only: `loop_noise` was putting the shaping function's value at bin 0, so every
+frequency-domain bed carried a constant offset worth 0.8-1.7% of its headroom.
+Inaudible, but wrong by construction in a primitive two voices now build on.
+
+What the batch itself taught, both caught by measuring rather than by ear:
+
+- Four of the new destruction cues came out at 1-2% of their energy in the
+  2-8 kHz identity band, against the accepted section-failure's 9%. Each had
+  a bright layer that was simply swamped by its own low end. Retuned onto the
+  accepted profile - and `impact_explosive` only moved once the BLAST came
+  down, not when the top went up, which is the general lesson: when a layer
+  cannot be heard, the fix is usually the layer on top of it.
+- Three drives on one recipe at 34 / 52 / 78 Hz reads as three sizes of the
+  same machine. Pitch is the whole separation; nothing else about them differs.
+  That generalised into a rule for the set: same event, different hardware,
+  separated by pitch and not by decoration.
+
+`audition.html` is regenerated for all 44, grouped by family, and most strips
+carry an A/B take against the cue they have to be distinguishable from -
+auditioning the twin PDC alone says nothing, next to the gatling says
+everything.
+
+## Open: impacts want a material table
+
+The owner's idea, recorded here rather than filed. `impact_sound` today sits on
+the thing being HIT, so the game already models half of "what on what" and has
+no notion of the other half. The proposal is to key impacts on a material pair.
+
+The shape needs one correction: it is two lookups, not one.
+
+- A ROUND hitting a surface is asymmetric, and the "what hit it" half already
+  exists - the round carries a `DamageType`. So the key is
+  `(DamageType, Material)`: three by roughly four, sparse, falling back to the
+  damage type's default. That is exactly the cross product this pass rendered
+  without naming it - `impact_kinetic` / `impact_pierce` / `impact_explosive`
+  against `impact_rock`.
+- Two BODIES colliding is symmetric - an unordered material pair. A different
+  table, and the one that would make ship-into-asteroid audible at all.
+
+There is no material concept in the codebase today. When it lands, `impact_sound`
+should be DELETED rather than kept as an override: two mechanisms for one
+question is the compatibility machinery the conventions forbid, and if one
+thing must sound special, giving it its own material is the more expressive
+knob. That makes it a `**(breaking)**` content-format change.
+
+Not started: it is engine work in the damage path, which is the sound-engine
+sprout's territory while that is still in flight. Agreed and unchanged in the
+same conversation: `destroy_sound` stays per section and object (a destruction
+has no second party to key on), `fire_sound` / `dry_fire_sound` stay per
+turret, and `detonation_sound` stays per warhead - now pointing at a real
+`torpedo_detonate.wav` instead of aliasing the section-failure voice.
 
 ## Shape
 

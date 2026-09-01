@@ -149,29 +149,50 @@
         "thumbnails/broadside_gunship.png",
         "thumbnails/lifeline.png",
         "thumbnails/final_tally.png",
-        // The base mod's WORLD sound effects (task 20260717-002228; ownership
-        // split in spike 20260717-101524). Base content references
-        // `turret_fire.wav` via `self://sounds/...` (the turret section's authorable
-        // `fire_sound`); the rest are played by the game's cue observers (the
-        // transitional WorldSfx bank) until their families migrate onto section/
-        // object configs. Listed here so mods can reference any of them via
-        // `dep://base/sounds/<name>.wav`. UI/interface sounds (menu clicks,
-        // objective chimes) are engine chrome like `icons/` and live at the
+        // The base mod's WORLD and AVIONICS sound effects (task 20260717-002228;
+        // ownership split in spike 20260717-101524, voices in 20260824-125955).
+        // Everything a MOD could reasonably want to differ lives here: the guns
+        // and hulls, and the cockpit instruments too, because locking is a
+        // capability of a controller section and two controllers are allowed to
+        // sound different. Listed here so mods can reference any of them via
+        // `dep://base/sounds/<name>.wav`. What the ENGINE plays uniformly - menus,
+        // the editor, objectives, comms - is chrome like `icons/` and lives at the
         // asset root, NOT here.
+        //
+        // Several are rendered and listed before anything plays them; the cue
+        // observers that fire them are the engine lane's work. A listed resource
+        // nothing references yet is a file the bundle ships, not an error.
+        "sounds/ammo_dry.wav",
+        "sounds/bay_door.wav",
+        "sounds/destroy_rock.wav",
+        "sounds/destroy_ship.wav",
         "sounds/dry_fire.wav",
         "sounds/explosion.wav",
         "sounds/impact.wav",
+        "sounds/impact_explosive.wav",
+        "sounds/impact_pierce.wav",
+        "sounds/impact_rock.wav",
         "sounds/lock_off.wav",
         "sounds/lock_on.wav",
+        "sounds/pdc_stow_close.wav",
+        "sounds/pdc_stow_open.wav",
+        "sounds/pdc_twin_fire.wav",
         "sounds/radar_deny.wav",
-        "sounds/railgun_fire.wav",
         "sounds/radar_retarget.wav",
+        "sounds/railgun_charge.wav",
+        "sounds/railgun_fire.wav",
+        "sounds/railgun_reload.wav",
         "sounds/rcs_loop.wav",
         "sounds/safety_on.wav",
         "sounds/salvage_pickup.wav",
+        "sounds/thruster_capital_loop.wav",
         "sounds/thruster_loop.wav",
+        "sounds/thruster_vector_loop.wav",
+        "sounds/torpedo_detonate.wav",
         "sounds/torpedo_launch.wav",
         "sounds/turret_fire.wav",
+        "sounds/warn_hull.wav",
+        "sounds/warn_lock.wav",
     ],
     meta: (
         name: "Base Game",
