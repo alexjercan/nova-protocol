@@ -58,8 +58,8 @@ pub struct BaseContentAssets {
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
-    /// The lance's discharge. Shares the launch thump, which is the heaviest
-    /// voice in the bank; per-target authoring, so playtest can diverge it.
+    /// The lance's discharge: the capacitor bank dumping, the slug leaving,
+    /// and the hull taking the recoil, in the order the shot does them.
     pub railgun_fire_sound: AssetRef<AudioSource>,
 
     /// The controller's radar/lock/safety feedback cues.
@@ -176,7 +176,7 @@ impl BaseContentAssets {
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
-            railgun_fire_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+            railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
 
             controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
             controller_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),

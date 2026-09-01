@@ -164,6 +164,7 @@
         "sounds/lock_off.wav",
         "sounds/lock_on.wav",
         "sounds/radar_deny.wav",
+        "sounds/railgun_fire.wav",
         "sounds/radar_retarget.wav",
         "sounds/rcs_loop.wav",
         "sounds/safety_on.wav",
