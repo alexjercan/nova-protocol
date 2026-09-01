@@ -837,6 +837,8 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
@@ -2049,6 +2051,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Serpent",
@@ -2243,6 +2246,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Lance",
@@ -2483,6 +2487,8 @@
             slug_lifetime: 1.2,
             recoil_impulse: 45.0,
             fire_sound: Some("self://sounds/railgun_fire.wav"),
+            charge_sound: Some("self://sounds/railgun_charge.wav"),
+            reload_sound: Some("self://sounds/railgun_reload.wav"),
             ammo_capacity: Some(1),
             reload: Some((
                 delay: 12.0,
@@ -2665,6 +2671,7 @@
             blast_radius: 45.0,
             blast_damage: 2000.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             projectile_health: 5000.0,
             torpedo_type: (
@@ -3213,6 +3220,8 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
@@ -3477,6 +3486,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Serpent",
@@ -3588,6 +3598,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Lance",
@@ -3699,6 +3710,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Serpent",
@@ -3810,6 +3822,7 @@
             blast_radius: 30.0,
             blast_damage: 750.0,
             launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             torpedo_type: (
                 name: "Lance",
@@ -4004,6 +4017,8 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),
@@ -4487,6 +4502,8 @@
             radar_deny_sound: Some("self://sounds/radar_deny.wav"),
             radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
             safety_on_sound: Some("self://sounds/safety_on.wav"),
+            warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+            ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
             rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
         )),
     )),

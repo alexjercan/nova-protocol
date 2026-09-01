@@ -13,8 +13,8 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
 use super::{
-    DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME, RADAR_RETARGET_VOLUME,
-    SAFETY_ON_VOLUME,
+    AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,
+    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, WARN_LOCK_VOLUME,
 };
 use crate::{
     prelude::*,
@@ -143,6 +143,10 @@ pub(super) fn play_safety_engaged_cue(
 /// [`TurretSectionDryFireSound`], resolved here); a turret that authors none
 /// runs dry silently. The edge latch still advances for every turret so an
 /// authored sound added later (live edit) does not replay a stale edge.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one dead trigger is two cues, and the gauge needs the computer the gun does not"
+)]
 pub(super) fn play_dry_fire_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -156,6 +160,8 @@ pub(super) fn play_dry_fire_cue(
         ),
         (With<TurretSectionMarker>, Without<SectionInactiveMarker>),
     >,
+    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
     q_ship: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
     mut latched: Local<HashMap<Entity, bool>>,
 ) {
@@ -163,6 +169,7 @@ pub(super) fn play_dry_fire_cue(
     // otherwise stay in the map for the rest of the session. Every turret the cue
     // can fire for is visited below, so the new map is exactly the live set.
     let mut live: HashMap<Entity, bool> = HashMap::with_capacity(latched.len());
+    let mut any_ran_dry = false;
     for (turret, input, ammo, dry_sound, ChildOf(ship)) in &q_turret {
         // Dry-firing = trigger held, weapons hot, magazine present and empty,
         // on the player's ship. `q_ship` matches only the player, so a
@@ -172,6 +179,7 @@ pub(super) fn play_dry_fire_cue(
         let dry = **input && hot && empty;
         let was = latched.get(&turret).copied().unwrap_or(false);
         if dry && !was {
+            any_ran_dry = true;
             if let Some(handle) = dry_sound
                 .and_then(|s| s.0.as_ref())
                 .map(|r| r.resolve(&asset_server))
@@ -182,6 +190,72 @@ pub(super) fn play_dry_fire_cue(
         live.insert(turret, dry);
     }
     *latched = live;
+
+    // THE GAUGE, once for the ship however many mounts ran dry on this frame.
+    // A broadside is one magazine state, not eight, and eight gauge pips on
+    // one frame would be a chord where the panel meant to report a fact. The
+    // gun's own click stays per-mount: that one is hardware, out on the mount,
+    // and eight of them IS what eight dead triggers sound like.
+    //
+    // Latched by the same pass, so it follows the guns exactly - including the
+    // rule that a held empty trigger clicks once and a re-pull clicks again.
+    if !any_ran_dry {
+        return;
+    }
+    let Some(handle) = player_controller_sounds(&q_controller, &q_player)
+        .and_then(|sounds| sounds.ammo_dry.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    commands.play_sfx(handle, AudioRoute::Hull, AMMO_DRY_VOLUME);
+}
+
+/// The threat alarm: a HOSTILE has this ship in its combat lock.
+///
+/// Derived from the world rather than reported by the shooter, because a lock
+/// is a state somebody holds and not an event they send: an AI that acquires,
+/// loses and re-acquires the player over a long fight would otherwise need to
+/// remember what it had already announced. Reading the live set every frame
+/// and latching the EDGE puts that memory in one place.
+///
+/// Hostility is the [`Allegiance`] test the rest of combat uses, not "is not
+/// the player": a neutral freighter that happens to carry a lock slot is not a
+/// threat, and a scripted defection changes the answer for free.
+///
+/// Player-only. An AI being locked is not news to anybody in the seat, and the
+/// alarm is a cockpit instrument - it plays on [`AudioRoute::Hull`] with the
+/// rest of the computer's voice, unplaced.
+pub(super) fn play_threat_lock_cue(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_controller: Query<(&ControllerSectionSounds, &ChildOf)>,
+    q_player: Query<(Entity, Option<&Allegiance>), With<PlayerSpaceshipMarker>>,
+    q_lockers: Query<(&CombatLock, Option<&Allegiance>)>,
+    mut latched: Local<bool>,
+) {
+    let Some((player, mine)) = q_player.iter().next() else {
+        // No player: forget the edge, or re-entering a scenario already under
+        // fire would open on a stale latch and never sound the alarm.
+        *latched = false;
+        return;
+    };
+    let locked = q_lockers.iter().any(|(lock, theirs)| {
+        lock.0 == Some(player) && relation(theirs, mine) == Relation::Hostile
+    });
+    let was = std::mem::replace(&mut *latched, locked);
+    if !locked || was {
+        return;
+    }
+    let Some(handle) = q_controller
+        .iter()
+        .find(|(_, ChildOf(ship))| *ship == player)
+        .and_then(|(sounds, _)| sounds.warn_lock.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    commands.play_sfx(handle, AudioRoute::Hull, WARN_LOCK_VOLUME);
 }
 
 #[cfg(test)]
@@ -446,5 +520,143 @@ mod tests {
             1,
             "only the player's hot, empty, held, AUTHORED turret dry-fires"
         );
+    }
+
+    #[test]
+    fn a_broadside_running_dry_is_eight_clicks_and_one_gauge() {
+        // The gun's click is hardware, out on the mount, and eight dead
+        // triggers IS eight of them. The gauge is the panel reporting one
+        // magazine state, so it must sound ONCE however many mounts starved
+        // on the frame.
+        let mut app = dry_fire_app();
+        let player = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, WeaponsHot(true)))
+            .id();
+        app.world_mut().spawn((
+            ControllerSectionSounds {
+                ammo_dry: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
+                ..default()
+            },
+            ChildOf(player),
+        ));
+        for _ in 0..8 {
+            app.world_mut().spawn((
+                TurretSectionMarker,
+                TurretSectionInput(true),
+                SectionAmmo::new(0),
+                dry_click(),
+                ChildOf(player),
+            ));
+        }
+
+        app.update();
+        assert_eq!(
+            dings(&app),
+            9,
+            "eight mount clicks plus one gauge pip, not eight pips"
+        );
+
+        // Still held: the gauge is latched by the same pass as the guns.
+        app.update();
+        assert_eq!(dings(&app), 9, "a held dead trigger says nothing more");
+    }
+
+    /// App rig for the threat alarm.
+    fn threat_lock_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<PlayedSfx>();
+        app.add_systems(Update, play_threat_lock_cue);
+        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app
+    }
+
+    /// The player's ship with an authored `warn_lock` on its flight computer.
+    fn spawn_warned_player(app: &mut App) -> Entity {
+        let ship = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, Allegiance::Player))
+            .id();
+        app.world_mut().spawn((
+            ControllerSectionSounds {
+                warn_lock: Some(AssetRef::from("base/sounds/warn_lock.wav")),
+                ..default()
+            },
+            ChildOf(ship),
+        ));
+        ship
+    }
+
+    #[test]
+    fn the_alarm_sounds_on_the_edge_a_hostile_lock_arrives_and_again_after_it_breaks() {
+        // A lock is a state somebody holds, not an event they send, so the
+        // system reads the live set and latches. Holding must be silent;
+        // losing and re-acquiring must sound again.
+        let mut app = threat_lock_app();
+        let player = spawn_warned_player(&mut app);
+        let raider = app
+            .world_mut()
+            .spawn((Allegiance::Enemy, CombatLock(None)))
+            .id();
+
+        app.update();
+        assert_eq!(dings(&app), 0, "nobody is looking at us yet");
+
+        app.world_mut()
+            .entity_mut(raider)
+            .insert(CombatLock(Some(player)));
+        app.update();
+        assert_eq!(dings(&app), 1);
+
+        app.update();
+        assert_eq!(dings(&app), 1, "a held lock is not news twice");
+
+        app.world_mut().entity_mut(raider).insert(CombatLock(None));
+        app.update();
+        app.world_mut()
+            .entity_mut(raider)
+            .insert(CombatLock(Some(player)));
+        app.update();
+        assert_eq!(dings(&app), 2, "a re-acquire is a new threat");
+    }
+
+    #[test]
+    fn only_a_hostile_lock_on_the_player_raises_the_alarm() {
+        // Hostility is the allegiance test the rest of combat uses: a neutral
+        // freighter tracking us is not a threat, and a lock on somebody else
+        // is not ours to hear.
+        let mut app = threat_lock_app();
+        let player = spawn_warned_player(&mut app);
+        let bystander = app.world_mut().spawn(Allegiance::Neutral).id();
+
+        app.world_mut()
+            .spawn((Allegiance::Neutral, CombatLock(Some(player))));
+        app.world_mut()
+            .spawn((Allegiance::Enemy, CombatLock(Some(bystander))));
+        app.update();
+        assert_eq!(dings(&app), 0);
+
+        // Delivery guard: the same rig with a hostile lock does sound.
+        app.world_mut()
+            .spawn((Allegiance::Enemy, CombatLock(Some(player))));
+        app.update();
+        assert_eq!(dings(&app), 1);
+    }
+
+    #[test]
+    fn a_ship_that_authors_no_warn_lock_is_locked_in_silence() {
+        let mut app = threat_lock_app();
+        let ship = app
+            .world_mut()
+            .spawn((PlayerSpaceshipMarker, Allegiance::Player))
+            .id();
+        app.world_mut()
+            .spawn((ControllerSectionSounds::default(), ChildOf(ship)));
+        app.world_mut()
+            .spawn((Allegiance::Enemy, CombatLock(Some(ship))));
+        app.update();
+        assert_eq!(dings(&app), 0);
     }
 }

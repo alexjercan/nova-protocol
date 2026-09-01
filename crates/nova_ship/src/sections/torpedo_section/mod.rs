@@ -33,6 +33,7 @@ mod render;
 /// the projectile with no controller involved (scenario-timer emplacements).
 mod scripted;
 
+pub use bay::TorpedoBayDoorsMoved;
 use bay::*;
 use projectile::*;
 use render::*;
@@ -43,11 +44,12 @@ use scripted::*;
 pub mod prelude {
     pub use super::{
         preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, BlastMomentum,
-        TorpedoArming, TorpedoBlast, TorpedoColdLaunch, TorpedoControllerMarker, TorpedoGuidance,
-        TorpedoIgnited, TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
-        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
-        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch,
+        TorpedoControllerMarker, TorpedoGuidance, TorpedoIgnited, TorpedoSectionConfig,
+        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
+        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -173,6 +175,20 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub launch_sound: Option<AssetRef<AudioSource>>,
+    /// The sound the muzzle iris makes, played on both edges of its travel -
+    /// one servo, two directions, one file. Snapshotted onto the SECTION as
+    /// `TorpedoSectionDoorSound` (the launch sound rides the spawner instead,
+    /// because that is where the shot is born).
+    ///
+    /// A bay that authors no `MuzzleDoor` animation track has no iris and is
+    /// silent whatever this says: the cue answers the door moving, and a
+    /// doorless bay's door never moves.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub door_sound: Option<AssetRef<AudioSource>>,
     /// The sound this torpedo's DETONATION plays (the blast destroying the
     /// projectile fires the destroy observer). Snapshotted onto the projectile
     /// as [`ImpactDestroySounds`] (destroy slot). AUTHORED-OR-SILENT.
@@ -243,6 +259,7 @@ impl Default for TorpedoSectionConfig {
             blast_effect: None,
             launch_effect: None,
             launch_sound: None,
+            door_sound: None,
             detonation_sound: None,
             projectile_health: default_projectile_health(),
             torpedo_type: TorpedoTypeConfig::default(),
@@ -550,6 +567,13 @@ struct TorpedoSectionSpawnerEffect(#[reflect(ignore)] Option<AssetRef<EffectAsse
 /// resolves it there. `pub(crate)` for the audio module.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub(crate) struct TorpedoSectionLaunchSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
+
+/// The bay's authored muzzle-iris servo, snapshotted UNRESOLVED from
+/// [`TorpedoSectionConfig::door_sound`] onto the SECTION - which is where the
+/// door track lives, and so where [`TorpedoBayDoorsMoved`] reports from.
+/// `pub(crate)` for the audio module.
+#[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+pub(crate) struct TorpedoSectionDoorSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 /// Marks the child `ParticleEffect` entity of the spawner, so the launch trigger
 /// (`on_torpedo_launch_effect`) can find its `EffectSpawner` and `reset()` it.

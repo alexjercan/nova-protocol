@@ -30,7 +30,7 @@ pub(crate) fn build() -> BaseContent {
     let assets = BaseContentAssets::from_paths();
     BaseContent {
         sections: sections::section_catalog(&assets),
-        ships: ships::ship_catalog(),
+        ships: ships::ship_catalog(&assets),
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::catalog(),
         styles: styles::style_catalog(&assets),

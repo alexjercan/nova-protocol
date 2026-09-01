@@ -16,14 +16,14 @@ use nova_gameplay::{
 
 use super::{
     routing::{owning_root, route_for, route_from},
-    EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL, IMPACT_VOLUME,
-    RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME,
-    TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
+    DESTROY_SHIP_VOLUME, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
+    IMPACT_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_RELOAD_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL,
+    TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
-        railgun_section::{RailgunFired, RailgunSectionFireSound},
+        railgun_section::{RailgunFired, RailgunSectionFireSound, RailgunSectionReloadSound},
         torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
         turret_section::{TurretSectionFireSound, TurretSectionPartOf},
     },
@@ -88,6 +88,84 @@ pub(super) fn on_destroyed_play_explosion(
         let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
         commands.play_sfx_at(handle, route, EXPLOSION_VOLUME, pos);
     }
+}
+
+/// The lance's breech cycle, when its magazine comes back to capacity.
+///
+/// Placed at the GUN and routed by whose hull it is on, like the shot: a
+/// raider's lance chambering across the arena is a thing worth hearing, and it
+/// is exactly the tell that says the next one is coming.
+///
+/// AUTHORED-OR-SILENT, and the reason the report is section-generic while this
+/// is not: every weapon with a magazine reports, and only the ones that author
+/// a breech have one. A PDC's reload is a trickle with no moment in it.
+pub(super) fn on_reload_complete_play_sfx(
+    complete: On<SectionReloadComplete>,
+    asset_server: Res<AssetServer>,
+    q_sound: Query<&RailgunSectionReloadSound>,
+    q_where: Query<&GlobalTransform>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let gun = complete.entity;
+    let Some(handle) = q_sound
+        .get(gun)
+        .ok()
+        .and_then(|sound| sound.0.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    let Ok(at) = q_where.get(gun) else {
+        return;
+    };
+    let route = route_for(gun, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(handle, route, RAILGUN_RELOAD_VOLUME, at.translation());
+}
+
+/// The hull-loss cue, on the frame a ship COLLAPSES.
+///
+/// The collapse edge, not the root's death: a ship stops being a ship the
+/// moment it falls under its structural threshold, and what follows is several
+/// frames of its sections peeling away one at a time
+/// (`cascade_structural_collapse`). Hanging the cue on the root's eventual
+/// despawn would put it after the wreck had already come apart on screen. It
+/// also gives the sound the length it was written for - two and a half seconds
+/// of debris, running OVER the frames the sections actually leave.
+///
+/// Deliberately NOT throttled against the section explosions it overlaps.
+/// Those share a cell key and collapse into one cue between them; this is a
+/// different event at a different scale, and letting the cell swallow it would
+/// mean a hull dying sounded exactly like one more piece coming off.
+///
+/// AUTHORED-OR-SILENT on the hull's own [`ShipCollapseSound`]: a ship that
+/// names none still comes apart, to the sound of its sections.
+pub(super) fn on_collapse_play_hull_loss(
+    add: On<Add, StructuralCollapseMarker>,
+    asset_server: Res<AssetServer>,
+    q_transform: Query<&GlobalTransform>,
+    q_sound: Query<&ShipCollapseSound>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let ship = add.entity;
+    let Some(handle) = q_sound
+        .get(ship)
+        .ok()
+        .and_then(|sound| sound.0.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    else {
+        return;
+    };
+    let Ok(at) = q_transform.get(ship) else {
+        return;
+    };
+    let route = route_for(ship, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(handle, route, DESTROY_SHIP_VOLUME, at.translation());
 }
 
 /// Impact cue whenever damage is applied. Throttled because a single blast
@@ -632,5 +710,121 @@ mod tests {
             Some(crack),
             "the destroy cue must find the parent's authored sound via the walk"
         );
+    }
+
+    #[test]
+    fn a_filled_magazine_clunks_with_the_breech_its_own_gun_authored() {
+        // The report is section-generic - every magazine that fills reports -
+        // and only a gun that authored a breech has one. A PDC's trickle
+        // reload must stay silent under the same event.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_reload_complete_play_sfx);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let breech: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/railgun_reload.wav");
+
+        let lance = app
+            .world_mut()
+            .spawn((
+                RailgunSectionReloadSound(Some(AssetRef::from("base/sounds/railgun_reload.wav"))),
+                GlobalTransform::default(),
+            ))
+            .id();
+        app.world_mut()
+            .trigger(SectionReloadComplete { entity: lance });
+        app.world_mut().flush();
+        assert_eq!(app.world().resource::<LastPlayed>().0, Some(breech));
+
+        app.world_mut().resource_mut::<LastPlayed>().0 = None;
+        let pdc = app.world_mut().spawn(GlobalTransform::default()).id();
+        app.world_mut()
+            .trigger(SectionReloadComplete { entity: pdc });
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            None,
+            "a gun with no authored breech reloads in silence"
+        );
+    }
+
+    #[test]
+    fn a_collapsing_hull_sounds_at_its_own_scale_and_bypasses_the_section_throttle() {
+        // The cue rides OVER the section explosions of the peel that follows,
+        // and it must not share their per-cell key: a hull dying is a different
+        // event from one more piece coming off, and letting the cell swallow it
+        // would make the two sound identical.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_collapse_play_hull_loss);
+        app.add_observer(on_destroyed_play_explosion);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let debris: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/destroy_ship.wav");
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                GlobalTransform::default(),
+                ShipCollapseSound(Some(AssetRef::from("base/sounds/destroy_ship.wav"))),
+                // A section blowing up in the same cell, first: its cue takes
+                // the Destroy key for this area.
+                ImpactDestroySounds {
+                    impact: None,
+                    destroy: Some(AssetRef::from("base/sounds/explosion.wav")),
+                },
+            ))
+            .id();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(IntegrityDestroyMarker);
+        app.world_mut().flush();
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(StructuralCollapseMarker::default());
+        app.world_mut().flush();
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(debris),
+            "the hull-loss cue plays even with the area's Destroy key already spent"
+        );
+    }
+
+    #[test]
+    fn a_hull_that_names_no_collapse_sound_comes_apart_quietly() {
+        // Authored-or-silent on the hull, and the guard against a fallback:
+        // the sections' own explosions are what a silent hull dies to.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<LastPlayed>();
+        app.add_observer(on_collapse_play_hull_loss);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
+            .id();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(StructuralCollapseMarker::default());
+        app.world_mut().flush();
+        assert_eq!(app.world().resource::<LastPlayed>().0, None);
     }
 }

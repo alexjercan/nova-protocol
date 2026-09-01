@@ -403,6 +403,7 @@ fn insert_spaceship_sections(
         collapse_threshold,
         ShipSkin(hull.skin),
         ShipStyle(hull.style.clone()),
+        ShipCollapseSound(hull.collapse_sound.clone()),
     ));
 
     // A player ship flagged for infinite ammo has its weapons built without a

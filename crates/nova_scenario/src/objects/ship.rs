@@ -8,6 +8,7 @@
 //! it.
 
 use bevy::prelude::*;
+use nova_gameplay::asset_ref::AssetRef;
 
 use crate::objects::{
     modification::prelude::SectionModification,
@@ -76,6 +77,21 @@ pub struct ShipHull {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub style: Option<String>,
+    /// The sound this hull makes when it COLLAPSES - the moment it stops being
+    /// a ship and becomes wreckage, which is one event however many frames the
+    /// sections then take to peel away.
+    ///
+    /// Authored on the hull rather than derived from its parts because a hull
+    /// failing is not a section failing loudly: it is the spine going, and the
+    /// only thing that knows how big that is is the ship. AUTHORED-OR-SILENT -
+    /// a hull that names none comes apart to the sound of its own sections,
+    /// which is what every ship did before this field existed.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub collapse_sound: Option<AssetRef<AudioSource>>,
 }
 
 /// `skip_serializing_if` predicate for a `bool` that defaults to false, so an

@@ -68,6 +68,11 @@ pub struct SfxVoice {
     /// The owner's linear level, before the bus gain, the rolloff and the pan.
     pub volume: f32,
     /// Playback speed, which also shifts pitch (1.0 is normal).
+    ///
+    /// LIVE, like the volume: `drive_sfx_voices` pushes it to the sink every
+    /// frame, so a loop whose owner is winding up can be driven by writing it
+    /// here. A one-shot that only wants a fixed pitch sets it once at spawn and
+    /// never touches it again, which costs the same.
     pub speed: f32,
     /// Where the sound is coming from.
     pub source: SfxSource,
@@ -241,11 +246,14 @@ pub(super) fn start_sfx_voices(
     }
 }
 
-/// Re-mix every playing voice: its bus gain, its distance, its bearing.
+/// Re-mix every playing voice: its bus gain, its distance, its bearing, and
+/// its playback rate.
 ///
 /// Runs every frame rather than at spawn because a voice's mix is a function of
 /// two things that both move - the source and the listener - so a cue that only
-/// panned where it started would swing wrong the moment the camera turned.
+/// panned where it started would swing wrong the moment the camera turned. The
+/// rate rides along for the same reason: a loop that is winding up is changing
+/// while it plays.
 pub(super) fn drive_sfx_voices(
     mixer: Mixer,
     q_listener: Query<&GlobalTransform, (With<SfxListenerMarker>, Without<SfxVoice>)>,
@@ -283,9 +291,11 @@ pub(super) fn drive_sfx_voices(
         }
         if let Some(mut sink) = sink {
             sink.set_volume(Volume::Linear(gain));
+            sink.set_speed(voice.speed);
         }
         if let Some(mut sink) = spatial_sink {
             sink.set_volume(Volume::Linear(gain));
+            sink.set_speed(voice.speed);
         }
     }
 }

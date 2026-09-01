@@ -61,7 +61,7 @@ pub struct ControllerSectionConfig {
     /// into
     /// `ControllerSectionSounds`; the audio cues resolve the PLAYER ship's
     /// controller's refs. AUTHORED-OR-SILENT: `None` plays nothing; base
-    /// controllers author all five via gen_content.
+    /// controllers author all of them via gen_content.
     ///
     /// Lock acquired (once per radar gesture).
     #[reflect(ignore)]
@@ -98,6 +98,29 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub safety_on_sound: Option<AssetRef<AudioSource>>,
+    /// A hostile has this ship in its combat lock - the threat alarm, on the
+    /// rising edge of "somebody is aiming at me". The computer OWNS it because
+    /// knowing you are locked is a sensor capability, not a property of the
+    /// hull: a ship built without a controller flies blind and gets no warning.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub warn_lock_sound: Option<AssetRef<AudioSource>>,
+    /// A magazine ran dry - the GAUGE, inside the cockpit, as distinct from the
+    /// gun's own dead-trigger click out on the mount
+    /// ([`TurretSectionConfig::dry_fire_sound`]). The two fire on the same edge
+    /// and are meant to be heard as one event from two places; the gun's is
+    /// per-turret, this one is per-SHIP.
+    ///
+    /// [`TurretSectionConfig::dry_fire_sound`]: crate::sections::turret_section::TurretSectionConfig::dry_fire_sound
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub ammo_dry_sound: Option<AssetRef<AudioSource>>,
     /// RCS fine-adjust LOOP: plays continuously while this controller is burning
     /// the RCS primitive - whether the player is holding SHIFT or the autopilot
     /// is trimming an ORBIT / settling a STOP. Unlike the five one-shot cues
@@ -114,7 +137,7 @@ pub struct ControllerSectionConfig {
 
 /// The controller's authored feedback sounds, snapshotted UNRESOLVED from
 /// [`ControllerSectionConfig`] by the [`controller_section`] bundle (one
-/// component for the five cues - they share the same consumers). The audio
+/// component for the whole set - they share the same consumers). The audio
 /// module reads the PLAYER ship's controller and resolves per cue.
 /// `pub(crate)` for the audio module.
 #[derive(Component, Clone, Debug, Default, Reflect)]
@@ -130,6 +153,10 @@ pub(crate) struct ControllerSectionSounds {
     #[reflect(ignore)]
     pub safety_on: Option<AssetRef<AudioSource>>,
     #[reflect(ignore)]
+    pub warn_lock: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
+    pub ammo_dry: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
     pub rcs_loop: Option<AssetRef<AudioSource>>,
 }
 
@@ -141,6 +168,8 @@ impl ControllerSectionSounds {
             radar_deny: config.radar_deny_sound.clone(),
             radar_retarget: config.radar_retarget_sound.clone(),
             safety_on: config.safety_on_sound.clone(),
+            warn_lock: config.warn_lock_sound.clone(),
+            ammo_dry: config.ammo_dry_sound.clone(),
             rcs_loop: config.rcs_loop_sound.clone(),
         }
     }
@@ -165,6 +194,8 @@ impl Default for ControllerSectionConfig {
             radar_deny_sound: None,
             radar_retarget_sound: None,
             safety_on_sound: None,
+            warn_lock_sound: None,
+            ammo_dry_sound: None,
             rcs_loop_sound: None,
         }
     }

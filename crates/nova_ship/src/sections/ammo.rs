@@ -27,7 +27,7 @@ use bevy::prelude::*;
 
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
-    pub use super::{SectionAmmo, SectionReload, SectionReloadConfig};
+    pub use super::{SectionAmmo, SectionReload, SectionReloadComplete, SectionReloadConfig};
 }
 
 /// Rounds remaining in a weapon section's magazine.
@@ -186,11 +186,40 @@ impl SectionReload {
 ///
 /// A section with no [`SectionReload`] (or no [`SectionAmmo`]) never reloads,
 /// preserving the unlimited-ammo default. `Res<Time>` here is the fixed clock.
-pub fn tick_section_reload(time: Res<Time>, mut q: Query<(&mut SectionAmmo, &mut SectionReload)>) {
+///
+/// Reports [`SectionReloadComplete`] on the batch that brings a magazine back
+/// to CAPACITY - see that event for why full, and not each batch, is the thing
+/// worth telling anyone about.
+pub fn tick_section_reload(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q: Query<(Entity, &mut SectionAmmo, &mut SectionReload)>,
+) {
     let dt = time.delta_secs();
-    for (mut ammo, mut reload) in &mut q {
+    for (section, mut ammo, mut reload) in &mut q {
+        let was_full = ammo.rounds >= ammo.capacity;
         reload.advance(&mut ammo, dt);
+        if !was_full && ammo.rounds >= ammo.capacity {
+            commands.trigger(SectionReloadComplete { entity: section });
+        }
     }
+}
+
+/// A weapon section's magazine came back to CAPACITY.
+///
+/// FULL, not "a batch returned", because full is the only reload boundary that
+/// means the same thing on every weapon. A PDC trickling rounds back has no
+/// moment its reload finished - it never stopped - while a one-shell lance has
+/// exactly one, and it is the twelve-second silence ending. Reporting each
+/// batch would fire several times a second per mount across a fleet and say
+/// nothing at any of them.
+///
+/// The gameplay seam only: what a section DOES with it (the lance's chamber
+/// clunk) is the audio layer's, and a section that authors nothing is silent.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct SectionReloadComplete {
+    /// The section whose magazine filled.
+    pub entity: Entity,
 }
 
 #[cfg(test)]
@@ -327,5 +356,56 @@ mod tests {
             app.update();
         }
         assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 200);
+    }
+
+    /// FULL is the boundary that is reported, and it is reported once. A
+    /// magazine that refills in several batches must stay quiet through the
+    /// ones that do not finish it, and a magazine already full must not report
+    /// every tick it spends sitting there.
+    #[test]
+    fn a_magazine_reports_the_tick_it_comes_back_to_capacity_and_not_before_or_after() {
+        use bevy::time::{TimeUpdateStrategy, Virtual};
+
+        #[derive(Resource, Default)]
+        struct Filled(usize);
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<Filled>();
+        let mut virtual_time = Time::<Virtual>::default();
+        virtual_time.set_max_delta(std::time::Duration::from_secs(3600));
+        app.insert_resource(virtual_time);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(1.0),
+        ));
+        app.add_systems(Update, tick_section_reload);
+        app.add_observer(|_: On<SectionReloadComplete>, mut filled: ResMut<Filled>| filled.0 += 1);
+
+        // Two batches to fill: the first must be silent.
+        let mut ammo = SectionAmmo::new(2);
+        ammo.rounds = 0;
+        let section = app.world_mut().spawn((ammo, reload_cfg(1.0, 1))).id();
+
+        app.update(); // warm-up, dt 0
+        app.update(); // first batch: one of two rounds back
+        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 1);
+        assert_eq!(
+            app.world().resource::<Filled>().0,
+            0,
+            "a part-filled magazine has not finished reloading"
+        );
+
+        app.update(); // second batch: full
+        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 2);
+        assert_eq!(app.world().resource::<Filled>().0, 1);
+
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<Filled>().0,
+            1,
+            "a magazine sitting full reports nothing"
+        );
     }
 }

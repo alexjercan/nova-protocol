@@ -110,6 +110,7 @@
                     source: Prototype("racer_fuselage"),
                 ),
             ],
+            collapse_sound: Some("self://sounds/destroy_ship.wav"),
         ),
     )),
     Ship((
@@ -253,6 +254,7 @@
                     source: Prototype("pdc_kinetic_turret_section"),
                 ),
             ],
+            collapse_sound: Some("self://sounds/destroy_ship.wav"),
         ),
     )),
     Ship((
@@ -396,6 +398,7 @@
                     source: Prototype("pdc_kinetic_turret_section"),
                 ),
             ],
+            collapse_sound: Some("self://sounds/destroy_ship.wav"),
         ),
     )),
     Ship((
@@ -539,6 +542,7 @@
                     source: Prototype("pdc_kinetic_turret_section"),
                 ),
             ],
+            collapse_sound: Some("self://sounds/destroy_ship.wav"),
         ),
     )),
     Ship((
@@ -709,6 +713,7 @@
                     ],
                 ),
             ],
+            collapse_sound: Some("self://sounds/destroy_ship.wav"),
         ),
     )),
 ]

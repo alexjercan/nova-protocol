@@ -42,12 +42,13 @@ mod test_support;
 
 use self::{
     combat::{
-        on_damage_play_impact, on_destroyed_play_explosion, on_railgun_fire_play_sfx,
-        on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
+        on_collapse_play_hull_loss, on_damage_play_impact, on_destroyed_play_explosion,
+        on_railgun_fire_play_sfx, on_reload_complete_play_sfx, on_torpedo_launch_play_sfx,
+        on_turret_fire_play_sfx,
     },
-    cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue},
-    loops::{drive_rcs_loops, drive_thruster_loops},
-    machinery::on_stow_doors_play_sfx,
+    cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue, play_threat_lock_cue},
+    loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
+    machinery::{on_bay_doors_play_sfx, on_stow_doors_play_sfx},
 };
 
 /// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
@@ -94,6 +95,51 @@ const RADAR_RETARGET_VOLUME: f32 = 0.18;
 const STOW_OPEN_VOLUME: f32 = 0.09;
 const STOW_CLOSE_VOLUME: f32 = 0.14;
 
+/// The magazine gauge inside the cockpit, alongside the gun's own dead-trigger
+/// click ([`DRY_FIRE_VOLUME`]) out on the mount. About 4 dB over it: the panel
+/// is nearer than the mount, and it is the half of the pair that says WHY.
+const AMMO_DRY_VOLUME: f32 = 0.17;
+
+/// The threat alarm. Louder than the ship's own lock chirp ([`LOCK_ON_VOLUME`])
+/// - about 4 dB - because acquiring a target is a thing the pilot chose and
+/// being acquired is not. Still under the guns: it has to cut through a fight
+/// without being the fight.
+const WARN_LOCK_VOLUME: f32 = 0.37;
+
+/// The torpedo bay's muzzle iris. Machinery, in the same band as the PDC stow
+/// doors, and the two numbers differ for the same reason theirs do: seating is
+/// a heavier event than unseating, and one file plays both directions.
+const BAY_DOOR_OPEN_VOLUME: f32 = 0.16;
+const BAY_DOOR_CLOSE_VOLUME: f32 = 0.20;
+
+/// A shell going back into the lance. Well under the shot
+/// ([`RAILGUN_FIRE_VOLUME`], about 6 dB) - it is an answer to a silence, not an
+/// event in the fight - but clearly above the machinery band, because twelve
+/// seconds of nothing is exactly when a pilot has stopped listening.
+const RAILGUN_RELOAD_VOLUME: f32 = 0.17;
+
+/// The capacitor bank, at FULL charge. The loop is driven up to this from
+/// [`RAILGUN_CHARGE_FLOOR`] as the shot approaches, and its playback rate rises
+/// with it - so the gun sounds like it is arriving at something rather than
+/// holding a note. Sits under the main drive: a lance charging is a telegraph,
+/// and a telegraph that drowns the burn is a mix error.
+const RAILGUN_CHARGE_MAX_VOLUME: f32 = 0.15;
+/// Fraction of [`RAILGUN_CHARGE_MAX_VOLUME`] the bank starts at, so the commit
+/// is audible without the build having nowhere left to go.
+const RAILGUN_CHARGE_FLOOR: f32 = 0.35;
+/// Playback rate at full charge. The loop is authored on even partials for
+/// exactly this (see `scripts/gen-world-sfx.py`), so the seam stays silent at
+/// any rate in between.
+const RAILGUN_CHARGE_TOP_SPEED: f32 = 1.6;
+
+/// A whole hull failing, on the STRUCTURAL COLLAPSE edge. About 4 dB over the
+/// section explosion ([`EXPLOSION_VOLUME`]) and the loudest thing in the game,
+/// which is the point: a ship coming apart has to be obviously bigger than a
+/// piece of one coming off, and the only two levers are length and level. The
+/// cue uses both - 2.4 seconds of debris over the frames the sections actually
+/// peel away.
+const DESTROY_SHIP_VOLUME: f32 = 0.65;
+
 /// Minimum seconds between successive turret-fire and impact one-shots. Without
 /// this the ~100/s PDC and the many-collider blast hits would each spawn a
 /// storm of overlapping audio entities that reads as a wall of noise;
@@ -135,6 +181,9 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_torpedo_launch_play_sfx);
         app.add_observer(on_railgun_fire_play_sfx);
         app.add_observer(on_stow_doors_play_sfx);
+        app.add_observer(on_bay_doors_play_sfx);
+        app.add_observer(on_reload_complete_play_sfx);
+        app.add_observer(on_collapse_play_hull_loss);
 
         // Lock/safety UI cues: message-driven one-shots, so no gating needed
         // - the writers (radar search, tap observer) are themselves
@@ -143,7 +192,12 @@ impl Plugin for ShipAudioPlugin {
         // fires while paused.
         app.add_systems(
             Update,
-            (play_lock_cues, play_safety_engaged_cue, play_dry_fire_cue),
+            (
+                play_lock_cues,
+                play_safety_engaged_cue,
+                play_dry_fire_cue,
+                play_threat_lock_cue,
+            ),
         );
 
         // The loop passes poll `ThrusterSectionInput` and `RcsIntent`, so they
@@ -162,7 +216,12 @@ impl Plugin for ShipAudioPlugin {
         // sim and the teardown on scenario unload.
         app.add_systems(
             Update,
-            (drive_thruster_loops, drive_rcs_loops).in_set(SpaceshipSectionSystems),
+            (
+                drive_thruster_loops,
+                drive_rcs_loops,
+                drive_railgun_charge_loops,
+            )
+                .in_set(SpaceshipSectionSystems),
         );
     }
 }

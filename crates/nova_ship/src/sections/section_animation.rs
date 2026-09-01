@@ -218,6 +218,21 @@ impl SectionAnimations {
             .find(|track| track.config.cue == cue)
             .map(|track| track.progress)
     }
+
+    /// Where the first track of `cue` is HEADED, if the section authors one -
+    /// as against [`cue_progress`](Self::cue_progress), which is where it has
+    /// got to.
+    ///
+    /// The pair is what makes a mechanism's direction readable. Progress alone
+    /// cannot say it: a door 40% open is the same reading whether it is
+    /// opening or closing, and a driver that wants the EDGE (to report it, to
+    /// sound it) needs the target it is about to overwrite.
+    pub fn cue_target(&self, cue: SectionAnimationCue) -> Option<f32> {
+        self.tracks
+            .iter()
+            .find(|track| track.config.cue == cue)
+            .map(|track| track.target)
+    }
 }
 
 /// Marks a section whose animation rig must be (re)resolved against its

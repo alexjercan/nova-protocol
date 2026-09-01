@@ -1,5 +1,7 @@
 //! The continuous loops: one engine-hum voice per (ship, authored hum sound)
-//! pair, plus the RCS fine-adjust loop on the same shape.
+//! pair, the RCS fine-adjust loop on the same shape, and the railgun's
+//! capacitor bank - which is deliberately NOT on that shape, because a weapon
+//! winding up is the one loop in the game that must not ease.
 //!
 //! PER SOURCE, not per sound: two ships burning past the camera are two voices
 //! following two ships, so they attenuate and pan independently. Everything
@@ -15,11 +17,13 @@ use nova_gameplay::prelude::*;
 use super::{
     levels::{engine_volume, rcs_volume},
     routing::{owning_root, route_from},
+    RAILGUN_CHARGE_FLOOR, RAILGUN_CHARGE_MAX_VOLUME, RAILGUN_CHARGE_TOP_SPEED,
 };
 use crate::{
     prelude::*,
     sections::{
-        controller_section::ControllerSectionSounds, thruster_section::ThrusterSectionLoopSound,
+        controller_section::ControllerSectionSounds, railgun_section::RailgunSectionChargeSound,
+        thruster_section::ThrusterSectionLoopSound,
     },
 };
 
@@ -150,6 +154,94 @@ pub(super) fn drive_rcs_loops(
         |source, handle| RcsLoopSfx { source, handle },
         "RCS Loop Sfx",
     );
+}
+
+/// One charging lance's capacitor bank. Per SECTION, not per ship: the charge
+/// clock is the gun's, so two lances on one hull wind up independently.
+#[derive(Component)]
+pub(super) struct RailgunChargeLoopSfx {
+    section: Entity,
+}
+
+/// Drive the lance's charge loop from where each gun is in its cycle.
+///
+/// NOT on [`reconcile_loops`], and the difference is the point. The hum loops
+/// EASE, because a throttle change that clicked would be a fault; this one must
+/// not. A commit has to be audible on the frame it happens - it is the tell the
+/// whole weapon is balanced around - and the shot has to cut the bank dead,
+/// because the report is 20 dB louder and a fading capacitor smeared under it
+/// is just mud. So the voice opens at its floor level and is despawned outright
+/// the frame the gun leaves [`RailgunCharge::Charging`].
+///
+/// Two things rise together with progress: the LEVEL, from
+/// [`RAILGUN_CHARGE_FLOOR`] of the ceiling to all of it, and the playback RATE,
+/// to [`RAILGUN_CHARGE_TOP_SPEED`]. The rate is what makes it read as
+/// approaching something rather than holding a note, and the loop is authored
+/// on even partials so its seam stays silent at any rate in between.
+///
+/// AUTHORED-OR-SILENT: a lance with no `charge_sound` charges quietly.
+pub(super) fn drive_railgun_charge_loops(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_railgun: Query<
+        (
+            Entity,
+            &RailgunSectionConfigHelper,
+            &RailgunCharge,
+            &RailgunSectionChargeSound,
+        ),
+        (With<RailgunSectionMarker>, Without<SectionInactiveMarker>),
+    >,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut q_loops: Query<(Entity, &RailgunChargeLoopSfx, &mut SfxVoice)>,
+) {
+    let mut charging: HashMap<Entity, (Handle<AudioSource>, f32)> = HashMap::new();
+    for (section, config, charge, sound) in &q_railgun {
+        if !matches!(charge, RailgunCharge::Charging { .. }) {
+            continue;
+        }
+        let Some(handle) = sound.0.as_ref().map(|r| r.resolve(&asset_server)) else {
+            continue;
+        };
+        charging.insert(section, (handle, charge.progress(config.charge_seconds)));
+    }
+
+    for (voice_entity, loop_sfx, mut voice) in &mut q_loops {
+        let Some((_, progress)) = charging.remove(&loop_sfx.section) else {
+            commands.entity(voice_entity).despawn();
+            continue;
+        };
+        voice.volume = charge_volume(progress);
+        voice.speed = charge_speed(progress);
+        // Refreshed every frame, like the hum loops': a gun can change hands
+        // between one scenario and the next.
+        let root = owning_root(loop_sfx.section, &q_child_of, &q_is_root);
+        voice.route = route_from(root, &q_is_player);
+    }
+
+    for (section, (handle, progress)) in charging {
+        let root = owning_root(section, &q_child_of, &q_is_root);
+        commands.spawn((
+            Name::new("Railgun Charge Loop Sfx"),
+            RailgunChargeLoopSfx { section },
+            SfxVoice::looping(handle, route_from(root, &q_is_player))
+                .following(section)
+                .with_volume(charge_volume(progress))
+                .with_speed(charge_speed(progress)),
+        ));
+    }
+}
+
+/// The bank's level at `progress`, from the floor to the ceiling.
+fn charge_volume(progress: f32) -> f32 {
+    RAILGUN_CHARGE_MAX_VOLUME * (RAILGUN_CHARGE_FLOOR + (1.0 - RAILGUN_CHARGE_FLOOR) * progress)
+}
+
+/// The bank's playback rate at `progress`, from normal to the top speed.
+fn charge_speed(progress: f32) -> f32 {
+    1.0 + (RAILGUN_CHARGE_TOP_SPEED - 1.0) * progress
 }
 
 /// Bring the live loop voices in line with what is burning this frame: ease the
@@ -494,5 +586,111 @@ mod tests {
         let ship = spawn_rcs_ship(&mut app, Vec3::new(1.0, 0.0, 0.0), true);
         settle(&mut app);
         assert!(voice_for(&mut app, ship).is_none());
+    }
+
+    /// The base lance's charge sound path.
+    const RIG_CHARGE: &str = "base/sounds/railgun_charge.wav";
+
+    /// A lance on its own ship, charged to `progress` of a two-second charge.
+    /// `sound` is the authored file, or `None` for a gun that voices nothing.
+    fn spawn_charging_lance(app: &mut App, sound: Option<&str>, progress: f32) -> Entity {
+        let root = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
+            .id();
+        app.world_mut()
+            .spawn((
+                // The production bundle, so the test reads the same authored
+                // snapshot the spawn path writes.
+                preview_railgun_section(RailgunSectionConfig {
+                    charge_seconds: 2.0,
+                    charge_sound: sound.map(AssetRef::from),
+                    ..default()
+                }),
+                RailgunCharge::Charging {
+                    elapsed: 2.0 * progress,
+                },
+                ChildOf(root),
+            ))
+            .id()
+    }
+
+    /// The one charge voice following `gun`, as `(volume, speed)`.
+    fn charge_voice(app: &mut App, gun: Entity) -> Option<(f32, f32)> {
+        let mut query = app
+            .world_mut()
+            .query::<(&RailgunChargeLoopSfx, &SfxVoice)>();
+        query
+            .iter(app.world())
+            .find(|(loop_sfx, _)| loop_sfx.section == gun)
+            .map(|(_, voice)| (voice.volume, voice.speed))
+    }
+
+    #[test]
+    fn the_capacitor_opens_at_its_floor_and_arrives_loud_and_fast() {
+        // The one loop that must NOT ease: a bank winding up has to be at its
+        // authored floor on the FIRST frame of the charge, and the rise the
+        // player hears is the charge itself, not a smoothing envelope.
+        let mut app = charge_app();
+        let gun = spawn_charging_lance(&mut app, Some(RIG_CHARGE), 0.0);
+        app.update();
+        let (opened, opening_speed) = charge_voice(&mut app, gun).expect("the bank opens a voice");
+        assert!(
+            (opened - RAILGUN_CHARGE_MAX_VOLUME * RAILGUN_CHARGE_FLOOR).abs() < 1e-5,
+            "an opening bank starts at its floor, got {opened}"
+        );
+        assert!(
+            (opening_speed - 1.0).abs() < 1e-5,
+            "an opening bank plays at its authored rate, got {opening_speed}"
+        );
+
+        app.world_mut()
+            .entity_mut(gun)
+            .insert(RailgunCharge::Charging { elapsed: 2.0 });
+        app.update();
+        let (full, full_speed) = charge_voice(&mut app, gun).expect("the voice stays open");
+        assert!(
+            (full - RAILGUN_CHARGE_MAX_VOLUME).abs() < 1e-5,
+            "a full bank is at the ceiling, got {full}"
+        );
+        assert!(
+            (full_speed - RAILGUN_CHARGE_TOP_SPEED).abs() < 1e-5,
+            "a full bank is at top speed, got {full_speed}"
+        );
+    }
+
+    #[test]
+    fn the_bank_goes_silent_the_frame_the_charge_ends() {
+        // The shot cuts to the muzzle report; a capacitor tail fading under it
+        // would read as the gun still winding up after it fired.
+        let mut app = charge_app();
+        let gun = spawn_charging_lance(&mut app, Some(RIG_CHARGE), 0.5);
+        app.update();
+        assert!(charge_voice(&mut app, gun).is_some());
+
+        app.world_mut().entity_mut(gun).insert(RailgunCharge::Ready);
+        app.update();
+        assert!(
+            charge_voice(&mut app, gun).is_none(),
+            "leaving the charge retires the voice outright, with no tail"
+        );
+    }
+
+    #[test]
+    fn a_lance_that_authors_no_charge_sound_winds_up_quietly() {
+        let mut app = charge_app();
+        let gun = spawn_charging_lance(&mut app, None, 0.5);
+        app.update();
+        assert!(charge_voice(&mut app, gun).is_none());
+    }
+
+    /// App rig for the capacitor pass. Separate from [`loop_app`] because the
+    /// charge loop is deliberately not on the smoothed reconciler.
+    fn charge_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_systems(Update, drive_railgun_charge_loops);
+        app
     }
 }

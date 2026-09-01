@@ -68,6 +68,9 @@ pub struct BaseContentAssets {
     pub turret_stow_close_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
+    /// The bay's muzzle iris: one servo and six petals, played on both edges
+    /// of the door's travel.
+    pub torpedo_door_sound: AssetRef<AudioSource>,
     /// The warhead. A hard front and a spray of fragments - deliberately not
     /// [`Self::section_destroy_sound`], which it used to borrow: a section
     /// failing is structural and a warhead is not.
@@ -75,6 +78,12 @@ pub struct BaseContentAssets {
     /// The lance's discharge: the capacitor bank dumping, the slug leaving,
     /// and the hull taking the recoil, in the order the shot does them.
     pub railgun_fire_sound: AssetRef<AudioSource>,
+    /// The lance's capacitor bank filling: a LOOP, played at a rate that rises
+    /// with the charge, so the gun sounds like it is approaching the shot.
+    pub railgun_charge_sound: AssetRef<AudioSource>,
+    /// A shell going back into the lance: breech, rail, seat, lock. Written as
+    /// four separable events so a pilot can hear how far through it is.
+    pub railgun_reload_sound: AssetRef<AudioSource>,
 
     /// The controller's radar/lock/safety feedback cues.
     pub controller_lock_on_sound: AssetRef<AudioSource>,
@@ -82,6 +91,11 @@ pub struct BaseContentAssets {
     pub controller_radar_deny_sound: AssetRef<AudioSource>,
     pub controller_radar_retarget_sound: AssetRef<AudioSource>,
     pub controller_safety_on_sound: AssetRef<AudioSource>,
+    /// The threat alarm: a hostile has this ship in its combat lock.
+    pub controller_warn_lock_sound: AssetRef<AudioSource>,
+    /// The magazine gauge inside the cockpit, alongside the gun's own
+    /// dead-trigger click out on the mount.
+    pub controller_ammo_dry_sound: AssetRef<AudioSource>,
     /// The controller's RCS fine-adjust loop: plays while the RCS primitive
     /// burns, player- or autopilot-driven.
     pub controller_rcs_loop_sound: AssetRef<AudioSource>,
@@ -89,6 +103,11 @@ pub struct BaseContentAssets {
     /// asteroids author the same two in scenario content.
     pub section_impact_sound: AssetRef<AudioSource>,
     pub section_destroy_sound: AssetRef<AudioSource>,
+    /// The whole SHIP coming apart, which is a different event from the last
+    /// section dying: structural collapse fires once on the root and the peel
+    /// that follows runs for several frames under it. Authored on the hull, not
+    /// on a section, because no section owns it.
+    pub ship_collapse_sound: AssetRef<AudioSource>,
     /// The thruster engine hums, one per drive size. Three loops on one
     /// recipe at 34 / 52 / 78 Hz, capital to basic to vector: a pilot should
     /// hear the SIZE of what just lit its engines, and pitch is the only thing
@@ -198,10 +217,13 @@ impl BaseContentAssets {
             turret_stow_open_sound: AssetRef::from("self://sounds/pdc_stow_open.wav".to_string()),
             turret_stow_close_sound: AssetRef::from("self://sounds/pdc_stow_close.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+            torpedo_door_sound: AssetRef::from("self://sounds/bay_door.wav".to_string()),
             torpedo_detonation_sound: AssetRef::from(
                 "self://sounds/torpedo_detonate.wav".to_string(),
             ),
             railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
+            railgun_charge_sound: AssetRef::from("self://sounds/railgun_charge.wav".to_string()),
+            railgun_reload_sound: AssetRef::from("self://sounds/railgun_reload.wav".to_string()),
 
             controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
             controller_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),
@@ -210,9 +232,12 @@ impl BaseContentAssets {
                 "self://sounds/radar_retarget.wav".to_string(),
             ),
             controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
+            controller_warn_lock_sound: AssetRef::from("self://sounds/warn_lock.wav".to_string()),
+            controller_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
             controller_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
+            ship_collapse_sound: AssetRef::from("self://sounds/destroy_ship.wav".to_string()),
             thruster_loop_sound: AssetRef::from("self://sounds/thruster_loop.wav".to_string()),
             thruster_vector_loop_sound: AssetRef::from(
                 "self://sounds/thruster_vector_loop.wav".to_string(),

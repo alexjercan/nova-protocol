@@ -39,8 +39,10 @@ mod firing;
 mod render;
 
 pub use firing::RailgunFired;
-pub(crate) use firing::RailgunSectionFireSound;
 use firing::*;
+pub(crate) use firing::{
+    RailgunSectionChargeSound, RailgunSectionFireSound, RailgunSectionReloadSound,
+};
 use render::*;
 
 /// The `railgun_section` spawners, its config, marker, input, charge state,
@@ -106,6 +108,28 @@ pub struct RailgunSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub fire_sound: Option<AssetRef<AudioSource>>,
+    /// The capacitor bank filling: a LOOP held for the whole charge, played at
+    /// a rate that rises with [`RailgunCharge::progress`] so the gun sounds
+    /// like it is arriving at something.
+    ///
+    /// A loop and not a one-shot because the charge is authored per hull -
+    /// [`charge_seconds`](Self::charge_seconds) is a number a mod may set to
+    /// anything - and a fixed-length file would either end early or be cut off.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub charge_sound: Option<AssetRef<AudioSource>>,
+    /// A shell going back into the breech, played when the magazine returns to
+    /// capacity. For a one-shell lance that is the whole of its cadence: the
+    /// reload is the silence, and this is the silence ending.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub reload_sound: Option<AssetRef<AudioSource>>,
     /// Shells the gun carries. `None` is unlimited - the bare-rig default every
     /// weapon section shares.
     #[cfg_attr(
@@ -138,6 +162,8 @@ impl Default for RailgunSectionConfig {
             slug_lifetime: 5.0,
             recoil_impulse: 0.0,
             fire_sound: None,
+            charge_sound: None,
+            reload_sound: None,
             ammo_capacity: None,
             reload: None,
         }
@@ -221,6 +247,8 @@ pub fn preview_railgun_section(config: RailgunSectionConfig) -> impl Bundle {
         // Snapshotted onto the section, like the turret's: the audio layer
         // resolves it from the gun that fired without reading the config.
         RailgunSectionFireSound(config.fire_sound.clone()),
+        RailgunSectionChargeSound(config.charge_sound.clone()),
+        RailgunSectionReloadSound(config.reload_sound.clone()),
         RailgunSectionConfigHelper(config),
     )
 }

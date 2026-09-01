@@ -58,25 +58,29 @@ pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<Sectio
 }
 
 /// Every shipped ship, in stable generated-content order.
-pub(crate) fn ship_catalog() -> Vec<ShipConfig> {
+pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
     vec![
-        ship(RACER_SHIP_ID, "Racer Yacht", racer::sections()),
+        ship(assets, RACER_SHIP_ID, "Racer Yacht", racer::sections()),
         ship(
+            assets,
             CARGOB_SHIP_ID,
             "CargoB Hauler",
             cargo_b::sections(Ordnance::Serpent),
         ),
         ship(
+            assets,
             CARGOB_LANCE_SHIP_ID,
             "CargoB Hauler (Lance)",
             cargo_b::sections(Ordnance::Lance),
         ),
         ship(
+            assets,
             CARGOA_SHIP_ID,
             "CargoA Corvette",
             cargo_a::sections(ShipGrade::Player),
         ),
         ship(
+            assets,
             CARGOA_RAIDER_SHIP_ID,
             "CargoA Raider Corvette",
             cargo_a::sections(ShipGrade::Enemy),
@@ -111,13 +115,20 @@ pub(crate) fn on_section(
 }
 
 /// One catalog entry over a built section list. Every shipped ship takes the
-/// engine's collapse threshold and goes unclad, so the hull is its sections.
-fn ship(id: &str, name: &str, sections: Vec<SpaceshipSectionConfig>) -> ShipConfig {
+/// engine's collapse threshold and goes unclad, so the hull is its sections
+/// plus the one voice no section can own: the ship coming apart.
+fn ship(
+    assets: &BaseContentAssets,
+    id: &str,
+    name: &str,
+    sections: Vec<SpaceshipSectionConfig>,
+) -> ShipConfig {
     ShipConfig {
         id: id.to_string(),
         name: name.to_string(),
         hull: ShipHull {
             sections,
+            collapse_sound: Some(assets.ship_collapse_sound.clone()),
             ..Default::default()
         },
     }
@@ -132,7 +143,7 @@ mod tests {
         PlacedSectionLinkPoints, SectionLinkPoints,
     };
 
-    use super::{cargo_a::*, cargo_b::*, racer::*, shared::*};
+    use super::{cargo_a::*, cargo_b::*, racer::*, shared::*, BaseContentAssets};
 
     /// Every shipped ship, ASSEMBLED, derives one connected structural graph.
     ///
@@ -151,7 +162,7 @@ mod tests {
     #[test]
     fn every_shipped_ship_has_one_connected_mate_graph() {
         let catalog = crate::generation::build_section_catalog();
-        for ship in super::ship_catalog() {
+        for ship in super::ship_catalog(&BaseContentAssets::from_paths()) {
             let sockets: Vec<_> = ship
                 .hull
                 .sections

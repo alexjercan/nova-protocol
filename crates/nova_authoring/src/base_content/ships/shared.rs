@@ -310,6 +310,8 @@ fn controller_kind(spec: PartSpec, meshes: &BaseContentAssets) -> SectionKind {
         radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
         radar_retarget_sound: Some(meshes.controller_radar_retarget_sound.clone()),
         safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
+        warn_lock_sound: Some(meshes.controller_warn_lock_sound.clone()),
+        ammo_dry_sound: Some(meshes.controller_ammo_dry_sound.clone()),
         rcs_loop_sound: Some(meshes.controller_rcs_loop_sound.clone()),
     })
 }
@@ -350,6 +352,11 @@ fn torpedo_kind(
         blast_effect: None,
         launch_effect: None,
         launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+        // The cut-cube pods author no muzzle door (see `spawn_recess` above),
+        // so this is authored-and-inert on them: nothing reports, nothing
+        // plays. It is here so a modelled pod that DOES grow an iris inherits
+        // the servo rather than being silently the one bay without one.
+        door_sound: Some(meshes.torpedo_door_sound.clone()),
         detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
         // Matches the catalog bay: above the hardest single PDC round, so an
         // intercept costs two or three rounds rather than one.

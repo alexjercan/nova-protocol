@@ -14,7 +14,7 @@ use super::link_points::prelude::*;
 /// Ship graph publication, disabled-section behavior, and aggregate health.
 pub mod prelude {
     pub use super::{
-        ShipIntegrityPlugin, ShipWreckFragmentMarker, StructuralCollapseMarker,
+        ShipCollapseSound, ShipIntegrityPlugin, ShipWreckFragmentMarker, StructuralCollapseMarker,
         StructuralCollapseThreshold, DEFAULT_STRUCTURAL_COLLAPSE_THRESHOLD,
     };
 }
@@ -68,6 +68,16 @@ pub struct StructuralCollapseMarker {
     /// first one. The cascade's progress signal - see the no-progress override.
     standing: Option<usize>,
 }
+
+/// The hull's authored collapse sound, snapshotted UNRESOLVED onto the ship
+/// root at spawn from `ShipHull::collapse_sound`.
+///
+/// On the ROOT and not on any section, because the thing it voices is the whole
+/// ship: the audio layer answers [`StructuralCollapseMarker`] landing, which is
+/// the one frame a hull stops being a ship. AUTHORED-OR-SILENT - a hull naming
+/// none comes apart to the sound of its own sections.
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct ShipCollapseSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 /// An inert, persistent compound body made from structure severed from a ship.
 /// It is not a spaceship and owns no control, allegiance, or scenario identity.

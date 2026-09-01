@@ -98,7 +98,10 @@ pub(super) fn insert_torpedo_section(
 
     commands
         .entity(entity)
-        .insert(TorpedoSectionSpawnerEntity(spawner))
+        .insert((
+            TorpedoSectionSpawnerEntity(spawner),
+            TorpedoSectionDoorSound(config.door_sound.clone()),
+        ))
         .add_children(&[body, spawner]);
 
     // Opt-in finite ammo: a magazine on the torpedo SECTION entity (the one
@@ -565,8 +568,37 @@ pub(super) fn drive_muzzle_doors(
         };
 
         let target = if wants_fire || clearing { 1.0 } else { 0.0 };
+        // The report is the change of TARGET, not of progress: a door 40% open
+        // reads the same whether it is opening or closing, and only the target
+        // says which. A bay with no authored `MuzzleDoor` track has no iris and
+        // reports nothing - there is no door to hear.
+        //
+        // Once per SALVO rather than once per shot, and for free: the held
+        // trigger keeps the target at 1 across the whole burst, so the edge is
+        // the burst's beginning and the hold's expiry is its end.
+        if let Some(was) = animations.cue_target(SectionAnimationCue::MuzzleDoor) {
+            if was != target {
+                commands.trigger(TorpedoBayDoorsMoved {
+                    entity: section,
+                    opening: target > was,
+                });
+            }
+        }
         animations.set_cue(SectionAnimationCue::MuzzleDoor, target);
     }
+}
+
+/// A bay's muzzle iris started to move. The seam the audio half hangs the
+/// servo on, so the launch path itself stays headless - the same shape the
+/// turret housing's [`TurretStowDoorsMoved`] uses.
+///
+/// [`TurretStowDoorsMoved`]: crate::sections::turret_section::TurretStowDoorsMoved
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct TorpedoBayDoorsMoved {
+    /// The bay whose iris moved.
+    pub entity: Entity,
+    /// True when the petals are unseating, false when they are seating.
+    pub opening: bool,
 }
 
 #[cfg(test)]
@@ -1834,5 +1866,88 @@ mod tests {
             weave_rate: 0.0,
             ..default()
         }
+    }
+
+    /// Every `TorpedoBayDoorsMoved` a rig has seen, newest last.
+    #[derive(Resource, Default)]
+    struct Reported(Vec<bool>);
+
+    /// A bay on a ship, its trigger under the test's control, watched for
+    /// door reports. `track` is `None` for a bay with no iris at all.
+    fn reporting_bay_app(track: Option<SectionAnimations>) -> (App, Entity) {
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.init_resource::<Reported>();
+        app.add_plugins(SectionAnimationPlugin);
+        app.add_systems(Update, drive_muzzle_doors);
+        app.add_observer(
+            |moved: On<TorpedoBayDoorsMoved>, mut seen: ResMut<Reported>| {
+                seen.0.push(moved.opening);
+            },
+        );
+        let ship = app.world_mut().spawn_empty().id();
+        let mut section = app.world_mut().spawn((
+            TorpedoSectionMarker,
+            TorpedoSectionInput(false),
+            ChildOf(ship),
+        ));
+        if let Some(track) = track {
+            section.insert(track);
+        }
+        let section = section.id();
+        (app, section)
+    }
+
+    /// Hold or release the bay's trigger, then run one frame.
+    fn trigger(app: &mut App, section: Entity, held: bool) {
+        app.world_mut()
+            .entity_mut(section)
+            .insert(TorpedoSectionInput(held));
+        step(app, 16);
+    }
+
+    /// The report is the EDGE of the door's target, which is what the audio
+    /// half needs and what a progress read cannot give it: one cue per salvo,
+    /// with the direction attached, and nothing at all while the petals are
+    /// mid-travel.
+    #[test]
+    fn the_iris_reports_once_per_salvo_with_the_direction_it_is_travelling() {
+        let (mut app, section) = reporting_bay_app(Some(door_track(0.1, 0.1)));
+        step(&mut app, 0);
+        assert!(
+            app.world().resource::<Reported>().0.is_empty(),
+            "a resting bay says nothing"
+        );
+
+        trigger(&mut app, section, true);
+        assert_eq!(app.world().resource::<Reported>().0, vec![true]);
+
+        // Still held, petals still travelling: no second cue.
+        step(&mut app, 16);
+        step(&mut app, 16);
+        assert_eq!(
+            app.world().resource::<Reported>().0,
+            vec![true],
+            "a held trigger is one salvo, not one cue per frame"
+        );
+
+        trigger(&mut app, section, false);
+        assert_eq!(
+            app.world().resource::<Reported>().0,
+            vec![true, false],
+            "the release is the salvo's end, reported closing"
+        );
+    }
+
+    /// A bay with no authored `MuzzleDoor` track has no iris. It launches
+    /// immediately and must report nothing, or the audio half would voice a
+    /// door the cut-cube pods do not have.
+    #[test]
+    fn a_doorless_bay_never_reports() {
+        let (mut app, section) = reporting_bay_app(None);
+        step(&mut app, 0);
+        trigger(&mut app, section, true);
+        trigger(&mut app, section, false);
+        assert!(app.world().resource::<Reported>().0.is_empty());
     }
 }

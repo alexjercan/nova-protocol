@@ -739,6 +739,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 radar_deny_sound: Some(meshes.controller_radar_deny_sound.clone()),
                 radar_retarget_sound: Some(meshes.controller_radar_retarget_sound.clone()),
                 safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
+                warn_lock_sound: Some(meshes.controller_warn_lock_sound.clone()),
+                ammo_dry_sound: Some(meshes.controller_ammo_dry_sound.clone()),
                 rcs_loop_sound: Some(meshes.controller_rcs_loop_sound.clone()),
             }),
         },
@@ -947,6 +949,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // basic drive's full burn, delivered in one instant.
                 recoil_impulse: 45.0,
                 fire_sound: Some(meshes.railgun_fire_sound.clone()),
+                charge_sound: Some(meshes.railgun_charge_sound.clone()),
+                reload_sound: Some(meshes.railgun_reload_sound.clone()),
                 // One shell in the air per gun, ever. The magazine IS the
                 // design: a lance that could queue a second shot would be a
                 // turret with a long fire rate.
@@ -1015,6 +1019,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 blast_effect: None,
                 launch_effect: None,
                 launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+                door_sound: Some(meshes.torpedo_door_sound.clone()),
                 detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
                 // Armored ordnance: a PDC burst (~800 DPS) cannot chew
                 // through this inside the ~6 s closing window, so point
@@ -1180,6 +1185,7 @@ fn torpedo_bay_prototype(
             blast_effect: None,
             launch_effect: None,
             launch_sound: Some(meshes.torpedo_launch_sound.clone()),
+            door_sound: Some(meshes.torpedo_door_sound.clone()),
             // The blast IS the destruction voice: same wav as section
             // destruction (per-target authoring; playtest can diverge it).
             detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),

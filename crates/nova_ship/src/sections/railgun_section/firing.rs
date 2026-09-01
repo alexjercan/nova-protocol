@@ -261,3 +261,16 @@ pub struct RailgunFired {
 /// owns the sound, and a lance that authors none fires silently.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct RailgunSectionFireSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
+
+/// The lance's authored capacitor loop, snapshotted onto the section at spawn.
+/// Read by the audio layer's charge loop, which opens one voice per charging
+/// lance and retires it on the shot.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct RailgunSectionChargeSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
+
+/// The lance's authored breech cycle, snapshotted onto the section at spawn.
+/// Played when [`SectionReloadComplete`] lands on this gun.
+///
+/// [`SectionReloadComplete`]: crate::sections::prelude::SectionReloadComplete
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct RailgunSectionReloadSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
