@@ -1,8 +1,8 @@
 # Railgun: a spinal kinetic weapon family
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 72
-- TAGS: v0.13.0,content,ship,weapon
+- TAGS: v0.13.0, content, ship, weapon
 
 Promoted 2026-08-31 from ideation into v0.13.0: the release's new section.
 
@@ -202,3 +202,42 @@ a player-built ship carrying a lance, which is the beat this task chose.
   `20260824-125955` if that lands later - record it).
 - Recoil visibly moves the firing ship.
 - At least one scenario or campaign beat features it.
+
+## Closed
+
+All three met.
+
+- **Placeable, chargeable, firable, with model and effect.** The lance is a
+  `SectionKind::Railgun` arm in the catalog, `hide_in_editor: false`, wearing
+  `railgun_lance.glb` with the `charge_bolt` track walking its bore. It did NOT
+  defer audio to `20260824-125955`: it authors `railgun_fire_sound` and reports
+  on the shot. Charge glow, muzzle flash, brake sparks and a camera kick came
+  in the second pass.
+- **Recoil visibly moves the firing ship.** Applied at the muzzle, not the
+  centre of mass, so an off-axis bore yaws as well as pushes. Held as invariant
+  4 of `system_railgun_lance` and confirmed in the seat.
+- **At least one beat features it.** The sandbox's `picket_lance`, and - after
+  the playtest asked for it - a bow stamp on every `wfc_arena` hull, bound to
+  `R` for a player slot.
+
+Flown and accepted by the owner. What the playtest raised and where it went:
+the sight vanishing during the reload was a real defect and is fixed; the
+mouse sensitivity was judged fair for a one-shot weapon and left alone; the
+frame-rate drop did not reproduce (it was ~40 FPS in one session and ~140 in
+the next, with the sight drawing MORE in the second) and is not treated as a
+lance defect.
+
+Deliberately not done here:
+
+- **No align key.** A modifier that rotates the ship while the combat stance is
+  held was considered and dropped. The combat lock already keeps weapons hot
+  with the stance released, so a pilot can lock, align in normal flight with
+  the sight live, and then commit - a second way to do that is a mechanic to
+  teach for no new capability. `rcs_modifier` is the shape to copy if playtest
+  ever disagrees.
+- **The AI does not FLY the shot.** It commits when an orbit happens to sweep
+  the bore across a target it is already fighting. That is recorded in
+  `input/ai/railgun.rs` itself, and the lance run - break the orbit, roll onto
+  the line, commit, peel off - is `20260901-104359`.
+- **The sight's on-screen look is owner-verified, not test-verified.** Its
+  geometry and depth read have five tests; how it reads at speed does not.
