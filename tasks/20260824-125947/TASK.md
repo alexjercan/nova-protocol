@@ -51,10 +51,77 @@ thickness round fielded brake diameters 0.50 / 0.60 / 0.75 of the cell
 
 Landed as squash `020e3306`: the lance recipe
 (`scripts/section-part-recipes/railgun_lance.json`), the staged mockup
-(`art/part-candidates/sections/railgun_lance.glb`), and a railgun row
+(since promoted to `assets/base/gltf/railgun_lance.glb`), and a railgun row
 in the default `screenshot_section_gallery` grid - no env switch. The
 dropped mockups and thickness variants are off disk; this section is
 their record. Design side quest CLOSED - next work here is gameplay.
+
+## Mechanics round (2026-09-01)
+
+Four decisions taken with the owner, in the order they were asked:
+
+1. FIRE VERB - tap to commit, auto-fires at full charge. The trigger
+   starts the charge and nothing stops it: releasing, or being told to
+   safe the ship, are two different answers (see 3). The commit IS the
+   decision, so the alignment that matters is the one at the END of the
+   charge, not at the tap.
+2. PIERCE DEPTH - true through-and-through: POWER only, no layer cap.
+   The authored round carries `layers: u32::MAX` and its `slug_power` is
+   the whole bound on depth.
+3. AI - allowed, on a deliberately crude gate (engage-like state, a ship
+   target, bore within ~8 degrees, target inside 0.6 of reach, line of
+   fire clear, 14 s cooldown). `20260901-104359` is the follow-up that
+   teaches it to FLY a lance run.
+4. BEAT - the systems range first (`system_railgun_lance`), then the
+   editor sandbox only. Shipped scenarios are untouched; improving them
+   is already someone else's task.
+
+Two consequences worth recording:
+
+- `nova_gameplay::rounds` used ONE constant for both the across-step bite
+  ring and the within-step resolution cap. A slug at lance speed crosses
+  a whole hull inside one 15.6 ms step, so that cap WAS the pierce layer
+  cap decision 2 rejects - silently, whatever the round authored. Split
+  into `BITE_MEMORY` (8, the ring) and `MAX_BITES_PER_STEP` (32, a
+  runaway backstop), pinned by
+  `a_lance_speed_pierce_round_rakes_a_whole_hull_in_one_step`.
+- Safing the ship mid-charge DUMPS the charge and KEEPS the shell. The
+  commit is un-abortable by the trigger, not by the safety - a lowered
+  ship stays cold, which is the rule every other weapon already follows.
+
+Recoil is `apply_linear_impulse_at_point` at the MUZZLE, not at the
+centre of mass, so a lance bolted off the ship's axis yaws it as well as
+pushing it. That is what makes "put it on the spine" a real decision.
+
+Audio ships now rather than deferring to `20260824-125955`: the lance
+answers its own `RailgunFired` report and plays the authored sound
+(currently the launch thump, per-target so playtest can diverge it).
+
+Where it landed, in the order the beat decision set:
+
+- `examples/systems/system_railgun_lance.rs` - the range. Six 500 hp plates
+  on 6 u centres, one commit, and five markers: the commit outliving the
+  trigger, the bolt tracking the charge, one slug raking every layer, the
+  recoil moving the ship, and the one-shell magazine. Verified live under
+  Xvfb: all six plates read 380.0 (500 - 120) off a single shot.
+- The editor sandbox's third picket - already named `picket_lance` before any
+  of this - mounts the gun. Its PDC moves from the nose face to the nose roof
+  so the bore is not staring at its own turret. One picket, not three: a
+  telegraphed charge is fair, three at once is a range you stop exploring.
+- The ammo readout grew a `Railgun` bar in the slug's pierce blue. One pip is
+  one pip, so the HUE is what separates a spent bay from a spent lance.
+
+Two notes for whoever tunes this next:
+
+- `probe run system_railgun_lance` scores 7/8. The eighth,
+  `fps_within_baseline`, reads "armed and silent" for EVERY systems range -
+  `system_blast_penetration` at HEAD fails it identically - because no range
+  emits a frametime capture and the repo has no baseline for one. Not a
+  railgun defect.
+- The range holds `MouseButton::Right` in `PreUpdate` rather than writing
+  `WeaponsHot`. The flag is derived from the held combat stance every frame,
+  so a range that pokes it charges for two ticks and dumps. Any future
+  weapon range wants the same shape.
 
 ## Done when
 

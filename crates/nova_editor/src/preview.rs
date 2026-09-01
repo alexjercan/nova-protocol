@@ -88,7 +88,11 @@ pub(crate) fn insert_preview_section(
         SectionKind::Torpedo(torpedo) => {
             entity.insert(preview_torpedo_section(torpedo.clone()));
         }
+        SectionKind::Railgun(railgun) => {
+            entity.insert(preview_railgun_section(railgun.clone()));
+        }
     }
+
     if role == PreviewRole::Display {
         // Dropped rather than never inserted: the preview bundle is one shared
         // recipe, and a display copy is that recipe minus its identity.

@@ -51,6 +51,8 @@
         "gltf/pdc_twin_barrel.glb",
         "gltf/pdc_housing.glb",
         "gltf/bay_tube.glb",
+        "gltf/railgun_lance.glb",
+
         // Semantic ship parts generated from the approved Kenney recipes.
         "gltf/parts/cargoa/engine_port.glb",
         "gltf/parts/cargoa/engine_starboard.glb",

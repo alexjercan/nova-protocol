@@ -27,7 +27,7 @@ use crate::terminal::{
 pub struct SectionCode(pub String);
 
 /// The code prefix for a section kind (`HULL`, `THR`, `CTL`, `PDC` for turrets,
-/// `TRB` for torpedo bays).
+/// `TRB` for torpedo bays, `RAIL` for railguns).
 pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
     match kind {
         SectionClass::Hull => "HULL",
@@ -35,6 +35,7 @@ pub(crate) fn code_prefix(kind: SectionClass) -> &'static str {
         SectionClass::Controller => "CTL",
         SectionClass::Turret => "PDC",
         SectionClass::Torpedo => "TRB",
+        SectionClass::Railgun => "RAIL",
     }
 }
 
@@ -48,6 +49,7 @@ pub(crate) fn kind_glyph(kind: SectionClass) -> &'static str {
         SectionClass::Controller => "@",
         SectionClass::Turret => "T",
         SectionClass::Torpedo => "^",
+        SectionClass::Railgun => "=",
     }
 }
 
@@ -59,6 +61,7 @@ pub(crate) fn kind_description(kind: SectionClass) -> &'static str {
         SectionClass::Controller => "Command core; runs the ship.",
         SectionClass::Turret => "Point-defence gun.",
         SectionClass::Torpedo => "Torpedo launch tube.",
+        SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
     }
 }
 
@@ -70,6 +73,7 @@ pub(crate) fn kind_index(kind: SectionClass) -> usize {
         SectionClass::Controller => 2,
         SectionClass::Turret => 3,
         SectionClass::Torpedo => 4,
+        SectionClass::Railgun => 5,
     }
 }
 
@@ -106,7 +110,8 @@ pub(crate) fn assign_section_codes(
     };
     // The highest index already handed out per kind, so new sections continue the
     // sequence rather than colliding.
-    let mut next: [u32; 5] = [0; 5];
+    let mut next: [u32; 6] = [0; 6];
+
     let mut unassigned: Vec<(Entity, SectionClass, String)> = Vec::new();
     for (entity, child, code, id, class, hull, controller, thruster, turret, torpedo) in &q_sections
     {
@@ -457,7 +462,11 @@ impl PanelActions {
 }
 
 pub(crate) fn panel_action_state(view: &ShipSectionView) -> PanelActions {
-    let is_weapon = matches!(view.kind, SectionClass::Turret | SectionClass::Torpedo);
+    let is_weapon = matches!(
+        view.kind,
+        SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun
+    );
+
     let repair_enabled = view.health.as_ref().map(|h| h.max > 0.0).unwrap_or(false);
     let reload_enabled = is_weapon && view.ammo.is_some();
 

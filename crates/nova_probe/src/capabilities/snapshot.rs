@@ -124,12 +124,12 @@ use nova_scenario::{
 use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, read_plates, read_structure, section_cell, skin_report,
     skin_summary, AITarget, CombatLock, GameStyles, PlacedPart, PlateReport, PointDefenseMount,
-    SectionAmmo, SectionExit, SectionFixture, SectionFootprint, SectionLinkPoints, SectionReload,
-    ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker,
-    TorpedoArming, TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition,
-    TorpedoType, TravelLock, TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput,
-    TurretSectionMuzzleEntity, TurretSectionTargetInput, WeaponsHot, WithheldVerbs,
-    TURRET_ON_TARGET_RAD,
+    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
+    SectionLinkPoints, SectionReload, ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle,
+    SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast, TorpedoSectionInput,
+    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock, TurretDefenseTarget,
+    TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity, TurretSectionTargetInput,
+    WeaponsHot, WithheldVerbs, TURRET_ON_TARGET_RAD,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -958,6 +958,7 @@ fn weapon(
     let kind = match class? {
         SectionClass::Turret => "turret",
         SectionClass::Torpedo => "torpedo_bay",
+        SectionClass::Railgun => "railgun",
         _ => return None,
     };
     let firing = world
@@ -967,7 +968,13 @@ fn weapon(
             world
                 .get::<TorpedoSectionInput>(entity)
                 .map(|input| input.0)
+        })
+        .or_else(|| {
+            world
+                .get::<RailgunSectionInput>(entity)
+                .map(|input| input.0)
         });
+
     let aim_error = muzzle_aim_error_deg(world, entity);
     Some(serde_json::json!({
         "kind": kind,
@@ -975,7 +982,15 @@ fn weapon(
         // Rounds leave only when both hold, so the pair is what answers "did
         // this mount fire while off target".
         "firing": firing,
+        // Only a railgun has one. A lance that is charging has already
+        // committed - the trigger is long released - so `firing` alone cannot
+        // tell a probe whether a shot is on its way.
+        "charge": world.get::<RailgunCharge>(entity).map(|charge| match charge {
+            RailgunCharge::Ready => serde_json::Value::Null,
+            RailgunCharge::Charging { elapsed } => serde_json::json!(num(*elapsed)),
+        }),
         "aim_error_deg": aim_error.map(num),
+
         "on_target": aim_error.map(|error| error <= TURRET_ON_TARGET_RAD.to_degrees()),
         "ammo": world.get::<SectionAmmo>(entity).map(|ammo| serde_json::json!({
             "rounds": ammo.rounds,

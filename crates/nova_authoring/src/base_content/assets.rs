@@ -44,6 +44,10 @@ pub struct BaseContentAssets {
     /// into, with the sliding lid nodes the `StowDoors` track drives.
     pub turret_housing: AssetRef<WorldAsset>,
     pub torpedo_bay: AssetRef<WorldAsset>,
+    /// The spinal lance: one 1x1x3 body carrying the `charge_bolt` node the
+    /// `Charge` track walks up the bore.
+    pub railgun_lance: AssetRef<WorldAsset>,
+
     /// The turret fire sound, authored the same `self:/` way as the meshes.
     /// Serialized into the section config's `fire_sound` field so base turrets
     /// ship + reference their weapon sound through the scheme pipeline;
@@ -54,6 +58,10 @@ pub struct BaseContentAssets {
     pub turret_dry_fire_sound: AssetRef<AudioSource>,
     /// The torpedo bay launch sound.
     pub torpedo_launch_sound: AssetRef<AudioSource>,
+    /// The lance's discharge. Shares the launch thump, which is the heaviest
+    /// voice in the bank; per-target authoring, so playtest can diverge it.
+    pub railgun_fire_sound: AssetRef<AudioSource>,
+
     /// The controller's radar/lock/safety feedback cues.
     pub controller_lock_on_sound: AssetRef<AudioSource>,
     pub controller_lock_off_sound: AssetRef<AudioSource>,
@@ -163,9 +171,13 @@ impl BaseContentAssets {
             ),
             turret_housing: AssetRef::from("self://gltf/pdc_housing.glb#Scene0".to_string()),
             torpedo_bay: AssetRef::from("self://gltf/bay_tube.glb#Scene0".to_string()),
+            railgun_lance: AssetRef::from("self://gltf/railgun_lance.glb#Scene0".to_string()),
+
             turret_fire_sound: AssetRef::from("self://sounds/turret_fire.wav".to_string()),
             turret_dry_fire_sound: AssetRef::from("self://sounds/dry_fire.wav".to_string()),
             torpedo_launch_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+            railgun_fire_sound: AssetRef::from("self://sounds/torpedo_launch.wav".to_string()),
+
             controller_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
             controller_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),
             controller_radar_deny_sound: AssetRef::from("self://sounds/radar_deny.wav".to_string()),

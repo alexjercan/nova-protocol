@@ -68,6 +68,11 @@ pub fn exit_normal(kind: &SectionKind) -> Option<Vec3> {
         // The mount bolts down by -Y and the gun stands on top of it. A turret
         // traverses, so this is the one direction it can always fire.
         SectionKind::Turret(_) => Some(Vec3::Y),
+        // A lance CANNOT traverse: -Z is not one direction it can fire, it is
+        // the only one. So the lane in front of the bore is the strictest
+        // exit on the ship - anything standing there is a shot the gun takes
+        // through its own hull, every time.
+        SectionKind::Railgun(_) => Some(Vec3::NEG_Z),
         SectionKind::Hull(_) | SectionKind::Controller(_) => None,
     }
 }

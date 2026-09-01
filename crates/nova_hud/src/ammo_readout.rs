@@ -14,12 +14,15 @@
 //!   `o` toward an empty `c` as rounds deplete (at least one pip stays lit
 //!   while any round remains, so "nearly empty" never reads as "empty");
 //! - a torpedo bay shows a `||||` row of one pip per round of capacity, the
-//!   remaining rounds lit.
+//!   remaining rounds lit;
+//! - a railgun shows the same row in Pierce blue, which for the shipped lance
+//!   is a single pip: loaded or spent.
 //!
 //! While a weapon reloads, only the next authored batch pulses above the live
 //! rounds. Its alpha rises with delay progress, then the pips become solid when
 //! the batch lands. A spent PDC previews its incoming ring segments; a torpedo
-//! bay previews exactly one returning torpedo.
+//! bay previews exactly one returning torpedo, and a spent lance previews the
+//! one shell coming back across its long reload.
 //!
 //! A weapon with no `SectionAmmo` fires without limit (the `infinite_ammo`
 //! path forces `ammo_capacity = None`, so the component is simply absent):
@@ -119,6 +122,11 @@ pub enum AmmoReadoutKind {
     Turret,
     /// A `||||` row of one pip per round of capacity, `rounds` of them lit.
     Torpedo,
+    /// The same bar, in the slug's Pierce blue. A separate kind rather than a
+    /// one-pip torpedo because the hue is the point: a spinal magazine of one
+    /// says almost nothing by its length, and the colour is what tells you
+    /// which of your two loaded weapons just went dark.
+    Railgun,
 }
 
 /// A single chunk of a gauge, carrying its position in the lit order.
@@ -272,19 +280,27 @@ fn spawn_turret_readout(commands: &mut Commands, layer: Entity, turret: Entity) 
     });
 }
 
-/// Spawn one torpedo bar readout under `layer` for `torpedo` with `capacity`
-/// pips.
-fn spawn_torpedo_readout(commands: &mut Commands, layer: Entity, torpedo: Entity, capacity: u32) {
+/// Spawn one bar readout under `layer` for `section` with `capacity` pips.
+///
+/// Shared by the torpedo bay and the lance: both are magazines you count, and
+/// `kind` is what the driver reads back to pick the hue.
+fn spawn_bar_readout(
+    commands: &mut Commands,
+    layer: Entity,
+    section: Entity,
+    capacity: u32,
+    kind: AmmoReadoutKind,
+) {
     let pips = capacity.max(1);
     let width = pips as f32 * BAR_PIP_W + (pips.saturating_sub(1)) as f32 * BAR_PIP_GAP;
     commands.entity(layer).with_children(|layer_children| {
         layer_children
             .spawn((
-                Name::new("AmmoReadout(Torpedo)"),
+                Name::new(format!("AmmoReadout({kind:?})")),
                 AmmoReadoutMarker,
-                AmmoReadoutSection(torpedo),
-                AmmoReadoutKind::Torpedo,
-                readout_indicator(torpedo, Vec2::new(width, BAR_PIP_H)),
+                AmmoReadoutSection(section),
+                kind,
+                readout_indicator(section, Vec2::new(width, BAR_PIP_H)),
             ))
             // Replace the widget's plain Node with a flex row so the bar pips
             // lay out left-to-right; the widget still writes size/position each
@@ -332,6 +348,7 @@ fn sync_ammo_readouts(
     q_layer: Query<Entity, With<AmmoReadoutHudMarker>>,
     q_turrets: Query<(Entity, &ChildOf), (With<TurretSectionMarker>, With<SectionAmmo>)>,
     q_torpedoes: Query<(Entity, &ChildOf, &SectionAmmo), With<TorpedoSectionMarker>>,
+    q_railguns: Query<(Entity, &ChildOf, &SectionAmmo), With<RailgunSectionMarker>>,
     q_readouts: Query<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>,
     q_player: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
@@ -354,6 +371,9 @@ fn sync_ammo_readouts(
             .is_ok_and(|(_, ChildOf(parent))| *parent == player)
             || q_torpedoes
                 .get(**section)
+                .is_ok_and(|(_, ChildOf(parent), _)| *parent == player)
+            || q_railguns
+                .get(**section)
                 .is_ok_and(|(_, ChildOf(parent), _)| *parent == player);
         if !alive {
             commands.entity(readout).despawn();
@@ -369,7 +389,24 @@ fn sync_ammo_readouts(
     }
     for (torpedo, ChildOf(parent), ammo) in &q_torpedoes {
         if *parent == player && !has_readout(torpedo) {
-            spawn_torpedo_readout(&mut commands, layer, torpedo, ammo.capacity);
+            spawn_bar_readout(
+                &mut commands,
+                layer,
+                torpedo,
+                ammo.capacity,
+                AmmoReadoutKind::Torpedo,
+            );
+        }
+    }
+    for (railgun, ChildOf(parent), ammo) in &q_railguns {
+        if *parent == player && !has_readout(railgun) {
+            spawn_bar_readout(
+                &mut commands,
+                layer,
+                railgun,
+                ammo.capacity,
+                AmmoReadoutKind::Railgun,
+            );
         }
     }
 }
@@ -459,6 +496,9 @@ fn drive_ammo_readouts(
                     .unwrap_or(DamageType::Kinetic),
             ),
             AmmoReadoutKind::Torpedo => (ammo.rounds as usize, DamageType::Explosive),
+            // Pierce, and not read off a `LoadedBullet`: a lance has no
+            // magazine of types to choose from, it authors the one slug.
+            AmmoReadoutKind::Railgun => (ammo.rounds as usize, DamageType::Pierce),
         };
         // Preview only the next batch. Progress changes its pulse brightness,
         // not its size, so the gauge says both how much is coming and how near.
@@ -470,7 +510,9 @@ fn drive_ammo_readouts(
             AmmoReadoutKind::Turret => {
                 turret_lit_segments(reload.incoming_rounds(ammo), ammo.capacity)
             }
-            AmmoReadoutKind::Torpedo => reload.incoming_rounds(ammo) as usize,
+            AmmoReadoutKind::Torpedo | AmmoReadoutKind::Railgun => {
+                reload.incoming_rounds(ammo) as usize
+            }
         });
         // Nearly dry: the whole group goes amber and breathes, so a magazine
         // about to run out is visible without reading a number (demo 2
@@ -625,6 +667,14 @@ mod tests {
 
     fn spawn_torpedo(world: &mut World, parent: Entity, ammo: Option<SectionAmmo>) -> Entity {
         let mut ec = world.spawn((TorpedoSectionMarker, ChildOf(parent)));
+        if let Some(ammo) = ammo {
+            ec.insert(ammo);
+        }
+        ec.id()
+    }
+
+    fn spawn_railgun(world: &mut World, parent: Entity, ammo: Option<SectionAmmo>) -> Entity {
+        let mut ec = world.spawn((RailgunSectionMarker, ChildOf(parent)));
         if let Some(ammo) = ammo {
             ec.insert(ammo);
         }
@@ -810,6 +860,48 @@ mod tests {
             .rounds = 0;
         world.run_system_once(drive_ammo_readouts).unwrap();
         assert_eq!(lit_pip_count(&mut world, turret), 0);
+    }
+
+    /// The lance gets a gauge like any other finite magazine, and it is the
+    /// HUE that carries the message: one pip is one pip either way, so a bar
+    /// in Explosive orange and a bar in Pierce blue is how the player tells a
+    /// spent bay from a spent lance without counting anything.
+    #[test]
+    fn a_spent_lance_darkens_its_one_pierce_blue_pip() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.spawn(ammo_readout_hud());
+        let player = spawn_player(&mut world);
+        let lance = spawn_railgun(&mut world, player, Some(SectionAmmo::new(1)));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+
+        assert_eq!(
+            readout_sections(&mut world),
+            vec![lance],
+            "a lance with a finite magazine draws a readout"
+        );
+
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(lit_pip_count(&mut world, lance), 1, "loaded");
+        let lit = first_lit_pip_color(&mut world, lance);
+        assert_eq!(
+            lit,
+            damage_type_color(DamageType::Pierce).with_alpha(LIT_ALPHA),
+            "the slug is Pierce, and the gauge says so"
+        );
+        assert_ne!(
+            lit,
+            damage_type_color(DamageType::Explosive).with_alpha(LIT_ALPHA),
+            "a lance must not read as a torpedo bay - the hue is the whole tell"
+        );
+
+        world
+            .entity_mut(lance)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 0;
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(lit_pip_count(&mut world, lance), 0, "spent");
     }
 
     #[test]

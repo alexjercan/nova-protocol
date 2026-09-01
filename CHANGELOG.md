@@ -25,6 +25,23 @@ does NOT get an entry - and it is the only place they are written down.
 - A torpedo leaves through the bay's muzzle iris: the petals wind open before
   ejection, the round slides its whole length out of the tube, and held fire
   keeps the doors gaping.
+- A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
+  Tapping the trigger commits, the bolt walks the bore, and the shot leaves
+  whether or not the nose is still on the target.
+- A lance slug rakes through everything in the line. Its power, not a layer
+  count, is the only bound on depth, so one shot can cross a whole hull.
+- Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
+  so a lance mounted off the ship's axis yaws it as well as pushing it back.
+- A lance holds one shell and gets it back on a twelve-second idle reload. The
+  charge cue is a readable tell: the glowing bolt climbing the rails.
+
+### Scenarios & Objectives
+- The sandbox's farthest picket mounts a lance. It wakes like the others, but
+  a shot that lines up on you crosses your whole ship.
+
+### Interface & HUD
+- A lance carries the same ammo gauge as a turret or a bay, drawn in the
+  slug's pierce blue, so a spent shell and its long reload read at a glance.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull

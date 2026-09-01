@@ -7,7 +7,7 @@
 //!
 //! What is out there: two seeded rock belts, a corridor of inert target hulks
 //! to shoot, three DORMANT pickets that only fight once you paint or crowd
-//! them, two beacons that swap the sky, one planetoid parked far enough away to
+//! them (the farthest of which mounts the spinal lance), two beacons that swap the sky, one planetoid parked far enough away to
 //! be scenery rather than a wall (see [`PLANETOID_POSITION`]), and the light
 //! rig that makes any of it visible.
 //!
@@ -28,7 +28,7 @@ use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
     BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID, LIGHT_HULL_SECTION_ID,
-    PDC_KINETIC_TURRET_SECTION_ID, REINFORCED_HULL_SECTION_ID,
+    PDC_KINETIC_TURRET_SECTION_ID, RAILGUN_LANCE_SECTION_ID, REINFORCED_HULL_SECTION_ID,
 };
 
 use crate::{
@@ -90,6 +90,12 @@ struct Picket {
     position: Vec3,
     /// Radius of the sphere that wakes it when the player flies in.
     trip_radius: f32,
+    /// Carries the spinal lance as well as the shared PDC.
+    ///
+    /// One picket, not three: a lance is a telegraphed 1.5 s charge followed
+    /// by a shot that guts whatever the bore was on, and meeting three of
+    /// them at once is a range that kills you for exploring it.
+    spinal: bool,
 }
 
 /// The three pickets. They spawn NEUTRAL with a live AI pilot, which is what
@@ -103,6 +109,7 @@ const PICKETS: [Picket; 3] = [
         callsign: "Warden",
         position: Vec3::new(520.0, -45.0, -290.0),
         trip_radius: 150.0,
+        spinal: false,
     },
     Picket {
         id: "picket_sentinel",
@@ -110,6 +117,7 @@ const PICKETS: [Picket; 3] = [
         callsign: "Sentinel",
         position: Vec3::new(-300.0, 70.0, -680.0),
         trip_radius: 150.0,
+        spinal: false,
     },
     Picket {
         id: "picket_lance",
@@ -117,6 +125,7 @@ const PICKETS: [Picket; 3] = [
         callsign: "Lance",
         position: Vec3::new(-20.0, 130.0, -740.0),
         trip_radius: 170.0,
+        spinal: true,
     },
 ];
 
@@ -720,6 +729,11 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
 
 /// One dormant picket: a real armed corvette under AI, spawned NEUTRAL.
 ///
+/// `spinal` pickets carry the railgun lance on top of the shared PDC. That is
+/// the sandbox's whole railgun beat: the only shipped craft that fires one,
+/// parked at the far end of the range so a builder meets the charge cue before
+/// they meet the slug.
+///
 /// Neutral is the dormancy. The AI runs its passive routine (here: station
 /// keeping, no patrol) and never acquires, because acquisition only looks at
 /// hostile contacts. `wake_picket` flips the allegiance and the same pilot
@@ -778,15 +792,41 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                         Quat::IDENTITY,
                         BASIC_THRUSTER_SECTION_ID,
                     ),
-                    section(
-                        "turret",
+                    if picket.spinal {
+                        // The bore owns the nose face, so the PDC moves to the
+                        // roof of the same plate rather than standing in front
+                        // of the muzzle.
+                        section(
+                            "turret",
+                            Vec3::new(0.0, 0.75, -1.0),
+                            Quat::IDENTITY,
+                            PDC_KINETIC_TURRET_SECTION_ID,
+                        )
+                    } else {
                         // Seated on the rear hull's -Z face: the shared PDC
                         // bolts down by its base plate a quarter-cell in.
-                        Vec3::new(0.0, 0.0, -1.75),
-                        Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                        PDC_KINETIC_TURRET_SECTION_ID,
-                    ),
-                ],
+                        section(
+                            "turret",
+                            Vec3::new(0.0, 0.0, -1.75),
+                            Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                            PDC_KINETIC_TURRET_SECTION_ID,
+                        )
+                    },
+                ]
+                .into_iter()
+                .chain(picket.spinal.then(|| {
+                    // Three cells long, breech on the nose plate's -Z face, so
+                    // the muzzle stands clear at the front of the hull. The
+                    // picket keeps every plate it had - the lance is bolted
+                    // ON, which is what makes it the heavier ship.
+                    section(
+                        "lance",
+                        Vec3::new(0.0, 0.0, -3.0),
+                        Quat::IDENTITY,
+                        RAILGUN_LANCE_SECTION_ID,
+                    )
+                }))
+                .collect(),
                 ..default()
             }),
             ..default()
@@ -1752,6 +1792,53 @@ mod tests {
                 picket.id
             );
         }
+    }
+
+    /// Exactly one picket carries the lance, and it keeps its PDC.
+    ///
+    /// Both halves matter. One, because a range that opens three spinal
+    /// charges on you is a range you stop exploring; and the PDC, because a
+    /// lance-only picket is harmless the moment you are inside its cone,
+    /// which teaches the wrong lesson about closing with one.
+    #[test]
+    fn one_picket_mounts_the_lance_and_still_carries_its_pdc() {
+        let objects = default_world_objects();
+        let mut armed = Vec::new();
+
+        for picket in &PICKETS {
+            let ScenarioObjectKind::Spaceship(ship) = &find(&objects, picket.id).kind else {
+                panic!("'{}' should be a spaceship", picket.id);
+            };
+            let ShipSource::Inline(hull) = &ship.hull else {
+                panic!("'{}' authors its hull inline", picket.id);
+            };
+            let mounts = |prototype: &str| {
+                hull.sections.iter().any(|section| {
+                    matches!(&section.source, SectionSource::Prototype(id) if id == prototype)
+                })
+            };
+
+            assert!(
+                mounts(PDC_KINETIC_TURRET_SECTION_ID),
+                "'{}' keeps its PDC whatever else it carries",
+                picket.id
+            );
+            assert_eq!(
+                mounts(RAILGUN_LANCE_SECTION_ID),
+                picket.spinal,
+                "'{}' carries a lance exactly when it is spinal",
+                picket.id
+            );
+            if picket.spinal {
+                armed.push(picket.id);
+            }
+        }
+
+        assert_eq!(
+            armed,
+            ["picket_lance"],
+            "one lance in the sandbox, not three"
+        );
     }
 
     /// Every beacon swaps the sky when the player flies through it, and the

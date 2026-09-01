@@ -66,6 +66,9 @@ pub(crate) fn section_mark(
         Some(SectionKind::Turret(_)) => ("\u{2316}", "TURRET"),
         // BLACK DIAMOND - a warhead.
         Some(SectionKind::Torpedo(_)) => ("\u{25c6}", "TORPEDO"),
+        // DOUBLE VERTICAL LINE - two rails, and the shot goes between them.
+        Some(SectionKind::Railgun(_)) => ("\u{2016}", "RAILGUN"),
+
         None => ("?", "PART"),
     }
 }

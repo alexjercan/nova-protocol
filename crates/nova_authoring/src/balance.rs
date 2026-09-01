@@ -216,6 +216,18 @@ pub fn ship_stats(
                     .max(EFFECTIVE_RANGE_MARGIN * turret.muzzle_speed * turret.projectile_lifetime);
             }
             SectionKind::Torpedo(_) => stats.torpedo_tubes += 1,
+            SectionKind::Railgun(railgun) => {
+                // One layer's worth. A lance spends its power through as many
+                // sections as it can reach, so the real number depends on the
+                // TARGET - and the audit compares ships, not engagements.
+                let cycle = railgun.charge_seconds
+                    + railgun.reload.map_or(0.0, |reload| reload.delay)
+                    + f32::EPSILON;
+                stats.dps += railgun.slug_damage / cycle;
+                stats.max_effective_range = stats
+                    .max_effective_range
+                    .max(EFFECTIVE_RANGE_MARGIN * railgun.slug_speed * railgun.slug_lifetime);
+            }
             _ => {}
         }
     }

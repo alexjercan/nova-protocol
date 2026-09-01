@@ -156,6 +156,15 @@ fn default_binds_for(
             MouseButton::Left.into(),
             GamepadButton::RightTrigger2.into(),
         ),
+        // Not the trigger the other guns take. A lance commit cannot be
+        // aborted, so sharing a button with the PDC would mean every burst
+        // fired against a fighter also spent the spinal shell.
+        SectionKind::Railgun(_) => placement_binds(
+            keyboard,
+            pad_held,
+            MouseButton::Middle.into(),
+            GamepadButton::RightThumb.into(),
+        ),
     }
 }
 

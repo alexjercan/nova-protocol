@@ -40,9 +40,9 @@
 //! wider than a column at that distance. A hand-run shows every plate.
 //!
 //! The railgun row shows the SETTLED lance design (task 20260824-125947,
-//! picked at diameter 0.60 of the cell): still a mockup staged under
-//! `art/part-candidates/sections/` until the railgun task promotes it into
-//! the catalog. The pick rounds that led here live in this branch's history.
+//! picked at diameter 0.60 of the cell), now promoted into the catalog and
+//! read from there like every other keeper. The pick rounds that led here
+//! live in this branch's history.
 
 use std::path::{Path, PathBuf};
 
@@ -81,11 +81,6 @@ const LABEL_DROP: f32 = 2.0;
 /// picked parts promoted out of `art/part-candidates/sections/` into the
 /// asset tree; the dropped candidates stay behind as the task record.
 const PARTS_DIR: &str = "assets/base/gltf";
-
-/// Where un-promoted mockups stage: the railgun row reads the settled lance
-/// straight from the art tree, nothing enters `assets/base` until its task
-/// promotes it.
-const CANDIDATES_DIR: &str = "art/part-candidates/sections";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -150,9 +145,7 @@ enum Look {
     /// A recipe-generated candidate glb, decoded off disk and shown at
     /// native (cell-unit) size.
     Candidate { file: &'static str },
-    /// A mockup still staged under `art/part-candidates/sections/`, decoded
-    /// and shown exactly like a promoted candidate.
-    Mockup { file: &'static str },
+
     /// The shipped mount: three Blender glbs posed at the joint tree's own
     /// cumulative offsets.
     ShippedTurret,
@@ -316,10 +309,10 @@ fn gallery_rows() -> Vec<Row> {
             slug: "railgun",
             items: vec![Item {
                 id: "railgun_lance",
-                look: Look::Mockup {
+                look: Look::Candidate {
                     file: "railgun_lance.glb",
                 },
-                note: "SETTLED - 1x1x3 spinal lance, diameter 0.60",
+                note: "PICKED - 1x1x3 spinal lance, diameter 0.60",
             }],
         },
     ]
@@ -405,17 +398,7 @@ fn load_gallery(
                         pose,
                     );
                 }
-                Look::Mockup { file } => {
-                    spawn_candidate(
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        item,
-                        CANDIDATES_DIR,
-                        file,
-                        pose,
-                    );
-                }
+
                 Look::ShippedTurret => {
                     let shipped = [
                         ("base/gltf/turret-yaw-01.glb#Scene0", SHIPPED_YAW_AT),

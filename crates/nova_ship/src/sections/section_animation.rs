@@ -29,7 +29,7 @@ pub mod prelude {
 /// Which gameplay moment drives an authored animation track. One cue can
 /// drive several tracks (a stow that folds a cover AND drops the mount); a
 /// cue no system steers rests at progress 0. Add a variant here when a new
-/// mechanic wants art: the railgun charge is the known next consumer.
+/// mechanic wants art.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SectionAnimationCue {
@@ -46,6 +46,18 @@ pub enum SectionAnimationCue {
     /// machine shuts them only after [`Self::StowLift`] reaches 1, and parts
     /// them before raising it.
     StowDoors,
+    /// A charging weapon's capacitor bolt: driven to 1 across the charge and
+    /// snapped back to 0 the instant the shot leaves. The railgun's track
+    /// walks the bolt from the breech to the muzzle brake, so the length of
+    /// bore it has crossed IS how much charge is left to run - a tell the
+    /// firing ship reads on its own hull and an enemy reads across the gap.
+    ///
+    /// Steered by the railgun's charge system, which writes the gameplay
+    /// charge fraction straight onto the track rather than letting it travel
+    /// at its own authored speed: the authored charge time is the ONE clock,
+    /// and art that ran on a second one would promise a shot that had not
+    /// arrived.
+    Charge,
 }
 
 /// How each target node moves as its track's progress runs 0 -> 1, composed

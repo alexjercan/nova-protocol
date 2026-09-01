@@ -18,6 +18,7 @@ pub mod hull_section;
 pub mod integrity;
 pub mod link_points;
 pub mod placeholder_art;
+pub mod railgun_section;
 pub mod section_animation;
 pub mod shell_shape;
 pub mod shell_skin;
@@ -37,11 +38,11 @@ pub mod prelude {
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
         hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
-        live_structure_anchor, placeholder_art::prelude::*, section_animation::prelude::*,
-        shell_shape::prelude::*, shell_skin::prelude::*, skin_decor::prelude::*,
-        skin_reading::prelude::*, skin_report::prelude::*, skin_style::prelude::*,
-        thruster_section::prelude::*, torpedo_section::prelude::*, turret_section::prelude::*,
-        SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        live_structure_anchor, placeholder_art::prelude::*, railgun_section::prelude::*,
+        section_animation::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
+        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
+        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
+        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
     };
 }
 
@@ -243,6 +244,9 @@ impl Plugin for SpaceshipSectionPlugin {
                 render: self.render,
             },
             torpedo_section::TorpedoSectionPlugin {
+                render: self.render,
+            },
+            railgun_section::RailgunSectionPlugin {
                 render: self.render,
             },
             // Not one of the kinds above: cladding is a FIXTURE derived from

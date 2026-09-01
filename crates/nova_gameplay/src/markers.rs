@@ -24,8 +24,9 @@ use crate::{
 /// The whole module - every marker is part of the shared vocabulary.
 pub mod prelude {
     pub use super::{
-        ControllerSectionMarker, PlayerSpaceshipMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
+        ControllerSectionMarker, GunRoundMarker, PlayerSpaceshipMarker, RailgunSectionMarker,
+        RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker, SpaceshipRootMarker,
+        ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
         TurretBulletProjectileMarker, TurretSectionMarker,
     };
 }
@@ -67,6 +68,11 @@ pub struct SectionInactiveMarker;
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TurretSectionMarker;
 
+/// Marker for a spinal railgun section - the gun the HULL aims, as opposed to
+/// the traversing [`TurretSectionMarker`].
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct RailgunSectionMarker;
+
 /// Marker component for thruster sections.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct ThrusterSectionMarker;
@@ -85,6 +91,23 @@ pub struct ControllerSectionMarker;
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoProjectileMarker;
 
+/// Marks anything the round sweep integrates: a straight-line-plus-gravity
+/// path that is not a rigid body and interacts only with what it hits.
+///
+/// The vocabulary word `rounds::advance_rounds` queries on, so a second gun
+/// does not have to wear the turret's marker to be swept. It carries none of
+/// the turret bullet's render or audio wiring, which is exactly why the
+/// railgun slug takes this and not [`TurretBulletProjectileMarker`].
+#[derive(Component, Clone, Debug, Default, Reflect)]
+pub struct GunRoundMarker;
+
 /// Marker for turret bullet projectiles.
 #[derive(Component, Clone, Debug, Reflect)]
+#[require(GunRoundMarker)]
 pub struct TurretBulletProjectileMarker;
+
+/// Marker for a fired railgun slug - one shell in the air per gun, and the
+/// only round in the game that outlives what it hits by design.
+#[derive(Component, Clone, Debug, Reflect)]
+#[require(GunRoundMarker)]
+pub struct RailgunSlugProjectileMarker;

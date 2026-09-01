@@ -21,8 +21,9 @@ pub(crate) enum GalleryCategory {
     Propulsion,
     /// Controller sections.
     Control,
-    /// Turret sections.
+    /// Turret and railgun sections: anything that aims a gun of its own.
     Weapons,
+
     /// Torpedo bays.
     Ordnance,
 }
@@ -56,7 +57,7 @@ impl GalleryCategory {
             SectionKind::Hull(_) => Self::Structure,
             SectionKind::Thruster(_) => Self::Propulsion,
             SectionKind::Controller(_) => Self::Control,
-            SectionKind::Turret(_) => Self::Weapons,
+            SectionKind::Turret(_) | SectionKind::Railgun(_) => Self::Weapons,
             SectionKind::Torpedo(_) => Self::Ordnance,
         }
     }
@@ -203,6 +204,36 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             (
                 "Reload".to_string(),
                 torpedo.reload.map_or_else(
+                    || "none".to_string(),
+                    |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
+                ),
+            ),
+        ],
+        SectionKind::Railgun(railgun) => vec![
+            // Power, not a layer count: a lance is bounded by what it spends,
+            // so this number is the whole answer to "how deep".
+            (
+                "Damage".to_string(),
+                format!(
+                    "{:.1} pierce @ {:.0} power",
+                    railgun.slug_damage, railgun.slug_power
+                ),
+            ),
+            (
+                "Charge".to_string(),
+                format!("{:.2} s", railgun.charge_seconds),
+            ),
+            (
+                "Muzzle".to_string(),
+                format!("{:.0} u/s", railgun.slug_speed),
+            ),
+            (
+                "Recoil".to_string(),
+                format!("{:.0} impulse", railgun.recoil_impulse),
+            ),
+            (
+                "Reload".to_string(),
+                railgun.reload.map_or_else(
                     || "none".to_string(),
                     |reload| format!("+{} / {:.1} s idle", reload.amount, reload.delay),
                 ),

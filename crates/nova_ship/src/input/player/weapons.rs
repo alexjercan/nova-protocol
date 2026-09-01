@@ -322,6 +322,111 @@ pub(super) fn on_torpedo_input_completed(
     **input = false;
 }
 
+/// The player input bindings that commit a railgun shot, snapshotted from its
+/// content `input_mapping`. Same rules as [`SpaceshipThrusterInputBinding`].
+#[derive(Component, Debug, Clone, Deref, DerefMut, Reflect)]
+pub struct SpaceshipRailgunInputBinding(pub Vec<InputSource>);
+
+#[derive(Component, Debug, Clone)]
+pub(super) struct RailgunInputMarker;
+
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(super) struct RailgunInput;
+
+pub(super) fn on_railgun_input_binding(
+    add: On<Insert, SpaceshipRailgunInputBinding>,
+    mut commands: Commands,
+    q_binding: Query<&SpaceshipRailgunInputBinding>,
+    q_actions: Query<&Actions<RailgunInputMarker>>,
+) {
+    let entity = add.entity;
+    trace!("on_railgun_input_binding: entity {:?}", entity);
+
+    let Ok(binding) = q_binding.get(entity) else {
+        return;
+    };
+    if let Ok(actions) = q_actions.get(entity) {
+        for action in actions {
+            commands.entity(action).despawn();
+        }
+    }
+
+    commands.entity(entity).insert((
+        RailgunInputMarker,
+        actions!(
+            RailgunInputMarker[(
+                Name::new("Input: Railgun"),
+                Action::<RailgunInput>::new(),
+                ActionSettings {
+                    consume_input: false,
+                    ..default()
+                },
+                source_bindings(binding.0.iter().copied()),
+            )]
+        ),
+    ));
+}
+
+/// The COMMIT. A press starts the charge and the charge runs to completion
+/// whatever happens to the button, so unlike the turret and the bay there is
+/// nothing here that a release has to undo - see `on_railgun_input_completed`.
+pub(super) fn on_railgun_input(
+    fire: On<Start<RailgunInput>>,
+    mut q_input: Query<&mut RailgunSectionInput, With<RailgunInputMarker>>,
+    q_player_safety: Query<
+        (&WeaponsHot, Option<&RadarState>),
+        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
+    >,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+) {
+    // Observers bypass system-set gating; freeze intent changes while the
+    // pause overlay is up. Releases stay ungated so held keys clear cleanly
+    // during a pause.
+    if pause.get().is_frozen() {
+        return;
+    }
+
+    // The weapons safety denies the PRESS on a managed cold ship, exactly as
+    // it does for the other two weapons. The live section-side gate is still
+    // the enforcement, and it is the half that matters here: safing a ship
+    // mid-charge dumps the charge rather than firing it.
+    let cold = q_player_safety
+        .iter()
+        .next()
+        .is_some_and(|(hot, radar)| !hot.0 || (HOLD_FIRE_DURING_RADAR && radar.is_some()));
+    if cold {
+        return;
+    }
+
+    let entity = fire.event().context;
+    trace!("on_railgun_input: entity {:?}", entity);
+
+    let Ok(mut input) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **input = true;
+}
+
+/// Drop the trigger. It cannot abort a charge already running - the section
+/// reads this only to decide whether to COMMIT - so a release means "do not
+/// start another shot", which is what makes a tap one shot and a hold the gun
+/// cycling at its own cadence.
+pub(super) fn on_railgun_input_completed(
+    fire: On<Complete<RailgunInput>>,
+    mut q_input: Query<&mut RailgunSectionInput, With<RailgunInputMarker>>,
+) {
+    let entity = fire.event().context;
+    trace!("on_railgun_input_completed: entity {:?}", entity);
+
+    let Ok(mut input) = q_input.get_mut(entity) else {
+        return;
+    };
+
+    **input = false;
+}
+
 #[cfg(test)]
 mod tests {
     use nova_input::prelude::{binding_source, InputSource};

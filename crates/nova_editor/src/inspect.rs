@@ -679,6 +679,15 @@ const BLAST_RADIUS: FieldSpec = floored("blast_radius", "u", 0.05);
 const ARM_TIME: FieldSpec = floored("arm_time", "s", 0.02);
 const ARM_DISTANCE: FieldSpec = floored("arm_distance", "u", 0.1);
 const NAV_CONSTANT: FieldSpec = floored("nav_constant", "", 0.02);
+const CHARGE_SECONDS: FieldSpec = floored("charge_seconds", "s", 0.05);
+const SLUG_SPEED: FieldSpec = floored("slug_speed", "u/s", 5.0);
+const SLUG_DAMAGE: FieldSpec = floored("slug_damage", "hp", 0.5);
+/// Not hit points. Power is what a pierce round SPENDS crossing a layer, so
+/// this is the depth control, and it is dragged in the register depth lives in.
+const SLUG_POWER: FieldSpec = floored("slug_power", "", 10.0);
+const SLUG_LIFETIME: FieldSpec = floored("slug_lifetime", "s", 0.05);
+const RECOIL_IMPULSE: FieldSpec = floored("recoil_impulse", "", 5.0);
+
 const BODY_RADIUS: FieldSpec = floored("body_radius", "u", 0.05);
 const MASS: FieldSpec = floored("mass", "", 0.5);
 const RADIUS: FieldSpec = floored("radius", "u", 0.05);
@@ -752,7 +761,20 @@ const TORPEDO_PICKS: &[FieldSpec] = &[
     RELOAD,
     PROJECTILE_LIFETIME,
 ];
+/// Recoil is a pick, not a detail: it is the only weapon field that moves the
+/// ship that fired, so a builder who cannot see it cannot explain the spin.
+const RAILGUN_PICKS: &[FieldSpec] = &[
+    CHARGE_SECONDS,
+    SLUG_DAMAGE,
+    SLUG_POWER,
+    SLUG_SPEED,
+    RECOIL_IMPULSE,
+    AMMO_CAPACITY,
+    RELOAD,
+    SLUG_LIFETIME,
+];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
+
 const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MASS, INVULNERABLE, SEED];
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
@@ -783,6 +805,7 @@ const DECLARED: &[&[FieldSpec]] = &[
     CONTROLLER_PICKS,
     TURRET_PICKS,
     TORPEDO_PICKS,
+    RAILGUN_PICKS,
     ANCHOR_PICKS,
     ASTEROID_PICKS,
     SPACESHIP_PICKS,
@@ -1758,10 +1781,12 @@ pub(crate) fn section_config(kind: &SectionKind) -> &dyn PartialReflect {
         SectionKind::Controller(config) => config,
         SectionKind::Turret(config) => config,
         SectionKind::Torpedo(config) => config,
+        SectionKind::Railgun(config) => config,
     }
 }
 
 /// The same config, for writing.
+
 pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialReflect {
     match kind {
         SectionKind::Hull(config) => config,
@@ -1769,6 +1794,7 @@ pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialRefl
         SectionKind::Controller(config) => config,
         SectionKind::Turret(config) => config,
         SectionKind::Torpedo(config) => config,
+        SectionKind::Railgun(config) => config,
     }
 }
 
@@ -1800,6 +1826,7 @@ fn section_picks(kind: &SectionKind) -> &'static [FieldSpec] {
         SectionKind::Controller(_) => CONTROLLER_PICKS,
         SectionKind::Turret(_) => TURRET_PICKS,
         SectionKind::Torpedo(_) => TORPEDO_PICKS,
+        SectionKind::Railgun(_) => RAILGUN_PICKS,
     }
 }
 

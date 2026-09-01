@@ -269,7 +269,10 @@ What is on disk today, in reading order:
   `system_turret_gunnery` and `system_torpedo_launch` (the
   weapon ranges, the latter also the PN lead-a-crosser deep-dive), and
   `system_blast_penetration` (explosive falloff, one section shielding the next
-  and two salvos that cannot use the hole they make in the same tick). Then the
+  and two salvos that cannot use the hole they make in the same tick) and
+  `system_railgun_lance` (the spinal gun: a commit that outlives the trigger, a
+  charge cue, one slug raking six plates in a single step, and the recoil that
+  shoves the firing ship). Then the
   cross-cutting systems, every fixture a `ScenarioConfig` written in Rust and
   loaded with `LoadScenario`: `system_scenario_grammar` (the scenario language -
   variables, events, filters, actions), `system_player_path` (a scenario played

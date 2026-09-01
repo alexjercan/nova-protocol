@@ -35,9 +35,10 @@ pub struct RoundVelocity(pub Vec3);
 /// bites 60 where it authored 20 (which is exactly what happened).
 ///
 /// A ring, not a list: the oldest entry is the one the round has travelled
-/// furthest past, so it is the safe one to forget. `MAX_PIERCE_LAYERS` bounds
-/// a rake and a Kinetic round stops at the first thing it fails to destroy, so
-/// the ring never actually wraps in play.
+/// furthest past, so it is the safe one to forget. Forgetting is safe because
+/// the sweep only ever casts FORWARD from where the round now is - a wrapped
+/// entry is a collider the round is already past and cannot meet again. A
+/// railgun slug raking a whole hull inside one step wraps it routinely.
 #[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct RoundBitten {
@@ -80,11 +81,25 @@ const ROUND_RADIUS: f32 = 0.05;
 /// drop a real hit sitting behind them.
 const REJECT_BUDGET: usize = 16;
 
-/// How many colliders one round may resolve in a single step, and how many it
-/// remembers biting. A round stops at the first thing it fails to destroy, so
-/// reaching this bound needs a Pierce round crossing eight live layers in one
-/// 15.6 ms step; the cap is a runaway-geometry backstop, not a gameplay limit.
+/// How many bitten colliders a round remembers ACROSS steps, so a section
+/// thicker than one step's travel is charged once rather than once per step.
+///
+/// Only the recent past needs remembering: the sweep restarts each step from
+/// where the round now is and casts forward only, so anything already crossed
+/// is behind it. Eight is comfortably more than the layers any round is still
+/// overlapping at a step boundary.
 const BITE_MEMORY: usize = 8;
+
+/// How many colliders one round may resolve WITHIN a single step.
+///
+/// Split from [`BITE_MEMORY`] because the railgun made the old shared value a
+/// gameplay limit. A slug at lance speed crosses a whole hull inside one
+/// 15.6 ms step, so a per-step cap of eight WAS the pierce layer cap for it,
+/// silently, whatever the round authored. The ring can stay small (see above)
+/// while this stays a runaway-geometry backstop, which is all it was ever
+/// meant to be: a Pierce round's real bound is its power budget, and
+/// [`ProjectileDamage::layers`] is the authored one.
+const MAX_BITES_PER_STEP: usize = 32;
 
 /// Nudge past a resolved hit before the next cast, so the sweep restarts
 /// outside the surface it just crossed rather than inside it.
@@ -173,7 +188,7 @@ fn advance_rounds(
             Option<&mut ProjectileDamage>,
             Option<&ProjectileOwner>,
         ),
-        With<TurretBulletProjectileMarker>,
+        With<GunRoundMarker>,
     >,
     q_wells: Query<(&Position, &GravityWell)>,
     q_sensors: Query<(), With<Sensor>>,
@@ -242,7 +257,7 @@ fn advance_rounds(
         // shape serves every round.
         let candidate_margin = reach;
 
-        while remaining > 0.0 && bites < BITE_MEMORY && rejects < REJECT_BUDGET {
+        while remaining > 0.0 && bites < MAX_BITES_PER_STEP && rejects < REJECT_BUDGET {
             // Copied, not borrowed: the predicate is handed to the cast while
             // `bitten` still has to be written after it returns.
             let already = *bitten;
@@ -677,6 +692,7 @@ mod tests {
             SectionClass::Controller,
             SectionClass::Turret,
             SectionClass::Torpedo,
+            SectionClass::Railgun,
         ] {
             for kind in [DamageType::Kinetic, DamageType::Pierce] {
                 let dealt = hit_drop(class, ProjectileDamage::new(amount, kind));
@@ -685,6 +701,54 @@ mod tests {
                     "{kind:?} into {class:?} must deal its authored {amount}, dealt {dealt}"
                 );
             }
+        }
+    }
+
+    /// The railgun's contract, stated against the sweep: a Pierce round whose
+    /// only bound is its POWER crosses a whole hull inside ONE step.
+    ///
+    /// This is the regression the per-step cap split exists for. While
+    /// `MAX_BITES_PER_STEP` was `BITE_MEMORY` (8), a slug at lance speed
+    /// crossed twelve plates of geometry and charged eight of them - the layer
+    /// cap the railgun deliberately does not have, reimposed by a constant
+    /// nothing authored and no test named.
+    #[test]
+    fn a_lance_speed_pierce_round_rakes_a_whole_hull_in_one_step() {
+        const PLATES: usize = 12;
+        const PLATE_HP: f32 = 60.0;
+
+        let mut app = round_app();
+        let plates: Vec<Entity> = (0..PLATES)
+            .map(|layer| spawn_plate(&mut app, -(layer as f32) * PIERCE_PLATE_PITCH, PLATE_HP))
+            .collect();
+        settle(&mut app);
+
+        // Fast enough to clear the whole stack in one tick, so every layer is
+        // resolved inside a single `advance_rounds` pass - which is exactly
+        // the case the old shared cap silently truncated.
+        let speed = 8_000.0;
+        app.world_mut().spawn((
+            Name::new("slug"),
+            RailgunSlugProjectileMarker,
+            Transform::from_translation(Vec3::Z * 5.0),
+            RoundVelocity(Vec3::NEG_Z * speed),
+            ProjectileDamage {
+                amount: 40.0,
+                // Priced to outlast the stack: twelve plates at 60 max health
+                // cost 720 at the reference multiplier.
+                power: 4_000.0,
+                // The owner's call: power is the only bound.
+                layers: u32::MAX,
+                kind: DamageType::Pierce,
+            },
+        ));
+        app.update();
+
+        for (layer, plate) in plates.iter().enumerate() {
+            assert!(
+                plate_health(&app, *plate) < PLATE_HP,
+                "layer {layer} was not raked - the slug stopped short inside one step"
+            );
         }
     }
 

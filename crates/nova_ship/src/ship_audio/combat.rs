@@ -1,5 +1,5 @@
-//! Combat one-shots: explosions, impacts, turret fire and torpedo
-//! launches, each resolving the target's authored sound or staying
+//! Combat one-shots: explosions, impacts, turret fire, torpedo launches and
+//! the railgun's report, each resolving the target's authored sound or staying
 //! silent.
 
 use bevy::prelude::*;
@@ -13,11 +13,12 @@ use nova_gameplay::{
 
 use super::{
     EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL, IMPACT_VOLUME,
-    TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
+    RAILGUN_FIRE_VOLUME, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
+        railgun_section::{RailgunFired, RailgunSectionFireSound},
         torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
         turret_section::{TurretSectionFireSound, TurretSectionPartOf},
     },
@@ -225,6 +226,39 @@ pub(super) fn on_torpedo_launch_play_sfx(
         handle,
         TORPEDO_LAUNCH_VOLUME,
         source.translation,
+        listener_position(&q_camera),
+    );
+}
+
+/// The lance's report, on the tick the shot leaves.
+///
+/// AUTHORED-OR-SILENT like the turret and the bay, and UNTHROTTLED unlike the
+/// turret: one lance fires once per reload cycle, so there is no stream here
+/// to rate-limit and a throttle could only ever swallow the one shot.
+///
+/// Answers [`RailgunFired`] rather than the slug's spawn: the shot is the
+/// event, the slug is one consequence of it, and a lance that somehow spends
+/// its charge without a shell still has a bore that discharged.
+pub(super) fn on_railgun_fire_play_sfx(
+    fired: On<RailgunFired>,
+    asset_server: Res<AssetServer>,
+    q_fire_sound: Query<&RailgunSectionFireSound>,
+    q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    mut commands: Commands,
+) {
+    let Some(handle) = q_fire_sound
+        .get(fired.entity)
+        .ok()
+        .and_then(|sound| sound.0.as_ref())
+        .map(|asset_ref| asset_ref.resolve(&asset_server))
+    else {
+        return;
+    };
+    play_positional_handle(
+        &mut commands,
+        handle,
+        RAILGUN_FIRE_VOLUME,
+        fired.muzzle,
         listener_position(&q_camera),
     );
 }

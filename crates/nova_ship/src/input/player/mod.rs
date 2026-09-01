@@ -34,17 +34,19 @@ use intent::{
     update_turret_target_input,
 };
 use weapons::{
-    on_thruster_input, on_thruster_input_binding, on_thruster_input_completed, on_torpedo_input,
+    on_railgun_input, on_railgun_input_binding, on_railgun_input_completed, on_thruster_input,
+    on_thruster_input_binding, on_thruster_input_completed, on_torpedo_input,
     on_torpedo_input_binding, on_torpedo_input_completed, on_turret_input, on_turret_input_binding,
-    on_turret_input_completed, ThrusterInputMarker, TorpedoInputMarker, TurretInputMarker,
+    on_turret_input_completed, RailgunInputMarker, ThrusterInputMarker, TorpedoInputMarker,
+    TurretInputMarker,
 };
 
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
     hints::{FlightVerbHints, VerbHint},
     weapons::{
-        SectionInputBindingChanged, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
-        SpaceshipTurretInputBinding,
+        SectionInputBindingChanged, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
+        SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     },
 };
 use crate::input::bindings::flight_bindings;
@@ -54,8 +56,8 @@ use crate::input::bindings::flight_bindings;
 pub mod prelude {
     pub use super::{
         FlightVerbHints, SectionInputBindingChanged, SpaceshipPlayerInputPlugin,
-        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
-        VerbHint,
+        SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
+        SpaceshipTurretInputBinding, VerbHint,
     };
 }
 
@@ -125,6 +127,11 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_observer(on_torpedo_input_binding);
         app.add_observer(on_torpedo_input);
         app.add_observer(on_torpedo_input_completed);
+
+        app.add_input_context::<RailgunInputMarker>();
+        app.add_observer(on_railgun_input_binding);
+        app.add_observer(on_railgun_input);
+        app.add_observer(on_railgun_input_completed);
 
         app.init_resource::<FlightVerbHints>();
         app.register_type::<FlightVerbHints>();

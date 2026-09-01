@@ -20,6 +20,7 @@ mod behavior;
 mod guns;
 pub mod maneuver;
 pub mod passive;
+mod railgun;
 mod threat;
 mod torpedo;
 
@@ -28,6 +29,7 @@ use behavior::update_behavior_state;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
 use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
 use passive::update_passive_flight;
+use railgun::update_railgun_section_input;
 use threat::on_damage_track_threat;
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 
@@ -41,6 +43,7 @@ pub use self::{
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
     maneuver::AI_STANDOFF_OUTER_EDGE,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
+    railgun::AIRailgun,
     threat::{AIEvade, AIThreat},
     torpedo::AITorpedoBay,
 };
@@ -50,8 +53,8 @@ pub mod prelude {
     pub use super::{
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
         AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
-        AIPointDefenseTarget, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay, AIWaypointSlack,
-        SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
+        AIPointDefenseTarget, AIRailgun, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
+        AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
     };
 }
 
@@ -158,6 +161,11 @@ impl Plugin for SpaceshipAIInputPlugin {
                 // on the stale elapsed one.
                 update_torpedo_target_input,
                 update_torpedo_section_input,
+                // Last in the chain, and on the same render clock as the rest
+                // of it: the commit reads the section's eased `GlobalTransform`
+                // for the bore, which is a decision read against the frame it
+                // is deciding for (see the note above).
+                update_railgun_section_input,
             )
                 .chain()
                 // The per-turret assignment moved out to the shared point-

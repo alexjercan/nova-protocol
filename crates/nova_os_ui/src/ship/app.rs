@@ -270,7 +270,10 @@ pub(crate) fn apply_ship_cli_commands(
         terminal.extend_scrollback(unknown_code_rows(code, &codes));
         return;
     };
-    let is_weapon = matches!(kind, SectionClass::Turret | SectionClass::Torpedo);
+    let is_weapon = matches!(
+        kind,
+        SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun
+    );
 
     let rows = match invocation.name {
         "ship section" => {
@@ -344,7 +347,10 @@ pub(crate) fn apply_ship_section_commands(
         else {
             continue;
         };
-        let is_weapon = matches!(kind, SectionClass::Turret | SectionClass::Torpedo);
+        let is_weapon = matches!(
+            kind,
+            SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun
+        );
         let mut health = q_health.get_mut(command.target).ok();
         let mut ammo = q_ammo.get_mut(command.target).ok();
         let row = apply_action_to_section(

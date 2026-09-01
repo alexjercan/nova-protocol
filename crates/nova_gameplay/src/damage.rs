@@ -130,6 +130,8 @@ pub enum SectionClass {
     Turret,
     /// Torpedo section: the explosive weapon mount.
     Torpedo,
+    /// Railgun section: the spinal kinetic lance the HULL aims.
+    Railgun,
 }
 
 /// Physical mass given to a turret bullet so the emergent kinetic term rounds

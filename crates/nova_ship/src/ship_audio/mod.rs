@@ -40,8 +40,8 @@ mod test_support;
 
 use self::{
     combat::{
-        on_damage_play_impact, on_destroyed_play_explosion, on_torpedo_launch_play_sfx,
-        on_turret_fire_play_sfx,
+        on_damage_play_impact, on_destroyed_play_explosion, on_railgun_fire_play_sfx,
+        on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue},
     loops::{
@@ -59,6 +59,10 @@ const TURRET_FIRE_VOLUME: f32 = 0.10;
 const IMPACT_VOLUME: f32 = 0.22;
 const EXPLOSION_VOLUME: f32 = 0.40;
 const TORPEDO_LAUNCH_VOLUME: f32 = 0.45;
+/// The loudest cue in the set, and the only one that should be: a lance fires
+/// once a reload cycle, so it can afford to be the punctuation the PDC stream
+/// never is.
+const RAILGUN_FIRE_VOLUME: f32 = 0.55;
 
 /// UI (non-positional) volumes for the lock/safety cues - informational
 /// ticks, kept under the combat sounds.
@@ -120,6 +124,7 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_damage_play_impact);
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
+        app.add_observer(on_railgun_fire_play_sfx);
 
         // Lock/safety UI cues: message-driven one-shots, so no gating needed
         // - the writers (radar search, tap observer) are themselves

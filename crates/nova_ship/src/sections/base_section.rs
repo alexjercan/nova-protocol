@@ -363,6 +363,8 @@ pub enum SectionKind {
     Turret(TurretSectionConfig),
     /// Guided-torpedo launch bay; see [`TorpedoSectionConfig`].
     Torpedo(TorpedoSectionConfig),
+    /// Spinal kinetic lance the HULL aims; see [`RailgunSectionConfig`].
+    Railgun(RailgunSectionConfig),
 }
 
 /// A complete authorable section: the shared [`BaseSectionConfig`] plus its
@@ -592,6 +594,7 @@ mod tests {
             link_points: Vec::new(),
             hide_in_editor: false,
             damage_effects: DamageEffects::default(),
+            animations: Vec::new(),
         };
         let ron = ron::ser::to_string(&authored).expect("serialize");
         let back: BaseSectionConfig = ron::from_str(&ron).expect("deserialize");
@@ -627,6 +630,7 @@ mod tests {
             link_points: Vec::new(),
             hide_in_editor: false,
             damage_effects: DamageEffects::default(),
+            animations: Vec::new(),
         };
         let ron = ron::ser::to_string(&visible).expect("serialize");
         assert!(

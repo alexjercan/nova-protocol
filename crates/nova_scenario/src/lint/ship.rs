@@ -3,8 +3,8 @@
 use bevy::prelude::Vec3;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
-    PlacedSectionLinkPoints, SectionCollider, SectionConfig, SectionKind, SectionReloadConfig,
-    TurretJoint, TurretSectionConfig,
+    PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig, SectionKind,
+    SectionReloadConfig, TurretJoint, TurretSectionConfig,
 };
 
 use super::{KnownSections, KnownShips, LintIssue};
@@ -146,6 +146,16 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
                 &mut issues,
             );
         }
+        SectionKind::Railgun(railgun) => {
+            check_reload_config(
+                config.base.id.as_str(),
+                railgun.ammo_capacity,
+                railgun.reload,
+                source,
+                &mut issues,
+            );
+            check_railgun_charge(config.base.id.as_str(), railgun, source, &mut issues);
+        }
         _ => {}
     }
     check_link_point_config(config, source, &mut issues);
@@ -201,7 +211,29 @@ fn check_reload_config(
     }
 }
 
+/// Flag a lance whose charge clock cannot run. A non-finite or negative
+/// `charge_seconds` divides the cue's progress by nonsense; zero is legal and
+/// means an instant commit, which is a design choice rather than a mistake.
+fn check_railgun_charge(
+    section_id: &str,
+    config: &RailgunSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    if config.charge_seconds < 0.0 || !config.charge_seconds.is_finite() {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': railgun charge_seconds must be a finite, non-negative \
+                 number of seconds, got {}",
+                config.charge_seconds
+            ),
+        ));
+    }
+}
+
 /// Walk a turret's joint tree and flag authoring mistakes the parser accepts but
+
 /// the runtime cannot use: a hinge with a degenerate (zero or non-finite) axis
 /// or a non-positive traverse speed can never aim, min > max locks the hinge
 /// shut, a non-positive `fire_rate` used to panic the spawn outright (the

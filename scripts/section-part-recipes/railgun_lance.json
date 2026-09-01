@@ -1,5 +1,5 @@
 {
- "_comment": "RAILGUN LANCE, settled at diameter 0.60 (brake face, 1.0 = the full cell): single-bore open clamped rails out of a rear capacitor casing into a vented muzzle brake, 1x1x3. The 0.50/0.75 variants and the four first-round mockups live in git history.",
+ "_comment": "RAILGUN LANCE, settled at diameter 0.60 (brake face, 1.0 = the full cell): single-bore open clamped rails out of a rear capacitor casing into a vented muzzle brake, 1x1x3. The `charge_bolt` node is the armature the charge cue walks up the bore, breech to brake. The 0.50/0.75 variants and the four first-round mockups live in git history.",
  "frame": "bay",
  "cells": [
   1,
@@ -492,6 +492,51 @@
     -0.006
    ],
    "material": "part_amber"
+  }
+ ],
+ "nodes": [
+  {
+   "name": "charge_bolt",
+   "rotate": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "at": [
+    0.0,
+    0.0,
+    -0.06
+   ],
+   "parts": [
+    {
+     "primitive": "box",
+     "size": [
+      0.15,
+      0.16,
+      0.12
+     ],
+     "at": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "material": "part_glow"
+    },
+    {
+     "primitive": "box",
+     "size": [
+      0.2,
+      0.05,
+      0.05
+     ],
+     "at": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "material": "part_glow"
+    }
+   ]
   }
  ]
 }

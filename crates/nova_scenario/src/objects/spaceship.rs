@@ -529,6 +529,25 @@ fn insert_spaceship_sections(
                         SpaceshipController::AI(_) => {}
                     }
                 }
+                SectionKind::Railgun(railgun_config) => {
+                    has_weapon = true;
+                    let mut railgun_config = railgun_config.clone();
+                    if infinite_ammo {
+                        railgun_config.ammo_capacity = None;
+                    }
+                    section_entity.insert(railgun_section(railgun_config));
+
+                    match controller_config {
+                        SpaceshipController::None => {}
+                        SpaceshipController::Player(config) => {
+                            if let Some(bindings) = config.input_mapping.get(&section.id) {
+                                section_entity
+                                    .insert(SpaceshipRailgunInputBinding(bindings.clone()));
+                            }
+                        }
+                        SpaceshipController::AI(_) => {}
+                    }
+                }
             }
 
             // Insert the authored modification components; their observers apply

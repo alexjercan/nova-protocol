@@ -236,6 +236,7 @@ pub(crate) fn section_kind_label(kind: SectionClass) -> &'static str {
         SectionClass::Controller => "CONTROLLER",
         SectionClass::Turret => "TURRET",
         SectionClass::Torpedo => "TORPEDO",
+        SectionClass::Railgun => "RAILGUN",
     }
 }
 
