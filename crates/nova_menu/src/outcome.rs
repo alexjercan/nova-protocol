@@ -33,6 +33,7 @@ pub(crate) fn sync_outcome_overlay(
     skin: Res<UiSkin>,
     outcome: Res<CurrentOutcome>,
     world: Option<Res<NovaEventWorld>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     q_existing: Query<(Entity, &OutcomeOverlay)>,
 ) {
     // What Continue means is whatever the scenario queued: a Victory pairs it
@@ -58,6 +59,30 @@ pub(crate) fn sync_outcome_overlay(
         ScenarioOutcomeKind::Victory => ("VICTORY", theme::semantic::OBJECTIVE),
         ScenarioOutcomeKind::Defeat => ("DEFEAT", theme::semantic::THREAT),
     };
+
+    // A DEFEAT gets a voice; a victory does not, and the asymmetry is the
+    // point. The game has no per-objective failure - an objective is either on
+    // the panel or gone, and gone is completion (`nova_hud::objective_feedback`)
+    // - so a run ending badly is the only real failure the player can be told
+    // about, and it currently arrives in silence. A victory does not: the last
+    // objective clearing has already chimed `objective_complete` a beat
+    // earlier, and stacking the fanfare on top of it would be the same event
+    // twice. If per-objective failure is ever a mechanic, this cue moves there
+    // and the banner keeps whatever the panel does not cover.
+    //
+    // Gated on the OUTCOME changing, not on the rebuild: a queued-switch
+    // restack tears the overlay down and builds it again against the same
+    // defeat, and a cue that followed the rebuild would sound twice for one
+    // loss.
+    if outcome.is_changed() && matches!(config.outcome, ScenarioOutcomeKind::Defeat) {
+        if let Some(bank) = bank.as_ref() {
+            commands.play_sfx(
+                bank.get(UiSfx::ObjectiveFail),
+                AudioRoute::Interface,
+                OBJECTIVE_FAIL_VOLUME,
+            );
+        }
+    }
     let primary = queued.then_some(match config.outcome {
         ScenarioOutcomeKind::Victory => "Continue",
         ScenarioOutcomeKind::Defeat => "Retry",

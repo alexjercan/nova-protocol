@@ -12,7 +12,7 @@ use nova_scenario::prelude::*;
 
 use super::support::{
     app, cue_app, dummy_scenarios, enter_playing, observe_load_scenario, observe_unload_scenario,
-    LoadedScenario, PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
+    take_cues, LoadedScenario, PlayedCues, Unloaded, TEST_BACKDROP_ID, TEST_START_ID,
 };
 use crate::{
     menu_ui::{on_new_game, on_sandbox, setup_menu_ui},
@@ -228,4 +228,76 @@ fn new_game_button_clears_the_scenario_override() {
         None,
         "New Game resets the picker override to None"
     );
+}
+
+#[test]
+fn a_back_button_pops_with_the_back_voice_and_an_ordinary_button_clicks() {
+    use crate::widgets::back_button;
+
+    let mut app = cue_app();
+    app.add_observer(on_menu_button_activate);
+    let settings = app.world_mut().spawn(button("Settings")).id();
+    let back = app.world_mut().spawn(back_button("Back")).id();
+    app.update();
+
+    app.world_mut().trigger(Activate { entity: settings });
+    app.world_mut().trigger(Activate { entity: back });
+    app.update();
+
+    // Going in and coming back out are the same gesture in two directions, and
+    // the pair is what makes that legible - one voice for both would be a
+    // button that says nothing about where it takes you.
+    assert_eq!(
+        take_cues(&mut app),
+        vec![Some(UiSfx::MenuSelect), Some(UiSfx::MenuBack)],
+    );
+}
+
+#[test]
+fn focus_ticks_when_the_cursor_arrives_and_stays_quiet_when_it_leaves() {
+    use bevy::picking::hover::Hovered;
+
+    use crate::widgets::play_menu_focus_cue;
+
+    let mut app = cue_app();
+    app.add_systems(Update, play_menu_focus_cue);
+    let entity = app.world_mut().spawn(button("Scenarios")).id();
+    app.update();
+    let _ = take_cues(&mut app);
+
+    app.world_mut().entity_mut(entity).insert(Hovered(true));
+    app.update();
+    assert_eq!(
+        take_cues(&mut app),
+        vec![Some(UiSfx::MenuFocus)],
+        "arriving on a button ticks"
+    );
+
+    // The falling edge is silent: a sweep across a column of buttons must fire
+    // once per button, not twice.
+    app.world_mut().entity_mut(entity).insert(Hovered(false));
+    app.update();
+    assert!(take_cues(&mut app).is_empty(), "leaving a button is silent");
+}
+
+#[test]
+fn a_disabled_button_does_not_tick_under_the_cursor() {
+    use bevy::{picking::hover::Hovered, ui::InteractionDisabled};
+
+    use crate::widgets::play_menu_focus_cue;
+
+    let mut app = cue_app();
+    app.add_systems(Update, play_menu_focus_cue);
+    let entity = app
+        .world_mut()
+        .spawn((button("Continue"), InteractionDisabled))
+        .id();
+    app.update();
+    let _ = take_cues(&mut app);
+
+    app.world_mut().entity_mut(entity).insert(Hovered(true));
+    app.update();
+    // A tick means "you are on something you can press". On a greyed button
+    // that would be a lie, and the paint already tells the truth.
+    assert!(take_cues(&mut app).is_empty());
 }

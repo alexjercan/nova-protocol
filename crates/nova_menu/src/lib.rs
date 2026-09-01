@@ -74,7 +74,7 @@ use settings::{
     sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab,
     SettingsControlsGroup, WindowModeSetting,
 };
-use widgets::on_menu_button_activate;
+use widgets::{on_menu_button_activate, play_menu_focus_cue};
 
 /// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
 /// scenarios screens.
@@ -193,6 +193,7 @@ impl Plugin for NovaMenuPlugin {
                 .run_if(in_state(GameStates::MainMenu)),
         );
         app.add_observer(on_menu_button_activate);
+        app.add_systems(Update, play_menu_focus_cue);
         app.add_systems(
             OnEnter(GameStates::Playing),
             start_new_game_scenario.run_if(resource_equals(GameMode::NewGame)),

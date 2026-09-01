@@ -1088,3 +1088,53 @@ fn only_one_of_the_three_actions_bound_to_g_is_ever_live() {
     active.set(ActionContext::ViewerApp("ship"), true);
     assert_eq!(on_g(&active), vec!["ship_mates"]);
 }
+
+/// The detent. A drag emits a `ValueChange` on every frame the pointer moves,
+/// but `SliderStep` quantises the value - so the frames carrying a NEW value
+/// are exactly the frames the handle crossed a notch, and the comparison
+/// against the resource IS the detent. Without it a slow drag across one notch
+/// would tick every frame it was held.
+#[test]
+fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
+    use super::support::{cue_app, take_cues};
+    use crate::settings::on_volume_slider_change;
+
+    let mut app = cue_app();
+    app.init_resource::<MasterVolume>();
+    app.init_resource::<InterfaceVolume>();
+    app.init_resource::<WorldVolume>();
+    app.init_resource::<MusicVolume>();
+    app.add_observer(on_volume_slider_change);
+    let slider = app
+        .world_mut()
+        .spawn(VolumeSlider(VolumeChannel::World))
+        .id();
+    app.update();
+    let _ = take_cues(&mut app);
+
+    let drag = |app: &mut App, value: f32| {
+        app.world_mut().trigger(ValueChange::<f32> {
+            source: slider,
+            value,
+            is_final: false,
+        });
+        app.update();
+    };
+
+    drag(&mut app, 0.55);
+    assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
+
+    // Three more events at the same quantised value: the pointer is still
+    // inside the notch it already crossed.
+    drag(&mut app, 0.55);
+    drag(&mut app, 0.55);
+    drag(&mut app, 0.55);
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "resting on a notch is silent"
+    );
+
+    drag(&mut app, 0.60);
+    assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
+    assert!((app.world().resource::<WorldVolume>().0 - 0.60).abs() < 1e-6);
+}

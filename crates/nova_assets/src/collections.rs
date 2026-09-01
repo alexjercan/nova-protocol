@@ -42,12 +42,20 @@ pub(crate) fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
 /// pins that this set covers exactly the files `UI_SFX_FILES` references, and
 /// that each file exists on disk.
 #[cfg(test)]
-const UI_SFX_COLLECTION_PATHS: [&str; 15] = [
+const UI_SFX_COLLECTION_PATHS: [&str; 23] = [
     "sounds/objective_new.wav",
     "sounds/objective_complete.wav",
     "sounds/menu_select.wav",
     "sounds/ui_toggle.wav",
     "sounds/comms_line.wav",
+    "sounds/objective_fail.wav",
+    "sounds/menu_back.wav",
+    "sounds/menu_focus.wav",
+    "sounds/ui_tick.wav",
+    "sounds/editor_place.wav",
+    "sounds/editor_remove.wav",
+    "sounds/editor_rotate.wav",
+    "sounds/editor_deny.wav",
     "sounds/nova_key.wav",
     "sounds/nova_back.wav",
     "sounds/nova_enter.wav",
@@ -220,6 +228,14 @@ pub struct GameAssets {
             "sounds/menu_select.wav",
             "sounds/ui_toggle.wav",
             "sounds/comms_line.wav",
+            "sounds/objective_fail.wav",
+            "sounds/menu_back.wav",
+            "sounds/menu_focus.wav",
+            "sounds/ui_tick.wav",
+            "sounds/editor_place.wav",
+            "sounds/editor_remove.wav",
+            "sounds/editor_rotate.wav",
+            "sounds/editor_deny.wav",
             "sounds/nova_key.wav",
             "sounds/nova_back.wav",
             "sounds/nova_enter.wav",

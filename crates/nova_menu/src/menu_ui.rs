@@ -30,7 +30,7 @@ use crate::{
         build_settings_tabs, on_settings, on_settings_back, SettingsActiveTab, SettingsPanel,
         SettingsTabBody,
     },
-    widgets::{button, button_variant},
+    widgets::{back_button, button, button_variant},
 };
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -217,7 +217,7 @@ pub(crate) fn setup_menu_ui(
                         });
                     parent.spawn((
                         Name::new("Settings Back Button"),
-                        button("Back"),
+                        back_button("Back"),
                         observe(on_settings_back),
                     ));
                 });
@@ -328,7 +328,7 @@ pub(crate) fn setup_menu_ui(
                         Name::new("Mods Footer"),
                         footer_back_slot((
                             Name::new("Mods Back Button"),
-                            button("Back"),
+                            back_button("Back"),
                             observe(on_mods_back),
                         )),
                     ));
@@ -406,7 +406,7 @@ pub(crate) fn setup_menu_ui(
                         Name::new("Scenarios Footer"),
                         footer_back_slot((
                             Name::new("Scenarios Back Button"),
-                            button("Back"),
+                            back_button("Back"),
                             observe(on_scenarios_back),
                         )),
                     ));

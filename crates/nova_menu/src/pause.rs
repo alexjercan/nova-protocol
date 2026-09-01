@@ -20,7 +20,7 @@ use nova_ui::{
 use crate::menu_ui::on_exit;
 use crate::{
     settings::{build_settings_tabs, PauseSettingsPanel, SettingsActiveTab, SettingsTabBody},
-    widgets::{button, button_variant},
+    widgets::{back_button, button, button_variant},
 };
 
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
@@ -368,7 +368,7 @@ pub(crate) fn setup_pause_ui(
                         });
                     parent.spawn((
                         Name::new("Pause Settings Back Button"),
-                        button("Back"),
+                        back_button("Back"),
                         observe(on_pause_settings_back),
                     ));
                 });

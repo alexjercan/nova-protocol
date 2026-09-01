@@ -1296,6 +1296,8 @@ pub(crate) fn flush_settings_on_exit(
 pub(crate) fn on_volume_slider_change(
     change: On<ValueChange<f32>>,
     sliders: Query<&VolumeSlider>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
     mut master: ResMut<MasterVolume>,
     mut interface: ResMut<InterfaceVolume>,
     mut world: ResMut<WorldVolume>,
@@ -1305,11 +1307,34 @@ pub(crate) fn on_volume_slider_change(
         return;
     };
     let value = change.value.clamp(0.0, 1.0);
+    let was = match slider.0 {
+        VolumeChannel::Master => master.0,
+        VolumeChannel::Interface => interface.0,
+        VolumeChannel::World => world.0,
+        VolumeChannel::Music => music.0,
+    };
     match slider.0 {
         VolumeChannel::Master => *master = MasterVolume(value),
         VolumeChannel::Interface => *interface = InterfaceVolume(value),
         VolumeChannel::World => *world = WorldVolume(value),
         VolumeChannel::Music => *music = MusicVolume(value),
+    }
+
+    // The detent. A drag emits `ValueChange` every frame it moves, but
+    // `SliderStep` quantises the value, so the frames that carry a NEW value
+    // are exactly the frames the handle crossed a notch - the comparison is
+    // the detent, and no separate step counter is needed. It also makes the
+    // slider that sets the volume audition itself as it moves, which is the
+    // whole reason this row wants a voice at all.
+    if value == was {
+        return;
+    }
+    if let Some(bank) = bank {
+        commands.play_sfx(
+            bank.get(UiSfx::UiTick),
+            AudioRoute::Interface,
+            UI_TICK_VOLUME,
+        );
     }
 }
 

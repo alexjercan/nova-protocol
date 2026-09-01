@@ -89,10 +89,12 @@ pub mod prelude {
     pub use super::{
         sounds_loaded, AudioBus, AudioRoute, InterfaceVolume, MusicVolume, NovaAudioPlugin,
         PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
-        SoundBank, UiSfx, WorldVolume, MENU_SELECT_VOLUME, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME,
-        NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL,
-        NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME,
-        SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TOGGLE_VOLUME,
+        SoundBank, UiSfx, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
+        EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
+        MENU_SELECT_VOLUME, NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME,
+        NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME,
+        NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME,
+        SALVAGE_PICKUP_VOLUME, UI_SFX_FILES, UI_TICK_VOLUME, UI_TOGGLE_VOLUME,
     };
 }
 
@@ -133,6 +135,25 @@ pub enum UiSfx {
     /// pause/mods buttons) - a crisp UI click. Fired from `nova_menu`'s global
     /// `On<Activate>` observer.
     MenuSelect,
+    /// A menu button that POPS a panel was pressed - `menu_select` inverted, so
+    /// going in and coming back out are audibly a direction rather than two
+    /// clicks. Fired from the same observer, scoped by the button's own marker.
+    MenuBack,
+    /// Keyboard/pad focus moved onto a menu button. The most-fired cue in the
+    /// game, and deliberately the smallest.
+    MenuFocus,
+    /// A slider crossed a detent. The quietest cue the interface has.
+    UiTick,
+    /// A run ended in defeat - `objective_complete` inverted, three steps down.
+    ObjectiveFail,
+    /// A part seated in the editor grid.
+    EditorPlace,
+    /// A part lifted out of the editor grid.
+    EditorRemove,
+    /// An editor placement turned one detent.
+    EditorRotate,
+    /// The editor refused a placement.
+    EditorDeny,
     /// A comms line just SHOWED on the panel - a soft radio blip so a story
     /// beat registers mid-fight.
     CommsLine,
@@ -167,12 +188,20 @@ pub enum UiSfx {
 /// `nova_assets::register_sounds` via `SoundBank::load`, whose
 /// `sounds/<name>.wav` convention maps these to the root `assets/sounds/` -
 /// engine chrome, outside every mod.
-pub const UI_SFX_FILES: [(UiSfx, &str); 15] = [
+pub const UI_SFX_FILES: [(UiSfx, &str); 23] = [
     (UiSfx::ObjectiveNew, "objective_new"),
     (UiSfx::ObjectiveComplete, "objective_complete"),
+    (UiSfx::ObjectiveFail, "objective_fail"),
     (UiSfx::MenuSelect, "menu_select"),
+    (UiSfx::MenuBack, "menu_back"),
+    (UiSfx::MenuFocus, "menu_focus"),
     (UiSfx::UiToggle, "ui_toggle"),
+    (UiSfx::UiTick, "ui_tick"),
     (UiSfx::CommsLine, "comms_line"),
+    (UiSfx::EditorPlace, "editor_place"),
+    (UiSfx::EditorRemove, "editor_remove"),
+    (UiSfx::EditorRotate, "editor_rotate"),
+    (UiSfx::EditorDeny, "editor_deny"),
     // NOVA OS terminal cues.
     (UiSfx::NovaOsKey, "nova_key"),
     (UiSfx::NovaOsBack, "nova_back"),
@@ -198,6 +227,36 @@ pub const SALVAGE_PICKUP_VOLUME: f32 = 0.22;
 pub const MENU_SELECT_VOLUME: f32 = 0.28;
 /// Volume for the HUD-toggle click cue, fired from `nova_menu`.
 pub const UI_TOGGLE_VOLUME: f32 = 0.24;
+/// Volume for the panel-pop cue. Set to land on `MENU_SELECT_VOLUME`'s
+/// A-weighted level (about -39.6 dBA at unity master), not to match its linear
+/// factor: the two cues are a matched pair and have to read as one gesture in
+/// two directions, which is a LOUDNESS match. See `RCS_MAX_VOLUME` for what
+/// comparing linear factors instead costs.
+pub const MENU_BACK_VOLUME: f32 = 0.28;
+/// Volume for the focus-move cue. About 10 dB under the click, because this is
+/// the cue a pad user fires on every stick flick: at click level a menu sweep
+/// is a machine gun.
+pub const MENU_FOCUS_VOLUME: f32 = 0.20;
+/// Volume for the slider detent, in the same band as [`MENU_FOCUS_VOLUME`] and
+/// for the same reason - a dragged slider fires it many times a second.
+pub const UI_TICK_VOLUME: f32 = 0.14;
+/// Volume for the defeat cue. Matched to `OBJECTIVE_COMPLETE_VOLUME`'s measured
+/// level: the pair is a mirror, so a loss must be exactly as present as a win.
+pub const OBJECTIVE_FAIL_VOLUME: f32 = 0.53;
+/// Editor cue volumes. The editor is a workspace a player sits in for a long
+/// time, so the set is placed a band under the menus rather than at their
+/// level, and the two cues that fire on every gesture (rotate, and the deny
+/// that answers a dragged illegal ghost) are the quietest of the four.
+///
+/// A part seating - the heaviest cue the interface has, at click level.
+pub const EDITOR_PLACE_VOLUME: f32 = 0.47;
+/// A part lifting out, about 2 dB under the seat so the pair reads as a
+/// direction.
+pub const EDITOR_REMOVE_VOLUME: f32 = 0.21;
+/// One rotation detent.
+pub const EDITOR_ROTATE_VOLUME: f32 = 0.18;
+/// A refused placement.
+pub const EDITOR_DENY_VOLUME: f32 = 0.32;
 /// NOVA OS terminal cue volumes. The `nova_*.wav` files are peak-normalized to
 /// -3 dBFS, so these linear factors are what place each cue in the
 /// informational-tick band. Typing is the quietest and is throttled

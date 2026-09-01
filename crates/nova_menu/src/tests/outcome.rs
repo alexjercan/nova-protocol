@@ -9,6 +9,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
+use nova_ui::prelude::UiSkin;
 
 use super::support::{
     all_text, app, app_with_outcome, clocks_paused, dummy_scenarios, enter_playing, find_named,
@@ -572,4 +573,49 @@ fn player_spawn_yields_to_pause() {
     app.world_mut().spawn(PlayerSpaceshipMarker);
     let cursor = app.world().get::<CursorOptions>(win).unwrap();
     assert!(cursor.visible, "paused: player spawn must not re-grab");
+}
+
+/// The defeat cue, and the asymmetry that is deliberate. There is no
+/// per-objective failure in the game - an objective is on the panel or gone,
+/// and gone is completion - so the outcome banner is the only place a loss can
+/// be announced. A win needs no fanfare here: the last objective clearing has
+/// already chimed a beat earlier.
+#[test]
+fn a_defeat_sounds_and_a_victory_leaves_the_chime_to_the_objective_panel() {
+    use super::support::{cue_app, take_cues};
+    use crate::outcome::sync_outcome_overlay;
+
+    let outcome_app = |kind: ScenarioOutcomeKind| {
+        let mut app = cue_app();
+        app.init_resource::<UiSkin>();
+        app.init_resource::<CurrentOutcome>();
+        app.init_resource::<NovaEventWorld>();
+        app.add_systems(Update, sync_outcome_overlay);
+        app.update();
+        app.world_mut().resource_mut::<CurrentOutcome>().0 =
+            Some(OutcomeActionConfig::new(kind, "over"));
+        app.update();
+        app
+    };
+
+    let mut lost = outcome_app(ScenarioOutcomeKind::Defeat);
+    assert_eq!(take_cues(&mut lost), vec![Some(UiSfx::ObjectiveFail)]);
+
+    // A restack (a switch queued under a shown outcome) rebuilds the overlay.
+    // The cue must not follow the rebuild, or one loss sounds twice.
+    lost.world_mut()
+        .resource_mut::<NovaEventWorld>()
+        .next_scenario = Some(NextScenarioActionConfig {
+        scenario_id: "retry".to_string(),
+        linger: true,
+        delay: None,
+    });
+    lost.update();
+    assert!(
+        take_cues(&mut lost).is_empty(),
+        "rebuilding the banner does not re-announce the loss"
+    );
+
+    let mut won = outcome_app(ScenarioOutcomeKind::Victory);
+    assert!(take_cues(&mut won).is_empty());
 }

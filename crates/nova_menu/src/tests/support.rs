@@ -166,6 +166,13 @@ pub(crate) fn observe_unload_scenario(app: &mut App) {
 #[derive(Resource, Default)]
 pub(crate) struct PlayedCues(pub(crate) usize);
 
+/// Every cue played since the last [`take_cues`], as bank handles. The count in
+/// [`PlayedCues`] answers "was there a sound"; this answers "which one", which
+/// is what a test of a cue PAIR (click against back, complete against fail) has
+/// to be able to say.
+#[derive(Resource, Default)]
+pub(crate) struct PlayedHandles(pub(crate) Vec<Handle<AudioSource>>);
+
 /// A headless app with a loaded [`SoundBank`] and a `PlaySfx` counter, on
 /// MinimalPlugins so the AssetPlugin task pools exist.
 pub(crate) fn cue_app() -> App {
@@ -177,8 +184,30 @@ pub(crate) fn cue_app() -> App {
         UI_SFX_FILES,
     ));
     app.init_resource::<PlayedCues>();
-    app.add_observer(|_: On<PlaySfx>, mut cues: ResMut<PlayedCues>| cues.0 += 1);
+    app.init_resource::<PlayedHandles>();
+    app.add_observer(
+        |play: On<PlaySfx>, mut cues: ResMut<PlayedCues>, mut played: ResMut<PlayedHandles>| {
+            cues.0 += 1;
+            played.0.push(play.handle.clone());
+        },
+    );
     app
+}
+
+/// Drain the cues played so far, as [`UiSfx`] keys. Unknown handles come back
+/// as `None`, which is itself an assertable failure.
+pub(crate) fn take_cues(app: &mut App) -> Vec<Option<UiSfx>> {
+    let played = std::mem::take(&mut app.world_mut().resource_mut::<PlayedHandles>().0);
+    let bank = app.world().resource::<SoundBank<UiSfx>>();
+    played
+        .iter()
+        .map(|handle| {
+            UI_SFX_FILES
+                .iter()
+                .map(|(key, _)| *key)
+                .find(|key| bank.get(*key) == *handle)
+        })
+        .collect()
 }
 
 /// Entity lookup by Name, shared by the pause- and outcome-overlay tests.
