@@ -32,8 +32,12 @@ use crate::{
 /// than clicks.
 const LOOP_SMOOTHING_RATE: f32 = 8.0;
 
-/// Below this level a loop with nothing left to track is retired. Its owner is
-/// gone or idle, and holding an open sink for silence buys nothing.
+/// The line between "this source has a voice" and "it does not". A loop with
+/// nothing left to track is retired below it, and a source under it is never
+/// given one: its owner is gone or idle, and holding an open sink for silence
+/// buys nothing. One number for both arms of `reconcile_loops`, so a silent
+/// source cannot be spawned by one and retired by the other on alternate
+/// frames.
 const LOOP_RETIRE_LEVEL: f32 = 1e-4;
 
 /// One ship's engine hum: whose burn it tracks, and which authored sound it
@@ -250,6 +254,10 @@ fn charge_speed(progress: f32) -> f32 {
 ///
 /// Shared by the two loop passes because the ONLY thing that differs between an
 /// engine hum and an RCS hiss is the level curve that produced `targets`.
+///
+/// [`LOOP_RETIRE_LEVEL`] is the hinge, and both arms read it: a source below it
+/// gets no voice and a voice below it is retired, so a silent source settles at
+/// "no voice" instead of trading between the two arms every frame.
 #[expect(
     clippy::too_many_arguments,
     reason = "the generic reconciler takes both marker adapters plus the queries it drives"
@@ -269,7 +277,7 @@ fn reconcile_loops<M: Component>(
         let pair = pair_of(marker);
         let target = targets.remove(&pair).unwrap_or(0.0);
         voice.volume += (target - voice.volume) * alpha;
-        if target <= 0.0 && voice.volume < LOOP_RETIRE_LEVEL {
+        if target < LOOP_RETIRE_LEVEL && voice.volume < LOOP_RETIRE_LEVEL {
             commands.entity(entity).despawn();
             continue;
         }
@@ -278,6 +286,13 @@ fn reconcile_loops<M: Component>(
         voice.route = route_from(pair.0, q_is_player);
     }
     for ((source, handle), target) in targets {
+        // The SAME threshold the retire arm just used, and the two must stay
+        // the same one. A source under it - an idle thruster, a torpedo
+        // coasting at zero headroom - would otherwise be spawned on one frame
+        // and retired on the next, opening and closing a rodio sink forever.
+        if target < LOOP_RETIRE_LEVEL {
+            continue;
+        }
         commands.spawn((
             Name::new(name),
             marker_of(source, handle.clone()),
@@ -466,6 +481,35 @@ mod tests {
             voice_for(&mut app, ship).is_none(),
             "a faded-out loop retires instead of holding an open sink at silence"
         );
+
+        // And STAYS gone. This assertion used to hold on frame parity alone:
+        // the retired source was respawned on the next frame and retired on
+        // the one after, forever.
+        for frame in 0..9 {
+            app.update();
+            assert!(
+                voice_for(&mut app, ship).is_none(),
+                "the idle ship took its voice back on frame {frame}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_idle_thruster_never_opens_a_voice_at_all() {
+        // A torpedo coasting at zero headroom is exactly this case, and there
+        // are hundreds of them in a salvo. Spawning one silent voice per
+        // source per frame - and retiring it the next - churned a rodio sink
+        // open and closed for every one.
+        let mut app = loop_app();
+        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 0.0);
+
+        for frame in 0..24 {
+            app.update();
+            assert!(
+                voice_for(&mut app, ship).is_none(),
+                "an idle thruster opened a sink on frame {frame}"
+            );
+        }
     }
 
     #[test]

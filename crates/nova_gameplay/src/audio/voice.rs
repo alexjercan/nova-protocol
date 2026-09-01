@@ -2,8 +2,8 @@
 //!
 //! Every sound in the game is an [`SfxVoice`] entity, and this file is the ONLY
 //! place an `AudioPlayer` is constructed - pinned by
-//! `the_engine_is_the_only_place_an_audio_player_is_built`, which reads the
-//! crates' sources. A one-shot is a voice the engine spawns and retires for
+//! `the_engine_is_the_only_place_an_audio_player_is_built`, which reads every
+//! Rust source in the workspace. A one-shot is a voice the engine spawns and retires for
 //! you (see [`PlaySfx`](super::PlaySfx)); a loop is a voice its owner spawns,
 //! keeps, and moves [`volume`](SfxVoice::volume) on each frame.
 //!
@@ -12,7 +12,10 @@
 //! silence when a scenario unloads, and the cap on how many exterior loops may
 //! sound at once.
 
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use bevy::{
     audio::{PlaybackMode, SpatialAudioSink, Volume},
@@ -213,6 +216,23 @@ fn voice_player(voice: &SfxVoice, gain: f32) -> impl Bundle {
     )
 }
 
+/// How long a one-shot may wait for a sink before the engine gives up on it.
+///
+/// Bevy only opens a sink when there IS an audio device and the clip has
+/// loaded; with neither - a headless probe run, a CI box, a clip that failed to
+/// load - it leaves the entity queued and `PlaybackMode::Despawn` never fires.
+/// Nothing else would ever retire that voice, so every UI click and every PDC
+/// round in such a session becomes a permanent entity that
+/// [`drive_sfx_voices`] re-mixes on every frame after. Loops are exempt: their
+/// owner despawns them, which is the whole contract.
+const ONE_SHOT_SINK_GRACE: Duration = Duration::from_secs(2);
+
+/// When a one-shot began waiting for its sink. See [`ONE_SHOT_SINK_GRACE`].
+///
+/// Real time, not virtual: a cue fired into a paused world is still waiting.
+#[derive(Component)]
+pub(super) struct AwaitingSink(Duration);
+
 /// Give the listener camera its ears the moment it is marked, so nothing has to
 /// remember to spawn a [`SpatialListener`] beside the marker.
 pub(super) fn on_add_listener(add: On<Add, SfxListenerMarker>, mut commands: Commands) {
@@ -227,6 +247,7 @@ pub(super) fn on_add_listener(add: On<Add, SfxListenerMarker>, mut commands: Com
 pub(super) fn start_sfx_voices(
     mut commands: Commands,
     mixer: Mixer,
+    time: Res<Time<Real>>,
     q_new: Query<(Entity, &SfxVoice), Without<AudioPlayer>>,
     q_listener: Query<&GlobalTransform, (With<SfxListenerMarker>, Without<SfxVoice>)>,
     q_pose: Query<&GlobalTransform, Without<SfxVoice>>,
@@ -239,10 +260,32 @@ pub(super) fn start_sfx_voices(
             commands.entity(entity).despawn();
             continue;
         }
-        commands.entity(entity).insert((
+        let mut voice_entity = commands.entity(entity);
+        voice_entity.insert((
             voice_player(voice, placement.gain),
             GlobalTransform::from_translation(placement.emitter.unwrap_or_default()),
         ));
+        if !voice.looping {
+            voice_entity.insert(AwaitingSink(time.elapsed()));
+        }
+    }
+}
+
+/// Retire a one-shot that never got a sink.
+///
+/// The counterpart to `PlaybackMode::Despawn`, which only fires for a voice
+/// that actually played. See [`ONE_SHOT_SINK_GRACE`] for what leaves one
+/// stranded. A voice that DID get its sink leaves this query the moment bevy
+/// inserts it, so the grace period never truncates a playing cue.
+pub(super) fn retire_unplayable_one_shots(
+    mut commands: Commands,
+    time: Res<Time<Real>>,
+    q_waiting: Query<(Entity, &AwaitingSink), (Without<AudioSink>, Without<SpatialAudioSink>)>,
+) {
+    for (entity, waiting) in &q_waiting {
+        if time.elapsed().saturating_sub(waiting.0) >= ONE_SHOT_SINK_GRACE {
+            commands.entity(entity).despawn();
+        }
     }
 }
 
@@ -268,47 +311,60 @@ pub(super) fn drive_sfx_voices(
 ) {
     let listener = q_listener.iter().next();
     let mut placements: HashMap<Entity, VoicePlacement> = HashMap::new();
-    let mut exterior_loops: Vec<f32> = Vec::new();
+    let mut exterior_loops: Vec<(f32, Entity)> = Vec::new();
     for (entity, voice, ..) in &q_voices {
         let point = resolve_point(voice.source, &q_pose);
         let placement = place_voice(voice, mixer.bus_gain(voice.route), listener, &point);
         if voice.looping && voice.route.is_positional() {
-            exterior_loops.push(placement.level);
+            exterior_loops.push((placement.level, entity));
         }
         placements.insert(entity, placement);
     }
-    let loop_floor = exterior_loop_floor(&mut exterior_loops);
+    let silenced = exterior_loops_over_the_cap(&mut exterior_loops);
     let master = mixer.master_gain();
 
     for (entity, voice, mut pose, sink, spatial_sink) in &mut q_voices {
         let Some(placement) = placements.get(&entity) else {
             continue;
         };
-        let capped = voice.looping && voice.route.is_positional() && placement.level < loop_floor;
-        let gain = if capped { 0.0 } else { placement.gain * master };
+        let gain = if silenced.contains(&entity) {
+            0.0
+        } else {
+            placement.gain * master
+        };
+        // Rodio does not accept a non-positive playback rate, and the owner of
+        // a loop writes this field every frame.
+        let speed = voice.speed.max(f32::MIN_POSITIVE);
         if let Some(emitter) = placement.emitter {
             *pose = GlobalTransform::from_translation(emitter);
         }
         if let Some(mut sink) = sink {
             sink.set_volume(Volume::Linear(gain));
-            sink.set_speed(voice.speed);
+            sink.set_speed(speed);
         }
         if let Some(mut sink) = spatial_sink {
             sink.set_volume(Volume::Linear(gain));
-            sink.set_speed(voice.speed);
+            sink.set_speed(speed);
         }
     }
 }
 
-/// The quietest level an exterior loop may hold and still sound, given
-/// [`MAX_EXTERIOR_LOOP_VOICES`]. Below the cap every voice sounds, so the floor
-/// is zero.
-fn exterior_loop_floor(levels: &mut Vec<f32>) -> f32 {
+/// Which exterior loops must hold silence this frame, given
+/// [`MAX_EXTERIOR_LOOP_VOICES`].
+///
+/// A RANK, not a level threshold. A formation of identical ships at identical
+/// range ties on level, and a threshold lets the whole tie through - losing the
+/// cap in precisely the crowded scene it exists for. The entity breaks the tie,
+/// so the same voices keep sounding frame to frame instead of trading places.
+fn exterior_loops_over_the_cap(levels: &mut Vec<(f32, Entity)>) -> HashSet<Entity> {
     if levels.len() <= MAX_EXTERIOR_LOOP_VOICES {
-        return 0.0;
+        return HashSet::new();
     }
-    levels.sort_by(|a, b| b.total_cmp(a));
-    levels[MAX_EXTERIOR_LOOP_VOICES - 1]
+    levels.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+    levels[MAX_EXTERIOR_LOOP_VOICES..]
+        .iter()
+        .map(|(_, entity)| *entity)
+        .collect()
 }
 
 fn resolve_point(
@@ -477,20 +533,99 @@ mod tests {
         assert_eq!(silenced.level, 0.0, "a track at zero plays nothing");
     }
 
+    fn loops(levels: impl IntoIterator<Item = f32>) -> Vec<(f32, Entity)> {
+        levels
+            .into_iter()
+            .enumerate()
+            .map(|(index, level)| {
+                (
+                    level,
+                    Entity::from_raw_u32(index as u32 + 1).expect("a valid test entity"),
+                )
+            })
+            .collect()
+    }
+
     #[test]
     fn the_exterior_loop_cap_keeps_the_loudest_voices() {
         // Under the cap nothing is cut.
-        let mut few: Vec<f32> = (0..MAX_EXTERIOR_LOOP_VOICES).map(|i| i as f32).collect();
-        assert_eq!(exterior_loop_floor(&mut few), 0.0);
+        let mut few = loops((0..MAX_EXTERIOR_LOOP_VOICES).map(|i| i as f32));
+        assert!(exterior_loops_over_the_cap(&mut few).is_empty());
 
-        // Over it, the floor is the quietest voice that still sounds, so
-        // exactly `MAX_EXTERIOR_LOOP_VOICES` are at or above it.
-        let mut many: Vec<f32> = (0..MAX_EXTERIOR_LOOP_VOICES + 5)
-            .map(|i| 0.1 * i as f32)
-            .collect();
-        let floor = exterior_loop_floor(&mut many);
-        let kept = many.iter().filter(|level| **level >= floor).count();
-        assert_eq!(kept, MAX_EXTERIOR_LOOP_VOICES, "floor was {floor}");
+        // Over it, exactly the overflow is silenced, and it is the quiet end.
+        let mut many = loops((0..MAX_EXTERIOR_LOOP_VOICES + 5).map(|i| 0.1 * i as f32));
+        let silenced = exterior_loops_over_the_cap(&mut many);
+        assert_eq!(silenced.len(), 5);
+        let loudest_silenced = many
+            .iter()
+            .filter(|(_, entity)| silenced.contains(entity))
+            .map(|(level, _)| *level)
+            .fold(f32::MIN, f32::max);
+        let quietest_kept = many
+            .iter()
+            .filter(|(_, entity)| !silenced.contains(entity))
+            .map(|(level, _)| *level)
+            .fold(f32::MAX, f32::min);
+        assert!(
+            loudest_silenced < quietest_kept,
+            "the cut is at the quiet end"
+        );
+    }
+
+    #[test]
+    fn a_formation_at_one_range_is_still_capped() {
+        // The reason the cap ranks instead of thresholding: identical ships at
+        // identical range tie on level, and a level floor would pass the whole
+        // tie through and open a sink for every one of them.
+        let mut tied = loops(std::iter::repeat_n(0.5, MAX_EXTERIOR_LOOP_VOICES + 6));
+        let silenced = exterior_loops_over_the_cap(&mut tied);
+        assert_eq!(
+            tied.len() - silenced.len(),
+            MAX_EXTERIOR_LOOP_VOICES,
+            "a tie must not defeat the cap"
+        );
+    }
+
+    #[test]
+    fn the_cap_keeps_the_same_voices_across_frames() {
+        // Held at silence, not despawned - so a voice that flips in and out on
+        // an arbitrary tie-break would chatter. The entity fixes the order.
+        let mut frame = loops(std::iter::repeat_n(0.5, MAX_EXTERIOR_LOOP_VOICES + 3));
+        let first = exterior_loops_over_the_cap(&mut frame.clone());
+        let mut shuffled: Vec<_> = frame.drain(..).rev().collect();
+        let second = exterior_loops_over_the_cap(&mut shuffled);
+        assert_eq!(first, second, "iteration order must not move the cut");
+    }
+
+    #[test]
+    fn a_one_shot_that_never_gets_a_sink_is_retired() {
+        // The headless case: no audio device, so bevy never opens a sink and
+        // `PlaybackMode::Despawn` never fires. Nothing else retires the voice.
+        let mut app = App::new();
+        app.init_resource::<Time<Real>>();
+        app.add_systems(Update, retire_unplayable_one_shots);
+        let voice = app
+            .world_mut()
+            .spawn((
+                SfxVoice::one_shot(Handle::default(), AudioRoute::Interface),
+                AwaitingSink(Duration::ZERO),
+            ))
+            .id();
+
+        app.update();
+        assert!(
+            app.world().get_entity(voice).is_ok(),
+            "inside the grace the clip may still be loading"
+        );
+
+        app.world_mut()
+            .resource_mut::<Time<Real>>()
+            .advance_by(ONE_SHOT_SINK_GRACE);
+        app.update();
+        assert!(
+            app.world().get_entity(voice).is_err(),
+            "a cue that can never play must not outlive the session"
+        );
     }
 
     /// The convention the whole module exists to enforce: no random sound
@@ -502,24 +637,28 @@ mod tests {
     /// code is written, which no type system in this repo can express.
     #[test]
     fn the_engine_is_the_only_place_an_audio_player_is_built() {
-        let crates = workspace_root().join("crates");
+        let root = workspace_root();
         let mut offenders = Vec::new();
-        visit_rust_sources(&crates, &mut |path| {
-            if path.ends_with(THE_ONE_PLACE) {
-                return;
-            }
-            let Ok(source) = std::fs::read_to_string(path) else {
-                return;
-            };
-            for (line_number, line) in source.lines().enumerate() {
-                // Strip line comments: the doc comments in this module name the
-                // constructor on purpose.
-                let code = line.split("//").next().unwrap_or_default();
-                if code.contains("AudioPlayer(") {
-                    offenders.push(format!("{}:{}", path.display(), line_number + 1));
+        for dir in SCANNED_ROOTS {
+            visit_rust_sources(&root.join(dir), &mut |path| {
+                if path.ends_with(THE_ONE_PLACE) {
+                    return;
                 }
-            }
-        });
+                let Ok(source) = std::fs::read_to_string(path) else {
+                    return;
+                };
+                for (line_number, line) in source.lines().enumerate() {
+                    // Strip line comments: the doc comments in this module name
+                    // the constructor on purpose.
+                    let code = line.split("//").next().unwrap_or_default();
+                    // Both ways bevy lets you build one - the tuple struct and
+                    // the convenience constructor.
+                    if code.contains("AudioPlayer(") || code.contains("AudioPlayer::new") {
+                        offenders.push(format!("{}:{}", path.display(), line_number + 1));
+                    }
+                }
+            });
+        }
         assert!(
             offenders.is_empty(),
             "audio must go through the engine, not straight to bevy. \
@@ -531,6 +670,11 @@ mod tests {
     /// The one file allowed to name bevy's playback component, as a path
     /// suffix so the check reads the same from any checkout.
     const THE_ONE_PLACE: &str = "nova_gameplay/src/audio/voice.rs";
+
+    /// Every hand-written Rust root in the workspace. `examples/` matters as
+    /// much as `crates/`: a playable example that spawns its own player is the
+    /// same unrouted voice, and it is the easier place to write one.
+    const SCANNED_ROOTS: [&str; 5] = ["crates", "examples", "src", "tests", "tools"];
 
     fn workspace_root() -> PathBuf {
         // CARGO_MANIFEST_DIR is `<root>/crates/nova_gameplay`.

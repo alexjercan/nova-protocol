@@ -116,7 +116,7 @@ use self::{
     mixing::prune_sfx_throttle,
     voice::{
         drive_sfx_voices, on_add_listener, pause_world_voices, resume_world_voices,
-        start_sfx_voices, stop_world_voices,
+        retire_unplayable_one_shots, start_sfx_voices, stop_world_voices,
     },
 };
 
@@ -333,7 +333,11 @@ impl Plugin for NovaAudioPlugin {
         );
         app.add_systems(
             PostUpdate,
-            (start_sfx_voices, drive_sfx_voices)
+            (
+                retire_unplayable_one_shots,
+                start_sfx_voices,
+                drive_sfx_voices,
+            )
                 .chain()
                 .in_set(AudioSystems),
         );

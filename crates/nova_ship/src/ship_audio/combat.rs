@@ -73,10 +73,7 @@ pub(super) fn on_destroyed_play_explosion(
     // AUTHORED-OR-SILENT: the destruction voice is the TARGET's authored
     // destroy_sound (per-target = per-material), found on the entity or an
     // ancestor (asteroid node shape) and resolved here.
-    let Some(handle) = nearest(add.entity, &q_sounds, &q_child_of)
-        .and_then(|s| s.0.as_ref())
-        .map(|r| r.resolve(&asset_server))
-    else {
+    let Some(sound) = nearest(add.entity, &q_sounds, &q_child_of).and_then(|s| s.0.as_ref()) else {
         return;
     };
     let pos = source.translation();
@@ -86,7 +83,7 @@ pub(super) fn on_destroyed_play_explosion(
         EXPLOSION_MIN_INTERVAL,
     ) {
         let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(handle, route, EXPLOSION_VOLUME, pos);
+        commands.play_sfx_at(sound.resolve(&asset_server), route, EXPLOSION_VOLUME, pos);
     }
 }
 
@@ -197,10 +194,7 @@ pub(super) fn on_surface_impact_play_sfx(
     mut commands: Commands,
 ) {
     let material = nearest(impact.entity, &q_material, &q_child_of).map(|m| m.0.as_str());
-    let Some(handle) = impacts
-        .sound(impact.kind, material)
-        .map(|r| r.resolve(&asset_server))
-    else {
+    let Some(sound) = impacts.sound(impact.kind, material) else {
         return;
     };
     let pos = impact.at;
@@ -211,7 +205,7 @@ pub(super) fn on_surface_impact_play_sfx(
     ) {
         // Damage landing on YOUR hull is heard through it, not across the gap.
         let route = route_for(impact.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(handle, route, IMPACT_VOLUME, pos);
+        commands.play_sfx_at(sound.resolve(&asset_server), route, IMPACT_VOLUME, pos);
     }
 }
 
@@ -244,14 +238,11 @@ pub(super) fn on_turret_fire_play_sfx(
     let Ok((transform, part_of)) = q_projectile.get(add.entity) else {
         return;
     };
-    // No authored sound -> silent (still stamp the throttle key? No: an
-    // unauthored turret plays nothing, so there is nothing to rate-limit).
-    let Some(handle) = q_fire_sound
-        .get(part_of.0)
-        .ok()
-        .and_then(|s| s.0.as_ref())
-        .map(|r| r.resolve(&asset_server))
-    else {
+    // No authored sound -> silent, and BEFORE the throttle: an unauthored
+    // turret plays nothing, so there is nothing to rate-limit. Only the
+    // resolve waits, because it is an `AssetServer::load` and most calls here
+    // are about to be thrown away by the throttle.
+    let Some(sound) = q_fire_sound.get(part_of.0).ok().and_then(|s| s.0.as_ref()) else {
         return;
     };
     if throttle_state.allow(
@@ -262,7 +253,12 @@ pub(super) fn on_turret_fire_play_sfx(
         // Routed off the FIRING TURRET, not the round: the shell is a fresh
         // root with no ship above it, and whose gun it left is the question.
         let route = route_for(part_of.0, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(handle, route, TURRET_FIRE_VOLUME, transform.translation);
+        commands.play_sfx_at(
+            sound.resolve(&asset_server),
+            route,
+            TURRET_FIRE_VOLUME,
+            transform.translation,
+        );
     }
 }
 
@@ -295,11 +291,10 @@ pub(super) fn on_torpedo_launch_play_sfx(
     let Ok((source, spawner)) = q_projectile.get(add.entity) else {
         return;
     };
-    let Some(handle) = q_launch_sound
+    let Some(sound) = q_launch_sound
         .get(spawner.0)
         .ok()
         .and_then(|s| s.0.as_ref())
-        .map(|r| r.resolve(&asset_server))
     else {
         return;
     };
@@ -314,7 +309,12 @@ pub(super) fn on_torpedo_launch_play_sfx(
         return;
     }
     let route = route_from(root, &q_is_player);
-    commands.play_sfx_at(handle, route, TORPEDO_LAUNCH_VOLUME, source.translation);
+    commands.play_sfx_at(
+        sound.resolve(&asset_server),
+        route,
+        TORPEDO_LAUNCH_VOLUME,
+        source.translation,
+    );
 }
 
 /// The lance's report, on the tick the shot leaves.

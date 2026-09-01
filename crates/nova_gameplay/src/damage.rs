@@ -261,24 +261,6 @@ pub fn damage_type_color(kind: DamageType) -> Color {
     }
 }
 
-/// Spend `amount` hit points on `target`, attributed to `source`, landing at
-/// `at` in WORLD space.
-///
-/// The single point at which a weapon enters the health store, so every
-/// weapon - turret, torpedo blast, ram - lands identically. It is a plain
-/// trigger: damage is still one number, and nothing between the weapon and
-/// [`on_damage`](crate::integrity::health) reinterprets it.
-///
-/// `at` goes to a different store, and that split is the point: health
-/// remembers how MUCH was spent, [`DamageMarks`] remembers WHERE, and a body
-/// that changes shape needs both. `None` is for damage that genuinely happened
-/// nowhere - a scripted `destroy`, a test rig - and costs the target nothing
-/// but its shape staying whole.
-///
-/// `kind` rides along for the same store. Health does not read it - damage is
-/// still one number - but what a hit LOOKS like is a property of the weapon
-/// class, so the carve has to know which one paid.
-///
 /// A round meeting a SURFACE: where it landed, and which weapon class paid.
 ///
 /// The report seam the hit voice reads, and deliberately not
@@ -303,6 +285,24 @@ pub struct SurfaceImpact {
     pub at: Vec3,
 }
 
+/// Spend `amount` hit points on `target`, attributed to `source`, landing at
+/// `at` in WORLD space.
+///
+/// The single point at which a weapon enters the health store, so every
+/// weapon - turret, torpedo blast, ram - lands identically. It is a plain
+/// trigger: damage is still one number, and nothing between the weapon and
+/// [`on_damage`](crate::integrity::health) reinterprets it.
+///
+/// `at` goes to a different store, and that split is the point: health
+/// remembers how MUCH was spent, [`DamageMarks`] remembers WHERE, and a body
+/// that changes shape needs both. `None` is for damage that genuinely happened
+/// nowhere - a scripted `destroy`, a test rig - and costs the target nothing
+/// but its shape staying whole.
+///
+/// `kind` rides along for the same store. Health does not read it - damage is
+/// still one number - but what a hit LOOKS like is a property of the weapon
+/// class, so the carve has to know which one paid.
+///
 /// [`DamageMarks`]: crate::integrity::carve::DamageMarks
 pub fn apply_damage(
     commands: &mut Commands,

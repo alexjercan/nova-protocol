@@ -880,9 +880,6 @@ mod tests {
         );
     }
 
-    /// An authored round chose its own look and there is no length to measure
-    /// on a scene handle, so the stretch must leave it alone.
-    #[test]
     /// The lance's slug is the fastest round in the game, and the streak is
     /// most of what a player ever sees of it. A clamp sized for the PDC would
     /// draw it shorter than its own body.
@@ -907,6 +904,8 @@ mod tests {
         );
     }
 
+    /// An authored round chose its own look and there is no length to measure
+    /// on a scene handle, so the stretch must leave it alone.
     #[test]
     fn an_authored_round_gets_no_tracer_stretch() {
         let mut app = round_render_app();

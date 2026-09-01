@@ -31,7 +31,7 @@
 //! }
 //!
 //! fn on_click(mut commands: Commands, sfx: Res<SoundBank<Sfx>>) {
-//!     commands.play_sfx(sfx.get(Sfx::Click));
+//!     commands.play_sfx(sfx.get(Sfx::Click), AudioRoute::Interface, 0.3);
 //! }
 //! ```
 //!
