@@ -26,6 +26,9 @@ use bevy_hanabi::prelude::EffectAsset;
 pub use config::{MuzzleConfig, TurretJoint, TurretSectionConfig};
 use firing::shoot_spawn_projectile;
 use nova_gameplay::prelude::*;
+/// The built-in round streak, so the lance's slug can wear the same one. Not
+/// on the prelude: it is render machinery, not a section's vocabulary.
+pub(crate) use render::RoundTracer;
 use render::{
     insert_projectile_render, insert_turret_barrel_muzzle_effect, insert_turret_joint_render,
     on_projectile_marker_effect, stretch_round_tracers, DefaultMuzzleEffect,

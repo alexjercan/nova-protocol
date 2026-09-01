@@ -41,6 +41,10 @@ pub(super) fn enforce_safety_trigger_interrupt(
     q_ships: Query<(Entity, &WeaponsHot), Changed<WeaponsHot>>,
     mut q_turrets: Query<(&mut TurretSectionInput, &ChildOf)>,
     mut q_torpedoes: Query<(&mut TorpedoSectionInput, &ChildOf), Without<TurretSectionInput>>,
+    mut q_railguns: Query<
+        (&mut RailgunSectionInput, &ChildOf),
+        (Without<TurretSectionInput>, Without<TorpedoSectionInput>),
+    >,
 ) {
     for (ship, hot) in &q_ships {
         if hot.0 {
@@ -52,6 +56,11 @@ pub(super) fn enforce_safety_trigger_interrupt(
             }
         }
         for (mut input, ChildOf(parent)) in &mut q_torpedoes {
+            if *parent == ship && **input {
+                **input = false;
+            }
+        }
+        for (mut input, ChildOf(parent)) in &mut q_railguns {
             if *parent == ship && **input {
                 **input = false;
             }
@@ -106,12 +115,14 @@ mod tests {
         let ship = world.spawn(WeaponsHot(true)).id();
         let turret = world.spawn((TurretSectionInput(true), ChildOf(ship))).id();
         let torpedo = world.spawn((TorpedoSectionInput(true), ChildOf(ship))).id();
+        let railgun = world.spawn((RailgunSectionInput(true), ChildOf(ship))).id();
         let enforce = world.register_system(enforce_safety_trigger_interrupt);
 
         // Delivery guard: while hot, held triggers survive the pass.
         world.run_system(enforce).unwrap();
         assert!(**world.get::<TurretSectionInput>(turret).unwrap());
         assert!(**world.get::<TorpedoSectionInput>(torpedo).unwrap());
+        assert!(**world.get::<RailgunSectionInput>(railgun).unwrap());
 
         // The safety engages: both inputs zero the same frame.
         world.get_mut::<WeaponsHot>(ship).unwrap().0 = false;
@@ -123,6 +134,10 @@ mod tests {
         assert!(
             !**world.get::<TorpedoSectionInput>(torpedo).unwrap(),
             "a held torpedo trigger is interrupted too"
+        );
+        assert!(
+            !**world.get::<RailgunSectionInput>(railgun).unwrap(),
+            "a held lance trigger is interrupted, so the safety cannot leave a              commit latched across the cold window"
         );
     }
 }

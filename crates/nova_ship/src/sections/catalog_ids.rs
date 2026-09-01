@@ -24,5 +24,4 @@ pub const PDC_KINETIC_TURRET_SECTION_ID: &str = "pdc_kinetic_turret_section";
 /// sandbox can put one on the ship it hands a builder.
 pub const RAILGUN_LANCE_SECTION_ID: &str = "railgun_lance_section";
 /// The standard hull plate, and the seed the editor starts a new ship from.
-
 pub const REINFORCED_HULL_SECTION_ID: &str = "reinforced_hull_section";

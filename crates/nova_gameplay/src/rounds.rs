@@ -11,7 +11,7 @@ use crate::prelude::*;
 
 /// [`RoundVelocity`], [`RoundBitten`], [`NovaRoundPlugin`] and [`NovaRoundSystems`].
 pub mod prelude {
-    pub use super::{NovaRoundPlugin, NovaRoundSystems, RoundBitten, RoundVelocity};
+    pub use super::{NovaRoundPlugin, NovaRoundSystems, RoundBitten, RoundVelocity, PIERCE_SKIN};
 }
 
 /// A gun round's own velocity, in units/second.
@@ -103,7 +103,7 @@ const MAX_BITES_PER_STEP: usize = 32;
 
 /// Nudge past a resolved hit before the next cast, so the sweep restarts
 /// outside the surface it just crossed rather than inside it.
-const PIERCE_SKIN: f32 = 1.0e-3;
+pub const PIERCE_SKIN: f32 = 1.0e-3;
 
 /// Registers the round sweep after the physics step, in [`FixedPostUpdate`].
 ///

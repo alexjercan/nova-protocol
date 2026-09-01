@@ -23,7 +23,7 @@ use super::{
 use crate::{
     prelude::*,
     sections::{
-        railgun_section::{RailgunFired, RailgunSectionFireSound, RailgunSectionReloadSound},
+        railgun_section::{RailgunSectionFireSound, RailgunSectionReloadSound},
         torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
         turret_section::{TurretSectionFireSound, TurretSectionPartOf},
     },

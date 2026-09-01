@@ -273,6 +273,7 @@ pub(super) fn insert_projectile_render(
                 MeshMaterial3d(art.material.clone()),
                 RoundTracer {
                     half_length: art.half_length,
+                    max_length: TRACER_MAX_LENGTH,
                 },
             ),],));
         }
@@ -353,14 +354,19 @@ pub(super) fn insert_turret_joint_render(
     }
 }
 
-/// Longest a tracer may be drawn, in world units.
+/// Longest a PDC tracer may be drawn, in world units.
 ///
 /// The stretch is taken from the frame's own delta, so a stall would draw a
 /// streak as long as the stall was: a quarter-second hitch puts a 25 unit bar
 /// of light across the screen for one frame, which reads as a rendering fault
 /// rather than as a gun. This clamps it to a length a round could plausibly
 /// have crossed.
-const TRACER_MAX_LENGTH: f32 = 4.0;
+///
+/// It is the DEFAULT, not the rule: the clamp scales with the round's speed, so
+/// a 1500 u/s lance slug carries its own on [`RoundTracer::max_length`]. A
+/// clamp sized for a 100 u/s round would erase the streak of a round fifteen
+/// times faster.
+pub(crate) const TRACER_MAX_LENGTH: f32 = 4.0;
 
 /// How much of a frame's travel a round is drawn across.
 ///
@@ -394,9 +400,8 @@ const TRACER_SHUTTER: f32 = 0.35;
 /// it is too much: 1.67 units drawn into 1.0 unit of spacing overlaps every
 /// round with the two beside it and fuses the burst into an unbroken rod. A
 /// rod is a laser. This gun fires rounds and has to look like it.
-fn tracer_length(speed: f32, delta_secs: f32, natural_length: f32) -> f32 {
-    (speed * delta_secs * TRACER_SHUTTER)
-        .clamp(natural_length, TRACER_MAX_LENGTH.max(natural_length))
+fn tracer_length(speed: f32, delta_secs: f32, natural_length: f32, max_length: f32) -> f32 {
+    (speed * delta_secs * TRACER_SHUTTER).clamp(natural_length, max_length.max(natural_length))
 }
 
 /// The render child of a round wearing the BUILT-IN art, and how long that art
@@ -409,7 +414,10 @@ fn tracer_length(speed: f32, delta_secs: f32, natural_length: f32) -> f32 {
 pub(crate) struct RoundTracer {
     /// Half the drawn length of the unstretched art, in world units - the
     /// distance from the round's position to its nose.
-    half_length: f32,
+    pub(crate) half_length: f32,
+    /// Longest this round's streak may be drawn, in world units. Sized to the
+    /// round's own speed: see [`TRACER_MAX_LENGTH`].
+    pub(crate) max_length: f32,
 }
 
 /// Stretch each built-in round's art back along its own flight, so a burst
@@ -437,7 +445,7 @@ pub(super) fn stretch_round_tracers(
         if natural <= 0.0 {
             continue;
         }
-        let stretch = tracer_length(velocity.length(), delta, natural) / natural;
+        let stretch = tracer_length(velocity.length(), delta, natural, tracer.max_length) / natural;
         transform.scale.z = stretch;
         // The art is centred on the round, so scaling alone would push the nose
         // out ahead of where the round actually is - the streak would arrive
@@ -766,7 +774,7 @@ mod tests {
     fn a_tracer_is_drawn_between_its_own_length_and_the_gap_to_the_next_round() {
         let natural = 0.09 + 0.03;
         let spacing = 1.0;
-        let drawn = tracer_length(100.0, 1.0 / 60.0, natural);
+        let drawn = tracer_length(100.0, 1.0 / 60.0, natural, TRACER_MAX_LENGTH);
         assert!(
             drawn > natural * 4.0,
             "the streak must be several times the round to close the gap, got {drawn}"
@@ -783,8 +791,8 @@ mod tests {
     #[test]
     fn a_slower_frame_draws_a_longer_tracer() {
         let natural = 0.12;
-        let fast = tracer_length(100.0, 1.0 / 120.0, natural);
-        let slow = tracer_length(100.0, 1.0 / 30.0, natural);
+        let fast = tracer_length(100.0, 1.0 / 120.0, natural, TRACER_MAX_LENGTH);
+        let slow = tracer_length(100.0, 1.0 / 30.0, natural, TRACER_MAX_LENGTH);
         assert!(slow > fast, "{slow} must exceed {fast}");
         assert!(
             (slow / fast - 4.0).abs() < 1e-4,
@@ -796,8 +804,14 @@ mod tests {
     #[test]
     fn a_round_that_is_barely_moving_keeps_its_own_silhouette() {
         let natural = 0.12;
-        assert_eq!(tracer_length(0.0, 1.0 / 60.0, natural), natural);
-        assert_eq!(tracer_length(1.0, 1.0 / 60.0, natural), natural);
+        assert_eq!(
+            tracer_length(0.0, 1.0 / 60.0, natural, TRACER_MAX_LENGTH),
+            natural
+        );
+        assert_eq!(
+            tracer_length(1.0, 1.0 / 60.0, natural, TRACER_MAX_LENGTH),
+            natural
+        );
     }
 
     /// A hitch must not put a bar of light across the screen. The stretch is
@@ -805,7 +819,10 @@ mod tests {
     /// stall would draw a 25 unit streak for one frame.
     #[test]
     fn a_stalled_frame_cannot_draw_a_bar_across_the_screen() {
-        assert_eq!(tracer_length(100.0, 0.25, 0.12), TRACER_MAX_LENGTH);
+        assert_eq!(
+            tracer_length(100.0, 0.25, 0.12, TRACER_MAX_LENGTH),
+            TRACER_MAX_LENGTH
+        );
     }
 
     /// The nose is the round. Scaling the art alone would push it out ahead of
@@ -865,6 +882,31 @@ mod tests {
 
     /// An authored round chose its own look and there is no length to measure
     /// on a scene handle, so the stretch must leave it alone.
+    #[test]
+    /// The lance's slug is the fastest round in the game, and the streak is
+    /// most of what a player ever sees of it. A clamp sized for the PDC would
+    /// draw it shorter than its own body.
+    #[test]
+    fn a_lance_slug_streaks_further_than_a_pdc_round_may() {
+        let natural = 0.8;
+        let pdc_clamped = tracer_length(1500.0, 1.0 / 60.0, natural, TRACER_MAX_LENGTH);
+        assert_eq!(
+            pdc_clamped, TRACER_MAX_LENGTH,
+            "the PDC clamp truncates a lance slug to {TRACER_MAX_LENGTH}"
+        );
+
+        let slug = tracer_length(1500.0, 1.0 / 60.0, natural, 40.0);
+        assert!(
+            slug > pdc_clamped,
+            "a lance slug must outrun the PDC clamp, got {slug}"
+        );
+        // A frame of travel is 25 units; the shutter draws a fraction of it.
+        assert!(
+            slug > natural * 4.0 && slug < 25.0,
+            "the streak closes the gap without spanning the whole frame, got {slug}"
+        );
+    }
+
     #[test]
     fn an_authored_round_gets_no_tracer_stretch() {
         let mut app = round_render_app();

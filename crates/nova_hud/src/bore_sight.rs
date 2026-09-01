@@ -18,7 +18,9 @@
 //! shoulder, which is the whole skill of the weapon.
 //!
 //! Sharing `pierce_remainder` is what keeps the promise honest: a sight with
-//! its own copy of the pierce math is a sight that eventually lies.
+//! its own copy of the pierce math is a sight that eventually lies. The
+//! surface skin each cast restarts past is shared for the same reason - it is
+//! `rounds::PIERCE_SKIN`, not a second copy of the same constant.
 //!
 //! # When it is up
 //!
@@ -85,11 +87,6 @@ const EMPTY_ALPHA_SCALE: f32 = 0.3;
 /// axis of a station would cast until the power ran out. Deep enough that no
 /// ship reaches it, cheap enough that nothing has to think about it.
 const MAX_TRACE_LAYERS: usize = 24;
-
-/// Nudge past a crossed surface before casting again, so the next ray starts
-/// outside the collider it just crossed instead of inside it. The round sweep
-/// carries the same skin for the same reason.
-const TRACE_SKIN: f32 = 1.0e-3;
 
 /// One lance's sight line. The lance it belongs to, so a destroyed gun takes
 /// its sight with it.
@@ -288,16 +285,19 @@ fn trace_bore(
         }
 
         crossed.push(hit.entity);
-        travelled += hit.distance + TRACE_SKIN;
+        travelled += hit.distance + PIERCE_SKIN;
         let Some(remainder) = pierce_remainder(damage, health, closing) else {
             return BoreTrace { stop: at, kills };
         };
         damage = remainder;
-        origin = at + bore * TRACE_SKIN;
+        origin = at + bore * PIERCE_SKIN;
     }
 
+    // Nothing downrange stopped the slug: the loop only falls through here with
+    // `travelled` at the reach it was capped to, so the line runs its full
+    // length. (An expended slug returns early, above, at its last bite.)
     BoreTrace {
-        stop: muzzle + bore * travelled.max(reach),
+        stop: muzzle + bore * reach,
         kills,
     }
 }
@@ -477,6 +477,10 @@ fn sync_bore_sight(
             let material = assets.line_material(&mut materials, d.state);
             commands.spawn((
                 Name::new("Bore Sight"),
+                // HUD-managed like every other world-space instrument, so a
+                // cinematic and the NOVA OS monitor take it away with the rest
+                // of them instead of leaving a line drawn across the frame.
+                crate::HudTier::Instrument,
                 BoreSightSegment { lance: d.lance },
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
@@ -495,6 +499,7 @@ fn sync_bore_sight(
             let material = assets.mark_material(&mut materials, d.state);
             commands.spawn((
                 Name::new("Bore Sight Kill"),
+                crate::HudTier::Instrument,
                 BoreSightMark {
                     lance: d.lance,
                     index,

@@ -233,7 +233,6 @@ fn check_railgun_charge(
 }
 
 /// Walk a turret's joint tree and flag authoring mistakes the parser accepts but
-
 /// the runtime cannot use: a hinge with a degenerate (zero or non-finite) axis
 /// or a non-positive traverse speed can never aim, min > max locks the hinge
 /// shut, a non-positive `fire_rate` used to panic the spawn outright (the

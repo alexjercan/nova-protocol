@@ -28,9 +28,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A lance slug rakes through everything in the line and kills every layer it
-  crosses. Power, not a layer count, bounds the depth, so an aligned shot
-  removes a column of a ship rather than damaging it.
+- A lance slug rakes through everything in the line, gutting a hull section
+  outright and crippling the large drives. Power, not a layer count, bounds the
+  depth, so an aligned shot takes a column out of a ship.
 - Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
   so a lance mounted off the ship's axis yaws it as well as pushing it back.
 - A lance holds one shell and gets it back on a twelve-second idle reload.
@@ -63,11 +63,6 @@ does NOT get an entry - and it is the only place they are written down.
   flank can say what the ship carries.
 - Generated hulls carry bays: the WFC solver collapses a multi-cell part as a
   chain of segment tiles instead of skipping everything larger than one cell.
-
-### Tooling & Examples
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, answering
-  its stern drive stamp, carves whatever the collapse hung in front of the bore,
-  and binds it to `R` for a player slot.
 
 ### Modding & Mod Portal
 - A section declares animation tracks on its base config: a cue, nodes by name
@@ -102,6 +97,11 @@ does NOT get an entry - and it is the only place they are written down.
   sound for losing.
 - Four volume sliders - master, interface, world and music - saved with the
   rest of the settings. Music is reserved: nothing routes to it yet.
+
+### Internals & Tooling
+- The `wfc_arena` bench bolts a spinal lance to every generated bow, answering
+  its stern drive stamp, carves whatever the collapse hung in front of the bore,
+  and binds it to `R` for a player slot.
 
 ## [0.12.0] - 2026-08-31
 

@@ -30,6 +30,7 @@ pub(crate) fn apply_ship_rebind(
         Option<&SpaceshipThrusterInputBinding>,
         Option<&SpaceshipTurretInputBinding>,
         Option<&SpaceshipTorpedoInputBinding>,
+        Option<&SpaceshipRailgunInputBinding>,
     )>,
     mut changed: MessageWriter<SectionInputBindingChanged>,
 ) {
@@ -65,7 +66,7 @@ pub(crate) fn apply_ship_rebind(
         runtime.note = Some(("Left Mouse stays the pointer".to_string(), 2.5));
         return;
     }
-    let Ok((parent, id, thruster, turret, torpedo)) = targets.get(target) else {
+    let Ok((parent, id, thruster, turret, torpedo, railgun)) = targets.get(target) else {
         runtime.rebinding = None;
         return;
     };
@@ -91,6 +92,10 @@ pub(crate) fn apply_ship_rebind(
         commands
             .entity(target)
             .insert(SpaceshipTorpedoInputBinding(bindings.clone()));
+    } else if railgun.is_some() {
+        commands
+            .entity(target)
+            .insert(SpaceshipRailgunInputBinding(bindings.clone()));
     } else {
         runtime.rebinding = None;
         return;

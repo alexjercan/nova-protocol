@@ -129,7 +129,12 @@ struct LanceProbe {
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(range_plugin).build();
-    app.add_plugins(nova_probe::NovaProbePlugin::default());
+    // No frame-time capture: the range is a one-shot commit-charge-rake walk
+    // that exits 30 frames after the last invariant verifies, so it can never
+    // fill the 900-frame baseline window the capture arms. Armed, it reports
+    // `fps_within_baseline FAIL - armed and silent` on every run and measures
+    // nothing. Steady-state lance cost belongs in a stress range.
+    app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
     app.run()
 }
 

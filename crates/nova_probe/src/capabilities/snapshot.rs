@@ -974,7 +974,6 @@ fn weapon(
                 .get::<RailgunSectionInput>(entity)
                 .map(|input| input.0)
         });
-
     let aim_error = muzzle_aim_error_deg(world, entity);
     Some(serde_json::json!({
         "kind": kind,
@@ -990,7 +989,6 @@ fn weapon(
             RailgunCharge::Charging { elapsed } => serde_json::json!(num(*elapsed)),
         }),
         "aim_error_deg": aim_error.map(num),
-
         "on_target": aim_error.map(|error| error <= TURRET_ON_TARGET_RAD.to_degrees()),
         "ammo": world.get::<SectionAmmo>(entity).map(|ammo| serde_json::json!({
             "rounds": ammo.rounds,

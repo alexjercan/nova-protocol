@@ -35,7 +35,8 @@ use nova_input::prelude::{
     dispatch, ActionName, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
 };
 use nova_ship::prelude::{
-    SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+    SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
+    SpaceshipTurretInputBinding,
 };
 
 use crate::protocol::{Lane, PointerCmd, PointerTarget};
@@ -247,7 +248,10 @@ fn section_source(world: &mut World, id: &str) -> Option<InputSource> {
     let torpedo = world
         .get::<SpaceshipTorpedoInputBinding>(section)
         .and_then(|binding| binding.0.first().copied());
-    thruster.or(turret).or(torpedo)
+    let railgun = world
+        .get::<SpaceshipRailgunInputBinding>(section)
+        .and_then(|binding| binding.0.first().copied());
+    thruster.or(turret).or(torpedo).or(railgun)
 }
 
 // -- aim ----------------------------------------------------------------------

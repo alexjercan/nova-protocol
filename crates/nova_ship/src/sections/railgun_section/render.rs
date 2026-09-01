@@ -8,6 +8,7 @@
 use nova_gameplay::transient_light::prelude::LightFlash;
 
 use super::*;
+use crate::sections::{nose_cone_mesh, turret_section::RoundTracer};
 
 /// The slug's silhouette. Far bigger than a PDC dart and deliberately so: one
 /// shell in the air at a time, crossing the whole engagement in a tick or two,
@@ -85,7 +86,7 @@ impl FromWorld for RailgunSlugArt {
             // Nose down -Z: a round's transform IS its line of flight, so the
             // shared +Y body is turned onto that axis once, at build time.
             let mesh = meshes.add(
-                super::super::nose_cone_mesh(SLUG_RADIUS, SLUG_BODY, SLUG_NOSE)
+                nose_cone_mesh(SLUG_RADIUS, SLUG_BODY, SLUG_NOSE)
                     .rotated_by(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
             );
             // The Pierce colour, so a slug in flight reads as the same family
@@ -107,17 +108,38 @@ impl FromWorld for RailgunSlugArt {
     }
 }
 
-/// Dress a fired slug. Its own entity carries the pose, so the art goes
-/// straight on rather than into a child.
+/// Longest a slug's streak may be drawn, in world units.
+///
+/// The PDC's 4.0 is sized for a 100 u/s round; this one leaves the bore at
+/// 1500 and would be clamped to a quarter of its own body. At 60 fps the
+/// shutter asks for about 9 units and at 30 fps about 18, so this only ever
+/// catches a real stall - which is what the clamp is for.
+const SLUG_TRACER_MAX_LENGTH: f32 = 40.0;
+
+/// Dress a fired slug.
+///
+/// The art goes in a CHILD, not on the round itself, because that is what
+/// [`stretch_round_tracers`] needs: it scales and slides the art back along
+/// the flight, and the round's own transform is the thing the sweep writes.
+///
+/// The streak is the point. A slug crosses roughly 25 units between two drawn
+/// frames at 60 fps against an 0.8 unit body, so without it the one shot a
+/// lance gets every thirteen seconds is drawn as a handful of disconnected
+/// darts and the player never sees the line it made.
 pub(super) fn insert_railgun_slug_render(
     add: On<Add, RailgunSlugProjectileMarker>,
     mut commands: Commands,
     art: Res<RailgunSlugArt>,
 ) {
-    commands.entity(add.entity).insert((
+    commands.entity(add.entity).insert(children![(
+        Name::new("Railgun Slug Render"),
         Mesh3d(art.mesh.clone()),
         MeshMaterial3d(art.material.clone()),
-    ));
+        RoundTracer {
+            half_length: (SLUG_BODY + SLUG_NOSE) * 0.5,
+            max_length: SLUG_TRACER_MAX_LENGTH,
+        },
+    )]);
 }
 
 /// Spawn the lance's body: the authored scene, or the placeholder block a
@@ -212,7 +234,14 @@ pub(super) struct RailgunChargeGlowMarker;
 /// (see `lance_charge_bolt` in `nova_authoring`), so this reads as that bolt's
 /// corona rather than as a second object.
 pub(super) fn drive_railgun_charge_glow(
-    q_railgun: Query<(&RailgunCharge, &RailgunSectionConfigHelper, &Children)>,
+    // A DISABLED lance is skipped by `charge_and_fire_railgun`, so its
+    // `RailgunCharge` freezes wherever it stood. Without this filter the bore
+    // of a dead gun stays lit at that instant for the rest of the scenario,
+    // while the sight and the capacitor loop - which both filter - go away.
+    q_railgun: Query<
+        (&RailgunCharge, &RailgunSectionConfigHelper, &Children),
+        Without<SectionInactiveMarker>,
+    >,
     mut q_glow: Query<
         (&mut Transform, &mut Visibility, &mut PointLight),
         With<RailgunChargeGlowMarker>,

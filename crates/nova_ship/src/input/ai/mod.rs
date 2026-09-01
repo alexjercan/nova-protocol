@@ -124,6 +124,9 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.add_observer(on_damage_track_threat);
         app.add_observer(on_neutralized_stand_down);
         app.add_observer(insert_gravity_affected_on_ai_ship);
+        // The lance cadence is burned on the SHOT, not on the decision - see
+        // `railgun::on_railgun_fired_burn_ai_cadence`.
+        app.add_observer(railgun::on_railgun_fired_burn_ai_cadence);
 
         // The burst cadence is the one AI clock that must not move with
         // the framerate: its expiry writes the trigger that

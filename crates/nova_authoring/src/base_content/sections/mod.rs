@@ -225,6 +225,7 @@ mod ammunition_tests {
             let (capacity, reload) = match &section.kind {
                 SectionKind::Turret(turret) => (turret.ammo_capacity, turret.reload),
                 SectionKind::Torpedo(bay) => (bay.ammo_capacity, bay.reload),
+                SectionKind::Railgun(lance) => (lance.ammo_capacity, lance.reload),
                 _ => continue,
             };
             let Some(capacity) = capacity else { continue };

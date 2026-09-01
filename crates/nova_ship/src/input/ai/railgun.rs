@@ -83,6 +83,14 @@ fn ai_railgun_envelope(to_target: Vec3, bore: Vec3, reach: f32) -> bool {
 /// a torpedo is the guns' problem and not worth a shell. Per ship, the line of
 /// fire must be clear, so no lance is spent on the cover in front of it. Per
 /// gun: the cadence elapsed and the envelope open.
+///
+/// The trigger is HELD while the envelope stays open, exactly as the bay's is,
+/// and the cadence is burned by [`on_railgun_fired_burn_ai_cadence`] when a
+/// shell actually leaves. This system runs in `Update` while
+/// `charge_and_fire_railgun` consumes the trigger in `FixedUpdate`, so a
+/// one-frame pulse would be missed entirely on any frame that runs no fixed
+/// step - above the 64 Hz fixed rate that is most frames, and each miss used
+/// to cost a full cadence for a shot that never happened.
 #[expect(
     clippy::type_complexity,
     reason = "one query per railgun lifecycle stage"
@@ -97,10 +105,15 @@ pub(super) fn update_railgun_section_input(
             &mut AIRailgun,
             &RailgunSectionConfigHelper,
             &RailgunCharge,
+            Option<&SectionAmmo>,
             &GlobalTransform,
             &ChildOf,
         ),
-        With<RailgunSectionMarker>,
+        (
+            With<RailgunSectionMarker>,
+            // A disabled lance cannot fire, so it must not be pulled on either.
+            Without<SectionInactiveMarker>,
+        ),
     >,
     q_spaceship: Query<
         (
@@ -125,56 +138,118 @@ pub(super) fn update_railgun_section_input(
     }
 
     let dt = time.delta_secs();
-    for (mut input, mut gun, config, charge, section_pose, &ChildOf(spaceship)) in &mut q_section {
+    for (mut input, mut gun, config, charge, ammo, section_pose, &ChildOf(spaceship)) in
+        &mut q_section
+    {
         gun.cooldown.tick(dt);
-        // The trigger is a COMMIT, so it is dropped every frame it is not
-        // being pulled: the charge already running is the section's business
-        // and a held input would only re-commit the moment it lands.
-        **input = false;
-
-        let Ok((ship, transform, com, state, target)) = q_spaceship.get(spaceship) else {
-            continue;
-        };
-        if !gun.cooldown.ready() {
-            continue;
-        }
-        // Already committed: nothing to decide until the shell is away.
-        if *charge != RailgunCharge::Ready {
-            continue;
-        }
-        if !state.engages() || *state == AIBehaviorState::Evade {
-            continue;
-        }
-        let Some(target_ship) = (**target).filter(|&target| q_ship_root.contains(target)) else {
-            continue;
-        };
-        let Some(target_anchor) = ai_target_anchor(Some(target_ship), &q_target) else {
-            continue;
-        };
-
-        // The BORE, read off the section's own pose. A lance cannot traverse,
-        // so this is the ship's heading through the mount it was bolted on
-        // with - and a lance bolted on sideways points sideways, which is the
-        // builder's problem and not something the AI corrects for.
-        let bore = section_pose.rotation() * Vec3::NEG_Z;
-        let own_anchor = live_structure_anchor(transform, com);
-        let reach = config.slug_speed * config.slug_lifetime;
-        if !ai_railgun_envelope(target_anchor - own_anchor, bore, reach) {
-            continue;
-        }
-        if ai_line_of_fire_blocked(
+        let commit = commit_is_open(
+            &gun,
+            config,
+            charge,
+            ammo,
+            section_pose,
+            spaceship,
+            &q_spaceship,
+            &q_target,
+            &q_ship_root,
             &spatial,
             &q_sensor,
             &q_collider_of,
-            ship,
-            target_ship,
-            own_anchor,
-            target_anchor,
-        ) {
-            continue;
+        );
+        // HELD, not pulsed, and released explicitly the moment any gate shuts -
+        // the bay's rule, for the bay's reason. `set_if_neq` by hand, so a
+        // steady decision does not dirty the component every frame.
+        if **input != commit {
+            **input = commit;
         }
+    }
+}
 
-        **input = true;
+/// Whether this lance's commit envelope is open THIS frame. Split out so the
+/// gates read as one decision rather than as an early-return chain that has to
+/// leave the trigger in the right state on every exit.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the gates the commit reads, passed rather than re-queried"
+)]
+fn commit_is_open(
+    gun: &AIRailgun,
+    config: &RailgunSectionConfigHelper,
+    charge: &RailgunCharge,
+    ammo: Option<&SectionAmmo>,
+    section_pose: &GlobalTransform,
+    spaceship: Entity,
+    q_spaceship: &Query<
+        (
+            Entity,
+            &Transform,
+            Option<&ComputedCenterOfMass>,
+            &AIBehaviorState,
+            &AITarget,
+        ),
+        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+    >,
+    q_target: &Query<(&Transform, Option<&ComputedCenterOfMass>)>,
+    q_ship_root: &Query<(), With<SpaceshipRootMarker>>,
+    spatial: &SpatialQuery,
+    q_sensor: &Query<(), With<Sensor>>,
+    q_collider_of: &Query<&ColliderOf>,
+) -> bool {
+    let Ok((ship, transform, com, state, target)) = q_spaceship.get(spaceship) else {
+        return false;
+    };
+    if !gun.cooldown.ready() {
+        return false;
+    }
+    // Already committed: nothing to decide until the shell is away.
+    if *charge != RailgunCharge::Ready {
+        return false;
+    }
+    // An empty magazine cannot commit, so pulling on one would burn the cadence
+    // on a shot the section refuses to take.
+    if ammo.is_some_and(SectionAmmo::is_empty) {
+        return false;
+    }
+    if !state.engages() || *state == AIBehaviorState::Evade {
+        return false;
+    }
+    let Some(target_ship) = (**target).filter(|&target| q_ship_root.contains(target)) else {
+        return false;
+    };
+    let Some(target_anchor) = ai_target_anchor(Some(target_ship), q_target) else {
+        return false;
+    };
+
+    // The BORE, read off the section's own pose. A lance cannot traverse,
+    // so this is the ship's heading through the mount it was bolted on
+    // with - and a lance bolted on sideways points sideways, which is the
+    // builder's problem and not something the AI corrects for.
+    let bore = section_pose.rotation() * Vec3::NEG_Z;
+    let own_anchor = live_structure_anchor(transform, com);
+    let reach = config.slug_speed * config.slug_lifetime;
+    if !ai_railgun_envelope(target_anchor - own_anchor, bore, reach) {
+        return false;
+    }
+    !ai_line_of_fire_blocked(
+        spatial,
+        q_sensor,
+        q_collider_of,
+        ship,
+        target_ship,
+        own_anchor,
+        target_anchor,
+    )
+}
+
+/// Burn the AI cadence when a shell actually LEAVES, not when the commit is
+/// decided: a lance ignored - because the frame ran no fixed step, or because
+/// the section refused - never spends its pilot's cooldown. The bay's rule
+/// (`a bay ignored never burns the cooldown`), for the bay's reason.
+pub(super) fn on_railgun_fired_burn_ai_cadence(
+    fired: On<RailgunFired>,
+    mut q_gun: Query<&mut AIRailgun>,
+) {
+    if let Ok(mut gun) = q_gun.get_mut(fired.entity) {
         gun.cooldown.trigger();
     }
 }

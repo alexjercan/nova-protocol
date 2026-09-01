@@ -926,16 +926,19 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // set up the shot is not flying a straight line forever.
                 charge_seconds: 1.5,
                 slug_speed: 1500.0,
-                // Dealt in FULL to every layer crossed, and priced to leave
-                // NOTHING standing: the toughest thing in the catalog is a
-                // reinforced hull block at 200, so this kills every shipped
-                // section on the layer it crosses with half again to spare.
-                // An aligned shot does not damage a column, it removes one.
+                // Dealt in FULL to every layer crossed. It clears every hull,
+                // controller, turret and bay in the catalog outright - the
+                // toughest of those is a reinforced hull block at 200 - so an
+                // aligned shot takes a column out of a ship rather than
+                // damaging one.
                 //
-                // Past roughly 260 the extra buys nothing against content that
-                // exists - depth is priced in `slug_power`, not here, and
-                // everything already dies. The margin is for what a mod
-                // authors, not for the base game.
+                // It does NOT clear the two large drives: `vector_thruster_
+                // section` is 480 and `capital_thruster_section` is 1250, both
+                // older than this gun. A lance cripples a capital drive over
+                // several shots instead of removing it, which is the intended
+                // read - depth is priced in `slug_power`, lethality here - but
+                // it is the number to revisit if a lance is meant to answer a
+                // capital hull in one pass.
                 slug_damage: 300.0,
                 // The owner's brief: through the entire ship. At the 3x
                 // closing-speed ceiling a lance slug spends max_health/3 per
@@ -969,7 +972,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
         SectionConfig {
             base: BaseSectionConfig {
                 id: "heavy_torpedo_section".to_string(),
-
                 damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
                 name: "Siege Torpedo Bay Section".to_string(),
                 description: "A capital-grade siege torpedo battery: slow salvo, \
@@ -1112,7 +1114,6 @@ fn lance_charge_bolt() -> Vec<SectionAnimation> {
 }
 
 /// One assault torpedo bay, named for the ORDNANCE it loads.
-
 ///
 /// Everything a bay is - the tube art, the cadence, the warhead, the rack and
 /// its idle reload - is identical across both shipped bays, so the only argument
@@ -1471,7 +1472,6 @@ mod tests {
     }
 
     /// The placeable mounts bolt down by their base plate and by nothing else.
-
     ///
     /// Six sockets made every face of the mount BOX a mating surface, but five
     /// of them are gun: the editor would stand a second turret on the first

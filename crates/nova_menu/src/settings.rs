@@ -18,7 +18,8 @@ use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::*;
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ship::prelude::{
-    SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+    SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
+    SpaceshipTurretInputBinding,
 };
 use nova_ui::{
     prelude::UiSkin,
@@ -872,11 +873,13 @@ type SectionBindings<'w, 's> = Query<
         Option<&'static SpaceshipThrusterInputBinding>,
         Option<&'static SpaceshipTurretInputBinding>,
         Option<&'static SpaceshipTorpedoInputBinding>,
+        Option<&'static SpaceshipRailgunInputBinding>,
     ),
     Or<(
         With<SpaceshipThrusterInputBinding>,
         With<SpaceshipTurretInputBinding>,
         With<SpaceshipTorpedoInputBinding>,
+        With<SpaceshipRailgunInputBinding>,
     )>,
 >;
 
@@ -904,13 +907,14 @@ fn section_conflict(
     }
     sections
         .iter()
-        .find(|(_, thruster, turret, torpedo)| {
+        .find(|(_, thruster, turret, torpedo, railgun)| {
             let held = |binds: Option<&Vec<InputSource>>| {
                 binds.is_some_and(|binds| binds.contains(&source))
             };
             held(thruster.map(|b| &b.0))
                 || held(turret.map(|b| &b.0))
                 || held(torpedo.map(|b| &b.0))
+                || held(railgun.map(|b| &b.0))
         })
         .map(|(id, ..)| format!("the ship's {} section", id.0))
 }

@@ -206,7 +206,6 @@ pub(super) fn charge_and_fire_railgun(
                 layers: u32::MAX,
                 kind: DamageType::Pierce,
             },
-            RailgunSlugOf(railgun),
             TempEntity(config.slug_lifetime),
             Visibility::Visible,
         ));
@@ -239,11 +238,6 @@ pub(super) fn charge_and_fire_railgun(
         });
     }
 }
-
-/// Which lance a slug left, so the render and audio layers can find the gun
-/// without walking the world.
-#[derive(Component, Clone, Copy, Debug, Deref, Reflect)]
-pub(super) struct RailgunSlugOf(pub Entity);
 
 /// A lance fired. The seam the render and audio halves hang the muzzle flash
 /// and the report on, so the fire path itself stays headless.

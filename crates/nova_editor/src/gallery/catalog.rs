@@ -23,7 +23,6 @@ pub(crate) enum GalleryCategory {
     Control,
     /// Turret and railgun sections: anything that aims a gun of its own.
     Weapons,
-
     /// Torpedo bays.
     Ordnance,
 }

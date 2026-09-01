@@ -286,6 +286,7 @@ pub(crate) type SectionBindingQuery = (
     Option<&'static SpaceshipThrusterInputBinding>,
     Option<&'static SpaceshipTurretInputBinding>,
     Option<&'static SpaceshipTorpedoInputBinding>,
+    Option<&'static SpaceshipRailgunInputBinding>,
 );
 
 pub(crate) type SectionKindQuery = (
@@ -326,7 +327,7 @@ impl ShipSections<'_, '_> {
                     health,
                     ammo,
                     (class, hull, controller, thruster, turret, torpedo),
-                    (thruster_bindings, turret_bindings, torpedo_bindings),
+                    (thruster_bindings, turret_bindings, torpedo_bindings, railgun_bindings),
                     (inactive, zero_health),
                 )| {
                     let kind = section_kind_from_markers(
@@ -349,7 +350,8 @@ impl ShipSections<'_, '_> {
                         bindings: thruster_bindings
                             .map(|bindings| bindings.0.clone())
                             .or_else(|| turret_bindings.map(|bindings| bindings.0.clone()))
-                            .or_else(|| torpedo_bindings.map(|bindings| bindings.0.clone())),
+                            .or_else(|| torpedo_bindings.map(|bindings| bindings.0.clone()))
+                            .or_else(|| railgun_bindings.map(|bindings| bindings.0.clone())),
                         inactive,
                         zero_health,
                     })

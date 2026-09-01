@@ -774,7 +774,6 @@ const RAILGUN_PICKS: &[FieldSpec] = &[
     SLUG_LIFETIME,
 ];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
-
 const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MASS, INVULNERABLE, SEED];
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
@@ -1786,7 +1785,6 @@ pub(crate) fn section_config(kind: &SectionKind) -> &dyn PartialReflect {
 }
 
 /// The same config, for writing.
-
 pub(crate) fn section_config_mut(kind: &mut SectionKind) -> &mut dyn PartialReflect {
     match kind {
         SectionKind::Hull(config) => config,

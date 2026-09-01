@@ -26,8 +26,8 @@ use nova_events::prelude::{CommandsGameEventExt, *};
 
 use super::core::prelude::*;
 use crate::prelude::{
-    ControllerSectionMarker, SectionInactiveMarker, SpaceshipRootMarker, TorpedoSectionMarker,
-    TurretSectionMarker,
+    ControllerSectionMarker, RailgunSectionMarker, SectionInactiveMarker, SpaceshipRootMarker,
+    TorpedoSectionMarker, TurretSectionMarker,
 };
 
 /// Defeat and neutralization state markers.
@@ -108,12 +108,18 @@ fn detect_neutralized(
         ),
         (With<SpaceshipRootMarker>, Without<NeutralizedMarker>),
     >,
-    // A weapon section: turret or torpedo. `Has<SectionInactiveMarker>` reports
-    // whether it is disabled (destroyed non-leaf); a destroyed leaf section is
-    // despawned and so is simply absent from the root's children.
+    // A weapon section: turret, torpedo or railgun. `Has<SectionInactiveMarker>`
+    // reports whether it is disabled (destroyed non-leaf); a destroyed leaf
+    // section is despawned and so is simply absent from the root's children.
+    // Every kind `spaceship.rs` counts as arming a ship belongs here, or a
+    // hull keeping one of them is called beaten while it still shoots.
     q_weapon: Query<
         Has<SectionInactiveMarker>,
-        Or<(With<TurretSectionMarker>, With<TorpedoSectionMarker>)>,
+        Or<(
+            With<TurretSectionMarker>,
+            With<TorpedoSectionMarker>,
+            With<RailgunSectionMarker>,
+        )>,
     >,
     q_controller: Query<Has<SectionInactiveMarker>, With<ControllerSectionMarker>>,
 ) {
@@ -278,6 +284,39 @@ mod tests {
 
     fn is_neutralized(app: &App, root: Entity) -> bool {
         app.world().entity(root).contains::<NeutralizedMarker>()
+    }
+
+    #[test]
+    fn a_ship_keeping_a_working_lance_is_not_yet_neutralized() {
+        let mut app = neutralize_app();
+        let (root, turrets, _thrusters, _controllers, _hull) = spawn_ship(&mut app, 1, 1, 1);
+        let lance = app
+            .world_mut()
+            .spawn((ChildOf(root), SectionMarker, RailgunSectionMarker))
+            .id();
+
+        app.update();
+        assert!(
+            !is_neutralized(&app, root),
+            "must not neutralize while armed"
+        );
+
+        // Every turret gone, the lance still working: a spinal gun is a weapon,
+        // so the ship is still in the fight.
+        disable(&mut app, turrets[0]);
+        app.update();
+        assert!(
+            !is_neutralized(&app, root),
+            "a hull that lost its turrets but keeps a working lance still shoots"
+        );
+
+        // The lance goes too: now there is nothing left to fire.
+        disable(&mut app, lance);
+        app.update();
+        assert!(
+            is_neutralized(&app, root),
+            "losing the lance as well disarms the ship"
+        );
     }
 
     #[test]

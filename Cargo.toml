@@ -177,7 +177,6 @@ path = "examples/systems/system_railgun_lance.rs"
 name = "system_blast_penetration"
 path = "examples/systems/system_blast_penetration.rs"
 
-
 [[example]]
 name = "system_section_severing"
 path = "examples/systems/system_section_severing.rs"

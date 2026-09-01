@@ -114,11 +114,15 @@ Where it landed, in the order the beat decision set:
 
 Two notes for whoever tunes this next:
 
-- `probe run system_railgun_lance` scores 7/8. The eighth,
-  `fps_within_baseline`, reads "armed and silent" for EVERY systems range -
-  `system_blast_penetration` at HEAD fails it identically - because no range
-  emits a frametime capture and the repo has no baseline for one. Not a
-  railgun defect.
+- `probe run system_railgun_lance` used to score 7/8: `fps_within_baseline`
+  read "armed and silent". That was NOT the fleet's normal state - it was this
+  range arming a capture it exits long before filling.
+  `probe-runs/155afa73/system_player_path/frametime.csv` holds five full
+  900-frame rows, and `armed and silent` appears in only two ranges repo-wide.
+  Fixed by taking `NovaProbePlugin::default().without_frametime()`, which is
+  what every other range that poses rather than sustains a scene does.
+  `system_blast_penetration` fails it for the same reason and wants the same
+  fix.
 - The range holds `MouseButton::Right` in `PreUpdate` rather than writing
   `WeaponsHot`. The flag is derived from the held combat stance every frame,
   so a range that pokes it charges for two ticks and dumps. Any future
