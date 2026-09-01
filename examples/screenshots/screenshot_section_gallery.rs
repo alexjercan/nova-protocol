@@ -7,10 +7,10 @@
 //!
 //! - SHIPPED: the current art, loaded through the asset server exactly as the
 //!   game loads it (`assets/base/gltf/*.glb#Scene0` - Blender exports whose
-//!   node transforms the manual decoder must not guess at). The torpedo bay
-//!   row leads with its unit-cube placeholder on purpose: that cube is why
-//!   the row exists. The controller stand is EMPTY - the shipped controller
-//!   authors no render mesh at all.
+//!   parent chains the manual decoder refuses). The torpedo bay row leads
+//!   with its unit-cube placeholder on purpose: that cube is why the row
+//!   exists. The controller stand is EMPTY - the shipped controller authors
+//!   no render mesh at all.
 //! - KEEPERS: the recipe-generated parts the owner picked, promoted into
 //!   `assets/base/gltf/` (`scripts/gen-section-parts.py`), in the
 //!   cross-faction mechanical voice the thruster shells set, decoded straight
@@ -30,6 +30,10 @@
 //! - `NOVA_AUTOPILOT=1`: smoke path - load the gallery, frame it, exit clean.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also shoot the full grid and one
 //!   close pass per row (staged under `NOVA_CAPTURE_DIR`).
+//!
+//! Nameplates are narrowed per shot: a closeup carries its own row's plates
+//! alone, and the wide shot keeps the names but drops the notes, which run
+//! wider than a column at that distance. A hand-run shows every plate.
 //!
 //! The railgun row shows the SETTLED lance design (task 20260824-125947,
 //! picked at diameter 0.60 of the cell): still a mockup staged under
@@ -102,6 +106,7 @@ fn main() -> bevy::app::AppExit {
 fn gallery_plugin(app: &mut App) {
     // Armed only for a hand-run: a capture composes its own frame.
     app.insert_resource(IdleOrbit(!capturing()));
+    app.init_resource::<Nameplates>();
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_gallery);
     app.add_systems(
         Update,
@@ -162,17 +167,24 @@ struct Item {
     note: &'static str,
 }
 
+/// One row of the stand: the subjects, and the slug that names everything
+/// downstream of them - the row's shot file and its two walk beats.
+struct Row {
+    slug: &'static str,
+    items: Vec<Item>,
+}
+
 /// The gallery, row by row. Every row leads with TODAY so each candidate is
 /// judged against the thing it would replace. Third round: only the keepers -
 /// dropped candidates left the stand (their recipes and glbs stay on disk as
 /// the task record). PICKED promotes as-is; NEW is this round's rework - the
 /// hull and controller cells now repeat the same pattern on every face so
 /// section rotation never shows.
-fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
+fn gallery_rows() -> Vec<Row> {
     vec![
-        (
-            "torpedo bays",
-            vec![
+        Row {
+            slug: "bays",
+            items: vec![
                 Item {
                     id: "torpedo_bay (today)",
                     look: Look::Shipped {
@@ -188,10 +200,10 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                     note: "PICKED - the bay, 1x1x2, flush end plates",
                 },
             ],
-        ),
-        (
-            "pdc mounts (unit scale; ships at 0.5)",
-            vec![
+        },
+        Row {
+            slug: "pdcs",
+            items: vec![
                 Item {
                     id: "pdc turret (today)",
                     look: Look::ShippedTurret,
@@ -238,10 +250,10 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                     note: "PICKED - second pdc, per-muzzle fire rate",
                 },
             ],
-        ),
-        (
-            "hull cores",
-            vec![
+        },
+        Row {
+            slug: "hulls",
+            items: vec![
                 Item {
                     id: "hull (today)",
                     look: Look::Shipped {
@@ -271,10 +283,10 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                     note: "PICKED - tank variant",
                 },
             ],
-        ),
-        (
-            "controller cores",
-            vec![
+        },
+        Row {
+            slug: "controllers",
+            items: vec![
                 Item {
                     id: "controller (today)",
                     look: Look::Nothing,
@@ -288,17 +300,17 @@ fn gallery_rows() -> Vec<(&'static str, Vec<Item>)> {
                     note: "NEW - cable-wrapped computer, every face alike",
                 },
             ],
-        ),
-        (
-            "railgun (task 20260824-125947)",
-            vec![Item {
+        },
+        Row {
+            slug: "railgun",
+            items: vec![Item {
                 id: "railgun_lance",
                 look: Look::Mockup {
                     file: "railgun_lance.glb",
                 },
                 note: "SETTLED - 1x1x3 spinal lance, diameter 0.60",
             }],
-        ),
+        },
     ]
 }
 
@@ -349,7 +361,13 @@ fn load_gallery(
 
     let rows = gallery_rows();
     let row_count = rows.len();
-    for (row, (_, items)) in rows.iter().enumerate() {
+    for (row, definition) in rows.iter().enumerate() {
+        let items = &definition.items;
+        info!(
+            "section_gallery: row `{}`: {} subject(s)",
+            definition.slug,
+            items.len()
+        );
         for (column, item) in items.iter().enumerate() {
             let stand = stand_position(row, row_count, column, items.len());
             let pose = Transform::from_translation(stand)
@@ -419,7 +437,7 @@ fn load_gallery(
                     info!("section_gallery: `{}`: nothing to render", item.id);
                 }
             }
-            spawn_label(&mut commands, stand + Vec3::NEG_Y * LABEL_DROP, item);
+            spawn_label(&mut commands, stand + Vec3::NEG_Y * LABEL_DROP, item, row);
         }
     }
 }
@@ -473,17 +491,74 @@ fn spawn_assembly_part(
     }
 }
 
-/// An item's nameplate, anchored under its stand in world space.
+/// An item's nameplate, anchored under its stand in world space and tied to
+/// the row it belongs to, which is what a closeup narrows the plates by.
 #[derive(Component)]
-struct SubjectLabel(Vec3);
+struct SubjectLabel {
+    anchor: Vec3,
+    row: usize,
+}
+
+/// The second line of a nameplate, the one the wide shot drops.
+#[derive(Component)]
+struct NoteLine;
+
+/// Which nameplates are on. Five rows of plates all land in the one frame,
+/// so the driven walk narrows them per shot.
+#[cfg_attr(
+    not(feature = "debug"),
+    expect(dead_code, reason = "only the driven walk narrows the plates")
+)]
+#[derive(Resource, Default)]
+enum Nameplates {
+    /// Every plate, name and note: the hand-run, which is free to fly in.
+    #[default]
+    All,
+    /// Names only, every row - the wide shot, where a note runs wider than
+    /// the column spacing and overprints its neighbours letter for letter.
+    NamesOnly,
+    /// One row, name and note: a closeup, which owns its frame.
+    Row(usize),
+}
+
+impl Nameplates {
+    fn shows_row(&self, row: usize) -> bool {
+        match self {
+            Self::All | Self::NamesOnly => true,
+            Self::Row(shown) => *shown == row,
+        }
+    }
+
+    fn shows_notes(&self) -> bool {
+        !matches!(self, Self::NamesOnly)
+    }
+}
 
 /// The width the label centres its text in, in logical pixels.
 const LABEL_WIDTH: f32 = 240.0;
 
-fn spawn_label(commands: &mut Commands, anchor: Vec3, item: &Item) {
+/// One scrimmed line of a nameplate. A back row's label lands on lit hull;
+/// the scrim keeps every name legible.
+fn label_line(text: &str, size: f32, colour: Color) -> impl Bundle {
+    (
+        Text::new(text),
+        TextFont {
+            font_size: FontSize::Px(size),
+            ..default()
+        },
+        TextColor(colour),
+        Node {
+            padding: UiRect::axes(Val::Px(6.0), Val::Px(1.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
+    )
+}
+
+fn spawn_label(commands: &mut Commands, anchor: Vec3, item: &Item, row: usize) {
     commands
         .spawn((
-            SubjectLabel(anchor),
+            SubjectLabel { anchor, row },
             Node {
                 position_type: PositionType::Absolute,
                 left: Val::Px(-1000.0),
@@ -495,39 +570,39 @@ fn spawn_label(commands: &mut Commands, anchor: Vec3, item: &Item) {
             },
         ))
         .with_children(|parent| {
-            for (text, size, colour) in [
-                (item.id, 15.0, Color::srgb(0.85, 0.9, 0.95)),
-                (item.note, 11.0, Color::srgb(0.55, 0.65, 0.7)),
-            ] {
-                parent.spawn((
-                    Text::new(text),
-                    TextFont {
-                        font_size: FontSize::Px(size),
-                        ..default()
-                    },
-                    TextColor(colour),
-                    // A back row's label lands on lit hull; the scrim keeps
-                    // every name legible.
-                    Node {
-                        padding: UiRect::axes(Val::Px(6.0), Val::Px(1.0)),
-                        ..default()
-                    },
-                    BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.55)),
-                ));
-            }
+            parent.spawn(label_line(item.id, 15.0, Color::srgb(0.85, 0.9, 0.95)));
+            parent.spawn((
+                label_line(item.note, 11.0, Color::srgb(0.55, 0.65, 0.7)),
+                NoteLine,
+            ));
         });
 }
 
-/// Project each nameplate under its subject, whatever the camera is doing.
+/// Project each nameplate under its subject, whatever the camera is doing,
+/// and show only the plates the current shot asked for.
 fn place_labels(
+    plates: Res<Nameplates>,
     camera: Query<(&Camera, &GlobalTransform), With<ScenarioCameraMarker>>,
-    mut labels: Query<(&SubjectLabel, &mut Node)>,
+    mut labels: Query<(&SubjectLabel, &mut Node), Without<NoteLine>>,
+    mut notes: Query<&mut Node, With<NoteLine>>,
 ) {
+    for mut note in &mut notes {
+        note.display = if plates.shows_notes() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
     let Ok((camera, camera_transform)) = camera.single() else {
         return;
     };
     for (label, mut node) in &mut labels {
-        match camera.world_to_viewport(camera_transform, label.0) {
+        node.display = if plates.shows_row(label.row) {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        match camera.world_to_viewport(camera_transform, label.anchor) {
             Ok(position) => {
                 node.left = Val::Px(position.x - LABEL_WIDTH * 0.5);
                 node.top = Val::Px(position.y);
@@ -546,7 +621,7 @@ const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 /// high and in front so it reads flank and muzzle at once.
 fn camera_position() -> Vec3 {
     let rows = gallery_rows();
-    let columns = rows.iter().map(|(_, items)| items.len()).max().unwrap_or(1) as f32 + 1.0;
+    let columns = rows.iter().map(|row| row.items.len()).max().unwrap_or(1) as f32 + 1.0;
     let span = (columns * COLUMN_SPACING).max((rows.len() as f32 + 1.0) * ROW_SPACING);
     Vec3::new(0.0, span * 0.44, span * 0.76)
 }
@@ -616,22 +691,25 @@ fn orbit_idle_camera(
 #[cfg(feature = "debug")]
 const STEP_DEADLINE_SECS: f32 = 30.0;
 
-/// Pose the harness camera on the whole stand.
+/// Pose the harness camera on the whole stand, on the names alone.
 #[cfg(feature = "debug")]
 fn frame_stand(world: &mut World) {
+    world.insert_resource(Nameplates::NamesOnly);
     pose_camera(world, camera_position(), CAMERA_TARGET);
 }
 
-/// Pose the harness camera on one row, backed off to that row's own width.
+/// Pose the harness camera on one row, backed off to that row's own width,
+/// and hand the frame to that row's plates alone.
 #[cfg(feature = "debug")]
 fn frame_row(world: &mut World, row: usize) {
+    world.insert_resource(Nameplates::Row(row));
     let rows = gallery_rows();
     let target = Vec3::new(
         0.0,
         0.0,
         (row as f32 - (rows.len() as f32 - 1.0) * 0.5) * ROW_SPACING,
     );
-    let span = (rows[row].1.len() as f32 + 0.5) * COLUMN_SPACING;
+    let span = (rows[row].items.len() as f32 + 0.5) * COLUMN_SPACING;
     pose_camera(
         world,
         target + Vec3::new(0.0, span * 0.38, span * 0.62),
@@ -661,15 +739,15 @@ fn gallery_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .until(shot_written("section-gallery.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add();
-    let row_names: Vec<&'static str> = vec!["bays", "pdcs", "hulls", "controllers", "railgun"];
-    for (row, name) in row_names.into_iter().enumerate() {
-        let shot = format!("section-gallery-{name}.png");
+    for (row, definition) in gallery_rows().into_iter().enumerate() {
+        let slug = definition.slug;
+        let shot = format!("section-gallery-{slug}.png");
         script = script
-            .step("frame a row")
+            .step(format!("frame the {slug} row"))
             .on_enter(move |world: &mut World| frame_row(world, row))
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("shoot the row")
+            .step(format!("shoot the {slug} row"))
             .until(shot_written(shot.clone()))
             .on_enter(move |world: &mut World| shoot(world, &shot))
             .deadline(SHOT_DEADLINE_SECS)

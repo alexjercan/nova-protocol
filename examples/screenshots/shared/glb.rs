@@ -1,15 +1,21 @@
 //! Decoder for the repo's OWN generated `.glb` files (`scripts/nova_glb.py`:
-//! one node, float32 POSITION + NORMAL, u32 indices, flat `baseColorFactor`
-//! materials), for galleries that show `art/part-candidates` models.
+//! float32 POSITION + NORMAL, u32 indices, flat `baseColorFactor` materials),
+//! for galleries that show `art/part-candidates` models.
 //!
 //! `art/` is deliberately not an asset source (it ships in no build), and
 //! bevy's default `UnapprovedPathMode::Forbid` refuses a `../` escape from
 //! `assets/` - rightly, for the game. Registering a source is not an option
 //! either once `AppBuilder::new()` has added `DefaultPlugins`, so a candidate
 //! gallery decodes the files itself: a page of code against a format this
-//! repo controls. Shipped Blender exports carry node transforms and u16
-//! indices this decoder rejects on purpose - load those through the asset
-//! server instead.
+//! repo controls.
+//!
+//! Every mesh that a node of scene 0 references is decoded, with that node's
+//! translation and rotation baked into its vertices. The writer emits its
+//! named animatable nodes (a bay's iris petals, a housing's stow lids) as
+//! flat SIBLINGS of the static root, so there is no parent chain to compose -
+//! and a file that carries one, like a Blender export, is rejected here
+//! rather than mis-composed. u16 indices are rejected the same way: load
+//! those through the asset server instead.
 //!
 //! Included with `#[path = "shared/glb.rs"] mod glb;`, kit-style.
 
@@ -27,6 +33,9 @@ use bevy::{
     mesh::{Indices, PrimitiveTopology},
     prelude::*,
 };
+
+/// glTF's `componentType` for a u32 index, the only width the writer emits.
+const UNSIGNED_INT: u64 = 5125;
 
 /// One flat-colour primitive out of a generated glb.
 pub struct GlbPrimitive {
@@ -82,9 +91,10 @@ pub fn bounds(primitives: &[GlbPrimitive]) -> (Vec3, Vec3) {
     ((low + high) * 0.5, high - low)
 }
 
-/// Decode a `scripts/nova_glb.py` glb. Panics on a missing file or a shape
-/// the writer never produces - these are our own generated files, and a
-/// gallery silently skipping a candidate would defeat it.
+/// Decode a `scripts/nova_glb.py` glb: every mesh of scene 0, posed by its
+/// node. Panics on a missing file or a shape the writer never produces -
+/// these are our own generated files, and a gallery silently skipping a
+/// candidate would defeat it.
 pub fn read_glb(path: &Path) -> Vec<GlbPrimitive> {
     let bytes = std::fs::read(path).unwrap_or_else(|e| panic!("glb: read {path:?}: {e}"));
     let word =
@@ -132,35 +142,82 @@ pub fn read_glb(path: &Path) -> Vec<GlbPrimitive> {
             .collect()
     };
 
+    let index_buffer = |index: u64| -> Vec<u32> {
+        assert_eq!(
+            doc["accessors"][index as usize]["componentType"].as_u64(),
+            Some(UNSIGNED_INT),
+            "{path:?}: index accessor is not u32"
+        );
+        accessor_bytes(index)
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|chunk| u32::from_le_bytes(*chunk))
+            .collect()
+    };
+
     let factor = |material: &serde_json::Value, name: &str, default: f64| -> f32 {
         material["pbrMetallicRoughness"][name]
             .as_f64()
             .unwrap_or(default) as f32
     };
-    doc["meshes"][0]["primitives"]
+    let node_floats = |node: &serde_json::Value, key: &str, arity: usize| -> Option<Vec<f32>> {
+        let values = node[key].as_array()?;
+        assert_eq!(values.len(), arity, "{path:?}: node {key} arity");
+        Some(
+            values
+                .iter()
+                .map(|value| value.as_f64().expect("node transform number") as f32)
+                .collect(),
+        )
+    };
+
+    let scene = doc["scene"].as_u64().unwrap_or(0) as usize;
+    let mut primitives = Vec::new();
+    for node in doc["scenes"][scene]["nodes"]
         .as_array()
-        .expect("glb primitives")
-        .iter()
-        .map(|primitive| {
+        .expect("glb scene nodes")
+    {
+        let node = &doc["nodes"][node.as_u64().expect("glb node index") as usize];
+        assert!(
+            node["children"].is_null() && node["matrix"].is_null() && node["scale"].is_null(),
+            "{path:?}: node carries a child, a matrix or a scale"
+        );
+        let Some(mesh) = node["mesh"].as_u64() else {
+            continue;
+        };
+        let translation =
+            node_floats(node, "translation", 3).map_or(Vec3::ZERO, |t| Vec3::new(t[0], t[1], t[2]));
+        let rotation = node_floats(node, "rotation", 4)
+            .map_or(Quat::IDENTITY, |r| Quat::from_xyzw(r[0], r[1], r[2], r[3]));
+
+        for primitive in doc["meshes"][mesh as usize]["primitives"]
+            .as_array()
+            .expect("glb primitives")
+        {
             let material =
                 &doc["materials"][primitive["material"].as_u64().expect("material") as usize];
             let colour = material["pbrMetallicRoughness"]["baseColorFactor"]
                 .as_array()
                 .map(|values| std::array::from_fn(|i| values[i].as_f64().unwrap_or(1.0) as f32))
                 .unwrap_or([1.0; 4]);
-            GlbPrimitive {
-                positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos")),
-                normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm")),
-                indices: accessor_bytes(primitive["indices"].as_u64().expect("idx"))
-                    .as_chunks::<4>()
-                    .0
-                    .iter()
-                    .map(|chunk| u32::from_le_bytes(*chunk))
+            primitives.push(GlbPrimitive {
+                // The node transform is baked in: a caller spawns one flat
+                // mesh per primitive and never learns which node it came off.
+                positions: floats3(primitive["attributes"]["POSITION"].as_u64().expect("pos"))
+                    .into_iter()
+                    .map(|p| (rotation * Vec3::from_array(p) + translation).to_array())
                     .collect(),
+                normals: floats3(primitive["attributes"]["NORMAL"].as_u64().expect("nrm"))
+                    .into_iter()
+                    .map(|n| (rotation * Vec3::from_array(n)).to_array())
+                    .collect(),
+                indices: index_buffer(primitive["indices"].as_u64().expect("idx")),
                 colour,
                 metallic: factor(material, "metallicFactor", 1.0),
                 roughness: factor(material, "roughnessFactor", 1.0),
-            }
-        })
-        .collect()
+            });
+        }
+    }
+    primitives
 }

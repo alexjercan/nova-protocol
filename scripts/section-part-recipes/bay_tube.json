@@ -1,5 +1,5 @@
 {
-  "_comment": "BAY WINNER: the straightforward launcher, 1x1x2. Full-cell end frames with an inset gunmetal body (the panel-line read the skin clads over), a proud steel muzzle collar, twin copper feed conduits along the roof, a flank junction box and a status strip. The muzzle is an IRIS: six gunmetal petal plates (named nodes door_petal_0..5) tile a hexagonal aperture on the collar, each authored in its own hinge frame - origin on the outer edge, X along the hinge - so the runtime MuzzleDoor track folds them outward with a local-X rotation. Behind them a recessed dark throat reads as the open bore. Closed is the rest pose the cell-box check grades.",
+  "_comment": "BAY WINNER: the straightforward launcher, 1x1x2. Full-cell end frames with an inset gunmetal body (the panel-line read the skin clads over), a proud steel muzzle collar, an amber hazard bar above and below it (banded between the collar's 0.44 reach and the cell rim, because the collar stands proud of the muzzle plate and would eat a bar drawn across it), twin copper feed conduits along the roof, a flank junction box and a status strip. The muzzle is an IRIS: six gunmetal petal plates (named nodes door_petal_0..5) tile a hexagonal aperture on the collar, each authored in its own hinge frame - origin on the outer edge, X along the hinge - so the runtime MuzzleDoor track folds them outward with a local-X rotation. Behind them a recessed dark throat reads as the open bore. Closed is the rest pose the cell-box check grades.",
   "frame": "bay",
   "cells": [
     1,
@@ -150,12 +150,12 @@
       "primitive": "box",
       "size": [
         0.9,
-        0.05,
+        0.04,
         0.012
       ],
       "at": [
         0.0,
-        0.42,
+        0.47,
         -0.986
       ],
       "material": "part_amber"
@@ -164,12 +164,12 @@
       "primitive": "box",
       "size": [
         0.9,
-        0.05,
+        0.04,
         0.012
       ],
       "at": [
         0.0,
-        -0.42,
+        -0.47,
         -0.986
       ],
       "material": "part_amber"
