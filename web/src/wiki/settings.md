@@ -10,16 +10,25 @@ on the web.
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/wiki-settings.png</span>
-        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the master volume slider and the Back button.</span>
+        <span class="figure__placeholder-note">The Settings modal open over the main menu on its Audio tab: the tab bar, the four volume sliders and the Back button.</span>
     </div>
     <figcaption class="figure__caption">One Settings modal, reachable from the main menu and the pause menu.</figcaption>
 </figure>
 
 ## Audio
 
-A draggable **master volume** slider scales all game audio at once - the engine
-hum, weapons, radar ticks and the world's impact sounds. It takes effect live as
-you drag.
+Four draggable sliders, top to bottom. Each shows its level as a whole percent
+and takes effect live as you drag.
+
+| Slider | What it moves |
+| --- | --- |
+| Master | Everything at once. The one control most players ever touch. |
+| Interface | Menu clicks, HUD ticks, the editor and the flight computer - the sounds that come from the cockpit, not from the world. |
+| World | The engine hum, weapons, hits, the rocks breaking up - everything out there, heard at the distance it happens. |
+| Music | Reserved. The slider moves and the setting is saved, but the game ships no music yet. |
+
+Master multiplies the other three, so a track you have turned down stays down
+when you raise Master.
 
 ## Graphics quality
 

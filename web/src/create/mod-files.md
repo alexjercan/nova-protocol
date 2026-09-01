@@ -2,8 +2,8 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-five kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
-and ship skin styles.
+six kinds of reusable item: campaigns, scenarios, ship sections, whole ships,
+ship skin styles, and impact rows.
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.

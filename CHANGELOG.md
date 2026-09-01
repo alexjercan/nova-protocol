@@ -28,9 +28,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A lance slug rakes through everything in the line, gutting a hull section
-  outright and crippling the large drives. Power, not a layer count, bounds the
-  depth, so an aligned shot takes a column out of a ship.
+- A lance slug rakes through everything in the line, gutting a hull section and
+  crippling the big drives. Power, not a layer count, bounds the depth, so an
+  aligned shot takes a column out of a ship.
 - Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
   so a lance mounted off the ship's axis yaws it as well as pushing it back.
 - A lance holds one shell and gets it back on a twelve-second idle reload.
@@ -46,11 +46,8 @@ does NOT get an entry - and it is the only place they are written down.
 - A lance carries the same ammo gauge as a turret or a bay, drawn in the
   slug's pierce blue, so a spent shell and its long reload read at a glance.
 - With weapons hot, a lance draws its line of fire: a pierce-blue thread down
-  the bore that rings every section the shot would destroy, so a lock lets you
-  line the ship up before you commit.
-- The bore sight stays up through the reload, dimmed rather than gone, so the
-  twelve seconds a lance spends reloading are twelve seconds of lining the next
-  shot up.
+  the bore ringing every section the shot would destroy, dimmed but still there
+  through the twelve-second reload.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull

@@ -25,7 +25,7 @@ patterns](../../web/src/wiki/dev/scenario-system.md) section (headings
 `The gate-counter ordering pattern` and `The act-gating pattern`); that section's
 `The Gauntlet worked example` also links back here and to the test rig. It also
 exercises the data-driven scenario vocabulary - `ScatterObjects`, `Asteroid`
-(`invulnerable`, `mass`, per-spawn `impact_sound` / `destroy_sound`),
+(`invulnerable`, `mass`, per-spawn `destroy_sound`),
 ordered `OnEnter` gates, `SetSkybox` per act, and `Outcome` frames - all in RON.
 
 The behavior and layout are pinned by

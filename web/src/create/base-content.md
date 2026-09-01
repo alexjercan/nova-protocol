@@ -27,7 +27,8 @@ the `Section` grammar and the overlay flow.
 Ids are lowercase snake_case. Core editor parts use the
 `<variant>_<kind>_section` form. Shipped semantic ship parts use
 `<ship>_<part>`, for example `racer_fuselage` and `cargoa_engine_port`.
-Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
+Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, `Torpedo`, and
+`Railgun`.
 
 ### Core sections (the editor palette)
 
@@ -47,12 +48,13 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, and `Torpedo`.
 | `pdc_twin_pierce_turret_section` | Turret | Twin PDC Turret (Pierce) | 130 | penetrators from the two-barrel mount - half per-hit damage through every layer, split across two offset streams |
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg / 30 u, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - 32 u/s, ~390 PDC rounds an intercept, killed ~40 u out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, 35 u/s, ~116 PDC rounds an intercept, killed ~114 u out |
+| `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; 1500 u/s for 1.2 s, recoil 45 at the muzzle, one round reloading over 12 s |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg / 45 u, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (70 u/s, a shallow weave); scene dressing, hidden in the editor |
 
 Every shipped prototype authors its [damage
 effects](../sections/#damage-effects) by kind, and the whole catalog follows one
 rule: Hull wears `([Cracks])` (the default, so it is omitted), Controller,
-Turret and Torpedo wear `([Cracks, Sparks])`, and Thruster wears
+Turret, Torpedo and Railgun wear `([Cracks, Sparks])`, and Thruster wears
 `([Cracks, Sparks, Plume])`. The semantic ship parts below use the same rule.
 No shipped mod authors the field at all, so base is the worked example.
 

@@ -50,7 +50,8 @@ pub mod prelude {
         TurretSectionConfigHelper, TurretSectionInput, TurretSectionMuzzleEntity,
         TurretSectionPlugin, TurretSectionSystems, TurretSectionTargetEntity,
         TurretSectionTargetInput, TurretSectionTargetTrack, TurretSectionTargetVelocity,
-        TurretStow, TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
+        TurretStow, TurretStowDoorsMoved, TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS,
+        TURRET_ON_TARGET_RAD,
     };
 }
 

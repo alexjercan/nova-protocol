@@ -256,8 +256,9 @@ pub struct BaseSectionConfig {
     /// Section hit points; reaching zero destroys the section.
     pub health: f32,
     /// What this section is MADE of - an open material id looked up in the
-    /// impact table ([`GameImpacts`]) against the damage type that struck it,
-    /// snapshotted into [`SurfaceMaterial`] by [`base_section`].
+    /// impact table ([`nova_gameplay::prelude::GameImpacts`]) against the
+    /// damage type that struck it, snapshotted into [`SurfaceMaterial`] by
+    /// [`base_section`].
     ///
     /// `None` is [`MATERIAL_HULL`], because a section IS ship plate. The field
     /// exists so a mod can say otherwise - ceramic, ice, a fielded screen -
@@ -342,8 +343,9 @@ fn is_false(b: &bool) -> bool {
 /// nova_scenario's asteroid bundle constructs it.
 ///
 /// It used to carry the HIT voice too. That half is the impact table's now
-/// ([`GameImpacts`]), because what a hit sounds like depends on the round as
-/// well as the target and a per-target field can only say one of those.
+/// ([`nova_gameplay::prelude::GameImpacts`]), because what a hit sounds like
+/// depends on the round as well as the target, and a per-target field can only
+/// say one of those.
 #[derive(Component, Clone, Debug, Default, Reflect)]
 pub struct DestroySound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 

@@ -49,8 +49,9 @@ step at the joins must sit inside the loop's own internal step range.
 Two design rules worth keeping when adding one:
 
 - A cue is designed for the RATE IT IS HEARD AT, which is not always the rate
-  the hardware runs at. The PDC authors 50 rounds a second per muzzle and its
-  cue throttles to twenty; twenty is what the round is shaped against.
+  the hardware runs at. The gatling PDC authors 100 rounds a second out of one
+  muzzle and its cue throttles to twenty; twenty is what the round is shaped
+  against.
 - The same event on different hardware is separated by PITCH, not decoration.
   The drives run 34 / 52 / 78 Hz from capital to basic to vector.
 

@@ -37,7 +37,9 @@ impl EditorCues<'_, '_> {
         self.play(UiSfx::EditorPlace, EDITOR_PLACE_VOLUME);
     }
 
-    /// A part lifted out of the grid.
+    /// A part deleted off the ship, by the Del key or the Ship menu row. The
+    /// caller cues it past its own guards, so a delete the editor refuses
+    /// stays silent.
     pub(crate) fn remove(&mut self) {
         self.play(UiSfx::EditorRemove, EDITOR_REMOVE_VOLUME);
     }
@@ -66,16 +68,26 @@ impl EditorCues<'_, '_> {
 /// is armed. It would tick continuously.
 pub(crate) fn play_placement_pose_cue(
     pose: Res<PlacementPose>,
-    mut last: Local<Option<PlacementPose>>,
+    mut last: ResMut<PlacementPoseHeard>,
     mut cues: EditorCues,
 ) {
     let current = *pose;
-    let moved = last.is_some_and(|last| last != current);
-    *last = Some(current);
+    let moved = last.0.is_some_and(|last| last != current);
+    last.0 = Some(current);
     if moved {
         cues.rotate();
     }
 }
+
+/// The pose the ghost detent last spoke for.
+///
+/// A RESOURCE and not a `Local`, so the entry that resets [`PlacementPose`] can
+/// reset this beside it. The watcher only runs in the editor state, and a
+/// `Local` outlives the trip out to a test flight: coming back, the reset pose
+/// was compared against the one the builder left with and the ghost ticked for
+/// a turn nobody made.
+#[derive(Resource, Default, Debug)]
+pub(crate) struct PlacementPoseHeard(pub(crate) Option<PlacementPose>);
 
 #[cfg(test)]
 mod tests {
@@ -95,6 +107,7 @@ mod tests {
             UI_SFX_FILES,
         ));
         app.init_resource::<PlacementPose>();
+        app.init_resource::<PlacementPoseHeard>();
         app.init_resource::<Ticks>();
         app.add_observer(|_: On<PlaySfx>, mut ticks: ResMut<Ticks>| ticks.0 += 1);
         app.add_systems(Update, play_placement_pose_cue);
@@ -128,6 +141,14 @@ mod tests {
         let _ = app.world_mut().resource_mut::<PlacementPose>();
         app.update();
         assert_eq!(ticks(&app), 1);
+
+        // Leaving for a test flight and coming back. The editor's entry resets
+        // both the pose and what the detent last heard; without the second
+        // reset the fresh pose reads as a turn nobody made.
+        *app.world_mut().resource_mut::<PlacementPose>() = PlacementPose::default();
+        app.world_mut().resource_mut::<PlacementPoseHeard>().0 = None;
+        app.update();
+        assert_eq!(ticks(&app), 1, "coming back to the editor is silent");
 
         // Rolling and cycling the socket in ONE frame is one detent, not two:
         // the pose is what moved, and it moved once.

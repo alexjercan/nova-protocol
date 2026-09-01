@@ -1090,10 +1090,11 @@ fn only_one_of_the_three_actions_bound_to_g_is_ever_live() {
 }
 
 /// The detent. A drag emits a `ValueChange` on every frame the pointer moves,
-/// but `SliderStep` quantises the value - so the frames carrying a NEW value
-/// are exactly the frames the handle crossed a notch, and the comparison
-/// against the resource IS the detent. Without it a slow drag across one notch
-/// would tick every frame it was held.
+/// carrying a RAW float - `SliderStep` rounds the arrow keys and a track click
+/// and nothing else, and this slider carries no `SliderPrecision`. So the
+/// values below are the sub-notch floats a real pointer produces, and the tick
+/// has to count notches: comparing the values themselves ticks every frame the
+/// handle is held moving.
 #[test]
 fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
     use super::support::{cue_app, take_cues};
@@ -1121,20 +1122,22 @@ fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
         app.update();
     };
 
-    drag(&mut app, 0.55);
+    drag(&mut app, 0.5512);
     assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
 
-    // Three more events at the same quantised value: the pointer is still
-    // inside the notch it already crossed.
-    drag(&mut app, 0.55);
-    drag(&mut app, 0.55);
-    drag(&mut app, 0.55);
+    // A pointer creeping across the rest of the same notch. Every one of these
+    // is a distinct float, and before the notch comparison every one ticked.
+    drag(&mut app, 0.5548);
+    drag(&mut app, 0.5601);
+    drag(&mut app, 0.5674);
     assert!(
         take_cues(&mut app).is_empty(),
-        "resting on a notch is silent"
+        "creeping inside a notch is silent"
     );
 
-    drag(&mut app, 0.60);
+    drag(&mut app, 0.5831);
     assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
-    assert!((app.world().resource::<WorldVolume>().0 - 0.60).abs() < 1e-6);
+    // The VALUE is not quantised - only the cue is. The slider stays
+    // continuous, as the bar fill and the percent readout both draw it.
+    assert!((app.world().resource::<WorldVolume>().0 - 0.5831).abs() < 1e-6);
 }

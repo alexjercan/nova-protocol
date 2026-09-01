@@ -309,8 +309,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                impact_sound: Some("dep://base/sounds/impact.wav"),
-                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 2.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
@@ -326,8 +325,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                impact_sound: Some("dep://base/sounds/impact.wav"),
-                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 1.7,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
@@ -544,8 +542,7 @@
                                 rotation: (0.0, 0.0, 0.0, 1.0),
                             ),
                             kind: Asteroid((
-                impact_sound: Some("dep://base/sounds/impact.wav"),
-                destroy_sound: Some("dep://base/sounds/explosion.wav"),
+                destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                                 radius: 1.0,
                                 texture: "dep://base/textures/asteroid.png",
                                 mass: None,

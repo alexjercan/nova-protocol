@@ -24,6 +24,7 @@
 //! [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig
 
 use bevy::prelude::*;
+use nova_gameplay::prelude::SectionInactiveMarker;
 
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
@@ -193,7 +194,9 @@ impl SectionReload {
 pub fn tick_section_reload(
     time: Res<Time>,
     mut commands: Commands,
-    mut q: Query<(Entity, &mut SectionAmmo, &mut SectionReload)>,
+    // A disabled section neither refills nor reports: the gun can never fire
+    // again, and the breech clunk would arrive from a piece of wreckage.
+    mut q: Query<(Entity, &mut SectionAmmo, &mut SectionReload), Without<SectionInactiveMarker>>,
 ) {
     let dt = time.delta_secs();
     for (section, mut ammo, mut reload) in &mut q {

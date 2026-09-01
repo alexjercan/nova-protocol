@@ -2,8 +2,8 @@
 
 A `Section` is a reusable ship part defined in a mod's `*.content.ron` file.
 Create a new id to add a part to the editor palette, or reuse a base id to
-replace that part everywhere. The five available kinds are `Hull`, `Thruster`,
-`Controller`, `Turret`, and `Torpedo`.
+replace that part everywhere. The six available kinds are `Hull`, `Thruster`,
+`Controller`, `Turret`, `Torpedo`, and `Railgun`.
 
 Start with the two working section items in
 `assets/mods/example/example.content.ron`: one replaces
@@ -237,8 +237,8 @@ the node was modelled at. Content owns WHAT moves; the section kind's own
 systems own WHEN, by steering the cue.
 
 - `cue` - the gameplay moment that drives this track. The set is closed
-  (`MuzzleDoor`, `StowLift`, `StowDoors` - see the table below); a mod picks
-  from it rather than inventing one. Several tracks may share a cue, and a cue
+  (`MuzzleDoor`, `StowLift`, `StowDoors`, `Charge` - see the table below); a
+  mod picks from it rather than inventing one. Several tracks may share a cue, and a cue
   no system on this section steers simply rests at 0.
 - `node_prefix` - which nodes move, by NAME PREFIX: `"door_petal_"` takes
   `door_petal_0` through `door_petal_5`. A prefix and not a list, so art can
@@ -271,6 +271,7 @@ Who raises each cue:
 | `MuzzleDoor` | The torpedo bay's fire path, on the HELD trigger - and only while the bay could genuinely fire, so weapons safety or an empty magazine keeps the iris shut. A launched round holds it open across the cold coast, so a tapped trigger closes the doors behind the torpedo rather than on it. | open |
 | `StowLift` | The turret's stow machine. | sunk into the housing |
 | `StowDoors` | The turret's stow machine, sequenced against the lift: it shuts the lids only once the gun is fully down, and parts them before raising it. | shut over the sunk gun |
+| `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
 
 Authoring a `StowLift` track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
@@ -773,6 +774,84 @@ cases:
   spends the round. That is what
   [`ForceTorpedoLaunch`](../actions/#forcetorpedolaunch) produces on a battery
   with no controller.
+
+## Railgun
+
+`RailgunSectionConfig` - a spinal lance with no traverse of its own: the HULL
+aims it, and tapping the trigger COMMITS the shot. The shipped
+`railgun_lance_section`:
+
+```ron
+kind: Railgun((
+    render_mesh: Some("dep://base/gltf/railgun_lance.glb#Scene0"),
+    muzzle_offset: (0.0, 0.0, -1.5),
+    charge_seconds: 1.5,
+    slug_speed: 1500.0,
+    slug_damage: 300.0,
+    slug_power: 1800.0,
+    slug_lifetime: 1.2,
+    recoil_impulse: 45.0,
+    fire_sound: Some("dep://base/sounds/railgun_fire.wav"),
+    charge_sound: Some("dep://base/sounds/railgun_charge.wav"),
+    reload_sound: Some("dep://base/sounds/railgun_reload.wav"),
+    ammo_capacity: Some(1),
+    reload: Some((delay: 12.0, amount: 1)),
+)),
+```
+
+- `render_mesh`, `render_mesh_transform` (both optional) - the lance mesh and a
+  visual-only transform for it. The transform never moves the collider and
+  never moves the bore, so a mesh nudged for looks still fires down the
+  authored line. Omit the mesh and the gun draws as a unit cuboid.
+- `muzzle_offset` (`Vec3`) - the bore exit in the section's own frame: where the
+  slug is born, where the flash and the shot play, and the point the recoil is
+  applied AT. Author it on the muzzle face. The recoil lever arm is measured
+  from this point, so a muzzle left at the section origin shoves a three-cell
+  gun as if it were a one-cell one.
+- `charge_seconds` - seconds from the trigger to the shot. It cannot be
+  aborted: this is AIMING time, not a hold. The gun does not re-check the nose
+  when the charge ends, so a target that slid off the line in that window is
+  simply missed.
+- `slug_speed`, `slug_lifetime` - muzzle speed in units per second, and how
+  long the slug lives. Their product is the reach: the shipped lance is
+  1500 u/s for 1.2 s, or 1800 units. With no layer cap on penetration, the
+  lifetime is also what stops a miss travelling forever.
+- `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
+  is not scaled by closing speed and it does not decay with depth, so the tenth
+  section in the line takes what the first did.
+- `slug_power` - the pierce budget, spent in the MAX health of each layer
+  crossed. This is the ONLY bound on depth; the layer count is deliberately
+  unlimited, so a lance stops when it runs out of thickness to spend rather
+  than at an arbitrary layer. The shipped 1800 against 200 hp reinforced hull
+  is nine cells of armor in one line.
+- `recoil_impulse` - impulse applied backwards along the bore at the muzzle
+  point on the tick the slug leaves. Raw impulse with no `dt`, in the units a
+  thruster's magnitude carries. Because it lands at the muzzle and not at the
+  centre of mass, an off-axis lance YAWS the ship every time it fires, which is
+  the price a wing mount pays over a nose one.
+- `fire_sound` (optional) - the shot, at the muzzle.
+- `charge_sound` (optional) - the capacitor bank filling. A LOOP held for the
+  whole charge, played back faster as the charge runs, so the gun sounds like
+  it is arriving at something. A loop and not a one-shot because
+  `charge_seconds` is a number a mod may set to anything, and a fixed-length
+  file would either end early or be cut off.
+- `reload_sound` (optional) - a shell going back into the breech, played when
+  the magazine returns to capacity. For a one-shell lance that IS the whole of
+  its cadence: the reload is the silence, and this is the silence ending.
+- `ammo_capacity` (optional) - shells carried; `None` for unlimited, the
+  bare-rig default every weapon section shares.
+- `reload` (optional) - the same `Some((delay, amount))` batch reload a turret
+  and a bay use. For a one-shell magazine it IS the cadence: the shipped lance
+  is one shot every twelve quiet seconds, and the section's ammo gauge is the
+  countdown.
+
+Author a [`Charge` animation track](#animation-tracks) to give the gun a tell.
+The shipped lance walks a `charge_bolt` node the length of the bore, so how far
+the bolt has travelled is how much charge is left to run - readable by the
+firing player on their own hull and by an enemy across the gap. Without the
+track the gun still charges; it just charges invisibly.
+
+<!-- Grammar verified against crates/nova_ship/src/sections/railgun_section/mod.rs (config :61-147, commit :179-185, charge state :187-193) and firing.rs (Pierce :207). Values from assets/base/sections/base.content.ron (:2258-2483). -->
 
 ## A section in a mod
 

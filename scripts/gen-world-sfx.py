@@ -26,10 +26,11 @@ Mono, 44100 Hz, 16-bit PCM WAV, peak-normalized to -3 dBFS. Balance is NOT set
 here: the per-cue volume constants in `nova_ship/src/ship_audio/mod.rs` do the
 mixing.
 
-A cue is designed for the RATE IT IS HEARD AT. The PDC authors 50 rounds a
-second per muzzle, but its cue throttles to twenty and stays there - a held
-loop at the true rate fuses into a buzz, and a burst of separable rounds reads
-better than a saw. Twenty a second is the number its round is shaped against.
+A cue is designed for the RATE IT IS HEARD AT. The gatling PDC authors 100
+rounds a second out of its one muzzle (the twin authors 50 per muzzle, for the
+same total), but the cue throttles to twenty and stays there: a held loop at
+the true rate fuses into a buzz, and a burst of separable rounds reads better
+than a saw. Twenty a second is the number its round is shaped against.
 
 Cues that answer the same event on different HARDWARE are separated by pitch,
 not by decoration, because pitch is what survives a firefight: the drives run
@@ -93,8 +94,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def pdc_gatling_fire(rng):
     """One round from the rotary PDC.
 
-    The gun authors 50 rounds a second per muzzle - 100 on a twin mount - but
-    the cue throttles to twenty (`TURRET_FIRE_MIN_INTERVAL` in
+    The gatling authors 100 rounds a second out of its one muzzle, and the
+    twin 50 per muzzle for the same total - but the cue throttles to twenty (`TURRET_FIRE_MIN_INTERVAL` in
     `nova_ship/src/ship_audio/mod.rs`), and twenty is where this is designed to
     sit. Rendering the true rate as a held loop was tried and rejected: at a
     10 ms period the rounds fuse into a buzz, and a burst of separable rounds

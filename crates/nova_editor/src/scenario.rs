@@ -36,7 +36,7 @@ use crate::{
     event::{named_ids, NamedIds, ScriptNodes},
     node::{
         objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
-        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND,
+        ShipDriver, ShipNode, ASTEROID_TEXTURE, DESTROY_SOUND, SHIP_COLLAPSE_SOUND,
     },
 };
 
@@ -529,6 +529,7 @@ pub(crate) fn ship_hull(ship: &LoweredShip) -> ShipHull {
         sections: ship.sections.clone(),
         skin: ship.skin,
         style: ship.style.clone(),
+        collapse_sound: Some(AssetRef::from(SHIP_COLLAPSE_SOUND)),
         ..default()
     }
 }

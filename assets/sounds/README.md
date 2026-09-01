@@ -23,7 +23,7 @@ section, so two controllers are allowed to sound different. See
 
 ## The voice
 
-Two files make this directory. The eleven `nova_*.wav` are the STANDARD -
+Two files make this directory. The ten `nova_*.wav` are the STANDARD -
 baked from the NOVA OS terminal recipes by `scripts/gen-nova-os-sfx.py`
 (stdlib only, no numpy) - and everything else is written to join them by
 `scripts/gen-ui-sfx.py`, which shares their primitives: a square or triangle
@@ -40,7 +40,7 @@ volumes do that.
 To replace one by hand, drop a real sound at the same path and filename. They
 load through `SoundBank::load`'s `sounds/<name>.wav` convention into the
 `UiSfx` bank (`register_sounds` in `crates/nova_assets/src/lib.rs`); the keys
-are `UiSfx` in `crates/nova_gameplay/src/audio.rs`, guarded by the
+are `UiSfx` in `crates/nova_gameplay/src/audio/mod.rs`, guarded by the
 `every_ui_sfx_key_has_a_file` test.
 
 ## Files
@@ -65,4 +65,4 @@ unfinished hook, not an error.
 | `editor_remove.wav` | a part is removed | `nova_editor::cues` |
 | `editor_rotate.wav` | the ghost's pose moves | `nova_editor::cues` |
 | `editor_deny.wav` | an illegal placement is refused | `nova_editor::cues` |
-| `nova_*.wav` (11) | the NOVA OS terminal | `nova_ui` |
+| `nova_*.wav` (10) | the NOVA OS terminal | `nova_ui` |

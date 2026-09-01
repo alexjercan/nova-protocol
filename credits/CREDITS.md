@@ -17,11 +17,12 @@ assets" below:
 
 - **Sounds** (`assets/sounds/*.wav` interface chrome + `assets/base/sounds/*.wav`
   world and avionics cues) - synthesised from scratch by the project's own
-  renderers: `scripts/gen-nova-os-sfx.py` (the NOVA OS terminal family),
-  `scripts/gen-ui-sfx.py` (the rest of the interface, plus the cockpit's lock,
-  radar and warning cues) and `scripts/gen-world-sfx.py` (guns, ordnance,
-  impacts, destruction, drives and handling), all over the shared DSP toolkit
-  in `scripts/nova_sfx.py`. No sample libraries and no third-party recordings
+  renderers: `scripts/gen-nova-os-sfx.py` (the NOVA OS terminal family, on the
+  standard library alone - it predates the toolkit), and `scripts/gen-ui-sfx.py`
+  (the rest of the interface, plus the cockpit's lock, radar and warning cues)
+  and `scripts/gen-world-sfx.py` (guns, ordnance, impacts, destruction, drives
+  and handling) over the shared DSP toolkit in `scripts/nova_sfx.py`. No sample
+  libraries and no third-party recordings
   are involved, so they carry the project's own license; see the README in each
   directory for what each file is and where its variation lives.
 - **3D models** (`assets/gltf/*.glb`) - exported from the project's own Blender

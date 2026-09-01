@@ -574,10 +574,15 @@ fn editor_plugin(app: &mut App) {
             .after(wheel_placement_pose)
             .run_if(in_state(ExampleStates::Editor)),
     );
-    // A fresh visit starts with the part's first socket, unrolled.
+    // A fresh visit starts with the part's first socket, unrolled - and the
+    // detent watcher forgets with it, or the reset itself reads as a turn.
+    app.init_resource::<cues::PlacementPoseHeard>();
     app.add_systems(
         OnEnter(ExampleStates::Editor),
-        |mut pose: ResMut<PlacementPose>| *pose = PlacementPose::default(),
+        |mut pose: ResMut<PlacementPose>, mut heard: ResMut<cues::PlacementPoseHeard>| {
+            *pose = PlacementPose::default();
+            heard.0 = None;
+        },
     );
 
     // A stale rebind must not survive a scene change, so clear it on

@@ -39,7 +39,7 @@ The five spelling rules behind every snippet in these pages:
 
 | family | constructs |
 |---|---|
-| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`Style`](../styles/) |
+| Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Impact`](../impacts/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`Style`](../styles/) |
 | Handler fields | [`name`](../events/), [`once`](../scenarios/#once-a-beat-that-happens-one-time), [`filters`](../filters/), [`actions`](../actions/) |
 | Events (16) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle) |
 | Filters (4) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
@@ -88,7 +88,8 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`HintEmphasisSet`](../actions/#hintemphasisset),
 [`HudReadout`](../actions/#hudreadout) (actions)
 
-**I** - [`Inline`](../objects/#the-sections-list) (section source)
+**I** - [`Impact`](../impacts/) (content item),
+[`Inline`](../objects/#the-sections-list) (section source)
 
 **K** - [`Keyboard` / `Mouse` / `Gamepad`](../objects/#the-controller) (input bindings)
 

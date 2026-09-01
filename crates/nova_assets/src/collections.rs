@@ -37,8 +37,9 @@ pub(crate) fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
 
 /// The canonical UI-SFX asset paths held by the `GameAssets::ui_sfx` mapped
 /// collection - the single distinct file per entry in
-/// [`nova_gameplay::audio::UI_SFX_FILES`]. The collection's `#[asset(paths(...))]` list MUST mirror this
-/// (kept adjacent so they move together); `ui_sfx_collection_matches_ui_sfx_files`
+/// [`nova_gameplay::audio::UI_SFX_FILES`]. The collection's
+/// `#[asset(paths(...))]` list MUST mirror this (kept adjacent so they move
+/// together); `ui_sfx_collection_matches_ui_sfx_files`
 /// pins that this set covers exactly the files `UI_SFX_FILES` references, and
 /// that each file exists on disk.
 #[cfg(test)]

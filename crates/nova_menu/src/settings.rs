@@ -536,7 +536,7 @@ fn build_volume_row(
                 },
                 SliderValue(value),
                 SliderRange::new(0.0, 1.0),
-                SliderStep(0.05),
+                SliderStep(VOLUME_STEP),
                 slider_track(value, skin),
             ));
         });
@@ -1297,6 +1297,15 @@ pub(crate) fn flush_settings_on_exit(
 /// change then drives the audio and the save-on-change persistence. Guarded on
 /// [`VolumeSlider`], whose channel says which resource to write, so it ignores
 /// any other slider.
+/// One notch of a volume slider: the arrow-key step, and the spacing the drag
+/// cue ticks at.
+const VOLUME_STEP: f32 = 0.05;
+
+/// Which [`VOLUME_STEP`] notch a level falls in. The drag cue's whole detent.
+fn notch(value: f32) -> i32 {
+    (value / VOLUME_STEP).round() as i32
+}
+
 pub(crate) fn on_volume_slider_change(
     change: On<ValueChange<f32>>,
     sliders: Query<&VolumeSlider>,
@@ -1324,13 +1333,14 @@ pub(crate) fn on_volume_slider_change(
         VolumeChannel::Music => *music = MusicVolume(value),
     }
 
-    // The detent. A drag emits `ValueChange` every frame it moves, but
-    // `SliderStep` quantises the value, so the frames that carry a NEW value
-    // are exactly the frames the handle crossed a notch - the comparison is
-    // the detent, and no separate step counter is needed. It also makes the
-    // slider that sets the volume audition itself as it moves, which is the
-    // whole reason this row wants a voice at all.
-    if value == was {
+    // The detent, and it has to be counted here. `SliderStep` governs the
+    // arrow keys and a click on the track; the DRAG path rounds on
+    // `SliderPrecision`, which this slider does not carry and nothing in the
+    // repo sets - so a drag emits a raw float every frame it moves and a
+    // straight `value != was` would tick once per FRAME. The notch index is
+    // the comparison the old one only looked like. The volume itself stays
+    // continuous: the tick is the detent, not the value.
+    if notch(value) == notch(was) {
         return;
     }
     if let Some(bank) = bank {

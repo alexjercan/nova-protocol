@@ -378,7 +378,14 @@ const CREATE_PAGES = [
         tags: ["modding", "reference"],
         summary:
             "The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, and impacts.",
-        related: ["campaigns", "scenarios", "sections", "ships", "styles", "impacts"],
+        related: [
+            "campaigns",
+            "scenarios",
+            "sections",
+            "ships",
+            "styles",
+            "impacts",
+        ],
         headings: [
             "Folder structure",
             "The bundle manifest",
@@ -451,6 +458,7 @@ const CREATE_PAGES = [
             "Controller",
             "Turret",
             "Torpedo",
+            "Railgun",
             "A section in a mod",
         ],
     },

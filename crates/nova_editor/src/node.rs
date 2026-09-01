@@ -54,6 +54,10 @@ pub(crate) const ASTEROID_TEXTURE: &str = "base/textures/asteroid.png";
 pub(crate) const DESTROY_SOUND: &str = "base/sounds/destroy_rock.wav";
 /// The ding a placed salvage crate is picked up with.
 pub(crate) const SALVAGE_SOUND: &str = "base/sounds/salvage_pickup.wav";
+/// The sound a hull built in the editor comes apart with. Every catalog ship
+/// authors this one; a hull the builder made would otherwise die in silence
+/// where the stock corvette speaks.
+pub(crate) const SHIP_COLLAPSE_SOUND: &str = "base/sounds/destroy_ship.wav";
 
 /// Marker on every node of the document tree, at every depth.
 #[derive(Component, Debug)]

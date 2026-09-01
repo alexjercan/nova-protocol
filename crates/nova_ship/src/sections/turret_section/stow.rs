@@ -65,9 +65,6 @@ pub struct TurretStow {
     phase: TurretStowPhase,
     /// Seconds the deployed mount has been quiet (cold and untracked).
     quiet_secs: f32,
-    /// Whether this cycle has already reported its lids moving, so the report
-    /// is an EDGE and not a per-frame repeat while they travel.
-    doors_reported: bool,
 }
 
 impl TurretStow {
@@ -77,7 +74,6 @@ impl TurretStow {
         Self {
             phase,
             quiet_secs: 0.0,
-            doors_reported: false,
         }
     }
 
@@ -204,14 +200,12 @@ pub(super) fn drive_turret_stow(
                     stow.quiet_secs += dt;
                     if stow.quiet_secs >= STOW_SETTLE_SECONDS {
                         stow.phase = TurretStowPhase::Stowing;
-                        stow.doors_reported = false;
                     }
                 }
             }
             TurretStowPhase::Stowing => {
                 if wants_deployed {
                     stow.phase = TurretStowPhase::Deploying;
-                    stow.doors_reported = false;
                     continue;
                 }
                 // Fold up, sink, then shut - and hold the lids OPEN until
@@ -222,14 +216,12 @@ pub(super) fn drive_turret_stow(
                     animations.set_cue(SectionAnimationCue::StowLift, 1.0);
                 }
                 let sunk = settled && lift.is_none_or(|lift| lift == 1.0);
-                animations.set_cue(SectionAnimationCue::StowDoors, if sunk { 1.0 } else { 0.0 });
-                if sunk && !stow.doors_reported {
-                    stow.doors_reported = true;
-                    commands.trigger(TurretStowDoorsMoved {
-                        entity: turret,
-                        opening: false,
-                    });
-                }
+                command_doors(
+                    &mut animations,
+                    &mut commands,
+                    turret,
+                    if sunk { 1.0 } else { 0.0 },
+                );
                 if sunk && doors.is_none_or(|doors| doors == 1.0) {
                     stow.phase = TurretStowPhase::Stowed;
                     stow.quiet_secs = 0.0;
@@ -239,27 +231,18 @@ pub(super) fn drive_turret_stow(
                 command_stow_attitude(turret, &mut q_joint);
                 if wants_deployed {
                     stow.phase = TurretStowPhase::Deploying;
-                    stow.doors_reported = false;
                 }
             }
             TurretStowPhase::Deploying => {
                 if !wants_deployed {
                     stow.phase = TurretStowPhase::Stowing;
-                    stow.doors_reported = false;
                     continue;
                 }
                 // Part the lids, then raise. The column stays on the stow
                 // attitude the whole way up; the aim solver takes the
                 // hinges back only once the phase flips to Deployed.
                 command_stow_attitude(turret, &mut q_joint);
-                animations.set_cue(SectionAnimationCue::StowDoors, 0.0);
-                if !stow.doors_reported {
-                    stow.doors_reported = true;
-                    commands.trigger(TurretStowDoorsMoved {
-                        entity: turret,
-                        opening: true,
-                    });
-                }
+                command_doors(&mut animations, &mut commands, turret, 0.0);
                 if doors.is_none_or(|doors| doors == 0.0) {
                     animations.set_cue(SectionAnimationCue::StowLift, 0.0);
                     if lift.is_none_or(|lift| lift == 0.0) {
@@ -270,6 +253,30 @@ pub(super) fn drive_turret_stow(
                 }
             }
         }
+    }
+}
+
+/// Command the lids to `target`, and report only if they were headed somewhere
+/// else.
+///
+/// The report is the LIDS moving, never the phase flipping - the same seam
+/// `drive_muzzle_doors` reports the torpedo bay's doors on. A fold interrupted
+/// before the mount is down holds the lids open the whole way, so re-deploying
+/// out of it moves nothing and must say nothing; and a mount that authors a
+/// lift track but no `StowDoors` track has no lids to speak for at all.
+fn command_doors(
+    animations: &mut SectionAnimations,
+    commands: &mut Commands,
+    turret: Entity,
+    target: f32,
+) {
+    let was = animations.cue_target(SectionAnimationCue::StowDoors);
+    animations.set_cue(SectionAnimationCue::StowDoors, target);
+    if was.is_some_and(|was| was != target) {
+        commands.trigger(TurretStowDoorsMoved {
+            entity: turret,
+            opening: target == 0.0,
+        });
     }
 }
 
@@ -586,6 +593,46 @@ mod tests {
             app.world().resource::<Reports>().0,
             vec![true, false],
             "the shut report lands once, when the lids are told to close"
+        );
+    }
+
+    #[test]
+    fn a_fold_interrupted_before_the_lids_move_re_deploys_in_silence() {
+        // The whole reason the report rides the lid target and not the phase:
+        // Stowing holds the lids OPEN for the length of the fold, so a mount
+        // re-tasked inside that window has nothing to part. It used to play a
+        // full lid-parting cue over a housing that never moved.
+        #[derive(Resource, Default)]
+        struct Reports(Vec<bool>);
+
+        let mut app = stow_app(0.05);
+        app.init_resource::<Reports>();
+        app.add_observer(|ev: On<TurretStowDoorsMoved>, mut log: ResMut<Reports>| {
+            log.0.push(ev.opening);
+        });
+        let (ship, turret) = spawn_stowable_turret(&mut app, true, 0.2);
+        for _ in 0..22 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+
+        // Go cold, and let the fold get under way but not down.
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(false));
+        for _ in 0..82 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Stowing);
+
+        // A target reappears mid-fold.
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
+        for _ in 0..22 {
+            app.update();
+        }
+        assert_eq!(phase(&app, turret), TurretStowPhase::Deployed);
+        assert_eq!(
+            app.world().resource::<Reports>().0,
+            vec![true],
+            "the lids were open the whole time, so only the first rise sounded"
         );
     }
 
