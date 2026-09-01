@@ -96,6 +96,10 @@ pub struct BaseContentAssets {
     /// The magazine gauge inside the cockpit, alongside the gun's own
     /// dead-trigger click out on the mount.
     pub controller_ammo_dry_sound: AssetRef<AudioSource>,
+    /// The hull alarm. Everything `warn_lock` is, an octave down and half the
+    /// speed - slower is more serious, which is the opposite of how alarms
+    /// usually escalate and is why this one lands.
+    pub controller_warn_hull_sound: AssetRef<AudioSource>,
     /// The controller's RCS fine-adjust loop: plays while the RCS primitive
     /// burns, player- or autopilot-driven.
     pub controller_rcs_loop_sound: AssetRef<AudioSource>,
@@ -238,6 +242,7 @@ impl BaseContentAssets {
             controller_safety_on_sound: AssetRef::from("self://sounds/safety_on.wav".to_string()),
             controller_warn_lock_sound: AssetRef::from("self://sounds/warn_lock.wav".to_string()),
             controller_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
+            controller_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
             controller_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_impact_sound: AssetRef::from("self://sounds/impact.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),

@@ -60,51 +60,57 @@ content refs and regenerate with `cargo run -- content gen`.
 ## Files
 
 `Authored on` is where base content references the file today. Files marked
-`-` are rendered and waiting for the cue that plays them.
+`-` are rendered and waiting for the cue that plays them - two of them, both
+waiting on the same thing: an impact keyed by what HIT it as well as by what
+was hit.
 
 ### Guns
 
 | File | Authored on |
 | --- | --- |
 | `turret_fire.wav` | turret `fire_sound` |
-| `pdc_twin_fire.wav` | - (the twin mount shares the gatling's file today) |
+| `pdc_twin_fire.wav` | the twin mount's `fire_sound` |
 | `dry_fire.wav` | turret `dry_fire_sound` |
-| `pdc_stow_open.wav` | - (the `StowLift` / `StowDoors` animation) |
-| `pdc_stow_close.wav` | - |
-| `bay_door.wav` | - (the `MuzzleDoor` animation) |
+| `pdc_stow_open.wav` | turret `stow_open_sound` |
+| `pdc_stow_close.wav` | turret `stow_close_sound` |
+| `bay_door.wav` | torpedo bay `door_sound` (one file, both directions) |
 | `railgun_fire.wav` | railgun `fire_sound` |
-| `railgun_charge.wav` | - (a LOOP, meant to be played at a rising rate as the charge fills) |
-| `railgun_reload.wav` | - |
+| `railgun_charge.wav` | railgun `charge_sound` - a LOOP, driven up in gain and rate as the charge fills |
+| `railgun_reload.wav` | railgun `reload_sound`, on the magazine coming back to capacity |
 
 ### Ordnance and impacts
 
 | File | Authored on |
 | --- | --- |
 | `torpedo_launch.wav` | torpedo bay `launch_sound` |
-| `torpedo_detonate.wav` | - (warheads play `explosion.wav` today) |
+| `torpedo_detonate.wav` | the warhead's `detonation_sound` |
 | `impact.wav` | every section's `impact_sound` |
-| `impact_pierce.wav` | - (`DamageType::Pierce`) |
-| `impact_explosive.wav` | - (`DamageType::Explosive`) |
-| `impact_rock.wav` | - (asteroids are silent on hit today) |
+| `impact_rock.wav` | every asteroid's `impact_sound` |
+| `impact_pierce.wav` | - (`DamageType::Pierce`; needs the material table) |
+| `impact_explosive.wav` | - (`DamageType::Explosive`; needs the material table) |
 
 ### Destruction
 
 | File | Authored on |
 | --- | --- |
-| `explosion.wav` | every section's `destroy_sound` and the torpedo's `detonation_sound` |
-| `destroy_rock.wav` | - |
-| `destroy_ship.wav` | - (a ship dying is silent today) |
+| `explosion.wav` | every section's `destroy_sound` |
+| `destroy_rock.wav` | every asteroid's `destroy_sound` |
+| `destroy_ship.wav` | the hull's `collapse_sound`, on the structural-collapse edge |
 
 ### Drives
 
 | File | Authored on |
 | --- | --- |
 | `thruster_loop.wav` | the basic thruster's `loop_sound` |
-| `thruster_vector_loop.wav` | - (the 3x3x2 drive shares the basic file today) |
-| `thruster_capital_loop.wav` | - (the 5x5x3 drive shares it too) |
+| `thruster_vector_loop.wav` | the 3x3x2 drive's `loop_sound` |
+| `thruster_capital_loop.wav` | the 5x5x3 drive's `loop_sound` |
 | `rcs_loop.wav` | the controller's `rcs_loop_sound` |
 
 ### Avionics
+
+Every one of these is authored on the flight COMPUTER, because knowing any of
+it is a sensor capability rather than a property of the hull: a ship built
+without a controller flies blind and gets no warnings at all.
 
 | File | Authored on |
 | --- | --- |
@@ -113,9 +119,9 @@ content refs and regenerate with `cargo run -- content gen`.
 | `radar_deny.wav` | controller `radar_deny_sound` |
 | `radar_retarget.wav` | controller `radar_retarget_sound` |
 | `safety_on.wav` | controller `safety_on_sound` |
-| `ammo_dry.wav` | - (the ammo readout) |
-| `warn_lock.wav` | - (a hostile has locked you; `ThreatContacts` has the data) |
-| `warn_hull.wav` | - (no hull threshold alert exists yet) |
+| `ammo_dry.wav` | controller `ammo_dry_sound` - the cockpit gauge behind the guns' own clicks |
+| `warn_lock.wav` | controller `warn_lock_sound`, on a hostile's `CombatLock` arriving |
+| `warn_hull.wav` | controller `warn_hull_sound`, below `warn_hull_fraction` of the built hull |
 
 ### Handling
 

@@ -23,7 +23,22 @@ pub mod prelude {
         controller_section, preview_controller_section, ControllerSectionConfig,
         ControllerSectionPlugin, ControllerSectionRenderMarker, ControllerSectionRotationInput,
         ControllerSectionSystems, ControllerSectionTuning, FlightVerb, WithheldVerbs,
+        DEFAULT_WARN_HULL_FRACTION,
     };
+}
+
+/// The hull fraction a flight computer warns at when nothing is authored.
+///
+/// Thirty percent of the built hull: late enough that an ordinary skirmish
+/// does not trip it, and six times the structural-collapse floor, so the alarm
+/// still leaves a pilot room to break off.
+pub const DEFAULT_WARN_HULL_FRACTION: f32 = 0.30;
+
+/// Serde's default for [`ControllerSectionConfig::warn_hull_fraction`], so a
+/// content file written before the field existed still loads.
+#[cfg(feature = "serde")]
+fn default_warn_hull_fraction() -> f32 {
+    DEFAULT_WARN_HULL_FRACTION
 }
 
 /// Configuration for a controller section.
@@ -121,6 +136,28 @@ pub struct ControllerSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub ammo_dry_sound: Option<AssetRef<AudioSource>>,
+    /// The hull is critical - ONE alarm, on the falling edge through
+    /// [`warn_hull_fraction`](Self::warn_hull_fraction). The gravest thing the
+    /// computer says, and the only integrity feedback the game gives a pilot
+    /// today.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub warn_hull_sound: Option<AssetRef<AudioSource>>,
+    /// The fraction of the hull this ship was BUILT with, below which the
+    /// computer sounds [`warn_hull_sound`](Self::warn_hull_sound). Same
+    /// quantity structural collapse is priced in, so the two are directly
+    /// comparable: collapse defaults to 0.05 and this to
+    /// [`DEFAULT_WARN_HULL_FRACTION`] - the alarm is well clear of the wreckage
+    /// floor, which is the point of having it.
+    ///
+    /// A COMPUTER decision, not a hull one, and the reason it is authored at
+    /// all: a cheap civilian flight computer may warn late, or (at `0.0`) never
+    /// warn until there is nothing left. Clamped to `0..=1` when it is read.
+    #[cfg_attr(feature = "serde", serde(default = "default_warn_hull_fraction"))]
+    pub warn_hull_fraction: f32,
     /// RCS fine-adjust LOOP: plays continuously while this controller is burning
     /// the RCS primitive - whether the player is holding SHIFT or the autopilot
     /// is trimming an ORBIT / settling a STOP. Unlike the five one-shot cues
@@ -157,6 +194,8 @@ pub(crate) struct ControllerSectionSounds {
     #[reflect(ignore)]
     pub ammo_dry: Option<AssetRef<AudioSource>>,
     #[reflect(ignore)]
+    pub warn_hull: Option<AssetRef<AudioSource>>,
+    #[reflect(ignore)]
     pub rcs_loop: Option<AssetRef<AudioSource>>,
 }
 
@@ -170,6 +209,7 @@ impl ControllerSectionSounds {
             safety_on: config.safety_on_sound.clone(),
             warn_lock: config.warn_lock_sound.clone(),
             ammo_dry: config.ammo_dry_sound.clone(),
+            warn_hull: config.warn_hull_sound.clone(),
             rcs_loop: config.rcs_loop_sound.clone(),
         }
     }
@@ -196,6 +236,8 @@ impl Default for ControllerSectionConfig {
             safety_on_sound: None,
             warn_lock_sound: None,
             ammo_dry_sound: None,
+            warn_hull_sound: None,
+            warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
             rcs_loop_sound: None,
         }
     }
@@ -203,6 +245,14 @@ impl Default for ControllerSectionConfig {
 
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 struct ControllerSectionRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
+
+/// The hull fraction this computer warns at, snapshotted from
+/// [`ControllerSectionConfig::warn_hull_fraction`] and clamped. Apart from
+/// [`ControllerSectionSounds`] because it is a threshold, not a sound, and the
+/// two are read by the same cue only by coincidence of this being the first
+/// integrity instrument the ship has. `pub(crate)` for the audio module.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub(crate) struct ControllerSectionHullWarning(pub(crate) f32);
 
 /// Helper function to create a controller section entity bundle.
 pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
@@ -214,6 +264,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         max_torque: config.max_torque,
     };
     let sounds = ControllerSectionSounds::from_config(&config);
+    let hull_warning = ControllerSectionHullWarning(config.warn_hull_fraction.clamp(0.0, 1.0));
     (
         preview_controller_section(config),
         tuning,
@@ -227,6 +278,7 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         },
         ControllerSectionRotationInput::default(),
         sounds,
+        hull_warning,
     )
 }
 
@@ -591,6 +643,7 @@ impl Plugin for ControllerSectionPlugin {
         app.register_type::<ControllerSectionMarker>()
             .register_type::<ControllerSectionRotationInput>()
             .register_type::<ControllerSectionTuning>()
+            .register_type::<ControllerSectionHullWarning>()
             .register_type::<WithheldVerbs>()
             .register_type::<FlightVerb>();
 

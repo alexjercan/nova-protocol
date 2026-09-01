@@ -14,12 +14,13 @@ use nova_gameplay::prelude::*;
 
 use super::{
     AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,
-    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, WARN_LOCK_VOLUME,
+    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, WARN_HULL_VOLUME, WARN_LOCK_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
-        controller_section::ControllerSectionSounds, turret_section::TurretSectionDryFireSound,
+        controller_section::{ControllerSectionHullWarning, ControllerSectionSounds},
+        turret_section::TurretSectionDryFireSound,
     },
 };
 
@@ -256,6 +257,88 @@ pub(super) fn play_threat_lock_cue(
         return;
     };
     commands.play_sfx(handle, AudioRoute::Hull, WARN_LOCK_VOLUME);
+}
+
+/// How far back above its threshold a hull must come before the alarm can
+/// sound again.
+///
+/// Nothing repairs a hull today, so in a fight this only ever prevents a
+/// re-trigger from float noise on the aggregate. It exists because the day
+/// something does repair one, an alarm sitting exactly on its threshold would
+/// chatter, and a hysteresis band is cheaper than finding that out in the seat.
+const WARN_HULL_REARM_MARGIN: f32 = 0.05;
+
+/// The hull alarm: this ship is down to the fraction of itself its computer
+/// warns at.
+///
+/// ONE tier, on the falling edge, latched with a rearm band. Several tiers
+/// would be a gauge, and a gauge wants a readout to sit next to - there is no
+/// hull readout in the HUD at all today, so this alarm IS the integrity
+/// instrument and it says one thing.
+///
+/// The fraction is the aggregate `Health` on the ship ROOT, which
+/// `aggregate_ship_health` recomputes every frame as the sum over standing
+/// sections against the pinned built maximum. That is the same quantity
+/// structural collapse is priced in, so the alarm's threshold and the collapse
+/// threshold are directly comparable numbers.
+///
+/// Silent once the hull has actually COLLAPSED: the peel drives the fraction
+/// straight to zero, and an alarm about damage under the sound of the ship
+/// coming apart is noise. A one-shot kill from full therefore plays the
+/// collapse and not this.
+///
+/// Player-only and unplaced, like the rest of the computer's voice - an AI's
+/// hull integrity is not news to anybody in the seat.
+pub(super) fn play_hull_warning_cue(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_player: Query<
+        (Entity, &Health),
+        (
+            With<PlayerSpaceshipMarker>,
+            With<SpaceshipRootMarker>,
+            Without<StructuralCollapseMarker>,
+        ),
+    >,
+    q_controller: Query<(
+        &ControllerSectionSounds,
+        &ControllerSectionHullWarning,
+        &ChildOf,
+    )>,
+    mut latched: Local<Option<(Entity, bool)>>,
+) {
+    // Keyed by the ship, not a bare flag: a new scenario is a new hull, and a
+    // latch left over from the last one would swallow its first warning.
+    let Some((player, health)) = q_player.iter().next() else {
+        return;
+    };
+    // A root mid-spawn has no sections counted yet. Reading it as "zero of
+    // zero" would sound the alarm on every ship at birth.
+    if health.max <= 0.0 {
+        return;
+    }
+    let Some((sounds, warn_at, _)) = q_controller
+        .iter()
+        .find(|(_, _, ChildOf(ship))| *ship == player)
+    else {
+        return;
+    };
+    let fraction = health.current / health.max;
+    let was = latched.and_then(|(ship, warned)| (ship == player).then_some(warned));
+    let warned = match was {
+        Some(true) => fraction < warn_at.0 + WARN_HULL_REARM_MARGIN,
+        _ => fraction < warn_at.0,
+    };
+    *latched = Some((player, warned));
+    // The FALLING edge only. Coming back up through the rearm band is a state
+    // change too, and it is not something to announce.
+    if !warned || was.unwrap_or(false) {
+        return;
+    }
+    let Some(handle) = sounds.warn_hull.as_ref().map(|r| r.resolve(&asset_server)) else {
+        return;
+    };
+    commands.play_sfx(handle, AudioRoute::Hull, WARN_HULL_VOLUME);
 }
 
 #[cfg(test)]
@@ -643,6 +726,137 @@ mod tests {
             .spawn((Allegiance::Enemy, CombatLock(Some(player))));
         app.update();
         assert_eq!(dings(&app), 1);
+    }
+
+    /// App rig for the hull alarm.
+    fn hull_warning_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<PlayedSfx>();
+        app.add_systems(Update, play_hull_warning_cue);
+        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app
+    }
+
+    /// The player's ship at full health, with a computer that warns at
+    /// `warn_at` and (optionally) authors the alarm.
+    fn spawn_hull(app: &mut App, warn_at: f32, authored: bool) -> Entity {
+        let ship = app
+            .world_mut()
+            .spawn((
+                PlayerSpaceshipMarker,
+                SpaceshipRootMarker,
+                Health::new(100.0),
+            ))
+            .id();
+        app.world_mut().spawn((
+            ControllerSectionSounds {
+                warn_hull: authored.then(|| AssetRef::from("base/sounds/warn_hull.wav")),
+                ..default()
+            },
+            ControllerSectionHullWarning(warn_at),
+            ChildOf(ship),
+        ));
+        ship
+    }
+
+    /// Take the hull down to `fraction` of what it was built with and run a
+    /// frame - the shape `aggregate_ship_health` writes every tick.
+    fn hull_at(app: &mut App, ship: Entity, fraction: f32) {
+        app.world_mut().entity_mut(ship).insert(Health {
+            current: 100.0 * fraction,
+            max: 100.0,
+        });
+        app.update();
+    }
+
+    #[test]
+    fn the_hull_alarm_sounds_once_on_the_way_down_through_its_threshold() {
+        // ONE tier, on the falling edge. Chip damage below the line must not
+        // re-sound it: this is the alarm, not a gauge.
+        let mut app = hull_warning_app();
+        let ship = spawn_hull(&mut app, 0.30, true);
+
+        hull_at(&mut app, ship, 1.0);
+        hull_at(&mut app, ship, 0.31);
+        assert_eq!(dings(&app), 0, "still above the line");
+
+        hull_at(&mut app, ship, 0.29);
+        assert_eq!(dings(&app), 1);
+
+        hull_at(&mut app, ship, 0.20);
+        hull_at(&mut app, ship, 0.06);
+        assert_eq!(dings(&app), 1, "a hull that keeps falling says it once");
+    }
+
+    #[test]
+    fn the_alarm_rearms_only_well_clear_of_the_line_it_tripped_on() {
+        // Nothing repairs a hull today, so this band exists for the day
+        // something does: coming back to exactly the threshold must not arm a
+        // second alarm the next hit would sound.
+        let mut app = hull_warning_app();
+        let ship = spawn_hull(&mut app, 0.30, true);
+        hull_at(&mut app, ship, 0.25);
+        assert_eq!(dings(&app), 1);
+
+        hull_at(&mut app, ship, 0.32);
+        hull_at(&mut app, ship, 0.25);
+        assert_eq!(dings(&app), 1, "inside the band, still latched");
+
+        hull_at(&mut app, ship, 0.50);
+        hull_at(&mut app, ship, 0.25);
+        assert_eq!(dings(&app), 2, "clear of the band, the alarm is live again");
+    }
+
+    #[test]
+    fn a_collapsing_hull_leaves_the_alarm_to_the_wreck() {
+        // The peel drives the fraction straight to zero, and a damage warning
+        // under the sound of the ship coming apart is noise. A one-shot kill
+        // from full plays the collapse and not this.
+        let mut app = hull_warning_app();
+        let ship = spawn_hull(&mut app, 0.30, true);
+        hull_at(&mut app, ship, 1.0);
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(StructuralCollapseMarker::default());
+        hull_at(&mut app, ship, 0.02);
+        assert_eq!(dings(&app), 0);
+    }
+
+    #[test]
+    fn a_ship_being_born_is_not_a_ship_in_trouble() {
+        // A root mid-spawn has no sections counted yet. Read as a fraction that
+        // is zero of zero, so every ship would scream at birth.
+        let mut app = hull_warning_app();
+        let ship = spawn_hull(&mut app, 0.30, true);
+        app.world_mut().entity_mut(ship).insert(Health {
+            current: 0.0,
+            max: 0.0,
+        });
+        app.update();
+        assert_eq!(dings(&app), 0);
+
+        // Delivery guard: the same rig warns once the hull has a maximum.
+        hull_at(&mut app, ship, 0.10);
+        assert_eq!(dings(&app), 1);
+    }
+
+    #[test]
+    fn a_computer_that_authors_no_hull_alarm_says_nothing_and_one_that_never_warns_is_allowed() {
+        // Authored-or-silent, and the other half of the knob: `0.0` is a
+        // computer that warns only when there is nothing left, which is what
+        // makes the fraction worth authoring at all.
+        let mut app = hull_warning_app();
+        let silent = spawn_hull(&mut app, 0.30, false);
+        hull_at(&mut app, silent, 0.10);
+        assert_eq!(dings(&app), 0, "no authored alarm -> silent");
+
+        let mut app = hull_warning_app();
+        let never = spawn_hull(&mut app, 0.0, true);
+        hull_at(&mut app, never, 0.01);
+        assert_eq!(dings(&app), 0, "a computer authored not to warn does not");
     }
 
     #[test]

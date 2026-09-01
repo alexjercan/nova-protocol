@@ -45,23 +45,24 @@ are `UiSfx` in `crates/nova_gameplay/src/audio.rs`, guarded by the
 
 ## Files
 
-All non-positional. A file with no `UiSfx` key yet is rendered and waiting for
-the observer that plays it - a file nothing references is an unfinished hook,
-not an error.
+All non-positional, and all played: every `UiSfx` key has a file (the
+`every_ui_sfx_key_has_a_file` test) and every file now has a site that plays
+it. A future file with no key is rendered and waiting for its observer - an
+unfinished hook, not an error.
 
-| File | Event | Keyed |
+| File | Event | Played by |
 | --- | --- | --- |
-| `menu_select.wav` | a menu button is pressed | yes |
-| `menu_back.wav` | a menu or overlay is dismissed | no |
-| `menu_focus.wav` | the cursor moves between items | no |
-| `ui_toggle.wav` | a setting or overlay changes state | yes |
-| `ui_tick.wav` | a slider or stepper passes a detent | no |
-| `objective_new.wav` | an objective is posted | yes |
-| `objective_complete.wav` | an objective is completed | yes |
-| `objective_fail.wav` | an objective is failed | no |
-| `comms_line.wav` | a dialogue line opens | no |
-| `editor_place.wav` | a part is placed | no |
-| `editor_remove.wav` | a part is removed | no |
-| `editor_rotate.wav` | a part is rotated one detent | no |
-| `editor_deny.wav` | an illegal placement is refused | no |
-| `nova_*.wav` (11) | the NOVA OS terminal | yes |
+| `menu_select.wav` | a menu button is pressed | `nova_menu::widgets` |
+| `menu_back.wav` | a menu or overlay is dismissed | `nova_menu::widgets` (a `back_button`) |
+| `menu_focus.wav` | the cursor arrives on an item | `nova_menu::widgets` |
+| `ui_toggle.wav` | a setting or overlay changes state | `nova_menu::pause` |
+| `ui_tick.wav` | a slider passes a detent | `nova_menu::settings` |
+| `objective_new.wav` | an objective is posted | `nova_hud::objective_feedback` |
+| `objective_complete.wav` | an objective is completed | `nova_hud::objective_feedback` |
+| `objective_fail.wav` | a scenario is lost | `nova_menu::outcome` |
+| `comms_line.wav` | a dialogue line opens | `nova_hud::comms_panel` |
+| `editor_place.wav` | a part is placed | `nova_editor::cues` |
+| `editor_remove.wav` | a part is removed | `nova_editor::cues` |
+| `editor_rotate.wav` | the ghost's pose moves | `nova_editor::cues` |
+| `editor_deny.wav` | an illegal placement is refused | `nova_editor::cues` |
+| `nova_*.wav` (11) | the NOVA OS terminal | `nova_ui` |

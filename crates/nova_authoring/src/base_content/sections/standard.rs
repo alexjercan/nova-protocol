@@ -741,6 +741,8 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 safety_on_sound: Some(meshes.controller_safety_on_sound.clone()),
                 warn_lock_sound: Some(meshes.controller_warn_lock_sound.clone()),
                 ammo_dry_sound: Some(meshes.controller_ammo_dry_sound.clone()),
+                warn_hull_sound: Some(meshes.controller_warn_hull_sound.clone()),
+                warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
                 rcs_loop_sound: Some(meshes.controller_rcs_loop_sound.clone()),
             }),
         },

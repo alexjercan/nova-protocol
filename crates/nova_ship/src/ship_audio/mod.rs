@@ -46,7 +46,10 @@ use self::{
         on_railgun_fire_play_sfx, on_reload_complete_play_sfx, on_torpedo_launch_play_sfx,
         on_turret_fire_play_sfx,
     },
-    cues::{play_dry_fire_cue, play_lock_cues, play_safety_engaged_cue, play_threat_lock_cue},
+    cues::{
+        play_dry_fire_cue, play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue,
+        play_threat_lock_cue,
+    },
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{on_bay_doors_play_sfx, on_stow_doors_play_sfx},
 };
@@ -105,6 +108,14 @@ const AMMO_DRY_VOLUME: f32 = 0.17;
 /// being acquired is not. Still under the guns: it has to cut through a fight
 /// without being the fight.
 const WARN_LOCK_VOLUME: f32 = 0.37;
+
+/// The hull alarm - the gravest thing the cockpit says, and about 4 dB over the
+/// threat alarm ([`WARN_LOCK_VOLUME`]) by the same step that one takes over the
+/// lock chirp: being aimed at is bad, and being nearly dead is worse. It stops
+/// just under a section failing ([`EXPLOSION_VOLUME`]), which is the ceiling a
+/// warning must not cross - the instrument reporting the hull coming apart
+/// cannot be louder than the hull coming apart.
+const WARN_HULL_VOLUME: f32 = 0.32;
 
 /// The torpedo bay's muzzle iris. Machinery, in the same band as the PDC stow
 /// doors, and the two numbers differ for the same reason theirs do: seating is
@@ -197,6 +208,7 @@ impl Plugin for ShipAudioPlugin {
                 play_safety_engaged_cue,
                 play_dry_fire_cue,
                 play_threat_lock_cue,
+                play_hull_warning_cue,
             ),
         );
 

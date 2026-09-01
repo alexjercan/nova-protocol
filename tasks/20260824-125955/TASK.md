@@ -280,40 +280,57 @@ Levels throughout were solved, not guessed: each new cue was measured
 A-weighted and placed at a deliberate offset from an anchor in its own part of
 the spectrum, per the mix pass's rule above.
 
-WHAT IS LEFT. Five files, and both reasons are recorded below: `warn_hull`
-wants a mechanic, and `impact_pierce` / `impact_explosive` want the table.
-(`impact_rock` and `destroy_rock` were the other two and are now authored.)
+WHAT IS LEFT. Five files at the end of the pass. `warn_hull` is the next
+section and is now built; `impact_pierce` and `impact_explosive` wait on the
+material table. (`impact_rock` and `destroy_rock` were the other two and are
+authored above.)
 
-## Queued: warn_hull wants a mechanic that does not exist
+## warn_hull: the hull alarm (2026-09-01)
 
-`warn_hull.wav` is rendered and reachable from nothing, because the game has no
-hull-integrity ALERT. The data is there and free: `aggregate_ship_health`
-already recomputes the root's `Health` every frame as the sum over standing
-sections against the pinned built maximum, which is exactly the fraction an
-alarm would watch. What is missing is everything around it.
+The three decisions the queue entry left open, answered by the owner as "one
+tier on the controller", and built:
 
-Three decisions, none of them taken:
+1. ONE TIER. Several would be a gauge, and a gauge wants a readout to sit next
+   to - there is no hull readout in `nova_hud` at all, so this alarm IS the
+   integrity instrument and it says one thing: you are in trouble. It sounds on
+   the FALLING edge only, latched.
+2. ON THE CONTROLLER, both halves. `warn_hull_sound` and `warn_hull_fraction`
+   are `ControllerSectionConfig` fields, by decision 7: knowing you are dying
+   is a sensor capability, and the threshold is what makes "a cheap civilian
+   computer warns late, or never" expressible. `0.0` is a computer that never
+   warns; the default is `DEFAULT_WARN_HULL_FRACTION` = 0.30.
+3. IT ARRIVES ALONE, and that is now a deliberate answer rather than an
+   omission. Audio-only integrity feedback is the game for the moment; if it
+   reads badly in the seat, the fix is a readout, not a second alarm.
 
-1. HOW MANY TIERS. One alarm at one threshold is the cheap answer and reads as
-   "you are in trouble". Several (say 50 / 25 / 10 per cent) is a gauge, and
-   wants either separate renders or a pitch ladder - the set already has a rule
-   for that shape ("same event, different hardware, separated by pitch"). More
-   than one tier also needs hysteresis, or a hull sitting on a boundary
-   chatters.
-2. WHERE THE THRESHOLD IS AUTHORED. `warn_lock` and `ammo_dry` went onto
-   `ControllerSectionConfig` by decision 7 - the alarm is a capability of the
-   flight computer, and a cheap civilian one should be allowed to warn later or
-   not at all. The threshold belongs with the sound, so it is a controller
-   field too, not a hull one. Cheap to do and consistent; just not done.
-3. WHETHER IT ARRIVES ALONE. There is no hull readout in `nova_hud` at all
-   today. So this alarm would be the FIRST integrity feedback a player gets,
-   and an audio-only one - a sound that says "you are dying" with nothing on
-   screen saying how much. That may be the right game, or it may mean the cue
-   should wait for a readout to sound against. Owner's call.
+The fraction is the aggregate `Health` on the ship ROOT -
+`aggregate_ship_health` recomputes it every frame as the sum over standing
+sections against the pinned built maximum. That is the same quantity structural
+collapse is priced in, so 0.30 and the collapse default 0.05 are directly
+comparable: the alarm sits six times clear of the wreckage floor, which is what
+leaves a pilot room to break off.
 
-Not a big job once those are answered: the latch shape is the one
-`play_threat_lock_cue` already uses, and the routing is `AudioRoute::Hull` with
-the rest of the computer's voice.
+Three things the implementation had to get right, none of them obvious:
+
+- SILENT ONCE THE HULL HAS COLLAPSED. The peel drives the fraction straight to
+  zero, so without the gate a one-shot kill from full would play a damage
+  warning underneath the ship coming apart. `Without<StructuralCollapseMarker>`.
+- NOT AT BIRTH. A root mid-spawn has no sections counted yet and reads as zero
+  of zero, which is every ship screaming the frame it appears. Guarded on
+  `health.max > 0`.
+- THE LATCH IS KEYED BY THE SHIP, not a bare flag, because a new scenario is a
+  new hull and a leftover latch would swallow its first warning. The rearm band
+  (`WARN_HULL_REARM_MARGIN`, 0.05 over the threshold) is dead code in a fight -
+  nothing repairs a hull today - and is there so that the day something does,
+  an alarm sitting exactly on its line cannot chatter.
+
+Level 0.32, which measures -35.3 dBA: about 4 dB over the threat alarm by the
+same step that one takes over the lock chirp, and stopping just under a section
+failing. That ceiling is the rule the cue is built to - the instrument
+reporting the hull coming apart must not be louder than the hull coming apart.
+
+With this, `impact_pierce` and `impact_explosive` are the only two rendered
+files nothing plays, and they wait on the table below.
 
 ## Queued: the impact material table
 
@@ -364,7 +381,7 @@ the pass changed 17 files, left the 10 NOVA OS files byte-identical, and added
 27 new ones. So "delete the old sounds" is already done - every replaced file
 was overwritten at its own path, and nothing on disk is an orphan. The files
 that nothing plays yet are the `[hook]` cues waiting for observers, not
-leftovers - five of them now, see the wiring pass.
+leftovers - two of them now, both blocked on the material table.
 
 If it is built, the sounds should ship as FILES under `web/src/assets/`, the
 way the video loops already do, not inlined - 44 WAVs are 2.2 MB on disk and
