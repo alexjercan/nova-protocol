@@ -92,29 +92,34 @@ means later retuning cannot reach its bytes.
 ROUND TWO (2026-09-01). The brief is ordinary game sound, and the notes were
 "the PDC is missing a bit of high pitch", "would also be cool to have the
 100 RPS because that's the standard PDC", and "main drive feels a bit noisy".
+The PDC got its top end - a primer, a muzzle report and the rotary action
+across 2-9 kHz - moving its centroid from 987 Hz to 6.0 kHz with the punch
+under 500 Hz held at 66%. A held fire loop at the gun's true rate was built to
+answer the 100 RPS note. Impact and section-failing were brightened to match,
+since the rule they were built against ("bulk energy under 2 kHz") is the one
+the new brief drops.
 
-- THE PDC got its top end: a primer, a muzzle report and the rotary action
-  across 2-9 kHz, which is what a PDC is recognised by. Centroid moved from
-  987 Hz to 6.0 kHz with the punch under 500 Hz held at 66%.
-- THE FIRE LOOP is new, and it is the real answer to 100 RPS. The first attempt
-  re-rolled every round's noise, which replaced the buzz with broadband hiss;
-  splitting the round into a REPEATING core (low body, mount ring) and a
-  varying edge (primer, crack, mechanism) put 48% of the loop's energy onto
-  exact multiples of 100 Hz. The period is a whole number of rounds
-  (44100/100 = 441 samples, no remainder) and each tail wraps onto the front,
-  so there is no seam.
-- THE DRIVE was hissy because the broadband layer above its resonances ran
-  loose. Cut to a fifth, steeper rumble, a second resonance at the plenum for
-  machine character, and one slow waver instead of two - two beat against each
-  other into something the ear tracks.
-- IMPACT AND SECTION-FAILING were brightened to match, since the rule they were
-  built against ("bulk energy under 2 kHz") is the one the new brief drops.
+ROUND THREE (2026-09-01). The fire loop was auditioned and REJECTED - "it's
+like a buzzing sound". At a 10 ms period the rounds fuse and the gun saws
+instead of firing, which answers a question worth writing down: the rate a cue
+is designed for is the rate the CUE plays at, not the rate the hardware runs
+at. The gun authors 50 rounds a second per muzzle (100 on a twin) and
+`TURRET_FIRE_MIN_INTERVAL` already collapses that to twenty, which is where it
+stays. The loop asset and its generator are deleted, and the engine lane is NOT
+asked for a held-loop cue.
 
-OPEN, and it is a call rather than a task: the turret cue plays one sound per
-round throttled to 20/s, so the shipped gun can only rattle no matter how good
-the round is. The fire loop needs the cue changed to a held loop with the
-single round kept for a burst's ragged ends. That is `ship_audio`, which the
-engine lane owns, so it waits for that lane to land.
+The drive was still floaty, and the owner's read was that the old placeholder -
+a bare two-oscillator hum - was closer to what they wanted despite being
+cruder. So it is built the other way up: a tonal spine carries it (52 Hz under
+load with 26 underneath, felt more than heard, each partial breathing on its
+own slow LFO so the stack never freezes into a chord) and the turbulence is
+texture over the top rather than the substance. 90% of its energy is now under
+120 Hz.
+
+Accepted and settled: the railgun (round one), the kinetic round and the
+section failing (round two). Per-cue name-seeding is what makes "settled" mean
+something here - a later round cannot reach an accepted cue's bytes.
+
 ## Shape
 
 - Inventory what exists first: which events have sounds today, which are

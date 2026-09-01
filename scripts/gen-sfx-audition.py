@@ -34,19 +34,18 @@ STRIPS = [
     {
         "name": "PDC gatling",
         "cue": "turret fire_sound",
-        "wired": "partly",
+        "wired": "yes",
         "note": (
             "Re-voiced with the top end it was missing - the muzzle report and "
             "the rotary action, 2-9 kHz, which is what a PDC is recognised by. "
-            "The fire loop is new: the gun runs at 100 rounds a second, its low "
-            "body now REPEATS from round to round instead of being re-rolled, "
-            "and 48% of the loop's energy lands on exact multiples of 100 Hz. "
-            "That is the buzz. The 20/s take below is what the game plays "
-            "today, and the difference is the whole argument for the loop."
+            "A held loop at the gun's true rate was tried and REJECTED: at a "
+            "10 ms period the rounds fuse into a buzz. Twenty a second is where "
+            "the cue already throttles and where this round is designed to sit, "
+            "and at that spacing a burst peaks at exactly one round - the "
+            "rhythm comes from the gap, not from stacking."
         ),
         "takes": [
-            {"label": "fire loop, 100/s", "file": "assets/base/sounds/pdc_gatling_loop.wav", "loop": True},
-            {"label": "20/s, as shipped", "file": "assets/base/sounds/turret_fire.wav", "rate": 0.05},
+            {"label": "burst, 20/s as shipped", "file": "assets/base/sounds/turret_fire.wav", "rate": 0.05},
             {"label": "one round", "file": "assets/base/sounds/turret_fire.wav"},
         ],
     },
@@ -55,10 +54,10 @@ STRIPS = [
         "cue": "railgun fire_sound",
         "wired": "yes",
         "note": (
-            "Accepted last round, unchanged - per-cue seeding means retuning "
-            "the PDC could not touch its bytes. The capacitor bank dumping, the "
-            "slug leaving on a downward-swept low body, and the hull taking the "
-            "recoil, in the order the shot does them."
+            "Accepted in round one and untouched since - per-cue seeding means "
+            "later rounds cannot reach its bytes. The capacitor bank dumping, "
+            "the slug leaving on a downward-swept low body, and the hull taking "
+            "the recoil, in the order the shot does them."
         ),
         "takes": [{"label": "play", "file": "assets/base/sounds/railgun_fire.wav"}],
     },
@@ -67,12 +66,13 @@ STRIPS = [
         "cue": "thruster loop_sound",
         "wired": "yes",
         "note": (
-            "Less noisy. The broadband layer above the resonances was running "
-            "loose and the bed read as hiss rather than as an engine; it is cut "
-            "to a fifth, the rumble is steeper, and a second resonance at the "
-            "plenum gives it machine character. One slow waver instead of two, "
-            "because two beat against each other into something the ear tracks. "
-            "Still built in the frequency domain, so the seam is where to listen."
+            "Built the other way up. Two rounds of notes landed on the same "
+            "word - floaty - and the old placeholder, a bare two-oscillator "
+            "hum, was closer to right despite being cruder. So a tonal spine "
+            "carries it now: 52 Hz under load with 26 underneath, felt more "
+            "than heard, each partial breathing on its own slow LFO so the "
+            "stack never freezes into a chord. 90% of the energy is under "
+            "120 Hz. The turbulence is texture over the top, not the substance."
         ),
         "takes": [{"label": "play looped", "file": "assets/base/sounds/thruster_loop.wav", "loop": True}],
     },
@@ -81,10 +81,9 @@ STRIPS = [
         "cue": "section impact_sound",
         "wired": "yes",
         "note": (
-            "Brightened to match the new brief: the strike now carries spall "
-            "above 3 kHz and the mode bank gained a high mode. Still "
-            "deliberately small - it is the most-heard event in a fight and the "
-            "easiest to make tiring."
+            "Accepted. The strike carries spall above 3 kHz and the mode bank "
+            "gained a high mode. Deliberately small - it is the most-heard "
+            "event in a fight and the easiest to make tiring."
         ),
         "takes": [
             {"label": "play", "file": "assets/base/sounds/impact.wav"},
@@ -96,10 +95,10 @@ STRIPS = [
         "cue": "section destroy_sound",
         "wired": "yes",
         "note": (
-            "The tear reaches into the top end now and a shear layer sits above "
-            "3.6 kHz, so the failure has an edge and not only weight. The shape "
-            "is unchanged: a tear, the mass letting go, then debris rattling off "
-            "the plating on the way out."
+            "Accepted. The tear reaches into the top end and a shear layer "
+            "sits above 3.6 kHz, so the failure has an edge and not only "
+            "weight: a tear, the mass letting go, then debris rattling off the "
+            "plating on the way out."
         ),
         "takes": [{"label": "play", "file": "assets/base/sounds/explosion.wav"}],
     },
@@ -317,18 +316,19 @@ ul.rules b { color: var(--text); font-weight: 500; }
 </style>
 
 <div class="page">
-  <p class="eyebrow">Nova Protocol / Audio direction / 20260824-125955 / round two</p>
+  <p class="eyebrow">Nova Protocol / Audio direction / 20260824-125955 / round three</p>
   <h1>Nova Sound Bench</h1>
   <p class="thesis">Combat in a vacuum would be silent, and a silent fight is a boring fight. Nova's guns sound the way a film's guns sound - <b>present, bright and physical</b> - and the game does not apologise for it.</p>
+  <p class="lede" style="margin-bottom:16px">Three accepted, two reworked. The railgun, the kinetic round and the section failing are settled; this round is the PDC's rate and the drive's weight.</p>
   <p class="lede">A realism mode, where every cue is instead conducted through your own hull or synthesized by the ship's computer, stays on the table as a future setting. It is deliberately not what these are, and it costs nothing to keep open: every world sound is mod content behind an asset reference, so that mode is a second set of files under the same names.</p>
 
   <h2>The bench</h2>
   <div class="bench" id="bench"></div>
 
   <div class="callout">
-    <h3>One decision this raises</h3>
-    <p>The gun runs at <b>100 rounds a second</b>. The cue that plays it is one sound per round, throttled to twenty a second, because a hundred audio entities a second is not something to spawn - so the shipped gun can only ever rattle. Press the two takes back to back and the gap is obvious.</p>
-    <p>The fix is the standard one: a <b>held fire loop</b> while the trigger is down, with the single round kept for the ragged ends of a burst. That is a change to the turret cue in <b>ship_audio</b>, which the engine lane currently owns - so it is a call to make, not something to slip in behind it.</p>
+    <h3>Resolved: the gun stays at twenty a second</h3>
+    <p>The PDC authors <b>50 rounds a second per muzzle</b> - a hundred on a twin mount - and the cue already collapses that to twenty (<b>TURRET_FIRE_MIN_INTERVAL</b>, <b>ship_audio/mod.rs:86</b>). Round two proposed a held fire loop at the true rate to get a real buzz. Auditioned, and rejected: at a 10 ms period the rounds fuse and the gun saws instead of firing.</p>
+    <p>So the throttle stays, the loop is dropped, and <b>the engine lane is not asked for a held-loop cue</b>. Each round now has to stand alone at 50 ms spacing, which is what it is tuned for - and at that spacing a burst peaks at exactly one round, so the rhythm comes from the gap.</p>
   </div>
 
   <h2>Anatomy - every cue is these three layers</h2>
@@ -352,7 +352,7 @@ ul.rules b { color: var(--text); font-weight: 500; }
 
   <h2>Rules that hold across the set</h2>
   <ul class="rules">
-    <li><b>Designed for the rate it is heard at.</b> The PDC is never heard alone, so it is shaped to stack at a 10 ms period - 48% of the fire loop's energy lands on exact multiples of 100 Hz, and that is the buzz. This is the lesson of this round.</li>
+    <li><b>Designed for the rate it is heard at.</b> Which is not always the rate the gun runs at: the PDC's cue throttles to twenty a second, so its round is shaped to stand alone at 50 ms spacing rather than to fuse at 10 ms. Auditioning a cue solo when it is heard in bursts is how the first two rounds went wrong.</li>
     <li><b>Mono.</b> The engine pans it. A pre-panned file cannot be placed.</li>
     <li><b>Full spectrum.</b> Punch lives under 500 Hz, identity lives 2 - 8 kHz. A cue with only the first is dull; only the second is thin.</li>
     <li><b>Attack under 5 ms</b> on anything that is an event.</li>
@@ -363,7 +363,7 @@ ul.rules b { color: var(--text); font-weight: 500; }
 
   <h2>What this pass covers</h2>
   <div class="tally">
-    <div><p class="n">6</p><p class="l">files on the bench</p></div>
+    <div><p class="n">5</p><p class="l">files on the bench</p></div>
     <div><p class="n">40</p><p class="l">on the production list</p></div>
     <div><p class="n">11</p><p class="l">NOVA OS files kept as the interface standard</p></div>
     <div><p class="n">6</p><p class="l">shared voices to retire</p></div>

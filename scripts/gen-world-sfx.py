@@ -26,9 +26,10 @@ Mono, 44100 Hz, 16-bit PCM WAV, peak-normalized to -3 dBFS. Balance is NOT set
 here: the per-cue volume constants in `nova_ship/src/ship_audio/mod.rs` do the
 mixing.
 
-A cue is designed for the RATE IT IS HEARD AT, not for solo listening. The PDC
-runs at 100 rounds a second, so the round is shaped to stack into a buzz at a
-10 ms period; auditioning it alone says almost nothing about it.
+A cue is designed for the RATE IT IS HEARD AT. The PDC authors 50 rounds a
+second per muzzle, but its cue throttles to twenty and stays there - a held
+loop at the true rate fuses into a buzz, and a burst of separable rounds reads
+better than a saw. Twenty a second is the number its round is shaped against.
 
 The INTERFACE voice is a different renderer with a different brief - the NOVA
 OS family in `scripts/gen-nova-os-sfx.py`. Keeping the two voices disjoint is
@@ -168,6 +169,22 @@ def sweep(duration, f0, f1, curve=2.0):
     return np.sin(2.0 * math.pi * np.cumsum(freq) / SAMPLE_RATE)
 
 
+def partials(duration, spec):
+    """A stack of steady partials, each breathing on its own slow LFO.
+
+    Every frequency here must be a WHOLE number of cycles over `duration` or
+    the loop will click; the caller keeps them integer Hz over a one-second
+    bed. The per-partial LFO is what stops the stack reading as an organ chord:
+    the harmonics drift against each other instead of sitting in lockstep.
+    """
+    t = np.arange(n_samples(duration)) / SAMPLE_RATE
+    out = np.zeros(len(t))
+    for freq, gain, lfo_hz, depth in spec:
+        breath = 1.0 + depth * np.sin(2.0 * math.pi * lfo_hz * t)
+        out += gain * breath * np.sin(2.0 * math.pi * freq * t)
+    return out
+
+
 def saturate(x, drive):
     """Soft clip. Weight, and the grit that stops a low thump reading as clean."""
     return np.tanh(x * drive) / math.tanh(drive)
@@ -179,18 +196,6 @@ def place(target, part, at):
     end = min(start + len(part), len(target))
     if start < len(target):
         target[start:end] += part[: end - start]
-    return target
-
-
-def place_wrapped(target, part, at):
-    """Sum `part` in at `at` seconds, WRAPPING past the end of `target`.
-
-    What makes a fire loop seamless: a round late in the loop spills its tail
-    onto the front, exactly as the round before the loop point would have.
-    """
-    start = n_samples(at) % len(target)
-    index = (np.arange(len(part)) + start) % len(target)
-    np.add.at(target, index, part)
     return target
 
 
@@ -226,108 +231,54 @@ def write_wav(path, x):
 # the recipe table below binds it to an output path and a duration.
 
 
-PDC_RATE = 100.0
-"""Rounds per second for the rotary PDC - the rate the gun actually runs at."""
+def pdc_gatling_fire(rng):
+    """One round from the rotary PDC.
 
+    The gun authors 50 rounds a second per muzzle - 100 on a twin mount - but
+    the cue throttles to twenty (`TURRET_FIRE_MIN_INTERVAL` in
+    `nova_ship/src/ship_audio/mod.rs`), and twenty is where this is designed to
+    sit. Rendering the true rate as a held loop was tried and rejected: at a
+    10 ms period the rounds fuse into a buzz, and a burst of separable rounds
+    reads better than a saw.
 
-def _pdc_core(rng):
-    """The part of a PDC round that REPEATS: the low body and the mount ring.
-
-    Held identical from round to round on purpose. A gatling's buzz is a
-    periodic waveform at the fire rate, and re-randomizing the dominant low
-    layer every round replaces that periodicity with broadband noise - which
-    is exactly what the first fire loop did, and why it rattled instead of
-    buzzing.
+    So each round has to stand on its own. The front edge is hard, the low body
+    decays fast enough to leave a gap before the next, and the identity lives
+    in the top - the muzzle report and the rotary action, 2-9 kHz, which is
+    what a PDC is recognised by.
     """
     duration = 0.06
     out = silence(duration)
 
-    body = white(0.045, rng) * env_exp(0.045, 0.0006, 0.0062)
-    body = bandpass(body, 95.0, 450.0, order=3)
-    out = place(out, saturate(body * 2.4, 2.2) * 1.05, 0.001)
-
-    strike = white(0.03, rng) * env_exp(0.03, 0.0002, 0.003)
-    ring = modes(strike, [(740.0, 0.030, 1.0), (1310.0, 0.020, 0.55)])
-    out = place(out, ring * 1.5, 0.0015)
-
-    return out
-
-
-def _pdc_edge(rng, tint=0.0):
-    """The part of a PDC round that VARIES: primer, muzzle crack, mechanism.
-
-    THIS is the high end the first pass was missing, and it is what a PDC is
-    recognised by - the report and the rotary action, 2-9 kHz. It carries
-    little energy, so varying it per round textures the buzz without breaking
-    the periodicity the body establishes. `tint` shifts it a few percent and is
-    driven from the round index, so the loop stays deterministic.
-    """
-    duration = 0.06
-    out = silence(duration)
-    shift = 1.0 + 0.06 * tint
-
-    # Ignition: the primer. Very short, very bright - the click that lets the
-    # ear place each round inside the buzz.
+    # Ignition: the primer. Very short, very bright - the click that puts a
+    # hard edge on the front of the round.
     prime = white(0.008, rng) * env_exp(0.008, 0.00008, 0.0009)
-    out = place(out, highpass(prime, 4200.0 * shift, order=3) * 0.34, 0.0)
+    out = place(out, highpass(prime, 4200.0, order=3) * 0.34, 0.0)
 
     # The muzzle crack: a bright report with real energy from 1.5 kHz up,
     # saturated so it bites.
     crack = white(0.03, rng) * env_exp(0.03, 0.0002, 0.0026)
-    crack = bandpass(crack, 1500.0 * shift, 8200.0 * shift, order=2)
+    crack = bandpass(crack, 1500.0, 8200.0, order=2)
     out = place(out, saturate(crack * 2.2, 1.8) * 0.52, 0.0004)
+
+    # The body: the round leaving. The chest punch.
+    body = white(0.045, rng) * env_exp(0.045, 0.0006, 0.0062)
+    body = bandpass(body, 95.0, 450.0, order=3)
+    out = place(out, saturate(body * 2.4, 2.2) * 1.05, 0.001)
 
     # The mechanism: the rotary action and the case clearing. Metallic, high,
     # and gone almost immediately.
     action = white(0.02, rng) * env_exp(0.02, 0.0001, 0.0018)
     zing = modes(
         action,
-        [
-            (2600.0 * shift, 0.020, 1.0),
-            (4900.0 * shift, 0.012, 0.62),
-            (7400.0 * shift, 0.008, 0.34),
-        ],
+        [(2600.0, 0.020, 1.0), (4900.0, 0.012, 0.62), (7400.0, 0.008, 0.34)],
     )
     out = place(out, zing * 1.45, 0.0012)
 
-    return out
+    # The mount answering. Two short modes only - a third starts to sing.
+    strike = white(0.03, rng) * env_exp(0.03, 0.0002, 0.003)
+    ring = modes(strike, [(740.0, 0.030, 1.0), (1310.0, 0.020, 0.55)])
+    out = place(out, ring * 1.5, 0.0015)
 
-
-def pdc_gatling_fire(rng):
-    """One round, for a single shot and for the tail of a burst.
-
-    Auditioning it alone says little: the gun runs at [`PDC_RATE`], so what a
-    player hears is [`pdc_gatling_loop`]. This exists for the ragged edges of a
-    burst, where individual rounds ARE separable.
-    """
-    return _pdc_core(rng) + _pdc_edge(rng)
-
-
-def pdc_gatling_loop(rng):
-    """The PDC firing, as a seamless loop at [`PDC_RATE`].
-
-    A gun that runs at 100 rounds a second cannot be a hundred one-shots a
-    second - that is a hundred audio entities a second, and the game's cue
-    throttles to twenty, which is why the gun currently rattles rather than
-    buzzes. A loop held while the trigger is down is the standard answer and
-    the only one that reaches the real rate.
-
-    The period is an EXACT whole number of rounds (44100 / 100 = 441 samples,
-    no remainder) and every round's tail wraps onto the front, so there is no
-    seam to find.
-    """
-    rounds = 20
-    duration = rounds / PDC_RATE
-    out = silence(duration)
-    core = _pdc_core(rng)
-    for index in range(rounds):
-        # A slow waver over the loop rather than a per-round lottery: the gun
-        # is a machine, and it should sound like one running, not like twenty
-        # different guns.
-        tint = math.sin(2.0 * math.pi * index / rounds)
-        gain = 0.94 + 0.06 * math.cos(2.0 * math.pi * 3.0 * index / rounds)
-        round_ = (core + _pdc_edge(rng, tint)) * gain
-        out = place_wrapped(out, round_, index / PDC_RATE)
     return out
 
 
@@ -439,33 +390,51 @@ def destroy_section(rng):
 def thruster_basic_loop(rng):
     """The main drive, running.
 
-    A seamless one-second bed. Spectral synthesis, not a two-oscillator tone:
-    a drive is broadband turbulence with structure resonating in it, and a tone
-    reads as a synthesizer the moment it is held for more than a second. The
-    slow wobble is an INTEGER number of cycles over the loop so it survives
-    repeating.
+    A seamless one-second bed, and the thing it has to be is HEAVY. Two rounds
+    of notes landed on the same word: the noise-only version read as floaty,
+    and the old placeholder - a bare two-oscillator hum - was closer to right
+    despite being cruder. So the bed is built the other way up now: a tonal
+    spine carries it, low and steady like a reactor under load, and the
+    turbulence is texture layered over the top rather than the whole substance.
+
+    Every partial is an integer number of Hz, so it is a whole number of cycles
+    over the loop and the seam stays silent. The noise is still synthesized in
+    the frequency domain for the same reason.
     """
     duration = 1.0
 
+    # The spine. 52 Hz reads as machinery under load; 26 underneath it is felt
+    # more than heard and is where the weight comes from. Each partial breathes
+    # on its own slow LFO so the stack never freezes into a chord.
+    spine = partials(
+        duration,
+        [
+            (26.0, 0.42, 2.0, 0.10),
+            (52.0, 1.00, 3.0, 0.07),
+            (104.0, 0.46, 5.0, 0.09),
+            (156.0, 0.20, 7.0, 0.12),
+            (208.0, 0.09, 4.0, 0.14),
+        ],
+    )
+    # A little drive: the odd harmonics saturation adds are what separate a
+    # reactor from an organ pipe.
+    spine = saturate(spine * 0.75, 1.5)
+
     def spectrum(freq):
-        # A drive is a low mass of turbulence with the throat and plenum
-        # resonating in it. The broadband term above them is kept DELIBERATELY
-        # small - the first pass let it run and the bed read as hiss rather
-        # than as an engine.
-        rumble = 1.0 / (1.0 + (freq / 58.0) ** 2.6)
-        throat = 0.30 / (1.0 + ((freq - 165.0) / 42.0) ** 2)
-        plenum = 0.16 / (1.0 + ((freq - 322.0) / 78.0) ** 2)
-        breath = 0.013 / (1.0 + (freq / 620.0) ** 2.4)
+        # Turbulence, sitting UNDER the spine now. The broadband term above the
+        # resonances stays small - letting it run is what made the first bed
+        # hiss.
+        rumble = 1.0 / (1.0 + (freq / 50.0) ** 2.8)
+        throat = 0.40 / (1.0 + ((freq - 165.0) / 42.0) ** 2)
+        plenum = 0.22 / (1.0 + ((freq - 322.0) / 78.0) ** 2)
+        breath = 0.016 / (1.0 + (freq / 620.0) ** 2.4)
         return rumble + throat + plenum + breath
 
     bed = loop_noise(duration, spectrum, rng)
-    bed = saturate(bed / (np.std(bed) + 1e-9) * 0.24, 1.4)
+    bed = bed / (np.std(bed) + 1e-9)
 
-    # One slow wobble, an integer number of cycles over the loop, so the bed
-    # breathes instead of sitting perfectly still. Two of them beat against
-    # each other into something the ear tracks; one does not.
     t = np.arange(n_samples(duration)) / SAMPLE_RATE
-    return bed * (1.0 + 0.06 * np.sin(2.0 * math.pi * 3.0 * t))
+    return (spine + 0.34 * bed) * (1.0 + 0.05 * np.sin(2.0 * math.pi * 3.0 * t))
 
 
 # name -> (renderer, output path relative to the repo root)
@@ -476,7 +445,6 @@ def thruster_basic_loop(rng):
 # and retires the shared voices (see the inventory's production list).
 CUES = {
     "pdc_gatling_fire": (pdc_gatling_fire, "assets/base/sounds/turret_fire.wav"),
-    "pdc_gatling_loop": (pdc_gatling_loop, "assets/base/sounds/pdc_gatling_loop.wav"),
     "railgun_fire": (railgun_fire, "assets/base/sounds/railgun_fire.wav"),
     "impact_kinetic": (impact_kinetic, "assets/base/sounds/impact.wav"),
     "destroy_section": (destroy_section, "assets/base/sounds/explosion.wav"),

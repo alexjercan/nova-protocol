@@ -168,11 +168,11 @@ percussive sound works, not a physics argument:
 
 Rules that hold across the whole world set:
 
-- **Designed for the rate it is heard at**, not for solo listening. The PDC
-  runs at 100 rounds a second, so its round is shaped to stack at a 10 ms
-  period and its low body REPEATS from round to round - re-rolling it every
-  round replaces the buzz with broadband noise. Auditioning that cue alone says
-  almost nothing about it.
+- **Designed for the rate it is heard at**, which is not always the rate the
+  hardware runs at. The PDC authors 50 rounds a second per muzzle, but its cue
+  throttles to twenty (`TURRET_FIRE_MIN_INTERVAL`), so its round is shaped to
+  stand alone at 50 ms spacing. A held loop at the true rate was built and
+  rejected - at a 10 ms period the rounds fuse and the gun saws.
 - Mono. The engine pans it; a pre-panned file cannot be placed.
 - Full spectrum. Punch lives under 500 Hz, identity lives 2-8 kHz. A cue with
   only the first is dull; with only the second, thin.
@@ -229,8 +229,7 @@ The eleven `nova_*.wav` are untouched.
 
 | File | Authored on | Status |
 | --- | --- | --- |
-| `pdc_gatling_fire.wav` | gatling turret `fire_sound` | redo `[site]` - one round, for a single shot and a burst's ragged ends |
-| `pdc_gatling_loop.wav` | gatling turret, held fire | new `[hook]` - the gun runs at 100/s and the cue throttles to 20/s, so the shipped gun can only rattle |
+| `pdc_gatling_fire.wav` | gatling turret `fire_sound` | redo `[site]` - the flagship, tuned for the cue's 20/s throttle |
 | `pdc_twin_fire.wav` | twin turret `fire_sound` | new `[content]` - retires the shared voice |
 | `pdc_dry_fire.wav` | turret `dry_fire_sound` | redo `[site]` |
 | `pdc_stow_open.wav` | turret housing | new `[hook]` |
@@ -265,8 +264,8 @@ The eleven `nova_*.wav` are untouched.
 | `safety_on.wav` | controller `safety_on_sound` | redo `[site]` |
 | `ammo_dry.wav` | turret / lance, magazine empty | new `[hook]` |
 
-Totals: 15 interface files (11 new or re-voiced, 11 NOVA OS untouched), 24
-world files, 6 avionics files. 41 to render, of which 22 need only content
+Totals: 15 interface files (11 new or re-voiced, 11 NOVA OS untouched), 23
+world files, 6 avionics files. 40 to render, of which 22 need only content
 authoring or already have a fire site.
 
 ## 7. How they get made
