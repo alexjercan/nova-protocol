@@ -99,8 +99,12 @@ pub struct BaseContentAssets {
     /// The controller's RCS fine-adjust loop: plays while the RCS primitive
     /// burns, player- or autopilot-driven.
     pub controller_rcs_loop_sound: AssetRef<AudioSource>,
-    /// Per-target hit/destruction voices, shared by every catalog section;
-    /// asteroids author the same two in scenario content.
+    /// Per-target hit/destruction voices, shared by every catalog section.
+    /// HULL only: asteroids used to borrow this pair and now author
+    /// `impact_rock` / `destroy_rock` at their own sites in scenario content,
+    /// which is as far as the target-side half of "what hit what" goes without
+    /// a material table. The round-side half (pierce, explosive) still has
+    /// nowhere to be authored - see the task's material-table section.
     pub section_impact_sound: AssetRef<AudioSource>,
     pub section_destroy_sound: AssetRef<AudioSource>,
     /// The whole SHIP coming apart, which is a different event from the last
