@@ -48,6 +48,8 @@ use nova_ui::prelude::{
 mod asset_index;
 mod bundle;
 mod config;
+/// The editor's four cue voices: place, remove, rotate, deny.
+mod cues;
 mod event;
 mod frame;
 mod gallery;
@@ -559,6 +561,17 @@ fn editor_plugin(app: &mut App) {
             // arbiter exists to delete.
             .run_if(in_input_mode(InputMode::Normal))
             .run_if(resource_exists::<Messages<MouseWheel>>)
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    // AFTER every writer of the pose, so one frame that rolls and cycles at
+    // once is still one detent. Unguarded by input mode: the two menu rows
+    // turn the part from `Browse` too, and the tick belongs to the pose
+    // moving, not to which control moved it.
+    app.add_systems(
+        Update,
+        cues::play_placement_pose_cue
+            .after(cycle_placement_pose)
+            .after(wheel_placement_pose)
             .run_if(in_state(ExampleStates::Editor)),
     );
     // A fresh visit starts with the part's first socket, unrolled.

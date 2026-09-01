@@ -239,7 +239,7 @@ pub(crate) struct SectionPreviewMarker;
 /// A mate fixes everything else - the two sockets are coincident and their
 /// normals opposed - so these are the only degrees of freedom left, and
 /// neither can be derived from the ship.
-#[derive(Resource, Default, Debug, Clone, Copy, Reflect)]
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub(crate) struct PlacementPose {
     /// Socket index on the part. Wraps, so a caller can just count up.
     pub(crate) source: usize,

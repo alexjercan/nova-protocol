@@ -10,8 +10,8 @@
 //! on a ship you are not inside is an "enter", never a placement.
 
 use bevy::{
-    input::mouse::MouseWheel, picking::pointer::PointerInteraction, prelude::*,
-    ui_widgets::Activate,
+    ecs::system::SystemParam, input::mouse::MouseWheel, picking::pointer::PointerInteraction,
+    prelude::*, ui_widgets::Activate,
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
@@ -23,6 +23,7 @@ use crate::{
         PlacementPose, PlacementPreview, SectionChoice, SectionGhost, SectionPreviewMarker,
         SelectedNode,
     },
+    cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
     frame::{ask_for, FrameRequest},
     keybind::EditorRebind,
@@ -133,6 +134,25 @@ fn pad_held(gamepads: &Query<&Gamepad>) -> Option<GamepadButton> {
         .iter()
         .flat_map(|pad| pad.digital().get_just_pressed().copied())
         .min()
+}
+
+/// The two input sources a freshly placed part reads to decide its own default
+/// binding: whatever key or pad button the builder was HOLDING as they clicked.
+///
+/// One `SystemParam` because they are never asked separately - the only
+/// question either answers is `default_binds_for`'s - and because the click
+/// handler that needs them is at the observer's parameter ceiling.
+#[derive(SystemParam)]
+pub(crate) struct HeldBind<'w, 's> {
+    keyboard: Option<Res<'w, ButtonInput<KeyCode>>>,
+    gamepads: Query<'w, 's, &'static Gamepad>,
+}
+
+impl HeldBind<'_, '_> {
+    /// The bindings a section of `kind` takes, given what is held right now.
+    fn binds_for(&self, kind: &SectionKind) -> Vec<InputSource> {
+        default_binds_for(kind, self.keyboard.as_deref(), pad_held(&self.gamepads))
+    }
 }
 
 /// The bindings a section of this kind takes when placed. Hull and controller
@@ -302,11 +322,12 @@ pub(crate) fn deletable(
 pub(crate) fn delete_selected_node(
     _activate: On<Activate>,
     commands: Commands,
+    cues: EditorCues,
     selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
     nodes: Query<(), DeletableNode>,
 ) {
-    delete_selection(commands, selected, &context, &nodes);
+    delete_selection(commands, cues, selected, &context, &nodes);
 }
 
 /// The same verb from the keyboard.
@@ -316,6 +337,7 @@ pub(crate) fn delete_selected_node(
 pub(crate) fn delete_key(
     keys: Res<ButtonInput<KeyCode>>,
     commands: Commands,
+    cues: EditorCues,
     selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
     nodes: Query<(), DeletableNode>,
@@ -323,7 +345,7 @@ pub(crate) fn delete_key(
     if !keys.just_pressed(DELETE_KEY) {
         return;
     }
-    delete_selection(commands, selected, &context, &nodes);
+    delete_selection(commands, cues, selected, &context, &nodes);
 }
 
 /// Despawn the marked node and clear the mark.
@@ -333,6 +355,7 @@ pub(crate) fn delete_key(
 /// longer exists.
 fn delete_selection(
     mut commands: Commands,
+    mut cues: EditorCues,
     mut selected: ResMut<SelectedNode>,
     context: &EditContext,
     nodes: &Query<(), DeletableNode>,
@@ -345,6 +368,10 @@ fn delete_selection(
     }
     commands.entity(node).despawn();
     selected.0 = None;
+    // Past the two guards, so pressing Del with nothing marked - or with
+    // something the editor will not delete - stays silent rather than
+    // claiming a part came off.
+    cues.remove();
 }
 
 /// Ship > Roll the Part: one step of the same roll the R key and the wheel take.
@@ -825,10 +852,10 @@ fn ship_local_hit(ship_pose: Option<&GlobalTransform>, hit: Vec3) -> Vec3 {
 pub(crate) fn on_click_spaceship_section(
     click: On<Pointer<Press>>,
     mut commands: Commands,
+    mut cues: EditorCues,
     context: Res<EditContext>,
     selection: Res<SectionChoice>,
-    keyboard: Option<Res<ButtonInput<KeyCode>>>,
-    gamepads: Query<&Gamepad>,
+    held: HeldBind,
     sections: Res<GameSections>,
     preview: Res<PlacementPreview>,
     mut ordinals: Query<&mut NextChildOrdinal>,
@@ -908,13 +935,18 @@ pub(crate) fn on_click_spaceship_section(
                     refusal.message(),
                     placement.prototype
                 );
+                // On the CLICK, not on the red ghost. A builder sweeping a
+                // part across a hull looking for somewhere it fits crosses
+                // dozens of refused poses; the refusal only becomes an answer
+                // when they ask for one.
+                cues.deny();
                 return;
             }
             let Some(config) = required_section(&sections, &placement.prototype) else {
                 return;
             };
 
-            let binds = default_binds_for(&config.kind, keyboard.as_deref(), pad_held(&gamepads));
+            let binds = held.binds_for(&config.kind);
             spawn_section_node(
                 &mut commands,
                 &mut ordinals,
@@ -923,6 +955,7 @@ pub(crate) fn on_click_spaceship_section(
                 placement.solve.transform,
                 binds,
             );
+            cues.place();
         }
     }
 }
