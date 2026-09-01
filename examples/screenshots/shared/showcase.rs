@@ -107,6 +107,21 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
                     Vec3::new(-1.0, 0.0, 0.5),
                     upright,
                 ),
+                // The cargo and tank cells ride the rear hull - starboard
+                // flank and roof - so their closeups read them ON a ship,
+                // aft of every fore-quarter framing.
+                at(
+                    "hull_cargo",
+                    "cargo_hull_section",
+                    Vec3::new(1.0, 0.0, 1.0),
+                    upright,
+                ),
+                at(
+                    "hull_tank",
+                    "tank_hull_section",
+                    Vec3::new(0.0, 1.0, 1.0),
+                    upright,
+                ),
             ],
             ..default()
         }),

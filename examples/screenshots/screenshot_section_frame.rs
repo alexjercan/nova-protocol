@@ -1,6 +1,7 @@
-//! screenshot_section_frame: the wiki closeups of the three flight-frame
-//! sections - `wiki-section-controller.png`, `wiki-section-hull.png` and
-//! `wiki-section-thruster.png`.
+//! screenshot_section_frame: the wiki closeups of the flight-frame sections -
+//! `wiki-section-controller.png`, `wiki-section-hull.png`,
+//! `wiki-section-thruster.png` - and the two hull-variant cards,
+//! `wiki-section-hull-cargo.png` and `wiki-section-hull-tank.png`.
 //!
 //! The showcase ship and the turntable are `shared/showcase.rs`: the camera
 //! holds one bearing inside the photo rig's good wedge and the SHIP yaws to
@@ -38,7 +39,7 @@ use showcase::{present_section, SectionShot, STEP_DEADLINE_SECS};
 #[derive(Parser)]
 #[command(name = "screenshot_section_frame")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the wiki closeups of the controller, hull and thruster sections. Autopilot-only: posed closeups on a scripted turntable", long_about = None)]
+#[command(about = "Capture the wiki closeups of the controller, hull and thruster sections plus the cargo/tank hull cards. Autopilot-only: posed closeups on a scripted turntable", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {
@@ -81,7 +82,7 @@ fn setup_ship(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
 /// The flight frame: the parts a ship needs to be a ship. Mount points match the
 /// ship layout in `section_ship`.
 #[cfg(feature = "debug")]
-fn section_shots() -> [SectionShot; 3] {
+fn section_shots() -> [SectionShot; 5] {
     [
         // Controller: the bridge, read across the spine from the front quarter.
         SectionShot {
@@ -105,6 +106,24 @@ fn section_shots() -> [SectionShot; 3] {
             faces: Vec3::new(0.55, 0.0, 1.0),
             distance: 4.4,
             path: "wiki-section-thruster.png",
+        },
+        // Cargo hull: the starboard-aft cell, read off its own flank so the
+        // caged freight faces carry the frame. Tighter than the other cards:
+        // at 3.6 the tank vessel on the roof cell outdraws the crates.
+        SectionShot {
+            mount: Vec3::new(1.0, 0.0, 1.0),
+            faces: Vec3::new(1.0, 0.0, 0.55),
+            distance: 3.0,
+            path: "wiki-section-hull-cargo.png",
+        },
+        // Tank hull: the roof cell, turned so the pressure vessel shows
+        // through the frame rails instead of a bare end plate. Tight, so the
+        // cargo deck and the gatlings below crop away.
+        SectionShot {
+            mount: Vec3::new(0.0, 1.0, 1.0),
+            faces: Vec3::new(1.0, 0.0, 0.55),
+            distance: 3.0,
+            path: "wiki-section-hull-tank.png",
         },
     ]
 }

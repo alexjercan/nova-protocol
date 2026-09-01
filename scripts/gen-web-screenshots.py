@@ -134,6 +134,8 @@ FIGURES = [
     # fight with it.
     ("wiki-section-controller.png",     "screenshot_section_frame"),
     ("wiki-section-hull.png",           "screenshot_section_frame"),
+    ("wiki-section-hull-cargo.png",     "screenshot_section_frame"),
+    ("wiki-section-hull-tank.png",      "screenshot_section_frame"),
     ("wiki-section-thruster.png",       "screenshot_section_frame"),
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
     ("wiki-section-turret-twin.png",    "screenshot_section_weapons"),
@@ -244,6 +246,8 @@ ALIASES = {
     "catalog-capital-thruster-section.png": "wiki-section-capital-drive.png",
     "catalog-light-hull-section.png": "wiki-section-hull.png",
     "catalog-reinforced-hull-section.png": "wiki-section-hull.png",
+    "catalog-cargo-hull-section.png": "wiki-section-hull-cargo.png",
+    "catalog-tank-hull-section.png": "wiki-section-hull-tank.png",
     "catalog-torpedo-section.png": "wiki-section-torpedo-bay.png",
     "catalog-heavy-torpedo-section.png": "wiki-section-torpedo-bay.png",
     "catalog-lance-torpedo-section.png": "wiki-section-torpedo-bay.png",
