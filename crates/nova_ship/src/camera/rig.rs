@@ -201,7 +201,7 @@ fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
                         (
                             Spawn((
                                 Binding::mouse_motion(),
-                                Scale::splat(0.001),
+                                mouse_sensitivity(MousePath::Look),
                                 Negate::all(),
                             )),
                             Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
@@ -284,3 +284,98 @@ pub(super) struct FreeLookInput;
 #[derive(InputAction)]
 #[action_output(bool)]
 pub(super) struct CombatInput;
+
+#[cfg(test)]
+mod tests {
+    use bevy::input::{mouse::MouseMotion, InputPlugin};
+
+    use super::*;
+    use crate::{camera::mode::on_rotation_input, input::bindings::camera_bindings};
+
+    /// The look sensitivity drives the REAL camera rig, through the same
+    /// `camera_rotate` action that normal steering, free look and turret aim
+    /// all read - and it reaches a rig that already exists, which is what a
+    /// slider moved from the pause overlay depends on.
+    ///
+    /// The right stick is bound to the same action with a gain of its own, and
+    /// must not move when the setting does.
+    #[test]
+    fn the_look_sensitivity_scales_mouse_look_and_never_the_stick() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.add_plugins(MouseSensitivityPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<PlayerInputMarker>();
+        app.add_observer(on_rotation_input);
+
+        let look = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRotationInput::default(),
+            ))
+            .id();
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        app.world_mut()
+            .spawn(player_input_rig(&InputBindings::from_actions(
+                camera_bindings(),
+            )));
+        let pad = app.world_mut().spawn(Gamepad::default()).id();
+        app.update();
+
+        let sweep = |app: &mut App| {
+            app.world_mut().write_message(MouseMotion {
+                delta: Vec2::new(30.0, 0.0),
+            });
+            app.update();
+            app.world().get::<PointRotationInput>(look).unwrap().0.x
+        };
+
+        let at_default = sweep(&mut app);
+        assert!(
+            (at_default + 30.0 * MousePath::Look.default_raw()).abs() < 1e-6,
+            "the rig starts on the look default (negated, got {at_default})"
+        );
+
+        // The slider goes to its top while the rig is already live.
+        app.world_mut()
+            .resource_mut::<MouseSensitivity>()
+            .set_percent(MousePath::Look, 300.0);
+        let at_top = sweep(&mut app);
+        assert!(
+            (at_top + 30.0 * MousePath::Look.range().raw(300.0)).abs() < 1e-6,
+            "the top of the range reaches a rig that already existed \
+             (got {at_top}, was {at_default})"
+        );
+
+        // The other two paths are not this one.
+        let mut sensitivity = app.world_mut().resource_mut::<MouseSensitivity>();
+        sensitivity.set_percent(MousePath::Rcs, 500.0);
+        sensitivity.set_percent(MousePath::FreeCamera, 300.0);
+        assert!(
+            (sweep(&mut app) - at_top).abs() < 1e-9,
+            "the RCS and free-camera sliders leave mouse look alone"
+        );
+
+        // The pad reads the same action through its own fixed gain. Full
+        // right-stick deflection has to answer to none of the three settings.
+        let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+        gamepad.analog_mut().set(GamepadAxis::RightStickX, 1.0);
+        app.update();
+        let stick_at_top = app.world().get::<PointRotationInput>(look).unwrap().0.x;
+
+        app.world_mut()
+            .resource_mut::<MouseSensitivity>()
+            .set_percent(MousePath::Look, 100.0);
+        app.update();
+        assert!(
+            (app.world().get::<PointRotationInput>(look).unwrap().0.x - stick_at_top).abs() < 1e-9,
+            "the stick keeps its own gain whatever the mouse sliders say"
+        );
+    }
+}

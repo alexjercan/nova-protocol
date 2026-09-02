@@ -243,21 +243,19 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     bindings.bundle_with(
                         "rcs_aim",
                         (
-                            Spawn((Binding::mouse_motion(), Scale::splat(1.0))),
-                            // The stick is a HELD position, not a delta, so it
-                            // is scaled to arrive as intent directly and the Y
-                            // half is inverted: a stick reads +up, and the
-                            // observer wants the mouse's +down.
+                            Spawn((
+                                Binding::mouse_motion(),
+                                mouse_sensitivity(MousePath::Rcs),
+                            )),
+                            // The stick is a HELD position, not a delta: full
+                            // deflection already IS full intent, so it carries
+                            // no gain of its own and the sensitivity setting
+                            // never reaches it. Only the Y half is inverted -
+                            // a stick reads +up, and the observer wants the
+                            // mouse's +down.
                             Axial {
-                                x: (
-                                    Binding::from(GamepadAxis::LeftStickX),
-                                    Scale::splat(RCS_STICK_SCALE),
-                                ),
-                                y: (
-                                    Binding::from(GamepadAxis::LeftStickY),
-                                    Scale::splat(RCS_STICK_SCALE),
-                                    Negate::all(),
-                                ),
+                                x: Binding::from(GamepadAxis::LeftStickX),
+                                y: (Binding::from(GamepadAxis::LeftStickY), Negate::all()),
                             },
                         ),
                     ),
@@ -541,22 +539,6 @@ pub(super) fn on_autopilot_off_input(
     }
 }
 
-/// Mouse-motion -> `RcsIntent` gain: how far one frame's mouse delta drives
-/// the (delta-driven) intent before the per-tick decay bleeds it off. Small,
-/// so a deliberate sweep crosses the range and a twitch barely moves it.
-/// Feel-tunable (nudged up 0.02 -> 0.03 in).
-const RCS_AIM_SENSITIVITY: f32 = 0.03;
-
-/// What a stick deflection is multiplied by before [`on_rcs_aim`] divides it
-/// back down again.
-///
-/// The observer is written for a mouse DELTA and scales what it is handed by
-/// [`RCS_AIM_SENSITIVITY`]. A stick already speaks the observer's own -1..1
-/// language, so its binding cancels that scale: full deflection is full
-/// intent, and one observer serves both devices without asking which sent the
-/// value.
-const RCS_STICK_SCALE: f32 = 1.0 / RCS_AIM_SENSITIVITY;
-
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
 /// grants the RCS verb, mark it [`RcsActive`] (the modal gate the helm, camera
 /// and scroll all read) and disengage any autopilot - entering RCS is a flight
@@ -623,8 +605,10 @@ pub(super) fn on_rcs_aim(
     // accumulating a persistent offset - the held-direction joystick was too
     // hard to control because it kept pushing after the mouse stopped.
     // `decay_player_rcs_intent` fades this to zero when the mouse stops, so
-    // force follows motion.
-    let delta = (fire.value * RCS_AIM_SENSITIVITY).clamp(Vec2::splat(-1.0), Vec2::splat(1.0));
+    // force follows motion. The gain is the BINDING's (`MousePath::Rcs`), so
+    // one observer serves the mouse and the stick without asking which sent
+    // the value - and only the mouse half answers to the sensitivity setting.
+    let delta = fire.value.clamp(Vec2::splat(-1.0), Vec2::splat(1.0));
     intent.x = delta.x;
     // Bevy mouse-motion Y is +down; pushing the mouse forward (up, -y) drives
     // the ship forward (ship-local -Z), pulling back drives it aft.
@@ -1152,8 +1136,8 @@ mod tests {
         app.update();
         let intent = app.world().get::<RcsIntent>(ship).unwrap().0;
         assert!(
-            (intent.x - 10.0 * RCS_AIM_SENSITIVITY).abs() < 1e-4,
-            "x is the LAST delta (0.2), not the sum of both motions (got {})",
+            (intent.x - 10.0 * MousePath::Rcs.default_raw()).abs() < 1e-4,
+            "x is the LAST delta (0.3), not the sum of both motions (got {})",
             intent.x
         );
         assert_eq!(
@@ -1165,8 +1149,8 @@ mod tests {
 
     /// The pad's half of the same gesture: click the left stick to engage RCS,
     /// then push it to translate. The stick is a HELD position where the mouse
-    /// is a delta, so the binding cancels the observer's mouse sensitivity -
-    /// full deflection has to be full intent, not 3% of it.
+    /// is a delta, so it carries no gain at all - full deflection has to be
+    /// full intent, not 3% of it, whatever the mouse sensitivity is set to.
     #[test]
     fn rcs_left_stick_drives_the_plane_only_while_active() {
         use bevy::input::InputPlugin;
@@ -1331,5 +1315,86 @@ mod tests {
         assert!(hints.stop.available, "flyable despite no flags component");
         assert!(hints.goto.available, "GOTO defaults on without flags");
         assert!(hints.orbit.available, "ORBIT defaults on without flags");
+    }
+
+    /// The RCS sensitivity scales the MOUSE half of fine-adjust and nothing
+    /// else: the left stick is the pad's own half of the same gesture and full
+    /// deflection stays full intent, whatever the slider says.
+    #[test]
+    fn the_rcs_sensitivity_scales_the_mouse_and_never_the_stick() {
+        use bevy::input::{mouse::MouseMotion, InputPlugin};
+        use nova_input::prelude::{MousePath, MouseSensitivity, MouseSensitivityPlugin};
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.add_plugins(MouseSensitivityPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_rcs_modifier_start);
+        app.add_observer(on_rcs_aim);
+
+        let (ship, _controller) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(RcsIntent::default());
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        let pad = app.world_mut().spawn(Gamepad::default()).id();
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        app.update();
+
+        // Small enough that the top of the range still lands under the
+        // observer's own clamp, so this measures the gain and not the clamp.
+        let sweep = |app: &mut App| {
+            app.world_mut().write_message(MouseMotion {
+                delta: Vec2::new(4.0, 0.0),
+            });
+            app.update();
+            app.world().get::<RcsIntent>(ship).unwrap().0.x
+        };
+
+        let at_default = sweep(&mut app);
+        assert!(
+            (at_default - 4.0 * MousePath::Rcs.default_raw()).abs() < 1e-6,
+            "the rig starts on the RCS default (got {at_default})"
+        );
+
+        // The slider goes to its top with the ship already flying.
+        app.world_mut()
+            .resource_mut::<MouseSensitivity>()
+            .set_percent(MousePath::Rcs, 500.0);
+        let at_top = sweep(&mut app);
+        assert!(
+            (at_top - 4.0 * MousePath::Rcs.range().raw(500.0)).abs() < 1e-6,
+            "the setting reaches a rig that already existed (got {at_top})"
+        );
+
+        // The other two sliders are not this one.
+        let mut sensitivity = app.world_mut().resource_mut::<MouseSensitivity>();
+        sensitivity.set_percent(MousePath::Look, 300.0);
+        sensitivity.set_percent(MousePath::FreeCamera, 300.0);
+        assert!(
+            (sweep(&mut app) - at_top).abs() < 1e-9,
+            "the look and free-camera sliders leave RCS alone"
+        );
+
+        // The pad, at the same top-of-range setting: full deflection is still
+        // full intent, never five times it.
+        let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+        gamepad.analog_mut().set(GamepadAxis::LeftStickX, 1.0);
+        app.update();
+        let intent = app.world().get::<RcsIntent>(ship).unwrap().0.x;
+        assert!(
+            (intent - 1.0).abs() < 1e-4,
+            "the stick carries no sensitivity of its own (got {intent})"
+        );
     }
 }

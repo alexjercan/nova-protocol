@@ -11,16 +11,20 @@
 
 use std::collections::BTreeMap;
 
+use bevy::prelude::*;
 use nova_assets::persist;
 use nova_gameplay::prelude::{
-    GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
+    GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume, HARNESS_ENVS,
 };
-use nova_input::prelude::{BindingSpec, InputBindings};
+use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
-use crate::settings::WindowModeSetting;
+use crate::settings::{
+    flush_settings_on_exit, load_persisted_settings, persist_settings_on_change,
+    PendingSettingsSave, WindowModeSetting,
+};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
@@ -43,6 +47,15 @@ pub struct PersistedSettings {
     /// not break when music lands.
     #[serde(default = "default_volume")]
     pub music_volume: f32,
+    /// Raw mouse-look gain (ship steering, free look, turret aim).
+    #[serde(default = "default_look_sensitivity")]
+    pub mouse_look_sensitivity: f32,
+    /// Raw gain of mouse-driven RCS translation.
+    #[serde(default = "default_rcs_sensitivity")]
+    pub mouse_rcs_sensitivity: f32,
+    /// Raw gain of free-camera mouse look.
+    #[serde(default = "default_free_camera_sensitivity")]
+    pub mouse_free_camera_sensitivity: f32,
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
@@ -73,6 +86,18 @@ fn default_volume() -> f32 {
     MasterVolume::default().0
 }
 
+fn default_look_sensitivity() -> f32 {
+    MousePath::Look.default_raw()
+}
+
+fn default_rcs_sensitivity() -> f32 {
+    MousePath::Rcs.default_raw()
+}
+
+fn default_free_camera_sensitivity() -> f32 {
+    MousePath::FreeCamera.default_raw()
+}
+
 fn default_bright_detent() -> usize {
     NovaOsMonitorSettings::default().bright_detent
 }
@@ -88,11 +113,15 @@ fn default_sound_enabled() -> bool {
 impl Default for PersistedSettings {
     fn default() -> Self {
         let monitor = NovaOsMonitorSettings::default();
+        let sensitivity = MouseSensitivity::default();
         Self {
             master_volume: MasterVolume::default().0,
             interface_volume: InterfaceVolume::default().0,
             world_volume: WorldVolume::default().0,
             music_volume: MusicVolume::default().0,
+            mouse_look_sensitivity: sensitivity.look,
+            mouse_rcs_sensitivity: sensitivity.rcs,
+            mouse_free_camera_sensitivity: sensitivity.free_camera,
             graphics_quality: GraphicsQuality::default(),
             ui_skin: UiSkin::default(),
             nova_os_bright_detent: monitor.bright_detent,
@@ -111,6 +140,7 @@ impl PersistedSettings {
         interface_volume: InterfaceVolume,
         world_volume: WorldVolume,
         music_volume: MusicVolume,
+        sensitivity: MouseSensitivity,
         quality: GraphicsQuality,
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
@@ -122,6 +152,9 @@ impl PersistedSettings {
             interface_volume: interface_volume.factor(),
             world_volume: world_volume.factor(),
             music_volume: music_volume.factor(),
+            mouse_look_sensitivity: sensitivity.raw(MousePath::Look),
+            mouse_rcs_sensitivity: sensitivity.raw(MousePath::Rcs),
+            mouse_free_camera_sensitivity: sensitivity.raw(MousePath::FreeCamera),
             graphics_quality: quality,
             ui_skin: skin,
             nova_os_bright_detent: monitor.bright_detent,
@@ -130,6 +163,17 @@ impl PersistedSettings {
             window_mode,
             keybinds: bindings.overrides(),
         }
+    }
+
+    /// The persisted mouse sensitivities as the live resource, with every
+    /// value clamped - a hand-edited or out-of-range number can only ever load
+    /// as one the slider could have produced.
+    pub fn mouse_sensitivity(&self) -> MouseSensitivity {
+        let mut sensitivity = MouseSensitivity::default();
+        sensitivity.set_raw(MousePath::Look, self.mouse_look_sensitivity);
+        sensitivity.set_raw(MousePath::Rcs, self.mouse_rcs_sensitivity);
+        sensitivity.set_raw(MousePath::FreeCamera, self.mouse_free_camera_sensitivity);
+        sensitivity
     }
 
     /// The persisted NOVA OS monitor settings as the live resource.
@@ -161,6 +205,82 @@ pub fn save_settings(settings: &PersistedSettings) {
     persist::save(KEY, settings);
 }
 
+/// Reads the store into the live settings resources at startup and writes it
+/// back as they change.
+///
+/// Separate from [`NovaMenuPlugin`](crate::NovaMenuPlugin) because a settings
+/// PANEL is not what makes a setting apply. `AppBuilder` adds this to every
+/// app, so an example that supplies its own game plugins and never builds a
+/// menu still flies on the player's own mouse sensitivity, keybinds, volumes
+/// and quality preset instead of silently on the defaults.
+///
+/// Owns the settings-backed resources as well as the two directions, so the
+/// plugin stands alone: an app with this and nothing else has a complete,
+/// loaded settings state.
+pub struct SettingsStorePlugin {
+    /// Whether the store is read at startup and written back on a change.
+    ///
+    /// `false` pins every setting at its default for the whole run and touches
+    /// no file in either direction.
+    pub live: bool,
+}
+
+impl SettingsStorePlugin {
+    /// A store that is live for a human at the keyboard and INERT under a
+    /// scripted run ([`HARNESS_ENVS`]).
+    ///
+    /// A capture or a probe sweep must produce the same frames and the same
+    /// numbers on any machine, and the developer's own graphics preset, skin
+    /// or window mode would otherwise decide what a screenshot shows. The
+    /// write direction matters more: a scripted run that saves is a run that
+    /// rewrites the settings of whoever launched it, which is how a screenshot
+    /// pass once overwrote a keybind table (see `tests::support`).
+    pub fn from_env() -> Self {
+        Self {
+            live: !HARNESS_ENVS
+                .iter()
+                .any(|key| std::env::var_os(key).is_some()),
+        }
+    }
+}
+
+impl Plugin for SettingsStorePlugin {
+    fn build(&self, app: &mut App) {
+        // Every one of these is owned by some other plugin in the assembled
+        // app - the mixer buses and the quality preset by `NovaGameplayPlugin`,
+        // the sensitivities by `NovaInputPlugin`, the skin by `NovaUiPlugin`,
+        // the monitor knobs by `NovaOsUiPlugin`. `init_resource` is idempotent,
+        // so initing them here as well is what lets this plugin be added first,
+        // last, or alone.
+        app.init_resource::<MasterVolume>();
+        app.init_resource::<InterfaceVolume>();
+        app.init_resource::<WorldVolume>();
+        app.init_resource::<MusicVolume>();
+        app.init_resource::<MouseSensitivity>();
+        app.init_resource::<GraphicsQuality>();
+        app.init_resource::<UiSkin>();
+        app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<WindowModeSetting>();
+        // The keybind overrides land on the same table every rig is built
+        // from, so the load needs it present even in an app that has not added
+        // `NovaInputPlugin` yet.
+        app.init_resource::<InputBindings>();
+
+        if !self.live {
+            return;
+        }
+        app.add_systems(Startup, load_persisted_settings);
+        app.init_resource::<PendingSettingsSave>();
+        app.add_systems(Update, persist_settings_on_change);
+        app.add_systems(Last, flush_settings_on_exit);
+        // Behind the same switch as the load: the mode only ever arrives from
+        // the store, so an inert run has no mode to apply and must leave the
+        // harness's window alone.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(Update, crate::settings::apply_window_mode);
+    }
+}
+
 // The storage backends live in `nova_assets::persist` and are tested there. What
 // is left to pin here is the VALUE: that every field round-trips, and that an
 // older store missing a field still loads on its serde default - so adding a
@@ -174,6 +294,7 @@ mod tests {
         storage::NativeStorage,
     };
     use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
+    use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_os_ui::prelude::NovaOsMonitorSettings;
     use nova_ui::prelude::UiSkin;
 
@@ -207,6 +328,9 @@ mod tests {
             interface_volume: 0.6,
             world_volume: 0.7,
             music_volume: 0.2,
+            mouse_look_sensitivity: MousePath::Look.range().raw(150.0),
+            mouse_rcs_sensitivity: MousePath::Rcs.range().raw(300.0),
+            mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(250.0),
             graphics_quality: GraphicsQuality::Low,
             ui_skin: UiSkin::Hardware,
             nova_os_bright_detent: 3,
@@ -279,6 +403,9 @@ mod tests {
                 interface_volume: InterfaceVolume::default().0,
                 world_volume: WorldVolume::default().0,
                 music_volume: MusicVolume::default().0,
+                mouse_look_sensitivity: MousePath::Look.default_raw(),
+                mouse_rcs_sensitivity: MousePath::Rcs.default_raw(),
+                mouse_free_camera_sensitivity: MousePath::FreeCamera.default_raw(),
                 graphics_quality: GraphicsQuality::default(),
                 ui_skin: UiSkin::default(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
@@ -363,6 +490,63 @@ mod tests {
                 WorldVolume::default().0,
                 MusicVolume::default().0
             )
+        );
+        clear(&store);
+    }
+
+    /// The three mouse sensitivities persist as RAW gains, a store written
+    /// before they existed loads on their defaults, and a number no slider
+    /// could have produced is clamped on the way back into the resource.
+    #[test]
+    fn the_mouse_sensitivities_persist_default_and_clamp() {
+        let store = temp_store("mouse_sensitivity");
+        clear(&store);
+
+        let non_default = PersistedSettings {
+            mouse_look_sensitivity: MousePath::Look.range().raw(120.0),
+            mouse_rcs_sensitivity: MousePath::Rcs.range().raw(420.0),
+            mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(280.0),
+            ..PersistedSettings::default()
+        };
+        save_to(&store, KEY, &non_default);
+        let saved = load_from::<PersistedSettings>(&store, KEY).expect("the store round-trips");
+        let live = saved.mouse_sensitivity();
+        assert!((live.percent(MousePath::Look) - 120.0).abs() < 1e-2);
+        assert!((live.percent(MousePath::Rcs) - 420.0).abs() < 1e-2);
+        assert!((live.percent(MousePath::FreeCamera) - 280.0).abs() < 1e-2);
+
+        // A pre-sensitivity store: every path falls back to its default rather
+        // than failing the load, so adding the setting invalidated nobody's
+        // saved file.
+        write_raw(&store, b"(master_volume: 0.5)");
+        let older =
+            load_from::<PersistedSettings>(&store, KEY).expect("a pre-sensitivity store loads");
+        assert_eq!(older.master_volume, 0.5);
+        assert_eq!(older.mouse_sensitivity(), MouseSensitivity::default());
+
+        // A hand-edited store, well past both ends and one value not a number
+        // at all: what reaches the resource is always inside the slider's own
+        // range.
+        write_raw(
+            &store,
+            b"(mouse_look_sensitivity: 12.0, mouse_rcs_sensitivity: -3.0, \
+              mouse_free_camera_sensitivity: NaN)",
+        );
+        let corrupt = load_from::<PersistedSettings>(&store, KEY)
+            .expect("a corrupt-but-parsable store still loads")
+            .mouse_sensitivity();
+        assert!(
+            (corrupt.percent(MousePath::Look) - 300.0).abs() < 1e-2,
+            "clamped to the top"
+        );
+        assert!(
+            (corrupt.percent(MousePath::Rcs) - 100.0).abs() < 1e-2,
+            "clamped to the bottom"
+        );
+        assert_eq!(
+            corrupt.free_camera,
+            MousePath::FreeCamera.default_raw(),
+            "a value that is not a number reads as the default"
         );
         clear(&store);
     }

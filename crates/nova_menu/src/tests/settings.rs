@@ -7,7 +7,9 @@ use bevy::{
     ui_widgets::{SliderValue, ValueChange},
 };
 use nova_gameplay::prelude::*;
-use nova_input::prelude::{ActionBinding, InputBindings, InputSource};
+use nova_input::prelude::{
+    ActionBinding, InputBindings, InputSource, MousePath, MouseSensitivity, MouseSensitivityRange,
+};
 use nova_ui::{
     prelude::UiSkin,
     widget::{
@@ -16,10 +18,13 @@ use nova_ui::{
     },
 };
 
-use super::support::{all_texts, entity_by_name, mods_app, shared_config_root};
+use super::support::{
+    all_texts, entity_by_name, mods_app, settings_store_lock, shared_config_root,
+};
 use crate::settings::{
-    SettingsActiveTab, SettingsControlsGroup, SettingsPanel, SettingsTab, SettingsTabKind,
-    VolumeChannel, VolumeLabel, VolumeSlider, WindowModeSetting,
+    ResetBindings, SensitivityLabel, SensitivitySlider, SettingsActiveTab, SettingsControlsGroup,
+    SettingsPanel, SettingsTab, SettingsTabKind, VolumeChannel, VolumeLabel, VolumeSlider,
+    WindowModeSetting, MOUSE_GROUP,
 };
 
 /// Open a settings tab and let the body reconcile. The tab BUTTON is exercised
@@ -390,10 +395,11 @@ fn the_old_coming_soon_button_is_gone() {
 /// `flush_settings_on_exit` and the store stays at the pre-edit value.
 #[test]
 fn a_setting_edited_just_before_quitting_is_still_saved() {
+    let _guard = settings_store_lock();
     let store = std::env::temp_dir().join(format!("nova_menu_exit_flush_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&store);
-    // SAFETY-BY-CONVENTION: the only test in this binary that writes the
-    // settings store, and it must not touch the developer's real one.
+    // SAFETY-BY-LOCK: `settings_store_lock` is held, so this is the only test
+    // pointing the process-wide config root away from the shared scratch one.
     let shared_store = shared_config_root();
     unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &store) };
 
@@ -1140,4 +1146,204 @@ fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
     // The VALUE is not quantised - only the cue is. The slider stays
     // continuous, as the bar fill and the percent readout both draw it.
     assert!((app.world().resource::<WorldVolume>().0 - 0.5831).abs() < 1e-6);
+}
+
+/// The MOUSE group: three named sliders with the agreed ranges, detents,
+/// defaults and live percent readouts - and no reset button, because Reset
+/// Defaults is a keybinding operation and this page has no bindings on it.
+#[test]
+fn the_mouse_group_shows_three_sensitivity_sliders_and_no_reset() {
+    use bevy::ui_widgets::{SliderRange, SliderStep};
+
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    open_group(&mut app, MOUSE_GROUP);
+
+    // The group is reachable: it has a tab of its own on the group bar.
+    assert!(
+        entity_by_name(&mut app, &format!("Controls Group: {MOUSE_GROUP}")).is_some(),
+        "the MOUSE group has a bar button"
+    );
+
+    let rows: Vec<(MousePath, f32, SliderRange, f32)> = {
+        let mut q = app
+            .world_mut()
+            .query::<(&SensitivitySlider, &SliderValue, &SliderRange, &SliderStep)>();
+        q.iter(app.world())
+            .map(|(slider, value, range, step)| (slider.0, value.0, *range, step.0))
+            .collect()
+    };
+    assert_eq!(
+        rows.len(),
+        MousePath::ALL.len(),
+        "one slider per mouse path"
+    );
+
+    let texts = all_texts(&mut app);
+    for path in MousePath::ALL {
+        let expected = path.range();
+        let (_, value, range, step) = rows
+            .iter()
+            .copied()
+            .find(|(found, ..)| *found == path)
+            .unwrap_or_else(|| panic!("the MOUSE group is missing {}", path.label()));
+
+        assert!(
+            texts.iter().any(|text| text == path.label()),
+            "the row is labelled `{}`",
+            path.label()
+        );
+        assert_eq!(
+            (range.start(), range.end()),
+            (MouseSensitivityRange::MIN_PERCENT, expected.max_percent),
+            "{} spans its agreed percentage range",
+            path.label()
+        );
+        assert!(
+            (step - expected.percent_step()).abs() < 1e-4,
+            "{} steps in {} equal intervals",
+            path.label(),
+            MouseSensitivityRange::INTERVALS
+        );
+        assert!(
+            (value - expected.default_percent).abs() < 1e-3,
+            "{} is seeded at its default (got {value})",
+            path.label()
+        );
+        assert!(
+            texts
+                .iter()
+                .any(|text| *text == format!("{}%", value as i32)),
+            "{} shows a whole-percent readout for {value}",
+            path.label()
+        );
+    }
+
+    {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<(), With<SensitivityLabel>>();
+        assert_eq!(
+            q.iter(app.world()).count(),
+            MousePath::ALL.len(),
+            "one readout per slider"
+        );
+    }
+    {
+        let mut q = app.world_mut().query_filtered::<(), With<ResetBindings>>();
+        assert_eq!(
+            q.iter(app.world()).count(),
+            0,
+            "no reset button on a page with nothing to rebind"
+        );
+    }
+
+    // The binding groups still carry theirs, so the button was suppressed on
+    // MOUSE rather than removed from the tab.
+    open_group(&mut app, "FLIGHT");
+    let mut q = app.world_mut().query_filtered::<(), With<ResetBindings>>();
+    assert_eq!(
+        q.iter(app.world()).count(),
+        1,
+        "Reset Defaults is still on the binding groups"
+    );
+}
+
+/// Dragging a sensitivity slider drives ITS OWN path and no other. The slider
+/// speaks percentages; what lands in the resource is the raw engine gain, which
+/// is what the rigs read.
+#[test]
+fn dragging_a_sensitivity_slider_sets_only_its_own_path() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    open_group(&mut app, MOUSE_GROUP);
+
+    let drag = |app: &mut App, path: MousePath, percent: f32| {
+        let name = format!("{} Slider Track", path.label());
+        let slider = entity_by_name(app, &name).unwrap_or_else(|| panic!("{name} exists"));
+        app.world_mut().trigger(ValueChange::<f32> {
+            source: slider,
+            value: percent,
+            is_final: true,
+        });
+        app.update();
+    };
+
+    drag(&mut app, MousePath::Look, 300.0);
+    let sensitivity = *app.world().resource::<MouseSensitivity>();
+    assert!((sensitivity.look - MousePath::Look.range().raw(300.0)).abs() < 1e-9);
+    assert!(
+        (sensitivity.rcs - MousePath::Rcs.default_raw()).abs() < 1e-9
+            && (sensitivity.free_camera - MousePath::FreeCamera.default_raw()).abs() < 1e-9,
+        "moving Look leaves RCS and the free camera where they were"
+    );
+
+    drag(&mut app, MousePath::Rcs, 260.0);
+    drag(&mut app, MousePath::FreeCamera, 150.0);
+    let sensitivity = *app.world().resource::<MouseSensitivity>();
+    assert!((sensitivity.percent(MousePath::Look) - 300.0).abs() < 1e-2);
+    assert!((sensitivity.percent(MousePath::Rcs) - 260.0).abs() < 1e-2);
+    assert!((sensitivity.percent(MousePath::FreeCamera) - 150.0).abs() < 1e-2);
+
+    // A value past the end of the track - which a track click at the very edge
+    // can round into - is held inside the range.
+    drag(&mut app, MousePath::Look, 900.0);
+    assert!(
+        (app.world().resource::<MouseSensitivity>().look - MousePath::Look.range().raw(300.0))
+            .abs()
+            < 1e-9,
+        "the slider cannot push a path past its own top"
+    );
+}
+
+/// The detent, on the mouse sliders. Same rule as the volume rows: a drag emits
+/// a raw float every frame the pointer moves, so the cue counts notches rather
+/// than comparing values.
+#[test]
+fn dragging_a_sensitivity_slider_ticks_once_per_detent_and_not_while_it_rests() {
+    use super::support::{cue_app, take_cues};
+    use crate::settings::on_sensitivity_slider_change;
+
+    let mut app = cue_app();
+    app.init_resource::<MouseSensitivity>();
+    app.add_observer(on_sensitivity_slider_change);
+    // RCS steps in 20-point notches across 100..=500.
+    let slider = app
+        .world_mut()
+        .spawn(SensitivitySlider(MousePath::Rcs))
+        .id();
+    app.update();
+    let _ = take_cues(&mut app);
+
+    let drag = |app: &mut App, percent: f32| {
+        app.world_mut().trigger(ValueChange::<f32> {
+            source: slider,
+            value: percent,
+            is_final: false,
+        });
+        app.update();
+    };
+
+    drag(&mut app, 143.0);
+    assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
+
+    // A pointer creeping across the rest of the same notch is silent.
+    drag(&mut app, 145.7);
+    drag(&mut app, 148.2);
+    assert!(
+        take_cues(&mut app).is_empty(),
+        "creeping inside a notch is silent"
+    );
+
+    drag(&mut app, 152.4);
+    assert_eq!(take_cues(&mut app), vec![Some(UiSfx::UiTick)]);
+    // The stored gain is not quantised - only the cue is.
+    assert!(
+        (app.world()
+            .resource::<MouseSensitivity>()
+            .percent(MousePath::Rcs)
+            - 152.4)
+            .abs()
+            < 1e-2
+    );
 }

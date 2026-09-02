@@ -21,7 +21,7 @@ use nova_assets::prelude::ReloadContent;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_os::prelude::NovaOsTerminal;
-use nova_os_ui::prelude::{NovaOsCloseTransition, NovaOsMonitorSettings};
+use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
 use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 
@@ -29,8 +29,9 @@ use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 /// and [`NewGameScenario`] into scope.
 pub mod prelude {
     pub use super::{
-        ambience::MENU_BACKDROP_ENV, settings::WindowModeSetting, widgets::MenuCueSystems,
-        NewGameScenario, NovaMenuPlugin,
+        ambience::MENU_BACKDROP_ENV, settings::WindowModeSetting,
+        settings_store::SettingsStorePlugin, widgets::MenuCueSystems, NewGameScenario,
+        NovaMenuPlugin,
     };
 }
 
@@ -74,11 +75,11 @@ use scenarios::{
     SelectedScenarioId,
 };
 use settings::{
-    apply_settings_rebind, flush_settings_on_exit, load_persisted_settings,
-    on_volume_slider_change, persist_settings_on_change, refresh_settings_tab, settings_tab_dirty,
-    sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab,
-    SettingsControlsGroup, WindowModeSetting,
+    apply_settings_rebind, on_sensitivity_slider_change, on_volume_slider_change,
+    refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
+    PendingRebind, SettingsActiveTab, SettingsControlsGroup, WindowModeSetting,
 };
+use settings_store::SettingsStorePlugin;
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 
 /// The main-menu plugin: owns [`GameStates::MainMenu`] and the settings/mods/
@@ -93,10 +94,9 @@ pub struct NovaMenuPlugin;
 
 impl Plugin for NovaMenuPlugin {
     fn build(&self, app: &mut App) {
-        // HudVisibility, the settings resources and NovaOsMonitorSettings
-        // are owned by other plugins in the assembled app. init_resource is
-        // idempotent, so initing them here too lets the menu plugin stand alone
-        // in slim and headless-test apps.
+        // HudVisibility is owned by another plugin in the assembled app.
+        // init_resource is idempotent, so initing it here too lets the menu
+        // plugin stand alone in slim and headless-test apps.
         app.init_resource::<HudVisibility>();
         app.init_resource::<ModsActiveTab>();
         app.init_resource::<SelectedModId>();
@@ -115,24 +115,22 @@ impl Plugin for NovaMenuPlugin {
             app.add_plugins(nova_ui::NovaUiPlugin);
         }
 
-        app.init_resource::<MasterVolume>();
-        app.init_resource::<InterfaceVolume>();
-        app.init_resource::<WorldVolume>();
-        app.init_resource::<MusicVolume>();
-        app.init_resource::<GraphicsQuality>();
-        // `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
-        // so the invariant survives a future reorder.
-        app.init_resource::<UiSkin>();
-        app.init_resource::<NovaOsMonitorSettings>();
-        app.init_resource::<WindowModeSetting>();
+        // The store owns the settings resources and both persistence
+        // directions. `AppBuilder` adds it to every app, menu or not, so it is
+        // normally already here; adding it under a guard is what keeps the menu
+        // standing alone in slim and headless-test rigs.
+        if !app.is_plugin_added::<SettingsStorePlugin>() {
+            app.add_plugins(SettingsStorePlugin::from_env());
+        }
         app.init_resource::<SettingsActiveTab>();
         app.init_resource::<SettingsControlsGroup>();
         app.init_resource::<PendingRebind>();
         app.add_observer(on_volume_slider_change);
+        app.add_observer(on_sensitivity_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
         app.add_observer(button_on_setting::<UiSkin>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
-        app.add_systems(Update, sync_volume_slider);
+        app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.
         app.add_systems(
@@ -148,12 +146,6 @@ impl Plugin for NovaMenuPlugin {
                     .chain(),
             ),
         );
-        #[cfg(not(target_arch = "wasm32"))]
-        app.add_systems(Update, settings::apply_window_mode);
-        app.add_systems(Startup, load_persisted_settings);
-        app.init_resource::<PendingSettingsSave>();
-        app.add_systems(Update, persist_settings_on_change);
-        app.add_systems(Last, flush_settings_on_exit);
 
         app.add_systems(
             OnEnter(GameStates::MainMenu),

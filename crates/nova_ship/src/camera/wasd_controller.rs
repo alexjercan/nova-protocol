@@ -12,6 +12,7 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
+use nova_input::prelude::{mouse_sensitivity, MousePath};
 
 use super::wasd::{WASDCamera, WASDCameraInput};
 
@@ -105,7 +106,11 @@ fn setup_wasd_camera(insert: On<Insert, WASDCameraController>, mut commands: Com
                     Name::new("Input: WASD Camera Look"),
                     Action::<WASDCameraInputLook>::new(),
                     Bindings::spawn((
-                        Spawn((Binding::mouse_motion(), Scale::splat(0.01), Negate::none())),
+                        Spawn((
+                            Binding::mouse_motion(),
+                            mouse_sensitivity(MousePath::FreeCamera),
+                            Negate::none(),
+                        )),
                         Axial::right_stick().with((Scale::splat(1.0), Negate::none())),
                     )),
                 ),
@@ -220,5 +225,96 @@ fn on_vertical_input_completed(
 ) {
     for mut input in &mut q_input {
         input.vertical = 0.0;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::input::{mouse::MouseMotion, InputPlugin};
+    use nova_input::prelude::{MouseSensitivity, MouseSensitivityPlugin};
+
+    use super::*;
+    use crate::camera::wasd::WASDCameraPlugin;
+
+    /// A free camera with mouse look armed (right button held), which is the
+    /// only state its pan reads in.
+    fn free_camera_app() -> (App, Entity) {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(MouseSensitivityPlugin);
+        app.add_plugins((WASDCameraPlugin, WASDCameraControllerPlugin));
+
+        app.finish();
+        app.cleanup();
+        app.update();
+        let camera = app.world_mut().spawn(WASDCameraController).id();
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+        app.update();
+        (app, camera)
+    }
+
+    /// The free-camera sensitivity scales its mouse look and nothing else: not
+    /// the keyboard movement beside it, and not the other two mouse paths.
+    #[test]
+    fn the_free_camera_sensitivity_scales_only_its_own_mouse_look() {
+        let (mut app, camera) = free_camera_app();
+
+        let sweep = |app: &mut App| {
+            app.world_mut().write_message(MouseMotion {
+                delta: Vec2::new(12.0, 0.0),
+            });
+            app.update();
+            app.world().get::<WASDCameraInput>(camera).unwrap().pan.x
+        };
+
+        let at_default = sweep(&mut app);
+        assert!(
+            (at_default - 12.0 * MousePath::FreeCamera.default_raw()).abs() < 1e-6,
+            "the rig starts on the free-camera default (got {at_default})"
+        );
+
+        app.world_mut()
+            .resource_mut::<MouseSensitivity>()
+            .set_percent(MousePath::FreeCamera, 300.0);
+        let at_top = sweep(&mut app);
+        assert!(
+            (at_top - 12.0 * MousePath::FreeCamera.range().raw(300.0)).abs() < 1e-6,
+            "the setting reaches a free camera that already existed (got {at_top})"
+        );
+
+        let mut sensitivity = app.world_mut().resource_mut::<MouseSensitivity>();
+        sensitivity.set_percent(MousePath::Look, 300.0);
+        sensitivity.set_percent(MousePath::Rcs, 500.0);
+        assert!(
+            (sweep(&mut app) - at_top).abs() < 1e-9,
+            "the look and RCS sliders leave the free camera alone"
+        );
+    }
+
+    /// Keyboard movement is not a mouse path. A W held while the sensitivity
+    /// moves has to read the same either way - the setting names mouse look,
+    /// and a `Scale` on the wrong binding would quietly make it a fly speed.
+    #[test]
+    fn the_free_camera_sensitivity_never_touches_keyboard_movement() {
+        let (mut app, camera) = free_camera_app();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        let at_default = app.world().get::<WASDCameraInput>(camera).unwrap().wasd;
+        assert_ne!(at_default, Vec2::ZERO, "W drives the camera");
+
+        app.world_mut()
+            .resource_mut::<MouseSensitivity>()
+            .set_percent(MousePath::FreeCamera, 300.0);
+        app.update();
+        assert_eq!(
+            app.world().get::<WASDCameraInput>(camera).unwrap().wasd,
+            at_default,
+            "keyboard movement keeps its own speed"
+        );
     }
 }

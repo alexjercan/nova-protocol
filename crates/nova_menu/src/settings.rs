@@ -121,9 +121,24 @@ pub(crate) struct VolumeSlider(pub(crate) VolumeChannel);
 #[derive(Component)]
 pub(crate) struct VolumeLabel(pub(crate) VolumeChannel);
 
+/// A mouse-sensitivity [`Slider`], tagged with the path it moves. Its value is
+/// the PERCENTAGE; the raw engine gain behind it is what
+/// [`on_sensitivity_slider_change`] writes.
+#[derive(Component)]
+pub(crate) struct SensitivitySlider(pub(crate) MousePath);
+
+/// The "200%" readout beside one sensitivity slider.
+#[derive(Component)]
+pub(crate) struct SensitivityLabel(pub(crate) MousePath);
+
+/// Format a whole percentage as its readout.
+pub(crate) fn percent_label(percent: f32) -> String {
+    format!("{}%", percent.round() as i32)
+}
+
 /// Format a linear volume factor as a whole-percent label.
 pub(crate) fn volume_label(value: f32) -> String {
-    format!("{}%", (value.clamp(0.0, 1.0) * 100.0).round() as i32)
+    percent_label(value.clamp(0.0, 1.0) * 100.0)
 }
 
 /// One page of the settings panel.
@@ -429,6 +444,7 @@ pub(crate) fn refresh_settings_tab(
     interface_volume: Res<InterfaceVolume>,
     world_volume: Res<WorldVolume>,
     music_volume: Res<MusicVolume>,
+    sensitivity: Res<MouseSensitivity>,
     quality: Res<GraphicsQuality>,
     skin: Res<UiSkin>,
     window_mode: Res<WindowModeSetting>,
@@ -461,7 +477,14 @@ pub(crate) fn refresh_settings_tab(
             SettingsTabKind::Audio => build_audio_tab(list, levels, *skin),
             SettingsTabKind::Graphics => build_graphics_tab(list, *quality, *window_mode, *skin),
             SettingsTabKind::Controls => {
-                build_controls_tab(list, &bindings, &rebind, group.0, glyphs);
+                build_controls_tab(
+                    list,
+                    &bindings,
+                    &rebind,
+                    group.0,
+                    glyphs,
+                    (*sensitivity, *skin),
+                );
             }
             SettingsTabKind::Interface => build_interface_tab(list, *skin),
         });
@@ -490,9 +513,56 @@ fn build_volume_row(
     value: f32,
     skin: UiSkin,
 ) {
-    let name = channel.label();
+    build_slider_row(
+        list,
+        SliderRow {
+            name: format!("{} Volume", channel.label()),
+            label: channel.label().to_string(),
+            value,
+            range: (0.0, 1.0),
+            step: VOLUME_STEP,
+            readout: volume_label(value),
+        },
+        VolumeSlider(channel),
+        VolumeLabel(channel),
+        skin,
+    );
+}
+
+/// One settings slider row, independent of what it moves.
+///
+/// The audio tracks and the MOUSE sensitivities are the SAME widget over
+/// different numbers - a ticked track and a live whole-percent readout - so
+/// they are built from one description rather than two hand-kept copies that
+/// can drift apart.
+struct SliderRow {
+    /// The `Name` prefix every entity in the row carries, e.g. `Master Volume`.
+    name: String,
+    /// The text down the left of the row.
+    label: String,
+    /// Where the handle sits, in the slider's own units.
+    value: f32,
+    /// The slider's two ends, in the same units.
+    range: (f32, f32),
+    /// One detent: the arrow-key step, and the spacing the drag cue ticks at.
+    step: f32,
+    /// The percent readout beside the track.
+    readout: String,
+}
+
+/// Spawn one [`SliderRow`], carrying the markers that say which setting it
+/// moves - one on the slider (read by the change observer) and one on the
+/// readout (read by the label sync).
+fn build_slider_row(
+    list: &mut ChildSpawnerCommands,
+    row: SliderRow,
+    slider: impl Bundle,
+    readout: impl Bundle,
+    skin: UiSkin,
+) {
+    let name = row.name;
     list.spawn((
-        Name::new(format!("{name} Volume Row")),
+        Name::new(format!("{name} Row")),
         Node {
             width: percent(100),
             flex_direction: FlexDirection::Row,
@@ -502,11 +572,11 @@ fn build_volume_row(
             ..default()
         },
     ))
-    .with_children(|row| {
-        row.spawn((
-            Name::new(format!("{name} Volume Label")),
+    .with_children(|parent| {
+        parent.spawn((
+            Name::new(format!("{name} Label")),
             UiText,
-            Text::new(name),
+            Text::new(row.label),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -522,29 +592,30 @@ fn build_volume_row(
         // the phosphor block-meter and moves the hardware fill).
         // Wrapped in a flex-grow cell so the 100%-wide track fills the row's
         // middle. `Snap` so a click on the track jumps to that spot.
-        row.spawn(Node {
-            flex_grow: 1.0,
-            ..default()
-        })
-        .with_children(|cell| {
-            cell.spawn((
-                Name::new(format!("{name} Volume Slider Track")),
-                VolumeSlider(channel),
-                Slider {
-                    track_click: TrackClick::Snap,
-                    ..default()
-                },
-                SliderValue(value),
-                SliderRange::new(0.0, 1.0),
-                SliderStep(VOLUME_STEP),
-                slider_track(value, skin),
-            ));
-        });
-        row.spawn((
-            Name::new(format!("{name} Volume Readout")),
-            VolumeLabel(channel),
+        parent
+            .spawn(Node {
+                flex_grow: 1.0,
+                ..default()
+            })
+            .with_children(|cell| {
+                cell.spawn((
+                    Name::new(format!("{name} Slider Track")),
+                    slider,
+                    Slider {
+                        track_click: TrackClick::Snap,
+                        ..default()
+                    },
+                    SliderValue(row.value),
+                    SliderRange::new(row.range.0, row.range.1),
+                    SliderStep(row.step),
+                    slider_track(row.value, skin),
+                ));
+            });
+        parent.spawn((
+            Name::new(format!("{name} Readout")),
+            readout,
             UiText,
-            Text::new(volume_label(value)),
+            Text::new(row.readout),
             TextFont {
                 font_size: FontSize::Px(13.0),
                 ..default()
@@ -681,17 +752,26 @@ fn build_controls_header(
     }
 }
 
-/// Every group the Controls tab can open: the table's own, plus any group that
-/// exists only as a fixed row.
+/// Every group the Controls tab can open: the table's own, plus the groups that
+/// are not bindings at all - the mouse sensitivities and the fixed chords.
 fn controls_groups(bindings: &InputBindings) -> Vec<&'static str> {
     let mut groups = bindings.groups();
-    for (group, ..) in FIXED_ROWS {
-        if !groups.contains(group) {
+    for group in [MOUSE_GROUP]
+        .into_iter()
+        .chain(FIXED_ROWS.iter().map(|(g, ..)| *g))
+    {
+        if !groups.contains(&group) {
             groups.push(group);
         }
     }
     groups
 }
+
+/// The Controls group that holds the mouse sensitivities.
+///
+/// Not a registry group: nothing in it is a binding, so no action carries the
+/// name and the tab has to know it the way it knows [`FIXED_ROWS`]'s `SYSTEM`.
+pub(crate) const MOUSE_GROUP: &str = "MOUSE";
 
 /// A group the table no longer carries falls back to the first, so a store
 /// written before a group was renamed opens on something rather than blank.
@@ -703,22 +783,36 @@ fn open_group_of(groups: &[&'static str], open_group: &str) -> Option<&'static s
         .or_else(|| groups.first().copied())
 }
 
-/// CONTROLS - one binding GROUP at a time, off the LIVE table, then the chords
-/// in that group that are not actions at all.
+/// CONTROLS - one GROUP at a time: the binding rows off the LIVE table, then
+/// the chords in that group that are not actions at all.
 ///
 /// A shadow row (`radar_clear`) is absent: it moves with the action it
 /// follows, so showing it would offer a second way to break one gesture.
+///
+/// [`MOUSE_GROUP`] is the one page with no bindings on it: three sensitivity
+/// sliders, and NO reset button. Reset Defaults is a keybinding operation, and
+/// a page with nothing to rebind must not offer it - it would read as "put the
+/// sensitivities back", which is not what it does.
 fn build_controls_tab(
     list: &mut ChildSpawnerCommands,
     bindings: &InputBindings,
     rebind: &PendingRebind,
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
+    mouse: (MouseSensitivity, UiSkin),
 ) {
     let groups = controls_groups(bindings);
     let Some(open) = open_group_of(&groups, open_group) else {
         return;
     };
+
+    if open == MOUSE_GROUP {
+        let (sensitivity, skin) = mouse;
+        for path in MousePath::ALL {
+            build_sensitivity_row(list, path, sensitivity.percent(path), skin);
+        }
+        return;
+    }
 
     for action in bindings.rows().filter(|action| action.group == open) {
         spawn_rebind_row(list, action, rebind, glyphs);
@@ -734,6 +828,33 @@ fn build_controls_tab(
         ResetBindings,
         observe(on_reset_bindings),
     ));
+}
+
+/// One mouse path's row, in the Audio slider's own presentation. The slider
+/// speaks PERCENTAGES - each path's own `100%` baseline - because that is the
+/// only reading of three gains two orders of magnitude apart a player can
+/// compare; the raw engine value is what the observer stores.
+fn build_sensitivity_row(
+    list: &mut ChildSpawnerCommands,
+    path: MousePath,
+    percent: f32,
+    skin: UiSkin,
+) {
+    let range = path.range();
+    build_slider_row(
+        list,
+        SliderRow {
+            name: path.label().to_string(),
+            label: path.label().to_string(),
+            value: percent,
+            range: (MouseSensitivityRange::MIN_PERCENT, range.max_percent),
+            step: range.percent_step(),
+            readout: percent_label(percent),
+        },
+        SensitivitySlider(path),
+        SensitivityLabel(path),
+        skin,
+    );
 }
 
 /// Put every action back on what it shipped with. The only way out of a remap
@@ -1131,6 +1252,7 @@ pub(crate) fn load_persisted_settings(
     mut interface_volume: ResMut<InterfaceVolume>,
     mut world_volume: ResMut<WorldVolume>,
     mut music_volume: ResMut<MusicVolume>,
+    mut sensitivity: ResMut<MouseSensitivity>,
     mut quality: ResMut<GraphicsQuality>,
     mut skin: ResMut<UiSkin>,
     mut monitor: ResMut<NovaOsMonitorSettings>,
@@ -1144,6 +1266,7 @@ pub(crate) fn load_persisted_settings(
     *interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
     *world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
     *music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
+    *sensitivity = saved.mouse_sensitivity();
     *quality = saved.graphics_quality;
     *skin = saved.ui_skin;
     *monitor = saved.nova_os_monitor();
@@ -1221,6 +1344,7 @@ pub(crate) struct LiveSettings<'w> {
     interface_volume: Res<'w, InterfaceVolume>,
     world_volume: Res<'w, WorldVolume>,
     music_volume: Res<'w, MusicVolume>,
+    sensitivity: Res<'w, MouseSensitivity>,
     quality: Res<'w, GraphicsQuality>,
     skin: Res<'w, UiSkin>,
     monitor: Res<'w, NovaOsMonitorSettings>,
@@ -1241,6 +1365,7 @@ impl LiveSettings<'_> {
             )
             || moved(self.world_volume.is_changed(), self.world_volume.is_added())
             || moved(self.music_volume.is_changed(), self.music_volume.is_added())
+            || moved(self.sensitivity.is_changed(), self.sensitivity.is_added())
             || moved(self.quality.is_changed(), self.quality.is_added())
             || moved(self.skin.is_changed(), self.skin.is_added())
             || moved(self.monitor.is_changed(), self.monitor.is_added())
@@ -1255,6 +1380,7 @@ impl LiveSettings<'_> {
             *self.interface_volume,
             *self.world_volume,
             *self.music_volume,
+            *self.sensitivity,
             *self.quality,
             *self.skin,
             *self.monitor,
@@ -1301,9 +1427,9 @@ pub(crate) fn flush_settings_on_exit(
 /// cue ticks at.
 const VOLUME_STEP: f32 = 0.05;
 
-/// Which [`VOLUME_STEP`] notch a level falls in. The drag cue's whole detent.
-fn notch(value: f32) -> i32 {
-    (value / VOLUME_STEP).round() as i32
+/// Which `step`-wide notch a value falls in. The drag cue's whole detent.
+fn notch(value: f32, step: f32) -> i32 {
+    (value / step).round() as i32
 }
 
 pub(crate) fn on_volume_slider_change(
@@ -1340,9 +1466,49 @@ pub(crate) fn on_volume_slider_change(
     // straight `value != was` would tick once per FRAME. The notch index is
     // the comparison the old one only looked like. The volume itself stays
     // continuous: the tick is the detent, not the value.
-    if notch(value) == notch(was) {
+    if notch(value, VOLUME_STEP) == notch(was, VOLUME_STEP) {
         return;
     }
+    play_detent_tick(&mut commands, bank.as_deref());
+}
+
+/// Mirror a sensitivity slider's value onto [`MouseSensitivity`] as it is
+/// dragged, and tick once per detent crossed - the volume slider's contract, on
+/// the mouse gains.
+///
+/// The slider reports a PERCENTAGE of the path's own baseline; the resource
+/// stores the raw engine gain, and `apply_mouse_sensitivity` (nova_input) puts
+/// it on the live bindings - which is what makes a slider moved from the pause
+/// overlay reach a ship that is already flying, with no respawn or reload.
+pub(crate) fn on_sensitivity_slider_change(
+    change: On<ValueChange<f32>>,
+    sliders: Query<&SensitivitySlider>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+    mut sensitivity: ResMut<MouseSensitivity>,
+) {
+    let Ok(slider) = sliders.get(change.source) else {
+        return;
+    };
+    let path = slider.0;
+    let range = path.range();
+    let was = sensitivity.percent(path);
+    let value = range.clamp_percent(change.value);
+    sensitivity.set_percent(path, value);
+
+    // The same detent rule the volume sliders use: a DRAG emits a raw float
+    // every frame it moves, so the tick has to count notches rather than
+    // compare values.
+    let step = range.percent_step();
+    if notch(value, step) == notch(was, step) {
+        return;
+    }
+    play_detent_tick(&mut commands, bank.as_deref());
+}
+
+/// The UI cue one crossed slider detent makes. Shared so the audio and mouse
+/// sliders cannot end up ticking differently.
+fn play_detent_tick(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
     if let Some(bank) = bank {
         commands.play_sfx(
             bank.get(UiSfx::UiTick),
@@ -1365,6 +1531,21 @@ pub(crate) fn sync_volume_slider(
         for (mut text, label) in &mut labels {
             if label.0 == slider.0 {
                 text.0 = volume_label(value.0);
+            }
+        }
+    }
+}
+
+/// Keep each sensitivity slider's percent readout in sync with its own value,
+/// exactly as [`sync_volume_slider`] does for the mixer tracks.
+pub(crate) fn sync_sensitivity_slider(
+    sliders: Query<(&SliderValue, &SensitivitySlider)>,
+    mut labels: Query<(&mut Text, &SensitivityLabel)>,
+) {
+    for (value, slider) in &sliders {
+        for (mut text, label) in &mut labels {
+            if label.0 == slider.0 {
+                text.0 = percent_label(value.0);
             }
         }
     }

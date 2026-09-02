@@ -9,4 +9,5 @@ mod pause;
 mod portal;
 mod scenarios;
 mod settings;
+mod settings_store;
 mod support;
