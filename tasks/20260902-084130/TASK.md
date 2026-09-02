@@ -161,6 +161,43 @@ still be inside, so a slower round through thinner plating could quietly
 go wrong later. A test asserting the relationship is the whole fix.
 Lowest priority in this task.
 
+## Landed (2026-09-02)
+
+Seven commits, one per item, on `audio-leftovers`; landed onto master and the
+worktree removed.
+
+| item | commit | |
+|---|---|---|
+| 1. Pause a capped sink | `2d48c047` | done, its done-when NOT met |
+| 2. Cache the loop handle | `828f56f2` | done |
+| 3. One-frame emitter desync | `3f540fc2` | done |
+| 4. `SectionClass::is_weapon()` | `24a1681b` | done |
+| 5. Three missing system sets | `190d8c72` | done |
+| 6. Document the sound fields and the lance | `c6883e6a` | done |
+| 7. HUD leftovers | `351d0b5a` | three of four done |
+
+### What is still open
+
+**Item 1's done-when is not met.** The capped sinks pause, but `log_clean` on
+`stress_torpedoes` still FAILS - 100 rodio underrun lines on a traced run at
+`61f67a82`. Do not read that number against the review's 65 or the
+implementation's 27: an underrun count is a function of how loaded the box was,
+and those three runs were not the same shape of run. What holds across all
+three is the verdict. Pausing the capped voices was the right fix and did not
+finish the job; something else is still starving the mixer, and finding it is
+the next pass rather than a line item here.
+
+**Item 7's bore sight is an owner decision.** The occlusion and contrast half
+was deliberately not picked: each candidate fix changes how the sight LOOKS, so
+it wants the owner's eye and not a reviewer's. The other three parts of item 7
+landed - the reload gauge is a filling bar rather than a ramping alpha, kill
+marks key on the section they are drawn on instead of on list index, and the
+`BITE_MEMORY` / `MAX_BITES_PER_STEP` relationship has the invariant nobody had
+written down.
+
+Item 6's lance documentation shipped as a `/wiki` Railgun page and a `/create`
+chapter. Both were revised again by `20260902-082630` when the rake landed.
+
 ## Deliberately NOT in this task
 
 The 21 cue-volume constants in `crates/nova_gameplay/src/audio/mod.rs:222-285`
