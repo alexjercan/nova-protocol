@@ -4,7 +4,7 @@
 //! channel see the same text. Nothing here writes.
 
 use bevy::prelude::*;
-use nova_events::prelude::METERS_PER_UNIT;
+use nova_events::prelude::MetersPerSecond;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 use nova_os::prelude::*;
@@ -377,9 +377,10 @@ fn reload_line(reload: Option<SectionReload>) -> String {
 }
 
 fn speed_cap_line(cap: Option<f32>) -> String {
-    // The component is in world units; a figure a player reads is in metres.
+    // Engine boundary: `FlightSpeedCap` holds world units because it is
+    // compared against an avian velocity; a figure a player reads is metres.
     match cap {
-        Some(cap) => format!("{:.0} m/s", cap * METERS_PER_UNIT),
+        Some(cap) => format!("{:.0} m/s", MetersPerSecond::from_engine(cap).get()),
         None => "none".to_string(),
     }
 }

@@ -5,7 +5,7 @@
 //! fresh attempt.
 
 use bevy::prelude::*;
-use nova_events::prelude::METERS_PER_UNIT;
+use nova_events::prelude::MetersPerSecond;
 use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
 use nova_scenario::prelude::*;
@@ -156,14 +156,14 @@ pub fn ammo_refill_section(world: &mut World, section_id: &str) -> CommandResult
 
 /// `speed-cap <ship-id> <number|off>`.
 pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> CommandResult {
-    // The player says metres per second, because every figure the game shows
-    // is in metres. The component is in world units, so it is converted here
-    // and converted back to report what was set.
+    // Engine boundary: the player says metres per second, because every figure
+    // the game shows is in metres, and `FlightSpeedCap` is compared against an
+    // avian velocity every tick. The cap crosses here, once, in each direction.
     let cap = if value.eq_ignore_ascii_case("off") {
         None
     } else {
         match value.parse::<f32>() {
-            Ok(metres) if metres > 0.0 => Some(metres / METERS_PER_UNIT),
+            Ok(metres) if metres > 0.0 => Some(MetersPerSecond(metres).to_engine()),
             Ok(_) => {
                 return CommandResult::error(
                     "speed-cap",
@@ -194,7 +194,10 @@ pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> CommandResult
         }
     }
     let detail = match cap {
-        Some(cap) => format!("{ship_id}: cap {:.0} m/s", cap * METERS_PER_UNIT),
+        Some(cap) => format!(
+            "{ship_id}: cap {:.0} m/s",
+            MetersPerSecond::from_engine(cap).get()
+        ),
         None => format!("{ship_id}: cap removed"),
     };
     CommandResult::ok("speed-cap", CLASS, detail.clone()).with_rows(vec![TerminalRow::warn(detail)])
