@@ -24,7 +24,7 @@ use bevy::{
     platform::time::Instant,
     prelude::*,
 };
-use nova_events::prelude::EventWorld;
+use nova_events::{prelude::EventWorld, units::prelude::*};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 
@@ -142,7 +142,7 @@ pub struct NovaEventWorld {
     /// per-action set would let two of them put rocks inside each other - the
     /// exact overlap `min_separation` exists to prevent. Cleared at teardown
     /// with the rest of the event world.
-    scatter_placements: Vec<Vec3>,
+    scatter_placements: Vec<Meters3>,
     /// The queued scenario switch, if a `NextScenario` action has requested one.
     pub next_scenario: Option<NextScenarioActionConfig>,
     /// The delayed non-lingering cut's clock: armed by the NextScenario action,
@@ -424,12 +424,12 @@ impl NovaEventWorld {
     /// `ScatterObjects` actions. A scatter rejects a candidate that crowds any
     /// of them, so sibling fields with overlapping regions still spawn clear of
     /// each other.
-    pub fn scatter_placements(&self) -> &[Vec3] {
+    pub fn scatter_placements(&self) -> &[Meters3] {
         &self.scatter_placements
     }
 
     /// Record a position a scatter placed, so later scatters keep clear of it.
-    pub fn push_scatter_placement(&mut self, position: Vec3) {
+    pub fn push_scatter_placement(&mut self, position: Meters3) {
         self.scatter_placements.push(position);
     }
 

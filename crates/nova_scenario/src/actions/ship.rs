@@ -17,12 +17,12 @@ pub struct SetSpeedCapActionConfig {
     /// The `EntityId` of the scoped ship to cap.
     #[reflect(@Names::Object)]
     pub id: String,
-    /// `Some(cap)` installs/updates the cap (u/s); `None` removes it.
+    /// `Some(cap)` installs/updates the cap; `None` removes it.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub cap: Option<f32>,
+    pub cap: Option<MetersPerSecond>,
 }
 
 impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
@@ -47,7 +47,11 @@ impl EventAction<NovaEventWorld> for SetSpeedCapActionConfig {
                 };
                 match cap {
                     Some(cap) => {
-                        world.entity_mut(ship).insert(FlightSpeedCap(cap));
+                        // Engine boundary: the flight code measures against an
+                        // avian velocity, so the authored cap crosses here.
+                        world
+                            .entity_mut(ship)
+                            .insert(FlightSpeedCap(cap.to_engine()));
                     }
                     None => {
                         world.entity_mut(ship).remove::<FlightSpeedCap>();

@@ -20,9 +20,9 @@ pub mod prelude {
 
 /// The lock scanner sees a beacon like a well-sized rock: a nav point is
 /// exactly the thing the player locks to GOTO, so it must be acquirable
-/// from a full tutorial leg away (signature * range-per-unit, 20 * 30 =
-/// 600u at the default settings), not at debris range.
-const BEACON_LOCK_SIGNATURE: f32 = 20.0;
+/// from a full tutorial leg away (signature * range-per-unit, 200 * 30 = 6 km
+/// at the default settings), not at debris range.
+const BEACON_LOCK_SIGNATURE: Meters = Meters(200.0);
 
 /// Blink period (seconds) of the emissive pulse.
 const BEACON_BLINK_PERIOD_SECS: f32 = 1.2;
@@ -40,8 +40,8 @@ const BEACON_EMISSIVE_MIN: f32 = 8.0;
 pub struct BeaconConfig {
     /// The short name the HUD chip shows ("BEACON 1").
     pub label: String,
-    /// Visual radius of the beacon body (world units).
-    pub radius: f32,
+    /// Visual radius of the beacon body.
+    pub radius: Meters,
     /// Beacon light color (base and emissive).
     pub color: Color,
     /// When set, the beacon is also its own trigger area of this radius:
@@ -50,15 +50,15 @@ pub struct BeaconConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub area_radius: Option<f32>,
+    pub area_radius: Option<Meters>,
     /// Radar signature override; `None` = the default `BEACON_LOCK_SIGNATURE`
-    /// (600u lock range). A scenario whose GOTO leg is longer than that authors
-    /// the signature the leg needs.
+    /// (6 km of lock range). A scenario whose GOTO leg is longer than that
+    /// authors the signature the leg needs.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub lock_signature: Option<f32>,
+    pub lock_signature: Option<Meters>,
 }
 
 /// Build the beacon bundle from a [`BeaconConfig`]: a static, lockable marker
@@ -72,30 +72,37 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
         EntityTypeName::new(BEACON_TYPE_NAME),
         BeaconLabel(config.label),
         BeaconRenderConfig {
-            radius: config.radius,
+            radius: config.radius.to_engine(),
             color: config.color,
         },
-        BeaconAreaRadius(config.area_radius),
+        BeaconAreaRadius(config.area_radius.map(Meters::to_engine)),
         // A nav point holds its position: on rails like a well source.
         // Lockability is
         // preserved by the authored LockSignature (the targeting gate
         // admits Static bodies with one; input/targeting/contacts.rs).
         RigidBody::Static,
-        LockSignature(config.lock_signature.unwrap_or(BEACON_LOCK_SIGNATURE)),
+        LockSignature(
+            config
+                .lock_signature
+                .unwrap_or(BEACON_LOCK_SIGNATURE)
+                .to_engine(),
+        ),
     )
 }
 
-/// Render inputs, consumed by `insert_beacon_render`.
+/// Render inputs in WORLD UNITS, consumed by `insert_beacon_render`: the orb
+/// is a Bevy mesh.
 #[derive(Component, Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BeaconRenderConfig {
-    /// Visual radius of the beacon orb (world units).
+    /// Visual radius of the beacon orb, in world units.
     pub radius: f32,
     /// Beacon color (base and emissive).
     pub color: Color,
 }
 
-/// The authored trigger radius (None = plain marker, no area role).
+/// The authored trigger radius in world units (None = plain marker, no area
+/// role): it becomes an avian sensor collider.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct BeaconAreaRadius(pub Option<f32>);
 
@@ -212,10 +219,10 @@ fn blink_beacons(
 mod tests {
     use super::*;
 
-    fn config(area_radius: Option<f32>) -> BeaconConfig {
+    fn config(area_radius: Option<Meters>) -> BeaconConfig {
         BeaconConfig {
             label: "BEACON 1".to_string(),
-            radius: 2.0,
+            radius: Meters(20.0),
             color: Color::srgb(0.3, 0.9, 1.0),
             area_radius,
             lock_signature: None,
@@ -228,13 +235,13 @@ mod tests {
         let default_beacon = world.spawn(beacon_scenario_object(config(None))).id();
         let far_beacon = world
             .spawn(beacon_scenario_object(BeaconConfig {
-                lock_signature: Some(30.0),
+                lock_signature: Some(Meters(300.0)),
                 ..config(None)
             }))
             .id();
         assert_eq!(
             world.get::<LockSignature>(default_beacon).map(|s| **s),
-            Some(BEACON_LOCK_SIGNATURE)
+            Some(BEACON_LOCK_SIGNATURE.to_engine())
         );
         assert_eq!(
             world.get::<LockSignature>(far_beacon).map(|s| **s),
@@ -278,7 +285,9 @@ mod tests {
     fn beacon_with_area_radius_is_its_own_trigger() {
         let mut world = World::new();
         world.add_observer(insert_beacon_area);
-        let entity = world.spawn(beacon_scenario_object(config(Some(40.0)))).id();
+        let entity = world
+            .spawn(beacon_scenario_object(config(Some(Meters(400.0)))))
+            .id();
         world.flush();
 
         assert!(world.get::<ScenarioAreaMarker>(entity).is_some());

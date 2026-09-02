@@ -442,7 +442,7 @@ mod effect_tests {
         loud.steps.push(step(vec![EventActionConfig::SetSpeedCap(
             SetSpeedCapActionConfig {
                 id: "player".to_string(),
-                cap: Some(5.0),
+                cap: Some(MetersPerSecond(50.0)),
             },
         )]));
         assert_eq!(

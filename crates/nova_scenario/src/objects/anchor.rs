@@ -23,13 +23,17 @@ pub mod prelude {
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AnchorConfig {
-    /// The well's published body radius, world units. Authored, so every
-    /// consumer (menu camera framing, orbit rings) sees the same value on
-    /// every load.
-    pub body_radius: f32,
-    /// Gravitational parameter (`mu`, u^3/s^2), same authoring unit as
+    /// The well's published body radius. Authored, so every consumer (menu
+    /// camera framing, orbit rings) sees the same value on every load.
+    pub body_radius: Meters,
+    /// Well STRENGTH: the gravitational parameter `mu`, same authoring unit as
     /// asteroid mass. `None` = an inert anchor: the well exists with zero
     /// strength, so it frames and anchors without pulling anything.
+    ///
+    /// A designer dial, not an SI mass. `mu` carries a length CUBED over a time
+    /// squared, so it stays on the engine side with the integrator that spends
+    /// it; the published figures derived from it - surface gravity, the sphere
+    /// of influence - are the ones a creator reads, and those are SI.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -42,7 +46,8 @@ pub struct AnchorConfig {
 #[reflect(Component)]
 pub struct AnchorMarker;
 
-/// The authored well radius, consumed by `insert_anchor_well`.
+/// The authored well radius in WORLD UNITS, consumed by `insert_anchor_well`:
+/// the well itself is integrated in engine space beside avian.
 #[derive(Component, Clone, Debug, Deref, Reflect)]
 #[reflect(Component)]
 pub struct AnchorBodyRadius(pub f32);
@@ -62,7 +67,7 @@ pub fn anchor_scenario_object(config: AnchorConfig) -> impl Bundle {
     (
         AnchorMarker,
         EntityTypeName::new(ANCHOR_TYPE_NAME),
-        AnchorBodyRadius(config.body_radius),
+        AnchorBodyRadius(config.body_radius.to_engine()),
         AnchorMass(config.mass),
         RigidBody::Static,
     )
@@ -128,7 +133,7 @@ mod tests {
         let entity = app
             .world_mut()
             .spawn(anchor_scenario_object(AnchorConfig {
-                body_radius: 80.0,
+                body_radius: Meters(800.0),
                 mass: None,
             }))
             .id();
@@ -166,7 +171,7 @@ mod tests {
         let entity = app
             .world_mut()
             .spawn(anchor_scenario_object(AnchorConfig {
-                body_radius: 20.0,
+                body_radius: Meters(200.0),
                 mass: Some(1200.0),
             }))
             .id();

@@ -41,16 +41,16 @@ pub enum LightConfig {
             feature = "serde",
             serde(default, skip_serializing_if = "Option::is_none")
         )]
-        aim: Option<Vec3>,
+        aim: Option<Meters3>,
     },
     /// A positional lamp: a star, a hangar floodlight, a nebula glow.
     Point {
         /// Luminous intensity in lumens.
         intensity: f32,
-        /// Distance (world units) past which the light contributes nothing.
-        range: f32,
+        /// Distance past which the light contributes nothing.
+        range: Meters,
         /// Source radius, softening the shadow terminator.
-        radius: f32,
+        radius: Meters,
         /// Light color.
         color: Color,
         /// Whether this light casts shadows.
@@ -91,23 +91,25 @@ pub fn light_scenario_object(config: LightConfig) -> impl Bundle {
 pub fn aimed_light_base(
     id: &str,
     name: &str,
-    from: Vec3,
-    target: Vec3,
+    from: Meters3,
+    target: Meters3,
 ) -> BaseScenarioObjectConfig {
     BaseScenarioObjectConfig {
         id: id.to_string(),
         name: name.to_string(),
         position: from,
-        rotation: Transform::from_translation(from)
-            .looking_at(target, Vec3::Y)
+        // Engine boundary: `looking_at` poses a Bevy transform, so both ends
+        // of the aim cross into world units to build the rotation.
+        rotation: Transform::from_translation(from.to_engine())
+            .looking_at(target.to_engine(), Vec3::Y)
             .rotation,
     }
 }
 
 /// The key/rim/fill offsets, colors and illuminances the screenshot set was
 /// shot with (`examples/screenshots/shared/kit.rs`, before this task moved the
-/// rig into authored content). Offsets are unit-scale: a scene multiplies them
-/// by [`ThreePointRig::scale`].
+/// rig into authored content). Offsets are the rig's SHAPE in meters at scale
+/// 1: a scene multiplies them by [`ThreePointRig::scale`].
 ///
 /// Key is warm, high and camera-left, carrying the subject's main form, and is
 /// the ONLY shadow caster - a second on a blocky hull reads as dirt rather than
@@ -118,7 +120,7 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
     (
         "key",
         "Key Light",
-        Vec3::new(-6.0, 5.0, 6.0),
+        Vec3::new(-60.0, 50.0, 60.0),
         11000.0,
         Srgba::new(1.0, 0.96, 0.90, 1.0),
         true,
@@ -126,7 +128,7 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
     (
         "rim",
         "Rim Light",
-        Vec3::new(3.0, 4.0, -8.0),
+        Vec3::new(30.0, 40.0, -80.0),
         16000.0,
         Srgba::new(0.72, 0.86, 1.0, 1.0),
         false,
@@ -134,7 +136,7 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
     (
         "fill",
         "Fill Light",
-        Vec3::new(7.0, -2.0, 4.0),
+        Vec3::new(70.0, -20.0, 40.0),
         2600.0,
         Srgba::new(0.62, 0.72, 0.95, 1.0),
         false,
@@ -148,21 +150,21 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
 /// A directional light has no falloff and no position - only its DIRECTION is
 /// read - so scaling the rig uniformly leaves the lighting identical and only
 /// changes how the authored numbers read next to the scene's own dimensions.
-/// That is why [`scale`](Self::scale) is free: a 6-unit hero shot and a
-/// 200-unit planetoid backdrop get the same light for the same numbers.
+/// That is why [`scale`](Self::scale) is free: a 60 m hero shot and a 2 km
+/// planetoid backdrop get the same light for the same numbers.
 pub struct ThreePointRig {
     /// Prefix for each light's scenario id and name (`"{prefix}_key"`).
     pub prefix: String,
     /// The world point all three lights aim at.
-    pub target: Vec3,
-    /// Multiplier on the rig's unit offsets. `1.0` is the screenshot set's
-    /// original hero-shot rig verbatim.
+    pub target: Meters3,
+    /// Dimensionless multiplier on the rig's offsets. `1.0` is the screenshot
+    /// set's original hero-shot rig verbatim.
     pub scale: f32,
 }
 
 impl ThreePointRig {
     /// The rig around `target`, with its offsets multiplied by `scale`.
-    pub fn around(prefix: &str, target: Vec3, scale: f32) -> Self {
+    pub fn around(prefix: &str, target: Meters3, scale: f32) -> Self {
         Self {
             prefix: prefix.to_string(),
             target,
@@ -179,7 +181,7 @@ impl ThreePointRig {
                     base: aimed_light_base(
                         &format!("{}_{}", self.prefix, role),
                         name,
-                        self.target + *offset * self.scale,
+                        self.target + Meters3(*offset * self.scale),
                         self.target,
                     ),
                     kind: ScenarioObjectKind::Light(LightConfig::Directional {
@@ -241,8 +243,11 @@ fn insert_light(
             shadows,
             aim,
         } => {
+            // Engine boundary: the transform this re-aims is Bevy's, so the
+            // authored target crosses into world units to be looked at.
             let aimed = aim.map(|target| {
-                Transform::from_translation(transform.translation).looking_at(target, Vec3::Y)
+                Transform::from_translation(transform.translation)
+                    .looking_at(target.to_engine(), Vec3::Y)
             });
             let mut entity_commands = commands.entity(entity);
             entity_commands.insert(DirectionalLight {
@@ -262,10 +267,12 @@ fn insert_light(
             color,
             shadows,
         } => {
+            // Engine boundary: Bevy's falloff and source radius are world
+            // units.
             commands.entity(entity).insert(PointLight {
                 intensity,
-                range,
-                radius,
+                range: range.to_engine(),
+                radius: radius.to_engine(),
                 color,
                 shadow_maps_enabled: shadows,
                 ..default()
@@ -334,7 +341,7 @@ mod tests {
         let base = BaseScenarioObjectConfig {
             id: "key".to_string(),
             name: "Key Light".to_string(),
-            position: Vec3::new(-6.0, 5.0, 6.0),
+            position: Meters3::new(-60.0, 50.0, 60.0),
             rotation: Quat::IDENTITY,
         };
         let (app, entity) = spawn_light(
@@ -344,7 +351,7 @@ mod tests {
                 illuminance: 11000.0,
                 color,
                 shadows: true,
-                aim: Some(Vec3::ZERO),
+                aim: Some(Meters3::ZERO),
             },
         );
 
@@ -363,7 +370,8 @@ mod tests {
         // A directional light shines down its own -Z, so aimed-at-origin means
         // the forward axis points from the light back to the origin.
         let transform = app.world().get::<Transform>(entity).unwrap();
-        let expected = Transform::from_translation(base.position).looking_at(Vec3::ZERO, Vec3::Y);
+        let expected =
+            Transform::from_translation(base.position.to_engine()).looking_at(Vec3::ZERO, Vec3::Y);
         assert!(
             transform.rotation.angle_between(expected.rotation) < 1e-4,
             "aim overrides the base rotation: got {:?}, want {:?}",
@@ -371,7 +379,8 @@ mod tests {
             expected.rotation
         );
         assert_eq!(
-            transform.translation, base.position,
+            transform.translation,
+            base.position.to_engine(),
             "aiming keeps the authored position"
         );
         assert!(
@@ -392,13 +401,13 @@ mod tests {
         let base = BaseScenarioObjectConfig {
             id: "lamp".to_string(),
             name: "Planetoid Glow".to_string(),
-            position: Vec3::new(-60.0, 20.0, 90.0),
+            position: Meters3::new(-600.0, 200.0, 900.0),
             rotation: Quat::IDENTITY,
         };
         let config = LightConfig::Point {
             intensity: 2_500_000.0,
-            range: 400.0,
-            radius: 12.0,
+            range: Meters(4_000.0),
+            radius: Meters(120.0),
             color,
             shadows: false,
         };
@@ -409,7 +418,7 @@ mod tests {
             .get::<PointLight>(entity)
             .expect("a Point object inserts a PointLight");
         assert_eq!(light.intensity, 2_500_000.0);
-        assert_eq!(light.range, 400.0);
+        assert_eq!(light.range, 400.0, "4 km of falloff is 400 world units");
         assert_eq!(light.radius, 12.0);
         assert_eq!(light.color, color);
         assert!(!light.shadow_maps_enabled);
@@ -439,7 +448,7 @@ mod tests {
             illuminance: 16000.0,
             color: Color::srgb(0.72, 0.86, 1.0),
             shadows: false,
-            aim: Some(Vec3::new(1.0, 2.0, 3.0)),
+            aim: Some(Meters3::new(1.0, 2.0, 3.0)),
         };
         let ron = ron::to_string(&directional).expect("serialize");
         match ron::from_str::<LightConfig>(&ron).expect("deserialize") {
@@ -452,7 +461,7 @@ mod tests {
                 assert_eq!(illuminance, 16000.0);
                 assert_eq!(color, Color::srgb(0.72, 0.86, 1.0));
                 assert!(!shadows);
-                assert_eq!(aim, Some(Vec3::new(1.0, 2.0, 3.0)));
+                assert_eq!(aim, Some(Meters3::new(1.0, 2.0, 3.0)));
             }
             other => panic!("variant changed on round-trip: {other:?}"),
         }
@@ -476,8 +485,8 @@ mod tests {
 
         let point = LightConfig::Point {
             intensity: 2_500_000.0,
-            range: 400.0,
-            radius: 12.0,
+            range: Meters(4_000.0),
+            radius: Meters(120.0),
             color: Color::srgb(1.0, 0.82, 0.6),
             shadows: true,
         };
@@ -491,8 +500,8 @@ mod tests {
                 shadows,
             } => {
                 assert_eq!(intensity, 2_500_000.0);
-                assert_eq!(range, 400.0);
-                assert_eq!(radius, 12.0);
+                assert_eq!(range, Meters(4_000.0));
+                assert_eq!(radius, Meters(120.0));
                 assert_eq!(color, Color::srgb(1.0, 0.82, 0.6));
                 assert!(shadows);
             }

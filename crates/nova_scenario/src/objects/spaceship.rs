@@ -74,7 +74,7 @@ pub struct PlayerControllerConfig {
     /// `assets/base/**/*.content.ron`, and a hash-ordered map makes
     /// `content -- gen` produce a different file every run.
     pub input_mapping: BTreeMap<SectionId, Vec<InputSource>>,
-    /// Soft manual-speed cap (u/s), inserted as [`FlightSpeedCap`] on the
+    /// Soft manual-speed cap, inserted as [`FlightSpeedCap`] on the
     /// ship root: the manual burn tapers off approaching it (the starter
     /// scenario's don't-sail-into-the-void guard; playtest 2026-07-12
     /// finding 1). None = unbounded Newtonian burn, the default.
@@ -82,7 +82,7 @@ pub struct PlayerControllerConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub speed_cap: Option<f32>,
+    pub speed_cap: Option<MetersPerSecond>,
 }
 
 /// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
@@ -100,7 +100,7 @@ pub struct AIControllerConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Vec::is_empty")
     )]
-    pub patrol: Vec<Vec3>,
+    pub patrol: Vec<Meters3>,
     /// Scenario id of a gravity-well entity to orbit while nothing hostile
     /// is in detection range. Takes precedence over `patrol` when both are
     /// set (passive fallback: orbit > patrol > idle). None = no orbit
@@ -110,7 +110,7 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub orbit: Option<String>,
-    /// Territorial tether radius (world units): combat breaks off beyond
+    /// Territorial tether radius: combat breaks off beyond
     /// this distance from the patrol centroid (or the spawn position when
     /// there is no route) and the ship returns to its routine. None = the
     /// ship chases freely. See `AILeash`.
@@ -118,7 +118,7 @@ pub struct AIControllerConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub leash: Option<f32>,
+    pub leash: Option<Meters>,
     /// Arrival grace: the ship spawns on its passive routine and refuses to
     /// engage until this elapses - pair with a warning story beat so enemies
     /// ARRIVE instead of appearing hot. Being shot ends the grace immediately
@@ -129,9 +129,8 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub engage_delay: Option<f32>,
-    /// Hostile-detection range override (world units): a passive ship leaves
-    /// its routine for a hostile inside this range instead of the engine's
-    /// 400 u default. Author it wide on a long-watch emplacement that must
+    /// Hostile-detection range override: a passive ship leaves its routine
+    /// for a hostile inside this range instead of the engine's 4 km default. Author it wide on a long-watch emplacement that must
     /// wake for targets parked outside everyone else's detection; short on a
     /// ship meant to ignore a nearby brawl. None = the default. See
     /// `AIEngageRange`.
@@ -139,38 +138,37 @@ pub struct AIControllerConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub engage_range: Option<f32>,
-    /// Point-defense range override (world units): the guns hold fire until
-    /// an inbound hostile torpedo is inside this range instead of the
-    /// engine's 150 u default. Author it short to stage intercepts close-in;
-    /// past the turret's ~180 u reach it just wastes the opening shots.
+    pub engage_range: Option<Meters>,
+    /// Point-defense range override: the guns hold fire until an inbound
+    /// hostile torpedo is inside this range instead of the engine's 1.5 km
+    /// default. Author it short to stage intercepts close-in; past the
+    /// turret's ~1.8 km reach it just wastes the opening shots.
     /// None = the default. See `AIPointDefenseRange`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub pd_range: Option<f32>,
-    /// Patrol waypoint-arrival slack override (world units) on top of the
-    /// autopilot's arrival standoff; the engine default is 25. Small = the
-    /// ship presses in close to each waypoint before turning (a nav drill
-    /// hugging its beacons). Below ~2 risks stalling outside the advance
-    /// gate - author small, not zero. None = the default. See
+    pub pd_range: Option<Meters>,
+    /// Patrol waypoint-arrival slack override on top of the autopilot's
+    /// arrival standoff; the engine default is 250 m. Small = the ship
+    /// presses in close to each waypoint before turning (a nav drill hugging
+    /// its beacons). Below ~20 m risks stalling outside the advance gate -
+    /// author small, not zero. None = the default. See
     /// `AIWaypointSlack`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub waypoint_slack: Option<f32>,
-    /// Translation-arrival standoff override (world units): how far from a
-    /// GOTO goal this ship's computer comes to rest, instead of the engine's
-    /// 50 u default. Author it small (with a small `waypoint_slack`) on a
+    pub waypoint_slack: Option<Meters>,
+    /// Translation-arrival standoff override: how far from a GOTO goal this
+    /// ship's computer comes to rest, instead of the engine's 500 m default. Author it small (with a small `waypoint_slack`) on a
     /// ship that must visibly REACH its waypoints. None = the default. See
     /// `FlightArrivalStandoff`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub arrival_standoff: Option<f32>,
+    pub arrival_standoff: Option<Meters>,
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -209,7 +207,9 @@ pub enum SectionSource {
 pub struct SpaceshipSectionConfig {
     /// The section's scenario-local id (keys input bindings and scripts).
     pub id: SectionId,
-    /// The section's position relative to the ship root (world units).
+    /// The section's mount cell relative to the ship root, in BUILD-GRID
+    /// cells - the one authored vector that is not a distance. A cell is one
+    /// engine world unit, 10 m on a side, and sections stack by whole cells.
     pub position: Vec3,
     /// The section's rotation relative to the ship root.
     pub rotation: Quat,
@@ -527,7 +527,11 @@ fn insert_spaceship_sections(
         SpaceshipController::Player(config) => {
             commands.entity(entity).insert(PlayerSpaceshipMarker);
             if let Some(cap) = config.speed_cap {
-                commands.entity(entity).insert(FlightSpeedCap(cap));
+                // Engine boundary: the flight code compares the cap against an
+                // avian velocity every tick, so it crosses once, here.
+                commands
+                    .entity(entity)
+                    .insert(FlightSpeedCap(cap.to_engine()));
             }
         }
         SpaceshipController::AI(config) => {
@@ -541,9 +545,16 @@ fn insert_spaceship_sections(
                 commands.entity(entity).insert(AINonCombatant);
             }
             if !config.patrol.is_empty() {
-                commands
-                    .entity(entity)
-                    .insert(AIPatrolRoute::new(config.patrol.clone()));
+                // Engine boundary: the route is steered against avian
+                // positions, so the waypoints cross once, at the spawn that
+                // authored them. Every AI directive below does the same.
+                commands.entity(entity).insert(AIPatrolRoute::new(
+                    config
+                        .patrol
+                        .iter()
+                        .map(|point| point.to_engine())
+                        .collect(),
+                ));
             }
             if let Some(well) = &config.orbit {
                 commands.entity(entity).insert(AIOrbitDirective {
@@ -556,9 +567,17 @@ fn insert_spaceship_sections(
                 let center = if config.patrol.is_empty() {
                     spawn_position
                 } else {
-                    config.patrol.iter().sum::<Vec3>() / config.patrol.len() as f32
+                    config
+                        .patrol
+                        .iter()
+                        .map(|point| point.to_engine())
+                        .sum::<Vec3>()
+                        / config.patrol.len() as f32
                 };
-                commands.entity(entity).insert(AILeash { center, radius });
+                commands.entity(entity).insert(AILeash {
+                    center,
+                    radius: radius.to_engine(),
+                });
             }
             // Non-positive delays are "no grace" (documented on the field):
             // a zero timer would be born finished anyway, so the guard just
@@ -572,25 +591,31 @@ fn insert_spaceship_sections(
             // blind, which no author means; the default range needs no
             // component at all.
             if let Some(range) = config.engage_range {
-                if range > 0.0 {
-                    commands.entity(entity).insert(AIEngageRange(range));
+                if range > Meters::ZERO {
+                    commands
+                        .entity(entity)
+                        .insert(AIEngageRange(range.to_engine()));
                 }
             }
             if let Some(range) = config.pd_range {
-                if range > 0.0 {
-                    commands.entity(entity).insert(AIPointDefenseRange(range));
+                if range > Meters::ZERO {
+                    commands
+                        .entity(entity)
+                        .insert(AIPointDefenseRange(range.to_engine()));
                 }
             }
             if let Some(slack) = config.waypoint_slack {
-                if slack > 0.0 {
-                    commands.entity(entity).insert(AIWaypointSlack(slack));
+                if slack > Meters::ZERO {
+                    commands
+                        .entity(entity)
+                        .insert(AIWaypointSlack(slack.to_engine()));
                 }
             }
             if let Some(standoff) = config.arrival_standoff {
-                if standoff > 0.0 {
+                if standoff > Meters::ZERO {
                     commands
                         .entity(entity)
-                        .insert(FlightArrivalStandoff(standoff));
+                        .insert(FlightArrivalStandoff(standoff.to_engine()));
                 }
             }
         }
@@ -646,7 +671,7 @@ mod tests {
         let patroller = spawn(
             &mut world,
             AIControllerConfig {
-                patrol: vec![Vec3::ZERO, Vec3::X],
+                patrol: vec![Meters3::ZERO, Meters3::new(10.0, 0.0, 0.0)],
                 ..default()
             },
         );
@@ -659,7 +684,7 @@ mod tests {
         let both = spawn(
             &mut world,
             AIControllerConfig {
-                patrol: vec![Vec3::ZERO, Vec3::X],
+                patrol: vec![Meters3::ZERO, Meters3::new(10.0, 0.0, 0.0)],
                 orbit: Some("planetoid".to_string()),
                 leash: None,
                 engage_delay: None,
@@ -677,16 +702,17 @@ mod tests {
         let watcher = spawn(
             &mut world,
             AIControllerConfig {
-                engage_range: Some(1600.0),
-                pd_range: Some(150.0),
-                waypoint_slack: Some(5.0),
-                arrival_standoff: Some(10.0),
+                engage_range: Some(Meters(16_000.0)),
+                pd_range: Some(Meters(1_500.0)),
+                waypoint_slack: Some(Meters(50.0)),
+                arrival_standoff: Some(Meters(100.0)),
                 ..default()
             },
         );
         assert_eq!(
             world.entity(watcher).get::<AIEngageRange>().map(|r| r.0),
-            Some(1600.0)
+            Some(1600.0),
+            "16 km of detection is 1,600 world units"
         );
         assert_eq!(
             world
@@ -1007,7 +1033,7 @@ mod tests {
         assert_eq!(config.engage_delay, Some(6.0));
 
         let omitted: SpaceshipController =
-            ron::from_str(r#"AI((leash: Some(400.0)))"#).expect("omitted field parses");
+            ron::from_str(r#"AI((leash: Some(4000.0)))"#).expect("omitted field parses");
         let SpaceshipController::AI(config) = omitted else {
             panic!("AI variant");
         };

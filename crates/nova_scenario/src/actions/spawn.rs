@@ -88,7 +88,7 @@ pub struct BaseScenarioObjectConfig {
     /// The object's display name.
     pub name: String,
     /// The object's initial world position.
-    pub position: Vec3,
+    pub position: Meters3,
     /// The object's initial world rotation.
     pub rotation: Quat,
 }
@@ -109,7 +109,9 @@ pub struct BaseScenarioObjectConfig {
 /// on purpose, and would hear a ship three kilometers out at full volume in
 /// the middle of the stereo field for its first frame.
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
-    let transform = Transform::from_translation(config.position).with_rotation(config.rotation);
+    // Engine boundary: a Bevy transform counts world units.
+    let transform =
+        Transform::from_translation(config.position.to_engine()).with_rotation(config.rotation);
     (
         ScenarioScopedMarker,
         Name::new(config.name.clone()),
@@ -201,9 +203,9 @@ pub enum ScatterRegion {
     /// `[min, max]`.
     Box {
         /// The box's minimum corner.
-        min: Vec3,
+        min: Meters3,
         /// The box's maximum corner.
-        max: Vec3,
+        max: Meters3,
     },
     /// A horizontal annulus centred on `center`: uniform angle, radius in
     /// `[inner, outer]`, height in `[y_min, y_max]`, all relative to that
@@ -211,22 +213,22 @@ pub enum ScatterRegion {
     Ring {
         /// The annulus centre in world space. Omitted in RON, it is the origin.
         #[cfg_attr(feature = "serde", serde(default))]
-        center: Vec3,
+        center: Meters3,
         /// The annulus inner radius.
-        inner: f32,
+        inner: Meters,
         /// The annulus outer radius.
-        outer: f32,
+        outer: Meters,
         /// The lower bound of the vertical (y) spread.
-        y_min: f32,
+        y_min: Meters,
         /// The upper bound of the vertical (y) spread.
-        y_max: f32,
+        y_max: Meters,
     },
 }
 
 impl ScatterRegion {
     /// Sample a position in the region. `random_in` guards empty ranges
     /// (`a >= b` yields `a`) so a degenerate authored region cannot panic.
-    fn sample(&self, rng: &mut impl rand::Rng) -> Vec3 {
+    fn sample(&self, rng: &mut impl rand::Rng) -> Meters3 {
         fn random_in(rng: &mut impl rand::Rng, a: f32, b: f32) -> f32 {
             use rand::RngExt;
             if a < b {
@@ -236,10 +238,10 @@ impl ScatterRegion {
             }
         }
         match self {
-            ScatterRegion::Box { min, max } => Vec3::new(
-                random_in(rng, min.x, max.x),
-                random_in(rng, min.y, max.y),
-                random_in(rng, min.z, max.z),
+            ScatterRegion::Box { min, max } => Meters3::new(
+                random_in(rng, min.get().x, max.get().x),
+                random_in(rng, min.get().y, max.get().y),
+                random_in(rng, min.get().z, max.get().z),
             ),
             ScatterRegion::Ring {
                 center,
@@ -249,11 +251,11 @@ impl ScatterRegion {
                 y_max,
             } => {
                 let angle = random_in(rng, 0.0, std::f32::consts::TAU);
-                let dist = random_in(rng, *inner, *outer);
+                let dist = random_in(rng, inner.get(), outer.get());
                 *center
-                    + Vec3::new(
+                    + Meters3::new(
                         angle.cos() * dist,
-                        random_in(rng, *y_min, *y_max),
+                        random_in(rng, y_min.get(), y_max.get()),
                         angle.sin() * dist,
                     )
             }
@@ -293,8 +295,8 @@ pub struct ScatterObjectsConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub asteroid_radius: Option<(f32, f32)>,
-    /// Minimum centre-to-centre distance (world units) between a copy of this
+    pub asteroid_radius: Option<(Meters, Meters)>,
+    /// Minimum centre-to-centre distance between a copy of this
     /// scatter and EVERY body already scattered this scenario - this action's
     /// earlier copies and every earlier scatter's. Uniform sampling puts bodies
     /// on top of each other, and
@@ -311,7 +313,7 @@ pub struct ScatterObjectsConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub min_separation: Option<f32>,
+    pub min_separation: Option<Meters>,
 }
 
 impl ScatterObjectsConfig {
@@ -323,17 +325,17 @@ impl ScatterObjectsConfig {
     /// One position at least `min_separation` from every `placed` one, or
     /// `None` when the budget runs out. Without a separation the first sample
     /// is always taken.
-    fn sample_clear_of(&self, placed: &[Vec3], rng: &mut impl rand::Rng) -> Option<Vec3> {
-        let Some(separation) = self.min_separation.filter(|s| *s > 0.0) else {
+    fn sample_clear_of(&self, placed: &[Meters3], rng: &mut impl rand::Rng) -> Option<Meters3> {
+        let Some(separation) = self.min_separation.filter(|s| *s > Meters::ZERO) else {
             return Some(self.region.sample(rng));
         };
-        let min_sq = separation * separation;
+        let min_sq = separation.squared();
         (0..Self::SEPARATION_ATTEMPTS)
             .map(|_| self.region.sample(rng))
             .find(|candidate| {
                 placed
                     .iter()
-                    .all(|p| p.distance_squared(*candidate) >= min_sq)
+                    .all(|p| p.get().distance_squared(candidate.get()) >= min_sq)
             })
     }
 }
@@ -361,7 +363,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
         }
         // Seeded with what earlier scatters placed, so abutting sibling fields
         // (a belt's knots) cannot drop rocks into each other.
-        let mut placed: Vec<Vec3> = world.scatter_placements().to_vec();
+        let mut placed: Vec<Meters3> = world.scatter_placements().to_vec();
         let mut dropped = 0u32;
         for i in 0..count {
             let mut object = self.template.clone();
@@ -379,10 +381,10 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 dropped += 1;
                 trace!(
                     "ScatterObjects: dropped '{}{}' - no position clearing the \
-                     {}u separation in {} attempts",
+                     {} m separation in {} attempts",
                     self.id_prefix,
                     i,
-                    self.min_separation.unwrap_or_default(),
+                    self.min_separation.unwrap_or_default().get(),
                     Self::SEPARATION_ATTEMPTS
                 );
                 continue;
@@ -395,7 +397,7 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 (self.asteroid_radius, &mut object.kind)
             {
                 asteroid.radius = if lo < hi {
-                    rng.random_range(lo..hi)
+                    Meters(rng.random_range(lo.get()..hi.get()))
                 } else {
                     lo
                 };
@@ -433,19 +435,20 @@ pub struct ScenarioAreaConfig {
     /// The area's display name.
     pub name: String,
     /// The area's world position (sphere centre).
-    pub position: Vec3,
+    pub position: Meters3,
     /// The area's world rotation.
     pub rotation: Quat,
     /// The sphere radius.
-    pub radius: f32,
+    pub radius: Meters,
 }
 
 impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
     fn action(&self, world: &mut NovaEventWorld, _info: &GameEventInfo) {
         let config = self.clone();
         debug!(
-            "CreateScenarioArea: creating area '{}' (radius: {})",
-            config.id, config.radius
+            "CreateScenarioArea: creating area '{}' (radius: {} m)",
+            config.id,
+            config.radius.get()
         );
 
         world.push_command(move |commands| {
@@ -454,9 +457,12 @@ impl EventAction<NovaEventWorld> for ScenarioAreaConfig {
                 ScenarioAreaMarker,
                 Name::new(config.name.clone()),
                 EntityId::new(config.id.clone()),
-                Transform::from_translation(config.position).with_rotation(config.rotation),
+                // Engine boundary: the trigger volume is a Bevy transform
+                // and an avian collider, both in world units.
+                Transform::from_translation(config.position.to_engine())
+                    .with_rotation(config.rotation),
                 RigidBody::Static,
-                Collider::sphere(config.radius),
+                Collider::sphere(config.radius.to_engine()),
                 Sensor,
                 Visibility::Visible,
             ));
@@ -488,7 +494,7 @@ mod tests {
     #[test]
     fn a_scenario_object_knows_where_it_is_on_the_frame_it_spawns() {
         let mut world = World::new();
-        let at = Vec3::new(-3000.0, 40.0, 120.0);
+        let at = Meters3::new(-30_000.0, 400.0, 1_200.0);
         let facing = Quat::from_rotation_y(std::f32::consts::FRAC_PI_3);
         let object = world
             .spawn(base_scenario_object(&BaseScenarioObjectConfig {
@@ -502,7 +508,11 @@ mod tests {
         let pose = world
             .get::<GlobalTransform>(object)
             .expect("a scenario object carries a world pose");
-        assert_eq!(pose.translation(), at, "not the origin, not next frame");
+        assert_eq!(
+            pose.translation(),
+            at.to_engine(),
+            "not the origin, not next frame"
+        );
         assert!(pose.rotation().angle_between(facing) < 1e-5);
     }
 
@@ -527,7 +537,7 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "ship".to_string(),
                     name: "Ship".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -606,7 +616,7 @@ mod tests {
                 base_scenario_object(&BaseScenarioObjectConfig {
                     id: "mover".to_string(),
                     name: "Mover".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 }),
                 Collider::cuboid(1.0, 1.0, 1.0),
@@ -622,7 +632,7 @@ mod tests {
                 AsteroidConfig {
                     material: None,
                     destroy_sound: None,
-                    radius: 1.0,
+                    radius: Meters(10.0),
                     texture: AssetRef::default(),
                     mass: None,
                     invulnerable: false,
@@ -726,8 +736,8 @@ mod tests {
         use rand::SeedableRng;
 
         let region = ScatterRegion::Box {
-            min: Vec3::new(-10.0, -2.0, -10.0),
-            max: Vec3::new(10.0, 2.0, 10.0),
+            min: Meters3::new(-100.0, -20.0, -100.0),
+            max: Meters3::new(100.0, 20.0, 100.0),
         };
 
         let sample_10 = || {
@@ -738,10 +748,11 @@ mod tests {
         let b = sample_10();
         assert_eq!(a, b, "same seed must produce the same positions");
 
-        for p in &a {
-            assert!(p.x >= -10.0 && p.x <= 10.0, "x in box: {p:?}");
-            assert!(p.y >= -2.0 && p.y <= 2.0, "y in box: {p:?}");
-            assert!(p.z >= -10.0 && p.z <= 10.0, "z in box: {p:?}");
+        for placed in &a {
+            let p = placed.get();
+            assert!(p.x >= -100.0 && p.x <= 100.0, "x in box: {p:?}");
+            assert!(p.y >= -20.0 && p.y <= 20.0, "y in box: {p:?}");
+            assert!(p.z >= -100.0 && p.z <= 100.0, "z in box: {p:?}");
         }
     }
 
@@ -752,12 +763,12 @@ mod tests {
         use rand::SeedableRng;
 
         let region = ScatterRegion::Box {
-            min: Vec3::new(5.0, 0.0, 5.0),
-            max: Vec3::new(5.0, 0.0, 5.0),
+            min: Meters3::new(50.0, 0.0, 50.0),
+            max: Meters3::new(50.0, 0.0, 50.0),
         };
         let mut rng = rand::rngs::StdRng::seed_from_u64(1);
         let p = region.sample(&mut rng);
-        assert_eq!(p, Vec3::new(5.0, 0.0, 5.0));
+        assert_eq!(p, Meters3::new(50.0, 0.0, 50.0));
     }
 
     /// A ring with a non-zero centre samples the annulus AROUND that centre, not
@@ -766,25 +777,28 @@ mod tests {
     fn scatter_region_ring_samples_around_its_center() {
         use rand::SeedableRng;
 
-        let center = Vec3::new(500.0, -40.0, -560.0);
+        let center = Meters3::new(5_000.0, -400.0, -5_600.0);
         let region = ScatterRegion::Ring {
             center,
-            inner: 620.0,
-            outer: 900.0,
-            y_min: -160.0,
-            y_max: 160.0,
+            inner: Meters(6_200.0),
+            outer: Meters(9_000.0),
+            y_min: Meters(-1_600.0),
+            y_max: Meters(1_600.0),
         };
 
         let mut rng = rand::rngs::StdRng::seed_from_u64(7);
         for _ in 0..64 {
             let p = region.sample(&mut rng);
-            let offset = p - center;
+            let offset = (p - center).get();
             let planar = Vec2::new(offset.x, offset.z).length();
             assert!(
-                (620.0..=900.0).contains(&planar),
+                (6_200.0..=9_000.0).contains(&planar),
                 "planar distance from centre out of the annulus: {planar} ({p:?})"
             );
-            assert!(offset.y >= -160.0 && offset.y <= 160.0, "y spread: {p:?}");
+            assert!(
+                offset.y >= -1_600.0 && offset.y <= 1_600.0,
+                "y spread: {p:?}"
+            );
         }
     }
 
@@ -797,20 +811,20 @@ mod tests {
     fn scatter_min_separation_is_respected_and_never_hangs() {
         use rand::SeedableRng;
 
-        let scatter = |count: u32, min_separation: Option<f32>| {
+        let scatter = |count: u32, min_separation: Option<Meters>| {
             let config = ScatterObjectsConfig {
                 id_prefix: "rock_".to_string(),
                 count,
                 seed: 11,
                 region: ScatterRegion::Box {
-                    min: Vec3::new(-100.0, -20.0, -100.0),
-                    max: Vec3::new(100.0, 20.0, 100.0),
+                    min: Meters3::new(-1_000.0, -200.0, -1_000.0),
+                    max: Meters3::new(1_000.0, 200.0, 1_000.0),
                 },
                 template: ScenarioObjectConfig {
                     base: BaseScenarioObjectConfig {
                         id: "rock".to_string(),
                         name: "Rock".to_string(),
-                        position: Vec3::ZERO,
+                        position: Meters3::ZERO,
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Light(LightConfig::Directional {
@@ -824,7 +838,7 @@ mod tests {
                 min_separation,
             };
             let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
-            let mut placed: Vec<Vec3> = Vec::new();
+            let mut placed: Vec<Meters3> = Vec::new();
             for _ in 0..config.count {
                 if let Some(p) = config.sample_clear_of(&placed, &mut rng) {
                     placed.push(p);
@@ -833,21 +847,21 @@ mod tests {
             placed
         };
 
-        let placed = scatter(12, Some(40.0));
-        assert_eq!(placed.len(), 12, "the box has room for 12 at 40u apart");
+        let placed = scatter(12, Some(Meters(400.0)));
+        assert_eq!(placed.len(), 12, "the box has room for 12 at 400 m apart");
         for (i, a) in placed.iter().enumerate() {
             for b in placed.iter().skip(i + 1) {
                 assert!(
-                    a.distance(*b) >= 40.0,
-                    "two copies landed {:.1}u apart, under the 40u separation",
-                    a.distance(*b)
+                    a.distance(*b) >= Meters(400.0),
+                    "two copies landed {:.1} m apart, under the 400 m separation",
+                    a.distance(*b).get()
                 );
             }
         }
 
         // A separation the region cannot satisfy drops the copies it cannot
         // place - it does not loop forever and does not overlap them.
-        let crowded = scatter(40, Some(150.0));
+        let crowded = scatter(40, Some(Meters(1_500.0)));
         assert!(
             crowded.len() < 40,
             "an impossible separation must drop copies, got all {} placed",
@@ -855,7 +869,7 @@ mod tests {
         );
         for (i, a) in crowded.iter().enumerate() {
             for b in crowded.iter().skip(i + 1) {
-                assert!(a.distance(*b) >= 150.0);
+                assert!(a.distance(*b) >= Meters(1_500.0));
             }
         }
 
@@ -870,20 +884,20 @@ mod tests {
     /// prevent. Two scatters over the SAME box is the worst case.
     #[test]
     fn separation_holds_across_sibling_scatters() {
-        let separation = 40.0;
+        let separation = Meters(400.0);
         let scatter = |id_prefix: &str, seed: u64| ScatterObjectsConfig {
             id_prefix: id_prefix.to_string(),
             count: 8,
             seed,
             region: ScatterRegion::Box {
-                min: Vec3::new(-100.0, -20.0, -100.0),
-                max: Vec3::new(100.0, 20.0, 100.0),
+                min: Meters3::new(-1_000.0, -200.0, -1_000.0),
+                max: Meters3::new(1_000.0, 200.0, 1_000.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
                     id: "rock".to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Light(LightConfig::Directional {
@@ -913,8 +927,9 @@ mod tests {
             for b in placed.iter().skip(i + 1) {
                 assert!(
                     a.distance(*b) >= separation,
-                    "two copies landed {:.1}u apart, under the {separation}u separation",
-                    a.distance(*b)
+                    "two copies landed {:.1} m apart, under the {:.0} m separation",
+                    a.distance(*b).get(),
+                    separation.get()
                 );
             }
         }
@@ -931,10 +946,10 @@ mod tests {
     #[test]
     fn scatter_region_ring_center_defaults_to_zero_in_ron() {
         let region: ScatterRegion =
-            ron::from_str("Ring(inner: 10.0, outer: 20.0, y_min: -1.0, y_max: 1.0)")
+            ron::from_str("Ring(inner: 100.0, outer: 200.0, y_min: -10.0, y_max: 10.0)")
                 .expect("deserialize a ring without a centre");
         match region {
-            ScatterRegion::Ring { center, .. } => assert_eq!(center, Vec3::ZERO),
+            ScatterRegion::Ring { center, .. } => assert_eq!(center, Meters3::ZERO),
             other => panic!("expected a ring: {other:?}"),
         }
     }
@@ -947,23 +962,23 @@ mod tests {
             count: 12,
             seed: 7,
             region: ScatterRegion::Ring {
-                center: Vec3::new(10.0, 0.0, -20.0),
-                inner: 100.0,
-                outer: 150.0,
-                y_min: -20.0,
-                y_max: 20.0,
+                center: Meters3::new(100.0, 0.0, -200.0),
+                inner: Meters(1_000.0),
+                outer: Meters(1_500.0),
+                y_min: Meters(-200.0),
+                y_max: Meters(200.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
                     id: "rock".to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     material: None,
                     destroy_sound: None,
-                    radius: 2.0,
+                    radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
                     mass: None,
                     invulnerable: false,
@@ -971,7 +986,7 @@ mod tests {
                     lock_signature: None,
                 }),
             },
-            asteroid_radius: Some((1.0, 3.0)),
+            asteroid_radius: Some((Meters(10.0), Meters(30.0))),
             min_separation: None,
         };
 
@@ -980,7 +995,11 @@ mod tests {
         assert_eq!(back.id_prefix, "rock_");
         assert_eq!(back.count, 12);
         assert_eq!(back.seed, 7);
-        assert_eq!(back.asteroid_radius, Some((1.0, 3.0)));
+        assert_eq!(
+            back.asteroid_radius,
+            Some((Meters(10.0), Meters(30.0))),
+            "the pair round-trips as bare meters"
+        );
         // The nested enum fields most likely to regress in a serde change: the
         // region variant and the template's asset ref must survive intact.
         match back.region {
@@ -991,8 +1010,16 @@ mod tests {
                 y_min,
                 y_max,
             } => {
-                assert_eq!(center, Vec3::new(10.0, 0.0, -20.0));
-                assert_eq!((inner, outer, y_min, y_max), (100.0, 150.0, -20.0, 20.0));
+                assert_eq!(center, Meters3::new(100.0, 0.0, -200.0));
+                assert_eq!(
+                    (inner, outer, y_min, y_max),
+                    (
+                        Meters(1_000.0),
+                        Meters(1_500.0),
+                        Meters(-200.0),
+                        Meters(200.0)
+                    )
+                );
             }
             other => panic!("region variant changed on round-trip: {other:?}"),
         }
@@ -1010,8 +1037,8 @@ mod tests {
     /// the world. Guards the spawn loop that only the windowed example exercised.
     #[test]
     fn scatter_action_spawns_count_objects_in_region() {
-        let region_min = Vec3::new(-10.0, -5.0, -10.0);
-        let region_max = Vec3::new(10.0, 5.0, 10.0);
+        let region_min = Meters3::new(-100.0, -50.0, -100.0);
+        let region_max = Meters3::new(100.0, 50.0, 100.0);
         let config = ScatterObjectsConfig {
             id_prefix: "rock_".to_string(),
             count: 8,
@@ -1024,13 +1051,13 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "rock".to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     material: None,
                     destroy_sound: None,
-                    radius: 2.0,
+                    radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     mass: None,
                     invulnerable: false,
@@ -1038,7 +1065,7 @@ mod tests {
                     lock_signature: None,
                 }),
             },
-            asteroid_radius: Some((1.0, 3.0)),
+            asteroid_radius: Some((Meters(10.0), Meters(30.0))),
             min_separation: None,
         };
 
@@ -1055,23 +1082,17 @@ mod tests {
         let mut query = world
             .query_filtered::<(&EntityId, &Transform, &AsteroidRadius), With<AsteroidMarker>>();
         let mut ids: Vec<String> = Vec::new();
+        let (min, max) = (region_min.get(), region_max.get());
         for (id, transform, radius) in query.iter(&world) {
-            let p = transform.translation;
-            assert!(
-                p.x >= region_min.x && p.x <= region_max.x,
-                "x in region: {p:?}"
-            );
-            assert!(
-                p.y >= region_min.y && p.y <= region_max.y,
-                "y in region: {p:?}"
-            );
-            assert!(
-                p.z >= region_min.z && p.z <= region_max.z,
-                "z in region: {p:?}"
-            );
+            // The spawned pose is engine-side, so it crosses back to meet the
+            // authored bounds.
+            let p = Meters3::from_engine(transform.translation).get();
+            assert!(p.x >= min.x && p.x <= max.x, "x in region: {p:?}");
+            assert!(p.y >= min.y && p.y <= max.y, "y in region: {p:?}");
+            assert!(p.z >= min.z && p.z <= max.z, "z in region: {p:?}");
             assert!(
                 radius.0 >= 1.0 && radius.0 <= 3.0,
-                "radius in range: {}",
+                "10 m to 30 m of authored radius is 1 to 3 world units: {}",
                 radius.0
             );
             assert!(id.0.starts_with("rock_"), "id has the prefix: {}", id.0);
@@ -1096,20 +1117,20 @@ mod tests {
             count: 6,
             seed: 123,
             region: ScatterRegion::Box {
-                min: Vec3::new(-10.0, -5.0, -10.0),
-                max: Vec3::new(10.0, 5.0, 10.0),
+                min: Meters3::new(-100.0, -50.0, -100.0),
+                max: Meters3::new(100.0, 50.0, 100.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
                     id: "rock".to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     material: None,
                     destroy_sound: None,
-                    radius: 2.0,
+                    radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     mass: None,
                     invulnerable: false,
@@ -1172,20 +1193,20 @@ mod tests {
             count: authored_count,
             seed: 123,
             region: ScatterRegion::Box {
-                min: Vec3::new(-10.0, -5.0, -10.0),
-                max: Vec3::new(10.0, 5.0, 10.0),
+                min: Meters3::new(-100.0, -50.0, -100.0),
+                max: Meters3::new(100.0, 50.0, 100.0),
             },
             template: ScenarioObjectConfig {
                 base: BaseScenarioObjectConfig {
                     id: "rock".to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     material: None,
                     destroy_sound: None,
-                    radius: 2.0,
+                    radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
                     mass: None,
                     invulnerable: false,
@@ -1193,7 +1214,7 @@ mod tests {
                     lock_signature: None,
                 }),
             },
-            asteroid_radius: Some((1.0, 3.0)),
+            asteroid_radius: Some((Meters(10.0), Meters(30.0))),
             min_separation: None,
         };
 

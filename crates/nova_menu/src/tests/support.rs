@@ -12,6 +12,7 @@ use nova_assets::{
         ModCatalog, ModInfo, ModMeta, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
     },
 };
+use nova_events::prelude::Meters3;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
@@ -240,13 +241,13 @@ pub(crate) fn app_with_outcome() -> App {
 
 /// Simulate the backdrop's own `SetCamera` landing: pin the scripted pose
 /// on the scenario camera, exactly what the action inserts (the reference
-/// backdrop pose (0, 90, 300) looking at the origin).
+/// backdrop pose (0, 900, 3000) m looking at the origin).
 pub(crate) fn script_backdrop_pose(app: &mut App, camera: Entity) {
     app.world_mut()
         .entity_mut(camera)
         .insert(ScriptedCameraPose {
-            position: Vec3::new(0.0, 90.0, 300.0),
-            look_at: Vec3::ZERO,
+            position: Meters3::new(0.0, 900.0, 3000.0),
+            look_at: Meters3::ZERO,
         });
 }
 

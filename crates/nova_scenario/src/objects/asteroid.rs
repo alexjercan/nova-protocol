@@ -39,8 +39,8 @@ pub mod prelude {
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AsteroidConfig {
-    /// Nominal radius (world units); drives well qualification and mesh scale.
-    pub radius: f32,
+    /// Nominal radius; drives well qualification and mesh scale.
+    pub radius: Meters,
     /// Surface texture. Authored as an asset path; resolved to a live handle
     /// at spawn time (see `insert_asteroid_render`).
     #[reflect(ignore)]
@@ -67,7 +67,7 @@ pub struct AsteroidConfig {
     )]
     #[reflect(ignore)]
     pub destroy_sound: Option<AssetRef<AudioSource>>,
-    /// Mass parameter (`mu`, u^3/s^2) making this body a gravity well:
+    /// Well STRENGTH: the mass parameter `mu` making this body a gravity well:
     /// `a = mu / r^2`, and the sphere of influence is where that decays to
     /// [`GravitySettings::soi_cutoff_accel`]. `Some` always makes this
     /// asteroid a well (subject to the
@@ -79,6 +79,12 @@ pub struct AsteroidConfig {
     /// Tune this by the SOI you want, not by a number that means anything on
     /// its own: mass is invisible in game, the sphere of influence is what a
     /// pilot feels. `mu = soi_cutoff_accel * soi^2`.
+    ///
+    /// A designer dial, not an SI mass, and the one authored number that is
+    /// not in meters: `mu` carries a length CUBED over a time squared, so it
+    /// stays on the engine side with the integrator that spends it. What a
+    /// creator reads instead is what it produces - surface gravity in m/s^2
+    /// and a sphere of influence in km.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -91,12 +97,15 @@ pub struct AsteroidConfig {
     pub invulnerable: bool,
     /// Radar signature override; `None` = the radius (a rock locks in
     /// proportion to its size). A scenario body meant to be designated from
-    /// afar authors what it needs.
+    /// afar authors what it needs. Lock range is
+    /// [`signature_range_per_unit`](nova_ship::prelude::TargetingSettings::signature_range_per_unit)
+    /// times this - a plain ratio, so 30 reads as 30 m of range per meter of
+    /// signature.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub lock_signature: Option<f32>,
+    pub lock_signature: Option<Meters>,
     /// Silhouette seed for the noise mesh. `Some` pins the generated shape -
     /// and with it the derived geometric `BodyRadius` - so content that
     /// authors clearances around this rock (patrol lanes, orbit gates) holds
@@ -158,10 +167,11 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // visible pop on the first hit, and `asteroid_surface` for why a planet
     // generator made every rock look like a ball with lumps on it.
     let started = Instant::now();
-    let mesh = pristine_rock_mesh(seed, config.radius);
+    // Engine boundary: the rock is meshed and collided in world units.
+    let mesh = pristine_rock_mesh(seed, config.radius.to_engine());
     trace!(
-        "asteroid_scenario_object: meshed seed {seed} at radius {:.1} in {:.1} ms",
-        config.radius,
+        "asteroid_scenario_object: meshed seed {seed} at radius {:.1} m in {:.1} ms",
+        config.radius.get(),
         started.elapsed().as_secs_f32() * 1000.0
     );
     // A pristine rock is a noise-displaced ball, so its HULL is what to
@@ -186,7 +196,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     // unit-scale, scaled by `radius` on its Transform, so the world extent is
     // radius * the outermost vertex.
     let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
-    let radius = config.radius;
+    let radius = config.radius.to_engine();
 
     entity.insert((
         AsteroidMarker,
@@ -210,7 +220,7 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         // rocks only lock up close, big bodies from afar (well sources
         // are range-free in the targeting gate anyway). An authored
         // override wins (the shakedown derelict).
-        LockSignature(config.lock_signature.unwrap_or(radius)),
+        LockSignature(config.lock_signature.map_or(radius, Meters::to_engine)),
         // Asteroids are worth scoping in the target inset (a physical combat
         // body, unlike a nav beacon), so flag them zoomable.
         InsetZoomable,
@@ -831,7 +841,7 @@ mod tests {
     #[test]
     fn the_collider_node_lands_in_the_same_batch_as_the_body() {
         let mut app = App::new();
-        let asteroid = spawn_rock(&mut app, rock(20.0, None), 7);
+        let asteroid = spawn_rock(&mut app, rock(Meters(200.0), None), 7);
 
         // No update() anywhere: everything below is true the moment the
         // spawning batch has been applied.
@@ -862,7 +872,7 @@ mod tests {
     #[test]
     fn a_pristine_rock_collides_as_a_hull() {
         let mut app = App::new();
-        let asteroid = spawn_rock(&mut app, rock(4.0, None), 20_260_819);
+        let asteroid = spawn_rock(&mut app, rock(Meters(40.0), None), 20_260_819);
 
         let node = app
             .world()
@@ -887,7 +897,7 @@ mod tests {
         // GOTO "still stops too close" when measured from the nominal
         // sphere).
         let mut app = App::new();
-        let asteroid = spawn_rock(&mut app, rock(20.0, None), 4242);
+        let asteroid = spawn_rock(&mut app, rock(Meters(200.0), None), 4242);
 
         let derived = app
             .world()
@@ -910,9 +920,9 @@ mod tests {
         // authored clearances (patrol lanes, orbit gates) are measured
         // against, so it must not drift run to run.
         let mut app = App::new();
-        let first = spawn_rock(&mut app, rock(10.0, None), 7);
-        let second = spawn_rock(&mut app, rock(10.0, None), 7);
-        let other = spawn_rock(&mut app, rock(10.0, None), 8);
+        let first = spawn_rock(&mut app, rock(Meters(100.0), None), 7);
+        let second = spawn_rock(&mut app, rock(Meters(100.0), None), 7);
+        let other = spawn_rock(&mut app, rock(Meters(100.0), None), 8);
 
         let radius_of = |app: &App, entity: Entity| -> f32 {
             app.world()
@@ -959,7 +969,7 @@ mod tests {
         app.add_observer(insert_asteroid_gravity_well);
 
         let settings = GravitySettings::default();
-        let asteroid = spawn_rock(&mut app, rock(20.0, Some(45_000.0)), 11);
+        let asteroid = spawn_rock(&mut app, rock(Meters(200.0), Some(45_000.0)), 11);
         app.update();
 
         let derived = app
@@ -989,7 +999,7 @@ mod tests {
         let mut app = App::new();
 
         let spawn = |app: &mut App, invulnerable: bool| -> Entity {
-            let mut config = rock(20.0, Some(45_000.0));
+            let mut config = rock(Meters(200.0), Some(45_000.0));
             config.invulnerable = invulnerable;
             spawn_rock(app, config, 3)
         };
@@ -1034,8 +1044,10 @@ mod tests {
         );
     }
 
-    /// The authored config every rock test starts from.
-    fn rock(radius: f32, mass: Option<f32>) -> AsteroidConfig {
+    /// The authored config every rock test starts from. The radius is
+    /// authored in meters; the assertions below read avian and Bevy, so they
+    /// are in world units - a 200 m rock is 20 of them.
+    fn rock(radius: Meters, mass: Option<f32>) -> AsteroidConfig {
         AsteroidConfig {
             material: None,
             destroy_sound: None,
@@ -1074,8 +1086,8 @@ mod tests {
     fn a_big_rock_gets_a_default_well_and_a_field_rock_gets_none() {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
-        let big = spawn_rock(&mut app, rock(20.0, None), 21);
-        let small = spawn_rock(&mut app, rock(2.0, None), 22);
+        let big = spawn_rock(&mut app, rock(Meters(200.0), None), 21);
+        let small = spawn_rock(&mut app, rock(Meters(20.0), None), 22);
         app.update();
 
         // The default mass, through the same constructor the observer uses,
@@ -1119,9 +1131,9 @@ mod tests {
         let mut app = gravity_app();
         let settings = GravitySettings::default();
         // Authored well on a rock below the threshold: still a well.
-        let small = spawn_rock(&mut app, rock(2.0, Some(4.0)), 31);
+        let small = spawn_rock(&mut app, rock(Meters(20.0), Some(4.0)), 31);
         // Authored mass beyond the guardrail: capped, not honored.
-        let hot = spawn_rock(&mut app, rock(20.0, Some(500_000.0)), 32);
+        let hot = spawn_rock(&mut app, rock(Meters(200.0), Some(500_000.0)), 32);
         app.update();
 
         let small_well = app

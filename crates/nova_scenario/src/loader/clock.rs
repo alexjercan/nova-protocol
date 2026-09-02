@@ -37,7 +37,11 @@ fn sample_scenario_queries(
 ) {
     let mut speeds = HashMap::new();
     for (id, velocity) in &entities {
-        let value = Some(velocity.length() as f64);
+        // Engine boundary: avian reports world units per second, and the
+        // expression language a scenario compares this against is SI.
+        let value = Some(f64::from(
+            MetersPerSecond::from_engine(velocity.length()).get(),
+        ));
         match speeds.entry(id.0.clone()) {
             bevy::platform::collections::hash_map::Entry::Vacant(entry) => {
                 entry.insert(value);
@@ -917,7 +921,7 @@ mod tests {
         app.world_mut().spawn((
             SpaceshipRootMarker,
             EntityId::new("scavenger".to_string()),
-            LinearVelocity(Vec3::new(30.0, 0.0, 40.0)), // |v| = 50
+            LinearVelocity(Vec3::new(30.0, 0.0, 40.0)), // |v| = 50 u/s, 500 m/s
         ));
         let player = app
             .world_mut()
@@ -925,7 +929,7 @@ mod tests {
                 SpaceshipRootMarker,
                 PlayerSpaceshipMarker,
                 EntityId::new("player_spaceship".to_string()),
-                LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5
+                LinearVelocity(Vec3::new(3.0, 0.0, 4.0)), // |v| = 5 u/s, 50 m/s
             ))
             .id();
         // Section ids are local to a ship and commonly repeat. They have no
@@ -936,8 +940,8 @@ mod tests {
         app.update();
         assert_eq!(
             speed(&app),
-            5.0,
-            "player_speed reads the player ship's |LinearVelocity|, not the AI's 50"
+            50.0,
+            "player_speed reads the player ship's |LinearVelocity| in m/s, not the AI's 500"
         );
 
         // Zero velocity reads 0.0 (the readout tracks live).
@@ -946,9 +950,9 @@ mod tests {
         assert_eq!(speed(&app), 0.0, "a stationary player reads zero speed");
 
         // A new velocity is reflected the next tick.
-        app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = Vec3::new(6.0, 0.0, 8.0); // |v| = 10
+        app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = Vec3::new(6.0, 0.0, 8.0); // |v| = 10 u/s
         app.update();
-        assert_eq!(speed(&app), 10.0, "player_speed follows the live velocity");
+        assert_eq!(speed(&app), 100.0, "player_speed follows the live velocity");
 
         // Pause freezes the readout: it holds its last value even as the
         // velocity changes underneath (the shared pause gate, same as the clock).
@@ -957,7 +961,7 @@ mod tests {
             .set(PauseStates::Paused);
         app.update(); // applies the transition
         let at_pause = speed(&app);
-        assert_eq!(at_pause, 10.0, "the readout latches its pre-pause value");
+        assert_eq!(at_pause, 100.0, "the readout latches its pre-pause value");
         app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = Vec3::new(100.0, 0.0, 0.0);
         for _ in 0..4 {
             app.update();
@@ -976,7 +980,7 @@ mod tests {
         app.update();
         assert_eq!(
             speed(&app),
-            100.0,
+            1_000.0,
             "unpausing resumes tracking the live velocity"
         );
 
@@ -986,7 +990,7 @@ mod tests {
         assert_eq!(
             speed(&app),
             0.0,
-            "with no player ship, player_speed fails closed to 0.0 (not the AI's 50)"
+            "with no player ship, player_speed fails closed to 0.0 (not the AI's 500)"
         );
     }
 }

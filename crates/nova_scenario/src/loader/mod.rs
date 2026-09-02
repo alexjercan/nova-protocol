@@ -624,9 +624,9 @@ impl Plugin for ScenarioLoaderPlugin {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ScriptedCameraPose {
     /// World-space camera position.
-    pub position: Vec3,
+    pub position: Meters3,
     /// World-space point the camera looks at (up is +Y).
-    pub look_at: Vec3,
+    pub look_at: Meters3,
 }
 
 /// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
@@ -634,7 +634,10 @@ pub struct ScriptedCameraPose {
 /// camera Transform, shake offset included.
 fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
     for (mut transform, pose) in &mut cameras {
-        *transform = Transform::from_translation(pose.position).looking_at(pose.look_at, Vec3::Y);
+        // Engine boundary: the one place a scripted pose becomes a Bevy
+        // transform, so every poser upstream of it stays in meters.
+        *transform = Transform::from_translation(pose.position.to_engine())
+            .looking_at(pose.look_at.to_engine(), Vec3::Y);
     }
 }
 
@@ -731,7 +734,7 @@ mod tests {
         let ship = SpaceshipConfig {
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,
-                speed_cap: Some(100.0),
+                speed_cap: Some(MetersPerSecond(1_000.0)),
             }),
             hull: ShipSource::Inline(ShipHull {
                 sections: vec![SpaceshipSectionConfig {
@@ -764,13 +767,13 @@ mod tests {
                         base: BaseScenarioObjectConfig {
                             id: "rock".to_string(),
                             name: "Rock".to_string(),
-                            position: Vec3::new(1.0, 2.0, 3.0),
+                            position: Meters3::new(10.0, 20.0, 30.0),
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                             material: None,
                             destroy_sound: None,
-                            radius: 5.0,
+                            radius: Meters(50.0),
                             texture: AssetRef::from("textures/rock.png"),
                             mass: None,
                             invulnerable: false,
@@ -782,14 +785,14 @@ mod tests {
                         base: BaseScenarioObjectConfig {
                             id: "beacon_1".to_string(),
                             name: "Beacon".to_string(),
-                            position: Vec3::new(10.0, 0.0, 0.0),
+                            position: Meters3::new(100.0, 0.0, 0.0),
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Beacon(BeaconConfig {
                             label: "BEACON 1".to_string(),
-                            radius: 2.0,
+                            radius: Meters(20.0),
                             color: Color::srgb(0.3, 0.9, 1.0),
-                            area_radius: Some(40.0),
+                            area_radius: Some(Meters(400.0)),
                             lock_signature: None,
                         }),
                     }),
@@ -797,7 +800,7 @@ mod tests {
                         base: BaseScenarioObjectConfig {
                             id: "player".to_string(),
                             name: "Player".to_string(),
-                            position: Vec3::ZERO,
+                            position: Meters3::ZERO,
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
@@ -831,7 +834,7 @@ mod tests {
             panic!("first spawn is an asteroid");
         };
         assert_eq!(rock_kind.texture.path(), Some("textures/rock.png"));
-        assert_eq!(rock_kind.radius, 5.0);
+        assert_eq!(rock_kind.radius, Meters(50.0));
 
         // The player ship's bindings come back as the sources they went in as.
         let EventActionConfig::SpawnScenarioObject(player) = &actions[2] else {
@@ -843,7 +846,7 @@ mod tests {
         let SpaceshipController::Player(player_config) = &ship_kind.controller else {
             panic!("the ship is player-controlled");
         };
-        assert_eq!(player_config.speed_cap, Some(100.0));
+        assert_eq!(player_config.speed_cap, Some(MetersPerSecond(1_000.0)));
         assert_eq!(
             player_config.input_mapping.get("thruster"),
             Some(&bindings),

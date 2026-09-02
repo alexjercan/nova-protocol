@@ -1,6 +1,7 @@
 //! Shared scenario fixtures for the loader submodule tests.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 
 use crate::prelude::*;
@@ -10,13 +11,13 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
         base: BaseScenarioObjectConfig {
             id: "obj".to_string(),
             name: "Obj".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             material: None,
             destroy_sound: None,
-            radius: 1.0,
+            radius: Meters(10.0),
             texture: AssetRef::default(),
             mass: None,
             invulnerable: false,

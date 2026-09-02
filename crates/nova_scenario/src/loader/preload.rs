@@ -293,6 +293,8 @@ pub(super) fn register_scenario_preload(app: &mut App, render: bool) {
 
 #[cfg(test)]
 mod tests {
+    use nova_events::prelude::*;
+
     use super::*;
     use crate::loader::fixtures::*;
 
@@ -329,7 +331,7 @@ mod tests {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
                 name: id.to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig { hull, ..default() }),
@@ -446,8 +448,8 @@ mod tests {
             count: 8,
             seed: 1,
             region: ScatterRegion::Box {
-                min: Vec3::splat(-10.0),
-                max: Vec3::splat(10.0),
+                min: Meters3::new(-100.0, -100.0, -100.0),
+                max: Meters3::new(100.0, 100.0, 100.0),
             },
             template,
             asteroid_radius: None,

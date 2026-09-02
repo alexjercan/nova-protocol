@@ -39,10 +39,10 @@ const CRATE_EMISSIVE_MAX: f32 = 6.0;
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SalvageCrateConfig {
-    /// Edge length of the crate's visible box (world units).
-    pub size: f32,
+    /// Edge length of the crate's visible box.
+    pub size: Meters,
     /// Pickup radius: the sensor sphere that counts as "collected".
-    pub area_radius: f32,
+    pub area_radius: Meters,
     /// The pickup "ding" this crate plays, an authorable
     /// [`AssetRef<AudioSource>`] like any other content sound. AUTHORED-OR-
     /// SILENT: an omitted sound picks up quietly; base crates author
@@ -71,16 +71,16 @@ pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle 
     (
         SalvageCrateMarker,
         EntityTypeName::new(SALVAGE_CRATE_TYPE_NAME),
-        SalvageCrateSize(config.size),
+        SalvageCrateSize(config.size.to_engine()),
         SalvageCratePickupSound(config.pickup_sound.clone()),
         // Every pickup advertises itself: the HUD's item-highlights observer
         // grows a bracket sized to the crate's VISIBLE half-diagonal.
         // Intrinsic, not scenario data - a silent pickup is a bug.
-        ItemHighlight::new(config.size * 3f32.sqrt() / 2.0),
+        ItemHighlight::new(config.size.to_engine() * 3f32.sqrt() / 2.0),
         // The pickup volume: the crate IS its own trigger area, so OnEnter
         // fires under its scenario id via the area plugin.
         ScenarioAreaMarker,
-        Collider::sphere(config.area_radius),
+        Collider::sphere(config.area_radius.to_engine()),
         Sensor,
         // On rails: a sensor-only collider contributes no mass, so a
         // Dynamic crate would be an avian zero-mass warning; the visual
@@ -93,7 +93,8 @@ pub fn salvage_crate_scenario_object(config: SalvageCrateConfig) -> impl Bundle 
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct SalvageCrateMarker;
 
-/// Render input: the crate's visible edge length.
+/// Render input: the crate's visible edge length in world units, sized for a
+/// Bevy cuboid mesh.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
 pub struct SalvageCrateSize(pub f32);
 
@@ -307,8 +308,8 @@ mod tests {
         let mut world = World::new();
         let entity = world
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
-                size: 1.5,
-                area_radius: 6.0,
+                size: Meters(15.0),
+                area_radius: Meters(60.0),
                 pickup_sound: None,
             }))
             .id();
@@ -319,10 +320,12 @@ mod tests {
             .expect("a pickup advertises itself: the HUD bracket hangs off this tag");
         // The bracket radius is the crate box's half-diagonal - the VISIBLE
         // extent, decoupled from the (much larger) sensor sphere.
+        // The bracket is engine-side geometry: a 15 m crate is 1.5 world
+        // units on a side.
         let expected = 1.5 * 3f32.sqrt() / 2.0;
         assert!(
             (highlight.world_radius - expected).abs() < 1e-5,
-            "highlight radius {} is the visible half-diagonal {expected}, not the 6.0 sensor",
+            "highlight radius {} is the visible half-diagonal {expected}, not the 60 m sensor",
             highlight.world_radius
         );
         assert!(world.get::<ScenarioAreaMarker>(entity).is_some());
@@ -385,8 +388,8 @@ mod tests {
 
         app.world_mut().spawn((
             salvage_crate_scenario_object(SalvageCrateConfig {
-                size: 1.5,
-                area_radius: 6.0,
+                size: Meters(15.0),
+                area_radius: Meters(60.0),
                 pickup_sound: None,
             }),
             EntityId::new("crate_1".to_string()),
@@ -477,8 +480,8 @@ mod tests {
         app.world_mut()
             .spawn((
                 salvage_crate_scenario_object(SalvageCrateConfig {
-                    size: 1.5,
-                    area_radius: 6.0,
+                    size: Meters(15.0),
+                    area_radius: Meters(60.0),
                     pickup_sound: Some(AssetRef::from("base/sounds/salvage_pickup.wav")),
                 }),
                 CollisionEventsEnabled,
@@ -537,8 +540,8 @@ mod tests {
         let mut app = pickup_audio_app();
         app.world_mut().spawn((
             salvage_crate_scenario_object(SalvageCrateConfig {
-                size: 1.5,
-                area_radius: 6.0,
+                size: Meters(15.0),
+                area_radius: Meters(60.0),
                 pickup_sound: None,
             }),
             CollisionEventsEnabled,
@@ -663,8 +666,8 @@ mod tests {
         let root = app
             .world_mut()
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
-                size: 1.5,
-                area_radius: 6.0,
+                size: Meters(15.0),
+                area_radius: Meters(60.0),
                 pickup_sound: None,
             }))
             .id();
@@ -718,8 +721,8 @@ mod tests {
         let root = app
             .world_mut()
             .spawn(salvage_crate_scenario_object(SalvageCrateConfig {
-                size: 1.5,
-                area_radius: 6.0,
+                size: Meters(15.0),
+                area_radius: Meters(60.0),
                 pickup_sound: None,
             }))
             .id();

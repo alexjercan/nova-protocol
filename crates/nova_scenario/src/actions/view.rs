@@ -28,9 +28,9 @@ use crate::prelude::*;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SetCameraActionConfig {
     /// World-space camera position.
-    pub position: Vec3,
+    pub position: Meters3,
     /// World-space point the camera looks at (up is +Y).
-    pub look_at: Vec3,
+    pub look_at: Meters3,
 }
 
 impl EventAction<NovaEventWorld> for SetCameraActionConfig {
@@ -550,8 +550,8 @@ mod tests {
             .id();
 
         let action = SetCameraActionConfig {
-            position: Vec3::new(5.0, 6.0, 7.0),
-            look_at: Vec3::ZERO,
+            position: Meters3::new(50.0, 60.0, 70.0),
+            look_at: Meters3::ZERO,
         };
         let mut event_world = world.resource_mut::<NovaEventWorld>();
         action.action(&mut event_world, &GameEventInfo::default());
@@ -560,8 +560,8 @@ mod tests {
         let pose = world
             .get::<ScriptedCameraPose>(camera)
             .expect("the camera is pinned to a scripted pose");
-        assert_eq!(pose.position, Vec3::new(5.0, 6.0, 7.0));
-        assert_eq!(pose.look_at, Vec3::ZERO);
+        assert_eq!(pose.position, Meters3::new(50.0, 60.0, 70.0));
+        assert_eq!(pose.look_at, Meters3::ZERO);
         assert!(
             world.get::<WASDCameraController>(camera).is_none(),
             "WASD control is dropped so free-fly input stops"
@@ -580,8 +580,8 @@ mod tests {
         let bystander = world.spawn(Transform::default()).id();
 
         let action = SetCameraActionConfig {
-            position: Vec3::ONE,
-            look_at: Vec3::ZERO,
+            position: Meters3::new(1.0, 1.0, 1.0),
+            look_at: Meters3::ZERO,
         };
         let mut event_world = world.resource_mut::<NovaEventWorld>();
         action.action(&mut event_world, &GameEventInfo::default());
@@ -639,8 +639,8 @@ mod tests {
     #[test]
     fn set_camera_config_round_trips_through_ron() {
         let config = SetCameraActionConfig {
-            position: Vec3::new(1.0, 2.0, 3.0),
-            look_at: Vec3::new(-1.0, 0.0, 5.0),
+            position: Meters3::new(10.0, 20.0, 30.0),
+            look_at: Meters3::new(-10.0, 0.0, 50.0),
         };
         let ron = ron::to_string(&config).expect("serialize");
         let back: SetCameraActionConfig = ron::from_str(&ron).expect("deserialize");

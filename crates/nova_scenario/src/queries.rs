@@ -56,7 +56,7 @@ pub struct EntityQueryFilter {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EntityProperty {
-    /// Magnitude of the entity's linear velocity in units per second.
+    /// Magnitude of the entity's linear velocity, in meters per second.
     Speed,
 }
 

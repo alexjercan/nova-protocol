@@ -295,6 +295,26 @@ impl Meters3 {
     pub fn length(self) -> Meters {
         Meters(self.0.length())
     }
+
+    /// How far apart two points are.
+    pub fn distance(self, other: Self) -> Meters {
+        Meters(self.0.distance(other.0))
+    }
+
+    /// The east-west component.
+    pub const fn x(self) -> Meters {
+        Meters(self.0.x)
+    }
+
+    /// The up-down component.
+    pub const fn y(self) -> Meters {
+        Meters(self.0.y)
+    }
+
+    /// The north-south component.
+    pub const fn z(self) -> Meters {
+        Meters(self.0.z)
+    }
 }
 
 impl Add for Meters3 {

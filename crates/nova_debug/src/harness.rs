@@ -101,7 +101,7 @@ pub use nova_autopilot::{
     predicate::{not, Predicate},
 };
 use nova_editor::prelude::{EditorPlacement, EditorProbe, EditorTool};
-use nova_events::prelude::EntityId;
+use nova_events::prelude::{EntityId, Meters3};
 use nova_gameplay::{
     prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRootMarker},
     GameStates,
@@ -664,7 +664,7 @@ pub fn hide_hud(world: &mut World) {
 /// capture step. A no-op with a warning when no scenario camera is present yet -
 /// gate the script on [`scenario_camera_present`] to make that a stall the
 /// harness names rather than an unframed shot.
-pub fn pose_camera(world: &mut World, position: Vec3, look_at: Vec3) {
+pub fn pose_camera(world: &mut World, position: Meters3, look_at: Meters3) {
     let camera = {
         let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
         query.iter(world).next()
@@ -726,13 +726,13 @@ mod tests {
             ))
             .id();
 
-        pose_camera(&mut world, Vec3::new(3.0, 4.0, 5.0), Vec3::ZERO);
+        pose_camera(&mut world, Meters3::new(30.0, 40.0, 50.0), Meters3::ZERO);
 
         let pose = world
             .get::<ScriptedCameraPose>(camera)
             .expect("the camera is pinned to a scripted pose");
-        assert_eq!(pose.position, Vec3::new(3.0, 4.0, 5.0));
-        assert_eq!(pose.look_at, Vec3::ZERO);
+        assert_eq!(pose.position, Meters3::new(30.0, 40.0, 50.0));
+        assert_eq!(pose.look_at, Meters3::ZERO);
         assert!(
             world.get::<WASDCameraController>(camera).is_none(),
             "WASD control is dropped so free-fly input stops"
@@ -744,7 +744,7 @@ mod tests {
     fn pose_camera_without_a_camera_is_harmless() {
         let mut world = World::new();
         let bystander = world.spawn(Transform::default()).id();
-        pose_camera(&mut world, Vec3::ONE, Vec3::ZERO);
+        pose_camera(&mut world, Meters3::new(1.0, 1.0, 1.0), Meters3::ZERO);
         assert!(world.get_entity(bystander).is_ok());
     }
 

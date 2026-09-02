@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 use nova_ship::prelude::SectionConfig;
 
@@ -65,14 +66,14 @@ pub(crate) fn spawn_object(id: &str) -> EventActionConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: id.to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: id.to_uppercase(),
-            radius: 1.0,
+            radius: Meters(10.0),
             color: Color::WHITE,
-            area_radius: Some(5.0),
+            area_radius: Some(Meters(50.0)),
             lock_signature: None,
         }),
     })
@@ -83,7 +84,7 @@ pub(crate) fn spawn_ship(id: &str, proto: &str) -> EventActionConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: id.to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {

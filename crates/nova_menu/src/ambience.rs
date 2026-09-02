@@ -195,8 +195,13 @@ pub(crate) fn stage_menu_camera(
         if let Some(pose) = scripted {
             // The backdrop owns the pose (the loader's PostUpdate authority
             // override enforces it); remember it for the next reload gap.
-            memory.0 =
-                Some(Transform::from_translation(pose.position).looking_at(pose.look_at, Vec3::Y));
+            // Engine boundary: the remembered pose is a Bevy transform, so
+            // the scripted meters cross here exactly as the loader's own
+            // enforcer crosses them.
+            memory.0 = Some(
+                Transform::from_translation(pose.position.to_engine())
+                    .looking_at(pose.look_at.to_engine(), Vec3::Y),
+            );
             camera.is_active = true;
         } else if let Some(pose) = memory.0 {
             // Reload gap: the fresh camera exists but the reloading

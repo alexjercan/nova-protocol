@@ -923,6 +923,7 @@ fn compares_the_clock_to_a_non_literal(
 #[cfg(test)]
 mod tests {
     use bevy::prelude::*;
+    use nova_events::prelude::*;
 
     use super::*;
     use crate::lint::{fixtures::*, LintSeverity};
@@ -1146,8 +1147,8 @@ mod tests {
 
         let mut posed = scenario(
             vec![EventActionConfig::SetCamera(SetCameraActionConfig {
-                position: Vec3::new(0.0, 90.0, 300.0),
-                look_at: Vec3::ZERO,
+                position: Meters3::new(0.0, 900.0, 3_000.0),
+                look_at: Meters3::ZERO,
             })],
             vec![],
         );
@@ -1230,11 +1231,11 @@ mod tests {
                 count: 50_000_000,
                 seed: 1,
                 region: ScatterRegion::Ring {
-                    center: Vec3::ZERO,
-                    inner: 10.0,
-                    outer: 20.0,
-                    y_min: -1.0,
-                    y_max: 1.0,
+                    center: Meters3::ZERO,
+                    inner: Meters(100.0),
+                    outer: Meters(200.0),
+                    y_min: Meters(-10.0),
+                    y_max: Meters(10.0),
                 },
                 template: match spawn_object("rock_") {
                     EventActionConfig::SpawnScenarioObject(config) => config,
@@ -1262,11 +1263,11 @@ mod tests {
                 count: 3,
                 seed: 1,
                 region: ScatterRegion::Ring {
-                    center: Vec3::ZERO,
-                    inner: 10.0,
-                    outer: 20.0,
-                    y_min: -1.0,
-                    y_max: 1.0,
+                    center: Meters3::ZERO,
+                    inner: Meters(100.0),
+                    outer: Meters(200.0),
+                    y_min: Meters(-10.0),
+                    y_max: Meters(10.0),
                 },
                 template: match spawn_object("rock_") {
                     EventActionConfig::SpawnScenarioObject(config) => config,

@@ -623,7 +623,7 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "raider".to_string(),
                     name: "Raider".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -663,7 +663,7 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "duelist".to_string(),
                     name: "Duelist".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -857,11 +857,11 @@ mod tests {
                 count: 2,
                 seed: 1,
                 region: ScatterRegion::Ring {
-                    center: Vec3::ZERO,
-                    inner: 10.0,
-                    outer: 20.0,
-                    y_min: -1.0,
-                    y_max: 1.0,
+                    center: Meters3::ZERO,
+                    inner: Meters(100.0),
+                    outer: Meters(200.0),
+                    y_min: Meters(-10.0),
+                    y_max: Meters(10.0),
                 },
                 template,
                 asteroid_radius: None,
@@ -889,7 +889,7 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "ship".to_string(),
                     name: "ship".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -978,7 +978,7 @@ mod tests {
                 base: BaseScenarioObjectConfig {
                     id: "ship".to_string(),
                     name: "ship".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -1113,7 +1113,7 @@ mod tests {
             base: BaseScenarioObjectConfig {
                 id: "ship".to_string(),
                 name: "ship".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
