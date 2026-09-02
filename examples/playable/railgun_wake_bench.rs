@@ -943,10 +943,6 @@ fn place_lane_labels(
     }
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// The slow-motion step the captures are shot at: a tenth speed, so every
 /// lane's slug is still in flight when the shutter fires.
 #[cfg(feature = "debug")]
@@ -1075,6 +1071,21 @@ const SHOTS: [Shot; 9] = [
     },
 ];
 
+/// Advance once the graphics budget has followed `quality`.
+///
+/// The budget is what the slug's observer reads when it decides whether a
+/// wake spawns, and it follows the quality a frame behind the write, so a
+/// volley fired on the write's own frame would be dressed for the previous
+/// preset.
+#[cfg(feature = "debug")]
+fn budget_follows(quality: GraphicsQuality) -> Arc<Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .get_resource::<GraphicsBudget>()
+            .is_some_and(|budget| *budget == GraphicsBudget::for_quality(quality))
+    })
+}
+
 /// Advance once the slug on `lane` has flown `travel` units down it.
 #[cfg(feature = "debug")]
 fn slug_flew(lane: usize, travel: f32) -> Arc<Predicate> {
@@ -1145,7 +1156,8 @@ fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
                 bench.speed_step = CAPTURE_SPEED_STEP;
                 world.resource_mut::<GraphicsQuality>().set_if_neq(quality);
             })
-            .until(frames(2))
+            .until(budget_follows(quality))
+            .deadline(STEP_DEADLINE_SECS)
             .add()
             .step(format!("volley under {}", policy.label()))
             .on_enter(|world: &mut World| world.resource_mut::<VolleyClock>().requested = true)
