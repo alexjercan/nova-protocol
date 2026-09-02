@@ -19,6 +19,7 @@ use bevy::{
     ui_widgets::{observe, Activate, Button},
     window::PrimaryWindow,
 };
+use nova_events::units::prelude::*;
 use nova_scenario::prelude::{Names, ScenarioObjectKind};
 use nova_ship::prelude::GameSections;
 use nova_ui::{
@@ -41,13 +42,13 @@ use crate::{
     },
     gizmo::GizmoAxis,
     inspect::{
-        action_rows, authored_text, axis_step, choose_field, curated_object_rows,
-        curated_section_rows, driver_label, editable_config, event_rows, filter_rows, gate_rows,
-        inspected, nudge_field, object_config_mut, object_rows, operand_path, operand_row,
-        parse_colour, rotation_degrees, rotation_from_degrees, scenario_rows, script_name,
-        section_config_mut, section_rows, ship_rows, step_rows, toggle_field, write_field,
-        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand,
-        PathStep, RowValue, ScriptNames, GRIP_GONE,
+        action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
+        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
+        object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
+        rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
+        ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
+        InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames,
+        GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -113,9 +114,6 @@ pub(crate) struct InspectorField {
     root: FieldRoot,
     path: Vec<PathStep>,
     optional: bool,
-    /// What the box shows per authored unit; what it is typed in is divided
-    /// by this on the way back to the file.
-    scale: f32,
 }
 
 /// The chip that opens the picker on a row that NAMES something, and what
@@ -1179,7 +1177,6 @@ fn spawn_operand_row(
                 root: FieldRoot::Config,
                 path: operand_path(),
                 optional: false,
-                scale: 1.0,
             };
             value
                 .spawn(Node {
@@ -1514,7 +1511,6 @@ fn build_rows(
             root: row.root,
             path: row.path.clone(),
             optional: row.optional,
-            scale: row.scale,
         };
         // The row steps in with its group, and its NAME COLUMN gives up
         // exactly what the step took: the value boxes stay in one column down
@@ -2234,8 +2230,18 @@ impl EditTargets<'_, '_> {
                     .poses
                     .get_mut(field.node)
                     .map_err(|_| GRIP_GONE.to_string())?;
+                // METERS on the way out, meters on the way back: a node's pose
+                // is a Bevy transform, which counts world units, and every
+                // number the panel shows is meters. The row crosses the seam
+                // reading (`pose_rows`) and the edit crosses it writing, so
+                // nothing between the two has to know the scale. A refusal
+                // leaves the pose alone, which is why the translation is only
+                // written once the edit took.
                 if_it_took(&mut pose, |pose| {
-                    edit(&mut pose.translation, &field.path, field.optional)
+                    let mut meters = Meters3::from_engine(pose.translation);
+                    edit(&mut meters.0, &field.path, field.optional)?;
+                    pose.translation = meters.to_engine();
+                    Ok(())
                 })
             }
             FieldRoot::Rotation => {
@@ -2376,7 +2382,7 @@ pub(crate) fn apply_inspector_edits(
             continue;
         };
         let written = targets.edit(field, |root, path, optional| {
-            write_field(root, path, optional, &authored_text(value, field.scale))
+            write_field(root, path, optional, value)
         });
         match written {
             Ok(()) => {

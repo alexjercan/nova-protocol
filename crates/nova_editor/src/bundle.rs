@@ -317,7 +317,8 @@ fn lift_ship(
         driver,
         allegiance: spawn.allegiance,
         pilot,
-        pose: Transform::from_translation(object.base.position).with_rotation(object.base.rotation),
+        pose: Transform::from_translation(object.base.position.to_engine())
+            .with_rotation(object.base.rotation),
         skin: hull.skin,
         style: hull.style.clone(),
         sections: hull.sections.clone(),

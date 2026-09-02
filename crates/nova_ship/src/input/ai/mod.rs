@@ -11,6 +11,12 @@
 //! intents the player does (thrust, turret aim, fire), so the section and flight
 //! layers treat AI and player ships identically. See the AI/behavior wiki page
 //! for the state-machine design.
+//!
+//! ENGINE UNITS throughout. Every range, speed and margin in this module is
+//! compared against an avian `Position` or `LinearVelocity` on every tick, so
+//! the numbers here are world units (one is 10 m) and the conversion happens
+//! once, at the scenario spawn that authored an override. The docs quote the
+//! metric figure beside each one.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;

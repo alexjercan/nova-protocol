@@ -4,6 +4,7 @@
 
 use avian3d::prelude::{Collider, SimpleCollider};
 use bevy::ecs::system::RunSystemOnce;
+use nova_events::units::prelude::*;
 use nova_scenario::prelude::{AnchorConfig, ScenarioObjectKind};
 
 use super::*;
@@ -30,6 +31,9 @@ fn camera(app: &mut App) -> Entity {
 }
 
 /// An object node with one view under it, so it has bounds to be framed by.
+///
+/// `at` and `radius` are both ENGINE world units, the register the camera and
+/// the bounds under test are measured in.
 fn rock(app: &mut App, at: Vec3, radius: f32) -> Entity {
     let node = app
         .world_mut()
@@ -38,7 +42,7 @@ fn rock(app: &mut App, at: Vec3, radius: f32) -> Entity {
             ObjectNode {
                 name: "rock".to_string(),
                 kind: ScenarioObjectKind::Anchor(AnchorConfig {
-                    body_radius: radius,
+                    body_radius: Meters::from_engine(radius),
                     mass: None,
                 }),
             },

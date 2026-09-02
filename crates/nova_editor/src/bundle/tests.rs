@@ -1,6 +1,7 @@
 //! What a save is made of, and what a load gets back out of it.
 
 use bevy::ecs::system::RunSystemOnce;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::serialize_content;
@@ -45,11 +46,11 @@ fn object(id: &str) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: id.to_string(),
-            position: Vec3::new(1.0, 2.0, 3.0),
+            position: Meters3::new(10.0, 20.0, 30.0),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Anchor(AnchorConfig {
-            body_radius: 1.0,
+            body_radius: Meters(10.0),
             mass: None,
         }),
     }
@@ -60,7 +61,7 @@ fn instance(id: &str, hull: ShipSource, controller: SpaceshipController) -> Scen
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: id.to_string(),
-            position: Vec3::new(4.0, 0.0, -8.0),
+            position: Meters3::new(40.0, 0.0, -80.0),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -361,7 +362,7 @@ fn document(world: &mut World) -> Entity {
         ObjectNode {
             name: "Rock".to_string(),
             kind: ScenarioObjectKind::Anchor(AnchorConfig {
-                body_radius: 3.0,
+                body_radius: Meters(30.0),
                 mass: None,
             }),
         },
@@ -537,7 +538,10 @@ fn a_document_survives_being_written_and_read_back() {
         .iter()
         .find(|object| object.base.id == "anchor_4")
         .expect("the world's own object comes back");
-    assert_eq!(anchor.base.position, Vec3::new(-30.0, 5.0, 0.0));
+    assert_eq!(
+        anchor.base.position,
+        Meters3::from_engine(Vec3::new(-30.0, 5.0, 0.0))
+    );
     assert_eq!(anchor.base.name, "Rock");
 }
 

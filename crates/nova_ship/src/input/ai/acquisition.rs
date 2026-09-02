@@ -84,7 +84,7 @@ enum AITargetKind {
     Torpedo,
 }
 
-/// Acquisition range (m) of AI target selection. Deliberately shorter than
+/// Acquisition range (world units, 20 km) of AI target selection. Shorter than
 /// the player's TARGETING_MAX_RANGE (20 km): the player's lock doubles as a
 /// long-range designator for GOTO legs and torpedo launches, while AI
 /// sensors only need to find things worth fighting.

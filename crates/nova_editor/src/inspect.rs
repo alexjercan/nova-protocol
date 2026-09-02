@@ -20,10 +20,11 @@ use bevy::{
     reflect::{
         enums::{DynamicEnum, DynamicVariant, VariantInfo},
         tuple::DynamicTuple,
+        tuple_struct::DynamicTupleStruct,
         NamedField, ReflectMut, ReflectRef, TypeInfo, Typed,
     },
 };
-use nova_events::prelude::METERS_PER_UNIT;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
@@ -347,9 +348,6 @@ pub(crate) struct InspectorRow {
     /// How far one pixel of a drag moves this row's number. Zero for a row
     /// holding something that is not a number, which has nothing to scrub.
     pub(crate) nudge: f32,
-    /// What the box shows per authored unit - see [`FieldSpec::scale`]. A
-    /// value typed into the box is divided by it on the way back in.
-    pub(crate) scale: f32,
     /// What the field takes. Carried on the ROW because the grip is handed the
     /// path of one vector component, and `x` is not a name any declaration can
     /// match - resolving the rule a second time from there finds nothing.
@@ -468,7 +466,6 @@ fn kind_row(
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
-        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Choice {
             options: options.map(str::to_string).collect(),
@@ -493,7 +490,6 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
-        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
         hint: String::new(),
@@ -510,14 +506,14 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     let (group, label) = heading_and_label(&path);
     // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
     // one drawn beside it would be a label for the wrong thing.
-    let (unit, nudge, limit, scale) = match value {
+    let (unit, nudge, limit) = match value {
         // A vector's three numbers share one unit, and the row's own line is
         // where it goes - the same place the pose's Position row wears its.
         RowValue::Number(_) | RowValue::Axes(_) => field_spec(&path)
-            .map_or(("", FREE_STEP, Limit::Free, 1.0), |spec| {
-                (spec.unit, spec.step, spec.limit, spec.scale)
+            .map_or(("", FREE_STEP, Limit::Free), |spec| {
+                (spec.unit, spec.step, spec.limit)
             }),
-        _ => ("", 0.0, Limit::Free, 1.0),
+        _ => ("", 0.0, Limit::Free),
     };
     InspectorRow {
         root,
@@ -527,42 +523,14 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         label,
         unit,
         nudge,
-        scale,
         limit,
-        value: shown(value, scale),
+        value,
         hint: String::new(),
         names: None,
         asset: None,
         owner: None,
         depth: 0,
     }
-}
-
-/// A row's text with its scale applied: the authored number, shown in the
-/// unit the box wears. Text that is not a number is left as it is.
-fn shown(value: RowValue, scale: f32) -> RowValue {
-    let factor = f64::from(scale);
-    match value {
-        RowValue::Number(text) => RowValue::Number(scaled_text(&text, factor)),
-        RowValue::Axes(parts) => RowValue::Axes(parts.map(|text| scaled_text(&text, factor))),
-        other => other,
-    }
-}
-
-/// Text typed into a box showing `scale` per authored unit, back in the
-/// authored unit: what the box writes. Text that is not a number is left for
-/// the parser to refuse in its own words.
-pub(crate) fn authored_text(text: &str, scale: f32) -> String {
-    scaled_text(text, 1.0 / f64::from(scale))
-}
-
-fn scaled_text(text: &str, factor: f64) -> String {
-    if (factor - 1.0).abs() < f64::EPSILON {
-        return text.to_string();
-    }
-    text.trim()
-        .parse::<f64>()
-        .map_or_else(|_| text.to_string(), |value| number_text(value * factor))
 }
 
 /// A walked row holding a number, stepped by its own TYPE where its
@@ -605,9 +573,9 @@ pub(crate) enum Limit {
 /// be two lists keyed on the same names, and a name could sit in one and not
 /// the other, which is how every number a turret shows got a bare box.
 ///
-/// Lengths and speeds are shown in meters, the way the HUD reads them. The
-/// file keeps the authored world unit (10 m); a metered field scales the
-/// number on the way out and back, so the box and the HUD agree.
+/// Lengths and speeds are declared in METERS, because that is what the file
+/// under the box now holds: a `Meters` field is authored as the number the HUD
+/// reads, and the row shows it as written. Nothing here converts.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FieldSpec {
     /// The config's OWN field name, matched at ANY depth: a turret's fire rate
@@ -631,10 +599,6 @@ pub(crate) struct FieldSpec {
     /// That floor is the type's, not this table's, so an integer nobody has
     /// declared still drags a whole number at a time.
     step: f32,
-    /// What the box shows per authored unit: 1 for a number shown as written,
-    /// [`METERS_PER_UNIT`] for a length or a speed shown in meters. The step
-    /// and the floor stay in the authored unit.
-    scale: f32,
 }
 
 impl FieldSpec {
@@ -660,19 +624,6 @@ const fn floored(name: &'static str, unit: &'static str, step: f32) -> FieldSpec
         unit,
         limit: Limit::AtLeast(0.0),
         step,
-        scale: 1.0,
-    }
-}
-
-/// A length or a speed: never negative, dragged `step` authored units per
-/// pixel, and shown in meters.
-const fn metered(name: &'static str, unit: &'static str, step: f32) -> FieldSpec {
-    FieldSpec {
-        name,
-        unit,
-        limit: Limit::AtLeast(0.0),
-        step,
-        scale: METERS_PER_UNIT,
     }
 }
 
@@ -695,7 +646,6 @@ const fn plain(name: &'static str) -> FieldSpec {
         unit: "",
         limit: Limit::Free,
         step: FREE_STEP,
-        scale: 1.0,
     }
 }
 
@@ -703,7 +653,7 @@ const MAGNITUDE: FieldSpec = floored("magnitude", "", 1.0);
 const STEERING_LAG: FieldSpec = floored("steering_lag", "s", 0.005);
 const MAX_TORQUE: FieldSpec = floored("max_torque", "", 1.0);
 const FIRE_RATE: FieldSpec = floored("fire_rate", "/s", 0.05);
-const MUZZLE_SPEED: FieldSpec = metered("muzzle_speed", "m/s", 0.5);
+const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "m/s", 5.0);
 const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
 const BULLET_KIND: FieldSpec = plain("bullet_kind");
 const AMMO_CAPACITY: FieldSpec = FieldSpec {
@@ -711,7 +661,6 @@ const AMMO_CAPACITY: FieldSpec = FieldSpec {
     unit: "rounds",
     limit: Limit::AtLeast(1.0),
     step: 1.0,
-    scale: 1.0,
 };
 const RELOAD: FieldSpec = plain("reload");
 const RELOAD_DELAY: FieldSpec = FieldSpec {
@@ -719,24 +668,22 @@ const RELOAD_DELAY: FieldSpec = FieldSpec {
     unit: "s",
     limit: Limit::AtLeast(0.02),
     step: 0.02,
-    scale: 1.0,
 };
 const RELOAD_AMOUNT: FieldSpec = FieldSpec {
     name: "amount",
     unit: "rounds",
     limit: Limit::AtLeast(1.0),
     step: 1.0,
-    scale: 1.0,
 };
 const PROJECTILE_LIFETIME: FieldSpec = floored("projectile_lifetime", "s", 0.05);
-const SPAWNER_SPEED: FieldSpec = metered("spawner_speed", "m/s", 0.5);
+const SPAWNER_SPEED: FieldSpec = floored("spawner_speed", "m/s", 5.0);
 const BLAST_DAMAGE: FieldSpec = floored("blast_damage", "hp", 0.5);
-const BLAST_RADIUS: FieldSpec = metered("blast_radius", "m", 0.05);
+const BLAST_RADIUS: FieldSpec = floored("blast_radius", "m", 0.5);
 const ARM_TIME: FieldSpec = floored("arm_time", "s", 0.02);
-const ARM_DISTANCE: FieldSpec = metered("arm_distance", "m", 0.1);
+const ARM_DISTANCE: FieldSpec = floored("arm_distance", "m", 1.0);
 const NAV_CONSTANT: FieldSpec = floored("nav_constant", "", 0.02);
 const CHARGE_SECONDS: FieldSpec = floored("charge_seconds", "s", 0.05);
-const SLUG_SPEED: FieldSpec = metered("slug_speed", "m/s", 5.0);
+const SLUG_SPEED: FieldSpec = floored("slug_speed", "m/s", 50.0);
 const SLUG_DAMAGE: FieldSpec = floored("slug_damage", "hp", 0.5);
 /// Not hit points. Power is what a pierce round SPENDS crossing a layer, so
 /// this is the depth control, and it is dragged in the register depth lives in.
@@ -744,10 +691,10 @@ const SLUG_POWER: FieldSpec = floored("slug_power", "", 10.0);
 const SLUG_LIFETIME: FieldSpec = floored("slug_lifetime", "s", 0.05);
 const RECOIL_IMPULSE: FieldSpec = floored("recoil_impulse", "", 5.0);
 
-const BODY_RADIUS: FieldSpec = metered("body_radius", "m", 0.05);
+const BODY_RADIUS: FieldSpec = floored("body_radius", "m", 0.5);
 const MASS: FieldSpec = floored("mass", "", 0.5);
-const RADIUS: FieldSpec = metered("radius", "m", 0.05);
-const AREA_RADIUS: FieldSpec = metered("area_radius", "m", 0.1);
+const RADIUS: FieldSpec = floored("radius", "m", 0.5);
+const AREA_RADIUS: FieldSpec = floored("area_radius", "m", 1.0);
 const INVULNERABLE: FieldSpec = plain("invulnerable");
 const SEED: FieldSpec = FieldSpec {
     name: "seed",
@@ -756,30 +703,38 @@ const SEED: FieldSpec = FieldSpec {
     // walks the shapes, and a tenth of one is the shape it already had.
     limit: Limit::Free,
     step: 1.0,
-    scale: 1.0,
 };
 const HULL: FieldSpec = plain("hull");
 const CONTROLLER: FieldSpec = plain("controller");
 const ALLEGIANCE: FieldSpec = plain("allegiance");
 const LABEL: FieldSpec = plain("label");
 const COLOR: FieldSpec = plain("color");
-const SIZE: FieldSpec = metered("size", "m", 0.05);
+const SIZE: FieldSpec = floored("size", "m", 0.5);
 const ILLUMINANCE: FieldSpec = floored("illuminance", "lx", 50.0);
 const INTENSITY: FieldSpec = floored("intensity", "lm", 50.0);
-const RANGE: FieldSpec = metered("range", "m", 0.1);
+const RANGE: FieldSpec = floored("range", "m", 1.0);
 const SHADOWS: FieldSpec = plain("shadows");
 /// Lux, the same register the authored lights are in, so a builder comparing a
 /// sky against a key light is comparing two numbers of one kind.
 const SKYBOX_BRIGHTNESS: FieldSpec = floored("skybox_brightness", "lx", 50.0);
 const HEALTH: FieldSpec = floored("health", "hp", 1.0);
-const WIDTH: FieldSpec = metered("width", "m", 0.05);
+/// The exhaust cone's cross-section, in build-grid CELLS.
+///
+/// Not meters, and not a mistake: the flame is a mesh the section builds
+/// inside its own cell, sized against the nozzle it comes out of rather than
+/// against the world. A cell is 10 m on a side, so a 0.8 here is an 8 m
+/// nozzle, and the number a builder types is the fraction of the cell they
+/// want lit.
+const WIDTH: FieldSpec = floored("width", "cells", 0.05);
 const DELAY: FieldSpec = floored("delay", "s", 0.02);
 const LIFETIME: FieldSpec = floored("lifetime", "s", 0.05);
 const COOLDOWN: FieldSpec = floored("cooldown", "s", 0.02);
-/// Every remaining length, whatever it hangs off.
-const ANY_RADIUS: FieldSpec = metered("*radius", "m", 0.05);
-/// The same, for the other half of a box.
-const ANY_HEIGHT: FieldSpec = metered("*height", "m", 0.05);
+/// The rake a lance's slug tears open around itself.
+const RAKE_RADIUS: FieldSpec = floored("rake_radius", "m", 0.5);
+/// The exhaust cones' radii - see [`WIDTH`] for why these are cells.
+const ANY_RADIUS: FieldSpec = floored("*radius", "cells", 0.05);
+/// The same, for their length along the nozzle's axis.
+const ANY_HEIGHT: FieldSpec = floored("*height", "cells", 0.05);
 
 /// What a SCENARIO builder authors on each kind, and so what the panel shows
 /// before it is asked for the rest.
@@ -848,7 +803,14 @@ const SCENARIO_PICKS: &[FieldSpec] = &[SKYBOX_BRIGHTNESS];
 /// The fields no kind shows first, which still carry a unit and a floor once
 /// View > All Fields puts them back.
 const UNPICKED: &[FieldSpec] = &[
-    HEALTH, WIDTH, DELAY, LIFETIME, COOLDOWN, ANY_RADIUS, ANY_HEIGHT,
+    HEALTH,
+    WIDTH,
+    DELAY,
+    LIFETIME,
+    COOLDOWN,
+    RAKE_RADIUS,
+    ANY_RADIUS,
+    ANY_HEIGHT,
 ];
 
 /// Every declaration there is: each kind's first screen, then the rest.
@@ -904,6 +866,26 @@ fn field_spec(path: &[PathStep]) -> Option<FieldSpec> {
         .copied()
 }
 
+/// Give a quantity's rows the unit and the step its TYPE carries, where the
+/// declaration table names nothing.
+///
+/// The table still wins where it has an entry: `blast_radius` drags half a
+/// meter a pixel because that is the register a blast is tuned in. This is
+/// what every other authored quantity gets for free - a scatter box's corners,
+/// a spawn's position - and it is what a build-grid CELL never gets, because a
+/// cell is a bare `Vec3` and says nothing about meters.
+fn declare_by_type(type_path: &str, rows: &mut [InspectorRow]) {
+    for row in rows {
+        if !matches!(row.value, RowValue::Number(_) | RowValue::Axes(_))
+            || field_spec(&row.path).is_some()
+        {
+            continue;
+        }
+        row.unit = quantity_unit(type_path);
+        row.nudge = POSE_STEP;
+    }
+}
+
 /// Whether the leaf holds ONE number, and so gets the control a number gets.
 ///
 /// A `Quat` and a `Vec3` read as numbers and are not: one is three degrees in a
@@ -927,12 +909,83 @@ fn is_whole(value: &dyn PartialReflect) -> bool {
     false
 }
 
-/// The float `value` holds, whichever width it was authored at.
+/// The float `value` holds, whichever width it was authored at, and through a
+/// quantity that wraps one.
 fn as_number(value: &dyn PartialReflect) -> Option<f64> {
+    let value = through_quantity(value);
     value
         .try_downcast_ref::<f32>()
         .map(|number| f64::from(*number))
         .or_else(|| value.try_downcast_ref::<f64>().copied())
+}
+
+/// Whether a type is one of the two shapes a QUANTITY wraps, and so one the
+/// panel already has a control for: a scalar in a box, a vector in three.
+fn quantity_leaf(type_path: &str) -> bool {
+    matches!(type_path, "f32" | "glam::Vec3")
+}
+
+/// The value inside a quantity newtype - the `f32` a [`Meters`] holds, the
+/// `Vec3` a [`Meters3`] holds - or `None` when `value` is not one.
+///
+/// Read off the SHAPE rather than off a list of types: a tuple struct wrapping
+/// exactly one scalar or vector is a quantity whatever it is called, so a
+/// dimension the units module grows tomorrow needs no entry here. The row a
+/// builder edits is that number; the wrapper is what says which unit it is in,
+/// and the panel says that with a label.
+fn quantity_inner(value: &dyn PartialReflect) -> Option<&dyn PartialReflect> {
+    let ReflectRef::TupleStruct(fields) = value.reflect_ref() else {
+        return None;
+    };
+    if fields.field_len() != 1 {
+        return None;
+    }
+    let inner = fields.field(0)?;
+    quantity_leaf(inner.get_represented_type_info()?.type_path()).then_some(inner)
+}
+
+/// The same, for writing.
+fn quantity_inner_mut(value: &mut dyn PartialReflect) -> Option<&mut dyn PartialReflect> {
+    // Asked of the shared borrow FIRST, which ends here: the mutable walk below
+    // may not overlap the check that decides whether to take it.
+    quantity_inner(&*value)?;
+    let ReflectMut::TupleStruct(fields) = value.reflect_mut() else {
+        return None;
+    };
+    fields.field_mut(0)
+}
+
+/// `value`, stepped through a quantity newtype where it is one.
+fn through_quantity(value: &dyn PartialReflect) -> &dyn PartialReflect {
+    quantity_inner(value).unwrap_or(value)
+}
+
+/// The type a quantity wraps, asked of the TYPE rather than of a value - which
+/// is the only way to ask it of an `Option` field currently holding `None`.
+fn quantity_field(info: &TypeInfo) -> Option<&'static TypeInfo> {
+    let TypeInfo::TupleStruct(info) = info else {
+        return None;
+    };
+    if info.field_len() != 1 {
+        return None;
+    }
+    let inner = info.field_at(0)?.type_info()?;
+    quantity_leaf(inner.type_path()).then_some(inner)
+}
+
+/// The unit a quantity is read in, off its own type name.
+///
+/// The fallback for a field NOBODY has declared. It is read off the type
+/// because the type is what now carries the dimension: `position` is a
+/// displacement on a spawn action and a build-grid CELL on a ship's section,
+/// and the two are told apart by being a [`Meters3`] and a bare `Vec3`. A
+/// declaration in the table above still wins where there is one.
+fn quantity_unit(type_path: &str) -> &'static str {
+    match type_path.rsplit("::").next().unwrap_or_default() {
+        "MetersPerSecond" => "m/s",
+        "MetersPerSecondSquared" => "m/s2",
+        _ => "m",
+    }
 }
 
 /// Refuse a number under its field's floor, in the words the box will show.
@@ -1035,19 +1088,21 @@ fn is_option(value: &dyn PartialReflect) -> bool {
         .is_some_and(|info| info.type_path().starts_with("core::option::Option<"))
 }
 
-/// The type path of an `Option`'s payload, or `None` when the value is not an
+/// The TYPE of an `Option`'s payload, or `None` when the value is not an
 /// `Option` the type registry knows the shape of.
 ///
 /// Needed because a field currently holding `None` cannot be asked what it
-/// would hold: the type info is the only place that answer lives.
-fn option_payload(value: &dyn PartialReflect) -> Option<String> {
+/// would hold: the type info is the only place that answer lives - and it is
+/// the type info rather than the type PATH because a quantity is unwrapped
+/// from it, which a string cannot be.
+fn option_payload(value: &dyn PartialReflect) -> Option<&'static TypeInfo> {
     let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
         return None;
     };
     let VariantInfo::Tuple(variant) = info.variant("Some")? else {
         return None;
     };
-    Some(variant.field_at(0)?.type_path().to_string())
+    variant.field_at(0)?.type_info()
 }
 
 /// Every leaf of `value`, flattened into rows under `path`.
@@ -1081,6 +1136,20 @@ fn walk(
     // field, parsed as the same three degrees the pose's rotation row takes.
     if let Some(vector) = value.try_downcast_ref::<Vec3>() {
         out.push(walked(root, path, false, axes_of(*vector)));
+        return;
+    }
+    // A QUANTITY is the number inside it. Walked as the tuple struct it is, a
+    // `Meters` would draw a row called "Blast Radius" holding nothing and a
+    // row under it called "0" holding the number - which is the wrapper's
+    // shape on screen, not the field's. The row stands at the FIELD's own
+    // path, so the write-back, the drag and the floor check all still name
+    // the field a builder is looking at.
+    if let Some(inner) = quantity_inner(value) {
+        let first = out.len();
+        walk(inner, root, path, out);
+        if let Some(info) = value.get_represented_type_info() {
+            declare_by_type(info.type_path(), &mut out[first..]);
+        }
         return;
     }
     if let Some(text) = leaf_text(value) {
@@ -1213,23 +1282,34 @@ fn walk_option(
     out: &mut Vec<InspectorRow>,
 ) {
     let payload = option_payload(value);
-    let scalar = payload.as_deref().is_some_and(leaf_type);
+    // An optional QUANTITY is an optional number: `rake_radius` is one box a
+    // builder types meters into or clears, not a struct to open.
+    let leaf = payload.map(|info| quantity_field(info).unwrap_or(info));
+    let leaf_path = leaf.map(TypeInfo::type_path);
+    let scalar = leaf_path.is_some_and(leaf_type);
     let present = matches!(value.reflect_ref(), ReflectRef::Enum(chosen) if chosen.field_len() > 0);
     if scalar {
         let text = match value.reflect_ref() {
-            ReflectRef::Enum(chosen) => chosen.field_at(0).and_then(leaf_text).unwrap_or_default(),
+            ReflectRef::Enum(chosen) => chosen
+                .field_at(0)
+                .map(through_quantity)
+                .and_then(leaf_text)
+                .unwrap_or_default(),
             _ => String::new(),
         };
         // Off the PAYLOAD TYPE, not the value: a field holding `None` is still
         // a number's field, so it wears its unit, its step and its name - the
         // grip that scrubs it once it holds one.
-        let mut row = if payload.as_deref().is_some_and(number_type) {
-            let whole = payload.as_deref().is_some_and(whole_type);
+        let mut row = if leaf_path.is_some_and(number_type) {
+            let whole = leaf_path.is_some_and(whole_type);
             walked_number(root, path, true, text, whole)
         } else {
             walked(root, path, true, RowValue::Text(text))
         };
-        row.asset = payload.as_deref().and_then(asset_sort);
+        row.asset = leaf_path.and_then(asset_sort);
+        if let Some(quantity) = payload.filter(|info| quantity_field(info).is_some()) {
+            declare_by_type(quantity.type_path(), core::slice::from_mut(&mut row));
+        }
         out.push(row);
         return;
     }
@@ -1561,13 +1641,38 @@ fn parse_leaf(type_path: &str, text: &str) -> Result<Box<dyn PartialReflect>, St
     }
 }
 
+/// Build the value `info` names out of `text`, through a quantity newtype
+/// where it is one: a [`Meters`] field is authored as the number inside it.
+///
+/// The wrapper is rebuilt reflectively rather than named, so a dimension the
+/// units module grows tomorrow needs no arm here. Only the `Option` write
+/// needs this - a field that HOLDS a quantity is resolved through it by
+/// [`resolve`], and the box then writes the bare number it found.
+fn parse_value(info: &'static TypeInfo, text: &str) -> Result<Box<dyn PartialReflect>, String> {
+    let Some(inner) = quantity_field(info) else {
+        return parse_leaf(info.type_path(), text);
+    };
+    let mut wrapped = DynamicTupleStruct::default();
+    wrapped.set_represented_type(Some(info));
+    wrapped.insert_boxed(parse_leaf(inner.type_path(), text)?);
+    Ok(Box::new(wrapped))
+}
+
 /// The value `path` names inside `root`, for writing.
+///
+/// A QUANTITY is stepped through the way an `Option` is walked through: the
+/// path names the field, and what a box writes is the number inside it. Both
+/// on the way down - `position.x` is the `x` of the `Vec3` a `Meters3` holds -
+/// and at the end, where a `Meters` field hands back its own `f32`.
 fn resolve<'a>(
     root: &'a mut dyn PartialReflect,
     path: &[PathStep],
 ) -> Option<&'a mut dyn PartialReflect> {
     let mut value = root;
     for next in path {
+        if quantity_inner(&*value).is_some() {
+            value = quantity_inner_mut(value)?;
+        }
         value = match (value.reflect_mut(), next) {
             (ReflectMut::Struct(fields), PathStep::Field(name)) => fields.field_mut(name)?,
             (ReflectMut::Struct(fields), PathStep::Slot(index)) => fields.field_at_mut(*index)?,
@@ -1578,6 +1683,9 @@ fn resolve<'a>(
             (ReflectMut::List(items), PathStep::Item(index)) => items.get_mut(*index)?,
             _ => return None,
         };
+    }
+    if quantity_inner(&*value).is_some() {
+        value = quantity_inner_mut(value)?;
     }
     Some(value)
 }
@@ -1598,7 +1706,7 @@ pub(crate) fn write_field(
         let wanted = if text.trim().is_empty() {
             DynamicEnum::new("None", DynamicVariant::Unit)
         } else {
-            let value = parse_leaf(&payload, text)?;
+            let value = parse_value(payload, text)?;
             check_finite(value.as_ref())?;
             check_floor(path, value.as_ref())?;
             let mut fields = DynamicTuple::default();
@@ -1979,7 +2087,6 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             label: "Driver".to_string(),
             unit: "",
             nudge: 0.0,
-            scale: 1.0,
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
             hint: "Who flies this ship: you, a bot, or nobody.".to_string(),
@@ -2062,7 +2169,6 @@ pub(crate) fn section_rows(
             label: "Key".to_string(),
             unit: "",
             nudge: 0.0,
-            scale: 1.0,
             limit: Limit::Free,
             value: RowValue::Key(if binding.is_empty() {
                 UNBOUND.to_string()
@@ -2255,7 +2361,6 @@ pub(crate) fn operand_row(
         label: place.to_string(),
         unit: "",
         nudge: 0.0,
-        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Operand {
             options: offered
@@ -2452,7 +2557,6 @@ fn name_row(name: String) -> InspectorRow {
         label: "Name".to_string(),
         unit: "",
         nudge: 0.0,
-        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Text(name),
         hint: "What this node is called on the board and in the tree.".to_string(),
@@ -2482,14 +2586,17 @@ pub(crate) const TRANSFORM: &str = "Transform";
 /// mating snap, and a typed one would put a part where no socket is.
 fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
     vec![
+        // The panel's one ENGINE seam. A node's pose is a Bevy `Transform`,
+        // which counts world units because the stage draws it, and every
+        // number a builder types is meters. The crossing is here and in the
+        // pose arm of `EditTargets::edit`, and nowhere between.
         axes_row(
             FieldRoot::Pose,
             "Position",
             "m",
             POSE_STEP,
             Limit::Free,
-            METERS_PER_UNIT,
-            pose.translation,
+            Meters3::from_engine(pose.translation).get(),
         )
         .saying("Where this node stands, in meters."),
         // ROTATION, not heading: it is the node's rotation, and rotation is
@@ -2501,16 +2608,15 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             "deg, yaw/pitch/roll",
             TURN_STEP,
             Limit::Free,
-            1.0,
             rotation_degrees(pose),
         )
         .saying("Which way it faces, in degrees."),
     ]
 }
 
-/// How far one pixel of a drag slides a node: fine enough to seat a beacon by
-/// eye, coarse enough to cross the stage in one pull.
-const POSE_STEP: f32 = 0.05;
+/// How far one pixel of a drag slides a node, in METERS: fine enough to seat a
+/// beacon by eye, coarse enough to cross the stage in one pull.
+const POSE_STEP: f32 = 0.5;
 /// The same for a turn. A degree per pixel: a full turn is one drag across the
 /// panel.
 const TURN_STEP: f32 = 1.0;
@@ -2520,15 +2626,13 @@ fn axes_of(value: Vec3) -> RowValue {
     RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part))))
 }
 
-/// One vector row: three numbers, each in the form every other number wears,
-/// shown `scale` to the authored unit.
+/// One vector row: three numbers, each in the form every other number wears.
 fn axes_row(
     root: FieldRoot,
     label: &str,
     unit: &'static str,
     nudge: f32,
     limit: Limit,
-    scale: f32,
     value: Vec3,
 ) -> InspectorRow {
     InspectorRow {
@@ -2539,9 +2643,8 @@ fn axes_row(
         label: label.to_string(),
         unit,
         nudge,
-        scale,
         limit,
-        value: axes_of(value * scale),
+        value: axes_of(value),
         hint: String::new(),
         names: None,
         asset: None,

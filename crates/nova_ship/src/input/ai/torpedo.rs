@@ -15,7 +15,7 @@ use crate::prelude::*;
 /// shots instead of holding the trigger and dumping one every
 /// 1/fire_rate seconds. Playtest knob.
 const AI_TORPEDO_COOLDOWN_SECS: f32 = 10.0;
-/// Outer edge (m) of the launch envelope. Beyond detection range
+/// Outer edge (world units, 10 km) of the launch envelope. Beyond detection range
 /// (AI_ENGAGE_RANGE) but well inside acquisition range
 /// (AI_TARGET_MAX_RANGE), so a launch can open the approach on a fight the
 /// ship is already committing to. Playtest knob.

@@ -70,7 +70,7 @@ fn document(app: &mut App) -> Entity {
     scenario
 }
 
-fn asteroid(app: &mut App, scenario: Entity, id: &str, radius: f32) -> Entity {
+fn asteroid(app: &mut App, scenario: Entity, id: &str, radius: Meters) -> Entity {
     app.world_mut()
         .spawn((
             EditorNode,
@@ -102,7 +102,7 @@ fn beacon(app: &mut App, scenario: Entity, id: &str) -> Entity {
                 name: id.to_string(),
                 kind: ScenarioObjectKind::Beacon(BeaconConfig {
                     label: "BEACON".to_string(),
-                    radius: 3.0,
+                    radius: Meters(30.0),
                     color: Color::WHITE,
                     area_radius: None,
                     lock_signature: None,
@@ -185,7 +185,7 @@ fn unit_of(app: &mut App, label: &str) -> String {
         .unwrap_or_else(|| panic!("no unit slot {label:?}"))
 }
 
-fn radius_of(app: &App, object: Entity) -> f32 {
+fn radius_of(app: &App, object: Entity) -> Meters {
     match &app
         .world()
         .get::<ObjectNode>(object)
@@ -201,7 +201,7 @@ fn radius_of(app: &App, object: Entity) -> f32 {
 fn the_panel_lists_the_fields_of_the_node_it_is_on() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
 
     select(&mut app, rock);
 
@@ -229,7 +229,7 @@ fn the_panel_lists_the_fields_of_the_node_it_is_on() {
 fn the_panel_says_the_id_an_event_would_name_it_by() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_7", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_7", Meters(30.0));
 
     select(&mut app, rock);
 
@@ -295,7 +295,7 @@ fn a_seeded_hull_is_inspected_as_a_ship() {
 fn inspecting_another_node_rebuilds_the_rows() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     let nav = beacon(&mut app, scenario, "beacon_1");
 
     select(&mut app, rock);
@@ -315,16 +315,16 @@ fn inspecting_another_node_rebuilds_the_rows() {
 fn inspecting_a_second_node_of_the_same_kind_rebuilds_too() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let first = asteroid(&mut app, scenario, "asteroid_1", 3.0);
-    let second = asteroid(&mut app, scenario, "asteroid_2", 3.0);
+    let first = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
+    let second = asteroid(&mut app, scenario, "asteroid_2", Meters(30.0));
 
     select(&mut app, first);
     select(&mut app, second);
     submit(&mut app, "Radius", "90");
 
-    assert!((radius_of(&app, second) - 9.0).abs() < f32::EPSILON);
+    assert!((radius_of(&app, second) - Meters(90.0)).get().abs() < f32::EPSILON);
     assert!(
-        (radius_of(&app, first) - 3.0).abs() < f32::EPSILON,
+        (radius_of(&app, first) - Meters(30.0)).get().abs() < f32::EPSILON,
         "the first rock is not what the panel is on"
     );
 }
@@ -335,7 +335,7 @@ fn inspecting_a_second_node_of_the_same_kind_rebuilds_too() {
 fn a_returning_panel_gets_its_rows_back() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
     assert!(!row_names(&mut app).is_empty());
 
@@ -358,13 +358,13 @@ fn a_returning_panel_gets_its_rows_back() {
 fn a_submitted_field_moves_the_number_into_the_document() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
-    // The box reads in meters; the document keeps world units.
+    // The box and the file are both meters: what is typed is what is kept.
     let field = submit(&mut app, "Radius", "125");
 
-    assert!((radius_of(&app, rock) - 12.5).abs() < f32::EPSILON);
+    assert!((radius_of(&app, rock) - Meters(125.0)).get().abs() < f32::EPSILON);
     assert!(
         app.world().get::<TextFieldError>(field).is_none(),
         "a value the field took carries no error"
@@ -383,12 +383,12 @@ fn a_submitted_field_moves_the_number_into_the_document() {
 fn a_refused_value_marks_the_field_and_leaves_the_document_alone() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     let field = submit(&mut app, "Radius", "big");
 
-    assert!((radius_of(&app, rock) - 3.0).abs() < f32::EPSILON);
+    assert!((radius_of(&app, rock) - Meters(30.0)).get().abs() < f32::EPSILON);
     assert!(
         app.world().get::<TextFieldError>(field).is_some(),
         "the builder typed it, so the builder is told"
@@ -402,13 +402,13 @@ fn a_refused_value_marks_the_field_and_leaves_the_document_alone() {
 fn a_negative_radius_is_refused_in_the_box_it_was_typed_in() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     let field = submit(&mut app, "Radius", "-4");
 
     assert!(
-        (radius_of(&app, rock) - 3.0).abs() < f32::EPSILON,
+        (radius_of(&app, rock) - Meters(30.0)).get().abs() < f32::EPSILON,
         "the document keeps the radius it had"
     );
     let error = app
@@ -428,7 +428,7 @@ fn a_negative_radius_is_refused_in_the_box_it_was_typed_in() {
 fn a_refusal_takes_the_unit_slot_and_the_box_keeps_what_was_typed() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
     app.world_mut()
         .run_system_once(paint_field_reasons)
@@ -459,7 +459,7 @@ fn a_refusal_takes_the_unit_slot_and_the_box_keeps_what_was_typed() {
 fn a_moved_node_repaints_its_own_position_row() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     // A drag on the stage writes the pose; the panel is a readout of it.
@@ -487,7 +487,7 @@ fn a_moved_node_repaints_its_own_position_row() {
 fn typing_into_one_axis_box_leaves_the_others_alone() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
     app.world_mut()
         .entity_mut(rock)
@@ -509,7 +509,7 @@ fn typing_into_one_axis_box_leaves_the_others_alone() {
 fn a_focused_field_is_not_overwritten_by_the_document() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     let field = field_of(&mut app, "Radius");
@@ -660,8 +660,8 @@ fn a_second_ship_cannot_take_the_controls_while_another_flies() {
 fn the_scenario_node_counts_what_the_document_holds() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    asteroid(&mut app, scenario, "asteroid_1", 3.0);
-    asteroid(&mut app, scenario, "asteroid_2", 3.0);
+    asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
+    asteroid(&mut app, scenario, "asteroid_2", Meters(30.0));
     app.world_mut().spawn((
         EditorNode,
         ShipNode {
@@ -963,15 +963,15 @@ fn a_catalog_section_is_copied_inline_before_the_first_edit_lands() {
 fn dragging_a_rows_name_writes_the_number_into_the_document() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     scrub(&mut app, "Radius", 20.0);
 
-    // `radius` is declared at 0.05 per pixel, so twenty pixels is one unit.
+    // `radius` is declared at half a meter per pixel, so twenty pixels is ten.
     assert!(
-        (radius_of(&app, rock) - 4.0).abs() < 1e-4,
-        "the radius followed the pointer (got {})",
+        (radius_of(&app, rock) - Meters(40.0)).get().abs() < 1e-4,
+        "the radius followed the pointer (got {:?})",
         radius_of(&app, rock)
     );
 }
@@ -983,14 +983,14 @@ fn dragging_a_rows_name_writes_the_number_into_the_document() {
 fn a_scrub_stops_at_the_floor_instead_of_being_refused() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 1.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(10.0));
     select(&mut app, rock);
 
     scrub(&mut app, "Radius", -400.0);
 
     assert!(
-        radius_of(&app, rock).abs() < 1e-4,
-        "the radius stopped at zero (got {})",
+        radius_of(&app, rock).get().abs() < 1e-4,
+        "the radius stopped at zero (got {:?})",
         radius_of(&app, rock)
     );
 }
@@ -1001,14 +1001,14 @@ fn a_scrub_stops_at_the_floor_instead_of_being_refused() {
 fn a_scrub_lands_on_the_step_the_field_was_declared_with() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     scrub(&mut app, "Radius", 7.3);
 
-    let radius = radius_of(&app, rock);
+    let radius = radius_of(&app, rock).get();
     assert!(
-        ((radius / 0.05).round() * 0.05 - radius).abs() < 1e-4,
+        ((radius / 0.5).round() * 0.5 - radius).abs() < 1e-4,
         "the radius landed on a multiple of its step (got {radius})"
     );
 }
@@ -1019,7 +1019,7 @@ fn a_scrub_lands_on_the_step_the_field_was_declared_with() {
 fn a_row_that_is_not_a_number_has_no_grip() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     assert!(grip_of(&mut app, "Radius").is_some());
@@ -1043,7 +1043,7 @@ fn a_row_that_is_not_a_number_has_no_grip() {
 fn a_scrub_of_one_axis_moves_by_the_rows_own_step() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     app.world_mut()
         .entity_mut(rock)
         .insert(Transform::from_xyz(3.0, 0.0, 0.0));
@@ -1066,27 +1066,27 @@ fn a_scrub_of_one_axis_moves_by_the_rows_own_step() {
 fn a_scrub_keeps_the_pixels_that_do_not_reach_a_whole_step() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     scrub(&mut app, "Radius", 0.5);
     assert!(
-        (radius_of(&app, rock) - 3.0).abs() < 1e-4,
-        "half a pixel is not a step yet (got {})",
+        (radius_of(&app, rock) - Meters(30.0)).get().abs() < 1e-4,
+        "half a pixel is not a step yet (got {:?})",
         radius_of(&app, rock)
     );
 
     scrub(&mut app, "Radius", 0.5);
     assert!(
-        (radius_of(&app, rock) - 3.05).abs() < 1e-4,
-        "the two halves made the step between them (got {})",
+        (radius_of(&app, rock) - Meters(30.5)).get().abs() < 1e-4,
+        "the two halves made the step between them (got {:?})",
         radius_of(&app, rock)
     );
 }
 
 /// A scrub that reaches the edge of the window comes back on the other side, so
-/// the drag can keep going. At 0.05 a unit, a radius worth changing is further
-/// than one screen of pointer travel.
+/// the drag can keep going. At half a meter a pixel, a radius worth changing is
+/// further than one screen of pointer travel.
 #[test]
 fn a_scrub_that_reaches_the_edge_wraps_the_pointer() {
     let mut app = inspector_app();
@@ -1101,7 +1101,7 @@ fn a_scrub_that_reaches_the_edge_wraps_the_pointer() {
         ))
         .id();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     scrub_from(&mut app, "Radius", Vec2::new(1020.0, 400.0), 4.0);
@@ -1122,8 +1122,8 @@ fn a_scrub_that_reaches_the_edge_wraps_the_pointer() {
     let before = radius_of(&app, rock);
     scrub_from(&mut app, "Radius", Vec2::new(48.0, 400.0), -972.0);
     assert!(
-        (radius_of(&app, rock) - before).abs() < 1e-4,
-        "the echo of the warp moved nothing (got {})",
+        (radius_of(&app, rock) - before).get().abs() < 1e-4,
+        "the echo of the warp moved nothing (got {:?})",
         radius_of(&app, rock)
     );
 }
@@ -1144,7 +1144,7 @@ fn a_scrub_easing_off_an_edge_stays_where_it_is() {
         ))
         .id();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     scrub_from(&mut app, "Radius", Vec2::new(1020.0, 400.0), -4.0);
@@ -1168,7 +1168,7 @@ fn a_scrub_easing_off_an_edge_stays_where_it_is() {
 fn a_scrub_clears_the_refusal_the_box_was_showing() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
     let field = submit(&mut app, "Radius", "-5");
     assert!(
@@ -1179,8 +1179,8 @@ fn a_scrub_clears_the_refusal_the_box_was_showing() {
     scrub(&mut app, "Radius", 20.0);
 
     assert!(
-        (radius_of(&app, rock) - 4.0).abs() < 1e-4,
-        "the scrub moved the document (got {})",
+        (radius_of(&app, rock) - Meters(40.0)).get().abs() < 1e-4,
+        "the scrub moved the document (got {:?})",
         radius_of(&app, rock)
     );
     assert!(
@@ -1198,7 +1198,7 @@ fn a_scrub_clears_the_refusal_the_box_was_showing() {
 fn only_a_config_edit_that_took_makes_the_body_stale() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     select(&mut app, rock);
 
     submit(&mut app, "Radius", "big");
@@ -1291,7 +1291,7 @@ fn scrub_from(app: &mut App, label: &str, at: Vec2, pixels: f32) {
 fn a_reference_that_names_nothing_is_marked_in_the_unit_slot() {
     let mut app = inspector_app();
     let scenario = document(&mut app);
-    asteroid(&mut app, scenario, "asteroid_1", 3.0);
+    asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
     let filter = app
         .world_mut()
         .spawn((

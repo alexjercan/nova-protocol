@@ -118,7 +118,7 @@ pub(crate) fn insert_preview_object(
         // Translucent, because an anchor has no body at all: what is drawn is
         // the radius it publishes, and a solid ball there would read as a rock.
         ScenarioObjectKind::Anchor(anchor) => {
-            let radius = anchor.body_radius.max(MIN_OBJECT_RADIUS);
+            let radius = anchor.body_radius.to_engine().max(MIN_OBJECT_RADIUS);
             let material = art.materials.add(StandardMaterial {
                 base_color: Color::srgba(0.45, 0.60, 0.75, 0.20),
                 alpha_mode: AlphaMode::Blend,
@@ -132,7 +132,9 @@ pub(crate) fn insert_preview_object(
         // at 24 is a ball a hundred units across and an editor that drew 24
         // would put the whole layout in the wrong place by eye.
         ScenarioObjectKind::Asteroid(rock) => {
-            let radius = (rock.radius * ASTEROID_GEOMETRIC_FACTOR_MIN).max(MIN_OBJECT_RADIUS);
+            let radius = (rock.radius * ASTEROID_GEOMETRIC_FACTOR_MIN)
+                .to_engine()
+                .max(MIN_OBJECT_RADIUS);
             let texture = rock.texture.resolve(&art.asset_server);
             let material = art.materials.add(StandardMaterial {
                 base_color_texture: Some(texture),
@@ -142,7 +144,7 @@ pub(crate) fn insert_preview_object(
             sphere_body(entity, art, radius, material);
         }
         ScenarioObjectKind::Beacon(beacon) => {
-            let radius = beacon.radius.max(MIN_OBJECT_RADIUS);
+            let radius = beacon.radius.to_engine().max(MIN_OBJECT_RADIUS);
             let material = art.materials.add(StandardMaterial {
                 base_color: beacon.color,
                 emissive: beacon.color.to_linear() * 4.0,
@@ -151,7 +153,7 @@ pub(crate) fn insert_preview_object(
             sphere_body(entity, art, radius, material);
         }
         ScenarioObjectKind::SalvageCrate(salvage) => {
-            let size = salvage.size.max(1.0);
+            let size = salvage.size.to_engine().max(1.0);
             let material = art.materials.add(StandardMaterial {
                 base_color: Color::srgb(0.85, 0.65, 0.25),
                 perceptual_roughness: 0.7,

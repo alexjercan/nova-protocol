@@ -21,6 +21,7 @@ use std::f32::consts::FRAC_PI_2;
 
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ui::theme;
 
@@ -341,7 +342,7 @@ pub(crate) fn draw_object_volumes(
         if let Some(radius) = trigger_radius(&object.kind) {
             gizmos.sphere(
                 Isometry3d::from_translation(pose.translation),
-                radius,
+                radius.to_engine(),
                 TRIGGER,
             );
         }
@@ -357,7 +358,7 @@ pub(crate) fn draw_object_volumes(
 ///
 /// The rest are their own picture: a rock, a hull and an anchor's published
 /// radius are all drawn as bodies by [`crate::preview::insert_preview_object`].
-fn trigger_radius(kind: &ScenarioObjectKind) -> Option<f32> {
+fn trigger_radius(kind: &ScenarioObjectKind) -> Option<Meters> {
     match kind {
         ScenarioObjectKind::Beacon(beacon) => beacon.area_radius,
         ScenarioObjectKind::SalvageCrate(salvage) => Some(salvage.area_radius),
@@ -372,7 +373,7 @@ fn trigger_radius(kind: &ScenarioObjectKind) -> Option<f32> {
 fn draw_light(gizmos: &mut Gizmos<EditorGizmos>, pose: &Transform, light: &LightConfig, eye: Vec3) {
     match light {
         LightConfig::Directional { color, aim, .. } => {
-            let toward = sun_direction(pose, *aim);
+            let toward = sun_direction(pose, aim.map(Meters3::to_engine));
             let reach = (pose.translation.distance(eye) * SUN_SPAN).max(SUN_MIN);
             gizmos.arrow(pose.translation, pose.translation + toward * reach, *color);
             // The disc the parallel rays leave from, square to the beam: an
@@ -388,7 +389,7 @@ fn draw_light(gizmos: &mut Gizmos<EditorGizmos>, pose: &Transform, light: &Light
         LightConfig::Point { color, range, .. } => {
             gizmos.sphere(
                 Isometry3d::from_translation(pose.translation),
-                *range,
+                range.to_engine(),
                 *color,
             );
         }
@@ -461,10 +462,10 @@ mod tests {
 
     use super::*;
 
-    fn beacon(area_radius: Option<f32>) -> ScenarioObjectKind {
+    fn beacon(area_radius: Option<Meters>) -> ScenarioObjectKind {
         ScenarioObjectKind::Beacon(BeaconConfig {
             label: "BEACON".to_string(),
-            radius: 3.0,
+            radius: Meters(30.0),
             color: Color::WHITE,
             area_radius,
             lock_signature: None,
@@ -476,20 +477,23 @@ mod tests {
     /// sphere promising a scenario event that never comes.
     #[test]
     fn only_the_kinds_that_fire_on_enter_get_a_trigger_sphere() {
-        assert_eq!(trigger_radius(&beacon(Some(40.0))), Some(40.0));
+        assert_eq!(
+            trigger_radius(&beacon(Some(Meters(400.0)))),
+            Some(Meters(400.0))
+        );
         assert_eq!(trigger_radius(&beacon(None)), None);
         assert_eq!(
             trigger_radius(&ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-                size: 2.0,
-                area_radius: 12.0,
+                size: Meters(20.0),
+                area_radius: Meters(120.0),
                 pickup_sound: None,
             })),
-            Some(12.0),
+            Some(Meters(120.0)),
             "a crate's pickup volume is not optional"
         );
         assert_eq!(
             trigger_radius(&ScenarioObjectKind::Anchor(AnchorConfig {
-                body_radius: 5.0,
+                body_radius: Meters(50.0),
                 mass: None,
             })),
             None,
@@ -497,7 +501,7 @@ mod tests {
         );
         assert_eq!(
             trigger_radius(&ScenarioObjectKind::Asteroid(AsteroidConfig {
-                radius: 3.0,
+                radius: Meters(30.0),
                 texture: AssetRef::from("self://textures/rock.png"),
                 material: None,
                 destroy_sound: None,
@@ -516,13 +520,14 @@ mod tests {
     /// somewhere the flown range does not light.
     #[test]
     fn a_sun_shines_the_way_its_node_faces() {
-        let from = Vec3::new(30.0, 40.0, 0.0);
-        let target = Vec3::ZERO;
+        let from = Meters3::new(300.0, 400.0, 0.0);
+        let target = Meters3::ZERO;
         let base = aimed_light_base("key", "Key", from, target);
-        let pose = Transform::from_translation(base.position).with_rotation(base.rotation);
+        let pose =
+            Transform::from_translation(base.position.to_engine()).with_rotation(base.rotation);
 
         let toward = sun_direction(&pose, None);
-        let wanted = (target - from).normalize();
+        let wanted = (target - from).get().normalize();
         assert!(
             toward.distance(wanted) < 1.0e-4,
             "an aimed light base shines at its target: {toward:?} vs {wanted:?}"

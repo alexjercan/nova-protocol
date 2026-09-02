@@ -8,6 +8,7 @@ use bevy::{
     picking::pointer::{Location, PointerId},
     window::WindowRef,
 };
+use nova_events::units::prelude::*;
 use nova_scenario::prelude::{
     AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind,
 };
@@ -76,7 +77,7 @@ fn document(app: &mut App) -> (Entity, Entity) {
                 name: "beacon_1".to_string(),
                 kind: ScenarioObjectKind::Beacon(BeaconConfig {
                     label: "BEACON".to_string(),
-                    radius: 3.0,
+                    radius: Meters(30.0),
                     color: Color::WHITE,
                     area_radius: None,
                     lock_signature: None,
@@ -97,7 +98,7 @@ fn asteroid(app: &mut App, scenario: Entity) -> Entity {
             ObjectNode {
                 name: "asteroid_1".to_string(),
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    radius: 3.0,
+                    radius: Meters(30.0),
                     texture: default(),
                     material: None,
                     destroy_sound: None,

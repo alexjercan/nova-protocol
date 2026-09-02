@@ -15,8 +15,8 @@ use super::behavior::update_behavior_state;
 use super::maneuver::on_thruster_input;
 use crate::prelude::*;
 
-/// Arrival slack (m) on top of the autopilot's arrival standoff for calling
-/// a patrol waypoint reached and turning onto the next leg. Turning early,
+/// Arrival slack (world units, 250 m) on top of the autopilot's arrival
+/// standoff for calling a patrol waypoint reached and turning onto the next leg. Turning early,
 /// while the arrival curve is still braking, keeps the loop flowing instead
 /// of stop-and-go at every corner.
 const AI_WAYPOINT_SLACK: f32 = 25.0;
@@ -24,11 +24,12 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 /// Per-ship override of [`AI_WAYPOINT_SLACK`]: how much slack this ship's
 /// patrol adds on top of the autopilot's arrival standoff before calling a
 /// waypoint reached. Small = the ship presses in close to each mark and the
-/// loop reads deliberate (a nav drill hugging its beacons); the default 25
+/// loop reads deliberate (a nav drill hugging its beacons); the default 250 m
 /// keeps combat patrols flowing. The autopilot still brakes toward rest at
-/// `FlightSettings::arrival_standoff` from the mark, so slack below ~2 risks
-/// asymptoting outside the advance gate - author small, not zero. Authored
-/// via `AIControllerConfig::waypoint_slack`.
+/// `FlightSettings::arrival_standoff` from the mark, so slack below ~20 m risks
+/// asymptoting outside the advance gate - author small, not zero. Authored in
+/// meters via `AIControllerConfig::waypoint_slack`; this component holds the
+/// world units the patrol compares against.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIWaypointSlack(pub f32);
@@ -37,8 +38,8 @@ pub struct AIWaypointSlack(pub f32);
 /// kept well above the autopilot's stop_speed_epsilon so a completed STOP
 /// actually satisfies it and the helm rests between corrections.
 const AI_IDLE_DRIFT_SPEED: f32 = 1.0;
-/// Lateral clearance (m) beyond a body's geometric [`BodyRadius`] under
-/// which a patrol leg counts as blocked. The autopilot itself has no
+/// Lateral clearance (world units, 200 m) beyond a body's geometric
+/// [`BodyRadius`] under which a patrol leg counts as blocked. The autopilot itself has no
 /// obstacle awareness ([`AutopilotAction::GotoPos`] flies a straight leg),
 /// so this is the passive pilot's own margin; sized to a ship length plus
 /// drift slack, NOT to the noise spread of asteroid meshes - the derived

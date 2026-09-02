@@ -1493,6 +1493,9 @@ mod point_defense_cost_tests {
             weave_rate,
             ..
         } = *torpedo_type;
+        // The whole run below is engine-side kinematics against avian numbers,
+        // so the authored cruise cap crosses once, here.
+        let max_speed = max_speed.to_engine();
         let dt = 1.0 / 120.0;
         let interval = 1.0 / FIRE_RATE;
         let blast_radius = 30.0;

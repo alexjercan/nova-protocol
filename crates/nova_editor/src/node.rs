@@ -20,6 +20,7 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
@@ -336,11 +337,11 @@ impl ObjectChoice {
             // Inert: the well exists at zero strength, so a placed anchor frames
             // and anchors without pulling the player into something invisible.
             ObjectChoice::Anchor => ScenarioObjectKind::Anchor(AnchorConfig {
-                body_radius: 5.0,
+                body_radius: Meters(50.0),
                 mass: None,
             }),
             ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
-                radius: 3.0,
+                radius: Meters(30.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
                 material: None,
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
@@ -351,14 +352,14 @@ impl ObjectChoice {
             }),
             ObjectChoice::Beacon => ScenarioObjectKind::Beacon(BeaconConfig {
                 label: "BEACON".to_string(),
-                radius: 3.0,
+                radius: Meters(30.0),
                 color: Color::srgb(0.20, 0.90, 1.0),
                 area_radius: None,
                 lock_signature: None,
             }),
             ObjectChoice::SalvageCrate => ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-                size: 2.0,
-                area_radius: 12.0,
+                size: Meters(20.0),
+                area_radius: Meters(120.0),
                 pickup_sound: Some(AssetRef::from(SALVAGE_SOUND)),
             }),
             // Aimed by the NODE's rotation, not by `aim`: the pose lives on the
@@ -892,8 +893,10 @@ pub(crate) fn insert_object_node(
     config: ScenarioObjectConfig,
 ) -> Entity {
     let id = NodeId(config.base.id);
-    let transform =
-        Transform::from_translation(config.base.position).with_rotation(config.base.rotation);
+    // Engine boundary: a node's pose is a Bevy transform, which counts world
+    // units, and the config it was lifted from counts meters.
+    let transform = Transform::from_translation(config.base.position.to_engine())
+        .with_rotation(config.base.rotation);
     insert_object(
         commands,
         scenario,
@@ -1309,7 +1312,7 @@ mod tests {
             .spawn(ObjectNode {
                 name: "rock".to_string(),
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    radius: 3.0,
+                    radius: Meters(30.0),
                     texture: default(),
                     material: None,
                     destroy_sound: None,
@@ -1343,7 +1346,7 @@ mod tests {
             .spawn(ObjectNode {
                 name: "rock".to_string(),
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    radius: 3.0,
+                    radius: Meters(30.0),
                     texture: default(),
                     material: None,
                     destroy_sound: None,

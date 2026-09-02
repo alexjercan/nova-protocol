@@ -21,13 +21,14 @@ pub struct LockSignature(pub f32);
 #[derive(Resource, Clone, Debug, Reflect)]
 #[reflect(Resource)]
 pub struct TargetingSettings {
-    /// Lock range per unit of [`LockSignature`], world units. At 30, a 2u
-    /// field rock is lockable within 60u - close enough to matter, far
-    /// enough not to steal mid-fight locks.
+    /// Lock range per unit of [`LockSignature`]. A pure ratio, so it reads the
+    /// same in either scale: at 30, a 20 m field rock is lockable within
+    /// 600 m - close enough to matter, far enough not to steal mid-fight
+    /// locks.
     pub signature_range_per_unit: f32,
     /// Lock range for bodies with no signature and no intrinsic class -
-    /// battle debris, loose fragments. Point-blank by design (retuned 15 -> 5
-    /// with the deliberate radar, spike: debris at ~5 m).
+    /// battle debris, loose fragments. World units, point-blank by design
+    /// (retuned 150 m -> 50 m with the deliberate radar).
     pub unsigned_lock_range: f32,
     /// The incumbent lock stays lockable this factor beyond its gate, so
     /// a body at its boundary cannot strobe the lock (and reset the focus

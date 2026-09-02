@@ -1785,7 +1785,7 @@ mod tests {
         // The same weave at the straight type's cruise cap: the control that
         // isolates the corkscrew from the cap.
         let evasive_uncapped = fly(TorpedoTypeConfig {
-            max_speed: straight_type().max_speed.to_engine(),
+            max_speed: straight_type().max_speed,
             ..TorpedoTypeConfig::default()
         });
         println!(

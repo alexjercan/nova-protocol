@@ -367,6 +367,7 @@ pub(super) fn shoot_spawn_projectile(
 #[cfg(test)]
 mod tests {
     use bevy::time::TimeUpdateStrategy;
+    use nova_events::units::prelude::*;
 
     use super::{super::config::default_joint_speed, *};
 

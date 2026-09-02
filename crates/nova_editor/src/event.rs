@@ -28,6 +28,7 @@ use bevy::{
     reflect::{ReflectRef, TypeInfo},
     ui_widgets::Activate,
 };
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::FlightVerb;
@@ -825,8 +826,8 @@ impl ActionChoice {
                     count: 8,
                     seed: 1,
                     region: ScatterRegion::Box {
-                        min: Vec3::splat(-100.0),
-                        max: Vec3::splat(100.0),
+                        min: Meters3(Vec3::splat(-1000.0)),
+                        max: Meters3(Vec3::splat(1000.0)),
                     },
                     template: stock_object(),
                     asteroid_radius: None,
@@ -842,9 +843,9 @@ impl ActionChoice {
                 EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
                     id: String::new(),
                     name: String::new(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
-                    radius: 100.0,
+                    radius: Meters(1000.0),
                 })
             }
             ActionChoice::SetSkybox => EventActionConfig::SetSkybox(SetSkyboxActionConfig {
@@ -852,8 +853,8 @@ impl ActionChoice {
                 brightness: None,
             }),
             ActionChoice::SetCamera => EventActionConfig::SetCamera(SetCameraActionConfig {
-                position: Vec3::new(0.0, 40.0, 120.0),
-                look_at: Vec3::ZERO,
+                position: Meters3::new(0.0, 400.0, 1200.0),
+                look_at: Meters3::ZERO,
             }),
             ActionChoice::Screenshot => EventActionConfig::Screenshot(ScreenshotActionConfig {
                 path: "shot.png".to_string(),
@@ -932,11 +933,11 @@ fn stock_object() -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: String::new(),
             name: String::new(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            radius: 3.0,
+            radius: Meters(30.0),
             texture: AssetRef::from(crate::node::ASTEROID_TEXTURE),
             material: None,
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),

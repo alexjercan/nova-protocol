@@ -598,6 +598,8 @@ pub(super) fn sync_turret_joint_rotation(
 mod tests {
     use std::time::Duration;
 
+    use nova_events::units::prelude::*;
+
     use super::{
         super::{config::default_joint_speed, test_support::*},
         *,

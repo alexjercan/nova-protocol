@@ -23,6 +23,7 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
 use nova_scenario::prelude::*;
@@ -349,7 +350,7 @@ fn lower_objects(scenario: Entity, q_objects: &ObjectNodes) -> Vec<ScenarioObjec
             base: BaseScenarioObjectConfig {
                 id: id.0.clone(),
                 name: object.name.clone(),
-                position: transform.translation,
+                position: Meters3::from_engine(transform.translation),
                 rotation: transform.rotation,
             },
             kind: object.kind.clone(),
@@ -380,7 +381,7 @@ pub(crate) fn default_world_objects() -> Vec<ScenarioObjectConfig> {
     objects.extend(SKY_BEACONS.iter().map(sky_beacon));
     // The sandbox lights itself: the engine spawns no light, so a scenario that
     // authors none renders black.
-    objects.extend(ThreePointRig::around("sandbox", Vec3::ZERO, 10.0).objects());
+    objects.extend(ThreePointRig::around("sandbox", Meters3::ZERO, 10.0).objects());
     objects
 }
 
@@ -673,7 +674,7 @@ fn planetoid() -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "planetoid".to_string(),
             name: "Planetoid".to_string(),
-            position: PLANETOID_POSITION,
+            position: Meters3::from_engine(PLANETOID_POSITION),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
@@ -681,7 +682,7 @@ fn planetoid() -> ScenarioObjectConfig {
             // outside the mod merge, so scheme refs would never rewrite.
             material: None,
             destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
-            radius: PLANETOID_RADIUS,
+            radius: Meters::from_engine(PLANETOID_RADIUS),
             texture: AssetRef::from(ASTEROID_TEXTURE),
             mass: Some(PLANETOID_MASS),
             invulnerable: true,
@@ -708,7 +709,7 @@ fn target_hulk(index: usize, position: Vec3) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: format!("hulk_{index}"),
             name: format!("Derelict Hulk {index}"),
-            position,
+            position: Meters3::from_engine(position),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -753,7 +754,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: picket.id.to_string(),
             name: picket.name.to_string(),
-            position: picket.position,
+            position: Meters3::from_engine(picket.position),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -762,7 +763,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                 // Territorial: a woken picket fights over its own patch and
                 // gives up if the player runs. Otherwise waking one drags a
                 // pursuer across the whole range.
-                leash: Some(400.0),
+                leash: Some(Meters::from_engine(400.0)),
                 // It wakes hot - the wake IS the warning, and the trip sphere
                 // gives the player a beat before the guns bear.
                 ..default()
@@ -841,15 +842,15 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: beacon.id.to_string(),
             name: beacon.name.to_string(),
-            position: beacon.position,
+            position: Meters3::from_engine(beacon.position),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: beacon.label.to_string(),
-            radius: 3.0,
+            radius: Meters::from_engine(3.0),
             color: beacon.color,
-            area_radius: Some(beacon.trip_radius),
-            lock_signature: Some(BEACON_LOCK_SIGNATURE),
+            area_radius: Some(Meters::from_engine(beacon.trip_radius)),
+            lock_signature: Some(Meters::from_engine(BEACON_LOCK_SIGNATURE)),
         }),
     }
 }
@@ -870,7 +871,7 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: PLAYER_ID.to_string(),
             name: ship_name(player, "Player's Spaceship"),
-            position: player.position,
+            position: Meters3::from_engine(player.position),
             rotation: player.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -911,7 +912,7 @@ fn standing_ship(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ship.id.clone(),
             name: ship_name(ship, &format!("Sandbox Ship {}", ship.id)),
-            position: ship.position,
+            position: Meters3::from_engine(ship.position),
             rotation: ship.rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -930,21 +931,21 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
         count: belt.count,
         seed: belt.seed,
         region: ScatterRegion::Box {
-            min: belt.min,
-            max: belt.max,
+            min: Meters3::from_engine(belt.min),
+            max: Meters3::from_engine(belt.max),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: belt.id_prefix.to_string(),
                 name: belt.name.to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep:// - see `planetoid`.
                 material: None,
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
-                radius: belt.radius.0,
+                radius: Meters::from_engine(belt.radius.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
                 mass: None,
                 invulnerable: false,
@@ -952,8 +953,11 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some(belt.radius),
-        min_separation: Some(belt.separation),
+        asteroid_radius: Some((
+            Meters::from_engine(belt.radius.0),
+            Meters::from_engine(belt.radius.1),
+        )),
+        min_separation: Some(Meters::from_engine(belt.separation)),
     })
 }
 
@@ -1046,9 +1050,9 @@ fn trip_area(picket: &Picket) -> EventActionConfig {
     EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
         id: trip_area_id(picket),
         name: format!("{} Trip", picket.name),
-        position: picket.position,
+        position: Meters3::from_engine(picket.position),
         rotation: Quat::IDENTITY,
-        radius: picket.trip_radius,
+        radius: Meters::from_engine(picket.trip_radius),
     })
 }
 
@@ -1491,7 +1495,10 @@ mod tests {
         // The pose comes off the node's transform, so dragging a rock moves
         // the rock the scenario spawns.
         let planetoid = find(&lowered, "planetoid");
-        assert_eq!(planetoid.base.position, PLANETOID_POSITION);
+        assert_eq!(
+            planetoid.base.position,
+            Meters3::from_engine(PLANETOID_POSITION)
+        );
 
         // And what makes a picket a picket rides along with it: the wake
         // handler flips a NEUTRAL ship to hostile, and the leash is what
@@ -1503,7 +1510,7 @@ mod tests {
         let SpaceshipController::AI(pilot) = &picket.controller else {
             panic!("a picket has a live AI pilot");
         };
-        assert_eq!(pilot.leash, Some(400.0));
+        assert_eq!(pilot.leash, Some(Meters::from_engine(400.0)));
 
         let ScenarioObjectKind::Spaceship(hulk) = &find(&lowered, "hulk_0").kind else {
             panic!("'hulk_0' should be a spaceship");
@@ -1602,7 +1609,7 @@ mod tests {
     #[test]
     fn the_whole_range_is_inside_the_camera_far_plane() {
         for object in objects() {
-            let distance = RANGE_ORIGIN.distance(object.base.position);
+            let distance = RANGE_ORIGIN.distance(object.base.position.to_engine());
             assert!(
                 distance < CAMERA_FAR,
                 "'{}' is {distance:.0}u from the spawn, past the {CAMERA_FAR:.0}u far plane",
@@ -1634,7 +1641,7 @@ mod tests {
             // The player is at the origin, clear of both boxes; the planetoid
             // is checked by size below.
             for belt in &BELTS {
-                let position = object.base.position;
+                let position = object.base.position.to_engine();
                 let inside = (belt.min.cmple(position) & belt.max.cmpge(position)).all();
                 assert!(
                     !inside,
@@ -2078,7 +2085,7 @@ mod tests {
                     driver: ShipDriver::Ai,
                     allegiance: Some(Allegiance::Neutral),
                     pilot: AIControllerConfig {
-                        leash: Some(400.0),
+                        leash: Some(Meters::from_engine(400.0)),
                         ..default()
                     },
                     sections: vec![section.clone()],
@@ -2102,7 +2109,10 @@ mod tests {
 
         let objects = sandbox_objects(default_world_objects(), &fleet, HullForm::Inline, true);
         let escort = find(&objects, "ship_2");
-        assert_eq!(escort.base.position, Vec3::new(24.0, 0.0, 0.0));
+        assert_eq!(
+            escort.base.position,
+            Meters3::from_engine(Vec3::new(24.0, 0.0, 0.0))
+        );
         let ScenarioObjectKind::Spaceship(ship) = &escort.kind else {
             panic!("'ship_2' should be a spaceship");
         };
@@ -2116,7 +2126,7 @@ mod tests {
         };
         assert_eq!(
             pilot.leash,
-            Some(400.0),
+            Some(Meters::from_engine(400.0)),
             "and the pilot's standing orders survive the trip through the document"
         );
 
@@ -2173,7 +2183,7 @@ mod tests {
         assert_eq!(escort.base.rotation, listing);
         assert_eq!(
             escort.base.position,
-            Vec3::new(24.0, 0.0, 0.0),
+            Meters3::from_engine(Vec3::new(24.0, 0.0, 0.0)),
             "and turning a ship does not move it"
         );
     }

@@ -356,6 +356,7 @@ fn snapshot(
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_events::units::prelude::*;
     use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind};
 
@@ -522,7 +523,7 @@ mod tests {
                 ObjectNode {
                     name: "rock".to_string(),
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                        radius: 7.0,
+                        radius: Meters(70.0),
                         texture: default(),
                         material: None,
                         destroy_sound: None,

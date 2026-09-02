@@ -12,9 +12,9 @@ use nova_scenario::prelude::{
     TimerFilterConfig,
 };
 use nova_ship::prelude::{
-    BaseSectionConfig, GameSections, MuzzleConfig, SectionConfig, SectionKind, SectionReloadConfig,
-    ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape, ThrusterSectionConfig,
-    TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
+    BaseSectionConfig, GameSections, MuzzleConfig, RailgunSectionConfig, SectionConfig,
+    SectionKind, SectionReloadConfig, ThrusterExhaust, ThrusterExhaustConfig, ThrusterExhaustShape,
+    ThrusterSectionConfig, TorpedoSectionConfig, TurretJoint, TurretSectionConfig,
 };
 
 use super::*;
@@ -170,7 +170,7 @@ fn asteroid(config: AsteroidConfig) -> ObjectNode {
 
 fn stock_asteroid() -> AsteroidConfig {
     AsteroidConfig {
-        radius: 3.0,
+        radius: Meters(30.0),
         texture: default(),
         material: None,
         destroy_sound: None,
@@ -315,13 +315,13 @@ fn a_placed_rock_keeps_what_the_inspector_wrote_on_it() {
     let mut object = asteroid(stock_asteroid());
     let rows = object_rows(&object, &Transform::default());
 
-    write(&mut object, &rows, "Radius", "12.5").expect("a radius");
+    write(&mut object, &rows, "Radius", "125").expect("a radius");
     write(&mut object, &rows, "Invulnerable", "true").expect("a flag");
 
     let ScenarioObjectKind::Asteroid(tuned) = &object.kind else {
         panic!("still an asteroid");
     };
-    assert!((tuned.radius - 12.5).abs() < f32::EPSILON);
+    assert!((tuned.radius - Meters(125.0)).get().abs() < f32::EPSILON);
     assert!(tuned.invulnerable);
 }
 
@@ -338,7 +338,7 @@ fn a_colour_reads_and_writes_as_hex() {
         name: "beacon".to_string(),
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "BEACON".to_string(),
-            radius: 3.0,
+            radius: Meters(30.0),
             color: Color::srgb(1.0, 0.0, 0.0),
             area_radius: None,
             lock_signature: None,
@@ -383,7 +383,7 @@ fn a_colour_row_carries_the_colour_and_not_just_its_name() {
         name: "beacon".to_string(),
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "BEACON".to_string(),
-            radius: 3.0,
+            radius: Meters(30.0),
             color: Color::srgb(0.0, 0.5, 1.0),
             area_radius: None,
             lock_signature: None,
@@ -903,7 +903,7 @@ fn a_number_that_is_not_finite_is_refused_wherever_it_is_typed() {
     )
     .expect_err("an infinite radius is not a radius");
     assert_eq!(refusal, "finite");
-    assert!((config.radius - stock_asteroid().radius).abs() < f32::EPSILON);
+    assert!((config.radius - stock_asteroid().radius).get().abs() < f32::EPSILON);
 }
 
 /// The floor is refused at the box, and it is refused for an `Option` too - a
@@ -921,7 +921,7 @@ fn a_number_under_its_floor_is_refused_with_the_reason() {
     .expect_err("a negative radius is not a radius");
     assert_eq!(refusal, "min 0");
     assert!(
-        (config.radius - stock_asteroid().radius).abs() < f32::EPSILON,
+        (config.radius - stock_asteroid().radius).get().abs() < f32::EPSILON,
         "and the config is left as it was"
     );
 
@@ -943,7 +943,7 @@ fn a_number_under_its_floor_is_refused_with_the_reason() {
         "9",
     )
     .expect("a radius above the floor is written");
-    assert!((config.radius - 9.0).abs() < f32::EPSILON);
+    assert!((config.radius - Meters(9.0)).get().abs() < f32::EPSILON);
 }
 
 /// A node's OWN fields sit in nothing, so there is no group over them.
@@ -1084,7 +1084,7 @@ fn a_seeded_hull_reads_as_a_ship_rather_than_as_a_spawn_config() {
         driver: ShipDriver::Ai,
         allegiance: Some(Allegiance::Neutral),
         pilot: AIControllerConfig {
-            leash: Some(400.0),
+            leash: Some(Meters(4000.0)),
             ..default()
         },
         ..default()
@@ -1129,7 +1129,7 @@ fn an_anchor_with_no_mass_still_lists_the_field() {
     let object = ObjectNode {
         name: "anchor".to_string(),
         kind: ScenarioObjectKind::Anchor(AnchorConfig {
-            body_radius: 5.0,
+            body_radius: Meters(50.0),
             mass: None,
         }),
     };
@@ -1253,7 +1253,7 @@ fn a_named_field_beats_the_family_it_belongs_to() {
 #[test]
 fn a_scrub_of_a_whole_number_stays_whole() {
     let mut config = AsteroidConfig {
-        radius: 3.0,
+        radius: Meters(30.0),
         texture: default(),
         material: None,
         destroy_sound: None,
@@ -1281,7 +1281,7 @@ fn a_scrub_of_a_whole_number_stays_whole() {
 #[test]
 fn a_scrub_of_an_unsigned_number_stops_at_zero() {
     let mut config = AsteroidConfig {
-        radius: 3.0,
+        radius: Meters(30.0),
         texture: default(),
         material: None,
         destroy_sound: None,
@@ -1312,7 +1312,7 @@ fn a_scrub_of_an_unsigned_number_stops_at_zero() {
 #[test]
 fn a_scrub_of_an_empty_optional_says_to_type_one() {
     let mut config = AsteroidConfig {
-        radius: 3.0,
+        radius: Meters(30.0),
         texture: default(),
         material: None,
         destroy_sound: None,
@@ -1714,9 +1714,9 @@ fn named_document() -> World {
             kind: ActionKind::Leaf(EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
                 id: "trap".to_string(),
                 name: "TRAP".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
-                radius: 10.0,
+                radius: Meters(100.0),
             })),
         },
         NodeId("area_1".to_string()),
@@ -1865,16 +1865,148 @@ fn a_declared_fractional_field_keeps_its_own_step() {
     );
 }
 
-/// A metered box shows ten times the authored number and hands back a tenth
-/// of what is typed; anything else typed is left for the parser to refuse.
+/// A length row is the number the FILE holds, with nothing applied between
+/// them. The box used to show ten times the authored figure because the file
+/// counted world units; both are meters now, and a factor of ten left anywhere
+/// in the panel would be a rock ten times the size the builder typed.
 #[test]
-fn a_metered_field_reads_in_meters_and_writes_back_world_units() {
-    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::IDENTITY);
-    assert_eq!(row(&rows, "Radius").scale, METERS_PER_UNIT);
-    assert_eq!(row(&rows, "Mass").scale, 1.0, "a mass is shown as written");
+fn a_length_row_reads_back_the_number_it_was_typed_with() {
+    let mut object = asteroid(stock_asteroid());
+    let rows = object_rows(&object, &Transform::IDENTITY);
+    assert_eq!(
+        text_of(&rows, "Radius"),
+        "30",
+        "the authored meters, as written"
+    );
 
-    assert_eq!(authored_text("125", METERS_PER_UNIT), "12.5");
-    assert_eq!(authored_text(" 7 ", METERS_PER_UNIT), "0.7");
-    assert_eq!(authored_text("7", 1.0), "7");
-    assert_eq!(authored_text("wide", METERS_PER_UNIT), "wide");
+    write(&mut object, &rows, "Radius", "125").expect("a radius in meters");
+    let ScenarioObjectKind::Asteroid(tuned) = &object.kind else {
+        panic!("still an asteroid");
+    };
+    assert_eq!(tuned.radius, Meters(125.0), "the file holds what was typed");
+    assert_eq!(
+        text_of(&object_rows(&object, &Transform::IDENTITY), "Radius"),
+        "125",
+        "and the row reads it back unchanged"
+    );
+    assert_eq!(row(&rows, "Radius").unit, "m");
+}
+
+/// A quantity is a tuple struct wrapping one number, and the panel shows the
+/// NUMBER: walked as the struct it is, a radius would be an unopenable row
+/// with the value hidden in a child called "0".
+#[test]
+fn a_quantity_is_one_row_holding_the_number_inside_it() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::IDENTITY);
+
+    let radius = row(&rows, "Radius");
+    assert_eq!(radius.value, RowValue::Number("30".to_string()));
+    assert!(
+        !rows.iter().any(|row| row.label == "0"),
+        "no row is the wrapper's own slot: {:?}",
+        rows.iter().map(|row| &row.label).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        radius.path,
+        vec![PathStep::Field("radius".to_string())],
+        "and the row stands at the field's own path, not one slot inside it"
+    );
+}
+
+/// An OPTIONAL quantity is an optional number: one box that takes meters and
+/// clears to `None`, not a struct to open.
+#[test]
+fn an_optional_quantity_is_typed_and_cleared_like_any_other_number() {
+    let mut config = RailgunSectionConfig::default();
+    let mut rows = Vec::new();
+    walk(&config, FieldRoot::Config, Vec::new(), &mut rows);
+
+    let rake = row(&rows, "Rake Radius").clone();
+    assert!(rake.optional, "an absent length is still a number's row");
+    assert_eq!(rake.value, RowValue::Number(String::new()));
+    assert_eq!(rake.unit, "m");
+    assert!(rake.nudge > 0.0, "and it carries the grip it will need");
+
+    write_field(&mut config, &rake.path, rake.optional, "45").expect("a rake in meters");
+    assert_eq!(config.rake_radius, Some(Meters(45.0)));
+
+    let refusal = write_field(&mut config, &rake.path, rake.optional, "-1")
+        .expect_err("a negative rake is not a rake");
+    assert_eq!(refusal, "min 0");
+
+    write_field(&mut config, &rake.path, rake.optional, "  ").expect("blank clears it");
+    assert_eq!(config.rake_radius, None);
+}
+
+/// A DISPLACEMENT wears its unit because its type says so, not because a list
+/// here names the field: `position` is meters on a spawn action and a
+/// build-grid cell on a ship's section, and only the type tells them apart.
+#[test]
+fn an_authored_displacement_reads_in_meters_and_writes_one_axis() {
+    let mut config = ScenarioAreaConfig {
+        id: "trap".to_string(),
+        name: "TRAP".to_string(),
+        position: Meters3::new(10.0, -25.0, 300.0),
+        rotation: Quat::IDENTITY,
+        radius: Meters(100.0),
+    };
+    let mut rows = Vec::new();
+    walk(&config, FieldRoot::Config, Vec::new(), &mut rows);
+
+    let position = row(&rows, "Position").clone();
+    assert_eq!(
+        position.value,
+        RowValue::Axes(["10".to_string(), "-25".to_string(), "300".to_string()])
+    );
+    assert_eq!(position.unit, "m");
+    assert_eq!(position.nudge, POSE_STEP, "and it drags like a node's pose");
+
+    let mut axis = position.path.clone();
+    axis.push(axis_step(1));
+    write_field(&mut config, &axis, false, "80").expect("one axis writes");
+    assert_eq!(config.position, Meters3::new(10.0, 80.0, 300.0));
+}
+
+/// A section's own GEOMETRY is not a distance a pilot reads. The exhaust cone
+/// is a mesh built inside the section's build-grid cell, so its rows say
+/// cells - and the panel must not offer a builder meters for a number the
+/// renderer will spend in world units.
+#[test]
+fn a_section_mesh_reads_in_build_grid_cells_not_meters() {
+    let mut rows = Vec::new();
+    walk(
+        &ThrusterExhaust::default(),
+        FieldRoot::Config,
+        Vec::new(),
+        &mut rows,
+    );
+
+    for label in ["Width", "Height", "Exhaust Height", "Exhaust Radius"] {
+        assert_eq!(
+            row(&rows, label).unit,
+            "cells",
+            "{label} sizes a mesh, not a distance"
+        );
+    }
+    assert_eq!(
+        row(&rows, "Offset").unit,
+        "",
+        "and the cone's own offset is a cell too, so nothing labels it meters"
+    );
+}
+
+/// A length drags in METERS, so the physical distance one pixel covers is what
+/// it always was over a file that counted world units.
+#[test]
+fn a_length_drags_in_the_unit_it_is_shown_in() {
+    let mut config = stock_asteroid();
+    let path = vec![PathStep::Field("radius".to_string())];
+    let rule = DragRule {
+        step: RADIUS.step,
+        limit: RADIUS.limit,
+    };
+
+    nudge_field(&mut config, &path, false, rule, 20.0).expect("a radius scrubs");
+
+    assert_eq!(config.radius, Meters(40.0), "twenty pixels is ten meters");
 }
