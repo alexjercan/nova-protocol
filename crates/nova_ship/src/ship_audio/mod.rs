@@ -30,6 +30,11 @@ use bevy::prelude::*;
 
 use crate::prelude::*;
 
+/// `ShipAudioPlugin` and its ordering handle.
+pub mod prelude {
+    pub use super::{ShipAudioPlugin, ShipAudioSystems};
+}
+
 mod combat;
 mod cues;
 mod levels;
@@ -172,6 +177,24 @@ const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
 /// sounds.
 const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
 
+/// The ship's one-shot CUE systems: the cockpit's lock, safety, dry-fire,
+/// threat and hull-warning voices.
+///
+/// In `Update`, after [`SpaceshipSectionSystems`]. Three of the five POLL
+/// section state rather than reading a message - the dry-fire click
+/// edge-latches per turret off this frame's trigger and magazine, and the hull
+/// alarm off this frame's health - so the set answers the tick the sections
+/// just took rather than the one before it. The engine's own `AudioSystems`
+/// mixing pass is in `PostUpdate`, so every voice raised here is placed and
+/// levelled before a sink opens for it.
+///
+/// The LOOP passes are deliberately not in this set. They poll
+/// `ThrusterSectionInput` and `RcsIntent`, so they belong to
+/// [`SpaceshipSectionSystems`] and inherit its scenario and pause gating; a
+/// cue fires on a message or an edge whose writer is gated already.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ShipAudioSystems;
+
 /// Plugin wiring the ship's gameplay events to sound effects: the combat
 /// observers, the cockpit cues, and the thruster/RCS loops. Requires the
 /// engine ([`nova_gameplay::audio::NovaAudioPlugin`]), which it adds if absent.
@@ -200,7 +223,10 @@ impl Plugin for ShipAudioPlugin {
         // - the writers (radar search, tap observer) are themselves
         // pause-gated. The dry-fire click polls turret input/ammo and
         // edge-latches per turret; a pause freezes the input so no fresh edge
-        // fires while paused.
+        // fires while paused. The SET is where that ordering is stated, so
+        // anything outside can order against the ship's voice as a whole -
+        // see `ShipAudioSystems`.
+        app.configure_sets(Update, ShipAudioSystems.after(SpaceshipSectionSystems));
         app.add_systems(
             Update,
             (
@@ -209,7 +235,8 @@ impl Plugin for ShipAudioPlugin {
                 play_dry_fire_cue,
                 play_threat_lock_cue,
                 play_hull_warning_cue,
-            ),
+            )
+                .in_set(ShipAudioSystems),
         );
 
         // The loop passes poll `ThrusterSectionInput` and `RcsIntent`, so they

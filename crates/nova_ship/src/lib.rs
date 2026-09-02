@@ -33,7 +33,7 @@ pub mod prelude {
     // needs both imports both, the precedent `nova_hud` set.
     pub use super::{
         camera::prelude::*, flight::prelude::*, input::prelude::*, physics::prelude::*,
-        sections::prelude::*, NovaShipPlugin,
+        sections::prelude::*, ship_audio::prelude::*, NovaShipPlugin,
     };
 }
 

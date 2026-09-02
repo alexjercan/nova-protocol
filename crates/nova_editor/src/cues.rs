@@ -12,6 +12,19 @@ use nova_gameplay::prelude::*;
 
 use crate::config::PlacementPose;
 
+/// The editor's own CUE systems - today the ghost's detent tick, the one voice
+/// of the four that is a system rather than a call from a gesture handler.
+///
+/// In `Update`, after every writer of [`PlacementPose`]: the tick belongs to
+/// the pose MOVING, not to which control moved it, so a frame that rolls the
+/// part and cycles its socket at once is one detent and not two. Deliberately
+/// not gated on an input mode - the two Ship-menu rows turn the part from
+/// `Browse` - and gated on the editor state, so the tick does not survive a
+/// trip out to a test flight. The engine's `AudioSystems` pass mixes what it
+/// raises one schedule later, in `PostUpdate`.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EditorCueSystems;
+
 /// The editor's cue bank, as a `SystemParam` so a system that already takes
 /// eight arguments adds one.
 ///

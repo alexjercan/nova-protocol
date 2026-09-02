@@ -51,6 +51,21 @@ pub(crate) fn on_menu_button_activate(
     commands.play_sfx(bank.get(key), AudioRoute::Interface, volume);
 }
 
+/// The menu's own CUE systems - today the focus tick, which is the whole of
+/// the menu's voice that is not an observer.
+///
+/// Runs in `Update` with no ordering constraint inside that schedule, and the
+/// absence is the statement: the tick reads `Hovered`, which bevy's picking
+/// writes back in `PreUpdate`, and it raises a voice the engine's
+/// `AudioSystems` pass mixes in `PostUpdate`. Both edges are schedule
+/// boundaries, so nothing in `Update` can come between them.
+///
+/// It exists so the menu's voice is one nameable thing: a second cue joins it
+/// rather than being added loose, an outside plugin can order against it, and
+/// a run condition applies to the whole voice at once.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct MenuCueSystems;
+
 /// Tick when the cursor ARRIVES on a menu button.
 ///
 /// A system on `Changed<Hovered>` rather than an observer, because `Hovered` is

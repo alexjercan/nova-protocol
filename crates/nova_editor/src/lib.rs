@@ -127,8 +127,8 @@ use ui::{
 /// snapshot into scope.
 pub mod prelude {
     pub use super::{
-        EditorPlacement, EditorProbe, EditorSandboxSystems, EditorSection, EditorTool,
-        NovaEditorPlugin,
+        cues::EditorCueSystems, EditorPlacement, EditorProbe, EditorSandboxSystems, EditorSection,
+        EditorTool, NovaEditorPlugin,
     };
 }
 
@@ -566,13 +566,18 @@ fn editor_plugin(app: &mut App) {
     // AFTER every writer of the pose, so one frame that rolls and cycles at
     // once is still one detent. Unguarded by input mode: the two menu rows
     // turn the part from `Browse` too, and the tick belongs to the pose
-    // moving, not to which control moved it.
-    app.add_systems(
+    // moving, not to which control moved it. Both the ordering and the gate
+    // sit on the SET, so a second editor cue inherits them by joining it.
+    app.configure_sets(
         Update,
-        cues::play_placement_pose_cue
+        cues::EditorCueSystems
             .after(cycle_placement_pose)
             .after(wheel_placement_pose)
             .run_if(in_state(ExampleStates::Editor)),
+    );
+    app.add_systems(
+        Update,
+        cues::play_placement_pose_cue.in_set(cues::EditorCueSystems),
     );
     // A fresh visit starts with the part's first socket, unrolled - and the
     // detent watcher forgets with it, or the reset itself reads as a turn.
