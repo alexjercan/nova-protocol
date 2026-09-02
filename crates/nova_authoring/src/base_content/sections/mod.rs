@@ -80,6 +80,7 @@ mod range_tests {
 #[cfg(test)]
 mod ordnance_tests {
     use bevy::platform::collections::HashMap;
+    use nova_events::prelude::*;
     use nova_ship::prelude::{SectionKind, TorpedoSectionConfig, TorpedoTypeConfig};
 
     use super::*;
@@ -93,6 +94,41 @@ mod ordnance_tests {
                 _ => None,
             })
             .collect()
+    }
+
+    /// The format break, pinned to the shipped catalog: a bay now AUTHORS its
+    /// blast in meters, and the engine still receives the world-unit radius it
+    /// received when the same bay authored `blast_radius: 30`. If a conversion
+    /// is ever added, doubled, or dropped between the file and the collider,
+    /// this is the assertion that fails.
+    #[test]
+    fn an_authored_three_hundred_meter_blast_reaches_the_engine_as_thirty_units() {
+        let assets = BaseContentAssets::from_paths();
+        let bays = bays(&assets);
+        assert!(!bays.is_empty(), "the catalog carries torpedo bays");
+
+        let (id, bay) = bays
+            .iter()
+            .find(|(id, _)| id == "torpedo_section")
+            .expect("the standard assault bay ships in the catalog");
+        assert_eq!(
+            bay.blast_radius,
+            Meters(300.0),
+            "'{id}' authors its blast in meters"
+        );
+        assert_eq!(
+            bay.blast_radius.to_engine(),
+            30.0,
+            "'{id}' hands the engine the radius it held before the break"
+        );
+
+        for (id, bay) in &bays {
+            assert_eq!(
+                bay.blast_radius.to_engine() * METERS_PER_UNIT,
+                bay.blast_radius.get(),
+                "'{id}' crosses to the engine and back without drift"
+            );
+        }
     }
 
     /// The owner's rule, made structural: the two assault types "both deal the
