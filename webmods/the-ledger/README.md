@@ -23,7 +23,7 @@ belt starts paying attention.
 3. **The Quiet Channel** - run dark to Broker Vesh's yard, threading the
    NAV drops in order: a real stealth run. Two Magpie pickets patrol the
    flanks, cold and neutral until provoked - stray into their watch, paint
-   one, or burn too hot (over 8 u/s is noise they hear) and both go hot.
+   one, or burn too hot (over 80 m/s is noise they hear) and both go hot.
    Overspeed warns first; push it again and a short countdown starts - hold the
    burn past it and they wake, ease off in time and the run stays dark. The debris
    pinch between the first two drops is the blind spot: thread the wrecks

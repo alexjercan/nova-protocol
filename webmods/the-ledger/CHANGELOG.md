@@ -136,7 +136,7 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 ## 1.9.0
 
 - Chapter three overspeed now gives you a real reaction window before it wakes
-  the pickets. The first breach over 8 u/s still warns instantly (harmless).
+  the pickets. The first breach over 80 m/s still warns instantly (harmless).
   But the SECOND strike no longer catches you the instant you cross the line: a
   fresh breach after slowing starts a 3.5-second countdown, Vesh shouts the
   last-chance warning, and the Magpies only wake if you HOLD the burn past the
@@ -147,9 +147,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 ## 1.8.0
 
 - Chapter three stealth gains a fifth way to blow the run: burning too hot.
-  Running over 8 u/s through the channel is noise the pickets hear. It is
-  warn-then-trip - the first time you push past 8, Vesh calls it and tells you
-  to throttle down (the pickets stay asleep); if you slow back under 7 and then
+  Running over 80 m/s through the channel is noise the pickets hear. It is
+  warn-then-trip - the first time you push past 80, Vesh calls it and tells you
+  to throttle down (the pickets stay asleep); if you slow back under 70 and then
   gun it again, that fresh breach wakes both Magpies, same as tripping a watch
   zone or painting one. A single continuous burn only ever earns the one
   warning, so an accidental nudge over the line will not end the run. The
@@ -163,7 +163,7 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
   as NEUTRAL pickets patrolling the open flanks of the debris pinch, and
   they only wake - both flipping hostile at once (`SetAllegiance`) - if the
   player provokes them by entering one of the two picket-watch detection
-  zones (radius 24, centred 55u off the lane on each flank) or by
+  zones (radius 240 m, centred 550 m off the lane on each flank) or by
   red-locking either picket. The pinch gap is the one lane the watch does
   not cover: thread it slow and you slip past; swing wide around the wrecks
   and you are seen. Reaching the yard undetected earns Vesh's "nothing on
