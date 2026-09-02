@@ -65,7 +65,7 @@ const WIKI_PAGES = [
         category: "Ships & building",
         tags: ["ships"],
         summary:
-            "The modular parts a ship is built from - hull, controller, thruster, turret and torpedo bay - each with its own mass, health and one behavior.",
+            "The modular parts a ship is built from - hull, controller, thruster, turret, torpedo bay and railgun - each with its own mass, health and one behavior.",
         related: ["combat-weapons", "flight-autopilot", "hud"],
         headings: [
             "Hull",
@@ -73,6 +73,7 @@ const WIKI_PAGES = [
             "Thruster",
             "Turret",
             "Torpedo bay",
+            "Railgun",
             "Variants",
         ],
     },
@@ -144,6 +145,28 @@ const WIKI_PAGES = [
             "Fires guided, proportional-navigation torpedoes that deal blast damage.",
         related: ["sections", "combat-weapons"],
         headings: ["Variants"],
+    },
+    {
+        slug: "sections/railgun",
+        md: "sections/railgun.md",
+        title: "Railgun",
+        category: "Ships & building",
+        parent: "sections",
+        icon: "assets/icon-railgun.png",
+        tags: ["ships", "combat"],
+        summary:
+            "A spinal lance the hull aims: a committed charge, then one slug that rakes through everything in the line.",
+        related: ["sections", "combat-weapons", "hud"],
+        headings: [
+            "The hull is the aim",
+            "Committing the shot",
+            "The bore sight",
+            "What one shot takes out",
+            "The recoil",
+            "The tempo",
+            "Facing one",
+            "Variants",
+        ],
     },
     {
         slug: "keybinds",

@@ -108,6 +108,75 @@ does not pay for: it has no extra authority to spend, so a stack costs it a few
 per cent of peak rate and a tick or two of onset in exchange for landing
 cleaner. Measured in `flight/tests/stacking.rs`, which prints the table.
 
+### The spinal lance
+
+`Railgun` is the one weapon kind whose aim is the HULL. It fires down the
+section's own `-Z`, has no joints and no cone, and that is why it is its own
+`SectionKind` arm rather than a turret with a narrow arc: the turret code is
+about cones and joints, and a lance has neither.
+
+The whole cycle is one system, `charge_and_fire_railgun`
+(`sections/railgun_section/firing.rs`), on the FIXED clock:
+
+- **The commit.** A trigger pull moves `RailgunCharge::Ready` to `Charging`.
+  The MAGAZINE gates the commit rather than the shot - committing an empty gun
+  would burn a charge for nothing and hide the reload from the player - and the
+  shell is spent only once the shot is certain. The section reads
+  `RailgunSectionInput` and never clears it, so a held trigger is a gun cycling
+  at its own cadence rather than a second mechanic.
+- **The safety is LIVE through the charge.** `WeaponsHot` gates the commit and
+  is re-read every tick: a gun safed mid-charge dumps the charge, snaps the
+  `Charge` cue back to 0 and KEEPS its shell rather than firing it into a
+  friendly. That is the only way out of a commit; the trigger has none. A ship
+  carrying no `WeaponsHot` (a bare headless rig) fires freely.
+- **The charge.** `charge_seconds` runs off `Time`, and the `Charge` animation
+  cue is SNAPPED to the gameplay fraction every tick rather than played. Both
+  travel times on the shipped `charge_bolt` track are zero for that reason: an
+  authored travel time would be a second clock, and the bolt would reach the
+  brake before or after the shot it announces.
+- **The shot and its recoil, in the same tick.** They have to share one, or an
+  impulse applied a tick late pushes a ship that has already moved on from the
+  pose it fired in. That is what keeps the cycle in a single system and earns
+  its `too_many_arguments` expect. The bore is read off the RAW physics pose
+  through `local_pose_in_root`, not `GlobalTransform`, which inside FixedUpdate
+  still holds the previous frame's eased render pose. The slug inherits the
+  muzzle's full rigid-body velocity, swing included.
+
+The slug is an ordinary `nova_gameplay::rounds` Pierce round with
+`layers: u32::MAX`, so `slug_power` alone bounds the depth: it curves in wells,
+is charged once per layer through `pierce_remainder`, and needs no second damage
+pipeline. `slug_damage` is dealt FLAT to every layer (`hit_bite` does not scale
+Pierce), while each crossing costs that layer's MAX health divided by
+`pierce_power_multiplier` - and a 1500 u/s slug always sits at that curve's 3.0
+ceiling, so the shipped 1800 power is 27 reinforced hull blocks.
+
+Recoil goes through `apply_linear_impulse_at_point` AT `muzzle_offset`, never at
+the centre of mass, so an off-axis lance yaws the hull every time it fires.
+`every_lance_puts_its_muzzle_on_the_brake_face` pins the offset to the face for
+exactly that reason: it is one number that is silently wrong in two ways at
+once - the slug spawns inside the gun, and the torque is off by the same
+distance. `every_lance_holds_exactly_one_shell` pins the other half of the
+design: capacity 1, a reload of 1, and a reload delay longer than the charge, so
+the reload is the tempo.
+
+The lance's sockets (`lance_link_points`, `nova_authoring`) leave the muzzle
+face bare. A lance cannot traverse off its own line, so a socket there is an
+invitation to bolt a plate into the bore;
+`no_lance_sockets_the_face_it_fires_through` holds it.
+
+The pilot-facing half is `nova_hud`'s bore sight
+(`crates/nova_hud/src/bore_sight.rs`), the only instrument that says where a
+hull points. It traces the bore and walks the crossed sections through the SAME
+`pierce_remainder`, ringing each section the shot would destroy - a sight with
+its own copy of the pierce math is a sight that eventually lies. It is gated on
+`WeaponsHot` and drawn dimmed rather than hidden on an empty magazine.
+
+The AI half is deliberately crude and recorded as such
+(`crates/nova_ship/src/input/ai/railgun.rs`): a raider commits when its orbit
+happens to sweep the bore across a target it is already fighting, inside about
+eight degrees and 60% of the slug's reach, with a per-gun cadence over the gun's
+own reload. It does not FLY the shot.
+
 ### Meshes and colliders (authorable)
 
 Two authorable knobs decouple a section's look and physics from the default unit
@@ -817,12 +886,14 @@ per contact. A symmetric rule - ram damage - wants both.
 ## Ammo
 
 - `SectionAmmo` (`sections/ammo.rs`): optional magazine on a weapon section.
-  Absent = unlimited fire; `ammo_capacity` in the turret/torpedo config opts in.
+  Absent = unlimited fire; `ammo_capacity` in the turret/torpedo/railgun config
+  opts in.
   The player `infinite_ammo` flag builds that ship's weapons without magazines,
   but only under the `debug` feature: a shipped build logs a warning and keeps
   the authored magazines, so unlimited fire is a dev cheat, never a player state.
 - `SectionReload` (`sections/ammo.rs`): optional idle batch reload on a
-  magazine, from the turret/torpedo config `reload: Some((delay, amount))`.
+  magazine, from the turret/torpedo/railgun config
+  `reload: Some((delay, amount))`.
   Every successful shot resets progress; every completed quiet delay restores
   one batch until full. Fire runs before `tick_section_reload` in FixedUpdate so
   a shot wins an exact completion tick. Unlimited weapons never reload. The HUD
@@ -873,6 +944,11 @@ per contact. A symmetric rule - ram damage - wants both.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
   `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.
+- The spinal lance: `RailgunSectionConfig`, `RailgunCharge`,
+  `charge_and_fire_railgun` -
+  `crates/nova_ship/src/sections/railgun_section/`; its sight:
+  `BoreSightPlugin` - `crates/nova_hud/src/bore_sight.rs`; its AI commit
+  envelope: `crates/nova_ship/src/input/ai/railgun.rs`.
 - Derived skin and styles: `ShipSkinPlugin` -
   `crates/nova_ship/src/sections/shell_skin.rs`; `ShipStyleConfig` -
   `crates/nova_ship/src/sections/skin_style.rs`.

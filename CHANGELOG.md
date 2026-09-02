@@ -69,6 +69,13 @@ does NOT get an entry - and it is the only place they are written down.
   names a `material`, and `Impact` rows pair a damage type with a material, so
   a mod can voice one round against one surface.
 
+### Web & Platform
+- The wiki gets a Railgun page - the commit and its one way out, what a slug
+  rakes through, the recoil and the tempo - and the dev book gets the lance's
+  charge cycle, its sight and its AI envelope.
+- The seven authored sound fields reach the modding docs: a bay's iris, a
+  turret's stow lids, the three cockpit warnings and the hull's own collapse.
+
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,
   destruction, drives, cockpit, menus and editor, all synthesised from scratch.

@@ -58,7 +58,7 @@ Pick a section for the details - what it does, why it matters, and how it ties i
 
 ## Variants
 
-The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft semantic parts (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them - the torpedo bays are the exception, a two-cell tube at twice the mass.
+The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft semantic parts (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them - the torpedo bays and the lance are the exceptions, a two-cell tube and a three-cell spine at two and three times the mass.
 
 <div class="catalog">
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced hull health 200 :584; basic thruster :611; basic controller :687 (max_torque 1501 :704); light hull 60 :732; cargo hull 200 :757; tank hull 200 :778; pdc_turret_prototype :414 (health 130 :429,:32) with gatling call sites :791-815 at 100/s :67 and twin call sites :816-839 at half per muzzle :75; torpedo bay builder :959 with call sites :842-861; heavy_torpedo_section :864. -->
@@ -80,6 +80,7 @@ The standard unit-cell catalog at a glance - every child page carries the full p
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 30 u</td></tr>
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 30 u</td></tr>
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Siege Torpedo Bay Section<span class="catalog__flag">hidden</span></span><span class="catalog__id">heavy_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">2000 blast / 45 u</td></tr>
+<tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
 </tbody>
 </table>
 </div>

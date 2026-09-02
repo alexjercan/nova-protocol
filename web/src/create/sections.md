@@ -391,6 +391,23 @@ kind: Controller((
   radar/lock and weapons-safety feedback ticks, asset refs like the meshes
   (`dep://base/sounds/lock_on.wav` etc. for the base cues); an omitted cue is
   silent. Your ship's computer can have its own voice.
+- `warn_lock_sound` (optional) - the threat alarm, on the rising edge of a
+  hostile taking a combat lock on you (`dep://base/sounds/warn_lock.wav` is the
+  base tone). The COMPUTER owns it because knowing you are locked is a sensor
+  capability: a hull flown without a controller gets no warning at all.
+- `ammo_dry_sound` (optional) - a magazine running dry, heard at the GAUGE
+  (`dep://base/sounds/ammo_dry.wav`). It fires on the same edge as the gun's own
+  `dry_fire_sound` out on the mount and the two are meant to read as one event
+  from two places - the gun's is per-turret, this one is per-SHIP.
+- `warn_hull_sound` (optional) - the hull-critical alarm
+  (`dep://base/sounds/warn_hull.wav`). ONE alarm, on the falling edge through
+  `warn_hull_fraction`; the gravest thing the computer says.
+- `warn_hull_fraction` (default `0.3`) - the fraction of the health the ship
+  was BUILT with below which `warn_hull_sound` goes off. The same quantity
+  `collapse_threshold` is priced in (default `0.05`), so the alarm sits well
+  clear of the wreckage floor - which is the point of having it. A cheap
+  civilian computer may warn late, and `0.0` never warns at all. Clamped to
+  `0..=1`.
 
 ### What a hull does with the torque
 
@@ -563,6 +580,13 @@ Section-wide fields (once, alongside `root`):
 - `dry_fire_sound` (optional) - the click when the trigger is pulled on an
   empty magazine; same asset-ref rules (`dep://base/sounds/dry_fire.wav` is the
   base click), omit for a silent dry pull.
+- `stow_open_sound`, `stow_close_sound` (both optional) - the lids over a
+  retractable mount, played when the stow state machine commands the doors open
+  and shut (`dep://base/sounds/pdc_stow_open.wav` and `pdc_stow_close.wav` are
+  the base servos). Two files, because a housing lifting does not sound like one
+  sinking. A mount that authors no `StowLift`
+  [animation track](#animation-tracks) never stows, so these two mean nothing on
+  a fixed gun; omit either for a silent half.
 - `muzzle_speed` - projectile launch speed in units per second (shared by all
   muzzles; `fire_rate` is per-muzzle, see the joint fields above).
 - `projectile_lifetime` - projectile lifetime in seconds. A turret has no
@@ -646,6 +670,12 @@ kind: Torpedo((
 - `detonation_sound` (optional) - the sound the warhead plays when it blasts;
   rides the torpedo's own destroy event, so it fires even when a torpedo is shot
   down. Omit for a silent detonation.
+- `door_sound` (optional) - the muzzle iris servo
+  (`dep://base/sounds/bay_door.wav` is the base one), played on BOTH edges of
+  its travel: one servo, two directions, one file. A bay that authors no
+  `MuzzleDoor` [animation track](#animation-tracks) has no iris and stays silent
+  whatever this says - the cue answers the door moving, and a doorless bay's
+  door never moves.
 - `render_mesh`, `projectile_render_mesh` (both optional) - the bay mesh and the
   torpedo mesh. Omit `projectile_render_mesh` and the warhead flies as the
   built-in coned body, nose along its direction of travel. The shipped tube
