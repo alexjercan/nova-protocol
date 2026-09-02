@@ -372,7 +372,7 @@ fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
 }
 
 /// Parse a readout line like `DST 1.50 km` or `CLS +12.3 m/s` back into BASE
-/// units (metres, metres per second) so it can be compared against the world.
+/// units (meters, meters per second) so it can be compared against the world.
 ///
 /// The readouts route through `nova_ui::units` since task 20260728-175731, so
 /// they auto-scale to km / km/s: a unit-naive digit scrape reads `1.50 km` as
@@ -388,13 +388,13 @@ fn readout_value(line: &str) -> f32 {
         .parse()
         .unwrap_or_else(|_| panic!("hud range: no number in readout line '{line}'"));
     // `km` scales by 1000; plain `m`/`m/s` does not. Then back out of the
-    // player-facing metres into WORLD units, which is what the scene measures.
-    let metres = if line.contains("km") {
+    // player-facing meters into WORLD units, which is what the scene measures.
+    let meters = if line.contains("km") {
         value * 1000.0
     } else {
         value
     };
-    metres / nova_ui::units::METERS_PER_UNIT
+    meters / nova_ui::units::METERS_PER_UNIT
 }
 
 /// Raise the stance (RMB), the first half of the live radar gesture.

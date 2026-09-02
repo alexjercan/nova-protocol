@@ -111,7 +111,7 @@ pub(crate) struct MapContact {
     pub(crate) name: String,
     pub(crate) world_pos: Vec3,
     /// Range from the player ship in world units. Rendered through the shared
-    /// player-facing distance policy (1 u = 10 m; metres/kilometres).
+    /// player-facing distance policy (1 u = 10 m; meters/kilometers).
     pub(crate) range: f32,
     /// Bearing in the player's local frame: 0 dead ahead, +90 to starboard.
     pub(crate) bearing_deg: f32,
@@ -122,7 +122,7 @@ pub(crate) struct MapContact {
 impl MapContact {
     /// The PoC readout line: `KIND CODE / NAME - range X, bearing Y. note`.
     /// Range uses the shared player-facing distance policy (1 world unit =
-    /// 10 m; metres below 1 km, kilometres above).
+    /// 10 m; meters below 1 km, kilometers above).
     pub(crate) fn readout(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
             return format!(

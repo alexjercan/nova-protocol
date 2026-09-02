@@ -544,7 +544,7 @@ mod tests {
             rows.iter()
                 .find(|(label, _)| label == "Radius")
                 .map(|(_, value)| value.as_str()),
-            Some("7"),
+            Some("70"),
             "the rock's own config is what the panel is showing: {rows:?}"
         );
     }

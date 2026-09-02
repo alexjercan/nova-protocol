@@ -980,7 +980,7 @@ mod tests {
 
     /// The arm the pass derived, read back out of the ceiling it wrote: the
     /// shipped hulls are all structure-bound, so `LOAD_LIMIT / ceiling` in
-    /// metres is exactly the arm that produced it.
+    /// meters is exactly the arm that produced it.
     fn hull_arm(app: &App, root: Entity) -> f32 {
         let budget: f32 = app
             .world()

@@ -478,7 +478,7 @@ pub fn hold_station(world: &mut World) {
 /// a player at the origin, and the radar picks the body nearest the AIM RAY
 /// (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few tens
 /// of units off station swings the parked raider off the ray and latches a
-/// hostile two kilometres out instead.
+/// hostile two kilometers out instead.
 #[cfg(feature = "debug")]
 pub fn pin_player(
     mut player: Query<

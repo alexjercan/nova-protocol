@@ -431,8 +431,8 @@ fn closing_speed(
     Some(-(target_vel - ship_vel).dot(los_dir))
 }
 
-/// The `DST` line, using the shared player-facing distance policy (metres
-/// below 1 km, kilometres above; 1 world unit = 10 m).
+/// The `DST` line, using the shared player-facing distance policy (meters
+/// below 1 km, kilometers above; 1 world unit = 10 m).
 fn distance_line(distance: f32) -> String {
     format!("DST {}", nova_ui::units::distance(distance))
 }

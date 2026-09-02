@@ -69,7 +69,7 @@ HEIGHT = 0.5
 # modelling job that wandered into the wrong file.
 MAX_TRIANGLES = 200
 
-# Vertices are rounded to this many decimals (micrometres at cell scale) before
+# Vertices are rounded to this many decimals (micrometers at cell scale) before
 # they reach the writer, so a value that only differs in float noise cannot
 # change the committed bytes.
 PRECISION = 6

@@ -230,7 +230,7 @@ pub(crate) fn park_camera_for_gallery(
 ///
 /// A section's authored collider is not its silhouette: a turret's collider is
 /// the small box it mounts through, while the thing that renders is a joint
-/// tree with a barrel over a metre long. Fitting to the collider drew that
+/// tree with a barrel over a meter long. Fitting to the collider drew that
 /// barrel four cells wide. Measured as a bounding-sphere RADIUS about the
 /// tile's origin, which no rotation changes - so the focus turntable cannot
 /// pulse the part's size as it turns.

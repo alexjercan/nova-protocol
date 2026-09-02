@@ -14,7 +14,7 @@
 //!
 //! THE SET DRIFTS, on purpose and in the name: the planetoid is a real well
 //! (these shots illustrate gravity, so the body in them had better be one), and
-//! at this range it pulls the yard at about 0.01 u/s^2 - metres of drift over a
+//! at this range it pulls the yard at about 0.01 u/s^2 - meters of drift over a
 //! long free-fly look, nothing over a capture, which freezes the scene anyway
 //! (`freeze_bodies`).
 

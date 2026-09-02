@@ -48,6 +48,9 @@ does NOT get an entry - and it is the only place they are written down.
 - With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
   the bore ringing every section the shot would destroy, dimmed but still there
   through the twelve-second reload.
+- The editor's inspector and gallery read lengths and speeds in meters. The
+  file keeps the authored world unit (10 m); a box converts both ways, so a
+  builder types what the HUD reads.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull

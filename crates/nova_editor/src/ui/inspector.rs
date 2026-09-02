@@ -41,13 +41,13 @@ use crate::{
     },
     gizmo::GizmoAxis,
     inspect::{
-        action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
-        driver_label, editable_config, event_rows, filter_rows, gate_rows, inspected, nudge_field,
-        object_config_mut, object_rows, operand_path, operand_row, parse_colour, rotation_degrees,
-        rotation_from_degrees, scenario_rows, script_name, section_config_mut, section_rows,
-        ship_rows, step_rows, toggle_field, write_field, DocumentIds, DragRule, FieldRoot,
-        InspectTarget, InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames,
-        GRIP_GONE,
+        action_rows, authored_text, axis_step, choose_field, curated_object_rows,
+        curated_section_rows, driver_label, editable_config, event_rows, filter_rows, gate_rows,
+        inspected, nudge_field, object_config_mut, object_rows, operand_path, operand_row,
+        parse_colour, rotation_degrees, rotation_from_degrees, scenario_rows, script_name,
+        section_config_mut, section_rows, ship_rows, step_rows, toggle_field, write_field,
+        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, NodeKinds, Operand,
+        PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -113,6 +113,9 @@ pub(crate) struct InspectorField {
     root: FieldRoot,
     path: Vec<PathStep>,
     optional: bool,
+    /// What the box shows per authored unit; what it is typed in is divided
+    /// by this on the way back to the file.
+    scale: f32,
 }
 
 /// The chip that opens the picker on a row that NAMES something, and what
@@ -1176,6 +1179,7 @@ fn spawn_operand_row(
                 root: FieldRoot::Config,
                 path: operand_path(),
                 optional: false,
+                scale: 1.0,
             };
             value
                 .spawn(Node {
@@ -1301,7 +1305,7 @@ fn axis_leads(root: FieldRoot) -> [(&'static str, Color); 3] {
 ///
 /// A COLUMN, not a word: the boxes are what a builder's eye runs down, and
 /// sized to their own unit they ended at a different x on every row - one
-/// short by `u/s`, the next by nothing at all.
+/// short by `m/s`, the next by nothing at all.
 const UNIT_W: f32 = 26.0;
 
 /// The unit beside a value: what the number in the box is measured in.
@@ -1510,6 +1514,7 @@ fn build_rows(
             root: row.root,
             path: row.path.clone(),
             optional: row.optional,
+            scale: row.scale,
         };
         // The row steps in with its group, and its NAME COLUMN gives up
         // exactly what the step took: the value boxes stay in one column down
@@ -2371,7 +2376,7 @@ pub(crate) fn apply_inspector_edits(
             continue;
         };
         let written = targets.edit(field, |root, path, optional| {
-            write_field(root, path, optional, value)
+            write_field(root, path, optional, &authored_text(value, field.scale))
         });
         match written {
             Ok(()) => {

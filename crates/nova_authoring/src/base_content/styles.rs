@@ -500,7 +500,7 @@ fn industrial_style(assets: &BaseContentAssets) -> ShipStyleConfig {
                 // (finding 1.5.3 of the vocabulary spike): `seat: Any` and NO
                 // `min_depth`, `min_height` or relief, because a hand-built
                 // hull one cell thick derives as cones end to end and a flat
-                // two-centimetre placard is the one piece that genuinely lies
+                // two-centimeter placard is the one piece that genuinely lies
                 // on any of them - which is why the marking class carries the
                 // carrier duty (flat detail may sit anywhere, PG 3.6). This
                 // far down the list every zone rule has picked first, so on a

@@ -1569,7 +1569,7 @@ mod stamp_tests {
     }
 
     /// The breech has to land ON the bow keel cell's face, or the gun is a
-    /// three-cell section floating half a metre off the nose.
+    /// three-cell section floating half a meter off the nose.
     #[test]
     fn the_lance_breech_meets_the_bow_keel_it_bolts_to() {
         let sections = GameSections(nova_authoring::generation::build_section_catalog());

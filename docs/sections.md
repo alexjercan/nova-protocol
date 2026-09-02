@@ -147,7 +147,7 @@ The slug is an ordinary `nova_gameplay::rounds` Pierce round with
 is charged once per layer through `pierce_remainder`, and needs no second damage
 pipeline. `slug_damage` is dealt FLAT to every layer (`hit_bite` does not scale
 Pierce), while each crossing costs that layer's MAX health divided by
-`pierce_power_multiplier` - and a 1500 u/s slug always sits at that curve's 3.0
+`pierce_power_multiplier` - and a slug at 1500 world units per second always sits at that curve's 3.0
 ceiling, so the shipped 1800 power is 27 reinforced hull blocks.
 
 Nothing that flies is 27 blocks deep, so the optional `rake_radius` spends the
@@ -181,7 +181,7 @@ flowchart TD
 The capsule test is analytic - the corridor measurement from `corridor_contact`
 against the sphere's track - rather than a spatial query, because parry's
 `intersection_test` returns false negatives for shallow overlaps against a
-capsule this long (a 1500 u/s slug sweeps 23 units a step), and the first
+capsule this long (a slug at 1500 world units per second sweeps 23 a step), and the first
 version of the rake, which queried, cut a corridor with its corners missing.
 The body's own colliders are the candidate set, so there is no query cap under
 the power budget either.
@@ -597,7 +597,7 @@ gaps are irregular while a count that fell is direct evidence a section died.
 A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but `SectionInactiveMarker` disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced 1 u/s kick away from the
+rigid point velocity and receive a momentum-balanced kick of one world unit per second (10 m/s) away from the
 cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.
 
@@ -713,7 +713,7 @@ for its pressure pass.
 shape, in world space. `kind` is the weapon class that paid for the carve, and
 it is what decides the look: `spew.rs` keys a `ShardLook` off it, one entry per
 `DamageType`. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(`ShardLook::size`, 0.12u) - kinematic, no collider, `TempEntity(2.5)` - and
+(`ShardLook::size`, 0.12 world units) - kinematic, no collider, `TempEntity(2.5)` - and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead's fireball already covers the frames the geometry changes in, the crater
@@ -865,7 +865,7 @@ the muzzle: `closing_speed(round_velocity, target_velocity)` projects the same
 relative velocity `on_impact_collision_deal_damage` uses onto the round's own
 line of flight (projecting onto the line BETWEEN the bodies is unusable - at
 contact they are touching, so that direction is noise). Both curves are the
-speed ratio against `REFERENCE_CLOSING_SPEED` (100 u/s, the shipped PDC's
+speed ratio against `REFERENCE_CLOSING_SPEED` (100 world units per second, the shipped PDC's
 `muzzle_speed`), clamped:
 
 - `kinetic_damage_multiplier` scales what a hit DEALS, clamped to `[0.25, 2.0]`;

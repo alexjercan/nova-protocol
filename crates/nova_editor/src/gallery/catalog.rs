@@ -6,6 +6,7 @@
 
 use bevy::prelude::*;
 use nova_ship::prelude::*;
+use nova_ui::prelude::*;
 
 /// The category filter across the top of the gallery. One entry per section
 /// kind plus [`GalleryCategory::All`]; the kinds are named for what the part
@@ -164,10 +165,7 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                 "Damage".to_string(),
                 format!("{:.1} {:?}", turret.bullet_damage, turret.bullet_kind),
             ),
-            (
-                "Muzzle".to_string(),
-                format!("{:.0} u/s", turret.muzzle_speed),
-            ),
+            ("Muzzle".to_string(), units::speed(turret.muzzle_speed)),
             (
                 "Ammo".to_string(),
                 turret
@@ -186,13 +184,14 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
             (
                 "Blast".to_string(),
                 format!(
-                    "{:.0} @ {:.0} u",
-                    torpedo.blast_damage, torpedo.blast_radius
+                    "{:.0} @ {}",
+                    torpedo.blast_damage,
+                    units::distance(torpedo.blast_radius)
                 ),
             ),
             (
                 "Speed".to_string(),
-                format!("{:.0} u/s", torpedo.torpedo_type.max_speed),
+                units::speed(torpedo.torpedo_type.max_speed),
             ),
             (
                 "Ammo".to_string(),
@@ -222,10 +221,7 @@ fn behaviour(kind: &SectionKind) -> Vec<(String, String)> {
                 "Charge".to_string(),
                 format!("{:.2} s", railgun.charge_seconds),
             ),
-            (
-                "Muzzle".to_string(),
-                format!("{:.0} u/s", railgun.slug_speed),
-            ),
+            ("Muzzle".to_string(), units::speed(railgun.slug_speed)),
             (
                 "Recoil".to_string(),
                 format!("{:.0} impulse", railgun.recoil_impulse),

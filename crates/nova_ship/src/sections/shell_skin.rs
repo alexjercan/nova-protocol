@@ -1086,7 +1086,7 @@ fn worn_style<'a>(
 /// A CUBOID rather than the surface itself. The generated meshes are not
 /// convex (a wall notched at its midpoint is the counterexample), so a hull
 /// would paper over the dips, and cladding is thin enough that the difference
-/// is a few centimetres of a cell. The box is also exactly `volume` cells of
+/// is a few centimeters of a cell. The box is also exactly `volume` cells of
 /// solid, which is what lets one density cover every shape.
 ///
 /// A COMPOUND of one box, because that is the only way to offset a collider

@@ -508,7 +508,7 @@ pub fn decor_body(fixture: &StyleFixtureConfig, pose: Transform) -> impl Bundle 
 ///
 /// A CUBOID and not the model. A greeble is a handful of small solids with gaps
 /// between them, a convex hull of one would swallow the gaps anyway, and the
-/// difference at this size is centimetres. A COMPOUND of one box because that
+/// difference at this size is centimeters. A COMPOUND of one box because that
 /// is the only way to offset a collider from the entity carrying it, and a
 /// piece is authored with its foot at `y = 0`.
 fn decor_collider(size: Vec3) -> Collider {

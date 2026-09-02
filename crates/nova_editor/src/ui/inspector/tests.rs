@@ -320,7 +320,7 @@ fn inspecting_a_second_node_of_the_same_kind_rebuilds_too() {
 
     select(&mut app, first);
     select(&mut app, second);
-    submit(&mut app, "Radius", "9");
+    submit(&mut app, "Radius", "90");
 
     assert!((radius_of(&app, second) - 9.0).abs() < f32::EPSILON);
     assert!(
@@ -361,7 +361,8 @@ fn a_submitted_field_moves_the_number_into_the_document() {
     let rock = asteroid(&mut app, scenario, "asteroid_1", 3.0);
     select(&mut app, rock);
 
-    let field = submit(&mut app, "Radius", "12.5");
+    // The box reads in meters; the document keeps world units.
+    let field = submit(&mut app, "Radius", "125");
 
     assert!((radius_of(&app, rock) - 12.5).abs() < f32::EPSILON);
     assert!(
@@ -373,7 +374,7 @@ fn a_submitted_field_moves_the_number_into_the_document() {
             .get::<TextFieldValue>(field)
             .expect("the field")
             .0,
-        "12.5",
+        "125",
         "the box repaints from the document it just wrote"
     );
 }
@@ -432,7 +433,7 @@ fn a_refusal_takes_the_unit_slot_and_the_box_keeps_what_was_typed() {
     app.world_mut()
         .run_system_once(paint_field_reasons)
         .expect("the reason paints");
-    assert_eq!(unit_of(&mut app, "Radius"), "u", "nothing is wrong yet");
+    assert_eq!(unit_of(&mut app, "Radius"), "m", "nothing is wrong yet");
 
     let field = field_of(&mut app, "Radius");
     app.world_mut()
@@ -467,7 +468,7 @@ fn a_moved_node_repaints_its_own_position_row() {
         .insert(Transform::from_xyz(4.0, 0.0, -6.0));
     app.update();
 
-    for (axis, wanted) in [("X", "4"), ("Y", "0"), ("Z", "-6")] {
+    for (axis, wanted) in [("X", "40"), ("Y", "0"), ("Z", "-60")] {
         let box_of = field_of(&mut app, &format!("Position {axis}"));
         assert_eq!(
             app.world()
@@ -493,7 +494,7 @@ fn typing_into_one_axis_box_leaves_the_others_alone() {
         .insert(Transform::from_xyz(4.0, 0.0, -6.0));
     app.update();
 
-    submit(&mut app, "Position Y", "9");
+    submit(&mut app, "Position Y", "90");
 
     assert_eq!(
         app.world()

@@ -120,7 +120,7 @@ pub(super) fn on_projectile_marker_effect(
     effect_spawner.reset();
 }
 
-/// How hard a round's own colour burns past white, so a metre-long body still
+/// How hard a round's own colour burns past white, so a meter-long body still
 /// reads as a tracer at engagement range and picks up the camera's bloom. In
 /// the same family as the thruster plume (10/5/0) and the blast shell (4/1.6/0.3).
 const ROUND_EMISSIVE_GAIN: f32 = 6.0;
@@ -505,7 +505,7 @@ const MUZZLE_SPEED_MAX: f32 = 14.0;
 ///
 /// World-space, so it is the SAME object from any distance and shrinks to
 /// nothing as the camera pulls out. The screen-space dots it replaces stayed
-/// three pixels across at any range, which turned a gun two kilometres away
+/// three pixels across at any range, which turned a gun two kilometers away
 /// into a cloud of confetti larger than the ship firing it.
 const MUZZLE_SIZE: f32 = 0.55;
 
@@ -616,7 +616,7 @@ fn build_default_muzzle_effect() -> EffectAsset {
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
     // Round, not rectangular. A PDC is fought at ranges where the camera can
-    // sit a couple of metres off the barrel, and a square is the one shape a
+    // sit a couple of meters off the barrel, and a square is the one shape a
     // ball of burning gas is not.
     let mask = soft_dot_modifier(&writer);
     let mut module = writer.finish();

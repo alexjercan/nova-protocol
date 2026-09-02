@@ -19,7 +19,7 @@ use crate::pointer_rig::{
 /// The map readout and INFO cell render range through the shared
 /// player-facing distance policy (1 world unit = 10 m), not raw `u`.
 #[test]
-fn map_range_renders_in_metres_and_kilometres() {
+fn map_range_renders_in_meters_and_kilometers() {
     let entity = Entity::PLACEHOLDER;
     // 50 world units = 500 m (below the km threshold).
     let near = MapContact {

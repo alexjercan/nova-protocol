@@ -23,6 +23,7 @@ use bevy::{
         NamedField, ReflectMut, ReflectRef, TypeInfo, Typed,
     },
 };
+use nova_events::prelude::METERS_PER_UNIT;
 use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
@@ -346,6 +347,9 @@ pub(crate) struct InspectorRow {
     /// How far one pixel of a drag moves this row's number. Zero for a row
     /// holding something that is not a number, which has nothing to scrub.
     pub(crate) nudge: f32,
+    /// What the box shows per authored unit - see [`FieldSpec::scale`]. A
+    /// value typed into the box is divided by it on the way back in.
+    pub(crate) scale: f32,
     /// What the field takes. Carried on the ROW because the grip is handed the
     /// path of one vector component, and `x` is not a name any declaration can
     /// match - resolving the rule a second time from there finds nothing.
@@ -464,6 +468,7 @@ fn kind_row(
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
+        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Choice {
             options: options.map(str::to_string).collect(),
@@ -488,6 +493,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         label: label.to_string(),
         unit: "",
         nudge: 0.0,
+        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Fixed(text.into()),
         hint: String::new(),
@@ -504,14 +510,14 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
     let (group, label) = heading_and_label(&path);
     // A unit belongs to a NUMBER. A checkbox or a variant name has none, and
     // one drawn beside it would be a label for the wrong thing.
-    let (unit, nudge, limit) = match value {
+    let (unit, nudge, limit, scale) = match value {
         // A vector's three numbers share one unit, and the row's own line is
         // where it goes - the same place the pose's Position row wears its.
         RowValue::Number(_) | RowValue::Axes(_) => field_spec(&path)
-            .map_or(("", FREE_STEP, Limit::Free), |spec| {
-                (spec.unit, spec.step, spec.limit)
+            .map_or(("", FREE_STEP, Limit::Free, 1.0), |spec| {
+                (spec.unit, spec.step, spec.limit, spec.scale)
             }),
-        _ => ("", 0.0, Limit::Free),
+        _ => ("", 0.0, Limit::Free, 1.0),
     };
     InspectorRow {
         root,
@@ -521,14 +527,42 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         label,
         unit,
         nudge,
+        scale,
         limit,
-        value,
+        value: shown(value, scale),
         hint: String::new(),
         names: None,
         asset: None,
         owner: None,
         depth: 0,
     }
+}
+
+/// A row's text with its scale applied: the authored number, shown in the
+/// unit the box wears. Text that is not a number is left as it is.
+fn shown(value: RowValue, scale: f32) -> RowValue {
+    let factor = f64::from(scale);
+    match value {
+        RowValue::Number(text) => RowValue::Number(scaled_text(&text, factor)),
+        RowValue::Axes(parts) => RowValue::Axes(parts.map(|text| scaled_text(&text, factor))),
+        other => other,
+    }
+}
+
+/// Text typed into a box showing `scale` per authored unit, back in the
+/// authored unit: what the box writes. Text that is not a number is left for
+/// the parser to refuse in its own words.
+pub(crate) fn authored_text(text: &str, scale: f32) -> String {
+    scaled_text(text, 1.0 / f64::from(scale))
+}
+
+fn scaled_text(text: &str, factor: f64) -> String {
+    if (factor - 1.0).abs() < f64::EPSILON {
+        return text.to_string();
+    }
+    text.trim()
+        .parse::<f64>()
+        .map_or_else(|_| text.to_string(), |value| number_text(value * factor))
 }
 
 /// A walked row holding a number, stepped by its own TYPE where its
@@ -571,8 +605,9 @@ pub(crate) enum Limit {
 /// be two lists keyed on the same names, and a name could sit in one and not
 /// the other, which is how every number a turret shows got a bare box.
 ///
-/// Lengths are `u` - the authored world unit. The HUD converts to metres for
-/// the player; content does not, and this box is content.
+/// Lengths and speeds are shown in meters, the way the HUD reads them. The
+/// file keeps the authored world unit (10 m); a metered field scales the
+/// number on the way out and back, so the box and the HUD agree.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FieldSpec {
     /// The config's OWN field name, matched at ANY depth: a turret's fire rate
@@ -596,6 +631,10 @@ pub(crate) struct FieldSpec {
     /// That floor is the type's, not this table's, so an integer nobody has
     /// declared still drags a whole number at a time.
     step: f32,
+    /// What the box shows per authored unit: 1 for a number shown as written,
+    /// [`METERS_PER_UNIT`] for a length or a speed shown in meters. The step
+    /// and the floor stay in the authored unit.
+    scale: f32,
 }
 
 impl FieldSpec {
@@ -621,6 +660,19 @@ const fn floored(name: &'static str, unit: &'static str, step: f32) -> FieldSpec
         unit,
         limit: Limit::AtLeast(0.0),
         step,
+        scale: 1.0,
+    }
+}
+
+/// A length or a speed: never negative, dragged `step` authored units per
+/// pixel, and shown in meters.
+const fn metered(name: &'static str, unit: &'static str, step: f32) -> FieldSpec {
+    FieldSpec {
+        name,
+        unit,
+        limit: Limit::AtLeast(0.0),
+        step,
+        scale: METERS_PER_UNIT,
     }
 }
 
@@ -643,6 +695,7 @@ const fn plain(name: &'static str) -> FieldSpec {
         unit: "",
         limit: Limit::Free,
         step: FREE_STEP,
+        scale: 1.0,
     }
 }
 
@@ -650,7 +703,7 @@ const MAGNITUDE: FieldSpec = floored("magnitude", "", 1.0);
 const STEERING_LAG: FieldSpec = floored("steering_lag", "s", 0.005);
 const MAX_TORQUE: FieldSpec = floored("max_torque", "", 1.0);
 const FIRE_RATE: FieldSpec = floored("fire_rate", "/s", 0.05);
-const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "u/s", 0.5);
+const MUZZLE_SPEED: FieldSpec = metered("muzzle_speed", "m/s", 0.5);
 const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
 const BULLET_KIND: FieldSpec = plain("bullet_kind");
 const AMMO_CAPACITY: FieldSpec = FieldSpec {
@@ -658,6 +711,7 @@ const AMMO_CAPACITY: FieldSpec = FieldSpec {
     unit: "rounds",
     limit: Limit::AtLeast(1.0),
     step: 1.0,
+    scale: 1.0,
 };
 const RELOAD: FieldSpec = plain("reload");
 const RELOAD_DELAY: FieldSpec = FieldSpec {
@@ -665,22 +719,24 @@ const RELOAD_DELAY: FieldSpec = FieldSpec {
     unit: "s",
     limit: Limit::AtLeast(0.02),
     step: 0.02,
+    scale: 1.0,
 };
 const RELOAD_AMOUNT: FieldSpec = FieldSpec {
     name: "amount",
     unit: "rounds",
     limit: Limit::AtLeast(1.0),
     step: 1.0,
+    scale: 1.0,
 };
 const PROJECTILE_LIFETIME: FieldSpec = floored("projectile_lifetime", "s", 0.05);
-const SPAWNER_SPEED: FieldSpec = floored("spawner_speed", "u/s", 0.5);
+const SPAWNER_SPEED: FieldSpec = metered("spawner_speed", "m/s", 0.5);
 const BLAST_DAMAGE: FieldSpec = floored("blast_damage", "hp", 0.5);
-const BLAST_RADIUS: FieldSpec = floored("blast_radius", "u", 0.05);
+const BLAST_RADIUS: FieldSpec = metered("blast_radius", "m", 0.05);
 const ARM_TIME: FieldSpec = floored("arm_time", "s", 0.02);
-const ARM_DISTANCE: FieldSpec = floored("arm_distance", "u", 0.1);
+const ARM_DISTANCE: FieldSpec = metered("arm_distance", "m", 0.1);
 const NAV_CONSTANT: FieldSpec = floored("nav_constant", "", 0.02);
 const CHARGE_SECONDS: FieldSpec = floored("charge_seconds", "s", 0.05);
-const SLUG_SPEED: FieldSpec = floored("slug_speed", "u/s", 5.0);
+const SLUG_SPEED: FieldSpec = metered("slug_speed", "m/s", 5.0);
 const SLUG_DAMAGE: FieldSpec = floored("slug_damage", "hp", 0.5);
 /// Not hit points. Power is what a pierce round SPENDS crossing a layer, so
 /// this is the depth control, and it is dragged in the register depth lives in.
@@ -688,10 +744,10 @@ const SLUG_POWER: FieldSpec = floored("slug_power", "", 10.0);
 const SLUG_LIFETIME: FieldSpec = floored("slug_lifetime", "s", 0.05);
 const RECOIL_IMPULSE: FieldSpec = floored("recoil_impulse", "", 5.0);
 
-const BODY_RADIUS: FieldSpec = floored("body_radius", "u", 0.05);
+const BODY_RADIUS: FieldSpec = metered("body_radius", "m", 0.05);
 const MASS: FieldSpec = floored("mass", "", 0.5);
-const RADIUS: FieldSpec = floored("radius", "u", 0.05);
-const AREA_RADIUS: FieldSpec = floored("area_radius", "u", 0.1);
+const RADIUS: FieldSpec = metered("radius", "m", 0.05);
+const AREA_RADIUS: FieldSpec = metered("area_radius", "m", 0.1);
 const INVULNERABLE: FieldSpec = plain("invulnerable");
 const SEED: FieldSpec = FieldSpec {
     name: "seed",
@@ -700,29 +756,30 @@ const SEED: FieldSpec = FieldSpec {
     // walks the shapes, and a tenth of one is the shape it already had.
     limit: Limit::Free,
     step: 1.0,
+    scale: 1.0,
 };
 const HULL: FieldSpec = plain("hull");
 const CONTROLLER: FieldSpec = plain("controller");
 const ALLEGIANCE: FieldSpec = plain("allegiance");
 const LABEL: FieldSpec = plain("label");
 const COLOR: FieldSpec = plain("color");
-const SIZE: FieldSpec = floored("size", "u", 0.05);
+const SIZE: FieldSpec = metered("size", "m", 0.05);
 const ILLUMINANCE: FieldSpec = floored("illuminance", "lx", 50.0);
 const INTENSITY: FieldSpec = floored("intensity", "lm", 50.0);
-const RANGE: FieldSpec = floored("range", "u", 0.1);
+const RANGE: FieldSpec = metered("range", "m", 0.1);
 const SHADOWS: FieldSpec = plain("shadows");
 /// Lux, the same register the authored lights are in, so a builder comparing a
 /// sky against a key light is comparing two numbers of one kind.
 const SKYBOX_BRIGHTNESS: FieldSpec = floored("skybox_brightness", "lx", 50.0);
 const HEALTH: FieldSpec = floored("health", "hp", 1.0);
-const WIDTH: FieldSpec = floored("width", "u", 0.05);
+const WIDTH: FieldSpec = metered("width", "m", 0.05);
 const DELAY: FieldSpec = floored("delay", "s", 0.02);
 const LIFETIME: FieldSpec = floored("lifetime", "s", 0.05);
 const COOLDOWN: FieldSpec = floored("cooldown", "s", 0.02);
 /// Every remaining length, whatever it hangs off.
-const ANY_RADIUS: FieldSpec = floored("*radius", "u", 0.05);
+const ANY_RADIUS: FieldSpec = metered("*radius", "m", 0.05);
 /// The same, for the other half of a box.
-const ANY_HEIGHT: FieldSpec = floored("*height", "u", 0.05);
+const ANY_HEIGHT: FieldSpec = metered("*height", "m", 0.05);
 
 /// What a SCENARIO builder authors on each kind, and so what the panel shows
 /// before it is asked for the rest.
@@ -1922,6 +1979,7 @@ pub(crate) fn ship_rows(ship: &ShipNode, pose: &Transform) -> Vec<InspectorRow> 
             label: "Driver".to_string(),
             unit: "",
             nudge: 0.0,
+            scale: 1.0,
             limit: Limit::Free,
             value: RowValue::Driver(ship.driver),
             hint: "Who flies this ship: you, a bot, or nobody.".to_string(),
@@ -2004,6 +2062,7 @@ pub(crate) fn section_rows(
             label: "Key".to_string(),
             unit: "",
             nudge: 0.0,
+            scale: 1.0,
             limit: Limit::Free,
             value: RowValue::Key(if binding.is_empty() {
                 UNBOUND.to_string()
@@ -2196,6 +2255,7 @@ pub(crate) fn operand_row(
         label: place.to_string(),
         unit: "",
         nudge: 0.0,
+        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Operand {
             options: offered
@@ -2392,6 +2452,7 @@ fn name_row(name: String) -> InspectorRow {
         label: "Name".to_string(),
         unit: "",
         nudge: 0.0,
+        scale: 1.0,
         limit: Limit::Free,
         value: RowValue::Text(name),
         hint: "What this node is called on the board and in the tree.".to_string(),
@@ -2424,12 +2485,13 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
         axes_row(
             FieldRoot::Pose,
             "Position",
-            "u",
+            "m",
             POSE_STEP,
             Limit::Free,
+            METERS_PER_UNIT,
             pose.translation,
         )
-        .saying("Where this node stands, in world units."),
+        .saying("Where this node stands, in meters."),
         // ROTATION, not heading: it is the node's rotation, and rotation is
         // what every other editor calls that. Both facts it used to keep in a
         // doc comment - degrees, and which turn is which - are on screen.
@@ -2439,6 +2501,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
             "deg, yaw/pitch/roll",
             TURN_STEP,
             Limit::Free,
+            1.0,
             rotation_degrees(pose),
         )
         .saying("Which way it faces, in degrees."),
@@ -2457,13 +2520,15 @@ fn axes_of(value: Vec3) -> RowValue {
     RowValue::Axes([value.x, value.y, value.z].map(|part| number_text(f64::from(part))))
 }
 
-/// One vector row: three numbers, each in the form every other number wears.
+/// One vector row: three numbers, each in the form every other number wears,
+/// shown `scale` to the authored unit.
 fn axes_row(
     root: FieldRoot,
     label: &str,
     unit: &'static str,
     nudge: f32,
     limit: Limit,
+    scale: f32,
     value: Vec3,
 ) -> InspectorRow {
     InspectorRow {
@@ -2474,8 +2539,9 @@ fn axes_row(
         label: label.to_string(),
         unit,
         nudge,
+        scale,
         limit,
-        value: axes_of(value),
+        value: axes_of(value * scale),
         hint: String::new(),
         names: None,
         asset: None,

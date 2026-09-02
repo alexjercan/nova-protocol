@@ -1,11 +1,11 @@
-//! The world's physical scale: what one world unit is worth in metres, and how
+//! The world's physical scale: what one world unit is worth in meters, and how
 //! much acceleration hull metal takes before it tears.
 //!
 //! Both are single definitions on purpose - display and physics must agree, and
 //! two constants that must agree is the same fault as a re-typed id. Change
 //! these only to retune the whole game at once.
 
-/// Metres in one world unit.
+/// Meters in one world unit.
 ///
 /// Every world-space length - a section box, a lock range, a structural arm -
 /// is in units; anything expressed in SI (a G limit, a player-facing readout)

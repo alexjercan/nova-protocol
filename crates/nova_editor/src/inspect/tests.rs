@@ -850,7 +850,7 @@ fn a_nested_row_is_a_group_path_and_a_short_label() {
 fn a_number_carries_the_unit_it_is_typed_in() {
     let rows = object_rows(&asteroid(stock_asteroid()), &Transform::default());
 
-    assert_eq!(row(&rows, "Radius").unit, "u", "a length is world units");
+    assert_eq!(row(&rows, "Radius").unit, "m", "a length reads in meters");
     assert_eq!(
         row(&rows, "Mass").unit,
         "",
@@ -861,7 +861,7 @@ fn a_number_carries_the_unit_it_is_typed_in() {
         "",
         "a checkbox is not measured in anything"
     );
-    assert_eq!(row(&rows, "Position").unit, "u");
+    assert_eq!(row(&rows, "Position").unit, "m");
     assert_eq!(row(&rows, "Rotation").unit, "deg, yaw/pitch/roll");
 }
 
@@ -988,7 +988,7 @@ fn a_vector_row_hands_each_box_its_own_component() {
 
     assert_eq!(
         row(&rows, "Position").value,
-        RowValue::Axes(["1".to_string(), "2".to_string(), "3".to_string()])
+        RowValue::Axes(["10".to_string(), "20".to_string(), "30".to_string()])
     );
     assert_eq!(axis_step(0), PathStep::Field("x".to_string()));
     assert_eq!(axis_step(1), PathStep::Field("y".to_string()));
@@ -1055,7 +1055,7 @@ fn an_object_reports_where_it_stands() {
     let object = asteroid(stock_asteroid());
     let rows = object_rows(&object, &Transform::from_xyz(1.0, -2.5, 30.0));
 
-    assert_eq!(text_of(&rows, "Position"), "1, -2.5, 30");
+    assert_eq!(text_of(&rows, "Position"), "10, -25, 300");
     assert_eq!(row(&rows, "Position").root, FieldRoot::Pose);
 }
 
@@ -1135,7 +1135,7 @@ fn an_anchor_with_no_mass_still_lists_the_field() {
     };
     let rows = object_rows(&object, &Transform::default());
 
-    assert_eq!(text_of(&rows, "Body Radius"), "5");
+    assert_eq!(text_of(&rows, "Body Radius"), "50", "shown in meters");
     assert!(
         row(&rows, "Mass").optional,
         "an absent number is still a row"
@@ -1863,4 +1863,18 @@ fn a_declared_fractional_field_keeps_its_own_step() {
         0.05,
         "a rate is a fraction and stays one"
     );
+}
+
+/// A metered box shows ten times the authored number and hands back a tenth
+/// of what is typed; anything else typed is left for the parser to refuse.
+#[test]
+fn a_metered_field_reads_in_meters_and_writes_back_world_units() {
+    let rows = object_rows(&asteroid(stock_asteroid()), &Transform::IDENTITY);
+    assert_eq!(row(&rows, "Radius").scale, METERS_PER_UNIT);
+    assert_eq!(row(&rows, "Mass").scale, 1.0, "a mass is shown as written");
+
+    assert_eq!(authored_text("125", METERS_PER_UNIT), "12.5");
+    assert_eq!(authored_text(" 7 ", METERS_PER_UNIT), "0.7");
+    assert_eq!(authored_text("7", 1.0), "7");
+    assert_eq!(authored_text("wide", METERS_PER_UNIT), "wide");
 }

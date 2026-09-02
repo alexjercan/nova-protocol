@@ -67,7 +67,7 @@ pub fn normalize_angle(angle: f32) -> f32 {
 /// from the ORIGIN, not the size of the remaining step, so unclamped a chase
 /// target 1e6 units out would snap from ~0.12 world units away - a visible cut
 /// of the last easing. 1e4 keeps the snap reachable at any playable distance
-/// while holding the tolerance near a millimetre (~1.2e-3 world units).
+/// while holding the tolerance near a millimeter (~1.2e-3 world units).
 fn snap_tolerance(magnitude: f32) -> f32 {
     f32::EPSILON * magnitude.abs().clamp(1.0, 1.0e4)
 }
@@ -189,7 +189,7 @@ mod tests {
         assert_eq!(snap_tolerance(1.0e6), snap_tolerance(1.0e4));
         assert!(
             snap_tolerance(1.0e6) < 2.0e-3,
-            "the snap must stay near a millimetre at any playable distance"
+            "the snap must stay near a millimeter at any playable distance"
         );
     }
 

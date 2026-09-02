@@ -24,10 +24,8 @@ nova_modding = { path = "../nova_modding" }
 nova_ship = { path = "../nova_ship" }
 nova_scenario = { path = "../nova_scenario" }
 nova_ui = { path = "../nova_ui" }
-
-[dev-dependencies]
-# The engine half of the objective-set proof: real handlers, driven with the
-# same events the game fires.
+# The world scale the inspector converts through, and the engine half of the
+# objective-set proof: real handlers, driven with the same events the game fires.
 nova_events = { path = "../nova_events" }
 
 [lints]

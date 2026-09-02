@@ -106,7 +106,7 @@ pub struct BaseScenarioObjectConfig {
 /// at the end of this same frame. Anything that reads a world pose before that
 /// pass would otherwise read the ORIGIN for one frame - audibly so for the
 /// audio engine, which places its emitters in `PostUpdate` ahead of Propagate
-/// on purpose, and would hear a ship three kilometres out at full volume in
+/// on purpose, and would hear a ship three kilometers out at full volume in
 /// the middle of the stereo field for its first frame.
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
     let transform = Transform::from_translation(config.position).with_rotation(config.rotation);
@@ -480,7 +480,7 @@ mod tests {
     /// that no cue is ever heard at the wrong volume for a frame - which means
     /// a freshly spawned object's `GlobalTransform` has never been propagated
     /// when the mix reads it. Left at the requirement default it reads as the
-    /// world origin, and a ship burning three kilometres out arrives at full
+    /// world origin, and a ship burning three kilometers out arrives at full
     /// volume, centre-panned, for exactly one frame.
     ///
     /// No `TransformPlugin` here on purpose: the assert is about the pose

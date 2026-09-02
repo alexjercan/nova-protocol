@@ -6,7 +6,7 @@
 //! turns the two into a voice.
 //!
 //! Both cues are placed at the mechanism and routed by whose hull it is on, so
-//! a raider folding its guns two hundred metres away is heard from over there
+//! a raider folding its guns two hundred meters away is heard from over there
 //! or not at all.
 
 use bevy::prelude::*;
