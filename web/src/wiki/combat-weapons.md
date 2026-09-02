@@ -21,7 +21,7 @@ Three weapon families - turrets, torpedoes and the spinal railgun - feed one typ
 
 ## Three reaches
 
-<!-- Values: crates/nova_authoring/src/base_content/sections/standard.rs railgun_lance_section (charge 1.5 :927, slug 1500 :928 x 1.2 s :970 = 1800 world units (18 km), 300 Pierce :942, 1800 power :948, rake 1.0 :967, one shell :981 back in 12 s :986); PDC reach 100 :485 x 2.0 s :492 = 200 (2 km); torpedo reach is the along-the-line table at the head of ordnance.rs:13-21 over the bay's 100 s lifetime standard.rs:1190; the raider orbit is AI_STANDOFF_RANGE 100 plus a 25 band (1 to 1.25 km), crates/nova_ship/src/input/ai/maneuver.rs:36-48. -->
+<!-- Values: crates/nova_authoring/src/base_content/sections/standard.rs railgun_lance_section (charge 1.5 :928, slug 15,000 m/s :929 x 1.2 s :971 = 18 km, 300 Pierce :943, 1800 power :949, rake 10 m :968, one shell :982 back in 12 s :987); PDC reach 1,000 m/s :486 x 2.0 s :493 = 2 km; torpedo reach is the along-the-line table at the head of ordnance.rs:13-21 over the bay's 100 s lifetime standard.rs:1191; the raider orbit is AI_STANDOFF_RANGE plus its band - engine world units, measured against avian - which is 1 to 1.25 km, crates/nova_ship/src/input/ai/maneuver.rs:36-48. -->
 
 The three families are three **reaches**, and the ladder is the shape of every fight: torpedoes at the long end, the railgun in the middle, guns close in. Reach is never an authored number - it is muzzle speed times how long the round lives - and so is the time a shot takes to arrive, which is what actually separates them.
 

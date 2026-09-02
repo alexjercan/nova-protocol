@@ -22,7 +22,7 @@ real code lives under `crates/`.
 | `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
 | `nova_console`  | The Command shell's dispatcher: the executor behind the CRT's `cmd>` prompt and the channel's `command` lane. `nova_os` owns the LANGUAGE (catalog metadata, parser, `CommandChannel`) and stays a leaf; this crate owns the half that touches the world - inspection, the persisted settings, and the armed cheats. It sits ABOVE `nova_menu` on purpose: a `graphics` or `volume` command writes the very resources the settings screen owns, and one of them has to be downstream. |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `lint/` (the scenario half of the `content -- lint` checks), `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](scenario-system.md). |
-| `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
+| `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. Also the world's scale: the `Meters`/`MetersPerSecond`/`Meters3` quantity types and `METERS_PER_UNIT` (`units`), and `LOAD_LIMIT` (`scale`). See [Units and scale](#units-and-scale). |
 | `nova_events_macros` | Procedural macros behind `nova_events`' derives. |
 | `nova_assets`   | `bevy_asset_loader` setup. Loads glb/textures/shaders/sounds, and loads the base game's own generated content (`assets/base/`) through the same bundle machinery as mods. Owns the mod merge (`register_bundles`, `EnabledMods`, `ModCatalog`), the portal client and downloads (`portal/`), and prefs persistence. |
 | `nova_modding`  | Bundle/content/catalog ASSET LOADERS and the `Content` routing enum. See [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/). |
@@ -148,6 +148,47 @@ Boundary policy, from most game-agnostic to most game-specific:
    both. `nova_os_ui` is above `nova_hud` in turn: it orders itself against
    `NovaHudSystems`.
 5. `nova_core` - wiring only.
+
+## Units and scale
+
+**Nova reasons in meters; the engine underneath does not.** Every authored
+number, every named gameplay constant and every player-facing readout is SI.
+Bevy transforms and meshes, avian colliders and velocities, shaders and the
+build grid all count in engine WORLD UNITS, and one world unit is
+`METERS_PER_UNIT` = 10 m - so a build-grid cell is one world unit and 10 m on a
+side.
+
+The seam is the quantity types in `crates/nova_events/src/units.rs` - `Meters`,
+`MetersPerSecond`, `MetersPerSecondSquared` and the `Meters3` displacement,
+exported through that crate's prelude. They carry no `Deref` to `f32`, so a
+meter cannot reach an engine API by accident, and they cross in exactly two
+directions: `to_engine()` on the way out to Bevy, avian, a mesh or a shader,
+`from_engine()` on the way back. Every call site of either IS the boundary and
+says so locally. Serialization is `#[serde(transparent)]`, so a content file
+still reads `blast_radius: 300.0` - the TYPE documents the unit, not a wrapper
+in the file. `LOAD_LIMIT` (`crates/nova_events/src/scale.rs`) is the other half
+of the world's scale and is likewise SI, and `nova_ui::units` formats the
+player-facing strings without converting anything, so a readout cannot pick up a
+second factor of ten on its way to the screen.
+
+Three kinds of number stay engine-side on purpose, and each says so where it is
+defined:
+
+- **Geometry the engine owns** - a collider half extent, a signed-field cell, a
+  build-grid position, the answer `structural_arm` reads off posed colliders.
+  These come out of avian or a mesh, so they are world units until something
+  crosses them.
+- **Quantities that are not a plain length.** A gravitational parameter `mu` is
+  L^3/T^2, so an SI one would be a THOUSAND times the world-unit one;
+  `DAMAGE_PER_UNIT_VOLUME` is hit points per cubic world unit, an INVERSE
+  volume. Neither is "times ten", and a silent conversion of one is a worse
+  defect than leaving it engine-side - so they stay engine-side and quote the
+  metric figure a reader actually wants beside them.
+- **Dimensionless ratios** - a fire-gate cone, a closing-speed multiplier, an
+  angular acceleration in rad/s^2 - which the scale does not touch at all.
+
+The rest of this book quotes a world unit only where one of those three
+applies, and says "world unit" out loud when it does.
 
 ## App assembly
 

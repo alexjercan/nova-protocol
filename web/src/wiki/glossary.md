@@ -6,7 +6,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 
 - **m / km** - the distance units. Ranges and radii read in meters below a kilometer (e.g. a standoff of about 500 m) and in kilometers above it (e.g. `1.24 km`). Every distance readout on the HUD and in the NOVA OS map uses them.
 - **m/s** - the speed unit, meters per second. The speed chip beside the velocity sphere reads in `m/s`, and a target's closing speed reads as a signed `m/s`.
-- **World unit** - what content files and code count in: one world unit is 10 m, and a build-grid cell is one on a side. Nothing on these pages reads in it - every distance here is in meters - but a creator authoring a section or a scenario writes the raw number, so a `blast_radius` of 30 is a 300 m blast. See [Sections](../../create/sections/) in the creator guide.
+- **World unit** - the engine's own length, and the [build grid](#ships) is the only place you meet it: one world unit is 10 m, so a cell is one on a side. Nothing you read or write is in it - every distance on these pages, on the HUD and in a content file is meters, so a `blast_radius` of 300 is a 300 m blast. See [Sections](../../create/sections/) in the creator guide.
 - **hp** - hit points, the health a section or a torpedo carries. Every hit subtracts from it and the part dies at zero; each section page lists its variants' figures under [Variants](../sections/).
 
 ## Flight
@@ -29,7 +29,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 ## Ships
 
 - **Section** - one part of a hull: a hull block, a controller, a thruster, a turret, a torpedo bay or a railgun. Each is its own body with its own mass, its own health and one job. See [Ship sections](../sections/).
-- **Cell** - one 10 m cube of the build grid. Sections are sized in cells - a torpedo tube is two, a railgun three - and a hull's mass is the sum of its boxes.
+- **Cell** - one 10 m cube of the build grid, and the one world unit the engine counts it as. Sections are sized in cells - a torpedo tube is two, a railgun three - and a hull's mass is the sum of its boxes.
 - **Hull section** - the passive structural block the other sections mount to, and where most of a ship's mass is. See [Hull](../sections/hull/).
 - **Controller** - the flight computer. It turns the ship, flies the autopilot verbs and works point defense; lose the last one and the ship is neutralized. See [Controller](../sections/controller/).
 - **Socket** - a face a section bolts on through. A thruster offers only its forward face, so it always seats nose-in with the plume clear of the ship. See [Thruster](../sections/thruster/).

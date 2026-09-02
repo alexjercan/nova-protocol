@@ -42,7 +42,7 @@ Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds -
 
 ## Sphere of influence
 
-A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (2.5 m/s^2), so `soi = sqrt(mu / 0.25)` in world units of 10 m - the body's drawn size never sets it. The Shakedown planetoid reaches 3.29 km; the Final Tally anchorage rock (mass 45000) reaches 4.24 km. Outside it, the well does not exist as far as your ship is concerned.
+A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The Shakedown planetoid reaches 3.29 km; the heavier Final Tally anchorage rock reaches 4.24 km. Outside it, the well does not exist as far as your ship is concerned.
 
 ## The dominant well
 

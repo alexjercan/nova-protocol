@@ -58,11 +58,19 @@ alpha_max = min( sum(max_torque) / I ,  LOAD_LIMIT / (r * METERS_PER_UNIT) )
   second moment of where the mass actually sits, so no curve in any single
   length can stand in for it.
 - `r` is the structural arm, from the hull's centre of mass to the outer FACE
-  of its furthest live section, in world units. `structural_arm` derives it;
-  `BodyRadius` is a scenario-obstacle radius and is not it.
-- `LOAD_LIMIT` and `METERS_PER_UNIT` are in `crates/nova_events/src/scale.rs` -
-  one definition each, shared by the physics and by the player-facing
-  formatter in `nova_ui::units`.
+  of its furthest live section. `structural_arm` measures it off posed
+  colliders, so its answer is in engine world units and the caller crosses it
+  with `Meters::from_engine` before `AttitudeEnvelope` divides by it - which is
+  why `METERS_PER_UNIT` appears in the formula above and not in the code. The
+  shipped corvette reads 2.76 u, i.e. 27.6 m. `BodyRadius` is a
+  scenario-obstacle radius and is not it.
+- `LOAD_LIMIT` is `crates/nova_events/src/scale.rs` and `METERS_PER_UNIT` is
+  `crates/nova_events/src/units.rs` - one definition each, shared by the
+  physics and by the player-facing formatter in `nova_ui::units`. Both halves
+  of the world's scale, and the
+  [boundary they sit on](architecture.md#units-and-scale).
+- The ceiling comes out in rad/s^2 either way: `LOAD_LIMIT / r` is
+  (m/s^2) / m, so the scale cancels and no figure on this page moves with it.
 
 The two structural loads are perpendicular components of one acceleration at
 the tip, so they add as a VECTOR: `alpha^2 + omega^4 <= (LOAD_LIMIT / r_m)^2`.
@@ -147,7 +155,7 @@ The slug is an ordinary `nova_gameplay::rounds` Pierce round with
 is charged once per layer through `pierce_remainder`, and needs no second damage
 pipeline. `slug_damage` is dealt FLAT to every layer (`hit_bite` does not scale
 Pierce), while each crossing costs that layer's MAX health divided by
-`pierce_power_multiplier` - and a slug at 1500 world units per second always sits at that curve's 3.0
+`pierce_power_multiplier` - and a slug at 15,000 m/s always sits at that curve's 3.0
 ceiling, so the shipped 1800 power is 27 reinforced hull blocks.
 
 Nothing that flies is 27 blocks deep, so the optional `rake_radius` spends the
@@ -156,9 +164,10 @@ everything it sweeps over a body the tip DIRECTLY hit takes the same flat bite
 out of the same budget. `RoundRake` carries the arming, per body and for the
 slug's life; `sweep_raking` resolves the tip, the trailing capsule and the
 charge order in three passes. Omitted, no `RoundRake` is inserted at all and
-the slug takes the untouched narrow path. The base lance authors 1.0, measured
-against 4.0 in `system_railgun_lance`'s stand bank: both spend the same budget,
-and the radius chooses whether it goes through the hull or across its face.
+the slug takes the untouched narrow path. The base lance authors 10 m,
+measured against 40 m in `system_railgun_lance`'s stand bank: both spend the
+same budget, and the radius chooses whether it goes through the hull or across
+its face.
 
 One fixed step of a raked slug, as `sweep_raking` resolves it:
 
@@ -181,7 +190,9 @@ flowchart TD
 The capsule test is analytic - the corridor measurement from `corridor_contact`
 against the sphere's track - rather than a spatial query, because parry's
 `intersection_test` returns false negatives for shallow overlaps against a
-capsule this long (a slug at 1500 world units per second sweeps 23 a step), and the first
+capsule this long - a slug at 15,000 m/s sweeps 23 world units of the
+capsule parry is being asked about per 64 Hz step, which is 234 m - and the
+first
 version of the rake, which queried, cut a corridor with its corners missing.
 The body's own colliders are the candidate set, so there is no query cap under
 the power budget either.
@@ -226,9 +237,11 @@ the unit-cube defaults:
   joint tree. Type `RenderMeshTransform`.
 - `collider` on `BaseSectionConfig` (optional) - the physics shape:
   `Cuboid { size }`, `Sphere { radius }`, `Capsule { radius, length }`, or
-  `Cylinder { radius, height }` (the last three along local Y). `None` resolves
-  to the unit cube (`Cuboid { size: (1,1,1) }`) - the shape every section had
-  before colliders were authorable. `base_section` hands avian a density of 1,
+  `Cylinder { radius, height }` (the last three along local Y). These are
+  BUILD-GRID dimensions and stay in engine world units for that reason: a
+  collider is what avian receives, and one unit is one cell, 10 m on a side.
+  `None` resolves to the unit cube (`Cuboid { size: (1,1,1) }`) - the shape
+  every section had before colliders were authorable. `base_section` hands avian a density of 1,
   so this shape's volume IS the section's mass and a larger collider is a
   heavier one. The render mesh never contributes; a section masses its authored
   box. An integral cuboid at least one unit wide on every axis also derives a
@@ -243,7 +256,10 @@ A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 `collapse_threshold` (below), a `skin` flag (the
 [derived cladding](#the-derived-skin)), and a list of
 `SpaceshipSectionConfig`, each placing one section at a `position` + `rotation`
-relative to the ship root (world units), with a `source` (`Inline` /
+relative to the ship root. That `position` is the one authored vector that is
+not a distance: it is a BUILD-GRID CELL, so it stays a bare `Vec3` of engine
+world units and sections stack by whole cells of 10 m. It comes with a `source`
+(`Inline` /
 `Prototype`) and optional `modifications`. The player
 config carries the input mapping (section id -> key/gamepad bindings) plus
 `speed_cap`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
@@ -597,7 +613,7 @@ gaps are irregular while a count that fell is direct evidence a section died.
 A severed wreck fragment is persistent until scenario teardown. Its healthy
 sections remain damageable, but `SectionInactiveMarker` disconnects every
 controller, thruster and weapon from the lost command bus. Fragments inherit
-rigid point velocity and receive a momentum-balanced kick of one world unit per second (10 m/s) away from the
+rigid point velocity and receive a momentum-balanced kick of 10 m/s (one engine world unit per second) away from the
 cut. They are unsigned debris, not ships: no allegiance, control, defeat event,
 or scenario identity.
 
@@ -662,16 +678,20 @@ it.
 
 ### What material costs
 
-`DAMAGE_PER_UNIT_VOLUME` is **8.0 hit points per cubic world unit**. It is the
-whole coupling between what a weapon costs and what it looks like it did, and it
-is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
+`DAMAGE_PER_UNIT_VOLUME` is **8.0 hit points per cubic engine world unit** -
+per 1000 m^3. It is an INVERSE volume, L^-3, so it is not a length that could be
+re-expressed by multiplying by ten, and converting it would move the whole
+damage-to-crater exchange rate; it stays engine-side beside the signed field it
+prices, which is engine geometry too. It is the whole coupling between what a
+weapon costs and what it looks like it did, and it is ABSOLUTE: the same round makes the same hole in a pebble and in a planetoid,
 because the hole is what the round's energy is worth. Pricing a crater against
 the body it landed on is the other design, and it makes a big rock unshootable
 and a small one vanish on contact.
 
 `mark_radius(amount)` is therefore `(amount / 8.0 * 3 / (2 * pi))^(1/3)` - a
-HEMISPHERE, because a hit lands ON a surface. The shipped kinetic PDC round
-(4.0 damage) carves 0.62 units.
+HEMISPHERE, because a hit lands ON a surface. It answers in world units, like
+everything else the field is cut in: the shipped kinetic PDC round (4.0 damage)
+carves 0.62 u, a 6.2 m crater.
 
 A mark is priced by what the hit ABSORBED, never by what it asked for
 (`absorbed_by`): the first `Health` at or above the hit clamps it, a node already
@@ -682,17 +702,20 @@ plate and then charged again, in full, for the hull behind it.
 ### The merge, and why a hole follows the aim
 
 Sustained fire has to dig ONE hole rather than two dozen dents, and that job has
-a SIZE - the width of the hole the last round made - which is why it is capped in
-world units and not proportionally.
+a SIZE - the width of the hole the last round made - which is why it is capped
+as an absolute length and not as a proportion of the body. The three caps below
+are in the field's own engine world units, which is the frame the marks are
+kept in.
 
-- `MARK_MIN_RADIUS` 0.15: below this a sphere cannot reach a boundary sample of
-  the cell it lands in, so it would cost a budget slot and change nothing.
+- `MARK_MIN_RADIUS` 0.15 (1.5 m): below this a sphere cannot reach a boundary
+  sample of the cell it lands in, so it would cost a budget slot and change
+  nothing.
   Grazing fire should crack, which is the level's job.
 - `MERGE_REACH` 4.0: a ceiling expressed as a multiple of the INCOMING bite,
   never of the grown crater. Testing the grown radius is what let a crater's own
   growth widen the area that captured the next hit, which widened it again until
   one crater ate the whole body.
-- `MERGE_MAX` 1.0 WORLD unit, converted into the body's own frame by
+- `MERGE_MAX` 1.0 WORLD unit (10 m), converted into the body's own frame by
   `DamageMarks::add`: "the round landed IN the hole the last one made". This is
   the cap that actually binds, and it is why the hole follows the aim.
 - `MARK_BUDGET` 24. At the budget the SMALLEST crater is folded into its own
@@ -713,7 +736,7 @@ for its pressure pass.
 shape, in world space. `kind` is the weapon class that paid for the carve, and
 it is what decides the look: `spew.rs` keys a `ShardLook` off it, one entry per
 `DamageType`. Kinetic and Pierce throw 2 to 7 shards of one fixed size
-(`ShardLook::size`, 0.12 world units) - kinematic, no collider, `TempEntity(2.5)` - and
+(`ShardLook::size`, 0.12 world units - a 1.2 m chip) - kinematic, no collider, `TempEntity(2.5)` - and
 hold identical values in two SEPARATE entries, so giving a penetrator its own
 debris is editing a number rather than splitting a branch. Explosive throws nothing: a
 warhead's fireball already covers the frames the geometry changes in, the crater
@@ -726,7 +749,7 @@ instead of patching the carve.
 
 Real geometry leaves a body only where a carve actually SEVERED it, and only the
 body being cut knows that. `chunk.rs` is what a severed piece spawns through;
-`CHUNK_MIN_VOLUME` (1.0 cubic unit) is the floor under which a crumb goes out as
+`CHUNK_MIN_VOLUME` (1.0 cubic world unit, 1000 m^3 - a volume, so it is engine-side with the field) is the floor under which a crumb goes out as
 dust instead. The asteroid is the only body that takes this path - see
 [Scenario engine](scenario-system.md).
 
@@ -865,8 +888,9 @@ the muzzle: `closing_speed(round_velocity, target_velocity)` projects the same
 relative velocity `on_impact_collision_deal_damage` uses onto the round's own
 line of flight (projecting onto the line BETWEEN the bodies is unusable - at
 contact they are touching, so that direction is noise). Both curves are the
-speed ratio against `REFERENCE_CLOSING_SPEED` (100 world units per second, the shipped PDC's
-`muzzle_speed`), clamped:
+speed ratio against `REFERENCE_CLOSING_SPEED`, which is 100 engine world units
+per second because it is compared against avian velocities - the same speed the
+shipped PDC authors as `muzzle_speed: 1000` m/s - clamped:
 
 - `kinetic_damage_multiplier` scales what a hit DEALS, clamped to `[0.25, 2.0]`;
 - `pierce_power_multiplier` scales how far the round GETS - it divides what a

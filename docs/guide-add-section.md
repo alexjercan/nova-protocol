@@ -59,6 +59,15 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    }
    ```
 
+   Any distance, speed or acceleration on `<Kind>SectionConfig` is typed
+   `Meters`, `MetersPerSecond` or `MetersPerSecondSquared` (`nova_events::units`)
+   and never a bare `f32` - a reach, a blast radius, a muzzle speed. The type is
+   what documents the unit for the RON author and what the editor stamps the
+   row's `m` / `m/s` / `m/s2` from, and `to_engine()` where the value reaches
+   Bevy or avian is the one crossing. What stays a bare `f32` is what the engine
+   owns: a collider extent or a build-grid offset, which are cells. See
+   [Units and scale](architecture.md#units-and-scale).
+
    Then register the module in `crates/nova_ship/src/sections/mod.rs`: add
    `pub mod <kind>_section;` and re-export `<kind>_section::prelude::*` in the
    module `prelude`.

@@ -607,12 +607,19 @@ Three engine facts the object configs do not show:
   authors no `Light` renders black. This catches every new backdrop.
 - **A rock has no `health` field, and that is not an omission.** What an
   asteroid is made of IS its durability; the mechanism is
-  [below](#how-an-asteroid-carves). Its `mass` is the body's `mu` and sets both
-  the pull `a = mu / r^2` and the sphere of influence - the distance where that
-  decays to `GravitySettings::soi_cutoff_accel` - so a well is authored by the
-  SOI it should have, `mu = soi_cutoff_accel * soi^2`. An `Anchor` publishes
-  the same `GravityWell` from an AUTHORED radius instead of a mesh-derived one,
-  which is what makes it deterministic where a carved rock is not.
+  [below](#how-an-asteroid-carves). Its `radius` is `Meters` like every other
+  authored length; its `mass` is not, and that is deliberate. `mass` is the
+  body's `mu`, an L^3/T^2 quantity - an SI one would be a THOUSAND times the
+  world-unit one - so it stays engine-side in u^3/s^2 with the
+  `GravitySettings` cutoff it is measured against. It sets both the pull
+  `a = mu / r^2` and the sphere of influence, the distance where that decays to
+  `GravitySettings::soi_cutoff_accel` (0.25 u/s^2, which is 2.5 m/s^2), so a
+  well is authored by the SOI it should have: `mu = soi_cutoff_accel * soi^2`,
+  both terms engine-side. The shakedown planetoid's 27 000 buys a 328.6 u
+  sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An `Anchor`
+  publishes the same `GravityWell` from an AUTHORED radius instead of a
+  mesh-derived one, which is what makes it deterministic where a carved rock is
+  not.
 - **Ship section geometry is LINTED, not clamped.** Overlapping unit-cube cells
   and a turret or torpedo mount whose base (local -Y under its rotation) faces
   an empty neighbour cell are `content lint` ERRORS, so a bad hull fails
@@ -643,17 +650,20 @@ which are never touched - so the spawn path meshes the field and DROPS it. The
 first hit pays to build it again (tens to hundreds of thousands of noise
 samples); from then on nothing resamples.
 
-**The cost model.** `FIELD_CELL_WORLD` is 0.5 WORLD units, and the cell COUNT is
-derived from it - the opposite way round from how this started. A crater is a
-world-sized thing (a 4-damage PDC round carves 0.62 units whatever it lands on),
-so a grid whose cells grew with the rock could not draw that round's hole on
-anything big: 32 cells across a radius-3 rock is a 1.02 unit cell, four times the
-round being fired at it. Coarseness is the ART, not a resolution knob - a finer
-grid only makes a smoother rock. `FIELD_RESOLUTION_MIN` is 16 and
-`FIELD_RESOLUTION_MAX` is 40; the cap BINDS above about radius 1.8, and what it
-costs there is the cell (a radius-3 rock is gridded at 0.82 units, so a PDC round
-on one is under a cell and only sustained fire - whose mark GROWS where it is
-held - opens a hole). `41^3` corners is 275 KB per carved rock, paid only by
+**The cost model.** The field is what the rock is meshed and collided from, so
+it is engine geometry: every figure in this paragraph is in world units, and the
+authored `Meters` radius crosses once on the way in (`pristine_rock_mesh`).
+`FIELD_CELL_WORLD` is 0.5 WORLD units - a 5 m cell - and the cell COUNT is
+derived from it, the opposite way round from how this started. A crater is a
+world-sized thing (a 4-damage PDC round carves 0.62 u, a 6.2 m sphere, whatever
+it lands on), so a grid whose cells grew with the rock could not draw that
+round's hole on anything big: 32 cells across a 30 m rock is a 1.02 u cell, four
+times the round being fired at it. Coarseness is the ART, not a resolution knob
+- a finer grid only makes a smoother rock. `FIELD_RESOLUTION_MIN` is 16 and
+`FIELD_RESOLUTION_MAX` is 40; the cap BINDS above an authored radius of about
+18 m, and what it costs there is the cell (a 30 m rock is gridded at 0.82 u, so
+a PDC round on one is under a cell and only sustained fire - whose mark GROWS
+where it is held - opens a hole). `41^3` corners is 275 KB per carved rock, paid only by
 rocks that are hit. `FIELD_MARGIN` is 1.08, only just over 1 because carving
 never ADDS material.
 

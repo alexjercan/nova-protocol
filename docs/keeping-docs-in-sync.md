@@ -64,6 +64,7 @@ creator pages on the site; linked names are chapters of this book.
 | Code area (crate / dir) | Player wiki | Dev book / creator docs | Also |
 | --- | --- | --- | --- |
 | **The crate layout itself**: a split, merge, rename, or move (`crates/*`) | | [Architecture](architecture.md) (crate map + dependency graph + assembly), [Project tour](project-tour.md) (crate map + change-X table), and THIS page's own row keys | CHANGELOG (Internals) |
+| **The world's scale and the quantity types**: `METERS_PER_UNIT`, `LOAD_LIMIT`, the `Meters` / `MetersPerSecond` / `Meters3` seam, or any authored field moving between a quantity type and a bare `f32` (`nova_events/src/units.rs`, `nova_events/src/scale.rs`, `nova_ui/src/units.rs`) | every page that quotes a figure - `glossary.md` (the world unit is the build grid's name and nothing else), `combat-weapons.md`, `gravity-wells.md`, `sections/*` | [Architecture](architecture.md#units-and-scale) (the boundary itself - state it there, reference it elsewhere), [Ship sections internals](sections.md), [Scenario engine](scenario-system.md), both [Extending](guide-add-section.md) guides, and `/create/` wherever a field's unit is stated | `web/src/widgets.ts` (each widget either converts or holds SI - it cannot do both), CHANGELOG **(breaking - what a field is measured in IS its format)** |
 | Ship sections, integrity, typed damage, ammo (`nova_ship/sections`, `nova_gameplay/integrity`) | `ships.md`, `sections.md` (+ section children), `hud.md` | [Ship sections internals](sections.md), [Add a ship section](guide-add-section.md), `/create/sections/` | CHANGELOG |
 | How a body WEARS its damage: the two readings and the authored looks (`nova_gameplay/integrity/{erosion,carve,spew,chunk}`, `nova_ship/sections/damage_*`) | `ships.md`, `sections.md` (+ section children), `combat-weapons.md` | [Ship sections internals](sections.md), `/create/sections/` (`damage_effects` is a CONTENT format serialized into `assets/base/sections/base.content.ron`, so rule 3 applies), `/create/base-content/` | CHANGELOG **(breaking?)** |
 | Asteroid carving: the signed field, its cost model, severing (`nova_scenario/objects/asteroid*`, `nova_gameplay/mesh/field.rs`) | `combat-weapons.md`, `scenarios.md` | [Scenario engine](scenario-system.md) (the mechanism AND what a remesh costs), `/create/objects/` (the Asteroid fields, and that `radius` is durability) | CHANGELOG **(breaking?)** |
@@ -109,6 +110,11 @@ Two structural traps this map cannot catch by itself:
   invalidates the MAP too - that is what the first row is for.
 - A lane-per-change epic has no lane whose job is the cross-cutting sweep.
   Give the sweep its own step (or lane) whenever `crates/*` changes shape.
+- A quoted FIGURE is a claim about a UNIT as well as about a number. Change what
+  a field is measured in and every page quoting it stays readable and becomes
+  wrong, while a name-level grep finds the pages that mention the field rather
+  than the ones that quote it. Re-derive the figure from the code; and check the
+  static fallback prose inside a `data-widget` block, which no test renders.
 
 ## When you cut a release
 

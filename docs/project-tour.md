@@ -71,6 +71,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Player input / AI | `crates/nova_ship/src/input/{player,ai}/` | -- |
 | Radar targeting / lock-on | `crates/nova_ship/src/input/targeting/` | -- |
 | Gravity wells | `crates/nova_gameplay/src/gravity.rs` | -- |
+| A unit, or what a field is measured in | `crates/nova_events/src/units.rs` + `crates/nova_events/src/scale.rs` | [Architecture](architecture.md#units-and-scale) |
 | The HUD (widgets) | `crates/nova_hud/src/` | -- |
 | The NOVA OS monitor / its apps | `crates/nova_os_ui/src/` | -- |
 | A scenario event/filter/action | `crates/nova_scenario/src/{events.rs,filters.rs,actions/}` | [Scenario engine](scenario-system.md), [Extend the scenario engine](guide-extend-scenarios.md) |

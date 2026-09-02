@@ -265,6 +265,15 @@ kind in the directory, split across three modules with two plugins, carrying no
    asteroid adds `Dynamic` + `TransformInterpolation`; four of the six kinds
    are static).
 
+   Every distance, speed or acceleration the config carries is `Meters`,
+   `MetersPerSecond` or `MetersPerSecondSquared` (`nova_events::units`), never a
+   bare `f32`: the TYPE is what says what the number means, it is what the
+   editor stamps a row's unit from, and `to_engine()` at the spawn site is the
+   one place it becomes a Bevy or avian number. A vector position is `Meters3`.
+   The exception, and the only one, is a value the engine owns outright - a
+   build-grid cell, a collider extent. See
+   [Units and scale](architecture.md#units-and-scale).
+
    ```rust
    #[derive(Component, Clone, Debug, Reflect)]
    pub struct MineMarker;
@@ -272,7 +281,8 @@ kind in the directory, split across three modules with two plugins, carrying no
    #[derive(Clone, Debug)]
    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
    pub struct MineConfig {
-       pub radius: f32,
+       /// Trigger radius.
+       pub radius: Meters,
        pub damage: f32,
    }
 
@@ -322,10 +332,10 @@ SpawnScenarioObject(ScenarioObjectConfig(
     base: BaseScenarioObjectConfig(
         id: "mine_1",
         name: "Proximity Mine",
-        position: (0.0, 0.0, -200.0),
+        position: (0.0, 0.0, -2000.0),
         rotation: (0.0, 0.0, 0.0, 1.0),
     ),
-    kind: Mine(MineConfig(radius: 5.0, damage: 40.0)),
+    kind: Mine(MineConfig(radius: 50.0, damage: 40.0)),
 ))
 ```
 
