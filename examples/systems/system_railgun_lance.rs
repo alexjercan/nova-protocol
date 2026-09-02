@@ -67,7 +67,8 @@ const PLATES: usize = 6;
 /// layer SURVIVES its rake and its remaining health is still readable.
 const PLATE_HEALTH: f32 = 500.0;
 
-/// Plate thickness and spacing along the line of flight, in world units. Two
+/// Plate thickness and spacing along the line of flight, in ENGINE world units
+/// (this is rig mesh and collider geometry, not an authored distance). Two
 /// separate facts, so a plate cannot be met twice by one sweep.
 const PLATE_THICKNESS: f32 = 4.0;
 const PLATE_PITCH: f32 = 6.0;
@@ -127,9 +128,9 @@ struct LanceProbe {
     shots: u32,
     /// The frame the first shot left on.
     shot_frame: Option<u32>,
-    /// The ship's velocity along its own bore after the shot, in units/s.
+    /// The ship's velocity along its own bore after the shot.
     /// Negative means it was pushed BACK.
-    bore_velocity_after_shot: Option<f32>,
+    bore_velocity_after_shot: Option<MetersPerSecond>,
     /// The rake the slug the lance ACTUALLY fired carried, read one frame
     /// after the shot. `Some(None)` means the shot was read and carried none.
     fired_rake: Option<Option<f32>>,
@@ -266,13 +267,13 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
                         base: BaseScenarioObjectConfig {
                             id: "player_ship".to_string(),
                             name: "Lance Rig".to_string(),
-                            position: Vec3::ZERO,
+                            position: Meters3::ZERO,
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
                     },
                 )],
-                ThreePointRig::around("rig", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("rig", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -468,7 +469,7 @@ fn drive_range(world: &mut World) {
             .unwrap_or_default();
         let mut probe = world.resource_mut::<LanceProbe>();
         probe.shot_frame = Some(frame);
-        probe.bore_velocity_after_shot = Some(velocity.dot(bore));
+        probe.bore_velocity_after_shot = Some(MetersPerSecond::from_engine(velocity.dot(bore)));
         // Hold the trigger DOWN from here: invariant 5 wants a lance that
         // refuses a second commit while it is asked for one.
         drop(probe);
@@ -544,7 +545,9 @@ fn verify(world: &mut World, lance: Entity, plates: &[f32]) {
             probe.peak_cue,
             probe.cue_after_shot.unwrap_or(1.0),
             probe.shots,
-            probe.bore_velocity_after_shot.unwrap_or(0.0),
+            probe
+                .bore_velocity_after_shot
+                .unwrap_or(MetersPerSecond::ZERO),
         )
     };
     let (charging_after_release, peak_cue, cue_after_shot, shots, bore_velocity) = probe_readings;
@@ -591,13 +594,14 @@ fn verify(world: &mut World, lance: Entity, plates: &[f32]) {
     );
 
     assert!(
-        bore_velocity < 0.0,
-        "railgun: the shot did not shove the ship back along its bore: {bore_velocity} u/s"
+        bore_velocity < MetersPerSecond::ZERO,
+        "railgun: the shot did not shove the ship back along its bore: {} m/s",
+        bore_velocity.get()
     );
     nova_probe::probe_marker(
         world,
         "outcome: recoil shoves the ship that fired",
-        serde_json::json!({ "bore_velocity": bore_velocity }),
+        serde_json::json!({ "bore_velocity": bore_velocity.get() }),
     );
 
     let rounds = world.get::<SectionAmmo>(lance).map(|ammo| ammo.rounds);
@@ -740,10 +744,11 @@ fn rake_matches(fired: Option<f32>, authored: Option<f32>) -> bool {
 
 // --- the measurement bank ---------------------------------------------------
 
-/// A stand cell's edge, and the lattice pitch, in units. One unit cell on a one
-/// unit lattice - the spacing shipped hulls are built on - so a face
-/// neighbour's nearest point lies 0.5 from the bore, a diagonal's 0.707, and a
-/// second-ring cell's 1.5.
+/// A stand cell's edge, and the lattice pitch, in ENGINE world units - these are
+/// build-grid cells, not authored distances. One unit cell on a one unit lattice
+/// - the spacing shipped hulls are built on - so a face neighbour's nearest
+/// point lies 0.5 from the bore, a diagonal's 0.707, and a second-ring cell's
+/// 1.5.
 const STAND_CELL: f32 = 1.0;
 
 /// A stand cell's health: the reinforced hull section's authored pool, so the
@@ -768,13 +773,14 @@ const WALL_HALF: i32 = 2;
 /// rather than an argument. It is the seed a blast design left behind.
 const WIDE_SEED_RADIUS: f32 = 4.0;
 
-/// Where the first stand stands, and how far apart they are, in units. Well
-/// clear of the plate stack, which is only eight units across.
+/// Where the first stand stands, and how far apart they are, in ENGINE world
+/// units - rig geometry laid out against the lattice above. Well clear of the
+/// plate stack, which is only eight units across.
 const FIRST_STAND_X: f32 = 60.0;
 const STAND_PITCH_X: f32 = 40.0;
 
 /// How far downrange a stand's first layer sits, and how far in front of it the
-/// stand's slug starts, in units.
+/// stand's slug starts, in ENGINE world units.
 const STAND_Z: f32 = -30.0;
 const STAND_MUZZLE_LEAD: f32 = 10.0;
 
@@ -887,7 +893,8 @@ struct StandResult {
     removed: f32,
     /// The deepest layer it reached, counting from the entry face.
     depth: i32,
-    /// The furthest from the bore a bite was RECORDED, in units.
+    /// The furthest from the bore a bite was RECORDED, in engine world units
+    /// (the same lattice space [`STAND_CELL`] counts in).
     spread: f32,
     /// How many cells the corridor took out of each layer, from the entry
     /// face inward. The corridor's shape in one line.
@@ -907,9 +914,9 @@ fn stand_origin(index: usize) -> Vec3 {
     Vec3::new(FIRST_STAND_X + index as f32 * STAND_PITCH_X, 0.0, STAND_Z)
 }
 
-/// How far a lattice cell's NEAREST point lies from the bore, in units. The
-/// same distance the swept corridor tests against, so a cell inside this radius
-/// is a cell the rake owes a bite.
+/// How far a lattice cell's NEAREST point lies from the bore, in engine world
+/// units. The same distance the swept corridor tests against, so a cell inside
+/// this radius is a cell the rake owes a bite.
 fn cell_offset(x: i32, y: i32) -> f32 {
     let reach = |n: i32| (n.abs() as f32 * STAND_CELL - STAND_CELL * 0.5).max(0.0);
     reach(x).hypot(reach(y))
@@ -983,12 +990,15 @@ fn slug_spec(world: &World, lance: Entity) -> SlugSpec {
     SlugSpec {
         damage: config.slug_damage,
         power: config.slug_power,
-        speed: config.slug_speed,
+        speed: config.slug_speed.to_engine(),
         lifetime: config.slug_lifetime,
         // FILTERED, exactly as `charge_and_fire_railgun` filters it: an
         // authored zero spawns no rake component at all, so the bank must read
         // it as no rake rather than as a rake of width nothing.
-        rake: config.rake_radius.filter(|radius| *radius > 0.0),
+        rake: config
+            .rake_radius
+            .filter(|radius| *radius > Meters::ZERO)
+            .map(Meters::to_engine),
         cycle: config.charge_seconds + config.reload.map_or(0.0, |reload| reload.delay),
     }
 }

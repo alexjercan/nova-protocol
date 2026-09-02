@@ -16,8 +16,8 @@
 //! - It is COLD the whole time it defends. The weapons safety would stop a
 //!   player trigger here, so a round leaving the muzzle is the computer's
 //!   exemption working, not a stance nobody set.
-//! - The torpedoes are committed to a point 400 u BEYOND the defender, offset
-//!   30 u off its flank. They fly through its 150 u envelope and fuze far
+//! - The torpedoes are committed to a point 4 km BEYOND the defender, offset
+//!   300 m off its flank. They fly through its 1.5 km envelope and fuze far
 //!   away, so the defender is never damaged and the stream never stops.
 //! - The lock is written onto the player's own `CombatLock` slot - the state
 //!   the CTRL radar gesture lands, which `systems/system_player_path` drives with the
@@ -69,22 +69,22 @@ const BOAT_ID: &str = "boat";
 /// still a mount the computer borrows while the player is not firing it.
 const DEFENDER_GUNS: &str = "defender_guns";
 
-/// Lateral offset (u) of the torpedo lane from the defender's hull: inside the
-/// 150 u point-defence envelope for most of the lane, far enough that a torpedo
+/// Lateral offset of the torpedo lane from the defender's hull: inside the
+/// 1.5 km point-defence envelope for most of the lane, far enough that a torpedo
 /// never collides with the ship being defended.
-const PASS_OFFSET: f32 = 30.0;
+const PASS_OFFSET: Meters = Meters(300.0);
 
 /// Where the boat sits on the lane, and where the torpedoes are aimed. The aim
-/// point is well beyond the defender, so a proximity fuze fires 400 u past it.
-const LAUNCH_Z: f32 = 300.0;
-const FLYBY_AIM_Z: f32 = -400.0;
+/// point is well beyond the defender, so a proximity fuze fires 4 km past it.
+const LAUNCH_Z: Meters = Meters(3_000.0);
+const FLYBY_AIM_Z: Meters = Meters(-4_000.0);
 
-/// The point-defence envelope the range is built around. Mirrors the engine's
-/// `AI_POINT_DEFENSE_RANGE`, which is crate-private; the assertions read the
-/// live geometry against THIS number, so a range that stops staging an
+/// The point-defence envelope the range is built around, 1.5 km. Mirrors the
+/// engine's `AI_POINT_DEFENSE_RANGE`, which is crate-private; the assertions
+/// read the live geometry against THIS number, so a range that stops staging an
 /// intercept fails loudly instead of passing on an empty sky.
 #[cfg(feature = "debug")]
-const PD_ENVELOPE: f32 = 150.0;
+const PD_ENVELOPE: Meters = Meters(1_500.0);
 
 /// When the script cleared the combat lock, so the next beat can price the
 /// debounce grace against the clock the grace itself runs on.
@@ -189,7 +189,9 @@ fn commit_fresh_torpedoes(
     for torpedo in &q_fresh {
         commands.entity(torpedo).insert((
             TorpedoTargetChosen,
-            TorpedoTargetPosition(Vec3::new(0.0, PASS_OFFSET, FLYBY_AIM_Z)),
+            TorpedoTargetPosition(
+                Meters3::new(0.0, PASS_OFFSET.get(), FLYBY_AIM_Z.get()).to_engine(),
+            ),
         ));
     }
 }
@@ -255,7 +257,7 @@ fn boat(sections: &GameSections) -> SpaceshipConfig {
 fn spaceship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     config: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -273,11 +275,11 @@ fn spaceship(
 /// (ships spawn with -Z forward).
 fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let objects = vec![
-        spaceship(DEFENDER_ID, "Defender", Vec3::ZERO, defender(sections)),
+        spaceship(DEFENDER_ID, "Defender", Meters3::ZERO, defender(sections)),
         spaceship(
             BOAT_ID,
             "Torpedo Boat",
-            Vec3::new(0.0, PASS_OFFSET, LAUNCH_Z),
+            Meters3::new(0.0, PASS_OFFSET.get(), LAUNCH_Z.get()),
             boat(sections),
         ),
     ];
@@ -285,7 +287,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     let events = fixtures::spawn_on_start(
         [
             objects,
-            ThreePointRig::around("range", Vec3::ZERO, 10.0).objects(),
+            ThreePointRig::around("range", Meters3::ZERO, 10.0).objects(),
         ]
         .concat(),
     );
@@ -380,7 +382,7 @@ fn torpedoes_in_the_envelope(world: &World) -> Vec<(Entity, f32)> {
     query
         .iter(world)
         .map(|(torpedo, transform)| (torpedo, transform.translation.distance(anchor)))
-        .filter(|(_, distance)| *distance <= PD_ENVELOPE)
+        .filter(|(_, distance)| Meters::from_engine(*distance) <= PD_ENVELOPE)
         .collect()
 }
 
@@ -454,8 +456,9 @@ fn report_the_claim(world: &mut World) {
     let inbound = torpedoes_in_the_envelope(world);
     assert!(
         !inbound.is_empty(),
-        "borrowed_battery: the range must stage a torpedo inside the {PD_ENVELOPE} u \
-         envelope, or the claim proves nothing"
+        "borrowed_battery: the range must stage a torpedo inside the {} m \
+         envelope, or the claim proves nothing",
+        PD_ENVELOPE.get()
     );
     let nearest = inbound
         .iter()
@@ -485,7 +488,8 @@ fn report_the_claim(world: &mut World) {
     let torpedo = claimed.assignment;
     info!(
         "borrowed_battery: the computer claimed mount {turret:?} onto torpedo {torpedo:?} \
-         ({nearest:.0} u out, {} in the envelope)",
+         ({:.0} m out, {} in the envelope)",
+        Meters::from_engine(nearest).get(),
         inbound.len()
     );
     nova_probe::probe_marker(

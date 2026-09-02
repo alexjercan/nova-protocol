@@ -21,7 +21,8 @@
 //!
 //! Every torpedo is committed to a POSITION down its own bay's lane. A torpedo
 //! whose target is decided by nobody has no guidance and no thrust, so linear
-//! damping stalls it a few units off the tube; the lanes fan out from the wall
+//! damping stalls it a few tens of metres off the tube; the lanes fan out from
+//! the wall
 //! of tubes and are all the SAME length, so the sky fills evenly and the drain
 //! after the tubes close is bounded by one flight time rather than by the
 //! longest diagonal.
@@ -68,9 +69,9 @@ const TORPEDOES_IN_FLIGHT: usize = 1000;
 /// after the trigger goes down. The tube count is what buys that: population is
 /// launch RATE times flight time, and both the fill and the drain are one
 /// flight time long, so a slower rack would spend the whole completion budget
-/// climbing to its own scale. Measured under lavapipe: 200 tubes on 150 u lanes
+/// climbing to its own scale. Measured under lavapipe: 200 tubes on 1.5 km lanes
 /// walk the whole script in 48 s of wall clock, against 117 s for 100 tubes on
-/// 400 u ones at the same population.
+/// 4 km ones at the same population.
 const TORPEDO_BAYS: usize = 200;
 
 /// The sections the hull carries: the flight computer, plus the rack. The
@@ -88,12 +89,13 @@ const BAY_SECTION: &str = "torpedo_section";
 /// wall) makes the outer lanes twice as long as the inner ones and the drain
 /// waits for the worst of them. Short enough that the drain is seconds rather
 /// than the torpedo's 100 s lifetime.
-const LANE_LENGTH: f32 = 150.0;
+const LANE_LENGTH: Meters = Meters(1_500.0);
 
 /// How wide the lanes fan: the forward component of each lane's direction, in
-/// the same units as the tube's own offset from the hull axis. Smaller fans
-/// wider (a corner tube sits ~10 u off the axis, so 6.0 puts its lane ~58 deg
-/// off the nose).
+/// the same ENGINE world units as the tube's own offset from the hull axis, so
+/// it is a direction blend and not a distance. Smaller fans wider (a corner tube
+/// sits about ten world units off the axis, so 6.0 puts its lane ~58 deg off the
+/// nose).
 ///
 /// A wide fan is not decoration, it is the cheap arrangement: a thousand
 /// torpedoes packed into a narrow column were measured SLOWER in wall clock
@@ -282,7 +284,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         base: BaseScenarioObjectConfig {
             id: "rack".to_string(),
             name: "Rack".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(rack(sections)),
@@ -296,7 +298,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         events: fixtures::spawn_on_start(
             [
                 objects,
-                ThreePointRig::around("lights", Vec3::ZERO, 20.0).objects(),
+                ThreePointRig::around("lights", Meters3::ZERO, 20.0).objects(),
             ]
             .concat(),
         ),
@@ -332,7 +334,7 @@ fn commit_fresh_torpedoes(
     for (torpedo, transform) in &q_fresh {
         let from = transform.translation;
         let fan = Vec3::new(from.x, from.y, -LANE_FAN).normalize_or(Vec3::NEG_Z);
-        let aim = from + fan * LANE_LENGTH;
+        let aim = from + fan * LANE_LENGTH.to_engine();
         commands
             .entity(torpedo)
             .insert((TorpedoTargetChosen, TorpedoTargetPosition(aim)));

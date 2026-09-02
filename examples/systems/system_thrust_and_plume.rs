@@ -20,7 +20,7 @@
 //!
 //! Invariant 4 compares two MEASURED accelerations rather than a magic
 //! constant: each round divides its own speed gain by its own duration, so the
-//! rate is `u/s^2` and the two rounds' windows need not match.
+//! rate is `m/s^2` and the two rounds' windows need not match.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -60,14 +60,14 @@ const PARTIAL_THROTTLE: f32 = 0.4;
 /// How long each burn round holds the throttle open once the drive has taken
 /// it, in seconds.
 ///
-/// A settle beat, and deliberately NOT "the hull has gained N u/s" - that is
+/// A settle beat, and deliberately NOT "the hull has gained N m/s" - that is
 /// the same comparison [`assert_full_burn`] makes, which would leave "a burn
 /// accelerates" unfailable and surface a dead drive as a deadline stall on the
 /// beat's name. The beat delivers the stimulus (the throttle reached the
 /// section); whether the hull ACCELERATED is the assertions' question.
 ///
-/// Sized off the measured full-burn acceleration (~22 u/s^2, so ~8.8 at
-/// [`PARTIAL_THROTTLE`]): this window gains ~55 u/s full and ~22 partial, both
+/// Sized off the measured full-burn acceleration (~220 m/s^2, so ~88 at
+/// [`PARTIAL_THROTTLE`]): this window gains ~550 m/s full and ~220 partial, both
 /// orders of magnitude above the speed noise the assertions compare against,
 /// and both rounds still finish far inside their deadlines. [`measure_round`]
 /// divides by the round's own duration, so the two rates stay comparable.
@@ -216,13 +216,13 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                         base: BaseScenarioObjectConfig {
                             id: "rig_ship".to_string(),
                             name: "Rig Ship".to_string(),
-                            position: Vec3::new(0.0, 0.0, -12.0),
+                            position: Meters3::new(0.0, 0.0, -120.0),
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
                     },
                 )],
-                ThreePointRig::around("rig", Vec3::new(0.0, 0.0, -12.0), 1.0).actions(),
+                ThreePointRig::around("rig", Meters3::new(0.0, 0.0, -120.0), 1.0).actions(),
             ]
             .concat(),
         }],
@@ -256,18 +256,20 @@ fn hold_throttle(
 #[derive(Resource, Default)]
 struct BurnProbe {
     /// Nose speed and wall-clock time at the start of the current round.
-    round: Option<(f32, f32)>,
-    /// Acceleration the full-burn round measured, u/s^2.
-    full_rate: Option<f32>,
+    round: Option<(MetersPerSecond, f32)>,
+    /// Acceleration the full-burn round measured.
+    full_rate: Option<MetersPerSecondSquared>,
 }
 
 /// Hull speed along its own nose (-Z), the axis the drive pushes on.
 #[cfg(feature = "debug")]
-fn nose_speed(world: &World) -> Option<f32> {
+fn nose_speed(world: &World) -> Option<MetersPerSecond> {
     let mut query =
         world.try_query_filtered::<(&Rotation, &LinearVelocity), With<SpaceshipRootMarker>>()?;
     let (rotation, velocity) = query.iter(world).next()?;
-    Some(velocity.0.dot(rotation.0 * Vec3::NEG_Z))
+    Some(MetersPerSecond::from_engine(
+        velocity.0.dot(rotation.0 * Vec3::NEG_Z),
+    ))
 }
 
 /// Open the throttle to `throttle` and mark the round's starting speed and
@@ -279,7 +281,10 @@ fn begin_burn(throttle: f32) -> impl Fn(&mut World) + Send + Sync + 'static {
         let now = world.resource::<Time>().elapsed_secs();
         world.resource_mut::<BurnProbe>().round = Some((speed, now));
         world.resource_mut::<HeldThrottle>().0 = throttle;
-        info!("burn probe: throttle {throttle:.2} from {speed:.3} u/s");
+        info!(
+            "burn probe: throttle {throttle:.2} from {:.3} m/s",
+            speed.get()
+        );
     }
 }
 
@@ -308,11 +313,11 @@ fn burn_window_held(throttle: f32) -> Arc<nova_protocol::nova_debug::harness::Pr
     )
 }
 
-/// The finished round's acceleration in u/s^2, plus the raw gain, read at
-/// assert time. Dividing by the round's own duration is what makes the two
-/// rounds comparable without pinning them to equal-length windows.
+/// The finished round's acceleration, plus the raw speed gain, read at assert
+/// time. Dividing by the round's own duration is what makes the two rounds
+/// comparable without pinning them to equal-length windows.
 #[cfg(feature = "debug")]
-fn measure_round(world: &mut World) -> (f32, f32) {
+fn measure_round(world: &mut World) -> (MetersPerSecond, MetersPerSecondSquared) {
     let (baseline, started) = world
         .resource::<BurnProbe>()
         .round
@@ -324,7 +329,7 @@ fn measure_round(world: &mut World) -> (f32, f32) {
         "burn probe: a burn round cannot take zero seconds"
     );
     let gain = speed - baseline;
-    (gain, gain / seconds)
+    (gain, gain.per_second(seconds))
 }
 
 /// Every exhaust plume material handle the drive spawned.
@@ -382,15 +387,19 @@ fn plume_idle() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 fn assert_full_burn(world: &mut World) {
     let (gain, rate) = measure_round(world);
     assert!(
-        gain > 0.0,
-        "burn probe: nose speed must grow under a full burn, gained {gain:.3} u/s"
+        gain > MetersPerSecond::ZERO,
+        "burn probe: nose speed must grow under a full burn, gained {:.3} m/s",
+        gain.get()
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
-    info!("burn probe: full burn accelerates the hull ({rate:.3} u/s^2)");
+    info!(
+        "burn probe: full burn accelerates the hull ({:.3} m/s^2)",
+        rate.get()
+    );
     nova_probe::probe_marker(
         world,
         "outcome: burn accelerates",
-        serde_json::json!({ "t": elapsed, "gain": gain, "rate": rate }),
+        serde_json::json!({ "t": elapsed, "gain": gain.get(), "rate": rate.get() }),
     );
 
     // The plume follows the throttle through the production sync
@@ -434,22 +443,29 @@ fn assert_partial_throttle(world: &mut World) {
         .full_rate
         .expect("burn probe: the full-burn round must have measured its rate first");
     assert!(
-        rate > 0.0,
+        rate > MetersPerSecondSquared::ZERO,
         "burn probe: {PARTIAL_THROTTLE} throttle must still accelerate the hull, \
-         measured {rate:.3} u/s^2"
+         measured {:.3} m/s^2",
+        rate.get()
     );
     assert!(
         rate < full_rate,
-        "burn probe: {PARTIAL_THROTTLE} throttle accelerated at {rate:.3} u/s^2, \
-         not below the full burn's {full_rate:.3} u/s^2 - thrust does not follow \
-         the throttle"
+        "burn probe: {PARTIAL_THROTTLE} throttle accelerated at {:.3} m/s^2, \
+         not below the full burn's {:.3} m/s^2 - thrust does not follow \
+         the throttle",
+        rate.get(),
+        full_rate.get()
     );
-    info!("burn probe: partial throttle is proportional ({rate:.3} < {full_rate:.3} u/s^2)");
+    info!(
+        "burn probe: partial throttle is proportional ({:.3} < {:.3} m/s^2)",
+        rate.get(),
+        full_rate.get()
+    );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
         "outcome: partial throttle is proportional",
-        serde_json::json!({ "t": elapsed, "gain": gain, "rate": rate, "full_rate": full_rate }),
+        serde_json::json!({ "t": elapsed, "gain": gain.get(), "rate": rate.get(), "full_rate": full_rate.get() }),
     );
 }
 

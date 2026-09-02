@@ -229,7 +229,7 @@ const LAUNCHER_STANDOFF: f32 = 220.0;
 /// plane.
 ///
 /// Inside [`PD_ENVELOPE`] at both ends, so every torpedo is a threat for the
-/// whole crossing; [`GATE_NEAR`] is far enough out that the warhead's 30 u blast
+/// whole crossing; [`GATE_NEAR`] is far enough out that the warhead's 300 m blast
 /// cannot reach the hull even at its closest.
 const GATE_NEAR: f32 = 60.0;
 /// The outer gate radius (see [`GATE_NEAR`]).
@@ -587,7 +587,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
             base: BaseScenarioObjectConfig {
                 id: "battery".to_string(),
                 name: "Battery".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(battery(sections)),
@@ -596,7 +596,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
             base: BaseScenarioObjectConfig {
                 id: "launcher".to_string(),
                 name: "Launcher".to_string(),
-                position: launcher_origin(),
+                position: Meters3::from_engine(launcher_origin()),
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(launcher(sections)),
@@ -611,7 +611,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         events: fixtures::spawn_on_start(
             [
                 objects,
-                ThreePointRig::around("lights", Vec3::ZERO, 24.0).objects(),
+                ThreePointRig::around("lights", Meters3::ZERO, 24.0).objects(),
             ]
             .concat(),
         ),

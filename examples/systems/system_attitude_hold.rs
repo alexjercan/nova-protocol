@@ -339,13 +339,13 @@ fn attitude_rig(
                         base: BaseScenarioObjectConfig {
                             id: "rig_ship".to_string(),
                             name: "Rig Ship".to_string(),
-                            position: Vec3::new(0.0, 0.0, -12.0),
+                            position: Meters3::new(0.0, 0.0, -120.0),
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
                     },
                 )],
-                ThreePointRig::around("rig", Vec3::new(0.0, 0.0, -12.0), 1.0).actions(),
+                ThreePointRig::around("rig", Meters3::new(0.0, 0.0, -120.0), 1.0).actions(),
             ]
             .concat(),
         }],
@@ -568,15 +568,17 @@ fn assert_rig_a_tracks(world: &mut World) {
         "outcome: attitude tracks",
         serde_json::json!({ "t": elapsed, "error_rad": error }),
     );
-    // The ceiling nobody authored. Two 1 u sections put this rig's centre of
-    // mass between them and its furthest face 1.0 u (10 m) out, so 8 G of hull
+    // The ceiling nobody authored. Two one-cell sections put this rig's centre
+    // of mass between them and its furthest face a 10 m arm out, so 8 G of hull
     // load limit divides down to 7.85 rad/s2 - and its computer carries 200x
     // the torque that needs, so the metal is what answers.
     let ceiling = live_ceiling(world);
     assert!(
         (ceiling - RIG_STRUCTURAL_CEILING).abs() < CEILING_TOLERANCE,
         "attitude probe: this rig's structural ceiling is \
-         {RIG_STRUCTURAL_CEILING} rad/s2 (8 G over a 10 m arm), got {ceiling:.3}"
+         {RIG_STRUCTURAL_CEILING:.3} rad/s2 ({} m/s2 over a {} m arm), got {ceiling:.3}",
+        LOAD_LIMIT.get(),
+        RIG_STRUCTURAL_ARM.get()
     );
     nova_probe::probe_marker(
         world,
@@ -588,11 +590,22 @@ fn assert_rig_a_tracks(world: &mut World) {
     epoch.reference_error = Some(error);
 }
 
-/// This rig's structural ceiling, rad/s2, written out rather than derived: the
-/// probe has to be an independent oracle, and `8 * 9.81 / (1.0 u * 10 m)` is
-/// the whole derivation.
+/// The arm this rig turns about: two one-cell sections put its centre of mass
+/// between them, so its furthest face sits 10 m out. The probe's OWN reading of
+/// the layout, which is the half of the oracle that has to stay independent.
 #[cfg(feature = "debug")]
-const RIG_STRUCTURAL_CEILING: f32 = 7.848;
+const RIG_STRUCTURAL_ARM: Meters = Meters(10.0);
+
+/// This rig's structural ceiling, rad/s2: the hull load limit spread over
+/// [`RIG_STRUCTURAL_ARM`].
+///
+/// Taken from [`LOAD_LIMIT`] rather than restated, because the limit is one
+/// game-wide dial and an oracle that hard-codes today's 8 G silently stops
+/// checking anything the day it moves. The arm stays the probe's own claim, so
+/// the assertion is still `limit / arm` measured against the stack's answer:
+/// 78.48 m/s2 over 10 m is 7.848 rad/s2.
+#[cfg(feature = "debug")]
+const RIG_STRUCTURAL_CEILING: f32 = LOAD_LIMIT.get() / RIG_STRUCTURAL_ARM.get();
 
 /// How far the live ceiling may sit off it. Wide enough for the vector
 /// envelope's centripetal bite at the sweep rate (0.15 rad/s costs about

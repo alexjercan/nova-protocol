@@ -252,7 +252,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     base: BaseScenarioObjectConfig {
                         id: "player_ship".to_string(),
                         name: "Player Ship".to_string(),
-                        position: Vec3::ZERO,
+                        position: Meters3::ZERO,
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Spaceship(ship),
@@ -263,10 +263,10 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     game_assets,
                     "prey",
                     "Prey",
-                    Vec3::new(0.0, 0.0, -40.0),
+                    Meters3::new(0.0, 0.0, -400.0),
                     // Small enough for real gunfire to exhaust its geometry.
-                    0.25,
-                    Some(1000.0),
+                    Meters(2.5),
+                    Some(Meters(10_000.0)),
                 )),
                 // The waypoint: off the boresight (the radar pick is
                 // purely angular, and with the camera above the hull a
@@ -278,14 +278,14 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                     base: BaseScenarioObjectConfig {
                         id: "waypoint".to_string(),
                         name: "Waypoint".to_string(),
-                        position: Vec3::new(14.0, 0.0, -55.0),
+                        position: Meters3::new(140.0, 0.0, -550.0),
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Beacon(BeaconConfig {
                         label: "WAYPOINT".to_string(),
-                        radius: 1.5,
+                        radius: Meters(15.0),
                         color: Color::srgb(0.3, 0.9, 0.9),
-                        area_radius: Some(18.0),
+                        area_radius: Some(Meters(180.0)),
                         lock_signature: None,
                     }),
                 }),
@@ -305,7 +305,7 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
             // The scene lights itself: the engine spawns no light, so a
             // scenario that authors none renders black.
             .into_iter()
-            .chain(ThreePointRig::around("path", Vec3::ZERO, 5.0).actions())
+            .chain(ThreePointRig::around("path", Meters3::ZERO, 5.0).actions())
             .collect(),
         },
         // The kill, seen by the scenario.
@@ -462,7 +462,7 @@ fn closing_speed(world: &World) -> Option<f32> {
 
 /// Release the sweep and hold fire. The raised sweep must have locked the PREY,
 /// not the beacon: the radar pick is purely angular, and the first collinear
-/// geometry locked the waypoint so the shots flew 30 u past their target.
+/// geometry locked the waypoint so the shots flew 300 m past their target.
 ///
 /// The stance stays raised through the burst, so the safety cannot interrupt
 /// it. LMB is the shipped fire binding: the fire key must not overlap the
@@ -520,8 +520,9 @@ fn engage_goto(world: &mut World) {
 #[cfg(feature = "debug")]
 fn report_flown_leg(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {
-        let closing =
-            closing_speed(world).expect("player_path: the goto step advanced without telemetry");
+        let closing = MetersPerSecond::from_engine(
+            closing_speed(world).expect("player_path: the goto step advanced without telemetry"),
+        );
         assert_eq!(
             variable(world, "target_down"),
             Some(1.0),
@@ -553,13 +554,14 @@ fn report_flown_leg(round: usize) -> impl Fn(&mut World) + Send + Sync + 'static
         );
         info!(
             "player_path: round {round} - prey destroyed, waypoint locked, GOTO closing at \
-             {closing:.2} u/s"
+             {:.2} m/s",
+            closing.get()
         );
         let t = world.resource::<Time>().elapsed_secs();
         nova_probe::probe_marker(
             world,
             "beat: done",
-            serde_json::json!({ "t": t, "round": round, "closing_speed": closing }),
+            serde_json::json!({ "t": t, "round": round, "closing_speed": closing.get() }),
         );
     }
 }

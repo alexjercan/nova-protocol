@@ -14,12 +14,12 @@
 //! - The raider carries a HULL, a flight computer and a turret. It is
 //!   neutralized by killing the COMPUTER, so its gun is alive and loaded the
 //!   whole time - a disarmed raider would go quiet for the boring reason.
-//! - Its authored engage range is 1 u, so it never chases the boat and the
+//! - Its authored engage range is 10 m, so it never chases the boat and the
 //!   whole run happens in a passive state. That is exactly the state point
 //!   defence is documented to fire in, so the passive routine cannot be
 //!   mistaken for the fix.
-//! - The torpedoes are aimed at a point 400 u BEYOND the raider, offset 30 u
-//!   off its flank. They fly through its 150 u point-defence envelope and
+//! - The torpedoes are aimed at a point 4 km BEYOND the raider, offset 300 m
+//!   off its flank. They fly through its 1.5 km point-defence envelope and
 //!   detonate far away, so the raider is never damaged by them and the stream
 //!   never stops.
 //!
@@ -33,7 +33,7 @@
 //! NOVA_AUTOPILOT=1 cargo run --example bug_neutralized_quiet --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `neutralized_quiet: live hull defending - mount on torpedo ...`,
-//! #           `neutralized_quiet: the wreck is quiet with a torpedo ... u out`,
+//! #           `neutralized_quiet: the wreck is quiet with a torpedo ... m out`,
 //! #           `neutralized_quiet: the wreck still bleeds ...`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -74,23 +74,23 @@ const RAIDER_GUNS: &str = "raider_guns";
 /// count a mission script would branch on, which this change must not move.
 const NEUTRALIZED_VAR: &str = "raider_neutralized";
 
-/// Lateral offset (u) of the torpedo lane from the raider's hull: close enough
-/// to sit inside the 150 u point-defence envelope for ~290 u of the lane, far
+/// Lateral offset of the torpedo lane from the raider's hull: close enough to
+/// sit inside the 1.5 km point-defence envelope for ~2.9 km of the lane, far
 /// enough that a torpedo never collides with the wreck.
-const PASS_OFFSET: f32 = 30.0;
+const PASS_OFFSET: Meters = Meters(300.0);
 
 /// Where the boat sits on the lane, and where the torpedoes are aimed. The aim
-/// point is well beyond the raider, so a torpedo's proximity fuze fires 400 u
+/// point is well beyond the raider, so a torpedo's proximity fuze fires 4 km
 /// past it instead of on it.
-const LAUNCH_Z: f32 = 300.0;
-const FLYBY_AIM_Z: f32 = -400.0;
+const LAUNCH_Z: Meters = Meters(3_000.0);
+const FLYBY_AIM_Z: Meters = Meters(-4_000.0);
 
-/// The point-defence envelope the range is built around. Mirrors the engine's
-/// `AI_POINT_DEFENSE_RANGE`, which is private; the assertions read the live
-/// geometry against THIS number, so a range that stops staging an intercept
+/// The point-defence envelope the range is built around, 1.5 km. Mirrors the
+/// engine's `AI_POINT_DEFENSE_RANGE`, which is private; the assertions read the
+/// live geometry against THIS number, so a range that stops staging an intercept
 /// fails loudly instead of passing on an empty sky.
 #[cfg(feature = "debug")]
-const PD_ENVELOPE: f32 = 150.0;
+const PD_ENVELOPE: Meters = Meters(1_500.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -203,7 +203,9 @@ fn commit_fresh_torpedoes(
     for torpedo in &q_fresh {
         commands.entity(torpedo).insert((
             TorpedoTargetChosen,
-            TorpedoTargetPosition(Vec3::new(0.0, PASS_OFFSET, FLYBY_AIM_Z)),
+            TorpedoTargetPosition(
+                Meters3::new(0.0, PASS_OFFSET.get(), FLYBY_AIM_Z.get()).to_engine(),
+            ),
         ));
     }
 }
@@ -213,14 +215,14 @@ fn commit_fresh_torpedoes(
 ///
 /// The hull sits at the origin so it is the section the others link to; killing
 /// the computer therefore never disconnects the gun, and the ship stays ARMED
-/// through the neutralization. `engage_range: Some(1.0)` is what keeps the
-/// raider parked and passive: it acquires the boat but never leaves its
-/// routine, so nothing it does in this run is engagement behaviour.
+/// through the neutralization. A ten-metre engage range is what keeps the raider
+/// parked and passive: it acquires the boat but never leaves its routine, so
+/// nothing it does in this run is engagement behaviour.
 fn raider(sections: &GameSections) -> SpaceshipConfig {
     fixtures::ship(
         sections,
         SpaceshipController::AI(AIControllerConfig {
-            engage_range: Some(1.0),
+            engage_range: Some(Meters(10.0)),
             ..default()
         }),
         &[
@@ -266,7 +268,7 @@ fn boat(sections: &GameSections) -> SpaceshipConfig {
 fn spaceship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     config: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -285,11 +287,11 @@ fn spaceship(
 /// neutralize edge.
 fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let objects = vec![
-        spaceship(RAIDER_ID, "Raider", Vec3::ZERO, raider(sections)),
+        spaceship(RAIDER_ID, "Raider", Meters3::ZERO, raider(sections)),
         spaceship(
             BOAT_ID,
             "Torpedo Boat",
-            Vec3::new(0.0, PASS_OFFSET, LAUNCH_Z),
+            Meters3::new(0.0, PASS_OFFSET.get(), LAUNCH_Z.get()),
             boat(sections),
         ),
     ];
@@ -297,7 +299,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     let mut events = fixtures::spawn_on_start(
         [
             objects,
-            ThreePointRig::around("range", Vec3::ZERO, 10.0).objects(),
+            ThreePointRig::around("range", Meters3::ZERO, 10.0).objects(),
         ]
         .concat(),
     );
@@ -314,8 +316,8 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     events[0]
         .actions
         .push(EventActionConfig::SetCamera(SetCameraActionConfig {
-            position: Vec3::new(220.0, 90.0, 160.0),
-            look_at: Vec3::ZERO,
+            position: Meters3::new(2_200.0, 900.0, 1_600.0),
+            look_at: Meters3::ZERO,
         }));
     // The scenario-facing edge, counted the way a mission script counts it.
     // This example must not change what it reports.
@@ -427,7 +429,7 @@ fn torpedoes_in_the_envelope(world: &World) -> Vec<(Entity, f32)> {
     query
         .iter(world)
         .map(|(torpedo, transform)| (torpedo, transform.translation.distance(anchor)))
-        .filter(|(_, distance)| *distance <= PD_ENVELOPE)
+        .filter(|(_, distance)| Meters::from_engine(*distance) <= PD_ENVELOPE)
         .collect()
 }
 
@@ -623,8 +625,9 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
         .fold(f32::MAX, f32::min);
     assert!(
         !inbound.is_empty(),
-        "neutralized_quiet: the range must stage a torpedo inside the {PD_ENVELOPE} u \
-         envelope, or the silence proves nothing"
+        "neutralized_quiet: the range must stage a torpedo inside the {} m \
+         envelope, or the silence proves nothing",
+        PD_ENVELOPE.get()
     );
     nova_probe::probe_marker(
         world,
@@ -632,8 +635,9 @@ fn assert_the_wreck_is_quiet(world: &mut World) {
         serde_json::json!({}),
     );
     info!(
-        "neutralized_quiet: the wreck is quiet with a torpedo {nearest:.0} u out \
+        "neutralized_quiet: the wreck is quiet with a torpedo {:.0} m out \
          ({} in the envelope, {} live mount(s), gun intact)",
+        Meters::from_engine(nearest).get(),
         inbound.len(),
         mounts.len()
     );

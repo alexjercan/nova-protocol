@@ -273,7 +273,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                     base: BaseScenarioObjectConfig {
                         id: PLAYER_ID.to_string(),
                         name: "Player Ship".to_string(),
-                        position: Vec3::ZERO,
+                        position: Meters3::ZERO,
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Spaceship(ship),
@@ -282,7 +282,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
                     base: BaseScenarioObjectConfig {
                         id: HOSTILE_ID.to_string(),
                         name: "Hostile".to_string(),
-                        position: Vec3::new(0.0, 0.0, -40.0),
+                        position: Meters3::new(0.0, 0.0, -400.0),
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Spaceship(hostile),
@@ -305,7 +305,7 @@ fn outcome_probe_a(game_assets: &GameAssets, sections: &GameSections) -> Scenari
             // The scene lights itself: the engine spawns no light, so a
             // scenario that authors none renders black.
             .into_iter()
-            .chain(ThreePointRig::around("arena", Vec3::ZERO, 2.0).actions())
+            .chain(ThreePointRig::around("arena", Meters3::ZERO, 2.0).actions())
             .collect(),
         },
         // The DEFEAT path. The requeue of A is what makes the overlay show a
@@ -388,12 +388,12 @@ fn outcome_probe_b(game_assets: &GameAssets) -> ScenarioConfig {
                 base: BaseScenarioObjectConfig {
                     id: "chain_marker".to_string(),
                     name: "Chain Marker".to_string(),
-                    position: Vec3::new(0.0, 0.0, -30.0),
+                    position: Meters3::new(0.0, 0.0, -300.0),
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Beacon(BeaconConfig {
                     label: "ARRIVED".to_string(),
-                    radius: 1.5,
+                    radius: Meters(15.0),
                     color: Color::srgb(0.3, 0.9, 0.9),
                     area_radius: None,
                     lock_signature: None,

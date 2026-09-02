@@ -173,7 +173,7 @@ const FLOWN_RANGE: &str = "editor_sandbox";
 /// so its innermost handle geometry stands about 44 pixels off the node's
 /// origin at ANY camera distance; a longer sweep from the middle of a node
 /// crosses a ring and turns the ship instead of sliding it. Even this much is
-/// tens of world units out where the whole range is framed.
+/// hundreds of metres out where the whole range is framed.
 #[cfg(feature = "debug")]
 const DRAG_SPAN: f32 = 25.0;
 

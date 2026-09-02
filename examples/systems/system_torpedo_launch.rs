@@ -77,22 +77,22 @@ const TYPES_LOOP: &str = "news-0110-torpedo-types";
 /// than guessing from world contents.
 const CROSSING_ID: &str = "torpedo_crossing";
 
-/// Lateral speed of the crossing target (units/s). Fast enough that pointing
-/// straight at it misses: a torpedo capping at 35 u/s covering ~90 u takes long
-/// enough for a 15 u/s crosser to move most of a target width off the line of
-/// sight, so only a lead solution intercepts.
-const TARGET_CROSS_SPEED: f32 = 15.0;
+/// Lateral speed of the crossing target. Fast enough that pointing straight at
+/// it misses: a torpedo capping at 350 m/s covering ~900 m takes long enough for
+/// a 150 m/s crosser to move most of a target width off the line of sight, so
+/// only a lead solution intercepts.
+const TARGET_CROSS_SPEED: MetersPerSecond = MetersPerSecond(150.0);
 
 /// Closing speed toward an approaching torpedo. Together with the torpedo's
-/// own cruise, this moves more than the old 1 u contact-fuze standoff in one
+/// own cruise, this moves more than the old 10 m contact-fuze standoff in one
 /// fixed step. The physical torpedo then touches first and dies as a dud unless
 /// the proximity fuze leaves enough margin for both bodies' motion.
-const TARGET_CLOSE_SPEED: f32 = 60.0;
+const TARGET_CLOSE_SPEED: MetersPerSecond = MetersPerSecond(600.0);
 
 /// Start the head-on closing beat only on the terminal leg. The target otherwise
 /// stays in its corridor, so repeated shots and the diagnostic trail remain
 /// useful after the first intercept.
-const TARGET_CLOSE_TRIGGER: f32 = 8.0;
+const TARGET_CLOSE_TRIGGER: Meters = Meters(80.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -261,13 +261,14 @@ struct BestLeadDeg {
     first_sample_at: Option<f32>,
 }
 
-/// The range window, in units, the lead angle is sampled over.
+/// The range window the lead angle is sampled over, in ENGINE world units (160 m
+/// to 300 m): it is tested against a live `Transform` separation.
 ///
 /// Both ends are load-bearing. The FAR end excludes the launch transient: a
 /// torpedo leaves the bay pointing down the ship's nose, which for this scene's
 /// geometry already sits ~24 deg off the line of sight and on the same side as
 /// the lead, so a sample taken early cannot tell "has not turned yet" from
-/// "is leading". The NEAR end sits just outside the proximity fuze (15 u), so
+/// "is leading". The NEAR end sits just outside the proximity fuze (150 m), so
 /// the sample is taken while the torpedo is still steering rather than in the
 /// frame it detonates.
 const LEAD_SAMPLE_RANGE: std::ops::RangeInclusive<f32> = 16.0..=30.0;
@@ -319,8 +320,8 @@ fn gate(
     game_assets: &GameAssets,
     id: &str,
     name: &str,
-    pos: Vec3,
-    radius: f32,
+    pos: Meters3,
+    radius: Meters,
     _health: f32,
 ) -> ScenarioObjectConfig {
     // Unsigned: the gates are shot at over open sights, never radar-locked.
@@ -332,7 +333,7 @@ fn player_ship_object(sections: &GameSections) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "player_ship".to_string(),
             name: "Torpedo Ship".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(torpedo_ship(sections)),
@@ -349,40 +350,40 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
             game_assets,
             "gate_near",
             "Near Gate",
-            Vec3::new(0.0, 0.0, -30.0),
-            2.0,
+            Meters3::new(0.0, 0.0, -300.0),
+            Meters(20.0),
             60.0,
         ),
         gate(
             game_assets,
             "gate_mid",
             "Mid Gate",
-            Vec3::new(0.0, 0.0, -70.0),
-            3.0,
+            Meters3::new(0.0, 0.0, -700.0),
+            Meters(30.0),
             60.0,
         ),
         gate(
             game_assets,
             "gate_far",
             "Far Gate",
-            Vec3::new(6.0, 0.0, -120.0),
-            3.0,
+            Meters3::new(60.0, 0.0, -1_200.0),
+            Meters(30.0),
             60.0,
         ),
         gate(
             game_assets,
             "gate_side",
             "Side Gate",
-            Vec3::new(-25.0, 0.0, -60.0),
-            2.0,
+            Meters3::new(-250.0, 0.0, -600.0),
+            Meters(20.0),
             60.0,
         ),
         gate(
             game_assets,
             MOVING_GATE_ID,
             "Moving Gate",
-            Vec3::new(25.0, 0.0, -90.0),
-            2.0,
+            Meters3::new(250.0, 0.0, -900.0),
+            Meters(20.0),
             60.0,
         ),
     ];
@@ -394,7 +395,7 @@ fn torpedo_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         events: fixtures::spawn_on_start(
             [
                 objects,
-                ThreePointRig::around("range", Vec3::ZERO, 5.0).objects(),
+                ThreePointRig::around("range", Meters3::ZERO, 5.0).objects(),
             ]
             .concat(),
         ),
@@ -420,8 +421,8 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
             game_assets,
             CROSSER_ID,
             "Crossing Target",
-            Vec3::new(-40.0, 0.0, -90.0),
-            3.0,
+            Meters3::new(-400.0, 0.0, -900.0),
+            Meters(30.0),
             100_000.0,
         ),
     ];
@@ -433,7 +434,7 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         events: fixtures::spawn_on_start(
             [
                 objects,
-                ThreePointRig::around("crossing", Vec3::ZERO, 5.0).objects(),
+                ThreePointRig::around("crossing", Meters3::ZERO, 5.0).objects(),
             ]
             .concat(),
         ),
@@ -465,12 +466,15 @@ fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&E
     }
 }
 
+/// The gate range's mover drifts across the lane at up to this speed.
+const MOVING_GATE_DRIFT: MetersPerSecond = MetersPerSecond(100.0);
+
 /// Drift the moving gate side to side so torpedoes have to lead it.
 fn drive_moving_gate(
     time: Res<Time>,
     mut q_gate: Query<&mut LinearVelocity, With<RangeMovingTarget>>,
 ) {
-    let speed = (time.elapsed_secs() * 0.5).sin() * 10.0;
+    let speed = (time.elapsed_secs() * 0.5).sin() * MOVING_GATE_DRIFT.to_engine();
     for mut velocity in &mut q_gate {
         velocity.0 = Vec3::new(speed, 0.0, 0.0);
     }
@@ -485,11 +489,16 @@ fn drive_crosser(
     q_torpedoes: Query<&Transform, With<TorpedoProjectileMarker>>,
 ) {
     for (target, mut velocity) in &mut q_target {
-        let terminal = q_torpedoes
-            .iter()
-            .any(|torpedo| torpedo.translation.distance(target.translation) < TARGET_CLOSE_TRIGGER);
-        let closing = if terminal { TARGET_CLOSE_SPEED } else { 0.0 };
-        velocity.0 = Vec3::new(TARGET_CROSS_SPEED, 0.0, closing);
+        let terminal = q_torpedoes.iter().any(|torpedo| {
+            Meters::from_engine(torpedo.translation.distance(target.translation))
+                < TARGET_CLOSE_TRIGGER
+        });
+        let closing = if terminal {
+            TARGET_CLOSE_SPEED
+        } else {
+            MetersPerSecond::ZERO
+        };
+        velocity.0 = Vec3::new(TARGET_CROSS_SPEED.to_engine(), 0.0, closing.to_engine());
     }
 }
 
@@ -534,7 +543,7 @@ fn range_autotarget(
 
 /// Track the closest any torpedo gets to its target - the readable PN quality
 /// readout, and a DIAGNOSTIC rather than the invariant: the proximity fuze
-/// despawns a torpedo at half the blast radius (15 u,
+/// despawns a torpedo at half the blast radius (150 m,
 /// `torpedo_section/projectile.rs:91`), so no torpedo that works is ever
 /// observed nearer than that and "closest approach under 15" only restates
 /// "it detonated". [`track_lead_angle`] carries the claim instead.
@@ -564,10 +573,10 @@ fn track_closest_approach(
 /// lead. Pure pursuit points straight down the line of sight, so its lead is 0
 /// whatever the range; a converged PN solution holds
 /// `asin(|target drift| / torpedo speed)` all the way in - about 26 deg for this
-/// scene's 15 u/s crosser and 31 u/s torpedo.
+/// scene's 150 m/s crosser and 310 m/s torpedo.
 ///
 /// Sampled only inside [`LEAD_SAMPLE_RANGE`]; see that constant for why both
-/// ends matter. Measured at 33 deg, 30 u out, on the run this was written
+/// ends matter. Measured at 33 deg, 300 m out, on the run this was written
 /// against.
 fn track_lead_angle(
     time: Res<Time>,
@@ -602,7 +611,10 @@ fn track_lead_angle(
         best.first_sample_at.get_or_insert(time.elapsed_secs());
         if lead > best.deg + 0.5 {
             best.deg = lead;
-            info!("guidance: lead angle {lead:.1} deg at {range:.1} u");
+            info!(
+                "guidance: lead angle {lead:.1} deg at {:.1} m",
+                Meters::from_engine(range).get()
+            );
         }
     }
 }
@@ -632,21 +644,21 @@ fn report_torpedo_speed(
 struct RangeFlightPath(Vec<Vec3>);
 
 /// How far a torpedo must move before the trail takes another sample.
-const PATH_SAMPLE_SPACING: f32 = 0.5;
+const PATH_SAMPLE_SPACING: Meters = Meters(5.0);
 
 /// Samples one torpedo's trail holds, at [`PATH_SAMPLE_SPACING`] apart: enough
 /// for the whole flight of the longest shot on either range.
 const PATH_SAMPLE_LIMIT: usize = 600;
 
-/// Trail length the weave frame waits for, in UNITS of flight - more than one
-/// full turn of the helix at the Serpent's corkscrew rate.
+/// Trail length the weave frame waits for - more than one full turn of the helix
+/// at the Serpent's corkscrew rate.
 ///
-/// In units and not in samples: a sample is taken at most once per frame, so a
-/// sample count is a frame count on any run whose frames are longer than
+/// A LENGTH and not a sample count: a sample is taken at most once per frame, so
+/// a sample count is a frame count on any run whose frames are longer than
 /// [`PATH_SAMPLE_SPACING`] of travel - and it silently asks a slow run to fly
 /// several times as far.
 #[cfg(feature = "debug")]
-const WEAVE_TRAIL_UNITS: f32 = 50.0;
+const WEAVE_TRAIL_LENGTH: Meters = Meters(500.0);
 
 /// Append each live torpedo's position to its trail.
 fn record_flight_paths(
@@ -667,7 +679,7 @@ fn record_flight_paths(
         if path
             .0
             .last()
-            .is_none_or(|last| last.distance(position) >= PATH_SAMPLE_SPACING)
+            .is_none_or(|last| Meters::from_engine(last.distance(position)) >= PATH_SAMPLE_SPACING)
         {
             path.0.push(position);
             if path.0.len() > PATH_SAMPLE_LIMIT {
@@ -888,7 +900,7 @@ const LEAD_MIN_DEG: f32 = 12.0;
 /// armed torpedo is in flight); whether it DETONATED and DAMAGED the target is
 /// the assertion's question.
 ///
-/// Sized off the flight: the gate sits ~90 u out and a torpedo caps at ~35 u/s
+/// Sized off the flight: the gate sits ~900 m out and a torpedo caps at ~350 m/s
 /// from a standing start, so a healthy launch chain closes in ~5s. The bay
 /// keeps launching while the trigger is down, so this window also covers a
 /// second shot.
@@ -904,8 +916,8 @@ const LAUNCH_SETTLE_SECS: f32 = 10.0;
 /// angle. The stimulus is a torpedo flying the midcourse leg; the angle it held
 /// is the assertion's question.
 ///
-/// Sized off [`LEAD_SAMPLE_RANGE`]: the window is 14 u wide and a midcourse
-/// torpedo crosses it at ~31 u/s, so ~0.5s covers the whole leg. This is three
+/// Sized off [`LEAD_SAMPLE_RANGE`]: the window is 140 m wide and a midcourse
+/// torpedo crosses it at ~310 m/s, so ~0.5s covers the whole leg. This is three
 /// times that, so the running maximum has seen the leg out.
 #[cfg(feature = "debug")]
 const LEAD_SETTLE_SECS: f32 = 1.5;
@@ -934,7 +946,7 @@ type Script = nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>;
 /// frame at rest, one trigger pull, a fresh cold-coasting torpedo caught in
 /// the open iris, salvo taken back (see [`clear_the_door_salvo`] for why it
 /// must not fly on), close watched, shut frame again. They cannot follow the
-/// gate round: this range's 30 u blasts out-reach the 30 u near gate, so the
+/// gate round: this range's 300 m blasts out-reach the 300 m near gate, so the
 /// round's own ordnance destroys the firing ship ~1.4 s after the first pair
 /// launches - which no earlier beat ever noticed, because everything after
 /// the launch reads resources and the crossing round loads a fresh ship.
@@ -1088,8 +1100,8 @@ fn clear_torpedoes(world: &mut World) {
 
 /// End the door proof: release the trigger and take back the salvo it fired.
 ///
-/// The despawn is the load-bearing half. This range's 30 u blasts out-reach
-/// the near gate 30 u away, so a torpedo allowed to fly on detonates the
+/// The despawn is the load-bearing half. This range's 300 m blasts out-reach
+/// the near gate 300 m away, so a torpedo allowed to fly on detonates the
 /// whole SHIP out from under the walk ~1.4 s after launch - which the gate
 /// round itself never notices (its assertions read resources, and the
 /// crossing round loads a fresh ship), but the door proof does: the closing
@@ -1132,7 +1144,7 @@ fn torpedo_pair_present() -> Arc<nova_debug::harness::Predicate> {
 ///
 /// It frames the LONGEST trail in the air rather than the whole salvo, and
 /// sizes the camera off that trail. Framed to fit every torpedo at once, the
-/// corridor is several hundred units wide and an ~11 u swing is a couple of
+/// corridor is several kilometres wide and an ~110 m swing is a couple of
 /// pixels, which is a picture of nothing.
 #[cfg(feature = "debug")]
 fn frame_the_weave(world: &mut World) {
@@ -1163,8 +1175,8 @@ fn frame_the_weave(world: &mut World) {
     let height = extent * 0.8;
     nova_protocol::nova_debug::harness::pose_camera(
         world,
-        centre + Vec3::new(0.0, height, height * 0.27),
-        centre,
+        Meters3::from_engine(centre + Vec3::new(0.0, height, height * 0.27)),
+        Meters3::from_engine(centre),
     );
 }
 
@@ -1190,11 +1202,15 @@ fn frame_the_bay_muzzle(world: &mut World) {
     // transform_point, not translation + offset: it carries the section's
     // rotation AND any assembly scale into the framing.
     let muzzle = section.transform_point(Vec3::new(0.0, 0.0, -1.0));
-    // Far enough out that a caught torpedo (up to ~5 u past the muzzle, see
+    // Far enough out that a caught torpedo (up to ~50 m past the muzzle, see
     // `a_torpedo_is_emerging`) sits between the bay and the camera instead
     // of on the near plane.
     let eye = section.transform_point(Vec3::new(2.6, 1.9, -7.0));
-    nova_protocol::nova_debug::harness::pose_camera(world, eye, muzzle);
+    nova_protocol::nova_debug::harness::pose_camera(
+        world,
+        Meters3::from_engine(eye),
+        Meters3::from_engine(muzzle),
+    );
 }
 
 /// One full launch chain - fired, armed, detonated, target damaged - appended to
@@ -1380,12 +1396,12 @@ fn the_iris_is_open(open: bool) -> Arc<nova_protocol::nova_debug::harness::Predi
     })
 }
 
-/// A cold-launched torpedo hangs a couple of units past the muzzle: far
+/// A cold-launched torpedo hangs a few tens of metres past the muzzle: far
 /// enough out to be IN the iris frame, not yet on top of the camera.
 ///
 /// `remaining` counts down from the bay's 0.6 s `ignition_delay`, so
-/// 0.2..0.4 puts the launch 0.2-0.4 s old - 3.1 to 4.7 u past the muzzle
-/// face on the 8 u/s ejection charge, mid-frame for
+/// 0.2..0.4 puts the launch 0.2-0.4 s old - 31 to 47 m past the muzzle
+/// face on the 80 m/s ejection charge, mid-frame for
 /// [`frame_the_bay_muzzle`]'s pose. Sized to OVERLAP the door: the iris
 /// finishes opening 0.25 s after the launch that triggered it, so on the
 /// proof's single trigger pull the catch lands in the 0.25-0.4 s slice
@@ -1409,7 +1425,7 @@ fn a_torpedo_is_emerging() -> Arc<nova_protocol::nova_debug::harness::Predicate>
 /// The weave frame needs a torpedo mid-flight with a path behind it, and the
 /// launch beat can perfectly well end on a frame between a detonation and the
 /// next launch - which framed an empty corridor. Sized at
-/// [`WEAVE_TRAIL_UNITS`] of flown ground.
+/// [`WEAVE_TRAIL_LENGTH`] of flown ground.
 #[cfg(feature = "debug")]
 fn weave_trail_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     Arc::new(|world: &World| {
@@ -1417,7 +1433,7 @@ fn weave_trail_flown() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
             .iter_entities()
             .filter(|entity| is_weaving(entity))
             .filter_map(|entity| entity.get::<RangeFlightPath>())
-            .any(|path| trail_extent(path) >= WEAVE_TRAIL_UNITS)
+            .any(|path| Meters::from_engine(trail_extent(path)) >= WEAVE_TRAIL_LENGTH)
     })
 }
 
@@ -1528,7 +1544,10 @@ fn assert_leads_the_crosser(world: &mut World) {
          line of sight (need more than {LEAD_MIN_DEG}) - the guidance is chasing \
          the crosser, not leading it"
     );
-    info!("range: {CROSSING_ROUND} - lead angle {lead:.1} deg, closest approach {approach:.1} u");
+    info!(
+        "range: {CROSSING_ROUND} - lead angle {lead:.1} deg, closest approach {:.1} m",
+        Meters::from_engine(approach).get()
+    );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,

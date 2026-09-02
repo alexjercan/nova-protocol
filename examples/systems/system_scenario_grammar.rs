@@ -71,9 +71,9 @@ const ASTEROID_COUNT: usize = ROUNDS * KILLS_PER_ROUND;
 const AREA_ROCK: usize = ASTEROID_COUNT - 1;
 
 /// The trigger volume's scenario id and radius. Small enough that no other
-/// ring member is inside it (the ring members sit ~42 u apart).
+/// ring member is inside it (the ring members sit ~420 m apart).
 const AREA_ID: &str = "rock_ring_trigger";
-const AREA_RADIUS: f32 = 8.0;
+const AREA_RADIUS: Meters = Meters(80.0);
 
 /// The escort: an armed, engined ship that is DISARMED rather than destroyed,
 /// so the run reaches `OnNeutralized` - a ship out of the fight with its hull
@@ -228,9 +228,9 @@ fn setup_showcase(
 
 /// Where ring member `i` sits: a deterministic ring, not random - the probe
 /// (and a reader) should see the same scene every run.
-fn rock_position(i: usize) -> Vec3 {
+fn rock_position(i: usize) -> Meters3 {
     let angle = i as f32 / ASTEROID_COUNT as f32 * std::f32::consts::TAU;
-    Vec3::new(angle.cos() * 40.0, 0.0, angle.sin() * 40.0 - 60.0)
+    Meters3::new(angle.cos() * 400.0, 0.0, angle.sin() * 400.0 - 600.0)
 }
 
 /// The showcase scenario: every part of the event grammar in one config.
@@ -270,7 +270,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                 &format!("rock_{i}"),
                 &format!("Rock {i}"),
                 rock_position(i),
-                2.0,
+                Meters(20.0),
                 // Unsigned: the ring is cleared by hand, never radar-locked.
                 None,
             ))
@@ -281,7 +281,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
             base: BaseScenarioObjectConfig {
                 id: ESCORT_ID.to_string(),
                 name: "Escort".to_string(),
-                position: Vec3::new(0.0, 0.0, -10.0),
+                position: Meters3::new(0.0, 0.0, -100.0),
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Spaceship(escort),
@@ -331,7 +331,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     ]);
     // The showcase lights itself: the engine spawns no light, so a scenario
     // that authors none renders black.
-    start_actions.extend(ThreePointRig::around("showcase", Vec3::ZERO, 5.0).actions());
+    start_actions.extend(ThreePointRig::around("showcase", Meters3::ZERO, 5.0).actions());
 
     let events = vec![
         ScenarioEventConfig {
@@ -585,11 +585,13 @@ fn push_rock_out(world: &mut World) {
         .into_iter()
         .next()
         .unwrap_or_else(|| panic!("scenario probe: no '{id}' to push out of the trigger volume"));
-    // Straight up, where no other ring member sits: 40 u/s clears the 8 u
+    // Straight up, where no other ring member sits: 400 m/s clears the 80 m
     // sphere in a fraction of a second even under an llvmpipe frame stall.
     world
         .entity_mut(rock)
-        .insert(avian3d::prelude::LinearVelocity(Vec3::Y * 40.0));
+        .insert(avian3d::prelude::LinearVelocity(
+            Vec3::Y * MetersPerSecond(400.0).to_engine(),
+        ));
     let t = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(world, "beat: push out of the area", json_at(t));
 }

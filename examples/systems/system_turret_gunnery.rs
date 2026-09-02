@@ -63,10 +63,13 @@ struct Cli;
 /// Id of the gate that sweeps across the front for the turret to track.
 const MOVING_GATE_ID: &str = "gate_moving";
 
-/// Centre of the sweeping gate's path.
+/// Centre of the sweeping gate's path, in ENGINE world units: the sweep driver
+/// writes it straight into a `Transform`.
 const MOVING_GATE_ORIGIN: Vec3 = Vec3::new(-35.0, 6.0, -55.0);
 
-/// Every authored range gate: id, display name, and position. The single
+/// Every authored range gate: id, display name, and position in ENGINE world
+/// units (the sweeping gate's centre is also driven through a `Transform`, so
+/// the roster stays engine-side and crosses to meters at the config). The single
 /// roster - the scenario spawns exactly these and [`tag_gate`] tags exactly
 /// these, so the range's OTHER asteroid (the gravity planetoid) cannot drift
 /// into the gate count.
@@ -87,11 +90,11 @@ const RANGE_GATES: [(&str, &str, Vec3); 5] = [
     (MOVING_GATE_ID, "Moving Gate", MOVING_GATE_ORIGIN),
 ];
 
-/// Half-width of the sweep, in world units. Chosen so the path stays clear of
-/// the static gates - `gate_front` sits at x = 0, and a sweep that reached it
-/// put the two within their combined radii once per pass, where contact damage
-/// destroyed the mover mid-run.
-const SWEEP_AMPLITUDE: f32 = 22.0;
+/// Half-width of the sweep, 220 m. Chosen so the path stays clear of the static
+/// gates - `gate_front` sits at x = 0, and a sweep that reached it put the two
+/// within their combined radii once per pass, where contact damage destroyed the
+/// mover mid-run.
+const SWEEP_AMPLITUDE: Meters = Meters(220.0);
 
 /// Angular rate of the sweep, in radians per second (a ~10.5 s round trip).
 const SWEEP_RATE: f32 = 0.6;
@@ -122,7 +125,7 @@ fn main() -> bevy::app::AppExit {
         // The SOURCE clause is load-bearing: the gates drift into each other
         // and into the planetoid, and that collision damage tripped this flag
         // within a frame of the range loading - long before any round could
-        // cross the ~55 u to the nearest gate. Requiring the source to be a
+        // cross the ~550 m to the nearest gate. Requiring the source to be a
         // turret round is what makes "a target took hits" a claim about the
         // turret. `resolve_bullet_hit` (nova_ship turret_section/firing.rs)
         // passes the bullet's body as `source` through `spend_piercing_damage`
@@ -316,13 +319,13 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: name.to_string(),
-            position: pos,
+            position: Meters3::from_engine(pos),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             material: None,
             destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
-            radius: 2.0,
+            radius: Meters(20.0),
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,
             invulnerable: false,
@@ -335,7 +338,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         base: BaseScenarioObjectConfig {
             id: "player_ship".to_string(),
             name: "Turret Ship".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(ship),
@@ -349,7 +352,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         // A gravity planetoid slung below the firing lane so rounds crossing
         // its sphere of influence curve downward toward it - the range is where
         // you eyeball bullet gravity (docs/spikes/20260712-112113). It is
-        // authored heavy (mass 30 000 -> SOI 346u, and 3.3-9.6 u/s^2 at the
+        // authored heavy (mass 30 000 -> SOI ~3.5 km, and 33-96 m/s^2 at the
         // geometric surface), which is why the shooter's own gravity is
         // stripped below: otherwise the ship, sitting inside that SOI, would
         // fall out of frame instead of holding still as a reference.
@@ -357,13 +360,13 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
             base: BaseScenarioObjectConfig {
                 id: "gravity_rock".to_string(),
                 name: "Planetoid".to_string(),
-                position: Vec3::new(0.0, -22.0, -50.0),
+                position: Meters3::new(0.0, -220.0, -500.0),
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
-                radius: 16.0,
+                radius: Meters(160.0),
                 texture: game_assets.asteroid_texture.clone().into(),
                 mass: Some(30_000.0),
                 invulnerable: true,
@@ -383,7 +386,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
         actions: objects
             .into_iter()
             .map(EventActionConfig::SpawnScenarioObject)
-            .chain(ThreePointRig::around("range", Vec3::ZERO, 3.0).actions())
+            .chain(ThreePointRig::around("range", Meters3::ZERO, 3.0).actions())
             .collect(),
     }];
 
@@ -462,7 +465,7 @@ fn anchor_shooter_against_gravity(
 /// the planetoid pulled it, bullet impacts shoved it, contacts with the static
 /// gates damaged it, and - the flake that cost the most to find - a velocity
 /// written every frame in `Update` simply did not translate into motion on the
-/// driven axis, so the gate carried 18 u/s while sitting still. The tracking
+/// driven axis, so the gate carried 180 m/s while sitting still. The tracking
 /// beat waits on this gate having TRAVELLED, so that stalled the run about half
 /// the time. Authored motion also makes the beat repeatable, which is what an
 /// assertion about tracking wants.
@@ -476,10 +479,14 @@ fn drive_moving_gate(
 ) {
     let phase = time.elapsed_secs() * SWEEP_RATE;
     for (mut transform, mut velocity) in &mut q_gate {
-        transform.translation.x = MOVING_GATE_ORIGIN.x + phase.sin() * SWEEP_AMPLITUDE;
+        transform.translation.x = MOVING_GATE_ORIGIN.x + phase.sin() * SWEEP_AMPLITUDE.to_engine();
         transform.translation.y = MOVING_GATE_ORIGIN.y;
         transform.translation.z = MOVING_GATE_ORIGIN.z;
-        velocity.0 = Vec3::new(phase.cos() * SWEEP_AMPLITUDE * SWEEP_RATE, 0.0, 0.0);
+        velocity.0 = Vec3::new(
+            phase.cos() * SWEEP_AMPLITUDE.to_engine() * SWEEP_RATE,
+            0.0,
+            0.0,
+        );
     }
 }
 
@@ -650,10 +657,9 @@ const AIM_TOLERANCE_DEG: f32 = 8.0;
 /// barrel is on target" means anything. Below this the turret could be holding
 /// a nearly static point.
 #[cfg(feature = "debug")]
-const GATE_TRAVEL_MIN: f32 = 8.0;
+const GATE_TRAVEL_MIN: Meters = Meters(80.0);
 
-/// How much margin the tracking beat's travel clause carries over the assert's,
-/// in units.
+/// How much margin the tracking beat's travel clause carries over the assert's.
 ///
 /// The travel is `|x(t) - x(t0)|` on a SINE sweep, so it is not monotonic: it
 /// returns to 0 once per ~10.5s period and passes through
@@ -662,10 +668,10 @@ const GATE_TRAVEL_MIN: f32 = 8.0;
 /// frame"), so a beat that opened on a FALLING edge at exactly the assert's
 /// threshold would hand the assert a lower value and panic a healthy turret.
 /// Half a second of the sweep's PEAK speed ([`SWEEP_AMPLITUDE`] *
-/// [`SWEEP_RATE`] = 13.2 u/s) is orders of magnitude more than a frame at any
+/// [`SWEEP_RATE`] = 132 m/s) is orders of magnitude more than a frame at any
 /// framerate this runs at.
 #[cfg(feature = "debug")]
-const GATE_TRAVEL_BEAT_MARGIN: f32 = SWEEP_AMPLITUDE * SWEEP_RATE * 0.5;
+const GATE_TRAVEL_BEAT_MARGIN: Meters = Meters(SWEEP_AMPLITUDE.get() * SWEEP_RATE * 0.5);
 
 /// How long the trigger beat holds after the first round leaves the barrel, in
 /// seconds.
@@ -678,7 +684,7 @@ const GATE_TRAVEL_BEAT_MARGIN: f32 = SWEEP_AMPLITUDE * SWEEP_RATE * 0.5;
 /// barrel); whether one CONNECTED is the assertion's question.
 ///
 /// Sized off the range: the joints slew at ~140 deg/s and the nearest gates sit
-/// 48-65 u out at a 100 u/s muzzle speed, so a healthy turret is on target and
+/// 480-650 m out at a 1 km/s muzzle speed, so a healthy turret is on target and
 /// has landed several rounds inside ~1.7s. This window is more than twice that.
 #[cfg(feature = "debug")]
 const HIT_SETTLE_SECS: f32 = 4.0;
@@ -922,9 +928,11 @@ fn aim_converged() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
 
 /// How far the moving gate has travelled since the round's trigger opened.
 #[cfg(feature = "debug")]
-fn gate_travel(world: &World) -> Option<f32> {
+fn gate_travel(world: &World) -> Option<Meters> {
     let start = world.get_resource::<RangeOutcome>()?.gate_at_round_start?;
-    Some(moving_gate_position(world)?.distance(start))
+    Some(Meters::from_engine(
+        moving_gate_position(world)?.distance(start),
+    ))
 }
 
 /// Invariants 1 and 2: rounds left the barrel, and one of them connected with a
@@ -971,25 +979,29 @@ fn assert_aim_tracks_mover(world: &mut World, round: &str) {
     let travel = gate_travel(world).expect("range: the moving gate must exist at assert time");
     assert!(
         travel > GATE_TRAVEL_MIN,
-        "range ({round}): the gate only travelled {travel:.1} u this round \
-         (need more than {GATE_TRAVEL_MIN}); tracking it proves nothing"
+        "range ({round}): the gate only travelled {:.1} m this round \
+         (need more than {}); tracking it proves nothing",
+        travel.get(),
+        GATE_TRAVEL_MIN.get()
     );
     let error = aim_error_deg(world).expect("range: the turret must exist at assert time");
     assert!(
         error < AIM_TOLERANCE_DEG,
         "range ({round}): the barrel is {error:.1} deg off the aim point \
-         (tolerance {AIM_TOLERANCE_DEG}) after the gate travelled {travel:.1} u - \
-         the turret is not tracking the mover"
+         (tolerance {AIM_TOLERANCE_DEG}) after the gate travelled {:.1} m - \
+         the turret is not tracking the mover",
+        travel.get()
     );
     info!(
         "range: {round} - the barrel tracks the mover ({error:.1} deg off, \
-         gate travelled {travel:.1} u)"
+         gate travelled {:.1} m)",
+        travel.get()
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     nova_probe::probe_marker(
         world,
         "outcome: turret tracks the mover",
-        serde_json::json!({ "t": elapsed, "round": round, "aim_error_deg": error, "gate_travel": travel }),
+        serde_json::json!({ "t": elapsed, "round": round, "aim_error_deg": error, "gate_travel": travel.get() }),
     );
     if round == RELOADED_ROUND {
         nova_probe::probe_marker(
@@ -1048,7 +1060,7 @@ impl Knob {
             Knob::YawSpeed | Knob::PitchSpeed => "deg/s",
             Knob::MinPitch | Knob::MaxPitch => "deg",
             Knob::FireRate => "rps",
-            Knob::MuzzleSpeed => "u/s",
+            Knob::MuzzleSpeed => "m/s",
         }
     }
 
@@ -1058,7 +1070,7 @@ impl Knob {
             Knob::MinPitch => (-90.0, 45.0),
             Knob::MaxPitch => (0.0, 90.0),
             Knob::FireRate => (1.0, 200.0),
-            Knob::MuzzleSpeed => (20.0, 300.0),
+            Knob::MuzzleSpeed => (200.0, 3_000.0),
         }
     }
 
@@ -1080,7 +1092,7 @@ impl Knob {
                 .unwrap_or(0.0)
                 .to_degrees(),
             Knob::FireRate => find_muzzle(&c.root).map(|m| m.fire_rate).unwrap_or(0.0),
-            Knob::MuzzleSpeed => c.muzzle_speed,
+            Knob::MuzzleSpeed => c.muzzle_speed.get(),
         }
     }
 
@@ -1112,7 +1124,7 @@ impl Knob {
                     m.fire_rate = v;
                 }
             }
-            Knob::MuzzleSpeed => c.muzzle_speed = v,
+            Knob::MuzzleSpeed => c.muzzle_speed = MetersPerSecond(v),
         }
     }
 }

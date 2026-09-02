@@ -60,7 +60,10 @@ const ROCK: &str = "rock";
 /// is laid out against THIS silhouette.
 const ROCK_SEED: u32 = 20260817;
 
-/// A common shipped arena size, and the one the gallery's cut column uses.
+/// A common shipped arena size (30 m), and the one the gallery's cut column
+/// uses. An ENGINE world-unit figure: the cut pattern and the damage pricing
+/// below are both world-unit geometry, so the rock's authored radius crosses to
+/// meters once, at the config.
 const ROCK_RADIUS: f32 = 3.0;
 
 /// One cut crater, in the rock's own UNIT space.
@@ -302,11 +305,11 @@ fn rock(game_assets: &GameAssets) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ROCK.to_string(),
             name: "Cut rock".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            radius: ROCK_RADIUS,
+            radius: Meters::from_engine(ROCK_RADIUS),
             texture: game_assets.asteroid_texture.clone().into(),
             material: None,
             destroy_sound: None,
@@ -328,7 +331,7 @@ fn range(game_assets: &GameAssets) -> ScenarioConfig {
             filters: vec![],
             actions: [
                 vec![EventActionConfig::SpawnScenarioObject(rock(game_assets))],
-                ThreePointRig::around("cut", Vec3::ZERO, 8.0).actions(),
+                ThreePointRig::around("cut", Meters3::ZERO, 8.0).actions(),
             ]
             .concat(),
         }],

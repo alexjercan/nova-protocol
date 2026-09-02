@@ -22,7 +22,7 @@
 //! - it COMES BACK - after a full teardown and respawn the counts are identical;
 //! - the teardown leaves NOTHING - not a section, not a root.
 //!
-//! The ships are authored with a 1 u engage range, so they acquire but never
+//! The ships are authored with a 10 m engage range, so they acquire but never
 //! leave their passive routine: the fleet holds its formation for the whole run
 //! and the scene stays comparable between cycles instead of dissolving into a
 //! hundred-ship brawl.
@@ -67,11 +67,11 @@ const SECTIONS_PER_SHIP: usize = 10;
 #[cfg(feature = "debug")]
 const SECTIONS_IN_THE_SKY: usize = SHIPS_IN_THE_SKY * SECTIONS_PER_SHIP;
 
-/// Radius of the shell the fleet sits on. Fixed rather than count-scaled, so
-/// density rises with the ship count - a constant-density shell would keep the
-/// number of hulls in the frustum and in each broad-phase cell flat, and the
+/// Radius of the shell the fleet sits on, 3 km. Fixed rather than count-scaled,
+/// so density rises with the ship count - a constant-density shell would keep
+/// the number of hulls in the frustum and in each broad-phase cell flat, and the
 /// measured cost would saturate instead of following the scale.
-const SHELL_RADIUS: f32 = 300.0;
+const SHELL_RADIUS: Meters = Meters(3_000.0);
 
 /// The scenario id the fleet loads under.
 const SCENARIO_ID: &str = "stress_many_structures";
@@ -182,7 +182,7 @@ fn setup_fleet(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 /// One hull: a flight computer, eight hull blocks and a turret, in a contiguous
 /// column so the integrity graph gets one connected structure per ship.
 ///
-/// AI-controlled with a 1 u engage range: the acquisition pass runs (that is
+/// AI-controlled with a 10 m engage range: the acquisition pass runs (that is
 /// the spatial query this range exists to load), while the behavior FSM keeps
 /// every hull in its passive routine, so the formation holds and the scene
 /// stays comparable between cycles.
@@ -217,7 +217,7 @@ fn hull(sections: &GameSections, index: usize) -> SpaceshipConfig {
         ..fixtures::ship(
             sections,
             SpaceshipController::AI(AIControllerConfig {
-                engage_range: Some(1.0),
+                engage_range: Some(Meters(10.0)),
                 ..default()
             }),
             &specs,
@@ -229,12 +229,13 @@ fn hull(sections: &GameSections, index: usize) -> SpaceshipConfig {
 /// the fleet evenly over the sphere for any count. Purely a function of the
 /// index, so a rerun builds the same sky and the frame-time numbers stay
 /// comparable.
-fn ship_position(i: usize) -> Vec3 {
+fn ship_position(i: usize) -> Meters3 {
     let golden = std::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
     let y = 1.0 - (i as f32 / (SHIPS_IN_THE_SKY.max(2) - 1) as f32) * 2.0;
     let ring = (1.0 - y * y).max(0.0).sqrt();
     let theta = golden * i as f32;
-    Vec3::new(theta.cos() * ring, y, theta.sin() * ring) * SHELL_RADIUS
+    let direction = Vec3::new(theta.cos() * ring, y, theta.sin() * ring);
+    Meters3(direction * SHELL_RADIUS.get())
 }
 
 /// The fleet: [`SHIPS_IN_THE_SKY`] hulls on a shell, alternating allegiance.
@@ -259,7 +260,7 @@ fn fleet_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         events: fixtures::spawn_on_start(
             [
                 ships,
-                ThreePointRig::around("lights", Vec3::ZERO, 30.0).objects(),
+                ThreePointRig::around("lights", Meters3::ZERO, 30.0).objects(),
             ]
             .concat(),
         ),

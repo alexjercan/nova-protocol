@@ -688,7 +688,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                             base: BaseScenarioObjectConfig {
                                 id: "player_ship".to_string(),
                                 name: "Rig Ship".to_string(),
-                                position: Vec3::ZERO,
+                                position: Meters3::ZERO,
                                 rotation: Quat::IDENTITY,
                             },
                             kind: ScenarioObjectKind::Spaceship(ship),
@@ -700,11 +700,11 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                                 // Off the beam and well clear: a rock that drifts
                                 // into the rig rams it, and ram damage would kill
                                 // sections the script has not scheduled yet.
-                                position: Vec3::new(0.0, 0.0, -40.0),
+                                position: Meters3::new(0.0, 0.0, -400.0),
                                 rotation: Quat::IDENTITY,
                             },
                             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                                radius: 3.0,
+                                radius: Meters(30.0),
                                 texture: game_assets.asteroid_texture.clone().into(),
                                 material: None,
                                 destroy_sound: None,
@@ -715,7 +715,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
                             }),
                         }),
                     ],
-                    ThreePointRig::around("rig", Vec3::ZERO, 1.0).actions(),
+                    ThreePointRig::around("rig", Meters3::ZERO, 1.0).actions(),
                 ]
                 .concat(),
             },

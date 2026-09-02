@@ -66,7 +66,8 @@ const FILLER_SECTION: &str = "light_hull_section";
 /// rest of the stack recognizes, so slot 0 is always this one.
 const ROOT_SECTION: &str = "basic_controller_section";
 
-/// Grid pitch between adjacent section slots, in world units. Matches the
+/// Grid pitch between adjacent section slots, in engine world units (build-grid
+/// cells, not a distance). Matches the
 /// hand-authored ships, so the lattice below is flush rather than gapped.
 const SLOT_PITCH: f32 = 1.0;
 
@@ -214,12 +215,12 @@ fn structure_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scen
                     base: BaseScenarioObjectConfig {
                         id: "structure".to_string(),
                         name: "Structure".to_string(),
-                        position: Vec3::ZERO,
+                        position: Meters3::ZERO,
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Spaceship(ship),
                 }],
-                ThreePointRig::around("lights", Vec3::ZERO, 15.0).objects(),
+                ThreePointRig::around("lights", Meters3::ZERO, 15.0).objects(),
             ]
             .concat(),
         ),

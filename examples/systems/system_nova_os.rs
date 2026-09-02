@@ -593,13 +593,13 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
                     base: BaseScenarioObjectConfig {
                         id: "player_ship".to_string(),
                         name: "Ceres Queen".to_string(),
-                        position: Vec3::ZERO,
+                        position: Meters3::ZERO,
                         rotation: Quat::IDENTITY,
                     },
                     kind: ScenarioObjectKind::Spaceship(player),
                 },
             )],
-            ThreePointRig::around("range", Vec3::ZERO, 1.0).actions(),
+            ThreePointRig::around("range", Meters3::ZERO, 1.0).actions(),
         ]
         .concat(),
     }];

@@ -58,6 +58,19 @@ struct Cli;
 #[cfg(feature = "debug")]
 const CENTER_TOLERANCE_PX: f32 = 10.0;
 
+/// How far the distance readout may sit from the separation the scene measures.
+/// The line is rounded for a player (`DST 1.50 km`), so the slack has to cover a
+/// rounding step plus a frame of motion; 50 m is well under the 1.5 km the range
+/// is staged at, so a readout reading the wrong quantity still fails.
+#[cfg(feature = "debug")]
+const READOUT_TOLERANCE: Meters = Meters(50.0);
+
+/// How far the turret's aim point may sit from the locked ship's live anchor.
+/// The camera-ray fallback lands 500 m short of this range's target, so a feed
+/// that drops back to it misses by ten times this.
+#[cfg(feature = "debug")]
+const FEED_TOLERANCE: Meters = Meters(50.0);
+
 /// The RTT-inset frame this range shoots. Named once: the beat that waits for
 /// the write and the call that makes it must agree on the string.
 #[cfg(feature = "debug")]
@@ -240,7 +253,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         ..default()
     };
 
-    let spawn = |id: &str, name: &str, position: Vec3, ship: SpaceshipConfig| {
+    let spawn = |id: &str, name: &str, position: Meters3, ship: SpaceshipConfig| {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
@@ -261,17 +274,18 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         // that authors none renders black.
         actions: [
             vec![
-                spawn("player_ship", "HUD Test Ship", Vec3::ZERO, player),
-                // Dead ahead (the ship and camera face -Z at spawn), well inside
-                // the 2000 m lock range and the 18 degree aim cone.
+                spawn("player_ship", "HUD Test Ship", Meters3::ZERO, player),
+                // Dead ahead (the ship and camera face -Z at spawn), 1.5 km out:
+                // well inside the ship-class lock ceiling (200 km) and the
+                // 18 degree aim cone.
                 spawn(
                     "target_ship",
                     "HUD Target Ship",
-                    Vec3::new(0.0, 0.0, -150.0),
+                    Meters3::new(0.0, 0.0, -1_500.0),
                     target,
                 ),
             ],
-            ThreePointRig::around("range", Vec3::ZERO, 5.0).actions(),
+            ThreePointRig::around("range", Meters3::ZERO, 5.0).actions(),
         ]
         .concat(),
     }];
@@ -369,8 +383,8 @@ fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
         .unwrap_or_else(|| panic!("hud range: readout line {which:?} not found"))
 }
 
-/// Parse a readout line like `DST 1.50 km` or `CLS +12.3 m/s` back into BASE
-/// units (meters, meters per second) so it can be compared against the world.
+/// Parse a readout line like `DST 1.50 km` or `CLS +12.3 m/s` back into BASE SI
+/// (meters, meters per second) so it can be compared against the world.
 ///
 /// The readouts route through `nova_ui::units` since task 20260728-175731, so
 /// they auto-scale to km / km/s: a unit-naive digit scrape reads `1.50 km` as
@@ -385,14 +399,13 @@ fn readout_value(line: &str) -> f32 {
     let value: f32 = number
         .parse()
         .unwrap_or_else(|_| panic!("hud range: no number in readout line '{line}'"));
-    // `km` scales by 1000; plain `m`/`m/s` does not. Then back out of the
-    // player-facing meters into WORLD units, which is what the scene measures.
-    let meters = if line.contains("km") {
+    // `km` scales by 1000; plain `m`/`m/s` does not. The scene measures in
+    // meters too, so nothing else has to happen to it.
+    if line.contains("km") {
         value * 1000.0
     } else {
         value
-    };
-    meters / nova_ui::units::METERS_PER_UNIT
+    }
 }
 
 /// Raise the stance (RMB), the first half of the live radar gesture.
@@ -710,13 +723,14 @@ fn assert_lock_indicators(world: &mut World) {
         .get::<GlobalTransform>()
         .expect("hud range: player has a GlobalTransform")
         .translation();
-    let actual_distance = player_pos.distance(target_pos);
+    let actual_distance = Meters::from_engine(player_pos.distance(target_pos));
     let distance_text = readout_line(world, TorpedoTargetReadoutLine::Distance);
-    let shown_distance = readout_value(&distance_text);
+    let shown_distance = Meters(readout_value(&distance_text));
     assert!(
-        (shown_distance - actual_distance).abs() < 5.0,
+        (shown_distance - actual_distance).abs() < READOUT_TOLERANCE,
         "hud range: readout '{distance_text}' does not match the actual \
-             distance {actual_distance:.1}"
+             distance {:.1} m",
+        actual_distance.get()
     );
     let closing_text = readout_line(world, TorpedoTargetReadoutLine::ClosingSpeed);
     assert!(
@@ -741,7 +755,7 @@ fn assert_lock_indicators(world: &mut World) {
     );
     info!("hud range: readout OK ('{distance_text}', '{closing_text}', bar full)");
 
-    // The turret aims where the player aims (a point 100 m down the
+    // The turret aims where the player aims (a point 1 km down the
     // camera ray), so its intercept point exists from the first Playing
     // frame and its pip must be visible on that point's projection.
     let turret = player_turret(world);
@@ -751,7 +765,7 @@ fn assert_lock_indicators(world: &mut World) {
         .expect("hud range: the turret has no aim point component"))
     .expect("hud range: the turret never computed an intercept point");
     // The three-tier feed must aim the turret at the LOCKED SHIP's live
-    // structure, not the camera-ray point 100 m out (task 20260709-173700):
+    // structure, not the camera-ray point 1 km out (task 20260709-173700):
     // dead ahead both project to the screen center, so discriminate in
     // world space instead.
     let (target_transform, target_com) = world
@@ -759,12 +773,13 @@ fn assert_lock_indicators(world: &mut World) {
         .get_components::<(&Transform, Option<&ComputedCenterOfMass>)>()
         .expect("hud range: target has a transform");
     let target_anchor = live_structure_anchor(target_transform, target_com);
-    let feed_error = (aim_point - target_anchor).length();
+    let feed_error = Meters::from_engine((aim_point - target_anchor).length());
     assert!(
-        feed_error < 5.0,
-        "hud range: turret aim point {aim_point:?} is {feed_error:.1} m from \
+        feed_error < FEED_TOLERANCE,
+        "hud range: turret aim point {aim_point:?} is {:.1} m from \
              the locked ship's anchor {target_anchor:?} - the lock feed is not \
-             driving the turret (camera-ray point would be ~50 m short)"
+             driving the turret (camera-ray point would be ~500 m short)",
+        feed_error.get()
     );
 
     let expected_pip = project_through_indicator_camera(world, aim_point);

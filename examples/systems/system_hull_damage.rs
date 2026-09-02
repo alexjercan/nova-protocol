@@ -74,9 +74,10 @@ const PARTIAL_HIT: f32 = 60.0;
 const SIDE_HULL: &str = "hull3";
 
 /// How far aft (in +Z, the rig's local rear) the COM must have travelled from
-/// its spawn position once the front sections are gone. Half a section pitch:
-/// well inside the ~0.7u the surviving set implies, and far outside the noise
-/// of a settled solve.
+/// its spawn position once the front sections are gone, in ENGINE world units -
+/// it is read straight off avian's mass properties. Half a section pitch (5 m):
+/// well inside the ~0.7 cells (7 m) the surviving set implies, and far outside
+/// the noise of a settled solve.
 #[cfg(feature = "debug")]
 const COM_AFT_SHIFT: f32 = 0.5;
 
@@ -401,13 +402,13 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
                         base: BaseScenarioObjectConfig {
                             id: "player_ship".to_string(),
                             name: "Rig Ship".to_string(),
-                            position: Vec3::ZERO,
+                            position: Meters3::ZERO,
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
                     },
                 )],
-                ThreePointRig::around("rig", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("rig", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],

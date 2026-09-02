@@ -11,7 +11,7 @@
 //!
 //! 1. A rock's Radius wears the unit its declaration gives it.
 //! 2. Its NAME is the grip. Dragging the name right moves the number by the
-//!    step the field was declared with - forty pixels at `0.05` is two units.
+//!    step the field was declared with - forty pixels at `0.5` is twenty meters.
 //!    A number reached this way cannot be `nan`, which is the point: the value
 //!    the typed box has to refuse is one this control cannot express.
 //! 3. Dragging far the other way ARRIVES at the floor instead of being refused.
@@ -20,8 +20,9 @@
 //! 4. A row that is not a number has no grip: a flag is ticked, not scrubbed.
 //! 5. The grip on ONE AXIS of a vector moves by the ROW's step. The step used
 //!    to be resolved a second time from the axis path, where `x` matches no
-//!    declaration: the drag was scaled by 0.05 and the result snapped onto the
-//!    0.1 fallback grid, so a pose scrub stood still at most coordinates.
+//!    declaration: the drag was scaled by the axis fallback rather than the
+//!    row's own step and the result snapped onto a different grid, so a pose
+//!    scrub stood still at most coordinates.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -82,13 +83,15 @@ const FLAG_GRIP: &str = "Inspector Grip Invulnerable";
 #[cfg(feature = "debug")]
 const POSE_GRIP: &str = "Inspector Grip Position X";
 #[cfg(feature = "debug")]
-const POSE_STEP: f32 = 0.05;
+const POSE_STEP: f32 = 0.5;
 
-/// The unit `radius` is declared with, and the step it is dragged by.
+/// The unit `radius` is declared with, and the step it is dragged by. Meters:
+/// an asteroid's radius is a [`Meters`] on the config, which is what the
+/// inspector reads the row's dimension off.
 #[cfg(feature = "debug")]
-const RADIUS_UNIT: &str = "u";
+const RADIUS_UNIT: &str = "m";
 #[cfg(feature = "debug")]
-const RADIUS_STEP: f32 = 0.05;
+const RADIUS_STEP: f32 = 0.5;
 
 /// How far the scrub pulls the grip, in pixels. Right first, then far enough
 /// left that the floor is the only thing that could stop it.

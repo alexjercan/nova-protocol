@@ -273,7 +273,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         base: BaseScenarioObjectConfig {
             id: "battery".to_string(),
             name: "Battery".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(battery(sections)),
@@ -287,7 +287,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
         events: fixtures::spawn_on_start(
             [
                 objects,
-                ThreePointRig::around("lights", Vec3::ZERO, 12.0).objects(),
+                ThreePointRig::around("lights", Meters3::ZERO, 12.0).objects(),
             ]
             .concat(),
         ),
