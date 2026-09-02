@@ -84,19 +84,25 @@ plume sizes, and the shell/skin geometry that plates a cell.
 
 ### `crates/nova_ship` - flight, physics, camera, AI, targeting
 
-SERIALIZED-adjacent, therefore typed: the flight settings a scenario overrides
-(`arrival_standoff`, `stop_speed_epsilon`, `min_approach_speed`,
-`attitude_deadband`, `settle_deadband`, the orbit hold band, `rcs_speed_cap`,
-`rcs_accel`), the AI envelope constants that back the authored controller
-overrides (`AI_ENGAGE_RANGE`, `AI_POINT_DEFENSE_RANGE`, `AI_WAYPOINT_SLACK` and
-the standoff/threat/torpedo/target ranges beside them), and the targeting
-settings that decide lock range.
+The authored side is typed: a scenario's ship overrides (`speed_cap`,
+`arrival_standoff`, `engage_range`, `leash` and its centre, `pd_range`,
+`waypoint_slack`) and every waypoint arrive as quantities and cross once, in the
+spawner, where they land on a runtime component.
 
-Their runtime components (`FlightArrivalStandoff`, `FlightSpeedCap`,
-`AIEngageRange`, `AILeash`, ...) stay in engine units: they are compared against
-avian positions and velocities every tick, and converting per-comparison would
-put the boundary in the hot loop instead of at the spawn that authored it. The
-scenario spawner converts once, where the authored value lands.
+Everything downstream of that spawn stays ENGINE, and this is the one place the
+draft inventory guessed wrong. `FlightSettings` (`arrival_standoff`,
+`stop_speed_epsilon`, `min_approach_speed`, `rcs_speed_cap`, `rcs_accel`), the
+AI envelope constants (`AI_ENGAGE_RANGE`, `AI_POINT_DEFENSE_RANGE`,
+`AI_WAYPOINT_SLACK`, `AI_STANDOFF_RANGE` and the ranges beside them), the
+targeting settings that decide lock range, and the runtime components
+(`FlightArrivalStandoff`, `FlightSpeedCap`, `AIEngageRange`, `AILeash`, ...) all
+keep world units. They are the DEFAULTS AND COMPARANDS of avian positions and
+velocities, read every tick; typing them would put a conversion in the hot loop
+instead of at the spawn that authored the override, and would not make a single
+authored file any clearer. Each states its unit and its metric figure.
+
+`ItemHighlight::world_radius` stays engine for the same reason: the HUD sizes
+its bracket from it in camera space, never as a distance a player reads.
 
 Stays ENGINE and documented: `structural_arm` (measured off colliders),
 `AttitudeEnvelope` (its one conversion into SI is the fulcrum of the attitude
@@ -142,10 +148,20 @@ constants move with them.
 ### The editor
 
 `FieldSpec::scale` existed only to show meters over a world-unit file. With the
-file in meters it is identity, so the mechanism goes and the `metered` step
-values grow by ten to keep the same drag feel. The nested vector rows
-(`position`, `min`, `max`, `look_at`) that had no spec, and so drew raw world
-units next to a metered pose row, get one.
+file in meters it is identity, so the mechanism goes; `metered()` became
+identical to `floored()` and was deleted with it. Step values grow by ten to
+keep the same drag feel. The nested vector rows (`position`, `min`, `max`,
+`look_at`) that had no spec, and so drew raw world units next to a metered pose
+row, get one, and the panel's one engine seam is `pose_rows`, which reads a
+live `Transform` through `Meters3::from_engine`.
+
+Three rows do NOT say meters. `width`, and the `radius`/`height` a thruster's
+exhaust cone carries, are mesh geometry the section builds inside its own
+build-grid cell: a 0.8 there is 8 m of a 10 m cell, and the number a builder
+types is the fraction of the cell they want lit. Those rows say `cells`. The one
+genuinely metric `*radius` in the same family, a railgun's `rake_radius`, gets
+its own metered spec so it keeps its floor and its unit. A behavior test pins
+the distinction.
 
 ### The player-facing layer
 
@@ -159,4 +175,15 @@ console's `speed_cap` command stops dividing the number a player types.
 
 Creator pages stop asking for the conversion; the glossary keeps the world unit
 only as the build-grid cell's engine name. Every quoted figure is re-derived
-from the migrated code.
+from the migrated code. The widget scopes that model an AUTHORED quantity
+(blast, reach, torpedo run, ignition, corridor) work in meters end to end; the
+scopes that model an ENGINE one (gravity, the closing-speed damage curve, the
+structural arm, thruster impulse) keep world units and cross once, in a named
+`engine*` formatter.
+
+### Cameras and lighting
+
+`ThreePointRig::scale` is a DIMENSIONLESS framing multiplier, not a distance:
+the rig's offset table carries the lengths. The table moved to meters and the
+scale arguments were left exactly as they were. `ScriptedCameraPose` converts
+where it writes the `Transform`.
