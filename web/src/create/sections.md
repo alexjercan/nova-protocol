@@ -109,7 +109,7 @@ The rule the list is kept honest by: NO SECTION LOSES GEOMETRY. Every effect is
 a material or a particle, and the only thing that changes a ship's shape is a
 whole piece leaving - a cladding plate shot off, a section destroyed. Where a
 section carries expendable material it wears cladding, and the cladding comes
-off first (see [ships](./ships.md)).
+off first (see [ships](../ships/)).
 
 There was a `Carve` effect that cut a real crater out of a section's drawn mesh.
 It is GONE, and mods authoring it will fail to load. It read well in a gallery
