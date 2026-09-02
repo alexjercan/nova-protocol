@@ -40,6 +40,41 @@ const LOOP_SMOOTHING_RATE: f32 = 8.0;
 /// frames.
 const LOOP_RETIRE_LEVEL: f32 = 1e-4;
 
+/// The handle a section's one authored LOOP resolved to, cached the first frame
+/// its pass sees the section.
+///
+/// [`AssetRef::resolve`] is idempotent - the file is not re-read - but it still
+/// parses the path, takes the `AssetServer` lock and hashes it, and these
+/// passes run once per source per frame to arrive at a handle that has not
+/// moved since the section spawned.
+///
+/// ONE component for all three passes rather than three: a section is exactly
+/// one kind, so the thruster's hum, the controller's hiss and the lance's
+/// capacitor bank never meet on the same entity.
+#[derive(Component)]
+pub(super) struct CachedLoopSound(Handle<AudioSource>);
+
+/// The handle for `section`'s authored loop, resolving and caching it once.
+///
+/// AUTHORED-OR-SILENT is the `None` arm and stays free to re-ask every frame: a
+/// section that authors no loop never reaches the asset server at all.
+fn loop_handle(
+    commands: &mut Commands,
+    asset_server: &AssetServer,
+    section: Entity,
+    authored: Option<&AssetRef<AudioSource>>,
+    cached: Option<&CachedLoopSound>,
+) -> Option<Handle<AudioSource>> {
+    if let Some(CachedLoopSound(handle)) = cached {
+        return Some(handle.clone());
+    }
+    let handle = authored?.resolve(asset_server);
+    commands
+        .entity(section)
+        .insert(CachedLoopSound(handle.clone()));
+    Some(handle)
+}
+
 /// One ship's engine hum: whose burn it tracks, and which authored sound it
 /// plays. One voice per pair, so a ship authoring two different hums gets two
 /// and two ships sharing one hum still pan apart.
@@ -68,7 +103,12 @@ pub(super) fn drive_thruster_loops(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     q_thrusters: Query<
-        (Entity, &ThrusterSectionInput, &ThrusterSectionLoopSound),
+        (
+            Entity,
+            &ThrusterSectionInput,
+            &ThrusterSectionLoopSound,
+            Option<&CachedLoopSound>,
+        ),
         (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
     >,
     q_child_of: Query<&ChildOf>,
@@ -77,11 +117,18 @@ pub(super) fn drive_thruster_loops(
     q_loops: Query<(Entity, &ThrusterLoopSfx, &mut SfxVoice)>,
 ) {
     // AUTHORED-OR-SILENT: a thruster with no loop_sound contributes to no hum.
-    // Resolving here is idempotent (the asset server dedups by path), so
-    // thrusters authoring the same ref share one handle.
+    // The handle is resolved once and kept on the thruster, so thrusters
+    // authoring the same ref still share one handle and the busy frame pays
+    // nothing for it.
     let mut burn: HashMap<(Entity, Handle<AudioSource>), (f32, u32)> = HashMap::new();
-    for (thruster, input, loop_sound) in &q_thrusters {
-        let Some(handle) = loop_sound.0.as_ref().map(|r| r.resolve(&asset_server)) else {
+    for (thruster, input, loop_sound, cached) in &q_thrusters {
+        let Some(handle) = loop_handle(
+            &mut commands,
+            &asset_server,
+            thruster,
+            loop_sound.0.as_ref(),
+            cached,
+        ) else {
             continue;
         };
         let source = owning_root(thruster, &q_child_of, &q_is_root);
@@ -117,7 +164,13 @@ pub(super) fn drive_rcs_loops(
     time: Res<Time>,
     asset_server: Res<AssetServer>,
     q_controllers: Query<
-        (&ChildOf, &ControllerSectionSounds, Option<&WithheldVerbs>),
+        (
+            Entity,
+            &ChildOf,
+            &ControllerSectionSounds,
+            Option<&WithheldVerbs>,
+            Option<&CachedLoopSound>,
+        ),
         (
             With<ControllerSectionMarker>,
             Without<SectionInactiveMarker>,
@@ -128,12 +181,18 @@ pub(super) fn drive_rcs_loops(
     q_loops: Query<(Entity, &RcsLoopSfx, &mut SfxVoice)>,
 ) {
     let mut targets: HashMap<(Entity, Handle<AudioSource>), f32> = HashMap::new();
-    for (&ChildOf(root), sounds, withheld) in &q_controllers {
+    for (controller, &ChildOf(root), sounds, withheld, cached) in &q_controllers {
         if !withheld.is_none_or(|w| w.granted(FlightVerb::Rcs)) {
             continue;
         }
         // AUTHORED-OR-SILENT: a controller with no rcs_loop makes no sound.
-        let Some(handle) = sounds.rcs_loop.as_ref().map(|r| r.resolve(&asset_server)) else {
+        let Some(handle) = loop_handle(
+            &mut commands,
+            &asset_server,
+            controller,
+            sounds.rcs_loop.as_ref(),
+            cached,
+        ) else {
             continue;
         };
         let Ok(intent) = q_intent.get(root) else {
@@ -193,6 +252,7 @@ pub(super) fn drive_railgun_charge_loops(
             &RailgunSectionConfigHelper,
             &RailgunCharge,
             &RailgunSectionChargeSound,
+            Option<&CachedLoopSound>,
         ),
         (With<RailgunSectionMarker>, Without<SectionInactiveMarker>),
     >,
@@ -202,11 +262,17 @@ pub(super) fn drive_railgun_charge_loops(
     mut q_loops: Query<(Entity, &RailgunChargeLoopSfx, &mut SfxVoice)>,
 ) {
     let mut charging: HashMap<Entity, (Handle<AudioSource>, f32)> = HashMap::new();
-    for (section, config, charge, sound) in &q_railgun {
+    for (section, config, charge, sound, cached) in &q_railgun {
         if !matches!(charge, RailgunCharge::Charging { .. }) {
             continue;
         }
-        let Some(handle) = sound.0.as_ref().map(|r| r.resolve(&asset_server)) else {
+        let Some(handle) = loop_handle(
+            &mut commands,
+            &asset_server,
+            section,
+            sound.0.as_ref(),
+            cached,
+        ) else {
             continue;
         };
         charging.insert(section, (handle, charge.progress(config.charge_seconds)));
@@ -395,6 +461,46 @@ mod tests {
         let followed: Vec<Option<Entity>> = voices(&mut app).into_iter().map(|v| v.2).collect();
         assert_eq!(followed.len(), 2, "one voice per burning ship");
         assert!(followed.contains(&Some(near)) && followed.contains(&Some(far)));
+    }
+
+    #[test]
+    fn a_thruster_resolves_its_authored_hum_once_and_plays_the_cached_handle() {
+        // The busy-scene cost this removes: `AssetRef::resolve` parses the
+        // path and takes the `AssetServer` lock, and the pass paid that per
+        // thruster per frame for a handle that had not moved since spawn.
+        // Re-authoring the ref afterwards is what proves the resolve stopped:
+        // the hum keeps the handle it cached.
+        let mut app = loop_app();
+        spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
+        settle(&mut app);
+
+        let mut q_thruster = app
+            .world_mut()
+            .query_filtered::<Entity, With<ThrusterSectionMarker>>();
+        let thruster = q_thruster
+            .iter(app.world())
+            .next()
+            .expect("the rig's one thruster");
+        let cached = app
+            .world()
+            .get::<CachedLoopSound>(thruster)
+            .expect("the resolved hum is kept on the thruster")
+            .0
+            .clone();
+
+        app.world_mut()
+            .entity_mut(thruster)
+            .insert(ThrusterSectionLoopSound(Some(AssetRef::from(
+                "mods/x/sounds/ion_whine.wav",
+            ))));
+        settle(&mut app);
+
+        let mut q_voice = app.world_mut().query::<&SfxVoice>();
+        let handles: Vec<Handle<AudioSource>> = q_voice
+            .iter(app.world())
+            .map(|voice| voice.handle.clone())
+            .collect();
+        assert_eq!(handles, vec![cached], "the cache is read, not re-resolved");
     }
 
     #[test]
