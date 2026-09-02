@@ -11,7 +11,11 @@ use super::*;
 
 const RESULT_DELAY_SECS: f64 = 1.5;
 const INACTIVITY_SECS: f64 = 180.0;
-const ARENA_RADIUS: f32 = 20_000.0;
+/// How far from the arena centre a ship may fly before the disqualification
+/// countdown starts. The sphere is 200 km across the radius - the readouts
+/// used to call it 20 km, having divided engine world units by a thousand as
+/// though a unit were a meter.
+const ARENA_RADIUS: Meters = Meters(200_000.0);
 const OUTSIDE_GRACE_SECS: f64 = 30.0;
 const ACTIVE_THRUST_EPSILON: f32 = 0.001;
 
@@ -62,6 +66,7 @@ pub(super) struct MatchFlow {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct BoundaryWarning {
     slot: usize,
+    /// How far out the ship is, in whole kilometres, rounded up.
     distance_km: u32,
     remaining_secs: u32,
 }
@@ -275,7 +280,7 @@ fn detect_and_show_result(
             if *slot >= flow.expected || flow.disqualified[*slot] {
                 continue;
             }
-            let distance = position.length();
+            let distance = Meters::from_engine(position.length());
             if distance <= ARENA_RADIUS {
                 flow.outside_since[*slot] = None;
                 continue;
@@ -284,7 +289,7 @@ fn detect_and_show_result(
             if let Some(remaining_secs) = outside_countdown(since, game_now) {
                 next_warnings.push(BoundaryWarning {
                     slot: *slot,
-                    distance_km: (distance / 1_000.0).ceil() as u32,
+                    distance_km: (distance.get() / 1_000.0).ceil() as u32,
                     remaining_secs,
                 });
                 continue;
@@ -302,7 +307,7 @@ fn detect_and_show_result(
             info!(
                 "wfc_arena: ship {:02} disqualified outside the {:.0} km boundary",
                 slot + 1,
-                ARENA_RADIUS / 1_000.0
+                ARENA_RADIUS.get() / 1_000.0
             );
         }
         next_warnings.sort_by_key(|warning| warning.slot);

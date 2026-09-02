@@ -394,7 +394,7 @@ fn wfc_row(
             base: BaseScenarioObjectConfig {
                 id: format!("wfc_ship_{index}"),
                 name: format!("WFC {seed}"),
-                position: stand_position(index, roster.ships),
+                position: Meters3::from_engine(stand_position(index, roster.ships)),
                 rotation: Quat::from_rotation_y(SHIP_YAW),
             },
             kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -416,7 +416,7 @@ fn wfc_row(
             once: false,
             filters: vec![],
             actions: ships
-                .chain(ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions())
+                .chain(ThreePointRig::around("photo", Meters3::ZERO, 3.0).actions())
                 .collect(),
         }],
         ..ScenarioConfig::new(
@@ -657,7 +657,11 @@ fn update_readout(
 #[cfg(feature = "debug")]
 fn frame_row(world: &mut World) {
     let ships = world.resource::<Roster>().ships;
-    pose_camera(world, camera_position(ships), CAMERA_TARGET);
+    pose_camera(
+        world,
+        Meters3::from_engine(camera_position(ships)),
+        Meters3::from_engine(CAMERA_TARGET),
+    );
 }
 
 /// The driven walk: collapse a row, shoot it, strip the skin, shoot that.

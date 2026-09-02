@@ -9,15 +9,15 @@
 //! [`RailgunSlugLight`] each frame, so a hand-run turns the same values the
 //! weapon ships as constants.
 //!
-//! Three lanes fire the same slug at 250, 750 and the shipped 1500 u/s, so the
+//! Three lanes fire the same slug at 2.5, 7.5 and the shipped 15 km/s, so the
 //! one question a constant cannot answer is on screen at once: a wake that
-//! lives half a second is 125 units long on the top lane and 750 on the bottom
+//! lives half a second is 1.25 km long on the top lane and 7.5 km on the bottom
 //! one. The three wake policies (`1`-`3`) turn that trade into a picture. Dark
 //! hull plates stand behind and beneath each lane so the moving light is
 //! judged by what it lights, not by its own core.
 //!
 //! `T` switches off the spread of each frame's particles along the ground the
-//! slug covered, to show the row of puffs a point spawner draws at 1500 u/s.
+//! slug covered, to show the row of puffs a point spawner draws at 15 km/s.
 //!
 //! Hand-run (the bench fires by itself every couple of seconds):
 //! ```text
@@ -42,6 +42,9 @@ use bevy::prelude::*;
 use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_debug::harness::Predicate;
+// Only the harnessed build asks whether it is capturing; a plain run never
+// hides the HUD.
+#[cfg(feature = "debug")]
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
 
@@ -51,15 +54,15 @@ use nova_protocol::prelude::*;
 #[command(about = "The railgun slug's ionized wake at three speeds, every knob live", long_about = None)]
 struct Cli;
 
-/// One world unit is ten meters. Every figure on screen is printed through
-/// this; the code stays in world units.
-const METERS_PER_UNIT: f32 = 10.0;
-
-/// The lanes, slowest first, in world units per second. The last is the
-/// shipped lance's `slug_speed`.
+/// The lanes, slowest first, in engine world units per second - they become a
+/// `RoundVelocity`, so they stay in Bevy space. In meters that is 2.5, 7.5 and
+/// the shipped lance's 15 km/s `slug_speed`. Every figure on screen is printed
+/// through [`meters`] and [`speed_label`], which cross the seam with the
+/// quantity types rather than by hand.
 const LANE_SPEEDS: [f32; 3] = [250.0, 750.0, 1500.0];
 
-/// Length of every lane, in world units.
+/// Length of every lane (2.4 km), in engine world units - it lays out Bevy-space
+/// transforms and the deck mesh.
 ///
 /// The shipped half-second wake is longer than this behind the two fast
 /// lanes, so on those the whole lane is wake while the slug is in flight and
@@ -81,7 +84,7 @@ const LANE_STEP: Vec3 = Vec3::new(8.0, -8.0, 0.0);
 /// Inside the shipped light range, so a passing slug lights it.
 const PLATE_STANDOFF: f32 = 5.0;
 
-/// Where along each lane the plates stand, in world units of Z.
+/// Where along each lane the plates stand, in engine world units of Z.
 const PLATE_STATIONS: [f32; 6] = [-100.0, -60.0, -20.0, 20.0, 60.0, 100.0];
 
 /// A plate's size: long along the lane, tall, thin.
@@ -219,12 +222,13 @@ impl CameraPose {
         }
     }
 
-    /// Position and look-at, or `None` for the free-fly rig.
+    /// Position and look-at in engine world units, or `None` for the free-fly
+    /// rig. They are laid out against [`LANE_HALF`], which is Bevy-space.
     fn pose(self) -> Option<(Vec3, Vec3)> {
         match self {
             // At bevy's 45 degree vertical fov and 16:9 the whole lane fits
-            // from about 165 units; a little further keeps the wake thrown
-            // past the lane end in frame.
+            // from about 165 engine world units; a little further keeps the
+            // wake thrown past the lane end in frame.
             CameraPose::Wide => Some((Vec3::new(175.0, 14.0, 0.0), Vec3::new(0.0, -2.0, 0.0))),
             CameraPose::Chase => Some((
                 Vec3::new(0.0, 6.0, LANE_HALF + 28.0),
@@ -339,6 +343,8 @@ impl Tune {
             Tune::FixedDistance | Tune::MaxLength | Tune::HazeWidth | Tune::LightRange => {
                 meters(value)
             }
+            // Particles per engine world unit, read out per meter: the shared
+            // scale is the only sane way to invert a length.
             Tune::Density => format!("{:.2} per m", value / METERS_PER_UNIT),
             Tune::HazeIntensity | Tune::FilamentIntensity => format!("{value:.2}x"),
             Tune::LightLumens => format!("{:.0}k lm", value / 1000.0),
@@ -346,9 +352,9 @@ impl Tune {
     }
 }
 
-/// A length in world units, printed in meters.
+/// An engine world-unit length, printed in meters.
 fn meters(units: f32) -> String {
-    let meters = units * METERS_PER_UNIT;
+    let meters = Meters::from_engine(units).get();
     if meters >= 1000.0 {
         format!("{:.2} km", meters / 1000.0)
     } else if meters >= 10.0 {
@@ -358,9 +364,12 @@ fn meters(units: f32) -> String {
     }
 }
 
-/// A speed in world units per second, printed in kilometers per second.
+/// An engine world-unit speed, printed in kilometers per second.
 fn speed_label(units_per_second: f32) -> String {
-    format!("{:.1} km/s", units_per_second * METERS_PER_UNIT / 1000.0)
+    format!(
+        "{:.1} km/s",
+        MetersPerSecond::from_engine(units_per_second).get() / 1000.0
+    )
 }
 
 /// Everything the keys change. The readout is a print of this, and the
@@ -374,13 +383,13 @@ struct Bench {
     policy: WakePolicy,
     /// Particle lifetime, seconds (policies 1 and 3).
     lifetime: f32,
-    /// Wake length, world units (policy 2).
+    /// Wake length, engine world units (policy 2).
     fixed_distance: f32,
-    /// Longest wake, world units (policy 3).
+    /// Longest wake, engine world units (policy 3).
     max_length: f32,
-    /// Haze particles per world unit of flight.
+    /// Haze particles per engine world unit of flight.
     density: f32,
-    /// Haze particle size at full growth, world units.
+    /// Haze particle size at full growth, engine world units.
     haze_width: f32,
     /// Multiplier on the haze's HDR colour.
     haze_intensity: f32,
@@ -388,7 +397,8 @@ struct Bench {
     filament_intensity: f32,
     /// The moving light's peak, in lumens.
     light_lumens: f32,
-    /// The moving light's reach, world units.
+    /// The moving light's reach, engine world units - it is written straight
+    /// into a `PointLight`.
     light_range: f32,
     /// Seconds between automatic volleys.
     auto_period: f32,
@@ -534,8 +544,8 @@ fn bench_stage(game_assets: &GameAssets) -> ScenarioConfig {
         base: aimed_light_base(
             "wake_key",
             "Key Light",
-            Vec3::new(100.0, 80.0, 60.0),
-            Vec3::ZERO,
+            Meters3::new(1_000.0, 800.0, 600.0),
+            Meters3::ZERO,
         ),
         kind: ScenarioObjectKind::Light(LightConfig::Directional {
             illuminance: KEY_LUX,
@@ -784,7 +794,10 @@ fn apply_camera(
                 commands
                     .entity(camera)
                     .remove::<WASDCameraController>()
-                    .insert(ScriptedCameraPose { position, look_at });
+                    .insert(ScriptedCameraPose {
+                        position: Meters3::from_engine(position),
+                        look_at: Meters3::from_engine(look_at),
+                    });
             }
             None => {
                 commands
@@ -807,7 +820,8 @@ struct LaneLabel(usize);
 /// Fixed label width in pixels; labels centre on the projected point.
 const LABEL_WIDTH: f32 = 260.0;
 
-/// How far above a lane's middle its label floats, in world units.
+/// How far above a lane's middle its label floats, in engine world units - it
+/// is projected through the camera, so it stays in Bevy space.
 const LABEL_LIFT: f32 = 3.0;
 
 fn spawn_readout(commands: &mut Commands) {
@@ -956,8 +970,8 @@ struct Shot {
     quality: GraphicsQuality,
     /// The lane whose slug the shutter waits on.
     lane: usize,
-    /// World units that slug has flown from its lane start when the shutter
-    /// fires.
+    /// Engine world units that slug has flown from its lane start when the
+    /// shutter fires - it is compared against a `Transform`.
     ///
     /// Flight distance and not a frame count, because frames are wall-clock
     /// and a software renderer draws a tenth of them: a count tuned on a GPU
@@ -973,8 +987,8 @@ struct Shot {
 /// pose, and the close pose again on the Medium and Low presets.
 #[cfg(feature = "debug")]
 const SHOTS: [Shot; 9] = [
-    // 160 units at 1500 u/s is 0.107 s of flight: the slowest slug has
-    // covered 27 units and every lane is in flight.
+    // 1.6 km at 15 km/s is 0.107 s of flight: the slowest slug has covered
+    // 270 m and every lane is in flight.
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Wide,
@@ -1086,7 +1100,8 @@ fn budget_follows(quality: GraphicsQuality) -> Arc<Predicate> {
     })
 }
 
-/// Advance once the slug on `lane` has flown `travel` units down it.
+/// Advance once the slug on `lane` has flown `travel` engine world units down
+/// it.
 #[cfg(feature = "debug")]
 fn slug_flew(lane: usize, travel: f32) -> Arc<Predicate> {
     let reached = LANE_HALF - travel;

@@ -1,12 +1,12 @@
 //! carve_asteroids: shipped weapons against a shipped-size carvable rock.
 //!
 //! THE GATE for phase 4c of the erosion epic (task 20260813-224826). The old
-//! row used 600-damage synthetic hits against a radius-1.2 rock. It proved the
-//! mesher and hid the player path: a 4-damage PDC round
-//! was sub-cell, repeated rounds in one spot were discarded, and a shipped rock
-//! died before a visible hole formed.
+//! row used 600-damage synthetic hits against a 12 m rock. It proved the
+//! mesher and hid the player path: a 4-damage PDC round was sub-cell, repeated
+//! rounds in one spot were discarded, and a shipped rock died before a visible
+//! hole formed.
 //!
-//! Five copies of the SAME radius-3 fixed-seed rock, left to right:
+//! Five copies of the SAME 30 m fixed-seed rock, left to right:
 //!
 //! - pristine control;
 //! - 300 rounds from a real `pdc_kinetic_turret_section`, held on one point;
@@ -116,17 +116,21 @@ const PDC_PAID_DAMAGE: f32 = PDC_DAMAGE * PDC_ROUNDS as f32;
 /// authors it.
 #[cfg(feature = "debug")]
 const TORPEDO_DAMAGE: f32 = 750.0;
-/// The shipped standard torpedo blast radius, from the same bay.
+/// The shipped standard torpedo blast radius, from the same bay: the bay
+/// authors `Meters(300.0)`, and this is the engine world-unit figure
+/// [`nova_blast`] wants for its collider.
 #[cfg(feature = "debug")]
 const TORPEDO_BLAST_RADIUS: f32 = 30.0;
 
-/// How far off the rock's skin the torpedo column detonates, in world units.
+/// How far off the rock's skin the torpedo column detonates, in engine world
+/// units - it is a Bevy-space offset applied to a mesh sample, not an authored
+/// distance.
 ///
 /// The torpedo's own contact fuze (`torpedo_section::projectile::CONTACT_FUZE`),
 /// which is what a real one arrives at. Off the SKIN, never half a blast radius
-/// off the rock's CENTRE: on a rock this size that is fifteen units inside a
-/// surface which starts at twelve, and the column photographs a crater cut in
-/// solid rock nobody can see.
+/// off the rock's CENTRE: on a rock this size that is fifteen engine units
+/// inside a surface which starts at twelve, and the column photographs a crater
+/// cut in solid rock nobody can see.
 #[cfg(feature = "debug")]
 const TORPEDO_STANDOFF: f32 = 1.0;
 
@@ -176,37 +180,43 @@ fn cut_pattern() -> Vec<Vec3> {
     places
 }
 
-/// How far apart the two-burst column holds its two aim points, in world units.
+/// How far apart the two-burst column holds its two aim points, in engine world
+/// units - it steps a Bevy-space surface sample, not an authored distance.
 ///
 /// Chosen to sit in the band the old merge rule swallowed: further out than a
-/// crater may ever reach for a new hit (`MERGE_MAX`, 1u) and well inside the
-/// crater the first burst grows to (4.92u). A hole that captures by its own
-/// accumulated size eats the second burst whole and stays one round pit; a hole
-/// that captures only as far as the last round's own hole keeps a bite under
-/// each aim point.
+/// crater may ever reach for a new hit (`MERGE_MAX`, 1 engine unit) and well
+/// inside the crater the first burst grows to (4.92 engine units). A hole that
+/// captures by its own accumulated size eats the second burst whole and stays
+/// one round pit; a hole that captures only as far as the last round's own hole
+/// keeps a bite under each aim point.
 #[cfg(feature = "debug")]
 const TWO_SPOT_SEPARATION: f32 = 3.5;
 
 /// Rounds into the first place, then into the second.
 ///
 /// Sized so the first burst outgrows [`TWO_SPOT_SEPARATION`] by a comfortable
-/// margin - 4.92u against 3.5u - because there has to be a hole big enough to
-/// swallow the second burst before "it did not" is worth photographing. Priced
-/// against the rock's own softness: ten times these counts takes a bowl two
-/// thirds of the way through the rock instead of a pit in its face.
+/// margin - 4.92 against 3.5 engine units - because there has to be a hole big
+/// enough to swallow the second burst before "it did not" is worth
+/// photographing. Priced against the rock's own softness: ten times these
+/// counts takes a bowl two thirds of the way through the rock instead of a pit
+/// in its face.
 #[cfg(feature = "debug")]
 const TWO_SPOT_BURSTS: [usize; 2] = [500, 250];
 
 /// One noise seed for every rock: the row varies the damage only.
 const ROCK_SEED: u32 = 20260817;
 
-/// A common shipped arena size, large enough that one PDC round is sub-cell.
+/// A common shipped arena size (30 m), large enough that one PDC round is
+/// sub-cell. Engine world units, because it is also the mesh scale every mark
+/// and surface sample is read through.
 const ROCK_RADIUS: f32 = 3.0;
 
-/// How far apart rocks stand at their real 3.5x-6x geometric reach.
+/// How far apart rocks stand (420 m) at their real 3.5x-6x geometric reach.
+/// Engine world units: it also lays out the Bevy-space camera framing.
 const COLUMN_PITCH: f32 = 42.0;
 
-/// The firing ship sits on the PDC rock's +Z axis, inside the gun's 200u reach.
+/// The firing ship sits on the PDC rock's +Z axis 600 m out, inside the gun's
+/// 2 km reach. Engine world units: it also aims the harness camera.
 const PDC_SHIP_STANDOFF: f32 = 60.0;
 
 /// The scenario id each rock is spawned under.
@@ -245,7 +255,8 @@ fn setup_gallery(mut commands: Commands, game_assets: Res<GameAssets>) {
     commands.trigger(LoadScenario(gallery(&game_assets)));
 }
 
-/// Where a rock's surface actually is along `direction`, in world units.
+/// Where a rock's surface actually is along `direction`, in engine world units
+/// - it is sampled straight off the mesh, so it stays in Bevy space.
 ///
 /// Computed from the SAME sampler the mesh is built with rather than from
 /// `BodyRadius`: the published radius is the rock's furthest reach, and a hit
@@ -262,10 +273,10 @@ fn surface_point(direction: Vec3) -> Vec3 {
 ///
 /// The second is stepped straight sideways off the first rather than resampled
 /// from a second direction: the separation is the whole point of the column,
-/// and this rock's surface wanders by several units between directions, so a
-/// direction chosen by eye lands anywhere. The step leaves it a fraction of a
-/// unit off the true surface, which is well inside the crater the first burst
-/// has already dug there.
+/// and this rock's surface wanders by several engine units between directions,
+/// so a direction chosen by eye lands anywhere. The step leaves it a fraction of
+/// an engine unit off the true surface, which is well inside the crater the
+/// first burst has already dug there.
 #[cfg(feature = "debug")]
 fn two_spot_surface(place: usize) -> Vec3 {
     let first = surface_point(Vec3::Z);
@@ -422,8 +433,8 @@ fn pin_range_and_aim(world: &mut World) {
     let target = column_position(1);
     nova_protocol::nova_debug::harness::pose_camera(
         world,
-        target + Vec3::new(0.0, 5.0, PDC_SHIP_STANDOFF - 4.0),
-        target,
+        Meters3::from_engine(target + Vec3::new(0.0, 5.0, PDC_SHIP_STANDOFF - 4.0)),
+        Meters3::from_engine(target),
     );
     world.resource_mut::<HeldInput>().combat = true;
 }
@@ -465,7 +476,7 @@ fn cease_fire(world: &mut World) {
 /// The sustained-fire readout, and the two numbers the merge rules are tuned
 /// against.
 ///
-/// The SPREAD is how far a held burst actually wanders on a rock 60 units out -
+/// The SPREAD is how far a held burst actually wanders on a rock 600 m out -
 /// what `MERGE_MAX` has to cover for the burst to read as one hole - and the
 /// crater COUNT against the mark budget is how close real fire comes to
 /// saturating the list. Both are properties of the gun and the range, not of the
@@ -494,10 +505,12 @@ fn report_pdc_result(world: &mut World) {
         .fold(0.0f32, f32::max);
     info!(
         "carve asteroids: {} real PDC rounds paid {:.0} damage into {} crater(s), \
-         largest radius {largest:.2}u, aim spread {spread:.2}u",
+         largest radius {:.1} m, aim spread {:.1} m",
         landed.rounds,
         landed.damage,
         marks.0.len(),
+        Meters::from_engine(largest).get(),
+        Meters::from_engine(spread).get(),
     );
     assert!(
         landed.damage >= PDC_PAID_DAMAGE && landed.rounds >= PDC_ROUNDS,
@@ -510,12 +523,12 @@ fn report_pdc_result(world: &mut World) {
 /// The torpedo gate: a real warhead has to take real material off a rock.
 ///
 /// The column's failure was silent in every observable it had. A 750-damage
-/// point hit priced at the cladding's toughness cut a 0.72 unit crater into a
-/// rock gridded at 1.02 unit cells, which is zero cubic units removed and zero
-/// triangles changed - and the column never spawned a blast at all, so the fuze
-/// that would have put that crater fifteen units inside the rock went unseen too.
-/// A crater ADDS surface, so the triangle count against the untouched control is
-/// the reading that cannot be faked.
+/// point hit priced at the cladding's toughness cut a 0.72 engine-unit crater
+/// into a rock gridded at 1.02 engine-unit cells, which is zero cubic units
+/// removed and zero triangles changed - and the column never spawned a blast at
+/// all, so the fuze that would have put that crater fifteen engine units inside
+/// the rock went unseen too. A crater ADDS surface, so the triangle count
+/// against the untouched control is the reading that cannot be faked.
 #[cfg(feature = "debug")]
 fn report_torpedo_result(world: &mut World) {
     let node = rock_node(world, Shot::Torpedo).expect("the torpedo rock still exists");
@@ -545,13 +558,15 @@ fn report_torpedo_result(world: &mut World) {
     let holed = triangles(world, Shot::Torpedo);
 
     info!(
-        "carve asteroids: one shipped torpedo left {} crater(s), largest radius {largest:.2}u, \
+        "carve asteroids: one shipped torpedo left {} crater(s), largest radius {:.1} m, \
          {control} -> {holed} triangle(s) against the control",
         marks.0.len(),
+        Meters::from_engine(largest).get(),
     );
     assert!(
         largest > 1.0,
-        "the torpedo cut a {largest:.2}u crater, which is under one grid cell"
+        "the torpedo cut a {:.1} m crater, which is under one grid cell",
+        Meters::from_engine(largest).get()
     );
     assert!(
         holed > control,
@@ -581,12 +596,12 @@ fn report_two_spot_result(world: &mut World) {
         .collect();
 
     info!(
-        "carve asteroids: two bursts {:.2}u apart left {} crater(s), radii {}",
-        aims[0].distance(aims[1]),
+        "carve asteroids: two bursts {:.1} m apart left {} crater(s), radii {}",
+        Meters::from_engine(aims[0].distance(aims[1])).get(),
         craters.len(),
         craters
             .iter()
-            .map(|(_, radius)| format!("{radius:.2}u"))
+            .map(|(_, radius)| format!("{:.1} m", Meters::from_engine(*radius).get()))
             .collect::<Vec<_>>()
             .join(" "),
     );
@@ -598,7 +613,8 @@ fn report_two_spot_result(world: &mut World) {
             .fold(f32::INFINITY, f32::min);
         assert!(
             nearest < 0.5,
-            "place {place} has no bite of its own: nearest crater is {nearest:.2}u away"
+            "place {place} has no bite of its own: nearest crater is {:.1} m away",
+            Meters::from_engine(nearest).get()
         );
     }
 }
@@ -632,7 +648,7 @@ fn report_cut_result(world: &mut World) {
         reaches.len(),
         reaches
             .iter()
-            .map(|reach| format!("{reach:.2}u"))
+            .map(|reach| format!("{:.1} m", Meters::from_engine(*reach).get()))
             .collect::<Vec<_>>()
             .join(" "),
     );
@@ -719,8 +735,8 @@ fn gallery_script() -> Script {
             let width = row_width();
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, width * 0.29, width * 1.35),
-                centre,
+                Meters3::from_engine(centre + Vec3::new(0.0, width * 0.29, width * 1.35)),
+                Meters3::from_engine(centre),
             );
         })
         .until(elapsed(0.8))
@@ -762,7 +778,7 @@ fn gallery_script() -> Script {
         .add()
 }
 
-/// End to end, in world units.
+/// End to end, in engine world units - it lays out Bevy-space camera framing.
 fn row_width() -> f32 {
     (ROW.len() as f32 - 1.0) * COLUMN_PITCH
 }
@@ -779,7 +795,11 @@ fn frame_column(world: &mut World, index: usize) {
     // Look down the PDC's firing line. A side view turns a deep tunnel into a
     // shallow silhouette change and lets the gate hide the hole it made.
     let firing_line = Vec3::new(0.0, 5.0, PDC_SHIP_STANDOFF - 4.0).normalize();
-    nova_protocol::nova_debug::harness::pose_camera(world, centre + firing_line * 42.0, centre);
+    nova_protocol::nova_debug::harness::pose_camera(
+        world,
+        Meters3::from_engine(centre + firing_line * 42.0),
+        Meters3::from_engine(centre),
+    );
 }
 
 fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
@@ -788,11 +808,11 @@ fn rock(game_assets: &GameAssets, index: usize) -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: column_id(index),
             name: shot.name().to_string(),
-            position: column_position(index),
+            position: Meters3::from_engine(column_position(index)),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            radius: ROCK_RADIUS,
+            radius: Meters::from_engine(ROCK_RADIUS),
             texture: game_assets.asteroid_texture.clone().into(),
             material: None,
             destroy_sound: None,
@@ -843,7 +863,7 @@ fn firing_ship() -> ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "pdc_ship".to_string(),
             name: "PDC firing rig".to_string(),
-            position: column_position(1) + Vec3::Z * PDC_SHIP_STANDOFF,
+            position: Meters3::from_engine(column_position(1) + Vec3::Z * PDC_SHIP_STANDOFF),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -878,7 +898,7 @@ fn gallery(game_assets: &GameAssets) -> ScenarioConfig {
             filters: vec![],
             actions: [
                 objects,
-                ThreePointRig::around("row", row_centre(), 8.0).actions(),
+                ThreePointRig::around("row", Meters3::from_engine(row_centre()), 8.0).actions(),
             ]
             .concat(),
         }],

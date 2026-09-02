@@ -66,10 +66,10 @@
 //! rebind a bindable section from NOVA OS `ship` with `B`; conflicts are
 //! refused and accepted overrides survive restart.
 //!
-//! The lines spawn ~305 u apart and fly in COLD: an arrival grace holds both
+//! The lines spawn ~3.05 km apart and fly in COLD: an arrival grace holds both
 //! teams on their center-crossing patrols, and the weapons-free gate
 //! ([`ENGAGE_RANGE`]) keeps them passive until the closing lines are inside it.
-//! From 280 u hot, one torpedo alpha strike decided the fight before a gun
+//! From 2.8 km hot, one torpedo alpha strike decided the fight before a gun
 //! bore.
 //!
 //! Scoring is PER TEAM. Rows come from projectile-carried `DamageType` variants
@@ -78,7 +78,7 @@
 //! the isolated-cladding rule keeps off the roots. Losing every live flight
 //! computer freezes the fight and opens the result board. A 180-second global
 //! inactivity window resolves a deadlock by remaining structure. Ships outside
-//! the 20 km sphere are warned for 30 seconds, then lose their flight
+//! the 200 km sphere are warned for 30 seconds, then lose their flight
 //! computers.
 //!
 //! # Dressing and view
@@ -220,13 +220,16 @@ const TEAMS: [Team; 2] = [
 
 /// The two lines face each other across the arena with a vertical and lateral
 /// split, so the approach lines cross instead of meeting nose to nose.
-/// ~305 u apart - well past the 180 u PDC fire gate (reach x 0.9) - which
+/// ~3.05 km apart - well past the 1.8 km PDC fire gate (reach x 0.9) - which
 /// only works because the approach is COLD (see [`ENGAGE_GRACE_SECS`] and
-/// [`ENGAGE_RANGE`]): hot from 280 u, one 8-tube alpha strike ended the fight
-/// in 11 seconds with no reply, which is why the last cut spawned at 163 u.
+/// [`ENGAGE_RANGE`]): hot from 2.8 km, one 8-tube alpha strike ended the fight
+/// in 11 seconds with no reply, which is why the last cut spawned at 1.63 km.
 /// Cold, the long spawn buys a real approach and the fight still opens near
-/// gun range. Not further: the passive closing rate is ~2.5-4 u/s (measured),
-/// so at 345 u the quiet leg ran 45 s and read as dead air, not tension.
+/// gun range. Not further: the passive closing rate is ~25-40 m/s (measured),
+/// so at 3.45 km the quiet leg ran 45 s and read as dead air, not tension.
+///
+/// Engine world units: [`spawn_position`] also poses the spawn `Transform`, so
+/// the layout stays in Bevy space and crosses to meters at the config field.
 const LINE_STANDOFF: f32 = 150.0;
 const LINE_LIFT: f32 = 12.0;
 const LINE_OFFSET: f32 = 30.0;
@@ -234,43 +237,45 @@ const LINE_OFFSET: f32 = 30.0;
 /// (`AIControllerConfig::engage_delay`). The patrols cross the center, so the
 /// grace reads as two formations flying in, not two formations parked.
 const ENGAGE_GRACE_SECS: f32 = 10.0;
-/// The weapons-free gate (u, `AIControllerConfig::engage_range`): even past
+/// The weapons-free gate (`AIControllerConfig::engage_range`): even past
 /// the grace a line stays passive until a hostile closes inside this. This
 /// gate, not the grace, is what actually times the first shot - the passive
 /// closing is slow, so the lines cross it long after the grace expires.
 ///
-/// AT the 180 u gun gate (reach x 0.9), so the fight opens with guns and
+/// AT the 1.8 km gun gate (reach x 0.9), so the fight opens with guns and
 /// torpedoes TOGETHER. Wider gates all lost fights to the torpedo alpha:
-/// at 240 the gate opened one-sidedly (AMBER salvoed and wiped ONYX before
-/// ONYX ever fired), and at 220 the bout was a coin flip - the bigger
+/// at 2.4 km the gate opened one-sidedly (AMBER salvoed and wiped ONYX before
+/// ONYX ever fired), and at 2.2 km the bout was a coin flip - the bigger
 /// battery intercepts the smaller salvo OUTRIGHT (6 torpedoes into 16
 /// turrets land nothing), so unless the loser's guns connect in the few
 /// seconds both sides are alive, it dies having dealt zero and the walk's
 /// both-sides-dealt predicate fails. Guns from the first second of the
 /// engagement are what keep the fight mutual.
-const ENGAGE_RANGE: f32 = 180.0;
-/// Centre-to-centre spacing along a line. Three times the widest hull the grid
-/// can grow, so a line is a formation rather than a pile-up, and short enough
-/// that the far end of one line still opens at gun range on the far end of the
+const ENGAGE_RANGE: Meters = Meters(1_800.0);
+/// Centre-to-centre spacing along a line, in engine world units beside the
+/// other [`LINE_STANDOFF`] figures. Three times the widest hull the grid can
+/// grow, so a line is a formation rather than a pile-up, and short enough that
+/// the far end of one line still opens at gun range on the far end of the
 /// other.
 const LINE_SPACING: f32 = 34.0;
 
 /// Combat breaks off past this distance from the patrol centroid. Wide enough
 /// for real chases, tight enough that the fight stays over the rock ring.
-const LEASH: f32 = 280.0;
+const LEASH: Meters = Meters(2_800.0);
 
 /// The junk blobs: where each debris cluster anchors, and how many wreckage
-/// FRAGMENTS it scatters. All three sit on the Z FLANKS (|z| >= 160), because
-/// the fight runs along X: the spawn lines stand at x = +/-[`LINE_STANDOFF`]
-/// with |z| <= ~80, and the approach corridor between them is the axis every
-/// torpedo flies down - junk there would eat ordnance and decide fights.
+/// FRAGMENTS it scatters. All three sit on the Z FLANKS (|z| >= 1.6 km),
+/// because the fight runs along X: the spawn lines stand at x = +/-1.5 km
+/// ([`LINE_STANDOFF`]) with |z| <= ~800 m, and the approach corridor between
+/// them is the axis every torpedo flies down - junk there would eat ordnance
+/// and decide fights.
 /// Two blobs sit at negative z, which is the BACKGROUND of the capture frame
 /// (the frame camera stands on +Z); the third is on the south flank for the
 /// idle orbit and the follow cameras to sweep past.
-const DERELICT_BLOBS: [(Vec3, usize); 3] = [
-    (Vec3::new(40.0, -34.0, -190.0), 8),
-    (Vec3::new(-150.0, 30.0, -160.0), 7),
-    (Vec3::new(90.0, -25.0, 200.0), 5),
+const DERELICT_BLOBS: [(Meters3, usize); 3] = [
+    (Meters3::new(400.0, -340.0, -1_900.0), 8),
+    (Meters3::new(-1_500.0, 300.0, -1_600.0), 7),
+    (Meters3::new(900.0, -250.0, 2_000.0), 5),
 ];
 /// How many sections one fragment carries: a broken-off chunk of structure,
 /// never anything that could read as an intact vessel. The first cut spawned
@@ -280,10 +285,10 @@ const DERELICT_BLOBS: [(Vec3, usize); 3] = [
 const FRAGMENT_MIN_SECTIONS: usize = 2;
 const FRAGMENT_MAX_SECTIONS: usize = 8;
 /// The scatter shell fragments land in around their blob anchor, and the
-/// closest two fragments may stand: ~3 u chunks 12+ u apart read as a drifted
+/// closest two fragments may stand: ~30 m chunks 120+ m apart read as a drifted
 /// debris field, not a pile.
-const FRAGMENT_SHELL: (f32, f32) = (6.0, 40.0);
-const FRAGMENT_SEPARATION: f32 = 12.0;
+const FRAGMENT_SHELL: (Meters, Meters) = (Meters(60.0), Meters(400.0));
+const FRAGMENT_SEPARATION: Meters = Meters(120.0);
 /// Salt on the roster's stream head for the fragment rolls: the junk follows
 /// the lobby's resolved seed head and never duplicates a combatant's seed (the
 /// draft scans at most [`DRAFT_SCAN_CAP`] past the head).
@@ -292,11 +297,11 @@ const DERELICT_SEED_SALT: u64 = 0xDEAD;
 /// [`FIGHTER_ID_PREFIX`], so the follow cameras can never latch onto junk.
 const DERELICT_ID_PREFIX: &str = "arena_derelict_";
 
-/// The distant landmark, well outside the leash + its own 400 u sphere of
+/// The distant landmark, well outside the leash + its own 4 km sphere of
 /// influence (`mu = soi_cutoff_accel * soi^2` at the shipped 0.25 cutoff), so
 /// it is scenery and never a well the fight falls into.
-const PLANETOID_POSITION: Vec3 = Vec3::new(-620.0, -140.0, -420.0);
-const PLANETOID_RADIUS: f32 = 24.0;
+const PLANETOID_POSITION: Meters3 = Meters3::new(-6_200.0, -1_400.0, -4_200.0);
+const PLANETOID_RADIUS: Meters = Meters(240.0);
 const PLANETOID_MASS: f32 = 40_000.0;
 /// Pinned silhouette, so the landmark is the same landmark every load.
 const PLANETOID_SEED: u32 = 20_260_816;
@@ -971,7 +976,7 @@ fn combatant(
         base: BaseScenarioObjectConfig {
             id: format!("{FIGHTER_ID_PREFIX}{slot}"),
             name: format!("{} {seed}", team.callsign),
-            position,
+            position: Meters3::from_engine(position),
             rotation,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -986,7 +991,7 @@ fn combatant(
                 })
             } else {
                 SpaceshipController::AI(AIControllerConfig {
-                    patrol: team.patrol.to_vec(),
+                    patrol: team.patrol.map(Meters3::from_engine).to_vec(),
                     // Anchored on the center-hugging patrol centroid, so the
                     // fight gravitates to the dressed middle of the arena.
                     leash: Some(LEASH),
@@ -1012,14 +1017,14 @@ fn combatant(
 fn rock_ring(
     game_assets: &GameAssets,
     id_prefix: &str,
-    center: Vec3,
+    center: Meters3,
     seed: u64,
     count: u32,
-    inner: f32,
-    outer: f32,
-    y: (f32, f32),
-    radius: (f32, f32),
-    separation: f32,
+    inner: Meters,
+    outer: Meters,
+    y: (Meters, Meters),
+    radius: (Meters, Meters),
+    separation: Meters,
 ) -> EventActionConfig {
     EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: id_prefix.to_string(),
@@ -1036,7 +1041,7 @@ fn rock_ring(
             base: BaseScenarioObjectConfig {
                 id: id_prefix.to_string(),
                 name: "Arena Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
@@ -1204,19 +1209,19 @@ fn derelicts(
     let mut index = 0usize;
     let mut sections = 0usize;
     for (blob, (anchor, count)) in DERELICT_BLOBS.iter().enumerate() {
-        let mut placed: Vec<Vec3> = Vec::new();
+        let mut placed: Vec<Meters3> = Vec::new();
         let mut rng = StdRng::seed_from_u64(
             (roster.seed ^ DERELICT_SEED_SALT).wrapping_add((blob as u64) << 8),
         );
         for _ in 0..*count {
-            // Rejection-sampled scatter: fragments are ~3 u across, so a
+            // Rejection-sampled scatter: fragments are ~30 m across, so a
             // handful of retries always finds standing room in the shell.
-            let mut offset = Vec3::ZERO;
+            let mut offset = Meters3::ZERO;
             for _ in 0..32 {
-                let radius = rng.random_range(FRAGMENT_SHELL.0..FRAGMENT_SHELL.1);
+                let radius = rng.random_range(FRAGMENT_SHELL.0.get()..FRAGMENT_SHELL.1.get());
                 let yaw = rng.random_range(0.0..std::f32::consts::TAU);
                 let lift = rng.random_range(-0.4..0.4f32);
-                offset = Vec3::new(yaw.cos() * radius, lift * radius, yaw.sin() * radius);
+                offset = Meters3::new(yaw.cos() * radius, lift * radius, yaw.sin() * radius);
                 if placed
                     .iter()
                     .all(|other| other.distance(offset) >= FRAGMENT_SEPARATION)
@@ -1258,11 +1263,11 @@ fn derelicts(
             *anchor,
             roster.seed ^ DERELICT_SEED_SALT ^ ((blob as u64) << 8),
             6,
-            16.0,
-            48.0,
-            (-14.0, 14.0),
-            (0.8, 2.4),
-            10.0,
+            Meters(160.0),
+            Meters(480.0),
+            (Meters(-140.0), Meters(140.0)),
+            (Meters(8.0), Meters(24.0)),
+            Meters(100.0),
         ));
     }
     // The budget disclosure: the junk adds real sections (and skin on the clad
@@ -1354,7 +1359,7 @@ fn arena(
             filters: vec![],
             actions: ships
                 .into_iter()
-                .chain(ThreePointRig::around("arena", Vec3::ZERO, 8.0).actions())
+                .chain(ThreePointRig::around("arena", Meters3::ZERO, 8.0).actions())
                 .chain(derelicts(game_assets, styles, roster))
                 .chain([
                     planetoid(game_assets),
@@ -1363,26 +1368,26 @@ fn arena(
                     rock_ring(
                         game_assets,
                         "arena_rock_low_",
-                        Vec3::ZERO,
+                        Meters3::ZERO,
                         roster.seed ^ 0x0A11,
                         14,
-                        160.0,
-                        240.0,
-                        (-70.0, -35.0),
-                        (1.5, 4.0),
-                        50.0,
+                        Meters(1_600.0),
+                        Meters(2_400.0),
+                        (Meters(-700.0), Meters(-350.0)),
+                        (Meters(15.0), Meters(40.0)),
+                        Meters(500.0),
                     ),
                     rock_ring(
                         game_assets,
                         "arena_rock_far_",
-                        Vec3::ZERO,
+                        Meters3::ZERO,
                         roster.seed ^ 0x0FA2,
                         10,
-                        320.0,
-                        400.0,
-                        (-20.0, 80.0),
-                        (2.0, 5.0),
-                        60.0,
+                        Meters(3_200.0),
+                        Meters(4_000.0),
+                        (Meters(-200.0), Meters(800.0)),
+                        (Meters(20.0), Meters(50.0)),
+                        Meters(600.0),
                     ),
                 ])
                 .collect(),

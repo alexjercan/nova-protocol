@@ -261,7 +261,7 @@ pub fn compare_stage(game_assets: &GameAssets, id: &str, name: &str) -> Scenario
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
-            actions: ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+            actions: ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
         }],
         ..ScenarioConfig::new(
             id.to_string(),

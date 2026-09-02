@@ -215,7 +215,11 @@ fn compare_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         // One framing that holds both the focus sphere and the labeled row.
         .step("frame the lineup")
         .on_enter(|world: &mut World| {
-            pose_camera(world, Vec3::new(0.0, 6.0, 26.0), Vec3::new(0.0, 4.0, -12.0));
+            pose_camera(
+                world,
+                Meters3::new(0.0, 60.0, 260.0),
+                Meters3::new(0.0, 40.0, -120.0),
+            );
         })
         .until(frames(SETTLE_FRAMES))
         .add()

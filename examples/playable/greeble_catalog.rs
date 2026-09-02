@@ -56,7 +56,8 @@ const ROW_SPACING: f32 = 2.8;
 /// Every piece stands at the same quarter yaw, so the camera reads two flanks
 /// of each at once and the fixed photo rig lights all of them the same way.
 const SUBJECT_YAW: f32 = -0.55;
-/// How far under a piece its nameplate hangs, in world units. Pieces are under
+/// How far under a piece its nameplate hangs, in engine world units - a display
+/// offset in Bevy space, not an authored distance. Pieces are under
 /// a cell tall, so a shallow drop keeps the label tight to its subject.
 const LABEL_DROP: f32 = 0.55;
 /// Extra drop every other column, so a back row's ids do not run together on
@@ -204,7 +205,7 @@ fn catalog_stage(game_assets: &GameAssets) -> ScenarioConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
-            actions: ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions(),
+            actions: ThreePointRig::around("photo", Meters3::ZERO, 3.0).actions(),
         }],
         ..ScenarioConfig::new(
             "greeble_catalog".to_string(),
@@ -463,7 +464,8 @@ fn sync_pedestals(
 /// Where the focused piece stands: well above the wall, so the turntable shot
 /// reads against sky rather than against the rows.
 const FOCUS_STAND: Vec3 = Vec3::new(0.0, 30.0, 0.0);
-/// The presentation size the focused piece is scaled toward, in world units.
+/// The presentation size the focused piece is scaled toward, in engine world
+/// units: a mesh scale target, not an authored distance.
 const FOCUS_FIT: f32 = 1.5;
 /// Radians per second the focused piece turns at.
 const FOCUS_SPIN_RATE: f32 = 0.6;
@@ -1066,7 +1068,11 @@ fn drive_row_walk(world: &mut World) {
     match settle {
         None => {
             let (position, target) = row_view(world.resource::<Catalog>(), row);
-            pose_camera(world, position, target);
+            pose_camera(
+                world,
+                Meters3::from_engine(position),
+                Meters3::from_engine(target),
+            );
             world.resource_mut::<RowWalk>().settle = Some(SETTLE_FRAMES);
         }
         Some(0) => {
@@ -1091,7 +1097,11 @@ fn drive_row_walk(world: &mut World) {
 #[cfg(feature = "debug")]
 fn frame_wall(world: &mut World) {
     let position = wall_camera_position(world.resource::<Catalog>());
-    pose_camera(world, position, CAMERA_TARGET);
+    pose_camera(
+        world,
+        Meters3::from_engine(position),
+        Meters3::from_engine(CAMERA_TARGET),
+    );
 }
 
 /// The driven walk: load the wall, frame it, shoot it, then walk the rows.
@@ -1130,7 +1140,11 @@ fn catalog_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
             // The row walk left a ScriptedCameraPose pinned on the camera;
             // repin it on the turntable so the enforcer and the aim agree.
             let (position, target) = focus_view();
-            pose_camera(world, position, target);
+            pose_camera(
+                world,
+                Meters3::from_engine(position),
+                Meters3::from_engine(target),
+            );
         })
         .until(frames(SETTLE_FRAMES))
         .add()

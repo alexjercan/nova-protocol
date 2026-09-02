@@ -46,7 +46,8 @@ struct Cli;
 const ROCK_SEED: u32 = 20260812;
 
 /// Nominal radius of the row rocks. The noise reaches 3.7-5.6x past the unit
-/// sphere (`ASTEROID_GEOMETRIC_FACTOR_*`), so 0.9 draws roughly 7 units wide.
+/// sphere (`ASTEROID_GEOMETRIC_FACTOR_*`), so 0.9 draws roughly 7 engine world
+/// units wide - this is mesh geometry, not an authored distance.
 const ROW_RADIUS: f32 = 0.9;
 /// Row placement: high and behind the focus rock, inside the default camera
 /// framing (the loader parks the free-fly camera at (0, 10, 20) facing the
@@ -54,7 +55,8 @@ const ROW_RADIUS: f32 = 0.9;
 const ROW_Y: f32 = 7.5;
 /// Row depth (see [`ROW_Y`]).
 const ROW_Z: f32 = -24.0;
-/// Row spacing, sized to the rock's real ~7 unit footprint plus label room.
+/// Row spacing, sized to the rock's real ~7 engine-world-unit footprint plus
+/// label room.
 const ROW_SPACING: f32 = 12.0;
 
 /// Nominal radius of the focus rock the keys retexture.
@@ -142,8 +144,8 @@ fn load_scene(
 
     // The exact mesh `asteroid_scenario_object` spawns, at a pinned seed so
     // every subject is the same rock. Gridded at the FOCUS rock's size and
-    // shared with the row: a rock's grid is sized in world units now, and the
-    // subject here is the texture, so every entry has to wear the same
+    // shared with the row: a rock's grid is sized in engine world units now,
+    // and the subject here is the texture, so every entry has to wear the same
     // silhouette rather than the one its own scale would have earned.
     let mesh = meshes.add(pristine_rock_mesh(ROCK_SEED, FOCUS_RADIUS));
 
@@ -218,7 +220,11 @@ fn compare_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         // One framing that holds both the focus rock and the labeled row.
         .step("frame the lineup")
         .on_enter(|world: &mut World| {
-            pose_camera(world, Vec3::new(0.0, 6.0, 26.0), Vec3::new(0.0, 4.0, -12.0));
+            pose_camera(
+                world,
+                Meters3::new(0.0, 60.0, 260.0),
+                Meters3::new(0.0, 40.0, -120.0),
+            );
         })
         .until(frames(SETTLE_FRAMES))
         .add()

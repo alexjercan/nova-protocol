@@ -79,7 +79,8 @@ const ROW_SPACING: f32 = 8.0;
 /// Every subject stands at the same quarter yaw, so the camera reads flank and
 /// top at once and the fixed photo rig lights all of them the same way.
 const SUBJECT_YAW: f32 = -0.5;
-/// How far under a subject's stand its name hangs, in world units. Deep
+/// How far under a subject's stand its name hangs, in engine world units - a
+/// display offset in Bevy space, not an authored distance. Deep
 /// enough to clear the tallest subject AND the fitted hull's drive plume,
 /// which renders in front of a closer label.
 const LABEL_DROP: f32 = 3.4;
@@ -383,7 +384,7 @@ fn bench_row(
             base: BaseScenarioObjectConfig {
                 id: subject.id.to_string(),
                 name: subject.id.to_string(),
-                position: stand_position(index, count),
+                position: Meters3::from_engine(stand_position(index, count)),
                 rotation: Quat::from_rotation_y(SUBJECT_YAW),
             },
             kind: ScenarioObjectKind::Spaceship(subject_ship(subject, roster, style)),
@@ -398,7 +399,7 @@ fn bench_row(
             once: false,
             filters: vec![],
             actions: ships
-                .chain(ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions())
+                .chain(ThreePointRig::around("photo", Meters3::ZERO, 3.0).actions())
                 .collect(),
         }],
         ..ScenarioConfig::new(
@@ -908,7 +909,11 @@ fn orbit_idle_camera(
 /// Pose the harness camera on the stand.
 #[cfg(feature = "debug")]
 fn frame_stand(world: &mut World) {
-    pose_camera(world, camera_position(), CAMERA_TARGET);
+    pose_camera(
+        world,
+        Meters3::from_engine(camera_position()),
+        Meters3::from_engine(CAMERA_TARGET),
+    );
 }
 
 /// The driven walk: load the roster, frame it, shoot it.

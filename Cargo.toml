@@ -105,8 +105,8 @@ path = "examples/playable/shape_bench.rs"
 name = "block_bench"
 path = "examples/playable/block_bench.rs"
 
-# The railgun slug's ionized wake at three speeds (250, 750 and the shipped
-# 1500 u/s) under three lifetime policies, with dark hull plates for the moving
+# The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
+# 15 km/s) under three lifetime policies, with dark hull plates for the moving
 # light and every knob live. Task 20260902-143732's tuning bench: it fires the
 # production slug and slides the weapon's own wake tuning.
 [[example]]
