@@ -41,7 +41,7 @@ const MUZZLE_LIGHT_SECS: f32 = 0.18;
 /// The rails' own colour, from the lance art (`railgun_lance.glb`'s `part_glow`
 /// material). The charge glow, the muzzle flash and the bore they come out of
 /// all wear it, so the whole cycle reads as one piece of hardware.
-const RAIL_GLOW_COLOR: Color = Color::srgb(0.45, 0.85, 1.0);
+pub(super) const RAIL_GLOW_COLOR: Color = Color::srgb(0.45, 0.85, 1.0);
 
 /// Peak brightness of the charge glow, in lumens, reached the instant before
 /// the shot.
@@ -130,8 +130,12 @@ pub(super) fn insert_railgun_slug_render(
     add: On<Add, RailgunSlugProjectileMarker>,
     mut commands: Commands,
     art: Res<RailgunSlugArt>,
+    budget: Option<Res<GraphicsBudget>>,
+    mut wake: RailgunWakeSpawner,
+    q_slug: Query<&Transform, With<RailgunSlugProjectileMarker>>,
 ) {
-    commands.entity(add.entity).insert(children![(
+    let entity = add.entity;
+    commands.entity(entity).insert(children![(
         Name::new("Railgun Slug Render"),
         Mesh3d(art.mesh.clone()),
         MeshMaterial3d(art.material.clone()),
@@ -140,6 +144,20 @@ pub(super) fn insert_railgun_slug_render(
             max_length: SLUG_TRACER_MAX_LENGTH,
         },
     )]);
+
+    // The light asks for its slot at the flush; the wake is spawn-less on the
+    // Low tier, like every other particle effect. Absent budget (a
+    // settings-less app) means full quality.
+    light_railgun_slug(&mut commands, entity);
+    if budget.as_deref().is_none_or(|budget| budget.particles) {
+        let transform = q_slug.get(entity).copied().unwrap_or_default();
+        wake.spawn(
+            &mut commands,
+            entity,
+            transform,
+            RailgunWakeTuning::default(),
+        );
+    }
 }
 
 /// Spawn the lance's body: the authored scene, or the placeholder block a

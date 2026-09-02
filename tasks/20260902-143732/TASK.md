@@ -105,3 +105,111 @@ one explicit decision:
 
 - expand it with a selected production effect and integration criteria; or
 - close the exploration with the reason the wake should not ship.
+
+## Phase 1 result
+
+The bench is `examples/playable/railgun_wake_bench.rs`.
+
+```text
+cargo run --example railgun_wake_bench --features debug
+DISPLAY=:99 NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir> \
+  cargo run --example railgun_wake_bench --features debug
+```
+
+Three lanes (250, 750, 1500 u/s) fire the production slug on a 240 u range
+with six dark hull plates and a deck strip under each lane. Keys: `1`-`3`
+policy, arrows tune, `[` `]` slow motion, `P` pause, `H` `J` `L` layers and
+light, `T` spread, `G` quality, `C` camera (wide, chase, close pass, free).
+The readout prints every value in meters.
+
+Captures in this folder, from the autopilot walk at a tenth speed:
+
+- `railgun-wake-fixed-lifetime.png`, `railgun-wake-fixed-distance.png`,
+  `railgun-wake-clamped.png`: wide comparison of the three policies.
+- `railgun-wake-chase.png`: the pilot's view of a volley leaving.
+- `railgun-wake-close.png`, `railgun-wake-close-haze.png`,
+  `railgun-wake-close-filaments.png`: the close pass, then each layer alone.
+- `railgun-wake-close-medium.png`, `railgun-wake-close-low.png`: the same
+  frame on Medium and Low.
+
+Answers:
+
+- Haze reads as ionized material, not smoke, once it is dense enough: below
+  about 6 particles per unit it reads as a string of beads. It expands in
+  place, drifts under 3 u/s in no preferred direction, and fades cold blue.
+- Filaments read as discharge from the side. End-on (the chase pose) they
+  vanish: a velocity-oriented streak has no thickness along the view axis.
+  0.2 u thick, 0.7 of the haze lifetime, a quarter of its count, strobing.
+- The wake stays continuous at 1500 u/s because each frame's particles are
+  spread along the ground the slug covered since the last spawn and born that
+  much older. `T` shows the row of puffs a point spawner draws.
+- The slug stays a projectile: the dart leads, the wake is behind and thins
+  over its lifetime. Nothing is drawn ahead of the slug.
+- Fixed lifetime reads best. The length growing with speed is the point: a
+  0.5 s wake is 1.25 km behind the slow lane and 7.5 km behind the lance,
+  and the lance's is the one that reads as a trail from combat range.
+- The light is what sells a close pass: a highlight slides down the deck
+  and across each plate. The particles alone do not light anything.
+- Slot policy below, under Phase 2.
+- Low draws the dart and the tracer only. That is the whole slug there and it
+  is still legible.
+
+## Decision
+
+Owner, 2026-09-02: fixed lifetime, 0.5 s. Ship it in the weapon as constants,
+no authored fields.
+
+## Phase 2: production integration
+
+Done in the same change:
+
+- `crates/nova_ship/src/sections/railgun_section/wake.rs`: `RailgunWakeTuning`
+  (default is the shipped look: 0.5 s, 6 per unit, 1.5 u wide, both layers at
+  1x, spread on), `RailgunWakeEmitter`, the shared lazy `RailgunWakeArt`, the
+  `RailgunWakeSpawner` system param, `follow_railgun_wakes` (Update) and
+  `count_railgun_wake_spawns` (PostUpdate, after hanabi's tick).
+- The slug's render observer spawns the wake when `GraphicsBudget::particles`
+  is on and asks for the light through `light_railgun_slug`.
+- Emitters are their own entities riding the slug's transform, so they
+  outlive it: when the slug goes the spawner stops and the emitter lingers
+  1.3 lifetimes before it despawns.
+- The light is a child of the slug carrying `CappedLight`, a new
+  `nova_gameplay::transient_light` marker. The flash cap and the slug both
+  count `TransientLight` or `CappedLight` against `transient_lights`, so a
+  slug's light takes a slot on the same terms as a flash, is refused when the
+  cap is full, and gives the slot back when the slug despawns. The count runs
+  in a queued command so a volley sees its own earlier lights.
+- Buffers: 8192 haze and 2048 filament particles per emitter. The shipped
+  tuning holds 4500 haze behind the lance; the bench's top sliders overrun it
+  on purpose, and the overrun shows as a tail that thins.
+- The bench drives the same code: it writes its sliders into every live
+  emitter's `tuning` and every slug light, and its defaults are the constants.
+
+Proof, 2026-09-02, under Xvfb on llvmpipe:
+
+- `railgun_wake_bench` autopilot walk: nine shots, cycle complete, no panic.
+  The captures above are from that run, after the integration, so they show
+  the production wake and light on a bench-fired production slug.
+- `system_railgun_lance` autopilot: one real shot from a lance, every lance
+  invariant held, no panic.
+- Unit: six wake tests in `wake.rs` (the spread arithmetic, the layer ratios,
+  the buffers holding the shipped wake, both graphs building) and the new
+  `a_light_holding_a_slot_counts_against_the_next_flash` in transient_light.
+
+## The range
+
+`loop_vfx_range` fires a lance too: a platform parked four units above the
+shooter, bore down -Z, so the slug passes over the target and flies its whole
+lifetime into empty sky with the whole wake behind it. A lance on the
+shooter's axis would put its slug into the target 36 units on, a tick and a
+half of flight, gone before the wake's first frame at a software renderer's
+frame rate. The platform carries a hard magazine of three shells (one per
+pass, no reload) and is locked in place against the recoil.
+
+`NOVA_VFX_RANGE_BARE_SLUG=1` strips the wake and the light off every slug as
+it spawns, so the before and the after are the same cycle on the same
+revision.
+
+`vfx-range-lance.png` is one frame of the range's wide loop a tenth of a
+second after the first pass's shot: the wake across the frame over the
+target, the burst still landing under it.

@@ -248,7 +248,9 @@ What is on disk today, in reading order:
   pause menu, a result board and a `--ship TEAM:player` slot that puts you in
   one of them). Then the benches and galleries, each with its own keys:
   `wfc_ships` (`R` re-rolls the collapsed row), `shape_bench` and `block_bench`
-  (`L` cycles the style, `C` strips the cladding), `greeble_catalog` (a
+  (`L` cycles the style, `C` strips the cladding), `railgun_wake_bench` (the
+  slug's ionized wake at three speeds, `1`-`3` pick the lifetime policy, the
+  arrows tune it, `[` `]` slow it down), `greeble_catalog` (a
   selection ring, a focus turntable, pedestal and cell-frame toggles),
   `parts_viewer` (a paged grid, a focus turntable and a reassembled recipe ship
   with an explode toggle), `widget_zoo` (every `nova_ui` widget factory, live

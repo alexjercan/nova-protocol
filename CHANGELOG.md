@@ -37,6 +37,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A charging railgun lights its own bore: a bolt climbs the rails behind a glow
   that brightens sharply as the shot nears, and the discharge throws sparks off
   the brake and kicks the camera.
+- A fired slug leaves an ionized wake: cyan haze along its path, violet
+  filaments through it, gone in half a second. A blue light rides the slug and
+  lights the hulls it passes; Low draws neither.
 
 ### Scenarios & Objectives
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
@@ -120,6 +123,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The `wfc_arena` bench bolts a spinal railgun to every generated bow, answering
   its stern drive stamp, carves whatever the collapse hung in front of the bore,
   and binds it to `R` for a player slot.
+- New `railgun_wake_bench` example: the slug's ionized wake at three speeds
+  under three lifetime policies, every knob live and in slow motion, driving
+  the weapon's own tuning.
+- `loop_vfx_range` parks a lance above the shooter and fires it over the
+  target once per pass, so the cycle measures the wake; `NOVA_VFX_RANGE_BARE_SLUG=1`
+  runs the same cycle with a bare slug.
 
 ## [0.12.0] - 2026-08-31
 

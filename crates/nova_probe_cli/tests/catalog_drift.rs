@@ -523,7 +523,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 209;
+const SYSTEMS_INVARIANTS: usize = 213;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

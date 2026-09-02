@@ -24,6 +24,15 @@
 //! as a bug, while a dropped one is simply a flash that never happened in a
 //! frame already full of them.
 //!
+//! # A light that holds its slot
+//!
+//! A flash burns down and gives its slot back on its own. A light that RIDES
+//! something - the railgun slug's - holds a slot for as long as it exists,
+//! and says so with [`CappedLight`]: the observer counts it beside the
+//! flashes, so a frame full of slugs refuses the next flash exactly as a
+//! frame full of flashes refuses the next slug. Whoever spawns one counts the
+//! same set before spawning it; the slot is released by despawning.
+//!
 //! # Why it is not a child of the thing that flashed
 //!
 //! The blast volume it belongs to is despawned within a tenth of a second (it
@@ -36,7 +45,7 @@ use crate::prelude::{GraphicsBudget, TempEntity};
 
 /// `LightFlash`, `TransientLight` and `TransientLightPlugin`.
 pub mod prelude {
-    pub use super::{LightFlash, TransientLight, TransientLightPlugin};
+    pub use super::{CappedLight, LightFlash, TransientLight, TransientLightPlugin};
 }
 
 /// Asks for a brief light at a world position.
@@ -70,6 +79,13 @@ pub struct TransientLight {
     pub peak_intensity: f32,
 }
 
+/// A light that holds one [`GraphicsBudget::transient_lights`] slot for as long
+/// as it exists. Put it on a [`PointLight`] that follows something; see the
+/// module docs.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct CappedLight;
+
 /// Brightness left at progress `t` (0 at ignition, 1 at the end), as a fraction
 /// of the peak.
 ///
@@ -91,6 +107,7 @@ impl Plugin for TransientLightPlugin {
         trace!("TransientLightPlugin: build");
 
         app.register_type::<TransientLight>();
+        app.register_type::<CappedLight>();
         app.add_observer(light_the_flash);
         app.add_systems(Update, burn_transient_lights);
     }
@@ -116,7 +133,8 @@ fn light_the_flash(flash: On<LightFlash>, mut commands: Commands) {
             |budget| budget.transient_lights,
         );
         let lit = {
-            let mut query = world.query_filtered::<(), With<TransientLight>>();
+            let mut query =
+                world.query_filtered::<(), Or<(With<TransientLight>, With<CappedLight>)>>();
             query.iter(world).count()
         };
         if lit >= cap {
@@ -245,6 +263,14 @@ mod tests {
         let mut app = light_app(0);
         ask_for_a_flash(&mut app);
         app.update();
+        assert_eq!(lit_count(&mut app), 0);
+    }
+
+    #[test]
+    fn a_light_holding_a_slot_counts_against_the_next_flash() {
+        let mut app = light_app(1);
+        app.world_mut().spawn((CappedLight, PointLight::default()));
+        ask_for_a_flash(&mut app);
         assert_eq!(lit_count(&mut app), 0);
     }
 

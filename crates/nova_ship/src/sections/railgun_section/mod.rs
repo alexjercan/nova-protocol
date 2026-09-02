@@ -45,6 +45,8 @@ mod firing;
 /// Render/audio for the lance: the slug's body and the muzzle flash. Gated by
 /// the plugin's `render` flag.
 mod render;
+/// The wake the slug leaves and the light that rides it. Gated the same way.
+mod wake;
 
 pub use firing::RailgunFired;
 use firing::*;
@@ -52,14 +54,19 @@ pub(crate) use firing::{
     RailgunSectionChargeSound, RailgunSectionFireSound, RailgunSectionReloadSound,
 };
 use render::*;
+use wake::*;
 
 /// The `railgun_section` spawners, its config, marker, input, charge state,
-/// fire report and `RailgunSectionPlugin`.
+/// fire report, `RailgunSectionPlugin`, and the slug's wake and light.
 pub mod prelude {
     pub use super::{
-        preview_railgun_section, railgun_section, RailgunCharge, RailgunFired,
-        RailgunSectionConfig, RailgunSectionConfigHelper, RailgunSectionInput,
-        RailgunSectionPlugin, RailgunSectionSystems,
+        preview_railgun_section, railgun_section,
+        wake::{
+            RailgunSlugLight, RailgunWakeEmitter, RailgunWakeLayer, RailgunWakeTuning,
+            RAILGUN_SLUG_LIGHT_LUMENS, RAILGUN_SLUG_LIGHT_RANGE,
+        },
+        RailgunCharge, RailgunFired, RailgunSectionConfig, RailgunSectionConfigHelper,
+        RailgunSectionInput, RailgunSectionPlugin, RailgunSectionSystems,
     };
 }
 
@@ -311,12 +318,21 @@ impl Plugin for RailgunSectionPlugin {
         if self.render {
             app.init_resource::<PlaceholderArt>();
             app.init_resource::<RailgunSlugArt>();
+            app.init_resource::<RailgunWakeArt>();
+            app.init_resource::<SoftDot>();
             app.add_observer(insert_railgun_section_render);
             app.add_observer(insert_railgun_slug_render);
             app.add_observer(on_railgun_fired_flash);
             app.add_observer(on_railgun_fired_kick);
             app.register_type::<RailgunChargeGlowMarker>();
-            app.add_systems(Update, drive_railgun_charge_glow);
+            app.register_type::<RailgunSlugLight>();
+            app.add_systems(Update, (drive_railgun_charge_glow, follow_railgun_wakes));
+            // After hanabi's own tick, which is what lets the wake say how
+            // many particles this frame spawns instead of the asset's rate.
+            app.add_systems(
+                PostUpdate,
+                count_railgun_wake_spawns.after(bevy_hanabi::EffectSystems::TickSpawners),
+            );
         }
     }
 }

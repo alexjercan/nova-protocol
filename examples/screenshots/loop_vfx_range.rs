@@ -2,12 +2,14 @@
 //! cycle against a target that survives it.
 //!
 //! The bench for `tasks/20260822-204201` (make particle effects credible in
-//! vacuum). Four effects live in three files and are otherwise only ever seen
-//! inside a real fight, where no two runs show the same thing: the turret
-//! muzzle flash, the round impact, the torpedo launch and the detonation. This
-//! example fires all four from their PRODUCTION paths - a real turret with a
-//! real trigger, real rounds under the real travel rules, a real bay under a
-//! scripted order - on a script, in the same order, every run.
+//! vacuum) and, since `tasks/20260902-143732`, for the railgun slug's wake.
+//! Five effects live in four files and are otherwise only ever seen inside a
+//! real fight, where no two runs show the same thing: the turret muzzle
+//! flash, the round impact, the torpedo launch, the detonation, and the slug's
+//! wake with the light that rides it. This example fires all five from their
+//! PRODUCTION paths - a real turret with a real trigger, real rounds under the
+//! real travel rules, a real bay under a scripted order, a real lance on a
+//! real commit - on a script, in the same order, every run.
 //!
 //! Two jobs, one scene, and the second is why the cycle is fixed:
 //!
@@ -29,9 +31,26 @@
 //! shooter sits outside the 30-unit blast radius by construction - see
 //! [`RANGE`] - so it is never damaged by its own ordnance.
 //!
-//! Both ships are unmanaged (no `WeaponsHot`), which is what lets the script
-//! fire the turret by writing [`TurretSectionInput`] directly instead of
-//! standing up a controller and a safety.
+//! Every ship is unmanaged (no `WeaponsHot`), which is what lets the script
+//! fire the turret and the lance by writing [`TurretSectionInput`] and
+//! [`RailgunSectionInput`] directly instead of standing up a controller and a
+//! safety.
+//!
+//! ## The lance
+//!
+//! A spinal lance is parked on its own hull above the shooter, bore down -Z,
+//! so its slug passes over the target and flies its whole lifetime into empty
+//! sky with the whole wake behind it. Not a section on the shooter: a lance
+//! on the shooter's axis puts its slug into the target 36 units on - a tick
+//! and a half of flight, over before the wake's first frame at a software
+//! renderer's frame rate. The platform carries a hard magazine of one shell
+//! per pass in place of the shipped one shell and twelve-second reload, and
+//! is locked where it stands: the recoil is real and there is nothing on the
+//! platform to counter it.
+//!
+//! `NOVA_VFX_RANGE_BARE_SLUG=1` strips the wake and the light off every slug
+//! as they spawn. The same cycle with a bare slug is the wake's BEFORE
+//! number, on the same revision as its after.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
@@ -47,9 +66,13 @@
 //!
 //! Measure (the number the VFX work moves against):
 //! ```text
-//! cargo run --features debug -- probe run loop_vfx_range --release
+//! cargo run --features debug -- probe run loop_vfx_range --release --repeat 5
+//! NOVA_VFX_RANGE_BARE_SLUG=1 cargo run --features debug -- \
+//!   probe run loop_vfx_range --release --repeat 5 --out target/probe-bare
 //! ```
 
+#[cfg(feature = "debug")]
+use avian3d::prelude::LockedAxes;
 use bevy::prelude::*;
 use clap::Parser;
 use nova_probe::fixtures::{self, prelude::*};
@@ -75,6 +98,25 @@ const LAUNCH_LOOP: &str = "vfx-cold-launch";
 
 const SHOOTER_ID: &str = "vfx_shooter";
 const TARGET_ID: &str = "vfx_target";
+const LANCE_PLATFORM_ID: &str = "vfx_lance";
+
+/// The environment variable that flies the slug bare: no wake, no light.
+const BARE_SLUG_ENV: &str = "NOVA_VFX_RANGE_BARE_SLUG";
+
+/// How high above the shooter the lance platform is parked.
+///
+/// The slug has to clear the target's top row with the rake sphere behind
+/// it: the slab reaches 1.5 units up and the rake is one unit wide, so four
+/// leaves a unit and a half of sky between the two. Higher and the platform
+/// leaves the frame.
+const LANCE_PLATFORM_Y: f32 = 4.0;
+
+/// The lance's hard magazine for one run: one shell per pass, no reload.
+///
+/// The shipped lance holds one shell behind a twelve-second idle reload, and
+/// the cycle is shorter than that at any frame rate worth measuring, so on
+/// the shipped magazine which passes fire is a property of the host.
+const LANCE_SHELLS: u32 = 3;
 
 /// How far the target sits down -Z from the shooter.
 ///
@@ -169,10 +211,28 @@ fn main() -> bevy::app::AppExit {
 
 fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
+    if std::env::var_os(BARE_SLUG_ENV).is_some() {
+        app.add_observer(strip_wake);
+        app.add_observer(strip_slug_light);
+    }
+}
+
+/// Under [`BARE_SLUG_ENV`]: take the wake off a slug the frame it is given.
+fn strip_wake(add: On<Add, RailgunWakeEmitter>, mut commands: Commands) {
+    commands.entity(add.entity).despawn();
+}
+
+/// Under [`BARE_SLUG_ENV`]: take the light off a slug the frame it is given.
+fn strip_slug_light(add: On<Add, RailgunSlugLight>, mut commands: Commands) {
+    commands.entity(add.entity).despawn();
 }
 
 fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Res<GameSections>) {
-    let objects = vec![shooter(&sections), target(&sections)];
+    let objects = vec![
+        shooter(&sections),
+        target(&sections),
+        lance_platform(&sections),
+    ];
     commands.trigger(LoadScenario(ScenarioConfig {
         description: "Every combat effect, fired once per cycle at a target that survives it."
             .to_string(),
@@ -258,6 +318,44 @@ fn target(sections: &GameSections) -> ScenarioObjectConfig {
     )
 }
 
+/// The lance platform: a spinal lance and the controller behind it, parked
+/// [`LANCE_PLATFORM_Y`] above the shooter with its bore down -Z.
+///
+/// The lance is three cells long and centred on its own origin, so at -1 it
+/// fills -2 to 0 and its muzzle sits half a unit ahead of the shooter's bow.
+/// The controller at +1 is on the lance's aft link. Nothing stands ahead of
+/// the bore: a lance cannot traverse, so anything there is shot through.
+fn lance_platform(sections: &GameSections) -> ScenarioObjectConfig {
+    let specs = [
+        SectionSpec::new("lance", RAILGUN_LANCE_SECTION_ID, Vec3::new(0.0, 0.0, -1.0)),
+        SectionSpec::new(
+            "controller",
+            BASIC_CONTROLLER_SECTION_ID,
+            Vec3::new(0.0, 0.0, 1.0),
+        ),
+    ];
+    let mut platform = toughened(
+        LANCE_PLATFORM_ID,
+        "Lance Platform",
+        Vec3::new(0.0, LANCE_PLATFORM_Y, 2.0),
+        fixtures::ship(sections, SpaceshipController::None, &specs),
+    );
+    if let ScenarioObjectKind::Spaceship(ship) = &mut platform.kind {
+        if let ShipSource::Inline(hull) = &mut ship.hull {
+            for section in hull
+                .sections
+                .iter_mut()
+                .filter(|section| section.id == "lance")
+            {
+                section
+                    .modifications
+                    .push(SectionModification::SetAmmo(LANCE_SHELLS));
+            }
+        }
+    }
+    platform
+}
+
 /// One ship, every section authored to [`TOUGH_SECTION_HEALTH`] and structural
 /// collapse switched off.
 ///
@@ -303,7 +401,10 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .deadline(30.0)
         .add()
         .step("frame the range")
-        .on_enter(frame_range)
+        .on_enter(|world| {
+            pin_lance_platform(world);
+            frame_range(world);
+        })
         .until(elapsed(0.8))
         .add()
         .step("open the vfx loop")
@@ -314,11 +415,17 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
     for pass in 1..=3 {
         plugin = plugin
             .step(format!("pass {pass}: lay the guns on"))
-            .on_enter(aim_at_target)
+            .on_enter(|world| {
+                aim_at_target(world);
+                set_lance_trigger(world, true);
+            })
             .until(frames(12))
             .add()
             .step(format!("pass {pass}: gun burst"))
-            .on_enter(|world| set_triggers(world, true))
+            .on_enter(|world| {
+                set_lance_trigger(world, false);
+                set_triggers(world, true);
+            })
             .until(frames(45))
             .add()
             .step(format!("pass {pass}: cease fire, watch the rounds land"))
@@ -377,7 +484,7 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
     plugin
 }
 
-/// Both ships are in the world.
+/// All three ships are in the world.
 ///
 /// A plain fn and not just a predicate, because it is asked twice in two
 /// shapes: the walk wants an `Arc<Predicate>` and the frame-time capture wants
@@ -386,7 +493,21 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
 fn range_is_standing(world: &World) -> bool {
     world
         .try_query_filtered::<Entity, With<SpaceshipRootMarker>>()
-        .is_some_and(|mut query| query.iter(world).take(2).count() == 2)
+        .is_some_and(|mut query| query.iter(world).take(3).count() == 3)
+}
+
+/// Lock the lance platform where it stands.
+///
+/// Its recoil is the shipped 45, on a hull of four cells and nothing to
+/// counter it: unlocked, every shot sends the platform a ship's length a
+/// second backwards, out of the frame and out of the cycle. Locked axes and
+/// not a static body, so the ship keeps the body every other part of it was
+/// built against.
+#[cfg(feature = "debug")]
+fn pin_lance_platform(world: &mut World) {
+    if let Some(platform) = ship_by_id(world, LANCE_PLATFORM_ID) {
+        world.entity_mut(platform).insert(LockedAxes::ALL_LOCKED);
+    }
 }
 
 /// [`range_is_standing`] as a walk predicate.
@@ -461,12 +582,27 @@ fn aim_at_target(world: &mut World) {
     }
 }
 
-/// Hold or release every trigger on the range.
+/// Hold or release every turret trigger on the range.
 #[cfg(feature = "debug")]
 fn set_triggers(world: &mut World, firing: bool) {
     let mut query = world.query::<&mut TurretSectionInput>();
     for mut trigger in query.iter_mut(world) {
         **trigger = firing;
+    }
+}
+
+/// Hold or release the lance's trigger.
+///
+/// Held for the whole lay-on step rather than pulsed: the walk runs on the
+/// render clock and the gun on the fixed one, so a one-frame tap can fall
+/// between two of the gun's ticks. The commit outlives the release, and the
+/// shot leaves when the charge arrives, a second and a half on - inside the
+/// burst, with the rounds still landing.
+#[cfg(feature = "debug")]
+fn set_lance_trigger(world: &mut World, held: bool) {
+    let mut query = world.query::<&mut RailgunSectionInput>();
+    for mut trigger in query.iter_mut(world) {
+        trigger.0 = held;
     }
 }
 
@@ -476,7 +612,7 @@ fn set_triggers(world: &mut World, firing: bool) {
 /// exists, so a pass that re-inserts it fires exactly one more torpedo.
 #[cfg(feature = "debug")]
 fn order_torpedo(world: &mut World) {
-    let Some(target) = target_ship(world) else {
+    let Some(target) = ship_by_id(world, TARGET_ID) else {
         return;
     };
     let bays: Vec<Entity> = world
@@ -490,12 +626,12 @@ fn order_torpedo(world: &mut World) {
     }
 }
 
-/// The target ship's root, by the scenario id it was spawned under.
+/// A ship's root, by the scenario id it was spawned under.
 #[cfg(feature = "debug")]
-fn target_ship(world: &mut World) -> Option<Entity> {
+fn ship_by_id(world: &mut World, id: &str) -> Option<Entity> {
     world
         .query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>()
         .iter(world)
-        .find(|(_, id)| ***id == *TARGET_ID)
+        .find(|(_, entity_id)| ***entity_id == *id)
         .map(|(entity, _)| entity)
 }
