@@ -18,7 +18,9 @@ use nova_ui::{
     },
 };
 
-use super::support::{all_texts, entity_by_name, mods_app, shared_config_root};
+use super::support::{
+    all_texts, entity_by_name, mods_app, settings_store_lock, shared_config_root,
+};
 use crate::settings::{
     ResetBindings, SensitivityLabel, SensitivitySlider, SettingsActiveTab, SettingsControlsGroup,
     SettingsPanel, SettingsTab, SettingsTabKind, VolumeChannel, VolumeLabel, VolumeSlider,
@@ -393,10 +395,11 @@ fn the_old_coming_soon_button_is_gone() {
 /// `flush_settings_on_exit` and the store stays at the pre-edit value.
 #[test]
 fn a_setting_edited_just_before_quitting_is_still_saved() {
+    let _guard = settings_store_lock();
     let store = std::env::temp_dir().join(format!("nova_menu_exit_flush_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&store);
-    // SAFETY-BY-CONVENTION: the only test in this binary that writes the
-    // settings store, and it must not touch the developer's real one.
+    // SAFETY-BY-LOCK: `settings_store_lock` is held, so this is the only test
+    // pointing the process-wide config root away from the shared scratch one.
     let shared_store = shared_config_root();
     unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &store) };
 

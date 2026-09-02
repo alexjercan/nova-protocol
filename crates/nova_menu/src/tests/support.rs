@@ -39,6 +39,18 @@ fn isolate_the_config_store() {
     });
 }
 
+/// Serializes the tests that swap [`shared_config_root`] out for a store of
+/// their own.
+///
+/// `NOVA_CONFIG_ROOT` is process-wide and these tests run in parallel threads,
+/// so "the only test that writes the store" cannot be a convention - a second
+/// one arriving would point a running fixture at a directory it never wrote.
+pub(crate) fn settings_store_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// The scratch root [`isolate_the_config_store`] points the store at.
 ///
 /// A test that needs a store of its OWN must put this back when it is done: the

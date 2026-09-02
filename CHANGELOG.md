@@ -144,6 +144,9 @@ does NOT get an entry - and it is the only place they are written down.
   rest of the settings. Music is reserved: nothing routes to it yet.
 
 ### Internals & Tooling
+- Every example flies on your saved settings rather than the defaults: mouse
+  sensitivity, keybinds, volumes, quality and skin. A scripted capture or probe
+  run reads and writes none of them.
 - The `wfc_arena` bench bolts a spinal railgun to every generated bow, answering
   its stern drive stamp, carves whatever the collapse hung in front of the bore,
   and binds it to `R` for a player slot.

@@ -375,6 +375,21 @@ impl AppBuilder {
             self.app.add_plugins(NovaEditorPlugin);
         }
 
+        // The settings store is NOT the menu's: a settings panel is where a
+        // value is edited, not what makes it apply. Every app gets it, so an
+        // example that supplies its own game plugins and never builds a menu
+        // still flies on the player's own mouse sensitivity, keybinds, volumes
+        // and quality preset. `from_env` makes it inert under a scripted run,
+        // which is what keeps a capture or a probe sweep reproducible on any
+        // machine - and stops one writing the launching player's settings.
+        //
+        // Guarded because `with_game_plugins` runs before this: an example that
+        // supplies `NovaMenuPlugin` itself (system_outcomes) has already
+        // brought the store in through the menu's own guard.
+        if !self.app.is_plugin_added::<SettingsStorePlugin>() {
+            self.app.add_plugins(SettingsStorePlugin::from_env());
+        }
+
         // The menu fronts the default (editor) app only: an example that supplies
         // its own game plugins goes straight `Loading -> Playing`.
         let has_menu = self.use_default_plugins;

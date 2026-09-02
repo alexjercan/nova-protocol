@@ -11,16 +11,20 @@
 
 use std::collections::BTreeMap;
 
+use bevy::prelude::*;
 use nova_assets::persist;
 use nova_gameplay::prelude::{
-    GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
+    GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume, HARNESS_ENVS,
 };
 use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
 
-use crate::settings::WindowModeSetting;
+use crate::settings::{
+    flush_settings_on_exit, load_persisted_settings, persist_settings_on_change,
+    PendingSettingsSave, WindowModeSetting,
+};
 
 /// The persisted form of the settings: plain, versionable data decoupled from
 /// the live resources. Missing/extra fields are tolerated by serde defaults so
@@ -199,6 +203,82 @@ pub fn load_settings() -> Option<PersistedSettings> {
 /// Persist the settings. Best-effort - failures are logged, not returned.
 pub fn save_settings(settings: &PersistedSettings) {
     persist::save(KEY, settings);
+}
+
+/// Reads the store into the live settings resources at startup and writes it
+/// back as they change.
+///
+/// Separate from [`NovaMenuPlugin`](crate::NovaMenuPlugin) because a settings
+/// PANEL is not what makes a setting apply. `AppBuilder` adds this to every
+/// app, so an example that supplies its own game plugins and never builds a
+/// menu still flies on the player's own mouse sensitivity, keybinds, volumes
+/// and quality preset instead of silently on the defaults.
+///
+/// Owns the settings-backed resources as well as the two directions, so the
+/// plugin stands alone: an app with this and nothing else has a complete,
+/// loaded settings state.
+pub struct SettingsStorePlugin {
+    /// Whether the store is read at startup and written back on a change.
+    ///
+    /// `false` pins every setting at its default for the whole run and touches
+    /// no file in either direction.
+    pub live: bool,
+}
+
+impl SettingsStorePlugin {
+    /// A store that is live for a human at the keyboard and INERT under a
+    /// scripted run ([`HARNESS_ENVS`]).
+    ///
+    /// A capture or a probe sweep must produce the same frames and the same
+    /// numbers on any machine, and the developer's own graphics preset, skin
+    /// or window mode would otherwise decide what a screenshot shows. The
+    /// write direction matters more: a scripted run that saves is a run that
+    /// rewrites the settings of whoever launched it, which is how a screenshot
+    /// pass once overwrote a keybind table (see `tests::support`).
+    pub fn from_env() -> Self {
+        Self {
+            live: !HARNESS_ENVS
+                .iter()
+                .any(|key| std::env::var_os(key).is_some()),
+        }
+    }
+}
+
+impl Plugin for SettingsStorePlugin {
+    fn build(&self, app: &mut App) {
+        // Every one of these is owned by some other plugin in the assembled
+        // app - the mixer buses and the quality preset by `NovaGameplayPlugin`,
+        // the sensitivities by `NovaInputPlugin`, the skin by `NovaUiPlugin`,
+        // the monitor knobs by `NovaOsUiPlugin`. `init_resource` is idempotent,
+        // so initing them here as well is what lets this plugin be added first,
+        // last, or alone.
+        app.init_resource::<MasterVolume>();
+        app.init_resource::<InterfaceVolume>();
+        app.init_resource::<WorldVolume>();
+        app.init_resource::<MusicVolume>();
+        app.init_resource::<MouseSensitivity>();
+        app.init_resource::<GraphicsQuality>();
+        app.init_resource::<UiSkin>();
+        app.init_resource::<NovaOsMonitorSettings>();
+        app.init_resource::<WindowModeSetting>();
+        // The keybind overrides land on the same table every rig is built
+        // from, so the load needs it present even in an app that has not added
+        // `NovaInputPlugin` yet.
+        app.init_resource::<InputBindings>();
+
+        if !self.live {
+            return;
+        }
+        app.add_systems(Startup, load_persisted_settings);
+        app.init_resource::<PendingSettingsSave>();
+        app.add_systems(Update, persist_settings_on_change);
+        app.add_systems(Last, flush_settings_on_exit);
+        // Behind the same switch as the load: the mode only ever arrives from
+        // the store, so an inert run has no mode to apply and must leave the
+        // harness's window alone.
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_systems(Update, crate::settings::apply_window_mode);
+    }
 }
 
 // The storage backends live in `nova_assets::persist` and are tested there. What
