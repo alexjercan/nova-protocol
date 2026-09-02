@@ -527,7 +527,7 @@ SetSpeedCap((id: "player_spaceship"))              // release the governor
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scoped ship root |
-| `cap` | `Option` number | `None` | `Some(25.0)` installs/updates the cap (u/s); `None` or omitted REMOVES it |
+| `cap` | `Option` number | `None` | `Some(25.0)` installs/updates the cap (world units per second, 10 m/s each); `None` or omitted REMOVES it |
 
 </details>
 

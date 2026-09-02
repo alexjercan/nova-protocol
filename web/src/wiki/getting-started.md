@@ -34,7 +34,7 @@ Pick **New Game**. The Shakedown Run teaches one gesture at a time and hands you
 
 ## The first two minutes
 
-Distances read in metres and kilometres and speeds in metres per second (`m/s`); see the [glossary](../glossary/).
+Distances read in meters and kilometers and speeds in meters per second (`m/s`); see the [glossary](../glossary/).
 
 - **Burn.** Hold <kbd>W</kbd> (or <kbd>Space</kbd>) for the main-drive burn and aim with the mouse. You point the hull, then thrust where the nose looks. The velocity sphere beside your ship shows where you are actually going.
 - **Lock a target.** Hold <kbd>Ctrl</kbd> to sweep the radar; the hollow box shows what you are about to lock. Settle on it and hold steady for a moment - a short lock-on dwell has to fill (longer the farther the target is) before the lock latches, and sweeping off before then cancels it. A white crosshair is a travel (nav) lock; raise weapons first (see below) and it lands as a red combat lock instead.

@@ -28,7 +28,7 @@ The mount aims at your combat lock with **true intercept lead** - the solution i
 
 A gun fires only while its barrel is actually **on** the point it is aiming at.
 The tolerance is what a round can still hit: about a degree, which is a
-corvette's beam at a kilometre. So a mount shoots while it is tracking and
+corvette's beam at a kilometer. So a mount shoots while it is tracking and
 **holds while it is slewing**, and two things follow from that. Wrenching the
 ship around mid-burst stops the guns until the barrels catch up. And a mount
 that cannot train on your target at all - the port gun ordered onto something
@@ -38,19 +38,53 @@ a gun does not spend are the ones that were going to miss.
 
 ## What it can bear on
 
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :199: traverse limits None/None :221-222, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 :291-292 where that constant is PI/18 at :97, hinge speed PI rad/s :274,:284; pdc_turret_prototype :414: muzzle_speed 100.0 :473 x projectile_lifetime 2.0 :480 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :47, the per-muzzle gate :72, doc'd 0.92 deg; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :199: traverse limits None/None :221-222, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 :291-292 where that constant is PI/18 at :97, hinge speed PI rad/s :274,:284; pdc_turret_prototype :414: muzzle_speed 100.0 :473 x projectile_lifetime 2.0 :480 = 200 world units (2 km) of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :47, the per-muzzle gate :72, doc'd 0.92 deg; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
 
 The mount turns all the way round, so nothing is out of reach sideways. What bounds it is the barrel's floor: it stops ten degrees below level, because below that it would be pointing back through the ship it is bolted to.
 
 <div class="widget" data-widget="turret-arc">
-<p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 200 u: muzzle speed times how long a round lives, not an authored range.</p>
+<p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 2 km: muzzle speed times how long a round lives, not an authored range.</p>
 </div>
 
 That blind cone is the whole reason [point defense](#point-defense) is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.
 
 ## Reach and closing speed
 
-A gun is a **short-range** weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about **2 km**. Everyone shoots the same gun, so a raider's rounds reach exactly as far as yours - what a scavenger-grade mount gives up is toughness, not range. Enemy ships know it - they close to roughly **1 km** and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for. [Combat](../../combat-weapons/#closing-speed) puts the multipliers on that, and the [engagement ladder](../../combat-weapons/#three-reaches) sets the gun's 200 u beside the other two families.
+A gun is a **short-range** weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about **2 km**. Everyone shoots the same gun, so a raider's rounds reach exactly as far as yours - what a scavenger-grade mount gives up is toughness, not range. Enemy ships know it - they close to roughly **1 km** and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for. [Combat](../../combat-weapons/#closing-speed) puts the multipliers on that, and the [engagement ladder](../../combat-weapons/#three-reaches) sets the gun's 2 km beside the other two families.
+
+## How far a round travels
+
+A round's type decides what happens after it hits something, and the two rules are different resources.
+
+A **Kinetic** round carries its damage as a **budget**. A round that **destroys** what it hits spends only what that target had left and **carries the rest on** into whatever was behind it - so a 100-damage slug that kills a 20-point plate arrives at the next thing with 80. A round that fails to destroy its target is spent on it. Thin destructible cover is therefore a **cost** rather than a wall, and a slug can never deal more in total than it was fired with.
+
+A **Pierce** round does not pay for travel out of its damage at all. It carries a separate **power** budget and spends that on **thickness**: crossing a section costs that section's **full health rating**, whether or not the round killed it and whether or not it was already damaged. So it crosses whatever it likes while power lasts, dealing its full damage to every layer, and its total damage happily exceeds what one round nominally carries.
+
+Two things follow from pricing power on the rating rather than on what is left. Light plating is nearly free to rake through while a heavy hull block eats most of a round's power in one go - the spaced-armour intuition, intact. And softening a section with other fire does **not** open a cheaper hole through it, so there is no trick of chipping first and raking after.
+
+Every gun rake also has a hard ceiling on how many sections one round may cross - six - so a round fired down the length of a lightly built ship cannot chain forever. The railgun's slug is the one exception: it has no layer cap at all, and power alone decides where it stops.
+
+<div class="widget" data-widget="round-travel">
+<p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 1,000 m/s destroys the first section and hits the second for 40; at 2,000 m/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 1,000 m/s (five sections deep), only 20 at 3,000 m/s - but never more than six sections.</p>
+</div>
+
+Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see [Shooting rock](../../../combat-weapons/#shooting-rock)); an invulnerable planetoid does not even do that. Torpedoes do not travel through anything either - they detonate.
+
+## Trigger discipline
+
+A magazine is a rate limit, not a budget - every weapon refills, and the rule is the same for all three (see [Magazines](../../combat-weapons/#magazines)). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.
+
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :502, reload delay 3.0 :504 / amount 200, fire_rate 100; bay ammo_capacity 6 :1225, reload delay 10.0 :1237 / amount 1, fire_rate 1.0; railgun ammo_capacity 1 :981, reload delay 12.0 :986 / amount 1, charge 1.5 :927) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is sections/mod.rs:202's own formula, amount / (delay + batch fire time). -->
+
+| Weapon | Magazine | Cyclic rate | One batch | Quiet, empty to full | Sustained |
+| --- | --- | --- | --- | --- | --- |
+| PDC turret | 500 rounds | 100 /s | 200 rounds per 3 s | 9 s | 40 rounds/s |
+| Torpedo bay | 6 torpedoes | 1 /s | 1 torpedo per 10 s | 60 s | 0.09 /s |
+| Railgun | 1 shell | one per 1.5 s charge | 1 shell per 12 s | 12 s | 0.07 /s |
+
+<div class="widget" data-widget="ammo-rhythm">
+<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A railgun is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half.</p>
+</div>
 
 ## Point defense
 
@@ -124,10 +158,10 @@ Four turrets ship on two mounts. The gatlings put one barrel on the compact asse
 <tr><th></th><th>Variant</th><th>Damage</th><th>Type</th><th>Fire rate</th><th>Magazine</th><th>Recharge</th><th>Muzzle</th><th>Reach</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Kinetic)</span><span class="catalog__id">pdc_twin_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Pierce)</span><span class="catalog__id">pdc_twin_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">100 u/s</td><td class="catalog__num">200 u</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Kinetic)</span><span class="catalog__id">pdc_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">PDC Turret (Pierce)</span><span class="catalog__id">pdc_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">100/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-kinetic-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Kinetic)</span><span class="catalog__id">pdc_twin_kinetic_turret_section</span></td><td class="catalog__num">4.0</td><td>Kinetic</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-pdc-twin-pierce-turret-section.png</span></span></span></td><td><span class="catalog__name">Twin PDC Turret (Pierce)</span><span class="catalog__id">pdc_twin_pierce_turret_section</span></td><td class="catalog__num">2.0</td><td>Pierce</td><td class="catalog__num">2 x 50/s</td><td class="catalog__num">500</td><td class="catalog__num">200 / 3 s</td><td class="catalog__num">1,000 m/s</td><td class="catalog__num">2 km</td><td class="catalog__num">130</td></tr>
 </tbody>
 </table>
 </div>

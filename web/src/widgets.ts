@@ -84,8 +84,43 @@ const TURN_RATE_MAX_DEG = 240; // state.rs:369
 const RCS_ACCEL = 1.5; // state.rs:392
 const RCS_SPEED_CAP = 2.0; // state.rs:389
 // One world unit is 10 m for physics and for the HUD alike
-// (crates/nova_events/src/scale.rs:14). Widgets keep raw u like the game code.
-const METERS_PER_UNIT = 10; // scale.rs:14
+// (crates/nova_events/src/scale.rs:14). Widgets model in world units like the
+// game code and print meters (see the units helpers below).
+// ---- units -----------------------------------------------------------------
+//
+// The scopes model the game in its own world units and print meters. One world
+// unit is 10 m (METERS_PER_UNIT, crates/nova_events/src/scale.rs:14), and the
+// readings follow the HUD's policy: whole meters below a kilometer, kilometers
+// above it, speeds in m/s.
+
+export const METERS_PER_UNIT = 10;
+const UNITS_PER_KM = 1000 / METERS_PER_UNIT;
+
+function numText(n: number, decimals: number): string {
+    return n.toLocaleString("en-US", { maximumFractionDigits: decimals });
+}
+
+/** A world-unit length as meters, or as kilometers from one kilometer up. */
+export function meters(units: number, decimals = 0): string {
+    const m = units * METERS_PER_UNIT;
+    if (Math.abs(m) >= 1000) return `${numText(m / 1000, 2)} km`;
+    return `${numText(m, decimals)} m`;
+}
+
+/** A world-unit length as kilometers. */
+export function kilometers(units: number, decimals = 2): string {
+    return `${numText(units / UNITS_PER_KM, decimals)} km`;
+}
+
+/** A world-unit speed as meters per second. */
+export function metersPerSec(unitsPerSec: number, decimals = 0): string {
+    return `${numText(unitsPerSec * METERS_PER_UNIT, decimals)} m/s`;
+}
+
+/** A world-unit acceleration as meters per second squared. */
+export function metersPerSec2(unitsPerSec2: number, decimals = 1): string {
+    return `${numText(unitsPerSec2 * METERS_PER_UNIT, decimals)} m/s^2`;
+}
 
 // The attitude envelope (crates/nova_ship/src/physics/attitude.rs:72-93): a
 // hull's turn ceiling is the lower of its computers' torque over its inertia
@@ -118,7 +153,7 @@ const TURRET_DEPRESSION_DEG = -10; // standard.rs:84,157 (PI / 18)
 const TURRET_ELEVATION_DEG = 90; // standard.rs:158 (FRAC_PI_2)
 const TURRET_SLEW_DEG_S = 180; // standard.rs:141,150 (PI rad/s)
 // A turret has no range field: muzzle speed times projectile lifetime IS its
-// reach (config.rs:124-126), 100 u/s over 2.0 s.
+// reach (config.rs:124-126), 100 world units per second over 2.0 s.
 const PDC_REACH_U = 200; // standard.rs:273,280
 
 // Magazines and the quiet interval that refills them
@@ -149,7 +184,7 @@ const SERPENT_WEAVE_RATE = 1.4; // mod.rs:349 (rad/s)
 // The spinal lance (standard.rs, `railgun_lance_section`). Its slug is a
 // Pierce round with NO layer cap (railgun_section/firing.rs:206 sets
 // `layers: u32::MAX`), so `slug_power` alone bounds what one shot takes, and
-// at 1500 u/s the pierce curve sits at its 3.0 ceiling whatever the ships are
+// at 1500 world units per second the pierce curve sits at its 3.0 ceiling whatever the ships are
 // doing. The shot's cycle is the charge plus the one-shell reload.
 const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:927
 const LANCE_SLUG_SPEED = 1500; // standard.rs:928
@@ -642,8 +677,8 @@ export function gotoFlipDistance(
 
 export interface GotoSample {
     t: number;
-    x: number; // travelled, u from the start point
-    v: number; // closing speed, u/s
+    x: number; // travelled, world units from the start point
+    v: number; // closing speed, world units per second
     phase: "burn" | "flip" | "brake" | "settle";
 }
 
@@ -696,8 +731,8 @@ export function gotoSim(
             if (t >= flipUntil) phase = "brake";
         } else if (phase === "brake") {
             // Outside the standoff the envelope floors the approach at
-            // 1.5 u/s; inside it the drive brakes for zero, and only under
-            // the 2.0 u/s RCS cap do the fine jets take over
+            // 1.5 world units per second; inside it the drive brakes for zero, and only under
+            // the 2.0 world units per second RCS cap do the fine jets take over
             // (autopilot.rs:568-577).
             v = Math.max(v - braking * dt, x < park ? MIN_APPROACH_SPEED : 0);
             if (x >= park && v <= RCS_SPEED_CAP) phase = "settle";
@@ -865,7 +900,7 @@ export interface CorridorResult {
 // by travel depth, then from the axis outward (pass three), each paying
 // `max health / pierce multiplier` out of the one budget (damage.rs
 // `pierce_remainder`), and the bite that empties the budget still lands. A
-// 1500 u/s slug pins that multiplier at its 3.0 ceiling. The budget is walked
+// slug at 1500 world units per second pins that multiplier at its 3.0 ceiling. The budget is walked
 // in f32 exactly as the game walks it, because 27 x (200 / 3) IS 1800 and
 // only the rounding decides whether a 28th crossing lands - it does.
 export function lanceCorridor(
@@ -1006,7 +1041,7 @@ function control(
     const name = el("span", undefined, `${label}: `);
     const val = el("span", "widget__value", format(value));
     // The label column is sized to its content, so a reading that changes
-    // length mid-drag ("1.0 u (shipped)" to "1.5 u") would resize the fader
+    // length mid-drag ("10 m (shipped)" to "15 m") would resize the fader
     // under the pointer and the thumb would jump. The widest reading the
     // fader can show sits hidden under the live one, so the column holds.
     let widest = format(value);
@@ -1583,7 +1618,7 @@ function initRoundTravel(host: HTMLElement): void {
                     "text-anchor": lastTick ? "end" : "middle",
                     class: "widget-mark--axis",
                 },
-                lastTick ? "400 u/s" : String(v)
+                lastTick ? metersPerSec(v) : numText(v * METERS_PER_UNIT, 0)
             )
         );
     }
@@ -1876,7 +1911,7 @@ function initRoundTravel(host: HTMLElement): void {
         400,
         10,
         REFERENCE_CLOSING_SPEED,
-        (v) => `${v} u/s`,
+        (v) => metersPerSec(v),
         onParam
     );
     const damageControl = control(
@@ -1916,14 +1951,14 @@ function initBlastLayers(host: HTMLElement): void {
     const TARGET_DISTANCE = 16;
     // Presentation only: the game resolves a blast in one fixed tick; the
     // scope replays it at a legible sweep speed.
-    const WAVE_SPEED = 12; // u of front travel per scope second
+    const WAVE_SPEED = 12; // world units of front travel per scope second
     const RING_STEP = 10;
     header(
         host,
         "Blast scope: pressure through a hull",
         `Detonation at the scope origin; three light hull layers (${hp} hp, ` +
-            `the catalog value) at 10, 12 and 14 u on the bearing; the ` +
-            `section you care about at ${TARGET_DISTANCE} u. Pressure falls ` +
+            `the catalog value) at 100, 120 and 140 m on the bearing; the ` +
+            `section you care about at ${meters(TARGET_DISTANCE)}. Pressure falls ` +
             "off linearly to zero at the radius, every destroyed layer " +
             "passes 65% on, and a layer that survives stops the wave dead. " +
             "Defaults are the shipped torpedo warhead."
@@ -1972,7 +2007,7 @@ function initBlastLayers(host: HTMLElement): void {
     const targetStat = stat(stats, "target section");
     const readout = el("p", "widget__readout");
 
-    // Everything scale-dependent is rebuilt per parameter change (the u->px
+    // Everything scale-dependent is rebuilt per parameter change (the unit-to-px
     // scale follows the scope range); the sweep then only mutates it.
     let damage = TORPEDO_BLAST_DAMAGE;
     let radius = TORPEDO_BLAST_RADIUS;
@@ -1999,7 +2034,7 @@ function initBlastLayers(host: HTMLElement): void {
             RING_STEP;
         ppu = R_PX / scopeR;
         svg.replaceChildren();
-        // Range rings, labeled in u along the vertical.
+        // Range rings, labeled in meters along the vertical.
         for (let r = RING_STEP; r <= scopeR; r += RING_STEP) {
             svg.appendChild(
                 svgEl("circle", {
@@ -2017,7 +2052,7 @@ function initBlastLayers(host: HTMLElement): void {
                         y: String(CY - r * ppu - 3),
                         class: "widget-mark--axis",
                     },
-                    r === scopeR ? `${r} u` : String(r)
+                    r === scopeR ? meters(r) : numText(r * METERS_PER_UNIT, 0)
                 )
             );
         }
@@ -2040,7 +2075,7 @@ function initBlastLayers(host: HTMLElement): void {
                     "text-anchor": "end",
                     class: "widget-mark--label-old",
                 },
-                `r ${radius} u`
+                `r ${meters(radius)}`
             )
         );
         // The bearing ray the layers sit on.
@@ -2206,7 +2241,7 @@ function initBlastLayers(host: HTMLElement): void {
                     "text-anchor": "end",
                     class: "widget-mark--axis",
                 },
-                `${scopeR} u`
+                meters(scopeR)
             )
         );
         svg.appendChild(
@@ -2273,7 +2308,7 @@ function initBlastLayers(host: HTMLElement): void {
         // The per-layer cells restart blank; the sweep fills them.
         stack.replaceChildren();
         cells = LAYER_DISTANCES.map((d) => {
-            const cell = sectionCell("STANDBY", `@ ${d} u: ${hp} hp`, "");
+            const cell = sectionCell("STANDBY", `@ ${meters(d)}: ${hp} hp`, "");
             stack.appendChild(cell);
             return cell;
         });
@@ -2314,7 +2349,7 @@ function initBlastLayers(host: HTMLElement): void {
                 if (flash) cls += " is-flash";
             }
             layerArcs[i].setAttribute("class", cls);
-            const at = `@ ${d} u`;
+            const at = `@ ${meters(d)}`;
             if (!crossed) {
                 setCellState(i, "STANDBY", `${at}: ${hp} hp`, "");
             } else if (layer.state === "dead") {
@@ -2355,7 +2390,7 @@ function initBlastLayers(host: HTMLElement): void {
         profDot.setAttribute("cx", String(xd(front)));
         profDot.setAttribute("cy", String(yp(frontInfo.pressure)));
         // Readouts tick with the front.
-        frontStat.textContent = `${front.toFixed(1)} u`;
+        frontStat.textContent = meters(front);
         pressureStat.textContent = frontInfo.stopped
             ? "0 (stopped)"
             : `${Math.round(frontInfo.pressure)} hp`;
@@ -2370,23 +2405,23 @@ function initBlastLayers(host: HTMLElement): void {
         if (t >= duration()) {
             if (blast.target > 0) {
                 readout.textContent =
-                    `Target section at ${TARGET_DISTANCE} u takes ` +
+                    `Target section at ${meters(TARGET_DISTANCE)} takes ` +
                     `${Math.round(blast.target)} hp, through ${destroyed} ` +
                     `destroyed layer${destroyed === 1 ? "" : "s"}.`;
             } else {
                 readout.textContent =
-                    `Target section at ${TARGET_DISTANCE} u takes 0 - a ` +
+                    `Target section at ${meters(TARGET_DISTANCE)} takes 0 - a ` +
                     "surviving layer stopped the wave.";
                 readout.classList.add("is-warn");
             }
         } else if (frontInfo.stopped) {
             readout.textContent =
-                `Wave stopped at the layer holding at ${holdDist} u - ` +
+                `Wave stopped at the layer holding at ${meters(holdDist)} - ` +
                 "everything behind it on the bearing is shielded.";
             readout.classList.add("is-warn");
         } else {
             readout.textContent =
-                `Shock front at ${front.toFixed(1)} u - carrying ` +
+                `Shock front at ${meters(front)} - carrying ` +
                 `${Math.round(frontInfo.pressure)} hp along the bearing.`;
         }
     };
@@ -2413,7 +2448,7 @@ function initBlastLayers(host: HTMLElement): void {
         60,
         2,
         TORPEDO_BLAST_RADIUS,
-        (v) => `${v} u`,
+        (v) => meters(v),
         onParam
     );
     const controls = el("div", "widget__controls");
@@ -2894,7 +2929,7 @@ function initControllerArm(host: HTMLElement): void {
         svgEl(
             "text",
             { x: String(BX0), y: "16", class: "widget-mark--axis" },
-            "ceiling (rad/s^2) against arm (u)"
+            "ceiling (rad/s^2) against arm (m)"
         )
     );
 
@@ -3133,7 +3168,7 @@ function initControllerArm(host: HTMLElement): void {
         ray.setAttribute("y1", String(cy));
         ray.setAttribute("x2", String(tipX));
         ray.setAttribute("y2", String(tipY));
-        armLabel.textContent = `arm ${state.arm.toFixed(2)} u, ceiling ${structural.toFixed(2)} rad/s^2`;
+        armLabel.textContent = `arm ${meters(state.arm, 1)}, ceiling ${structural.toFixed(2)} rad/s^2`;
 
         nowDot.setAttribute("cx", String(bx(state.arm)));
         nowDot.setAttribute("cy", String(by(structural)));
@@ -3141,7 +3176,7 @@ function initControllerArm(host: HTMLElement): void {
         intactDot.setAttribute("opacity", damaged ? "1" : "0");
         intactLabel.setAttribute("opacity", damaged ? "1" : "0");
 
-        armStat.textContent = `${state.arm.toFixed(2)} u`;
+        armStat.textContent = `${meters(state.arm, 1)}`;
         ceilingStat.textContent = `${ceiling.toFixed(2)} rad/s^2`;
         bindsStat.textContent =
             torque < structural ? "torque-limited" : "structure-limited";
@@ -3151,7 +3186,7 @@ function initControllerArm(host: HTMLElement): void {
         const gain = (structural / structuralCeiling(intact.arm) - 1) * 100;
         if (!destroyed.size) {
             readout.textContent =
-                `Nine sections, ${state.arm.toFixed(2)} u of arm. The metal ` +
+                `Nine sections, ${meters(state.arm, 1)} of arm. The metal ` +
                 `gives up at ${structural.toFixed(2)} rad/s^2, and the one ` +
                 `flight computer in its fuselage could push ` +
                 `${torque.toFixed(1)} - ${(torque / structural).toFixed(0)} ` +
@@ -3162,7 +3197,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
-                `and the arm has grown to ${state.arm.toFixed(2)} u - so the ` +
+                `and the arm has grown to ${meters(state.arm, 1)} - so the ` +
                 `wreck turns ${Math.abs(gain).toFixed(0)}% SOFTER than the ` +
                 "whole ship did. Losing weight off one end drags the balance " +
                 "point toward the other, and the reach to whatever is left " +
@@ -3171,7 +3206,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}. ` +
-                `The arm is down to ${state.arm.toFixed(2)} u and the wreck ` +
+                `The arm is down to ${meters(state.arm, 1)} and the wreck ` +
                 `turns ${gain.toFixed(0)}% harder than the whole ship did - ` +
                 `a 180 in ${flipSeconds(ceiling).toFixed(2)} s against ` +
                 `${flipSeconds(structuralCeiling(intact.arm)).toFixed(2)} s.`;
@@ -3179,7 +3214,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
-                `and the arm is still ${state.arm.toFixed(2)} u. Damage only ` +
+                `and the arm is still ${meters(state.arm, 1)}. Damage only ` +
                 "buys a turn when it takes weight off ONE end: cut the same " +
                 "amount off both and the balance point stays where it was.";
         }
@@ -3475,7 +3510,7 @@ function initControllerMargin(host: HTMLElement): void {
         "p",
         "widget__note",
         "The corvette's own numbers: a " +
-            `${arm.toFixed(2)} u arm, so ${structural.toFixed(2)} rad/s^2 ` +
+            `${meters(arm, 1)} arm, so ${structural.toFixed(2)} rad/s^2 ` +
             `of budget and ${sustainedDeg.toFixed(0)} deg/s of committed ` +
             "turn. A longer ship commits earlier and a shorter one later, " +
             "but the shape of this curve is the same on every hull, because " +
@@ -3508,7 +3543,7 @@ function initGravityWell(host: HTMLElement): void {
     );
 
     // A wider left gutter than the sibling plots: the top axis label carries
-    // a unit ("3.3 u/s^2") and must not clip at the viewBox edge.
+    // a unit ("33 m/s^2") and must not clip at the viewBox edge.
     const X0 = 68;
     const X1 = 548;
     const Y0 = 196;
@@ -3568,7 +3603,9 @@ function initGravityWell(host: HTMLElement): void {
                         "text-anchor": "end",
                         class: "widget-mark--axis",
                     },
-                    a === surface ? `${a.toFixed(1)} u/s^2` : a.toFixed(1)
+                    a === surface
+                        ? metersPerSec2(a, 0)
+                        : numText(a * METERS_PER_UNIT, 0)
                 )
             );
         }
@@ -3584,7 +3621,7 @@ function initGravityWell(host: HTMLElement): void {
                         "text-anchor": last ? "end" : "middle",
                         class: "widget-mark--axis",
                     },
-                    last ? `${r} u` : String(r)
+                    last ? kilometers(r, 1) : numText(r / UNITS_PER_KM, 1)
                 )
             );
         }
@@ -3649,7 +3686,7 @@ function initGravityWell(host: HTMLElement): void {
                     y: String(Y1 + 26),
                     class: "widget-mark--label-old",
                 },
-                `SOI ${Math.round(soi)} u`
+                `SOI ${meters(soi)}`
             )
         );
         // ORBIT's trusted band, as a strip on the axis.
@@ -3707,7 +3744,7 @@ function initGravityWell(host: HTMLElement): void {
         cursor.setAttribute("x2", String(x(r)));
         dot.setAttribute("cx", String(x(r)));
         dot.setAttribute("cy", String(y(a)));
-        pullStat.textContent = `${a.toFixed(2)} u/s^2`;
+        pullStat.textContent = metersPerSec2(a, 1);
         const fadeStart = soi * (1 - GRAVITY_FADE_FRACTION);
         const zone =
             r >= soi
@@ -3718,16 +3755,13 @@ function initGravityWell(host: HTMLElement): void {
                     ? "ON THE CLAMP"
                     : "INVERSE SQUARE";
         zoneStat.textContent = zone;
-        soiStat.textContent = `${Math.round(soi)} u (${(
-            (soi * METERS_PER_UNIT) /
-            1000
-        ).toFixed(1)} km on the HUD)`;
+        soiStat.textContent = meters(soi);
         const band = orbitBand(bodyR, soi);
         const inBand = band !== null && r >= band.min && r <= band.max;
         orbitStat.textContent =
             r >= soi || r <= bodyR
                 ? "--"
-                : `${circularOrbitSpeed(mu, r).toFixed(1)} u/s` +
+                : `${metersPerSec(circularOrbitSpeed(mu, r))}` +
                   (inBand ? "" : " (outside the ORBIT band)");
         readout.classList.remove("is-warn");
         if (r >= soi) {
@@ -3746,7 +3780,7 @@ function initGravityWell(host: HTMLElement): void {
         } else if (inBand) {
             readout.textContent =
                 `Clean inverse square. ORBIT would accept a ring here, at ` +
-                `${circularOrbitSpeed(mu, r).toFixed(1)} u/s tangential.`;
+                `${metersPerSec(circularOrbitSpeed(mu, r))} tangential.`;
         } else {
             readout.textContent =
                 "Clean inverse square - but outside ORBIT's trusted band " +
@@ -3765,7 +3799,7 @@ function initGravityWell(host: HTMLElement): void {
         48000,
         1000,
         SHAKEDOWN_PLANETOID_MU,
-        (v) => `${v} u^3/s^2`,
+        (v) => String(v),
         onParam
     );
     const radiusControl = control(
@@ -3774,7 +3808,7 @@ function initGravityWell(host: HTMLElement): void {
         120,
         5,
         90,
-        (v) => `${v} u`,
+        (v) => meters(v),
         onParam
     );
     const rControl = control(
@@ -3783,7 +3817,7 @@ function initGravityWell(host: HTMLElement): void {
         100,
         1,
         40,
-        (v) => `${Math.round((v / 100) * xMax)} u`,
+        (v) => meters(Math.round((v / 100) * xMax)),
         update
     );
     // The distance fader spans the live scope range, so its readout re-labels
@@ -3791,9 +3825,9 @@ function initGravityWell(host: HTMLElement): void {
     const relabel = (): void => {
         const val = rControl.row.querySelector(".widget__value");
         if (val)
-            val.textContent = `${Math.round(
-                (Number(rControl.input.value) / 100) * xMax
-            )} u`;
+            val.textContent = meters(
+                Math.round((Number(rControl.input.value) / 100) * xMax)
+            );
     };
     muControl.input.addEventListener("input", relabel);
     radiusControl.input.addEventListener("input", relabel);
@@ -3806,7 +3840,7 @@ function initGravityWell(host: HTMLElement): void {
         "p",
         "widget__note",
         "Defaults are the Shakedown Run planetoid (mass 27000, drawn rock " +
-            "~90 u): a 329 u sphere of influence. The Final Tally anchorage " +
+            "~900 m): a 3.29 km sphere of influence. The Final Tally anchorage " +
             "rock authors 45000. The drawn rock is bigger than the body's " +
             "authored nominal radius; the surface clamp bites at the drawn " +
             "surface."
@@ -3827,13 +3861,13 @@ function initGravityWell(host: HTMLElement): void {
 // the incumbent keeps ownership until a challenger clearly beats it (a 1.1x
 // margin), so dragging the ship back and forth shows the sticky handoff.
 function initDominantWell(host: HTMLElement): void {
-    const D = 600; // separation of the two well centers, u
+    const D = 600; // separation of the two well centers, world units
     const RADIUS_A = 60;
     const RADIUS_B = 60;
     header(
         host,
         "Handoff scope: the dominant well",
-        `Two wells ${D} u apart. Where their spheres of influence overlap ` +
+        `Two wells ${meters(D)} apart. Where their spheres of influence overlap ` +
             "the pulls do not blend - you feel only the DOMINANT well, and " +
             "it keeps ownership until a challenger pulls more than 1.10x " +
             "harder. Drag the ship across the boundary both ways: the " +
@@ -3916,7 +3950,7 @@ function initDominantWell(host: HTMLElement): void {
                         "text-anchor": p === D ? "end" : "middle",
                         class: "widget-mark--axis",
                     },
-                    p === 0 ? "WELL A" : p === D ? "WELL B" : `${p} u`
+                    p === 0 ? "WELL A" : p === D ? "WELL B" : meters(p)
                 )
             );
         }
@@ -4015,8 +4049,8 @@ function initDominantWell(host: HTMLElement): void {
         dotA.setAttribute("cy", String(yRef(a)));
         dotB.setAttribute("cx", String(x(p)));
         dotB.setAttribute("cy", String(yRef(b)));
-        pullAStat.textContent = `${a.toFixed(2)} u/s^2`;
-        pullBStat.textContent = `${b.toFixed(2)} u/s^2`;
+        pullAStat.textContent = metersPerSec2(a, 1);
+        pullBStat.textContent = metersPerSec2(b, 1);
         ownerStat.textContent =
             owner === null ? "NONE" : owner === 0 ? "WELL A" : "WELL B";
         readout.classList.remove("is-warn");
@@ -4048,7 +4082,7 @@ function initDominantWell(host: HTMLElement): void {
         D,
         2,
         120,
-        (v) => `${v} u`,
+        (v) => meters(v),
         update
     );
     const controls = el("div", "widget__controls");
@@ -4058,7 +4092,7 @@ function initDominantWell(host: HTMLElement): void {
         "p",
         "widget__note",
         "Well A is the Shakedown planetoid (mass 27000), well B the Final " +
-            "Tally anchorage rock (mass 45000); both drawn at 60 u here so " +
+            "Tally anchorage rock (mass 45000); both drawn at 600 m here so " +
             "the curves stay legible. The pick and the 1.10x margin are the " +
             "game's own dominant_well rule."
     );
@@ -4078,14 +4112,14 @@ function initDominantWell(host: HTMLElement): void {
 // at the flip line, brake at margin, ease onto the standoff with RCS. The
 // scope replays the resolved 1D leg in scope time with the real phase chip.
 function initGotoVerb(host: HTMLElement): void {
-    const TARGET_RADIUS = 20; // the widget's fixture body, u
+    const TARGET_RADIUS = 20; // the widget's fixture body, world units
     header(
         host,
         "Autopilot scope: one GOTO leg",
         "GOTO flies the real hull: it burns toward the lock while the " +
             "arrival envelope allows, swings retrograde one flip early, " +
             "brakes at 85% of what the drive can do, and eases the last " +
-            "stretch onto a standoff 50 u off the surface with the fine " +
+            "stretch onto a standoff 500 m off the surface with the fine " +
             "jets. Play the tape; the plot shows speed against the envelope."
     );
 
@@ -4228,7 +4262,7 @@ function initGotoVerb(host: HTMLElement): void {
                         "text-anchor": "end",
                         class: "widget-mark--axis",
                     },
-                    `${v} u/s`
+                    metersPerSec(v)
                 )
             );
         }
@@ -4241,7 +4275,7 @@ function initGotoVerb(host: HTMLElement): void {
                     "text-anchor": "end",
                     class: "widget-mark--axis",
                 },
-                `${targetDistance} u`
+                meters(targetDistance)
             )
         );
         // The arrival envelope: the fastest speed the flip still recovers
@@ -4321,12 +4355,12 @@ function initGotoVerb(host: HTMLElement): void {
         cursorDot = svgEl("circle", { r: "4", class: "widget-mark--dot-now" });
         svg.appendChild(cursorDot);
         // Resolved stats.
-        peakStat.textContent = `${sim.peakV.toFixed(1)} u/s`;
-        flipStat.textContent = `${Math.round(sim.flipX)} u out, T+${sim.flipT.toFixed(1)}s`;
+        peakStat.textContent = `${metersPerSec(sim.peakV)}`;
+        flipStat.textContent = `${meters(sim.flipX)} out, T+${sim.flipT.toFixed(1)}s`;
         etaStat.textContent = `${sim.duration.toFixed(1)} s`;
         standoffStat.textContent =
-            `${Math.round(sim.standoff)} u off the center ` +
-            `(${ARRIVAL_STANDOFF} u + the body)`;
+            `${meters(sim.standoff)} off the center ` +
+            `(${meters(ARRIVAL_STANDOFF)} + the body)`;
     };
 
     const PHASE_LABEL: Record<GotoSample["phase"], string> = {
@@ -4369,7 +4403,7 @@ function initGotoVerb(host: HTMLElement): void {
         cursorDot.setAttribute("cy", String(py(s.v)));
         if (s.phase === "burn") {
             readout.textContent =
-                `Burning out at ${s.v.toFixed(1)} u/s - under the envelope, ` +
+                `Burning out at ${metersPerSec(s.v)} - under the envelope, ` +
                 "so the flip still recovers all of it.";
         } else if (s.phase === "flip") {
             readout.textContent =
@@ -4378,7 +4412,7 @@ function initGotoVerb(host: HTMLElement): void {
         } else if (s.phase === "brake") {
             readout.textContent =
                 `Braking at 85% authority, riding the envelope down - the ` +
-                "floor is the 1.5 u/s minimum approach.";
+                "floor is the 15 m/s minimum approach.";
         } else {
             readout.textContent =
                 "Inside the standoff: main drive cut, RCS eases the last " +
@@ -4397,7 +4431,7 @@ function initGotoVerb(host: HTMLElement): void {
         3000,
         50,
         1200,
-        (v) => `${v} u`,
+        (v) => meters(v),
         onParam
     );
     const accelControl = control(
@@ -4406,7 +4440,7 @@ function initGotoVerb(host: HTMLElement): void {
         20,
         1,
         8,
-        (v) => `${v} u/s^2`,
+        (v) => metersPerSec2(v, 0),
         onParam
     );
     const controls = el("div", "widget__controls");
@@ -4420,7 +4454,7 @@ function initGotoVerb(host: HTMLElement): void {
             "(so the brake angle is a full 180), a stationary target. The " +
             "hull is the shipped corvette, held by its own structure to " +
             "2.84 rad/s^2. The envelope, flip line, 85% brake margin, " +
-            "1.5 u/s approach floor, standoff and RCS settle are the game's " +
+            "15 m/s approach floor, standoff and RCS settle are the game's " +
             "own rules."
     );
 
@@ -4444,7 +4478,7 @@ function initGotoVerb(host: HTMLElement): void {
 function initLockSweep(host: HTMLElement): void {
     interface Contact {
         name: string;
-        dist: number; // u
+        dist: number; // world units
         bearing: number; // deg from straight up
     }
     const CONTACTS: Contact[] = [
@@ -4532,7 +4566,7 @@ function initLockSweep(host: HTMLElement): void {
                     "text-anchor": anchor,
                     class: "widget-mark--detail",
                 },
-                `${c.dist} u - dwell ${lockDwellSecs(c.dist).toFixed(2)} s`
+                `${meters(c.dist)} - dwell ${lockDwellSecs(c.dist).toFixed(2)} s`
             )
         );
         const travelBox = svgEl("rect", {
@@ -4800,7 +4834,7 @@ function initLockSweep(host: HTMLElement): void {
         "widget__note",
         "Constants are the shipped ones: 18-degree cone half-angle, 0.25 s " +
             "tap threshold, dwell 0.6 s point-blank stretching to 1.5 s at " +
-            "2000 u (the HUD reads that as 20 km), staged clearing. " +
+            "20 km, staged clearing. " +
             "Candidate picking is simplified to the aim keys; in game the " +
             "sweep scores whatever is nearest your look ray, with " +
             "hysteresis. An idle combat lock also decays after " +
@@ -5781,7 +5815,7 @@ function initTurretArc(host: HTMLElement): void {
         `Both hinges turn at ${TURRET_SLEW_DEG_S} deg/s at the same time, so ` +
             "a swing costs the larger of the two angles rather than their " +
             "sum; the timings above assume the barrel starts level and on " +
-            `the old bearing. Reach is ${PDC_REACH_U} u - muzzle speed times ` +
+            `the old bearing. Reach is ${meters(PDC_REACH_U)} - muzzle speed times ` +
             "how long a round lives, not an authored range."
     );
 
@@ -5798,11 +5832,11 @@ function initTurretArc(host: HTMLElement): void {
 interface TorpedoType {
     name: string;
     weaveAngle: number;
-    cruise: number; // authored cap, u/s
-    lineSpeed: number; // measured speed along the direct line, u/s
-    runSecs: number; // measured time over the 300 u run-in
+    cruise: number; // authored cap, world units per second
+    lineSpeed: number; // measured speed along the direct line, world units per second
+    runSecs: number; // measured time over the 300-unit (3 km) run-in
     rounds: number; // rounds one stock PDC spends to stop it
-    killedAt: number; // where that PDC finally kills it, u out
+    killedAt: number; // where that PDC finally kills it, world units out
     lane: number;
 }
 
@@ -5923,7 +5957,7 @@ function initTorpedoRun(host: HTMLElement): void {
                     "text-anchor": "middle",
                     class: "widget-mark--axis",
                 },
-                d === 300 ? "300 u out" : String(d)
+                d === 300 ? `${meters(d)} out` : numText(d / UNITS_PER_KM, 1)
             )
         );
 
@@ -5964,7 +5998,7 @@ function initTorpedoRun(host: HTMLElement): void {
                 y: String(type.lane - 26),
                 class: "widget-mark--detail",
             },
-            `${type.cruise} u/s cap, weave ${type.weaveAngle.toFixed(2)} rad`
+            `${metersPerSec(type.cruise)} cap, weave ${type.weaveAngle.toFixed(2)} rad`
         );
         svg.appendChild(detail);
         const path = svgEl("path", { d: "", class: "widget-mark--now" });
@@ -5986,7 +6020,7 @@ function initTorpedoRun(host: HTMLElement): void {
                 class: "widget-mark--label-gate",
                 visibility: "hidden",
             },
-            `killed ${type.killedAt} u out`
+            `killed ${meters(type.killedAt)} out`
         );
         svg.appendChild(killLabel);
         const dart = svgEl("path", { d: "", class: "widget-mark--dart" });
@@ -6011,7 +6045,7 @@ function initTorpedoRun(host: HTMLElement): void {
 
     const stats = el("div", "widget__stats");
     const arrivalStat = stat(stats, "arrives");
-    const runnerStat = stat(stats, "closes on a 25 u/s runner");
+    const runnerStat = stat(stats, "closes on a 250 m/s runner");
     const costStat = stat(stats, "rounds one PDC spends");
     const readout = el("p", "widget__readout");
 
@@ -6084,7 +6118,7 @@ function initTorpedoRun(host: HTMLElement): void {
             (t) => `${t.name.toLowerCase()} ${t.runSecs.toFixed(2)} s`
         ).join(", ");
         runnerStat.textContent = TORPEDO_TYPES.map(
-            (t) => `${(t.lineSpeed - 25).toFixed(1)} u/s`
+            (t) => `${metersPerSec(t.lineSpeed - 25)}`
         ).join(" / ");
         costStat.textContent = on
             ? TORPEDO_TYPES.map((t) => `${t.rounds}`).join(" / ")
@@ -6093,14 +6127,14 @@ function initTorpedoRun(host: HTMLElement): void {
         readout.textContent = on
             ? "One stock PDC stops both, and that is the whole point: it " +
               `spends ${TORPEDO_TYPES[0].rounds} rounds on the Lance and ` +
-              `kills it ${TORPEDO_TYPES[0].killedAt} u out, then spends ` +
+              `kills it ${meters(TORPEDO_TYPES[0].killedAt)} out, then spends ` +
               `${TORPEDO_TYPES[1].rounds} on the Serpent and only catches ` +
-              `it ${TORPEDO_TYPES[1].killedAt} u out - on its own doorstep. ` +
+              `it ${meters(TORPEDO_TYPES[1].killedAt)} out - on its own doorstep. ` +
               "Saturation is what beats point defense; one torpedo at a " +
               "time never does."
             : "Nothing shooting back, and the Lance simply wins: it holds " +
               `the faster cap and arrives ${(TORPEDO_TYPES[1].runSecs - TORPEDO_TYPES[0].runSecs).toFixed(2)} ` +
-              "seconds sooner over the same 300 u. That is what the weave " +
+              "seconds sooner over the same 3 km. That is what the weave " +
               "costs, and it is why the type you load depends entirely on " +
               "whether the target can answer.";
         transport.seekEnd();
@@ -6119,10 +6153,10 @@ function initTorpedoRun(host: HTMLElement): void {
         "p",
         "widget__note",
         "Arrival times, kill ranges and round counts are the harness " +
-            "measurement over this exact 300 u run-in against one stock " +
+            "measurement over this exact 3 km run-in against one stock " +
             "mount - not a formula run on the cruise caps. The drawn " +
             "corkscrew is scaled from the one swing the harness measured: " +
-            `${MEASURED_SWING_U} u off the direct line at the shipped ` +
+            `${meters(MEASURED_SWING_U)} off the direct line at the shipped ` +
             `${SERPENT_WEAVE_ANGLE} rad and ${SERPENT_WEAVE_RATE} rad/s.`
     );
 
@@ -6226,7 +6260,7 @@ function initThrusterMass(host: HTMLElement): void {
         svgEl(
             "text",
             { x: String(X0 - 5), y: "14", class: "widget-mark--axis" },
-            "u/s^2 against basic drives added"
+            "m/s^2 against basic drives added"
         )
     );
     svg.appendChild(
@@ -6247,7 +6281,7 @@ function initThrusterMass(host: HTMLElement): void {
                 "text-anchor": "end",
                 class: "widget-mark--label-gate",
             },
-            `${FIXED_TICK_HZ} u/s^2 - a hull built of nothing but drives`
+            `${metersPerSec2(FIXED_TICK_HZ, 0)} - a hull built of nothing but drives`
         )
     );
 
@@ -6290,7 +6324,7 @@ function initThrusterMass(host: HTMLElement): void {
     const drivesStat = stat(stats, "drives");
     const accelStat = stat(stats, "acceleration");
     const gStat = stat(stats, "in G");
-    const sprintStat = stat(stats, "0 to 100 u/s");
+    const sprintStat = stat(stats, "0 to 1,000 m/s");
     const readout = el("p", "widget__readout");
 
     const update = (): void => {
@@ -6315,7 +6349,7 @@ function initThrusterMass(host: HTMLElement): void {
 
         massStat.textContent = mass.toFixed(2);
         drivesStat.textContent = String(rig.drives + extra);
-        accelStat.textContent = `${a.toFixed(2)} u/s^2`;
+        accelStat.textContent = metersPerSec2(a, 1);
         gStat.textContent = `${((a * METERS_PER_UNIT) / 9.81).toFixed(1)} G`;
         sprintStat.textContent = `${(100 / a).toFixed(1)} s`;
 
@@ -6324,7 +6358,7 @@ function initThrusterMass(host: HTMLElement): void {
             readout.textContent =
                 `Stock, all three carry two drives pushing 1.0 each. The ` +
                 `yacht weighs ${hullState(RACER_PARTS).mass.toFixed(2)} and ` +
-                `pulls ${stock[0].toFixed(1)} u/s^2; the hauler weighs ` +
+                `pulls ${metersPerSec2(stock[0], 0)}; the hauler weighs ` +
                 `${hullState(CARGOB_PARTS).mass.toFixed(2)} and pulls ` +
                 `${stock[2].toFixed(1)}. Nothing authored that gap - it is ` +
                 "the volume of the boxes each hull is built from.";
@@ -6332,10 +6366,10 @@ function initThrusterMass(host: HTMLElement): void {
             const gain = ((a / accel(rig, 0) - 1) * 100).toFixed(0);
             readout.textContent =
                 `${extra} basic drive${extra === 1 ? "" : "s"} on the ` +
-                `${rig.name}: ${a.toFixed(1)} u/s^2, ${gain}% up on stock. ` +
+                `${rig.name}: ${metersPerSec2(a, 0)}, ${gain}% up on stock. ` +
                 "Each one is a unit of mass as well as a unit of push, so " +
                 `the return tapers - and no stack of them passes ` +
-                `${FIXED_TICK_HZ} u/s^2, which is what one drive would do ` +
+                `${metersPerSec2(FIXED_TICK_HZ, 0)}, which is what one drive would do ` +
                 "carrying only itself.";
         }
     };
@@ -6828,7 +6862,7 @@ function initIgnitionDelay(host: HTMLElement): void {
         20,
         0.5,
         TORPEDO_EJECT_SPEED,
-        (v) => `${v.toFixed(1)} u/s`,
+        (v) => metersPerSec(v),
         () => update()
     );
     controls.appendChild(delay.row);
@@ -6875,7 +6909,7 @@ function initIgnitionDelay(host: HTMLElement): void {
                     "text-anchor": "middle",
                     class: "widget-mark--detail",
                 },
-                `${u}u`
+                meters(u)
             )
         );
     }
@@ -6952,9 +6986,9 @@ function initIgnitionDelay(host: HTMLElement): void {
             `${x + 14},${AXIS} ${x - 10},${AXIS - 7} ${x - 10},${AXIS + 7}`
         );
 
-        coastStat.textContent = `${distance.toFixed(2)} u`;
+        coastStat.textContent = `${meters(distance, 1)}`;
         lengthStat.textContent = (distance / TORPEDO_BODY_LENGTH).toFixed(1);
-        catchStat.textContent = `${catchSpeed.toFixed(2)} u/s`;
+        catchStat.textContent = `${metersPerSec(catchSpeed, 1)}`;
 
         readout.classList.remove("is-warn", "is-fault");
         if (seconds === 0) {
@@ -7226,7 +7260,7 @@ function initLanceCorridor(host: HTMLElement): void {
         host,
         "Corridor scope: one railgun shot into a hull block",
         "A block of hull cells on a unit lattice, shot down its centre at " +
-            `${LANCE_SLUG_SPEED} u/s. The tip cuts the bore column; the ` +
+            `${metersPerSec(LANCE_SLUG_SPEED)}. The tip cuts the bore column; the ` +
             "sphere trailing it widens that cut into a corridor, and every " +
             `cell in the corridor takes the flat ${LANCE_SLUG_DAMAGE} and ` +
             `pays a third of its max health out of the one ${LANCE_SLUG_POWER}` +
@@ -7586,7 +7620,7 @@ function initLanceCorridor(host: HTMLElement): void {
         0.5,
         radius0,
         (v) =>
-            `${v.toFixed(1)} u` +
+            meters(v) +
             (v === 0
                 ? " (needle)"
                 : v === LANCE_RAKE_RADIUS
@@ -7663,7 +7697,7 @@ function initLanceCorridor(host: HTMLElement): void {
             "and the scope replays that exact walk. For scale, a kinetic " +
             `PDC sustains 40 rounds/s x ${KINETIC_PDC_BULLET_DAMAGE} = ` +
             `${Math.round(40 * KINETIC_PDC_BULLET_DAMAGE)} hp/s at ` +
-            "100 u/s closing, and only at a ninth of the reach."
+            "1,000 m/s closing, and only at a ninth of the reach."
     );
 
     host.appendChild(controls);
@@ -7737,7 +7771,7 @@ function initWeaponReach(host: HTMLElement): void {
                     "text-anchor": "middle",
                     class: "widget-mark--axis",
                 },
-                u === 0 ? "0 u" : String(u)
+                u === 0 ? "0 km" : numText(u / UNITS_PER_KM, 0)
             )
         );
     }
@@ -7789,7 +7823,7 @@ function initWeaponReach(host: HTMLElement): void {
                     y: String(lane.y + 15),
                     class: "widget-mark--detail",
                 },
-                `${lane.ext || lane.reach} u`
+                `${meters(lane.ext || lane.reach)}`
             )
         );
         if (lane.ext) {
@@ -7802,7 +7836,7 @@ function initWeaponReach(host: HTMLElement): void {
                         "text-anchor": "end",
                         class: "widget-mark--detail",
                     },
-                    `Serpent ${lane.reach} u, Lance ${lane.ext} u`
+                    `Serpent ${meters(lane.reach)}, Lance ${meters(lane.ext)}`
                 )
             );
         }
@@ -7872,7 +7906,7 @@ function initWeaponReach(host: HTMLElement): void {
             `M${x - 6},${AXIS_Y + 1} L${x + 6},${AXIS_Y + 1} L${x},${AXIS_Y - 7} Z`
         );
         cursorText.setAttribute("x", String(x));
-        cursorText.textContent = `target ${range} u`;
+        cursorText.textContent = `target ${meters(range)}`;
         const flight = (secs: number): string =>
             secs === Infinity
                 ? "out of reach"
@@ -7908,7 +7942,7 @@ function initWeaponReach(host: HTMLElement): void {
         3400,
         50,
         range0,
-        (v) => `${v} u`,
+        (v) => meters(v),
         render
     );
     const controls = el("div", "widget__controls");
@@ -7919,8 +7953,8 @@ function initWeaponReach(host: HTMLElement): void {
         "Reach is never an authored number: it is muzzle speed times how " +
             "long the round lives, and a torpedo's is the speed it settles " +
             "at along the line over the bay's lifetime. Enemy gunships " +
-            "close to about 100 u and fight there, inside everyone's " +
-            "guns; between a gun's 200 u and the slug's 1800 u only the " +
+            "close to about 1 km and fight there, inside everyone's " +
+            "guns; between a gun's 2 km and the slug's 18 km only the " +
             "railgun and a torpedo reach, and the slug gets there in " +
             "about a second where the torpedo takes tens of them."
     );

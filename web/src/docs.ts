@@ -152,12 +152,14 @@ function renderSidebar(
 
             const children = pages.filter((c) => c.parent === page.slug);
             if (children.length === 0) return;
-            // A subtree is expanded only while the reader is inside it (on the
-            // parent or one of its descendants); everywhere else it collapses
-            // to keep the tree shallow. Children stay in the DOM so an active
-            // search (is-searching on the nav) can still reveal matches.
+            // A subtree is expanded while the reader is inside it (on the
+            // parent or one of its descendants) and collapses everywhere else
+            // to keep the tree shallow - unless the parent is marked expanded,
+            // in which case its children are listed like any other group's
+            // pages. Children stay in the DOM so an active search
+            // (is-searching on the nav) can still reveal matches.
             const sub = el("div", "wiki-nav__sub");
-            if (!onActiveTrail(section, active, page.slug))
+            if (!page.expanded && !onActiveTrail(section, active, page.slug))
                 sub.classList.add("is-collapsed");
             children.forEach((child) => appendPage(child, sub, depth + 1));
             host.appendChild(sub);
@@ -259,35 +261,62 @@ function renderIndex(
     const topLevel = (category: string): DocPage[] =>
         section.pages.filter((p) => p.category === category && !p.parent);
 
+    const card = (p: DocPage, child: boolean): HTMLElement => {
+        const node = p.comingSoon
+            ? el("div", "wiki-index__card is-soon")
+            : el("a", "wiki-index__card");
+        if (child) node.classList.add("wiki-index__card--child");
+        if (!p.comingSoon) {
+            (node as HTMLAnchorElement).href = pageUrl(base, section, p.slug);
+        }
+        const titleRow = el("div", "wiki-index__cardhead");
+        if (child && p.icon) titleRow.appendChild(iconFrame(base, p));
+        titleRow.appendChild(el("h3", "wiki-index__cardtitle", p.title));
+        if (p.comingSoon) {
+            titleRow.appendChild(el("span", "wiki-index__soon", "soon"));
+        }
+        node.appendChild(titleRow);
+        node.appendChild(el("p", "wiki-index__cardsum", p.summary));
+        return node;
+    };
+
     for (const category of section.categories) {
-        // Top-level pages only - children live on their parent's overview page.
+        // Top-level pages, each followed by its children when it is marked
+        // expanded; otherwise children live on their parent's overview page.
         const pages = topLevel(category);
         if (pages.length === 0) continue;
 
         container.appendChild(el("h3", "wiki-index__cat", category));
         const grid = el("div", "wiki-index__grid");
         for (const p of pages) {
-            const card = p.comingSoon
-                ? el("div", "wiki-index__card is-soon")
-                : el("a", "wiki-index__card");
-            if (!p.comingSoon) {
-                (card as HTMLAnchorElement).href = pageUrl(
-                    base,
-                    section,
-                    p.slug
-                );
-            }
-            const titleRow = el("div", "wiki-index__cardhead");
-            titleRow.appendChild(el("h3", "wiki-index__cardtitle", p.title));
-            if (p.comingSoon) {
-                titleRow.appendChild(el("span", "wiki-index__soon", "soon"));
-            }
-            card.appendChild(titleRow);
-            card.appendChild(el("p", "wiki-index__cardsum", p.summary));
-            grid.appendChild(card);
+            grid.appendChild(card(p, false));
+            if (!p.expanded) continue;
+            section.pages
+                .filter((c) => c.parent === p.slug)
+                .forEach((c) => grid.appendChild(card(c, true)));
         }
         container.appendChild(grid);
     }
+}
+
+// The hatched frame that stands in for a page's icon until the asset is
+// captured; the real icon is dropped in on top only once it has loaded, so a
+// not-yet-captured icon that 404s never flashes a broken-image glyph.
+function iconFrame(base: string, page: DocPage): HTMLElement {
+    const icon = el("span", "wiki-child__icon");
+    if (!page.icon) return icon;
+    icon.title = page.icon;
+    const img = new Image();
+    img.alt = page.title;
+    img.decoding = "async";
+    img.style.width = "100%";
+    img.style.height = "100%";
+    img.style.objectFit = "contain";
+    img.onload = (): void => {
+        icon.appendChild(img);
+    };
+    img.src = base + page.icon;
+    return icon;
 }
 
 // ---- parent overview: child grid ------------------------------------------
@@ -309,25 +338,7 @@ function renderChildrenGrid(
         const card = el("a", "wiki-child");
         card.href = pageUrl(base, section, c.slug);
 
-        const icon = el("span", "wiki-child__icon");
-        if (c.icon) {
-            // The hatched span is the placeholder; drop the real icon in on top
-            // only once it has loaded (mirrors upgradeFigures in site.ts). The
-            // img is built detached and appended in onload, so a not-yet-captured
-            // icon that 404s never flashes a broken-image glyph - the frame stays.
-            icon.title = c.icon;
-            const img = new Image();
-            img.alt = c.title;
-            img.decoding = "async";
-            img.style.width = "100%";
-            img.style.height = "100%";
-            img.style.objectFit = "contain";
-            img.onload = (): void => {
-                icon.appendChild(img);
-            };
-            img.src = base + c.icon;
-        }
-        card.appendChild(icon);
+        card.appendChild(iconFrame(base, c));
 
         const body = el("span", "wiki-child__body");
         body.appendChild(el("span", "wiki-child__title", c.title));

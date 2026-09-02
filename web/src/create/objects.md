@@ -194,7 +194,7 @@ crashing, so a missing dependency is visible instead of fatal.
 | field | type | default | meaning |
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
-| `speed_cap` | `Option` number | `None` | soft manual-speed cap in u/s (the Shakedown starts at `Some(25.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
+| `speed_cap` | `Option` number | `None` | soft manual-speed cap in world units per second (the Shakedown starts at `Some(25.0)`, 250 m/s); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 | `infinite_ammo` | bool | required in shipped RON | DEBUG-ONLY CHEAT: weapons built without magazines - never run dry. Only a `debug` build honors it; the shipped game warns and keeps the authored magazines, so author `false` and balance the scenario around real ammunition |
 
 `AI((..))` fields:
@@ -203,10 +203,10 @@ crashing, so a missing dependency is visible instead of fatal.
 |---|---|---|---|
 | `patrol` | list of 3-tuples | `[]` | waypoint loop while nothing hostile is detected; empty = station-keep. Legs blocked by a sized body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock |
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
-| `engage_range` | `Option` number | `None` | hostile-detection override (world units): a passive ship leaves its routine for a hostile inside this range instead of the 400 u default. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
-| `pd_range` | `Option` number | `None` | point-defense override (world units): the guns hold fire until an inbound hostile torpedo is inside this range instead of the 150 u default. Short = staged close-in intercepts; past the turret's ~180 u reach it just wastes the opening shots |
+| `engage_range` | `Option` number | `None` | hostile-detection override (world units): a passive ship leaves its routine for a hostile inside this range instead of the default 400 (4 km). Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
+| `pd_range` | `Option` number | `None` | point-defense override (world units): the guns hold fire until an inbound hostile torpedo is inside this range instead of the default 150 (1.5 km). Short = staged close-in intercepts; past the turret's ~180 (1.8 km) reach it just wastes the opening shots |
 | `waypoint_slack` | `Option` number | `None` | patrol arrival slack override (world units) on top of the arrival standoff; the default is 25. Small = the ship turns onto the next leg closer to each waypoint. Below ~2 risks stalling outside the advance gate - author small, not zero |
-| `arrival_standoff` | `Option` number | `None` | how far from a GOTO goal this ship's computer comes to rest, instead of the engine's 50 u default. Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
+| `arrival_standoff` | `Option` number | `None` | how far from a GOTO goal this ship's computer comes to rest, instead of the engine's default 50 (500 m). Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
 | `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
 
@@ -263,7 +263,7 @@ live distance, edge-clamped direction cue).
 | `radius` | number | required | visual orb radius, world units |
 | `color` | color | required | orb + emissive tint, tagged: `Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0))` |
 | `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed |
-| `lock_signature` | `Option` number | `None` | radar signature override; default 20 (about a 600 u lock range) - author bigger for longer GOTO legs |
+| `lock_signature` | `Option` number | `None` | radar signature override; default 20 (a lock range of about 600, or 6 km) - author bigger for longer GOTO legs |
 
 ```ron
 SpawnScenarioObject((
@@ -321,7 +321,7 @@ glow.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `intensity` | number | required | lumens; needs tuning by eye against your scene scale (~2.5M for a 200 u yard lamp) |
+| `intensity` | number | required | lumens; needs tuning by eye against your scene scale (~2.5M for a yard lamp 200, or 2 km, out) |
 | `range` | number | required | contribution cutoff distance, world units |
 | `radius` | number | required | source radius (softens the terminator) |
 | `color` | color | required | tagged `Srgba((..))` |

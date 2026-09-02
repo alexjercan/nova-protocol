@@ -433,9 +433,9 @@ rather than hidden.
 **A number's NAME is its grip.** Drag the name left or right and the value
 follows, one step per pixel, live - there is nothing to confirm. A vector row
 has three of them, one per axis letter. Click into the box instead to type a
-number. Lengths are in `u`, the authored world unit, and the unit is printed
-beside the box; the HUD converts to metres for the player, but the editor is
-content, and content is authored in `u`.
+number. Lengths and speeds read in meters, and the unit is printed beside the
+box; the file keeps the authored world unit (10 m), and the box converts both
+ways, so a builder types what the HUD would read.
 
 The two gestures are not the same rule. A drag ARRIVES at a field's floor and
 stops there - dragging a radius past zero is asking for the smallest value there

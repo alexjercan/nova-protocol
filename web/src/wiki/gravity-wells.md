@@ -25,7 +25,7 @@ Large asteroids and planetoids carry gravity wells that pull ships, torpedoes an
 A well accelerates you toward its center by an inverse-square law, `a = mu / r^2`. The mass parameter `mu` is the body's one authored gravity number - never your ship's mass: gravity is acceleration, so a stripped fighter and a laden hauler fall the same.
 
 <div class="widget" data-widget="gravity-well">
-<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The Shakedown planetoid authors mass 27000 for a 329 u sphere of influence and a few u/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
+<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The Shakedown planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
 </div>
 
 <details class="explain">
@@ -33,7 +33,7 @@ A well accelerates you toward its center by an inverse-square law, `a = mu / r^2
 
 Two rules tame the extremes of the inverse square:
 
-- **Surface clamp** - just below the drawn surface (plus a 1 u margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.
+- **Surface clamp** - just below the drawn surface (plus a 10 m margin) the pull is held at its surface value, so grazing the rock is a bump, not a singularity slingshot.
 - **Faded edge** - across the outer 15% of the sphere of influence the pull follows a smoothstep down to exactly zero at the boundary, and stays zero beyond it, so there is no force discontinuity to bump across.
 
 Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds - a long shot visibly curves near a planetoid. Section debris skips gravity, and an unpiloted scripted ship floats rather than falls. Wells never pull other wells.
@@ -42,7 +42,7 @@ Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds -
 
 ## Sphere of influence
 
-A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (0.25 u/s^2), so `soi = sqrt(mu / 0.25)` - the body's drawn size never sets it. The Shakedown planetoid reaches 329 u, about 3.3 km on the HUD; the Final Tally anchorage rock (mass 45000) reaches 424 u. Outside it, the well does not exist as far as your ship is concerned.
+A well's reach follows from its mass alone: the sphere of influence is where the raw pull has decayed to a fixed cutoff (2.5 m/s^2), so `soi = sqrt(mu / 0.25)` in world units of 10 m - the body's drawn size never sets it. The Shakedown planetoid reaches 3.29 km; the Final Tally anchorage rock (mass 45000) reaches 4.24 km. Outside it, the well does not exist as far as your ship is concerned.
 
 ## The dominant well
 

@@ -22,6 +22,8 @@
 //   ("Create / <parent> / <title>") and the parent's #wiki-children grid.
 // - toc: render the build-time contents box (the reference pages opt in).
 // - icon: asset for the parent's child grid (placeholder until captured).
+// - expanded: keep the children listed under this page in the sidebar on every
+//   page and on the section index, like a category's own pages.
 // - comingSoon: not yet written - muted, non-navigable entry.
 
 const WIKI_PAGES = [
@@ -131,8 +133,7 @@ const WIKI_PAGES = [
             "Shooting rock",
             "Damage types",
             "Closing speed",
-            "How far a round travels",
-            "Ammo & reloading",
+            "Magazines",
             "Point defense",
             "Your own battery",
         ],
@@ -173,11 +174,16 @@ const WIKI_PAGES = [
         md: "sections.md",
         title: "Ship sections",
         category: "Ship sections",
+        expanded: true,
         tags: ["ships"],
         summary:
-            "One page per part - hull, controller, thruster, turret, torpedo bay and railgun - with everything a section does, and the shipped catalog at a glance.",
+            "What every part of a ship shares, one page per kind - hull, controller, thruster, turret, torpedo bay and railgun - and the shipped catalog at a glance.",
         related: ["ships", "combat-weapons", "flight-autopilot"],
-        headings: ["The catalog at a glance"],
+        headings: [
+            "What every section shares",
+            "Reading a section page",
+            "The catalog at a glance",
+        ],
     },
     {
         slug: "sections/hull",
@@ -235,7 +241,7 @@ const WIKI_PAGES = [
         icon: "assets/icon-turret.png",
         tags: ["ships", "combat"],
         summary:
-            "The articulated gun mount: intercept lead, barrel discipline, the arc it can bear on, its short reach, how it picks a torpedo to shoot down, and its stow.",
+            "The gun mount: its arc and lead, barrel discipline, how far a round travels through a hull, what a magazine is worth, and point defense.",
         related: [
             "sections",
             "combat-weapons",
@@ -247,6 +253,8 @@ const WIKI_PAGES = [
             "Barrel discipline",
             "What it can bear on",
             "Reach and closing speed",
+            "How far a round travels",
+            "Trigger discipline",
             "Point defense",
             "Stowed between fights",
             "Variants",
@@ -378,7 +386,15 @@ const WIKI_PAGES = [
         summary:
             "Short definitions for the recurring terms and units, grouped the way the book reads - flight, ships, targeting, combat, the interface and the world - each pointing at the page that owns it.",
         related: ["getting-started", "flight-autopilot", "combat-weapons"],
-        headings: ["Units", "Terms"],
+        headings: [
+            "Units",
+            "Flight",
+            "Ships",
+            "Targeting",
+            "Combat",
+            "Interface",
+            "World",
+        ],
     },
 ];
 

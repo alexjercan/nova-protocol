@@ -145,7 +145,7 @@ Supported queries:
 | query | result | meaning |
 |---|---|---|
 | `Scenario((property: Elapsed))` | Number | live, unpaused scenario seconds; resets on teardown |
-| `Entity((filter: (id: "..."), property: Speed))` | Number | speed in u/s of exactly one matching entity |
+| `Entity((filter: (id: "..."), property: Speed))` | Number | speed of exactly one matching entity, in world units per second (10 m/s each) |
 
 `Entity` is strict-single. Zero matches, multiple matches, or a missing velocity
 make the query unavailable. Expressions fail closed. Missing is not zero.

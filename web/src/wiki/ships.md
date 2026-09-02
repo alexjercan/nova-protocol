@@ -3,24 +3,23 @@
 A ship in Nova Protocol is not a monolithic model - it is a root entity with a handful of _section_ children. Each section is mounted to the hull, carries its own mass and health, and contributes exactly one behavior to the whole ship. Knock a section off and the ship loses that capability but keeps flying on whatever is left, which is what makes damage feel local: shoot the turret off and it stops shooting; take out the controller and it can no longer steer.
 
 <figure class="figure">
-    <!-- Capture: assets/wiki-sections.png -->
+    <!-- Capture: assets/wiki-ships-damage.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag"
             >Screenshot needed</span
         >
         <span class="figure__placeholder-name"
-            >assets/wiki-sections.png</span
+            >assets/wiki-ships-damage.png</span
         >
         <span class="figure__placeholder-note"
-            >A built ship with its hull, controller,
-            thruster, turret and torpedo-bay sections called
-            out - ideally labelled or lightly
-            exploded.</span
+            >A hull coming apart under fire: outer sections
+            blowing off, the core still firing, a wreck
+            drifting clear.</span
         >
     </div>
     <figcaption class="figure__caption">
-        A ship is an assembly of sections, each with one
-        job.
+        A ship keeps fighting until the sections carrying
+        its guns come off.
     </figcaption>
 </figure>
 
@@ -52,4 +51,4 @@ Rocks are the other exception, and they carve for real - see [Shooting rock](../
 
 ## The parts
 
-Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. [Ship sections](../sections/) is the catalog at a glance; the chapters after it are the shared rules a whole ship fights by.
+Every section is its own page - what it does, how it behaves, its numbers, and what it is like to face one. [Ship sections](../sections/) opens that chapter with what every part shares and the catalog at a glance.

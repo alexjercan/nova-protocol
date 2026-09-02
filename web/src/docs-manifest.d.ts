@@ -25,6 +25,9 @@ export interface DocPage {
     parent?: string;
     // Icon asset for the parent's child grid (placeholder until captured).
     icon?: string;
+    // Keep this page's children listed under it in the sidebar on every page,
+    // and on the section index, like a category's own pages.
+    expanded?: boolean;
     // Render the build-time contents box (reference pages opt in).
     toc?: boolean;
     // Not yet written - rendered as a muted, non-navigable "coming soon" entry.

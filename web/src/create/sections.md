@@ -427,7 +427,7 @@ ceiling = min( sum(max_torque) / I , 78.48 / (r * 10) )   rad/s2
   of mass to the outer FACE of its furthest live section.
 - `78.48` m/s2 is 8 G, the load hull metal takes. One global constant, the same
   for every ship and every mod.
-- `10` is metres per world unit.
+- `10` is meters per world unit.
 
 So `max_torque` is the only handling number you author, and it binds only on a
 hull heavy enough that its computers give up before its metal does. Everything
@@ -441,7 +441,7 @@ Three consequences to author around:
 
 - **Damage sharpens a hull.** Losing sections shortens `r`, which raises the
   ceiling. A wreck turns harder than it did intact.
-- **A hard turn spends the margin.** Write `r_m` for the arm in metres
+- **A hard turn spends the margin.** Write `r_m` for the arm in meters
   (`r * 10`). The turning load `alpha * r_m` and the centripetal load
   `omega^2 * r_m` add as a vector, and that sum is what must stay under 8 G. So
   a hull holds `sqrt(78.48 / r_m)` rad/s indefinitely and has no authority left
@@ -613,7 +613,7 @@ Section-wide fields (once, alongside `root`):
   - `Explosive` on a bullet is spent on its first hit. A torpedo blast uses the
     Explosive pressure rule described below.
 
-  Both curves read exactly 1.0 when the round closes at 100 u/s (a stock PDC's
+  Both curves read exactly 1.0 when the round closes at 100 (1,000 m/s, a stock PDC's
   `muzzle_speed`), so author `bullet_damage` for a station-keeping engagement
   and speed does the rest. Nothing of any type gets through a collider with no
   health of its own - an asteroid or a planetoid is a wall.
@@ -733,7 +733,7 @@ kind: Torpedo((
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
   opposed to the tube it loads into. A type is DATA, not an enum: base authors
   its three (the straight-running Lance, the weaving Serpent, and the crimson
-  siege Breaker - 70 u/s with a shallow 0.22 rad weave - that only the hidden
+  siege Breaker - a cruise of 70 (700 m/s) with a shallow 0.22 rad weave - that only the hidden
   `heavy_torpedo_section` bay loads), and a mod authors its own by writing the
   same five fields:
   - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`,
@@ -744,7 +744,7 @@ kind: Torpedo((
     `Srgba((red: .., green: .., blue: .., alpha: 1.0))`. Two types a player is
     meant to tell apart want different colours: it is the only difference visible
     before the flight paths have diverged.
-  - `max_speed` (u/s; `35.0` on the Lance, `32.0` on the Serpent) - cruise speed
+  - `max_speed` (world units per second; `35.0` on the Lance, `32.0` on the Serpent, so 350 and 320 m/s) - cruise speed
     cap. The thruster tapers off as the torpedo approaches it, so it decides
     time to target and, with `projectile_lifetime`, how far the ordnance can
     reach. **This is where an evasive type pays for its weave**, and it has to
@@ -767,10 +767,10 @@ kind: Torpedo((
     amplitude.
 
   The ANGLE is the exchange: measured against one stock PDC across the shipped
-  150 u point-defense envelope, a Serpent costs ~370 rounds to stop and is only
-  killed ~40 u out, where a Lance costs ~120 and dies ~115 u out. The RATE is the
+  150 (1.5 km) point-defense envelope, a Serpent costs ~370 rounds to stop and is only
+  killed ~40 (400 m) out, where a Lance costs ~120 and dies ~115 (1.15 km) out. The RATE is the
   picture, not the price - the intercept cost barely moves with it, while the
-  visible swing runs 24 u at 0.7 rad/s down to 6 u at 2.2.
+  visible swing runs 24 (240 m) at 0.7 rad/s down to 6 (60 m) at 2.2.
 
   A weave does NOT pay for itself, which is why the shipped Serpent authors a
   lower `max_speed`. A corkscrew is a longer path, but only by ~1.7% as the real
@@ -845,7 +845,7 @@ kind: Railgun((
   simply missed.
 - `slug_speed`, `slug_lifetime` - muzzle speed in units per second, and how
   long the slug lives. Their product is the reach: the shipped railgun is
-  1500 u/s for 1.2 s, or 1800 units. With no layer cap on penetration, the
+  1500 (15,000 m/s) for 1.2 s, or 1800 world units - 18 km. With no layer cap on penetration, the
   lifetime is also what stops a miss travelling forever.
 - `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
   is not scaled by closing speed and it does not decay with depth, so the tenth
@@ -854,7 +854,7 @@ kind: Railgun((
   the shot takes. This is the ONLY bound; the layer count is deliberately
   unlimited, so a slug stops when it runs out of material to spend rather than
   at an arbitrary layer. A crossing costs that section's max health divided by
-  the pierce speed curve, which a 1500 u/s slug pins at its 3.0 ceiling, so the
+  the pierce speed curve, which a slug at 1500 (15,000 m/s) pins at its 3.0 ceiling, so the
   shipped 1800 buys twenty-seven crossings of 200 hp reinforced hull.
 - `rake_radius` (optional) - how wide a corridor the shot cuts, in units. Omit
   it and the slug is a needle: it cuts exactly the column its bore crossed,

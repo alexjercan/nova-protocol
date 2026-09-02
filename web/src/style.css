@@ -1557,6 +1557,12 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     color: var(--phosphor-dim);
     font-size: 0.82rem;
 }
+/* A child page listed on the index under its expanded parent: the same card
+   with the page's icon (or its hatched placeholder) beside the title. */
+.wiki-index__card--child .wiki-child__icon {
+    width: 30px;
+    height: 30px;
+}
 /* Parent overview: the child grid (icon + title + summary), e.g. the five ship
    sections on the Ship sections page. */
 .wiki-children {

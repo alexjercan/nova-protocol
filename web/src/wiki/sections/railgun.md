@@ -21,12 +21,12 @@ A railgun is a **spinal gun**: three cells of rails and capacitor bank with no t
 
 It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a railgun is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs: charge_seconds 1.5 :927, slug_speed 1500 :928, slug_damage 300 :942, slug_power 1800 :948, rake_radius 1.0 :967, slug_lifetime 1.2 :970 (1800 u of reach), recoil_impulse 45 :974, ammo_capacity 1 :981, reload delay 12 :986. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs: charge_seconds 1.5 :927, slug_speed 1500 :928, slug_damage 300 :942, slug_power 1800 :948, rake_radius 1.0 :967, slug_lifetime 1.2 :970 (1800 world units, 18 km, of reach), recoil_impulse 45 :974, ammo_capacity 1 :981, reload delay 12 :986. -->
 
 | The railgun at a glance | |
 |---|---|
 | Commit | a **1.5 s** charge; nothing but the weapons safety can stop it |
-| Slug | **1500 u/s**, **1800 u** of reach, arrives in just over a second |
+| Slug | **15,000 m/s**, **18 km** of reach, arrives in just over a second |
 | Damage | **300 Pierce** to every section in the corridor, flat, no falloff |
 | Corridor | about **three cells wide**, priced from one **1800**-point power budget |
 | Cycle | one shell, a **12 s** reload: a shot every 13.5 seconds |
@@ -66,11 +66,11 @@ There is exactly one way out, and it is not the trigger: dropping your weapons b
 <details class="explain">
 <summary>Show explanation</summary>
 
-The shell also carries your ship's motion with it, spin included: a railgun fired while the hull is rolling throws its slug slightly off the tangent as well as down the bore. At 1500 units a second that is a small correction, but it is there, and it is one more reason to be flying straight when the charge ends.
+The shell also carries your ship's motion with it, spin included: a railgun fired while the hull is rolling throws its slug slightly off the tangent as well as down the bore. At fifteen kilometers a second that is a small correction, but it is there, and it is one more reason to be flying straight when the charge ends.
 
 The charge is loud and visible, to you and to anyone watching. A bolt walks the length of the bore, so how far it has travelled is how much charge is left to run: an enemy across the gap can read a railgun about to fire off its hull. The capacitor loop rises in pitch as it fills.
 
-That tell is the balance of the weapon. A slug in flight is unanswerable - it crosses 1800 units in just over a second - so the window in which it can be answered is the charge, by breaking the line before it ends.
+That tell is the balance of the weapon. A slug in flight is unanswerable - it crosses 18 km in just over a second - so the window in which it can be answered is the charge, by breaking the line before it ends.
 
 </details>
 
@@ -104,7 +104,7 @@ The line thickens as the charge runs, so the seconds you are committed to holdin
 
 ## What one shot takes out
 
-<!-- Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier :258, which clamps at 3.0 (PIERCE_POWER_CEILING :197), and a 1500 u/s slug is always at that ceiling. No layer cap: railgun_section/firing.rs:206 (`layers: u32::MAX`). The rake: rake_radius 1.0 standard.rs:967, swept in crates/nova_gameplay/src/rounds.rs sweep_raking :708 (the sphere trails the tip by its radius; only a body the tip hit directly is armed; contacts charged by depth then from the axis outward). The stand table and the three-times figure are examples/systems/system_railgun_lance.rs's stand bank (200 hp cells, 5 x 5 x 4 wall and 3 x 1 x 4 line), reproduced by the scope's model in web/tests/widgets.test.ts. Section healths standard.rs:603 (200), :674 (480), :691 (1250). -->
+<!-- Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier :258, which clamps at 3.0 (PIERCE_POWER_CEILING :197), and a slug at 1500 world units per second is always at that ceiling. No layer cap: railgun_section/firing.rs:206 (`layers: u32::MAX`). The rake: rake_radius 1.0 standard.rs:967, swept in crates/nova_gameplay/src/rounds.rs sweep_raking :708 (the sphere trails the tip by its radius; only a body the tip hit directly is armed; contacts charged by depth then from the axis outward). The stand table and the three-times figure are examples/systems/system_railgun_lance.rs's stand bank (200 hp cells, 5 x 5 x 4 wall and 3 x 1 x 4 line), reproduced by the scope's model in web/tests/widgets.test.ts. Section healths standard.rs:603 (200), :674 (480), :691 (1250). -->
 
 <div class="widget" data-widget="lance-corridor">
 <p>The scope shoots a block of 200 hp reinforced hull cells, five across, five tall and four deep, with the shipped railgun. The slug's tip cuts the centre column, and a one-unit sphere trailing the tip widens that cut to the eight cells around it - the face neighbours and the diagonals, never the second ring. Every cell in the corridor takes 300 and pays a third of its max health out of the one 1800-point budget, so the shot takes 28 cells as nine, nine, nine and one, removes 5600 hp, and stops with the exit hole as wide as the entry. Set the radius to zero and the same shot takes four cells in a line; set it to four and it takes the same 28 as the whole entry face plus three, and stops one layer in.</p>
@@ -125,7 +125,7 @@ The corridor is wider than the bore. The slug drags a one-unit sphere behind its
 
 How much it takes is one budget: **1800 power**, spent in the toughest each taken section could ever be, and a slug this fast always spends at the cheapest rate the rule allows. Width and depth come out of the same number. There is no layer cap under it. Measured on the range the game tests the gun with, that is what the width is worth:
 
-| the same shot into | needle (no rake) | shipped corridor | a 4 u sphere |
+| the same shot into | needle (no rake) | shipped corridor | a 40 m sphere |
 |---|---|---|---|
 | a corvette line, 3 x 1 x 4 cells | 4 cells, 800 hp | **12 cells, 2400 hp** | - |
 | a wall, 5 x 5 x 4 cells | 4 cells, 800 hp | 28 cells as 9 / 9 / 9 / 1 | 28 cells as 25 / 3 / 0 / 0 |
@@ -158,7 +158,7 @@ Wider is not more. Against a wall dense enough to bind the budget, a sphere four
 
 The two large drives are the one place a slug does not simply delete what it touches: 300 does not clear 480 or 1250, so a railgun cripples a capital drive over several passes instead of taking it off.
 
-Reach is 1800 units, which outranges every mount on the ship carrying it. That is what makes lining up worth doing - the [combat page's engagement ladder](../../combat-weapons/#three-reaches) puts the three weapons on one range axis.
+Reach is 18 km, which outranges every mount on the ship carrying it. That is what makes lining up worth doing - the [combat page's engagement ladder](../../combat-weapons/#three-reaches) puts the three weapons on one range axis.
 
 </details>
 
@@ -192,7 +192,7 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 <tr><th></th><th>Variant</th><th>Damage</th><th>Type</th><th>Depth</th><th>Corridor</th><th>Charge</th><th>Magazine</th><th>Recharge</th><th>Muzzle</th><th>Reach</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">1.0 u rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">1500 u/s</td><td class="catalog__num">1800 u</td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">10 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
 </tbody>
 </table>
 </div>
