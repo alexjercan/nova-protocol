@@ -18,7 +18,7 @@ use std::{
 };
 
 use bevy::{
-    audio::{PlaybackMode, SpatialAudioSink, Volume},
+    audio::{AudioSinkPlayback, PlaybackMode, SpatialAudioSink, Volume},
     prelude::*,
 };
 
@@ -38,6 +38,16 @@ use super::{
 /// is a fixed, small handful of voices and is the one thing that must always be
 /// audible.
 pub const MAX_EXTERIOR_LOOP_VOICES: usize = 8;
+
+/// How much louder a silent loop must be than the one it would displace before
+/// the cap trades them.
+///
+/// The cap is a RANK, so two ships drifting past each other at the boundary
+/// swap places on any wobble in the range. That was free while a capped voice
+/// merely held `gain 0.0`; now that it STOPS its sink, a swap is a transport
+/// change, so the boundary needs a band. A sounding voice is ranked as if it
+/// were this much louder, which is what keeps a tie from chattering.
+const VOICE_CAP_HYSTERESIS: f32 = 1.15;
 
 /// Where a voice is heard from. Read only for [`AudioRoute::Exterior`] -
 /// interface, hull and music voices are non-positional by definition.
@@ -289,16 +299,24 @@ pub(super) fn retire_unplayable_one_shots(
     }
 }
 
-/// Re-mix every playing voice: its bus gain, its distance, its bearing, and
-/// its playback rate.
+/// Re-mix every playing voice: its bus gain, its distance, its bearing, its
+/// playback rate, and whether its sink runs at all.
 ///
 /// Runs every frame rather than at spawn because a voice's mix is a function of
 /// two things that both move - the source and the listener - so a cue that only
 /// panned where it started would swing wrong the moment the camera turned. The
 /// rate rides along for the same reason: a loop that is winding up is changing
 /// while it plays.
+///
+/// A voice the cap silences is PAUSED, not merely turned down: an open sink
+/// mixes its silence into every audio callback, and ~200 of those is the whole
+/// of the underrun noise a crowded scene generates. It resumes where it
+/// stopped rather than where it would have got to, which is why the loops this
+/// applies to are hums and hisses and not tonal material.
 pub(super) fn drive_sfx_voices(
     mixer: Mixer,
+    pause: Option<Res<State<crate::PauseStates>>>,
+    mut sounding: Local<HashSet<Entity>>,
     q_listener: Query<&GlobalTransform, (With<SfxListenerMarker>, Without<SfxVoice>)>,
     q_pose: Query<&GlobalTransform, Without<SfxVoice>>,
     mut q_voices: Query<(
@@ -320,18 +338,26 @@ pub(super) fn drive_sfx_voices(
         }
         placements.insert(entity, placement);
     }
-    let silenced = exterior_loops_over_the_cap(&mut exterior_loops);
+    let silenced = exterior_loops_over_the_cap(&mut exterior_loops, &sounding);
+    *sounding = exterior_loops
+        .iter()
+        .map(|(_, entity)| *entity)
+        .filter(|entity| !silenced.contains(entity))
+        .collect();
+    // While the sim is frozen `pause_world_voices` owns every world sink, and
+    // the cap must not argue with it: a capped voice is already stopped, and
+    // resuming one behind a pause overlay would be a loop playing through a
+    // stopped world. The RANKING still runs, so the frame the overlay closes
+    // resumes exactly the voices that should sound.
+    let frozen = pause.is_some_and(|state| state.is_frozen());
     let master = mixer.master_gain();
 
     for (entity, voice, mut pose, sink, spatial_sink) in &mut q_voices {
         let Some(placement) = placements.get(&entity) else {
             continue;
         };
-        let gain = if silenced.contains(&entity) {
-            0.0
-        } else {
-            placement.gain * master
-        };
+        let capped = silenced.contains(&entity);
+        let gain = if capped { 0.0 } else { placement.gain * master };
         // Rodio does not accept a non-positive playback rate, and the owner of
         // a loop writes this field every frame.
         let speed = voice.speed.max(f32::MIN_POSITIVE);
@@ -341,26 +367,60 @@ pub(super) fn drive_sfx_voices(
         if let Some(mut sink) = sink {
             sink.set_volume(Volume::Linear(gain));
             sink.set_speed(speed);
+            if !frozen {
+                hold_sink(&*sink, capped);
+            }
         }
         if let Some(mut sink) = spatial_sink {
             sink.set_volume(Volume::Linear(gain));
             sink.set_speed(speed);
+            if !frozen {
+                hold_sink(&*sink, capped);
+            }
         }
     }
 }
 
+/// Stop a capped sink, or let it run again. Guarded both ways: this is read
+/// once per voice per frame, and the flag is cheaper than the call.
+fn hold_sink(sink: &impl AudioSinkPlayback, held: bool) {
+    if held == sink.is_paused() {
+        return;
+    }
+    if held {
+        sink.pause();
+    } else {
+        sink.play();
+    }
+}
+
 /// Which exterior loops must hold silence this frame, given
-/// [`MAX_EXTERIOR_LOOP_VOICES`].
+/// [`MAX_EXTERIOR_LOOP_VOICES`] and which of them are `sounding` already.
 ///
 /// A RANK, not a level threshold. A formation of identical ships at identical
 /// range ties on level, and a threshold lets the whole tie through - losing the
 /// cap in precisely the crowded scene it exists for. The entity breaks the tie,
 /// so the same voices keep sounding frame to frame instead of trading places.
-fn exterior_loops_over_the_cap(levels: &mut Vec<(f32, Entity)>) -> HashSet<Entity> {
+///
+/// A sounding voice ranks with [`VOICE_CAP_HYSTERESIS`] applied, so the
+/// boundary pair has to actually separate before their sinks trade transport
+/// state. The cap itself is exact either way: the count that sounds is the
+/// same, only which voices they are is sticky.
+fn exterior_loops_over_the_cap(
+    levels: &mut Vec<(f32, Entity)>,
+    sounding: &HashSet<Entity>,
+) -> HashSet<Entity> {
     if levels.len() <= MAX_EXTERIOR_LOOP_VOICES {
         return HashSet::new();
     }
-    levels.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+    let rank = |&(level, entity): &(f32, Entity)| {
+        if sounding.contains(&entity) {
+            level * VOICE_CAP_HYSTERESIS
+        } else {
+            level
+        }
+    };
+    levels.sort_by(|a, b| rank(b).total_cmp(&rank(a)).then(a.1.cmp(&b.1)));
     levels[MAX_EXTERIOR_LOOP_VOICES..]
         .iter()
         .map(|(_, entity)| *entity)
@@ -546,15 +606,21 @@ mod tests {
             .collect()
     }
 
+    /// The cold start every ranking test but the hysteresis one wants: no
+    /// voice has a slot yet, so the rank is the level.
+    fn nothing_sounding() -> HashSet<Entity> {
+        HashSet::new()
+    }
+
     #[test]
     fn the_exterior_loop_cap_keeps_the_loudest_voices() {
         // Under the cap nothing is cut.
         let mut few = loops((0..MAX_EXTERIOR_LOOP_VOICES).map(|i| i as f32));
-        assert!(exterior_loops_over_the_cap(&mut few).is_empty());
+        assert!(exterior_loops_over_the_cap(&mut few, &nothing_sounding()).is_empty());
 
         // Over it, exactly the overflow is silenced, and it is the quiet end.
         let mut many = loops((0..MAX_EXTERIOR_LOOP_VOICES + 5).map(|i| 0.1 * i as f32));
-        let silenced = exterior_loops_over_the_cap(&mut many);
+        let silenced = exterior_loops_over_the_cap(&mut many, &nothing_sounding());
         assert_eq!(silenced.len(), 5);
         let loudest_silenced = many
             .iter()
@@ -578,7 +644,7 @@ mod tests {
         // identical range tie on level, and a level floor would pass the whole
         // tie through and open a sink for every one of them.
         let mut tied = loops(std::iter::repeat_n(0.5, MAX_EXTERIOR_LOOP_VOICES + 6));
-        let silenced = exterior_loops_over_the_cap(&mut tied);
+        let silenced = exterior_loops_over_the_cap(&mut tied, &nothing_sounding());
         assert_eq!(
             tied.len() - silenced.len(),
             MAX_EXTERIOR_LOOP_VOICES,
@@ -591,10 +657,44 @@ mod tests {
         // Held at silence, not despawned - so a voice that flips in and out on
         // an arbitrary tie-break would chatter. The entity fixes the order.
         let mut frame = loops(std::iter::repeat_n(0.5, MAX_EXTERIOR_LOOP_VOICES + 3));
-        let first = exterior_loops_over_the_cap(&mut frame.clone());
+        let first = exterior_loops_over_the_cap(&mut frame.clone(), &nothing_sounding());
         let mut shuffled: Vec<_> = frame.drain(..).rev().collect();
-        let second = exterior_loops_over_the_cap(&mut shuffled);
+        let second = exterior_loops_over_the_cap(&mut shuffled, &nothing_sounding());
         assert_eq!(first, second, "iteration order must not move the cut");
+    }
+
+    #[test]
+    fn a_sounding_voice_keeps_its_slot_until_a_rival_clearly_beats_it() {
+        // The boundary pair, a hair apart. A capped voice now STOPS its sink,
+        // so trading the slot on a wobble in the range is a restart every
+        // frame - the hysteresis band is what makes the swap mean something.
+        // One slot short: the loudest seven are never in doubt, and the last
+        // slot is the one the boundary pair are arguing over.
+        const SETTLED: usize = MAX_EXTERIOR_LOOP_VOICES - 1;
+        let mut frame = loops((0..SETTLED).map(|_| 1.0).chain([0.50, 0.49]));
+        let incumbent = frame[SETTLED].1;
+        let challenger = frame[SETTLED + 1].1;
+        let sounding: HashSet<Entity> = frame[..=SETTLED]
+            .iter()
+            .map(|(_, entity)| *entity)
+            .collect();
+
+        // The challenger edges ahead on the raw level and still loses: it has
+        // not beaten the band.
+        frame[SETTLED + 1].0 = 0.52;
+        let silenced = exterior_loops_over_the_cap(&mut frame.clone(), &sounding);
+        assert!(
+            silenced.contains(&challenger) && !silenced.contains(&incumbent),
+            "a hair of extra level must not trade a sounding voice's slot"
+        );
+
+        // Well past the band, it takes the slot - the cap is still a rank.
+        frame[SETTLED + 1].0 = 0.80;
+        let silenced = exterior_loops_over_the_cap(&mut frame, &sounding);
+        assert!(
+            silenced.contains(&incumbent) && !silenced.contains(&challenger),
+            "a voice that is genuinely louder must still win the slot"
+        );
     }
 
     #[test]
