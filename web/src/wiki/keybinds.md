@@ -252,7 +252,7 @@ RCS is a docking aid, not standard flight: it appears only when a scenario grant
     </tbody>
 </table>
 
-Weapon sections are rebindable: in the editor, click a section to bind it to any key or mouse button, so a ship's turret and torpedo controls are whatever its build assigns. The shipped ship fires both turrets and torpedoes on the left mouse button; a torpedo only launches while you hold a raised (red) combat lock. A [lance](../sections/railgun/) you bolt on binds the same way, and its key is a tap that commits the charge rather than a burst you hold.
+Weapon sections are rebindable: in the editor, click a section to bind it to any key or mouse button, so a ship's turret and torpedo controls are whatever its build assigns. The shipped ship fires both turrets and torpedoes on the left mouse button; a torpedo only launches while you hold a raised (red) combat lock. A [railgun](../sections/railgun/) you bolt on binds the same way, and its key is a tap that commits the charge rather than a burst you hold.
 
 ## Interface
 

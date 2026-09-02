@@ -807,7 +807,7 @@ cases:
 
 ## Railgun
 
-`RailgunSectionConfig` - a spinal lance with no traverse of its own: the HULL
+`RailgunSectionConfig` - a spinal railgun with no traverse of its own: the HULL
 aims it, and tapping the trigger COMMITS the shot. The shipped
 `railgun_lance_section`:
 
@@ -830,7 +830,7 @@ kind: Railgun((
 )),
 ```
 
-- `render_mesh`, `render_mesh_transform` (both optional) - the lance mesh and a
+- `render_mesh`, `render_mesh_transform` (both optional) - the railgun mesh and a
   visual-only transform for it. The transform never moves the collider and
   never moves the bore, so a mesh nudged for looks still fires down the
   authored line. Omit the mesh and the gun draws as a unit cuboid.
@@ -844,7 +844,7 @@ kind: Railgun((
   when the charge ends, so a target that slid off the line in that window is
   simply missed.
 - `slug_speed`, `slug_lifetime` - muzzle speed in units per second, and how
-  long the slug lives. Their product is the reach: the shipped lance is
+  long the slug lives. Their product is the reach: the shipped railgun is
   1500 u/s for 1.2 s, or 1800 units. With no layer cap on penetration, the
   lifetime is also what stops a miss travelling forever.
 - `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
@@ -852,13 +852,13 @@ kind: Railgun((
   section in the line takes what the first did.
 - `slug_power` - the pierce budget, spent in the MAX health of each section
   the shot takes. This is the ONLY bound; the layer count is deliberately
-  unlimited, so a lance stops when it runs out of material to spend rather than
+  unlimited, so a slug stops when it runs out of material to spend rather than
   at an arbitrary layer. A crossing costs that section's max health divided by
   the pierce speed curve, which a 1500 u/s slug pins at its 3.0 ceiling, so the
   shipped 1800 buys twenty-seven crossings of 200 hp reinforced hull.
 - `rake_radius` (optional) - how wide a corridor the shot cuts, in units. Omit
   it and the slug is a needle: it cuts exactly the column its bore crossed,
-  which is what every lance did before this field existed.
+  which is what every railgun did before this field existed.
   Author it and a sphere of that radius TRAILS the tip, its front tangent to
   the slug, sweeping a cylinder out of everything the tip has already reached.
   Three rules make it a rake and not a blast:
@@ -881,7 +881,7 @@ kind: Railgun((
 - `recoil_impulse` - impulse applied backwards along the bore at the muzzle
   point on the tick the slug leaves. Raw impulse with no `dt`, in the units a
   thruster's magnitude carries. Because it lands at the muzzle and not at the
-  centre of mass, an off-axis lance YAWS the ship every time it fires, which is
+  centre of mass, an off-axis railgun YAWS the ship every time it fires, which is
   the price a wing mount pays over a nose one.
 - `fire_sound` (optional) - the shot, at the muzzle.
 - `charge_sound` (optional) - the capacitor bank filling. A LOOP held for the
@@ -890,26 +890,27 @@ kind: Railgun((
   `charge_seconds` is a number a mod may set to anything, and a fixed-length
   file would either end early or be cut off.
 - `reload_sound` (optional) - a shell going back into the breech, played when
-  the magazine returns to capacity. For a one-shell lance that IS the whole of
+  the magazine returns to capacity. For a one-shell railgun that IS the whole of
   its cadence: the reload is the silence, and this is the silence ending.
 - `ammo_capacity` (optional) - shells carried; `None` for unlimited, the
   bare-rig default every weapon section shares.
 - `reload` (optional) - the same `Some((delay, amount))` batch reload a turret
-  and a bay use. For a one-shell magazine it IS the cadence: the shipped lance
+  and a bay use. For a one-shell magazine it IS the cadence: the shipped railgun
   is one shot every twelve quiet seconds, and the section's ammo gauge is the
   countdown.
 
 The scope below is the walk the game runs, on the block the range measures
 the gun with: drag `rake_radius` and read what a shot takes, what it spends and
-where it stops. The other faders are the block, so a mod's own hull can be
-approximated - a 60 hp cell is light plating, 480 a vector drive.
+where it stops. The other faders are the slug's power and the block, so a
+mod's own gun and hull can be approximated - a 60 hp cell is light plating,
+480 a vector drive.
 
 <div class="widget" data-widget="lance-corridor">
 <p>Against a wall of 200 hp cells five across, five tall and four deep, the shipped 1.0 takes nine cells a layer - the bore column, its four face neighbours and its four diagonals - through all four layers and one cell out the back: 28 cells for 1867 of 1800 power, the last crossing landing because the budget was still above zero when it began. A radius of 4.0 takes the same 28 as the whole entry face and three of the next layer, and stops there. A radius of 0 is the needle: four cells in a line.</p>
 </div>
 
 Author a [`Charge` animation track](#animation-tracks) to give the gun a tell.
-The shipped lance walks a `charge_bolt` node the length of the bore, so how far
+The shipped railgun walks a `charge_bolt` node the length of the bore, so how far
 the bolt has travelled is how much charge is left to run - readable by the
 firing player on their own hull and by an enemy across the gap. Without the
 track the gun still charges; it just charges invisibly.

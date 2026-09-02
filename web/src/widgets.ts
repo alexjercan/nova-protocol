@@ -567,7 +567,7 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
             s.weaponsHot ? "red while hot" : "amber"
         ),
         e(
-            "Bore sight (a hull with a lance)",
+            "Bore sight (a hull with a railgun)",
             "instrument",
             s.weaponsHot,
             s.weaponsHot
@@ -1006,6 +1006,15 @@ function control(
     const name = el("span", undefined, `${label}: `);
     const val = el("span", "widget__value", format(value));
     name.appendChild(val);
+    // The label column is sized to its content, so a value that shortens
+    // mid-drag ("200 hp (reinforced hull)" to "210 hp") would resize the
+    // fader under the pointer. Reserve the widest reading the fader can show.
+    let widest = 0;
+    const steps = Math.min(4000, Math.round((max - min) / step));
+    for (let i = 0; i <= steps; i++) {
+        widest = Math.max(widest, format(min + i * step).length);
+    }
+    name.style.minWidth = `min(${label.length + 2 + widest}ch, 100%)`;
     const input = el("input", "widget__slider");
     input.type = "range";
     input.min = String(min);
@@ -7206,9 +7215,10 @@ function initLanceCorridor(host: HTMLElement): void {
     const width0 = numAttr(host, "width", 5);
     const height0 = numAttr(host, "height", 5);
     const depth0 = numAttr(host, "depth", 4);
+    const power0 = numAttr(host, "power", LANCE_SLUG_POWER);
     header(
         host,
-        "Corridor scope: one lance shot into a hull block",
+        "Corridor scope: one railgun shot into a hull block",
         "A block of hull cells on a unit lattice, shot down its centre at " +
             `${LANCE_SLUG_SPEED} u/s. The tip cuts the bore column; the ` +
             "sphere trailing it widens that cut into a corridor, and every " +
@@ -7232,7 +7242,7 @@ function initLanceCorridor(host: HTMLElement): void {
         60: "light hull",
         100: "controller / bay",
         130: "PDC turret",
-        180: "lance",
+        180: "railgun",
         200: "reinforced hull",
         480: "vector drive",
     };
@@ -7241,7 +7251,7 @@ function initLanceCorridor(host: HTMLElement): void {
         viewBox: "0 0 560 270",
         role: "img",
         "aria-label":
-            "Corridor scope: a lance slug entering a block of hull cells in " +
+            "Corridor scope: a railgun slug entering a block of hull cells in " +
             "side profile with a sphere trailing its tip, cells lighting as " +
             "the corridor takes them, and the block's entry face beside it " +
             "counting the layers each column lost.",
@@ -7324,10 +7334,11 @@ function initLanceCorridor(host: HTMLElement): void {
         cut: SVGRectElement;
         count: SVGTextElement;
     }
-    let result = lanceCorridor(radius0, hp0, width0, height0, depth0);
+    let result = lanceCorridor(radius0, hp0, width0, height0, depth0, power0);
     let radius = radius0;
     let hp = hp0;
     let depth = depth0;
+    let power = power0;
     let slice: SliceCell[] = [];
     let face: FaceCell[] = [];
     let profileText: SVGTextElement[] = [];
@@ -7345,7 +7356,8 @@ function initLanceCorridor(host: HTMLElement): void {
         const width = Number(widthControl.input.value);
         const height = Number(heightControl.input.value);
         depth = Number(depthControl.input.value);
-        result = lanceCorridor(radius, hp, width, height, depth);
+        power = Number(powerControl.input.value);
+        result = lanceCorridor(radius, hp, width, height, depth, power);
         dynamic.replaceChildren();
         slice = [];
         face = [];
@@ -7470,7 +7482,7 @@ function initLanceCorridor(host: HTMLElement): void {
         dynamic.appendChild(dart);
 
         taken.textContent = `${result.taken} cells`;
-        spent.textContent = `${Math.round(result.spent)} of ${LANCE_SLUG_POWER}`;
+        spent.textContent = `${Math.round(result.spent)} of ${power}`;
         removed.textContent = `${Math.round(result.removed)} hp`;
         perCycle.textContent = `${(result.removed / LANCE_CYCLE_SECS).toFixed(0)} hp/s`;
         profile.textContent = result.profile.join(" / ");
@@ -7544,12 +7556,9 @@ function initLanceCorridor(host: HTMLElement): void {
                 `widget-mark--cut${dead ? "" : " is-hit"}`
             );
         }
-        const power = Math.max(0, LANCE_SLUG_POWER - charged * result.cost);
-        barFill.setAttribute(
-            "width",
-            String((power / LANCE_SLUG_POWER) * BAR.w)
-        );
-        barText.textContent = `power ${Math.round(power)}`;
+        const left = Math.max(0, power - charged * result.cost);
+        barFill.setAttribute("width", String((left / power) * BAR.w));
+        barText.textContent = `power ${Math.round(left)}`;
         const done = t >= duration() - 0.05;
         verdict.textContent = !done
             ? ""
@@ -7615,8 +7624,18 @@ function initLanceCorridor(host: HTMLElement): void {
         (v) => `${v} deep`,
         onParam
     );
+    const powerControl = control(
+        "Slug power",
+        300,
+        4800,
+        100,
+        power0,
+        (v) => `${v}${v === LANCE_SLUG_POWER ? " (shipped)" : ""}`,
+        onParam
+    );
     const controls = el("div", "widget__controls");
     controls.appendChild(radiusControl.row);
+    controls.appendChild(powerControl.row);
     controls.appendChild(hpControl.row);
     controls.appendChild(widthControl.row);
     controls.appendChild(heightControl.row);
@@ -7674,7 +7693,7 @@ function initWeaponReach(host: HTMLElement): void {
     const px = (u: number): number => X0 + (u / AXIS_MAX) * (X1 - X0);
     const LANES = [
         { name: "PDC", y: 40, reach: PDC_REACH_U, ext: 0 },
-        { name: "LANCE", y: 78, reach: LANCE_REACH_U, ext: 0 },
+        { name: "RAILGUN", y: 78, reach: LANCE_REACH_U, ext: 0 },
         {
             name: "TORPEDO",
             y: 116,
@@ -7688,7 +7707,7 @@ function initWeaponReach(host: HTMLElement): void {
         role: "img",
         "aria-label":
             "Engagement ladder: three horizontal reach bands on one range " +
-            "axis - the PDC's short one, the lance's long one and the " +
+            "axis - the PDC's short one, the railgun's long one and the " +
             "torpedoes' longer still - with a cursor at the chosen target " +
             "range showing which of them can touch it.",
     });
@@ -7893,7 +7912,7 @@ function initWeaponReach(host: HTMLElement): void {
         "Reach is never an authored number: it is muzzle speed times how " +
             "long the round lives, and a torpedo's is the speed it settles " +
             "at along the line over the bay's lifetime. Enemy gunships " +
-            "close to about 1000 u and fight there - inside the lance, " +
+            "close to about 1000 u and fight there - inside the railgun, " +
             "far outside the PDC, and where a torpedo takes half a minute " +
             "to arrive."
     );

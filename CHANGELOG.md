@@ -25,27 +25,27 @@ does NOT get an entry - and it is the only place they are written down.
 - A torpedo leaves through the bay's muzzle iris: the petals wind open before
   ejection, the round slides its whole length out of the tube, and held fire
   keeps the doors gaping.
-- A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
+- A spinal railgun joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A lance slug rakes a corridor about three cells wide through everything in
+- A railgun slug rakes a corridor about three cells wide through everything in
   the line, gutting hull sections and crippling the big drives. Power, not a
   layer count or the bore, bounds what one shot takes.
-- Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
-  so a lance mounted off the ship's axis yaws it as well as pushing it back.
-- A lance holds one shell and gets it back on a twelve-second idle reload.
-- A charging lance lights its own bore: a bolt climbs the rails behind a glow
+- Firing a railgun shoves the ship that fired. The impulse lands at the muzzle,
+  so a railgun mounted off the ship's axis yaws it as well as pushing it back.
+- A railgun holds one shell and gets it back on a twelve-second idle reload.
+- A charging railgun lights its own bore: a bolt climbs the rails behind a glow
   that brightens sharply as the shot nears, and the discharge throws sparks off
   the brake and kicks the camera.
 
 ### Scenarios & Objectives
-- The sandbox's farthest picket mounts a lance. It wakes like the others, but
+- The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 
 ### Interface & HUD
-- A lance carries the same ammo gauge as a turret or a bay, drawn in the
+- A railgun carries the same ammo gauge as a turret or a bay, drawn in the
   slug's pierce blue, so a spent shell and its long reload read at a glance.
-- With weapons hot, a lance draws its line of fire: a pierce-blue thread down
+- With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
   the bore ringing every section the shot would destroy, dimmed but still there
   through the twelve-second reload.
 
@@ -74,11 +74,11 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Web & Platform
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
-  rakes through, the recoil and the tempo - and the dev book gets the lance's
+  rakes through, the recoil and the tempo - and the dev book gets the railgun's
   charge cycle, its sight and its AI envelope.
-- The Railgun page carries a corridor scope: pick a rake radius, a cell and a
-  block and watch one shot spend its power. The combat page ranks the PDC, the
-  lance and the torpedoes on one range ladder.
+- The Railgun page carries a corridor scope: pick a rake radius, a power
+  budget, a cell and a block and watch one shot spend it. The combat page ranks
+  PDC, railgun and torpedoes on one range ladder.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
 
@@ -99,7 +99,7 @@ does NOT get an entry - and it is the only place they are written down.
   safety, a dry magazine, a hostile's lock arriving, and the hull dropping past
   thirty percent.
 - Machinery has a voice - a PDC's housing rising and folding away, a bay's iris
-  winding open and shut, and a lance's capacitor bank filling, discharging and
+  winding open and shut, and a railgun's capacitor bank filling, discharging and
   re-chambering.
 - A ship coming apart has its own sound, separate from the last section on it
   failing.
@@ -109,7 +109,7 @@ does NOT get an entry - and it is the only place they are written down.
   rest of the settings. Music is reserved: nothing routes to it yet.
 
 ### Internals & Tooling
-- The `wfc_arena` bench bolts a spinal lance to every generated bow, answering
+- The `wfc_arena` bench bolts a spinal railgun to every generated bow, answering
   its stern drive stamp, carves whatever the collapse hung in front of the bore,
   and binds it to `R` for a player slot.
 
