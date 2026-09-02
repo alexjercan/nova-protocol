@@ -1,8 +1,8 @@
 # Explore an ionized wake for the railgun slug
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 65
-- TAGS: v0.13.0,weapon,vfx,example,exploration
+- TAGS: v0.13.0, weapon, vfx, example, exploration
 
 The railgun slug already has a pale-blue emissive dart and a frame-rate-aware
 stretched tracer. Its charge glow and muzzle flash use the same blue hardware
@@ -213,3 +213,32 @@ revision.
 `vfx-range-lance.png` is one frame of the range's wide loop a tenth of a
 second after the first pass's shot: the wake across the frame over the
 target, the burst still landing under it.
+
+## Frame time
+
+Two repeat sets of `loop_vfx_range` through the probe (`probe run
+loop_vfx_range --release --repeat 5`) on 2026-09-02, on this 24-core box
+under the probe's own Xvfb on llvmpipe, five passes each. The revisions
+differ only by task files, so both sets ran the same code. The bare set's
+passes ran before a `wfc_arena` session started on the box; the wake set's
+passes ran after it ended, with a load sampler alongside reading 1.9 to 2.6
+and the example as the top process. One wake set whose passes overlapped
+that session came back WARN at a 32 ms p99 and is discarded, not averaged in.
+
+| set | revision | admitted | mean ms | median ms | p99 ms | worst ms | refresh cap |
+|---|---|---|---|---|---|---|---|
+| bare slug | b6aa4289 (stamped e65b5e07) | 5/5 | 15.27 | 15.48 | 24.76 +- 0.13 | 29.87 +- 0.49 | not suspected |
+| wake + light | 3384e919 | 5/5 | 15.40 | 15.56 | 23.60 +- 0.11 | 29.70 +- 0.58 | not suspected |
+
+Deltas, wake minus bare: mean +0.12 ms, median +0.08 ms, p99 -1.16 ms, worst
+-0.17 ms. Every per-pass p99 of both sets lies between 21.8 and 25.2 ms, and
+the wake set sits inside the bare set's spread on every figure, so the wake
+and the light cost nothing this method can see on this box. This is a
+repeat-set reading on one software renderer, not a frame-timing claim; a GPU
+host balances the particle fill against the rest of the frame differently.
+
+Two probe behaviours met on the way, neither a defect in the range: a commit
+landing while a set runs makes the aggregate index report ERROR ("holds an
+earlier run's checks.json") and exit 1 while the example's own verdict is
+OK, and `fps_within_baseline` turns from N/A into a soft WARN once an
+earlier run of the same example exists to compare against.
