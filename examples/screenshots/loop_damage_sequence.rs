@@ -93,6 +93,8 @@ const SEVERED_SECTION: &str = "pod_port";
 const SUBJECT_SPIN: Vec3 = Vec3::new(0.02, 0.12, 0.05);
 
 /// Scripted send-off speed per freed fragment, on top of the inherited spin.
+/// Added straight to an avian `LinearVelocity`, so it is an engine world-unit
+/// figure (world units per second), not a speed in meters per second.
 ///
 /// Paced against the drift hold and the framing rather than picked: the freed
 /// block has to clear the hull it came off while still being IN the shot when
@@ -131,7 +133,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         base: BaseScenarioObjectConfig {
             id: SUBJECT_ID.to_string(),
             name: "Subject".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::from_rotation_y(-0.55),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -151,9 +153,9 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "damage_rock_",
         count: 12,
         seed: 20260831,
-        distance: (55.0, 120.0),
-        radius: (1.0, 2.5),
-        y_spread: 30.0,
+        distance: (Meters(550.0), Meters(1_200.0)),
+        radius: (Meters(10.0), Meters(25.0)),
+        y_spread: Meters(300.0),
     };
 
     ScenarioConfig {
@@ -165,7 +167,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             filters: vec![],
             actions: [
                 vec![field.action(game_assets), subject],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -195,7 +197,11 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("frame the port flank")
         .on_enter(|world| {
             hide_hud(world);
-            pose_camera(world, Vec3::new(-6.2, 2.3, 5.4), Vec3::new(-1.0, 0.6, 0.1));
+            pose_camera(
+                world,
+                Meters3::new(-62.0, 23.0, 54.0),
+                Meters3::new(-10.0, 6.0, 1.0),
+            );
         })
         .until(elapsed(0.8))
         .add()

@@ -75,7 +75,11 @@ fn main() -> bevy::app::AppExit {
                 // sections read.
                 .step("frame wiki-sections.png")
                 .on_enter(|world: &mut World| {
-                    pose_camera(world, Vec3::new(7.0, 2.5, 9.0), Vec3::new(0.0, 0.2, 0.0));
+                    pose_camera(
+                        world,
+                        Meters3::new(70.0, 25.0, 90.0),
+                        Meters3::new(0.0, 2.0, 0.0),
+                    );
                 })
                 .until(frames(SETTLE_FRAMES))
                 .add()

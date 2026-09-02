@@ -116,7 +116,7 @@ fn main() -> bevy::app::AppExit {
                 .step("frame the flip")
                 .on_enter(|world| {
                     ring::hud_instrument(world);
-                    ring::lead(world, 21.0, 11.0, 6.0);
+                    ring::lead(world, Meters(210.0), Meters(110.0), Meters(60.0));
                 })
                 .until(elapsed(0.3))
                 .add()

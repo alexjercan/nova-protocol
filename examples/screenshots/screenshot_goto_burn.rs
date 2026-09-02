@@ -80,7 +80,13 @@ fn main() -> bevy::app::AppExit {
                 .step("frame the departure burn")
                 .on_enter(|world| {
                     ring::hud_instrument(world);
-                    ring::chase(world, 26.0, 20.0, 4.0, 10.0);
+                    ring::chase(
+                        world,
+                        Meters(260.0),
+                        Meters(200.0),
+                        Meters(40.0),
+                        Meters(100.0),
+                    );
                 })
                 .until(elapsed(0.3))
                 .add()

@@ -89,7 +89,7 @@ fn section_shots() -> [SectionShot; 3] {
         SectionShot {
             mount: Vec3::new(1.0, 0.0, -1.0),
             faces: Vec3::new(1.0, 0.0, 0.55),
-            distance: 3.6,
+            distance: Meters(36.0),
             path: "wiki-section-turret.png",
         },
         // Twin turret: on the roof, turned so both tubes read side by side
@@ -100,7 +100,7 @@ fn section_shots() -> [SectionShot; 3] {
         SectionShot {
             mount: Vec3::new(0.0, 1.15, -1.0),
             faces: Vec3::new(0.55, 0.0, -1.0),
-            distance: 2.4,
+            distance: Meters(24.0),
             path: "wiki-section-turret-twin.png",
         },
         // Torpedo bay: the opposite flank, so the ship turns most of a
@@ -111,7 +111,7 @@ fn section_shots() -> [SectionShot; 3] {
         SectionShot {
             mount: Vec3::new(-1.0, 0.0, 0.5),
             faces: Vec3::new(-0.5, 0.0, -1.0),
-            distance: 4.5,
+            distance: Meters(45.0),
             path: "wiki-section-torpedo-bay.png",
         },
     ]

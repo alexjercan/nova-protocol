@@ -114,8 +114,11 @@ const HITS: [f32; 9] = [0.0, 21.0, 40.0, 86.0, 150.0, 290.0, 500.0, 977.0, 150.0
 /// bar is destroyed outright and there is nothing left to photograph.
 const CLAD: [bool; 9] = [true, true, true, true, true, true, true, true, false];
 
-/// How far apart the ships stand, in units. Wide enough that debris and sparks
-/// from one column do not read as belonging to the next.
+/// How far apart the ships stand: 6 engine world units, so 60 m. Kept in
+/// engine units because the row's aim points are solved CELL-relative against
+/// live transforms; it crosses to meters at each authored or posed use. Wide
+/// enough that debris and sparks from one column do not read as belonging to
+/// the next.
 const COLUMN_PITCH: f32 = 6.0;
 
 /// The scenario id each column's ship is spawned under.
@@ -306,7 +309,8 @@ fn hit_columns(world: &mut World) {
 }
 
 /// Where a column is shot: the top of its hull cell, which is one cell forward
-/// of the controller and one cell up.
+/// of the controller and one cell up. ENGINE world space - it is compared
+/// against live transforms and handed to `apply_damage`.
 #[cfg(feature = "debug")]
 fn column_aim(index: usize) -> Vec3 {
     Vec3::new(index as f32 * COLUMN_PITCH, 1.0, 1.0)
@@ -316,7 +320,7 @@ fn column_aim(index: usize) -> Vec3 {
 ///
 /// The reach is what makes it its own column's: the row is one world and a
 /// bare column has no plates at all, so an unbounded search happily answers
-/// with the neighbour's cladding four units away. That put the bare column's
+/// with the neighbour's cladding 40 m away. That put the bare column's
 /// hit on the wrong ship entirely.
 #[cfg(feature = "debug")]
 fn nearest_plate(world: &mut World, aim: Vec3) -> Option<Entity> {
@@ -433,8 +437,8 @@ fn gallery_script() -> Script {
             // the whole row - it is nine columns wide now, not five.
             nova_protocol::nova_debug::harness::pose_camera(
                 world,
-                centre + Vec3::new(0.0, 21.0, 28.0),
-                centre,
+                Meters3::from_engine(centre + Vec3::new(0.0, 21.0, 28.0)),
+                Meters3::from_engine(centre),
             );
         })
         .until(elapsed(0.8))
@@ -476,7 +480,8 @@ fn gallery_script() -> Script {
         })
 }
 
-/// The middle of the row, which the establishing shot is centred on.
+/// The middle of the row, which the establishing shot is centred on. Engine
+/// world space, like [`column_aim`].
 fn row_centre() -> Vec3 {
     Vec3::new((LEVELS.len() as f32 - 1.0) * COLUMN_PITCH * 0.5, 0.0, 0.0)
 }
@@ -496,7 +501,11 @@ fn row_centre() -> Vec3 {
 #[cfg(feature = "debug")]
 fn frame_column(world: &mut World, index: usize) {
     let aim = column_aim(index);
-    nova_protocol::nova_debug::harness::pose_camera(world, aim + Vec3::new(2.2, 3.0, 3.2), aim);
+    nova_protocol::nova_debug::harness::pose_camera(
+        world,
+        Meters3::from_engine(aim + Vec3::new(2.2, 3.0, 3.2)),
+        Meters3::from_engine(aim),
+    );
 }
 
 /// One clad ship: a hull cell to wear through, a turret and a thruster to
@@ -573,7 +582,7 @@ fn column_ship(sections: &GameSections, level_index: usize) -> ScenarioObjectCon
         base: BaseScenarioObjectConfig {
             id: column_id(level_index),
             name: format!("Level {}", LEVELS[level_index]),
-            position: Vec3::new(level_index as f32 * COLUMN_PITCH, 0.0, 0.0),
+            position: Meters3::from_engine(Vec3::new(level_index as f32 * COLUMN_PITCH, 0.0, 0.0)),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(ship),
@@ -596,7 +605,7 @@ fn gallery(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig 
                 ships,
                 // Centred on the middle column so the establishing shot holds
                 // the whole row.
-                ThreePointRig::around("row", row_centre(), 3.0).actions(),
+                ThreePointRig::around("row", Meters3::from_engine(row_centre()), 3.0).actions(),
             ]
             .concat(),
         }],

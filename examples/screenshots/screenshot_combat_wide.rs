@@ -6,8 +6,8 @@
 //!
 //! The HUD goes cinematic first: the camera leaves the player, so the chrome
 //! would be reading a ship the frame is no longer with. Both framings are on the
-//! PLAYER's tracer stream, not on the AI pairs - the AI holds a 100-unit
-//! standoff well outside this framing, while the player's fire crosses 34 units
+//! PLAYER's tracer stream, not on the AI pairs - the AI holds a 1 km
+//! standoff well outside this framing, while the player's fire crosses 340 m
 //! of open hollow into a hull.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
@@ -131,7 +131,11 @@ fn combat_wide_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .step("frame the exchange")
         .on_enter(|world| {
             hollow::hud_cinematic(world);
-            hollow::pose(world, Vec3::new(9.0, 2.5, 6.0), Vec3::new(0.0, 0.3, -14.0));
+            hollow::pose(
+                world,
+                Meters3::new(90.0, 25.0, 60.0),
+                Meters3::new(0.0, 3.0, -140.0),
+            );
         })
         .until(elapsed(0.5))
         .add()
@@ -145,11 +149,11 @@ fn combat_wide_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .step("frame the readability shot")
         .on_enter(|world| {
             // Off the LIVE raider, not its spawn point: it drifts, and a stream
-            // of turret rounds pushes it further - by this beat it is a good ten
-            // units off, which throws a ten-unit-away camera clean off the
+            // of turret rounds pushes it further - by this beat it is a good
+            // 100 m off, which throws a camera 100 m away clean off the
             // subject.
             let raider = hollow::raider_position(world);
-            hollow::pose(world, raider + Vec3::new(-12.0, 3.5, 8.0), raider)
+            hollow::pose(world, raider + Meters3::new(-120.0, 35.0, 80.0), raider)
         })
         .until(elapsed(0.5))
         .add()

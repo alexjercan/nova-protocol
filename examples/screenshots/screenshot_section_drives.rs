@@ -3,7 +3,7 @@
 //! (`wiki-section-vector-drive.png`, `wiki-section-capital-drive.png`).
 //!
 //! A separate producer from `screenshot_section_frame` because the subject is
-//! SCALE. That walk's showcase ship is sized so a unit section fills the frame
+//! SCALE. That walk's showcase ship is sized so a one-cell section fills the frame
 //! with its neighbours still in it; standing a 5x5x3 drive on the same spine
 //! would bury every other closeup on it. Here the three drives are three
 //! ships on one bench, and the shot that matters is the one that holds all
@@ -50,19 +50,20 @@ struct Cli;
 
 /// Where each rig stands on the bench, in world X.
 ///
-/// Read left to right as the family grows. The gaps are three units of clear
+/// Read left to right as the family grows. The gaps are 30 m of clear
 /// space rather than a constant pitch: a constant pitch puts the capital's
-/// 5-wide body almost against its neighbour while the 1-wide basic swims in
-/// air, and the row stops reading as a size comparison.
-const BASIC_X: f32 = -8.0;
-const VECTOR_X: f32 = -3.0;
-const CAPITAL_X: f32 = 4.0;
+/// 5-cell-wide body almost against its neighbour while the 1-cell-wide basic
+/// swims in air, and the row stops reading as a size comparison.
+const BASIC_X: Meters = Meters(-80.0);
+const VECTOR_X: Meters = Meters(-30.0);
+const CAPITAL_X: Meters = Meters(40.0);
 
 /// The point the family shot frames and the rig lights: the middle of the
 /// occupied span, not the origin.
-const BENCH_CENTRE: Vec3 = Vec3::new(-1.0, 0.0, 0.0);
+const BENCH_CENTRE: Meters3 = Meters3::new(-10.0, 0.0, 0.0);
 
-/// Where the camera stands, as a direction from the subject.
+/// Where the camera stands, as a DIRECTION from the subject - dimensionless,
+/// normalized before use.
 ///
 /// Mostly down the drives' own +Z, because the nozzle is what these parts
 /// changed and it is the only face that carries one. Off the axis in X and Y
@@ -109,15 +110,16 @@ fn setup_bench(mut commands: Commands, game_assets: Res<GameAssets>, sections: R
 /// One drive on the hull cell it mounts to, as a whole ship standing at `x`.
 ///
 /// The hull sits a half cell behind the drive's bow face: a drive's link
-/// points are one per cell on its -Z face at `-cells.z / 2`, and a unit hull
-/// carries its own at `+0.5`, so the hull's centre is the drive's bow face
-/// minus a half unit.
+/// points are one per cell on its -Z face at `-cells.z / 2`, and a one-cell
+/// hull carries its own at `+0.5`, so the hull's centre is the drive's bow
+/// face minus half a BUILD-GRID cell (`cells_z` and the mount offset are
+/// cells, not meters).
 fn drive_rig(
     sections: &GameSections,
     id: &str,
     drive_id: &str,
     cells_z: f32,
-    x: f32,
+    x: Meters,
 ) -> ScenarioObjectConfig {
     let section = |kind: &str| {
         sections
@@ -138,7 +140,7 @@ fn drive_rig(
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: id.to_string(),
-            position: Vec3::new(x, 0.0, 0.0),
+            position: Meters3(Vec3::new(x.get(), 0.0, 0.0)),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -214,8 +216,8 @@ fn drive_bench(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
 /// One framing: what it looks at, how far back, and the file it writes.
 #[cfg(feature = "debug")]
 struct BenchShot {
-    subject: Vec3,
-    distance: f32,
+    subject: Meters3,
+    distance: Meters,
     path: &'static str,
 }
 
@@ -223,22 +225,22 @@ struct BenchShot {
 #[cfg(feature = "debug")]
 fn bench_shots() -> [BenchShot; 3] {
     [
-        // All three at once. The distance holds the whole 15-unit span with
+        // All three at once. The distance holds the whole 150 m span with
         // air at each end, because the shot IS the comparison: a crop that
         // clips the capital would answer the question it was asked to raise.
         BenchShot {
             subject: BENCH_CENTRE,
-            distance: 18.0,
+            distance: Meters(180.0),
             path: "wiki-section-drives.png",
         },
         BenchShot {
-            subject: Vec3::new(VECTOR_X, 0.0, 0.0),
-            distance: 8.5,
+            subject: Meters3(Vec3::new(VECTOR_X.get(), 0.0, 0.0)),
+            distance: Meters(85.0),
             path: "wiki-section-vector-drive.png",
         },
         BenchShot {
-            subject: Vec3::new(CAPITAL_X, 0.0, 0.0),
-            distance: 13.0,
+            subject: Meters3(Vec3::new(CAPITAL_X.get(), 0.0, 0.0)),
+            distance: Meters(130.0),
             path: "wiki-section-capital-drive.png",
         },
     ]
@@ -250,7 +252,7 @@ fn bench_shots() -> [BenchShot; 3] {
 /// face, so a turntable would only re-light three identical poses.
 #[cfg(feature = "debug")]
 fn frame_bench(world: &mut World, shot: &BenchShot) {
-    let eye = shot.subject + BENCH_BEARING.normalize() * shot.distance;
+    let eye = shot.subject + Meters3(BENCH_BEARING.normalize() * shot.distance.get());
     pose_camera(world, eye, shot.subject);
 }
 

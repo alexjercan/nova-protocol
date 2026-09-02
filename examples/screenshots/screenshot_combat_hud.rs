@@ -127,7 +127,13 @@ fn combat_hud_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         // The fight from the ship's shoulder: every situational readout up with
         // the hull in frame.
         .step("frame the HUD showcase")
-        .on_enter(|world| hollow::pose(world, Vec3::new(5.0, 1.6, 7.0), Vec3::new(0.0, 0.4, -14.0)))
+        .on_enter(|world| {
+            hollow::pose(
+                world,
+                Meters3::new(50.0, 16.0, 70.0),
+                Meters3::new(0.0, 4.0, -140.0),
+            )
+        })
         .until(elapsed(0.4))
         .add()
         .step("capture the HUD in combat")
@@ -140,7 +146,11 @@ fn combat_hud_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
         .add()
         .step("frame the HUD reference")
         .on_enter(|world| {
-            hollow::pose(world, Vec3::new(-6.0, 2.8, 5.0), Vec3::new(0.0, 0.2, -16.0))
+            hollow::pose(
+                world,
+                Meters3::new(-60.0, 28.0, 50.0),
+                Meters3::new(0.0, 2.0, -160.0),
+            )
         })
         .until(elapsed(0.4))
         .add()

@@ -55,11 +55,11 @@ pub fn kenney_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig>
 /// Near-field asteroid dressing: a ring of rocks close enough to the subject to
 /// be IN the shot.
 ///
-/// The old reel scattered its field 90-180 units out, where it reads as
-/// background noise or nothing at all. The defaults here start at 25 units with
+/// The old reel scattered its field 900-1800 m out, where it reads as
+/// background noise or nothing at all. The defaults here start at 250 m with
 /// real radius variance, so a wide shot has something with parallax in it -
 /// close enough to be in frame, far enough that a hero at the origin is not
-/// buried in rock at a 15-unit camera. Scenes tune the fields for their own
+/// buried in rock at a 150 m camera. Scenes tune the fields for their own
 /// framing; the subject is assumed to sit at the origin, so the field's
 /// [`ScatterRegion::Ring`] is centred there.
 pub struct NearField {
@@ -69,12 +69,12 @@ pub struct NearField {
     pub count: u32,
     /// Layout seed - fixed, so every run of a capture frames the same field.
     pub seed: u64,
-    /// Ring radii (world units) the rocks land between.
-    pub distance: (f32, f32),
+    /// Ring radii the rocks land between.
+    pub distance: (Meters, Meters),
     /// Per-rock radius range.
-    pub radius: (f32, f32),
+    pub radius: (Meters, Meters),
     /// Vertical spread above and below the subject's plane.
-    pub y_spread: f32,
+    pub y_spread: Meters,
 }
 
 impl Default for NearField {
@@ -83,9 +83,9 @@ impl Default for NearField {
             id_prefix: "near_rock_",
             count: 30,
             seed: 20260805,
-            distance: (25.0, 90.0),
-            radius: (1.2, 5.0),
-            y_spread: 18.0,
+            distance: (Meters(250.0), Meters(900.0)),
+            radius: (Meters(12.0), Meters(50.0)),
+            y_spread: Meters(180.0),
         }
     }
 }
@@ -98,7 +98,7 @@ impl NearField {
             count: self.count,
             seed: self.seed,
             region: ScatterRegion::Ring {
-                center: Vec3::ZERO,
+                center: Meters3::ZERO,
                 inner: self.distance.0,
                 outer: self.distance.1,
                 y_min: -self.y_spread,
@@ -108,7 +108,7 @@ impl NearField {
                 base: BaseScenarioObjectConfig {
                     id: self.id_prefix.to_string(),
                     name: "Rock".to_string(),
-                    position: Vec3::ZERO,
+                    position: Meters3::ZERO,
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {

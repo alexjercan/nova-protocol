@@ -16,19 +16,20 @@
 //! Sizing, so the numbers are not magic (the well math is
 //! `crates/nova_gameplay/src/gravity.rs`):
 //! - MEASURED, not assumed: the noise displaces the rock mesh outward, and the
-//!   derived `BodyRadius` of this planetoid comes out at 79-108 units for an
-//!   authored 20 - a factor of about 4.5, not the 2 a diameter-based reading
+//!   derived `BodyRadius` of this planetoid comes out at 790-1080 m for an
+//!   authored 200 m - a factor of about 4.5, not the 2 a diameter-based reading
 //!   suggests. The spread is per RUN, since the displacement is seeded from the
 //!   global RNG, so nothing here may sit close to a boundary. Everything - the
 //!   well strength, the orbit band, the body in frame - measures from that
 //!   radius, and [`engage_orbit`] logs it, because the first cut of this scene
-//!   put the ring 19 units off the surface and shot a frame of nothing but rock.
+//!   put the ring 190 m off the surface and shot a frame of nothing but rock.
 //! - The orbit band runs from `1.5 * (body_radius + 1)` out to `0.9 * 0.85 *
 //!   SOI`, and the SOI comes from the authored mass alone
-//!   (`sqrt(mu / soi_cutoff_accel)` = 490 units) - roughly 122 to 375 units
-//!   here. [`ORBIT_RADIUS`] sits mid-band, so the explicit plan is the ring the
-//!   ship actually flies and the body reads as a body rather than as terrain.
-//! - The ring's circular speed is `sqrt(mu / r)`, around 14 u/s here: fast
+//!   (`sqrt(mu / soi_cutoff_accel)`, 490 world units, so 4.9 km) - roughly
+//!   1.22 to 3.75 km here. [`ORBIT_RADIUS`] sits mid-band, so the explicit plan
+//!   is the ring the ship actually flies and the body reads as a body rather
+//!   than as terrain.
+//! - The ring's circular speed is `sqrt(mu / r)`, around 140 m/s here: fast
 //!   enough that the drive is lit and the hull is visibly banked into its plane,
 //!   slow enough that a pinned camera keeps its subject for the length of a
 //!   beat.
@@ -50,25 +51,27 @@ use nova_protocol::prelude::*;
 
 /// The planetoid's scenario id.
 pub const PLANETOID_ID: &str = "ring_planetoid";
-/// Authored radius. The mesh draws well past it - about 91 units of real body
-/// for this 20 - and the well, the orbit band and every framing measure from
+/// Authored radius. The mesh draws well past it - about 910 m of real body
+/// for this 200 - and the well, the orbit band and every framing measure from
 /// that derived radius, not from this number.
-pub const PLANETOID_RADIUS: f32 = 20.0;
-/// The body's mass parameter (mu, u^3/s^2) - the one authored gravity number,
-/// setting both the pull and the SOI (`soi = sqrt(mu / soi_cutoff_accel)`, so
-/// 490u here). Sized so [`ORBIT_RADIUS`] sits mid-band on every mesh seed:
-/// this set's whole subject is the flight computer flying a REAL well, so a
-/// tuned-down one would be a prop.
+pub const PLANETOID_RADIUS: Meters = Meters(200.0);
+/// The body's mass parameter (mu), the one authored gravity number, setting
+/// both the pull and the SOI (`soi = sqrt(mu / soi_cutoff_accel)`, 490 world
+/// units or 4.9 km here). A gravitational parameter, not a length: it stays in
+/// the engine's own scale (world units cubed per second squared), which is why
+/// it carries no meter type. Sized so [`ORBIT_RADIUS`] sits mid-band on every
+/// mesh seed: this set's whole subject is the flight computer flying a REAL
+/// well, so a tuned-down one would be a prop.
 pub const PLANETOID_MASS: f32 = 60_000.0;
 
 /// The player ship's scenario id.
 pub const PLAYER_ID: &str = "ring_player";
-/// The ring the ship holds: mid-band (roughly 122 to 375 units for this body),
+/// The ring the ship holds: mid-band (roughly 1.22 to 3.75 km for this body),
 /// so the explicit plan below is flown as authored rather than clamped. The
 /// distance is chosen off the DRAWN body, at about three and a half of its
 /// radii - close enough that the planetoid fills the lower third of a framing
 /// with a curved limb, far enough that it is a body and not the ground.
-pub const ORBIT_RADIUS: f32 = 320.0;
+pub const ORBIT_RADIUS: Meters = Meters(3_200.0);
 /// The ring's plane: the world horizontal, so the rock ring and the holo ring
 /// are the same circle and the shots have one horizon rather than two.
 pub const ORBIT_NORMAL: Vec3 = Vec3::Y;
@@ -88,8 +91,8 @@ pub const START_RADIAL: Vec3 = Vec3::new(0.35, 0.0, -0.94);
 
 /// Where the racer is parked before the verb takes it: on the ring, out along
 /// [`START_RADIAL`].
-pub fn start_position() -> Vec3 {
-    START_RADIAL.normalize() * ORBIT_RADIUS
+pub fn start_position() -> Meters3 {
+    Meters3(START_RADIAL.normalize() * ORBIT_RADIUS.get())
 }
 
 /// Pointing along the ring's travel direction (`normal x radial`), so the racer
@@ -105,13 +108,13 @@ pub const BEACON_ID: &str = "ring_beacon";
 /// align-burn-coast-FLIP-brake profile. Polar on purpose - the ring is
 /// horizontal, so a leg straight up out of it clears the body from EVERY point
 /// on the ring (the closest a path from the ring to here passes the planetoid is
-/// about 300 units, against a 92-unit body), and the departure does not depend
+/// about 3 km, against a 920 m body), and the departure does not depend
 /// on where in its orbit the ship happened to be when the verb changed.
-pub const BEACON_POSITION: Vec3 = Vec3::new(0.0, 760.0, 0.0);
-/// Radar signature; lock range is 30 world units per unit of it. Not needed to
-/// fly the leg - GOTO takes an entity, not a lock - but it is what puts the
-/// beacon's own bracket on screen for the whole approach.
-pub const BEACON_SIGNATURE: f32 = 40.0;
+pub const BEACON_POSITION: Meters3 = Meters3::new(0.0, 7_600.0, 0.0);
+/// Radar signature; lock range is 30 times it (a pure ratio), so 12 km here.
+/// Not needed to fly the leg - GOTO takes an entity, not a lock - but it is
+/// what puts the beacon's own bracket on screen for the whole approach.
+pub const BEACON_SIGNATURE: Meters = Meters(400.0);
 
 /// Seconds the ship holds the ring before the shots, so the last of the
 /// circularization wobble is out of the hull's attitude.
@@ -149,16 +152,16 @@ pub fn the_ring_with_hull(
     //   the orbit is - so a band overlapping the ring puts rocks in the ship's
     //   track, and a band INSIDE it walls off the one thing this set is about.
     //   Everything the camera looks inward through has to be empty.
-    // - The 4.5x draw factor applies to these too, so an authored 2-7 is a field
-    //   of 9-32 unit boulders. Authored small, they read as the debris the ring
-    //   sweeps up rather than as a second asteroid field.
+    // - The 4.5x draw factor applies to these too, so an authored 10-30 m is a
+    //   field of 45-135 m boulders. Authored small, they read as the debris the
+    //   ring sweeps up rather than as a second asteroid field.
     let debris = kit::NearField {
         id_prefix: "ring_rock_",
         count: 34,
         seed: 71104,
-        distance: (420.0, 760.0),
-        radius: (1.0, 3.0),
-        y_spread: 110.0,
+        distance: (Meters(4_200.0), Meters(7_600.0)),
+        radius: (Meters(10.0), Meters(30.0)),
+        y_spread: Meters(1_100.0),
     };
 
     ScenarioConfig {
@@ -188,7 +191,7 @@ pub fn the_ring_with_hull(
                             ),
                         }),
                     ],
-                    ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                    ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
                 ]
                 .concat(),
             },
@@ -224,7 +227,7 @@ pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
         base: BaseScenarioObjectConfig {
             id: PLANETOID_ID.to_string(),
             name: "Planetoid".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
@@ -253,9 +256,9 @@ pub fn beacon() -> EventActionConfig {
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "SURVEY".to_string(),
             // Bigger than a nav point needs to be: the arrival frame is a
-            // picture of the thing at the end of the leg, and a 3-unit orb at
+            // picture of the thing at the end of the leg, and a 30 m orb at
             // the far end of a standoff is a pixel.
-            radius: 6.0,
+            radius: Meters(60.0),
             color: Color::srgb(0.4, 0.75, 1.0),
             // No trigger area: nothing in this set springs on arrival.
             area_radius: None,
@@ -268,7 +271,7 @@ pub fn beacon() -> EventActionConfig {
 pub fn ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
@@ -311,21 +314,22 @@ pub fn hud_cinematic(world: &mut World) {
 
 /// Pin the camera for a framing the follow camera does not give.
 #[cfg(feature = "debug")]
-pub fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
+pub fn pose(world: &mut World, position: Meters3, look_at: Meters3) {
     pose_camera(world, position, look_at);
 }
 
 /// Pin a STILL framing: the pose, plus stopping any leg camera that would
 /// otherwise re-solve it out from under this one on the next frame.
 #[cfg(feature = "debug")]
-pub fn pin(world: &mut World, position: Vec3, look_at: Vec3) {
+pub fn pin(world: &mut World, position: Meters3, look_at: Meters3) {
     world.remove_resource::<LegCamera>();
     pose(world, position, look_at);
 }
 
-/// Where the photo rig's key light comes FROM (`shared/kit.rs`). The rig is
-/// direction-only, so which half of a hull is lit depends on the hull's
-/// ATTITUDE, and a maneuvering ship changes attitude for a living.
+/// Where the photo rig's key light comes FROM (`shared/kit.rs`). A DIRECTION,
+/// not a distance - the rig is direction-only, so which half of a hull is lit
+/// depends on the hull's ATTITUDE, and a maneuvering ship changes attitude for
+/// a living.
 #[cfg(feature = "debug")]
 pub const KEY_FROM: Vec3 = Vec3::new(-6.0, 5.0, 6.0);
 
@@ -347,29 +351,29 @@ pub fn lit_side(track: Vec3) -> Vec3 {
 /// [`drive_leg_camera`] re-solves them every frame while this is present.
 ///
 /// A leg camera CANNOT be a single pinned pose. The ship crosses the transfer at
-/// 65 u/s, so the ~0.3 s a framing beat holds is twenty units of travel - the
-/// first cut of the flip beat pinned its camera 22 units ahead of the ship and
-/// the ship flew straight through it, leaving an empty frame.
+/// 650 m/s, so the ~0.3 s a framing beat holds is 200 m of travel - the first
+/// cut of the flip beat pinned its camera 220 m ahead of the ship and the ship
+/// flew straight through it, leaving an empty frame.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
 pub struct LegCamera {
     /// Offset onto the key light's side of the hull.
-    pub side: f32,
+    pub side: Meters,
     /// Offset down the track: negative is behind the ship, positive ahead.
-    pub along: f32,
+    pub along: Meters,
     /// Offset in world Y.
-    pub up: f32,
+    pub up: Meters,
     /// How far up the track the lens aims past the ship. Positive drops the hull
     /// low in the frame and gives the space it is flying into to the shot.
-    pub look_ahead: f32,
+    pub look_ahead: Meters,
 }
 
 /// The filtered world-space pose of a moving leg camera.
 #[cfg(feature = "debug")]
 #[derive(Resource, Clone, Copy)]
 struct LegCameraTrack {
-    position: Vec3,
-    look_at: Vec3,
+    position: Meters3,
+    look_at: Meters3,
 }
 
 /// Re-solve the leg camera against the ship's live position and track.
@@ -381,9 +385,10 @@ pub fn drive_leg_camera(world: &mut World) {
     };
     let ship = ship_position(world);
     let heading = ship_heading(world);
-    let offset = lit_side(heading) * rig.side + heading * rig.along + Vec3::Y * rig.up;
-    let desired_position = ship + offset;
-    let desired_look_at = ship + heading * rig.look_ahead;
+    let offset =
+        lit_side(heading) * rig.side.get() + heading * rig.along.get() + Vec3::Y * rig.up.get();
+    let desired_position = ship + Meters3(offset);
+    let desired_look_at = ship + Meters3(heading * rig.look_ahead.get());
     let delta = world.resource::<Time>().delta_secs().min(0.1);
     let alpha = 1.0 - (-10.0 * delta).exp();
     let mut track = world
@@ -392,8 +397,8 @@ pub fn drive_leg_camera(world: &mut World) {
             position: desired_position,
             look_at: desired_look_at,
         });
-    track.position = track.position.lerp(desired_position, alpha);
-    track.look_at = track.look_at.lerp(desired_look_at, alpha);
+    track.position = Meters3(track.position.get().lerp(desired_position.get(), alpha));
+    track.look_at = Meters3(track.look_at.get().lerp(desired_look_at.get(), alpha));
     pose(world, track.position, track.look_at);
     world.insert_resource(track);
 }
@@ -401,7 +406,7 @@ pub fn drive_leg_camera(world: &mut World) {
 /// Fly the camera behind the ship on the key side. The framing for a ship under
 /// power, since the drive is at the back and so is the lens.
 #[cfg(feature = "debug")]
-pub fn chase(world: &mut World, side: f32, back: f32, up: f32, look_ahead: f32) {
+pub fn chase(world: &mut World, side: Meters, back: Meters, up: Meters, look_ahead: Meters) {
     world.remove_resource::<LegCameraTrack>();
     world.insert_resource(LegCamera {
         side,
@@ -415,13 +420,13 @@ pub fn chase(world: &mut World, side: f32, back: f32, up: f32, look_ahead: f32) 
 /// under RETRO power: braking, the drive fires down the track, so the lens has
 /// to be down the track with it.
 #[cfg(feature = "debug")]
-pub fn lead(world: &mut World, side: f32, ahead: f32, up: f32) {
+pub fn lead(world: &mut World, side: Meters, ahead: Meters, up: Meters) {
     world.remove_resource::<LegCameraTrack>();
     world.insert_resource(LegCamera {
         side,
         along: ahead,
         up,
-        look_ahead: 0.0,
+        look_ahead: Meters::ZERO,
     });
 }
 
@@ -451,12 +456,18 @@ pub fn engage_orbit(world: &mut World) {
         .entity_mut(player)
         .insert(Autopilot::engage(AutopilotAction::Orbit {
             well,
+            // `OrbitPlan` is flight state, so the ring crosses to world units
+            // here.
             plan: Some(OrbitPlan {
-                radius: ORBIT_RADIUS,
+                radius: ORBIT_RADIUS.to_engine(),
                 normal: ORBIT_NORMAL,
             }),
         }));
-    info!("flight: ORBIT engaged at r = {ORBIT_RADIUS} on a body of radius {body_radius:?}");
+    info!(
+        "flight: ORBIT engaged at r = {} m on a body of radius {:?} world units",
+        ORBIT_RADIUS.get(),
+        body_radius
+    );
 }
 
 /// Hand the camera back to the game: stop flying any leg rig, then drop the
@@ -530,8 +541,12 @@ pub fn player_retro_burning() -> std::sync::Arc<nova_protocol::nova_debug::harne
 }
 
 /// Advance once the leg is essentially over: inside the arrival standoff
-/// (`FlightSettings::arrival_standoff` is 50 units, and the telemetry's distance
-/// is to the target SURFACE), with the closing speed off the top of the brake.
+/// (`FlightSettings::arrival_standoff` is 50 world units, so 500 m, and the
+/// telemetry's distance is to the target SURFACE), with the closing speed off
+/// the top of the brake.
+///
+/// The thresholds below are ENGINE figures: `ManeuverTelemetry` still publishes
+/// world units and world units per second.
 #[cfg(feature = "debug")]
 pub fn player_arrived() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(|world: &World| {
@@ -569,10 +584,10 @@ pub fn autopilot_phase(world: &World) -> Option<AutopilotPhase> {
 
 /// Where the ship actually is right now; its spawn point if it has gone.
 #[cfg(feature = "debug")]
-pub fn ship_position(world: &mut World) -> Vec3 {
+pub fn ship_position(world: &mut World) -> Meters3 {
     player_root(world)
         .and_then(|player| world.get::<GlobalTransform>(player))
-        .map(|transform| transform.translation())
+        .map(|transform| Meters3::from_engine(transform.translation()))
         .unwrap_or_else(start_position)
 }
 

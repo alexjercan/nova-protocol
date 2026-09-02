@@ -15,9 +15,9 @@
 //! Three firing lanes, all unmanaged (no `WeaponsHot`), so the script fires
 //! them by writing the section inputs directly:
 //!
-//! - gatling lane (x -6): the default PDC on a pedestal, hosing its own
-//!   target column 30 units downrange.
-//! - twin lane (x +6): the twin PDC doing the same at half the cadence per
+//! - gatling lane (x -60 m): the default PDC on a pedestal, hosing its own
+//!   target column 300 m downrange.
+//! - twin lane (x +60 m): the twin PDC doing the same at half the cadence per
 //!   muzzle - two offset streams, the same total rate.
 //! - bay lane (x 0): a lone two-cell bay (the gauntlet battery's shape) under
 //!   a scripted order, launching one torpedo at a soft column far downrange.
@@ -66,18 +66,18 @@ struct Cli;
 
 /// The two PDC lanes, one gun each. Far enough apart that neither stream can
 /// scar the other's column (the twin's muzzle offsets are a tenth of this).
-const GATLING_LANE_X: f32 = -6.0;
-const TWIN_LANE_X: f32 = 6.0;
+const GATLING_LANE_X: Meters = Meters(-60.0);
+const TWIN_LANE_X: Meters = Meters(60.0);
 
-/// How far each PDC target column stands downrange. Inside the PDC's 200-unit
+/// How far each PDC target column stands downrange. Inside the PDC's 2 km
 /// reach by a wide margin, so a round crosses in about a third of a second
 /// and a scarred column proves the gun within one short burst.
-const TRIAL_RANGE: f32 = 30.0;
+const TRIAL_RANGE: Meters = Meters(300.0);
 
-/// How far the bay's column stands downrange. Far enough that the 30-unit
+/// How far the bay's column stands downrange. Far enough that the 300 m
 /// blast at the column cannot reach back across the diagonal to the PDC
-/// columns (that diagonal is ~40 units); near enough the flight fits a step.
-const BAY_RANGE: f32 = 70.0;
+/// columns (that diagonal is ~400 m); near enough the flight fits a step.
+const BAY_RANGE: Meters = Meters(700.0);
 
 /// Health each PDC target section is authored to: the burst scars the column
 /// instead of deleting the scenery, so every still has a subject.
@@ -89,7 +89,7 @@ const BAY_MARK_ID: &str = "bay_mark";
 /// Where the PDC guns aim: each lane's own column centre. Only the driven
 /// walk writes an aim point, so only the debug build reads this.
 #[cfg(feature = "debug")]
-const AIM_HEIGHT: f32 = 0.5;
+const AIM_HEIGHT: Meters = Meters(5.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -153,8 +153,12 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
                     .into_iter()
                     .map(EventActionConfig::SpawnScenarioObject)
                     .collect::<Vec<_>>(),
-                ThreePointRig::around("trials", Vec3::new(0.0, 0.0, -TRIAL_RANGE * 0.5), 3.0)
-                    .actions(),
+                ThreePointRig::around(
+                    "trials",
+                    Meters3(Vec3::new(0.0, 0.0, -TRIAL_RANGE.get() * 0.5)),
+                    3.0,
+                )
+                .actions(),
             ]
             .concat(),
         }],
@@ -173,7 +177,7 @@ fn pdc_stand(
     id: &str,
     name: &str,
     turret: &str,
-    lane_x: f32,
+    lane_x: Meters,
 ) -> ScenarioObjectConfig {
     let specs = [
         SectionSpec::new("pedestal", REINFORCED_HULL_SECTION_ID, Vec3::ZERO),
@@ -183,7 +187,7 @@ fn pdc_stand(
     placed(
         id,
         name,
-        Vec3::new(lane_x, 0.0, 0.0),
+        Meters3(Vec3::new(lane_x.get(), 0.0, 0.0)),
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
@@ -195,7 +199,7 @@ fn trial_column(
     sections: &GameSections,
     id: &str,
     name: &str,
-    lane_x: f32,
+    lane_x: Meters,
 ) -> ScenarioObjectConfig {
     let specs = [
         SectionSpec::new("tank", "tank_hull_section", Vec3::new(0.0, -1.0, 0.0)),
@@ -210,7 +214,7 @@ fn trial_column(
     toughened(
         id,
         name,
-        Vec3::new(lane_x, 0.0, -TRIAL_RANGE),
+        Meters3(Vec3::new(lane_x.get(), 0.0, -TRIAL_RANGE.get())),
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
@@ -222,7 +226,7 @@ fn bay_stand(sections: &GameSections) -> ScenarioObjectConfig {
     placed(
         "bay_stand",
         "Bay Stand",
-        Vec3::ZERO,
+        Meters3::ZERO,
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
@@ -242,13 +246,13 @@ fn bay_column(sections: &GameSections) -> ScenarioObjectConfig {
     placed(
         "bay_column",
         "Bay Column",
-        Vec3::new(0.0, 0.0, -BAY_RANGE),
+        Meters3(Vec3::new(0.0, 0.0, -BAY_RANGE.get())),
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
 
 /// One ship at its park, unmodified.
-fn placed(id: &str, name: &str, position: Vec3, ship: SpaceshipConfig) -> ScenarioObjectConfig {
+fn placed(id: &str, name: &str, position: Meters3, ship: SpaceshipConfig) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -265,7 +269,7 @@ fn placed(id: &str, name: &str, position: Vec3, ship: SpaceshipConfig) -> Scenar
 fn toughened(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     mut ship: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
     if let ShipSource::Inline(hull) = &mut ship.hull {
@@ -299,8 +303,8 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             set_weapons_hot(world, false);
             pose_camera(
                 world,
-                Vec3::new(GATLING_LANE_X + 1.7, 2.3, 2.0),
-                Vec3::new(GATLING_LANE_X, 0.85, 0.0),
+                Meters3::new(GATLING_LANE_X.get() + 17.0, 23.0, 20.0),
+                Meters3::new(GATLING_LANE_X.get(), 8.5, 0.0),
             );
         })
         .until(mounts_parked())
@@ -356,8 +360,8 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world| {
             pose_camera(
                 world,
-                Vec3::new(TWIN_LANE_X + 1.9, 1.9, 2.6),
-                Vec3::new(TWIN_LANE_X, 1.1, -1.0),
+                Meters3::new(TWIN_LANE_X.get() + 19.0, 19.0, 26.0),
+                Meters3::new(TWIN_LANE_X.get(), 11.0, -10.0),
             );
         })
         .until(frames(8))
@@ -370,7 +374,11 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("cease fire, frame the bay")
         .on_enter(|world| {
             set_triggers(world, false);
-            pose_camera(world, Vec3::new(2.8, 1.2, 2.2), Vec3::new(0.0, 0.0, -1.5));
+            pose_camera(
+                world,
+                Meters3::new(28.0, 12.0, 22.0),
+                Meters3::new(0.0, 0.0, -15.0),
+            );
         })
         .until(frames(8))
         .add()
@@ -405,8 +413,8 @@ fn range_standing() -> Arc<nova_debug::harness::Predicate> {
 fn frame_range(world: &mut World) {
     pose_camera(
         world,
-        Vec3::new(11.0, 6.5, 12.0),
-        Vec3::new(0.0, 0.5, -TRIAL_RANGE * 0.5),
+        Meters3::new(110.0, 65.0, 120.0),
+        Meters3(Vec3::new(0.0, 5.0, -TRIAL_RANGE.get() * 0.5)),
     );
 }
 
@@ -421,7 +429,13 @@ fn lay_guns(world: &mut World) {
         } else {
             TWIN_LANE_X
         };
-        **aim = Some(Vec3::new(lane, AIM_HEIGHT, -TRIAL_RANGE));
+        // A commanded aim point is engine world space, so the lane crosses
+        // here.
+        **aim = Some(Vec3::new(
+            lane.to_engine(),
+            AIM_HEIGHT.to_engine(),
+            -TRIAL_RANGE.to_engine(),
+        ));
     }
 }
 
@@ -544,16 +558,17 @@ fn ship_by_id(world: &mut World, id: &str) -> Option<Entity> {
 /// no way to scar one, but the claim should not depend on that) from passing
 /// the wrong lane.
 #[cfg(feature = "debug")]
-fn lane_scarred(lane_x: f32) -> Arc<nova_debug::harness::Predicate> {
+fn lane_scarred(lane_x: Meters) -> Arc<nova_debug::harness::Predicate> {
     Arc::new(move |world: &World| {
         world
             .try_query_filtered::<(&Health, &GlobalTransform), With<SectionMarker>>()
             .is_some_and(|mut query| {
                 query.iter(world).any(|(health, transform)| {
-                    let at = transform.translation();
+                    // A live transform, so the gate is read in meters.
+                    let at = Meters3::from_engine(transform.translation());
                     health.current < health.max
-                        && (at.x - lane_x).abs() < 3.0
-                        && at.z < -TRIAL_RANGE * 0.5
+                        && (at.x() - lane_x).abs() < Meters(30.0)
+                        && at.z() < -TRIAL_RANGE * 0.5
                 })
             })
     })

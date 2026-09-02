@@ -87,18 +87,18 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .add()
         // One camera for both ordnance frames, so they are a before/after of the
         // same shot. It is framed on the midpoint between the raider and where
-        // the fuze will go, NOT on the raider: a proximity fuze detonates 15
-        // units short of its target, which at a close camera throws the blast a
+        // the fuze will go, NOT on the raider: a proximity fuze detonates 150 m
+        // short of its target, which at a close camera throws the blast a
         // third of the way across the frame from the ship it is hitting.
         .step("frame the torpedo run")
         .on_enter(|world| {
             let subject = hollow::ordnance_subject(world);
             // From BELOW, looking up the run. The rock field is a horizontal
-            // annulus 46 units thick, so any level camera in the hollow frames
+            // annulus 460 m thick, so any level camera in the hollow frames
             // its subject against the far wall and the shot is rock soup;
             // tipping the lens up puts open sky behind the target and the
             // torpedo dives into frame.
-            hollow::pose(world, subject + Vec3::new(16.0, -14.0, 12.0), subject)
+            hollow::pose(world, subject + Meters3::new(160.0, -140.0, 120.0), subject)
         })
         .until(elapsed(0.4))
         .add()
@@ -120,7 +120,9 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         // target intact.
         .step("track the torpedoes in")
         .each(hollow::assert_salvo_still_live)
-        .until(hollow::torpedo_within(hollow::TORPEDO_FUZE_RANGE + 8.0))
+        .until(hollow::torpedo_within(
+            hollow::TORPEDO_FUZE_RANGE + Meters(80.0),
+        ))
         .deadline(12.0)
         .add()
         .step("capture the torpedo run")
@@ -143,7 +145,7 @@ fn torpedo_run_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
             // was framed, and a rock in the wall behind it is one drift away
             // from being in front of it.
             let raider = hollow::raider_position(world);
-            hollow::pose(world, raider + Vec3::new(16.0, -14.0, 12.0), raider)
+            hollow::pose(world, raider + Meters3::new(160.0, -140.0, 120.0), raider)
         })
         .until(elapsed(0.5))
         .add()

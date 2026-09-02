@@ -40,26 +40,27 @@ use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
 /// Where the editor camera is put before the ship is built.
 ///
-/// The editor's own camera sits at `(0, 5, 10)` looking down the -Z axis, dead
-/// on: from there every SIDE face of a section is exactly edge-on, so the
+/// The editor's own camera sits at `(0, 50, 100)` m looking down the -Z axis,
+/// dead on: from there every SIDE face of a section is exactly edge-on, so the
 /// picking ray can only ever hit a top or a front face and a ship can only be
 /// built as a stack toward the lens. Off the axis, the +X, +Y and +Z faces are
 /// all hittable, which is what lets the editor walk lay out a spine.
-pub const EDITOR_EYE: Vec3 = Vec3::new(4.44, 3.17, 7.25);
+pub const EDITOR_EYE: Meters3 = Meters3::new(44.4, 31.7, 72.5);
 
 /// What the editor camera looks at.
 ///
 /// NOT the built ship's centre: the rail owns the left edge of the frame, so a
 /// ship centred in the WINDOW sits left of centre in the picture. The look point
-/// is pushed a little over a unit along the camera's screen-left, which slides
+/// is pushed a little over 10 m along the camera's screen-left, which slides
 /// the ship the same distance right into the free part of the frame. (The push
 /// was sized against the rail PLUS the 280 px component drawer; the drawer is
 /// gone, so it now clears more room than it has to.)
-pub const EDITOR_LOOK: Vec3 = Vec3::new(0.62, 0.25, 0.5);
+pub const EDITOR_LOOK: Meters3 = Meters3::new(6.2, 2.5, 5.0);
 
 /// How close the camera has to be to [`EDITOR_EYE`] before a beat calls the
-/// build pose reached. Loose enough for float drift through the enforcer,
-/// far tighter than the distance to the gallery's parking spot.
+/// build pose reached. Compared against the camera Transform, so it is an
+/// engine world-unit figure. Loose enough for float drift through the
+/// enforcer, far tighter than the distance to the gallery's parking spot.
 const POSE_EPSILON: f32 = 1e-2;
 
 /// Put the editor's camera on [`EDITOR_EYE`] and PIN it there.
@@ -116,7 +117,8 @@ pub fn assert_gallery_camera_is_parked(world: &mut World) {
     );
 }
 
-/// How high the gallery parks the editor camera above the build area.
+/// How high the gallery parks the editor camera above the build area. Read off
+/// the camera Transform, so it is an engine world-unit figure.
 const GALLERY_PARK_HEIGHT: f32 = 1_000.0;
 
 /// Whether a 3D camera stands off the build area.
@@ -145,15 +147,17 @@ pub fn the_gallery_camera_is_parked() -> Arc<Predicate> {
 /// [`pose_editor_camera`] pins the pose; the loader's enforcer applies it a
 /// system later. A beat that aims through the camera before then projects its
 /// target through whatever pose the camera still holds - the gallery's parking
-/// spot, a thousand units up - and misses the ship entirely.
+/// spot, a thousand world units up - and misses the ship entirely.
 pub fn the_build_camera_is_posed() -> Arc<Predicate> {
     Arc::new(|world: &World| {
         world
             .try_query_filtered::<&Transform, With<Camera3d>>()
             .is_some_and(|mut cameras| {
-                cameras
-                    .iter(world)
-                    .any(|camera| camera.translation.abs_diff_eq(EDITOR_EYE, POSE_EPSILON))
+                cameras.iter(world).any(|camera| {
+                    camera
+                        .translation
+                        .abs_diff_eq(EDITOR_EYE.to_engine(), POSE_EPSILON)
+                })
             })
     })
 }
@@ -234,10 +238,11 @@ pub fn the_section_landed() -> Arc<Predicate> {
 /// Where to point the pointer to hit the `face` face of the section mounted at
 /// `section`, in logical pixels.
 ///
-/// Aims just INSIDE the face (sections are one unit apart, so a face sits half a
-/// unit out): a ray to a point on the face plane itself grazes it, and the
-/// editor places nothing without a hit normal. `world_to_viewport` answers in
-/// logical pixels, which is the space [`move_cursor`] takes.
+/// Aims just INSIDE the face (sections are one BUILD-GRID cell apart, which is
+/// one engine world unit, so a face sits half a cell out): a ray to a point on
+/// the face plane itself grazes it, and the editor places nothing without a hit
+/// normal. `world_to_viewport` answers in logical pixels, which is the space
+/// [`move_cursor`] takes.
 pub fn aim_at_face(world: &mut World, section: Vec3, face: Vec3) -> Vec2 {
     let target = section + face * 0.49;
     let camera_entity = world

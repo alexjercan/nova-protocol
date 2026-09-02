@@ -14,7 +14,7 @@
 //!
 //! THE SET DRIFTS, on purpose and in the name: the planetoid is a real well
 //! (these shots illustrate gravity, so the body in them had better be one), and
-//! at this range it pulls the yard at about 0.01 u/s^2 - meters of drift over a
+//! at this range it pulls the yard at about 0.1 m/s^2 - meters of drift over a
 //! long free-fly look, nothing over a capture, which freezes the scene anyway
 //! (`freeze_bodies`).
 
@@ -35,16 +35,18 @@ use nova_protocol::prelude::*;
 pub const PLANETOID_ID: &str = "drydock_planetoid";
 /// Where the planetoid sits: down and well behind the yard, so a wide shot has
 /// a body in it and the hero still has open space around it.
-pub const PLANETOID_POSITION: Vec3 = Vec3::new(170.0, -95.0, -560.0);
-/// Big enough for its surface to read at that distance (the old reel's was 4
-/// units across and read as a pebble). The generated rock reaches well past its
-/// nominal radius, so 30 units here draws a body roughly 120 across.
-pub const PLANETOID_RADIUS: f32 = 30.0;
-/// The body's mass parameter (mu, u^3/s^2), deliberately weak: these shots
-/// illustrate gravity, so the body in them is a real well - but at the default
-/// 45 000 it would haul the posed set out of frame during a long look. Reach
-/// follows strength now, so a weak well is also a SHORT one: the SOI is 156u,
-/// and nothing posed further out than that is inside it.
+pub const PLANETOID_POSITION: Meters3 = Meters3::new(1_700.0, -950.0, -5_600.0);
+/// Big enough for its surface to read at that distance (the old reel's was 40 m
+/// across and read as a pebble). The generated rock reaches well past its
+/// nominal radius, so 300 m here draws a body roughly 1.2 km across.
+pub const PLANETOID_RADIUS: Meters = Meters(300.0);
+/// The body's mass parameter (mu), deliberately weak: these shots illustrate
+/// gravity, so the body in them is a real well - but at the default 45 000 it
+/// would haul the posed set out of frame during a long look. A gravitational
+/// parameter, not a length: it stays in the engine's own scale (world units
+/// cubed per second squared), which is why it carries no meter type. Reach
+/// follows strength now, so a weak well is also a SHORT one: the SOI is 156
+/// world units, 1.56 km, and nothing posed further out than that is inside it.
 pub const PLANETOID_MASS: f32 = 6_000.0;
 
 /// The set: planetoid, near-field belt, hero racer, two drifting hulls.
@@ -55,7 +57,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
     let hero = ship(
         "drydock_hero",
         "Hero Racer",
-        Vec3::ZERO,
+        Meters3::ZERO,
         Quat::from_rotation_y(-0.55) * Quat::from_rotation_x(0.10) * Quat::from_rotation_z(0.18),
         SpaceshipController::None,
         None,
@@ -69,12 +71,12 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
     let hauler_a = ship(
         "drydock_hauler_a",
         "Hauler",
-        Vec3::new(-52.0, 9.0, -64.0),
+        Meters3::new(-520.0, 90.0, -640.0),
         Quat::from_rotation_y(0.9),
         patrolling(vec![
-            Vec3::new(-52.0, 9.0, -64.0),
-            Vec3::new(-96.0, 22.0, 30.0),
-            Vec3::new(-30.0, 4.0, 86.0),
+            Meters3::new(-520.0, 90.0, -640.0),
+            Meters3::new(-960.0, 220.0, 300.0),
+            Meters3::new(-300.0, 40.0, 860.0),
         ]),
         Some(Allegiance::Neutral),
         kit::kenney_hull(ships, "cargoa"),
@@ -82,12 +84,12 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
     let hauler_b = ship(
         "drydock_hauler_b",
         "Hauler",
-        Vec3::new(74.0, -16.0, -98.0),
+        Meters3::new(740.0, -160.0, -980.0),
         Quat::from_rotation_y(-2.1),
         patrolling(vec![
-            Vec3::new(74.0, -16.0, -98.0),
-            Vec3::new(120.0, -30.0, -10.0),
-            Vec3::new(58.0, -8.0, 60.0),
+            Meters3::new(740.0, -160.0, -980.0),
+            Meters3::new(1_200.0, -300.0, -100.0),
+            Meters3::new(580.0, -80.0, 600.0),
         ]),
         Some(Allegiance::Neutral),
         kit::kenney_hull(ships, "cargob"),
@@ -97,9 +99,9 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
         id_prefix: "drydock_rock_",
         count: 18,
         seed: 90210,
-        distance: (60.0, 165.0),
-        radius: (1.5, 5.0),
-        y_spread: 70.0,
+        distance: (Meters(600.0), Meters(1_650.0)),
+        radius: (Meters(15.0), Meters(50.0)),
+        y_spread: Meters(700.0),
     };
 
     ScenarioConfig {
@@ -121,7 +123,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
                     hauler_a,
                     hauler_b,
                 ],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -162,7 +164,7 @@ pub fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
 /// rather than a wall, which puts the yard outside the orbit band the AI flies
 /// to - an orbiting hull would leave the set for the rock. A waypoint loop
 /// keeps the traffic where the camera is.
-pub fn patrolling(route: Vec<Vec3>) -> SpaceshipController {
+pub fn patrolling(route: Vec<Meters3>) -> SpaceshipController {
     SpaceshipController::AI(AIControllerConfig {
         patrol: route,
         ..default()
@@ -173,7 +175,7 @@ pub fn patrolling(route: Vec<Vec3>) -> SpaceshipController {
 pub fn ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,

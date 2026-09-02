@@ -17,7 +17,7 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "news-0110-derived-skin";
 #[cfg(feature = "debug")]
-const CAMERA_EYE: Vec3 = Vec3::new(4.5, 2.8, 5.8);
+const CAMERA_EYE: Meters3 = Meters3::new(45.0, 28.0, 58.0);
 
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
@@ -101,7 +101,7 @@ fn frame_showcase(world: &mut World) {
         .expect("the showcase has a camera");
     world.entity_mut(camera).insert(ScriptedCameraPose {
         position: CAMERA_EYE,
-        look_at: Vec3::ZERO,
+        look_at: Meters3::ZERO,
     });
 }
 
@@ -146,7 +146,7 @@ fn turn_showcase(
 
 #[cfg(feature = "debug")]
 fn strip_visible_patch(world: &mut World) {
-    let eye = CAMERA_EYE.normalize();
+    let eye = CAMERA_EYE.get().normalize();
     let mut plates: Vec<(Entity, f32)> = world
         .query_filtered::<(Entity, &GlobalTransform), With<ShipSkinMarker>>()
         .iter(world)

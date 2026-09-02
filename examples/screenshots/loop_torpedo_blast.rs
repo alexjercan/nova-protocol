@@ -5,7 +5,7 @@
 //! The docs site's first MOVING figure, authored in the same idiom as every
 //! still: an autopilot script whose steps call `loop_start` / `loop_end`
 //! around the beats worth watching (`nova_autopilot::loops`). The recorded
-//! window opens with the round already inside 70 units - drive plume and the
+//! window opens with the round already inside 700 m - drive plume and the
 //! terminal weave on camera - runs through the detonation and the section
 //! deaths, and CUTS to a tracking shot of the carved survivor for the calm
 //! tail (the blast impulse throws the hull out of any fixed framing within a
@@ -63,15 +63,15 @@ const LANCE_ID: &str = "loop_lance";
 /// Where the boat sits: high and off the target's quarter, so the salvo comes
 /// DOWN onto the hull through open sky and clear of the rock shell - the
 /// bearing `screenshot_combat` proved out for its ordnance chapter.
-const LANCE_POSITION: Vec3 = Vec3::new(-38.0, 30.0, -56.0);
+const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 
-/// The proximity fuze fires 15 units short of the target (half the cargo-B
-/// bay's 30-unit blast radius); the camera frames the midpoint of hull and
+/// The proximity fuze fires 150 m short of the target (half the cargo-B
+/// bay's 300 m blast radius); the camera frames the midpoint of hull and
 /// fuze point so the detonation opens inside the frame, not at its edge.
 #[cfg(feature = "debug")]
-const TORPEDO_FUZE_RANGE: f32 = 15.0;
+const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 
-/// ONE round, not the boat's full salvo: the 30-unit blast covers the whole
+/// ONE round, not the boat's full salvo: the 300 m blast covers the whole
 /// corvette, and two same-tick detonations (shared health snapshot,
 /// `blast_penetration`'s BLUE lane) gut every outer section at once - the
 /// aggregate falls through the structural-collapse floor and the WHOLE ship
@@ -86,7 +86,7 @@ const EXPECTED_TORPEDO_COUNT: usize = 1;
 const CARVED_SECTIONS: [&str; 2] = ["nose", "pod_port"];
 
 /// Authored health for every non-carved section. A Serpent's warhead is 750
-/// blast damage across a 30-unit sphere - the whole 4-unit hull is inside it,
+/// blast damage across a 300 m sphere - the whole 40 m hull is inside it,
 /// and every prototype-health section is depleted outright (proved live: the
 /// root structurally collapsed mid-loop at 42 of 2030 aggregate). At this
 /// figure the same warhead wounds the hull for a few hundred per section and
@@ -116,7 +116,7 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(|world| {
                     hide_hud(world);
                     let subject = blast_subject(world);
-                    pose_camera(world, subject + Vec3::new(16.0, -14.0, 12.0), subject);
+                    pose_camera(world, subject + Meters3::new(160.0, -140.0, 120.0), subject);
                 })
                 .until(elapsed(1.0))
                 .add()
@@ -129,11 +129,11 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(commit_torpedoes)
                 .until(elapsed(0.1))
                 .add()
-                // Recording opens once the weave is inside 70 units: the loop
+                // Recording opens once the weave is inside 700 m: the loop
                 // spends its opening seconds on a lit drive closing in rather
                 // than on a distant dot.
                 .step("wait for the terminal run")
-                .until(torpedo_within(70.0))
+                .until(torpedo_within(Meters(700.0)))
                 .deadline(15.0)
                 .add()
                 .step("open the loop")
@@ -162,7 +162,7 @@ fn main() -> bevy::app::AppExit {
                 .step("let the blast clear")
                 .each(|world, _, _| {
                     let target = target_position(world);
-                    pose_camera(world, target + Vec3::new(14.0, -10.0, 11.0), target);
+                    pose_camera(world, target + Meters3::new(140.0, -100.0, 110.0), target);
                 })
                 .until(elapsed(2.5))
                 .add()
@@ -200,7 +200,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let target = ship(
         TARGET_ID,
         "Target",
-        Vec3::ZERO,
+        Meters3::ZERO,
         // Nosed toward the camera side, turned off square, so the carved
         // sections face the lens.
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
@@ -220,7 +220,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         LANCE_ID,
         "Lance",
         LANCE_POSITION,
-        Transform::from_translation(LANCE_POSITION)
+        Transform::from_translation(LANCE_POSITION.to_engine())
             .looking_at(Vec3::ZERO, Vec3::Y)
             .rotation,
         Some(Allegiance::Player),
@@ -232,9 +232,9 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "loop_rock_",
         count: 48,
         seed: 40507,
-        distance: (48.0, 130.0),
-        radius: (1.2, 3.2),
-        y_spread: 46.0,
+        distance: (Meters(480.0), Meters(1_300.0)),
+        radius: (Meters(12.0), Meters(32.0)),
+        y_spread: Meters(460.0),
     };
 
     ScenarioConfig {
@@ -246,7 +246,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             filters: vec![],
             actions: [
                 vec![shell.action(game_assets), target, lance],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -262,7 +262,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
 fn ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     rotation: Quat,
     allegiance: Option<Allegiance>,
     sections: Vec<SpaceshipSectionConfig>,
@@ -302,19 +302,19 @@ fn cast_present() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicat
 /// What the loop frames: the midpoint of the hull and the point the fuze will
 /// fire at, [`TORPEDO_FUZE_RANGE`] short of it along the boat's bearing.
 #[cfg(feature = "debug")]
-fn blast_subject(world: &mut World) -> Vec3 {
+fn blast_subject(world: &mut World) -> Meters3 {
     let target = target_position(world);
-    let bearing = (LANCE_POSITION - target).normalize_or_zero();
-    target + bearing * (TORPEDO_FUZE_RANGE * 0.5)
+    let bearing = (LANCE_POSITION - target).get().normalize_or_zero();
+    target + Meters3(bearing * (TORPEDO_FUZE_RANGE.get() * 0.5))
 }
 
 /// Where the target is (its spawn point if it is somehow gone).
 #[cfg(feature = "debug")]
-fn target_position(world: &mut World) -> Vec3 {
+fn target_position(world: &mut World) -> Meters3 {
     ship_by_id(world, TARGET_ID)
         .and_then(|target| world.get::<GlobalTransform>(target))
-        .map(|transform| transform.translation())
-        .unwrap_or(Vec3::ZERO)
+        .map(|transform| Meters3::from_engine(transform.translation()))
+        .unwrap_or(Meters3::ZERO)
 }
 
 /// Pull ONE bay trigger on the boat - the same [`TorpedoSectionInput`] write
@@ -435,7 +435,9 @@ fn no_torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harness::
 
 /// Advance once the leading torpedo is within `distance` of the target.
 #[cfg(feature = "debug")]
-fn torpedo_within(distance: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+fn torpedo_within(
+    distance: Meters,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
         torpedo_range(world).is_some_and(|range| range < distance)
     })
@@ -444,14 +446,14 @@ fn torpedo_within(distance: f32) -> std::sync::Arc<nova_protocol::nova_debug::ha
 /// How far the closest live torpedo is from the target, if there is one of
 /// each.
 #[cfg(feature = "debug")]
-fn torpedo_range(world: &World) -> Option<f32> {
+fn torpedo_range(world: &World) -> Option<Meters> {
     let target = ship_by_id_ref(world, TARGET_ID)?;
     let position = world.get::<GlobalTransform>(target)?.translation();
     world
         .try_query_filtered::<&GlobalTransform, With<TorpedoProjectileMarker>>()?
         .iter(world)
-        .map(|transform| transform.translation().distance(position))
-        .min_by(f32::total_cmp)
+        .map(|transform| Meters::from_engine(transform.translation().distance(position)))
+        .min_by(|a, b| f32::total_cmp(&a.get(), &b.get()))
 }
 
 /// The `Health` node of one of the target's sections (on the section entity

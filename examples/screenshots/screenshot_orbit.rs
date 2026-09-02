@@ -96,25 +96,26 @@ fn main() -> bevy::app::AppExit {
                 // ship on the far end of that spoke are one picture. HUD ON - the
                 // ring, the spoke and the AP chip are the subject.
                 //
-                // The offsets are small next to the aim distance ON PURPOSE. Ship
-                // and body are ~250 units apart and the camera sits ~50 from the
-                // ship: every unit of lateral offset swings the two apart in
-                // frame, and at `Y * 30, -track * 20` the pair spanned more than
-                // the lens had and the body was cropped off the top edge.
+                // The offsets are small next to the aim distance ON PURPOSE.
+                // Ship and body are ~2.5 km apart and the camera sits ~500 m
+                // from the ship: every meter of lateral offset swings the two
+                // apart in frame, and at `Y * 300 m, -track * 200 m` the pair
+                // spanned more than the lens had and the body was cropped off
+                // the top edge.
                 .step("frame the orbit shot")
                 .on_enter(|world| {
                     ring::hud_instrument(world);
                     let ship = ring::ship_position(world);
-                    let out = ship.normalize_or_zero();
+                    let out = ship.get().normalize_or_zero();
                     let track = ring::ship_heading(world);
                     ring::pin(
                         world,
-                        ship + out * 45.0 + Vec3::Y * 15.0 - track * 10.0,
+                        ship + Meters3(out * 450.0 + Vec3::Y * 150.0 - track * 100.0),
                         // Well short of the ship, most of the way to the body:
                         // the planetoid takes the middle of the frame and the
                         // ship falls out to the low corner on the end of its
                         // spoke, which is the relationship the figure teaches.
-                        ship - out * 120.0,
+                        ship - Meters3(out * 1_200.0),
                     );
                 })
                 .until(elapsed(0.4))

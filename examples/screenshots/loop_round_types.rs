@@ -18,8 +18,8 @@ struct Cli;
 
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "news-0110-round-types";
-const KINETIC_X: f32 = -2.5;
-const PIERCE_X: f32 = 2.5;
+const KINETIC_X: Meters = Meters(-25.0);
+const PIERCE_X: Meters = Meters(25.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -57,7 +57,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
                     .into_iter()
                     .map(EventActionConfig::SpawnScenarioObject)
                     .collect::<Vec<_>>(),
-                ThreePointRig::around("round types", Vec3::new(0.0, 0.0, -2.5), 1.5).actions(),
+                ThreePointRig::around("round types", Meters3::new(0.0, 0.0, -25.0), 1.5).actions(),
             ]
             .concat(),
         }],
@@ -69,7 +69,12 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
     }));
 }
 
-fn layered_target(sections: &GameSections, id: &str, name: &str, x: f32) -> ScenarioObjectConfig {
+fn layered_target(
+    sections: &GameSections,
+    id: &str,
+    name: &str,
+    x: Meters,
+) -> ScenarioObjectConfig {
     let mut specs: Vec<SectionSpec> = (0..6)
         .map(|layer| {
             SectionSpec::new(
@@ -92,7 +97,7 @@ fn layered_target(sections: &GameSections, id: &str, name: &str, x: f32) -> Scen
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: name.to_string(),
-            position: Vec3::new(x, 0.0, 0.0),
+            position: Meters3(Vec3::new(x.get(), 0.0, 0.0)),
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Spaceship(ship),
@@ -168,8 +173,8 @@ fn frame_targets(world: &mut World) {
         .next()
         .expect("the round showcase has a camera");
     world.entity_mut(camera).insert(ScriptedCameraPose {
-        position: Vec3::new(6.0, 5.0, 7.0),
-        look_at: Vec3::new(0.0, 0.0, -2.5),
+        position: Meters3::new(60.0, 50.0, 70.0),
+        look_at: Meters3::new(0.0, 0.0, -25.0),
     });
 }
 
@@ -194,7 +199,7 @@ fn spawn_comparison_rounds(world: &mut World) {
         });
 
     let spawn_volley =
-        |world: &mut World, x: f32, kind: DamageType, material: Handle<StandardMaterial>| {
+        |world: &mut World, x: Meters, kind: DamageType, material: Handle<StandardMaterial>| {
             world.spawn((
                 Name::new(format!("{kind:?} comparison round")),
                 TurretBulletProjectileMarker,
@@ -210,7 +215,9 @@ fn spawn_comparison_rounds(world: &mut World) {
                 ),
                 Mesh3d(mesh.clone()),
                 MeshMaterial3d(material),
-                Transform::from_xyz(x, 0.0, 2.5),
+                // A round is spawned straight onto a Bevy transform and an
+                // engine round velocity, so the lane crosses here.
+                Transform::from_xyz(x.to_engine(), 0.0, 2.5),
                 TempEntity(8.0),
                 Visibility::Visible,
             ));

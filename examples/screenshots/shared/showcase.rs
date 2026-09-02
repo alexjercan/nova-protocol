@@ -146,13 +146,13 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
                         base: BaseScenarioObjectConfig {
                             id: "showcase_ship".to_string(),
                             name: "Showcase Ship".to_string(),
-                            position: Vec3::ZERO,
+                            position: Meters3::ZERO,
                             rotation: Quat::IDENTITY,
                         },
                         kind: ScenarioObjectKind::Spaceship(ship),
                     },
                 )],
-                ThreePointRig::around("showcase", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("showcase", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -164,7 +164,8 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
     }
 }
 
-/// Where the camera stands, as a direction from the section it is framing.
+/// Where the camera stands, as a DIRECTION from the section it is framing -
+/// dimensionless, normalized before use.
 ///
 /// Picked off the rig in `shared/kit.rs`, not off the ship: the key comes from
 /// `(-6, 5, 6)` and the rim from `(3, 4, -8)`, so a camera on the far side of
@@ -178,7 +179,8 @@ pub const CAMERA_BEARING: Vec3 = Vec3::new(0.78, 0.36, 0.51);
 #[cfg(feature = "debug")]
 pub struct SectionShot {
     /// The section's spot on the ship, in the ship's own space - the same
-    /// coordinates [`section_ship`] mounts it at.
+    /// BUILD-GRID cells [`section_ship`] mounts it at. A cell is one engine
+    /// world unit, so this is an engine figure, not a distance in meters.
     pub mount: Vec3,
     /// The direction, in the ship's own space, this section's identifying face
     /// points. The turntable yaws the ship until this points at the camera:
@@ -187,7 +189,7 @@ pub struct SectionShot {
     pub faces: Vec3,
     /// Camera distance. Small enough that the section fills the frame, large
     /// enough that its neighbours still place it on a ship.
-    pub distance: f32,
+    pub distance: Meters,
     pub path: &'static str,
 }
 
@@ -198,9 +200,15 @@ pub fn present_section(world: &mut World, shot: &SectionShot) {
     yaw_ship(world, yaw);
     // The mount rides round with the hull, so the framed point is the yawed one
     // - not the authored coordinate.
+    // `mount` is in build-grid cells, which are engine world units, so the
+    // framing is solved in engine space and crosses to meters at the pose.
     let subject = yaw * shot.mount;
-    let eye = subject + CAMERA_BEARING.normalize() * shot.distance;
-    pose_camera(world, eye, subject);
+    let eye = subject + CAMERA_BEARING.normalize() * shot.distance.to_engine();
+    pose_camera(
+        world,
+        Meters3::from_engine(eye),
+        Meters3::from_engine(subject),
+    );
 }
 
 /// The yaw that brings `faces` round to the camera. Both vectors are flattened

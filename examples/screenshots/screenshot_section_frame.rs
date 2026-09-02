@@ -88,7 +88,7 @@ fn section_shots() -> [SectionShot; 5] {
         SectionShot {
             mount: Vec3::ZERO,
             faces: Vec3::NEG_Z,
-            distance: 5.0,
+            distance: Meters(50.0),
             path: "wiki-section-controller.png",
         },
         // Front hull: plating and frame, taken off the nose quarter. Not the
@@ -96,7 +96,7 @@ fn section_shots() -> [SectionShot; 5] {
         SectionShot {
             mount: Vec3::new(0.0, 0.0, -1.0),
             faces: Vec3::new(-0.35, 0.0, -1.0),
-            distance: 4.0,
+            distance: Meters(40.0),
             path: "wiki-section-hull.png",
         },
         // Thruster: off the nozzle's axis, not down it. Dead astern points the
@@ -104,7 +104,7 @@ fn section_shots() -> [SectionShot; 5] {
         SectionShot {
             mount: Vec3::new(0.0, 0.0, 2.0),
             faces: Vec3::new(0.55, 0.0, 1.0),
-            distance: 4.4,
+            distance: Meters(44.0),
             path: "wiki-section-thruster.png",
         },
         // Cargo hull: the starboard-aft cell, read off its own flank so the
@@ -113,7 +113,7 @@ fn section_shots() -> [SectionShot; 5] {
         SectionShot {
             mount: Vec3::new(1.0, 0.0, 1.0),
             faces: Vec3::new(1.0, 0.0, 0.55),
-            distance: 3.0,
+            distance: Meters(30.0),
             path: "wiki-section-hull-cargo.png",
         },
         // Tank hull: the roof cell, turned so the pressure vessel shows
@@ -122,7 +122,7 @@ fn section_shots() -> [SectionShot; 5] {
         SectionShot {
             mount: Vec3::new(0.0, 1.0, 1.0),
             faces: Vec3::new(1.0, 0.0, 0.55),
-            distance: 3.0,
+            distance: Meters(30.0),
             path: "wiki-section-hull-tank.png",
         },
     ]

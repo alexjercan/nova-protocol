@@ -41,7 +41,7 @@ pub const PLAYER_ID: &str = "hollow_player";
 pub const RAIDER_ID: &str = "hollow_raider";
 /// Where it appears: dead ahead of the parked player, far enough back that the
 /// frame has depth between the two hulls, close enough that the target reads.
-pub const RAIDER_POSITION: Vec3 = Vec3::new(0.0, 0.6, -34.0);
+pub const RAIDER_POSITION: Meters3 = Meters3::new(0.0, 6.0, -340.0);
 /// The raider section the scripted blow takes off - the semantic nose part is
 /// forward and camera-facing, so the fragments and the hole are both in frame.
 pub const RAIDER_BLOWN_SECTION: &str = "nose";
@@ -54,7 +54,7 @@ pub const RAIDER_BLOWN_SECTION: &str = "nose";
 ///
 /// The blow was written when a Serpent carried 100 blast damage and left a
 /// 70-100 health section standing, so the frame needed help to show a hole. A
-/// Serpent carries 750 over a 30-unit radius now, which is enough to take the
+/// Serpent carries 750 over a 300 m radius now, which is enough to take the
 /// whole corvette apart in the same tick, root and all. So this usually fires
 /// into an already-dead section and warns, harmlessly: the torpedo did the job
 /// the blow was there to guarantee. Worth revisiting whether the beat still
@@ -67,15 +67,15 @@ pub const RAIDER_BLAST_SECTION: &str = "pod_port";
 pub const LANCE_ID: &str = "hollow_lance";
 /// Where it sits: high and off the raider's far quarter, so the run comes DOWN
 /// onto the target - and, the reason for the height, through open sky. The rock
-/// shell is 46 units thick in Y, and a torpedo fired across the hollow at the
+/// shell is 460 m thick in Y, and a torpedo fired across the hollow at the
 /// shell's own height flies into a rock: this bearing clears it. It is also what
-/// keeps the blast (30 units across) off the player, parked 34 from the raider.
-pub const LANCE_POSITION: Vec3 = Vec3::new(-38.0, 30.0, -56.0);
+/// keeps the blast (300 m across) off the player, parked 340 m from the raider.
+pub const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 /// How far short of its target a torpedo detonates: the proximity fuze fires at
 /// half the bay's blast radius (`torpedo_section/projectile.rs`), and the
-/// cargo-B's bays are authored at 30. The ordnance camera is framed off this,
-/// not off the raider - 15 units is a third of the frame at a close camera.
-pub const TORPEDO_FUZE_RANGE: f32 = 15.0;
+/// cargo-B's bays are authored at 300 m. The ordnance camera is framed off this,
+/// not off the raider - 150 m is a third of the frame at a close camera.
+pub const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 /// How many bays the cargo-B carries, and so how many torpedoes one salvo is.
 pub const EXPECTED_TORPEDO_COUNT: usize = 2;
 
@@ -84,10 +84,10 @@ pub const EXPECTED_TORPEDO_COUNT: usize = 2;
 /// they are.
 pub const ENGAGE_DELAY: f32 = 3.0;
 /// How far an AI ship may stray from its post before it breaks off and comes
-/// back. Wider than the standoff range the engage maneuver flies to (100), so
+/// back. Wider than the standoff range the engage maneuver flies to (1 km), so
 /// the fight is not permanently interrupted, tight enough that the hollow keeps
 /// its ships instead of watching them leave.
-pub const AI_LEASH: f32 = 320.0;
+pub const AI_LEASH: Meters = Meters(3_200.0);
 
 /// The fighting set: the player on station, the raider it locks, the live
 /// background of four AI corvettes, the torpedo boat, and the rock shell around
@@ -104,7 +104,7 @@ pub fn ambush_hollow(
     let player = ship(
         PLAYER_ID,
         "Player Ship",
-        Vec3::ZERO,
+        Meters3::ZERO,
         // Square with the world: the radar picks by the CAMERA's look ray
         // (`ActiveLookRay`), which opens down world -Z whatever the hull is
         // doing, and the raider is parked a few degrees off that ray - inside
@@ -124,7 +124,7 @@ pub fn ambush_hollow(
         unlimited_turrets(sections, player_hull.clone()),
     );
 
-    // The lock subject: not AI, because an AI hostile flies to a 100-unit
+    // The lock subject: not AI, because an AI hostile flies to a 1 km
     // standoff and no close framing survives that. It is not dead still either -
     // [`nudge_raider`] gives it a slow drift, so the lock's DST and CLS readouts
     // are of a moving target.
@@ -150,12 +150,12 @@ pub fn ambush_hollow(
     let wingman_a = ship(
         "hollow_wing_a",
         "Wingman",
-        Vec3::new(-64.0, 12.0, -44.0),
+        Meters3::new(-640.0, 120.0, -440.0),
         Quat::from_rotation_y(0.2),
         fighter(vec![
-            Vec3::new(-64.0, 12.0, -44.0),
-            Vec3::new(-30.0, 4.0, -96.0),
-            Vec3::new(-86.0, -6.0, -70.0),
+            Meters3::new(-640.0, 120.0, -440.0),
+            Meters3::new(-300.0, 40.0, -960.0),
+            Meters3::new(-860.0, -60.0, -700.0),
         ]),
         Some(Allegiance::Player),
         kit::kenney_hull(ships, "cargoa"),
@@ -163,12 +163,12 @@ pub fn ambush_hollow(
     let wingman_b = ship(
         "hollow_wing_b",
         "Wingman",
-        Vec3::new(62.0, -14.0, -58.0),
+        Meters3::new(620.0, -140.0, -580.0),
         Quat::from_rotation_y(-0.2),
         fighter(vec![
-            Vec3::new(62.0, -14.0, -58.0),
-            Vec3::new(96.0, 6.0, -104.0),
-            Vec3::new(40.0, -20.0, -110.0),
+            Meters3::new(620.0, -140.0, -580.0),
+            Meters3::new(960.0, 60.0, -1_040.0),
+            Meters3::new(400.0, -200.0, -1_100.0),
         ]),
         Some(Allegiance::Player),
         kit::kenney_hull(ships, "cargoa"),
@@ -176,12 +176,12 @@ pub fn ambush_hollow(
     let hostile_a = ship(
         "hollow_hostile_a",
         "Raider",
-        Vec3::new(-150.0, 34.0, -230.0),
+        Meters3::new(-1_500.0, 340.0, -2_300.0),
         Quat::from_rotation_y(3.0),
         fighter(vec![
-            Vec3::new(-150.0, 34.0, -230.0),
-            Vec3::new(-70.0, 18.0, -290.0),
-            Vec3::new(-190.0, 6.0, -300.0),
+            Meters3::new(-1_500.0, 340.0, -2_300.0),
+            Meters3::new(-700.0, 180.0, -2_900.0),
+            Meters3::new(-1_900.0, 60.0, -3_000.0),
         ]),
         None,
         kit::kenney_hull(ships, "cargoa"),
@@ -189,12 +189,12 @@ pub fn ambush_hollow(
     let hostile_b = ship(
         "hollow_hostile_b",
         "Raider",
-        Vec3::new(176.0, -38.0, -262.0),
+        Meters3::new(1_760.0, -380.0, -2_620.0),
         Quat::from_rotation_y(3.3),
         fighter(vec![
-            Vec3::new(176.0, -38.0, -262.0),
-            Vec3::new(90.0, -14.0, -320.0),
-            Vec3::new(210.0, -4.0, -330.0),
+            Meters3::new(1_760.0, -380.0, -2_620.0),
+            Meters3::new(900.0, -140.0, -3_200.0),
+            Meters3::new(2_100.0, -40.0, -3_300.0),
         ]),
         None,
         kit::kenney_hull(ships, "cargob"),
@@ -210,8 +210,8 @@ pub fn ambush_hollow(
         LANCE_ID,
         "Lance",
         LANCE_POSITION,
-        Transform::from_translation(LANCE_POSITION)
-            .looking_at(RAIDER_POSITION, Vec3::Y)
+        Transform::from_translation(LANCE_POSITION.to_engine())
+            .looking_at(RAIDER_POSITION.to_engine(), Vec3::Y)
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
@@ -239,7 +239,7 @@ pub fn ambush_hollow(
                     hostile_b,
                     lance,
                 ],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -257,7 +257,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
     let player = ship(
         PLAYER_ID,
         "Player Ship",
-        Vec3::ZERO,
+        Meters3::ZERO,
         Quat::IDENTITY,
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
@@ -279,8 +279,8 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         LANCE_ID,
         "Lance",
         LANCE_POSITION,
-        Transform::from_translation(LANCE_POSITION)
-            .looking_at(RAIDER_POSITION, Vec3::Y)
+        Transform::from_translation(LANCE_POSITION.to_engine())
+            .looking_at(RAIDER_POSITION.to_engine(), Vec3::Y)
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
@@ -290,9 +290,9 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         id_prefix: "ordnance_rock_",
         count: 48,
         seed: 40507,
-        distance: (48.0, 130.0),
-        radius: (1.2, 3.2),
-        y_spread: 46.0,
+        distance: (Meters(480.0), Meters(1_300.0)),
+        radius: (Meters(12.0), Meters(32.0)),
+        y_spread: Meters(460.0),
     };
 
     ScenarioConfig {
@@ -304,7 +304,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
             filters: vec![],
             actions: [
                 vec![shell.action(game_assets), player, raider, lance],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -317,8 +317,8 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
 }
 
 /// The hollow itself - and it is a HOLLOW: the field starts outside the raider's
-/// station (34 units) with room to spare, so the pocket the fight happens in is
-/// clear and the rocks read as the wall around it. Tried tighter (28 units):
+/// station (340 m) with room to spare, so the pocket the fight happens in is
+/// clear and the rocks read as the wall around it. Tried tighter (280 m):
 /// rocks land on the raider, every close framing has one in front of the
 /// subject, and a torpedo run into it hits stone.
 fn shell() -> kit::NearField {
@@ -326,9 +326,9 @@ fn shell() -> kit::NearField {
         id_prefix: "hollow_rock_",
         count: 48,
         seed: 40507,
-        distance: (48.0, 130.0),
-        radius: (1.2, 3.2),
-        y_spread: 46.0,
+        distance: (Meters(480.0), Meters(1_300.0)),
+        radius: (Meters(12.0), Meters(32.0)),
+        y_spread: Meters(460.0),
     }
 }
 
@@ -336,7 +336,7 @@ fn shell() -> kit::NearField {
 pub fn ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
@@ -367,7 +367,7 @@ pub fn ship(
 /// The route is what makes the set move before the first shot: the grace holds
 /// the ship in `Patrol`, which flies the waypoint loop through the real GOTO
 /// autopilot instead of station-keeping.
-pub fn fighter(patrol: Vec<Vec3>) -> SpaceshipController {
+pub fn fighter(patrol: Vec<Meters3>) -> SpaceshipController {
     SpaceshipController::AI(AIControllerConfig {
         patrol,
         leash: Some(AI_LEASH),
@@ -466,7 +466,7 @@ pub fn hud_cinematic(world: &mut World) {
 
 /// Pin the camera for a framing the follow camera does not give.
 #[cfg(feature = "debug")]
-pub fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
+pub fn pose(world: &mut World, position: Meters3, look_at: Meters3) {
     pose_camera(world, position, look_at);
 }
 
@@ -500,9 +500,9 @@ pub fn hold_station(world: &mut World) {
 ///
 /// Not cosmetic, and not the STOP autopilot: the set's geometry is measured from
 /// a player at the origin, and the radar picks the body nearest the AIM RAY
-/// (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few tens
-/// of units off station swings the parked raider off the ray and latches a
-/// hostile two kilometers out instead.
+/// (`crates/nova_gameplay/src/input/targeting/radar.rs`), so a player a few
+/// hundred meters off station swings the parked raider off the ray and latches
+/// a hostile two kilometers out instead.
 #[cfg(feature = "debug")]
 pub fn pin_player(
     mut player: Query<
@@ -607,10 +607,10 @@ pub fn raider_root(world: &mut World) -> Option<Entity> {
 
 /// Where the raider actually is right now; its spawn point if it has gone.
 #[cfg(feature = "debug")]
-pub fn raider_position(world: &mut World) -> Vec3 {
+pub fn raider_position(world: &mut World) -> Meters3 {
     raider_root(world)
         .and_then(|raider| world.get::<GlobalTransform>(raider))
-        .map(|transform| transform.translation())
+        .map(|transform| Meters3::from_engine(transform.translation()))
         .unwrap_or(RAIDER_POSITION)
 }
 
@@ -774,10 +774,10 @@ pub fn commit_torpedoes(world: &mut World) {
 /// the boat's bearing. Framing on the raider alone puts the blast at the edge of
 /// the frame; framing on this holds both.
 #[cfg(feature = "debug")]
-pub fn ordnance_subject(world: &mut World) -> Vec3 {
+pub fn ordnance_subject(world: &mut World) -> Meters3 {
     let raider = raider_position(world);
-    let bearing = (LANCE_POSITION - raider).normalize_or_zero();
-    raider + bearing * (TORPEDO_FUZE_RANGE * 0.5)
+    let bearing = (LANCE_POSITION - raider).get().normalize_or_zero();
+    raider + Meters3(bearing * (TORPEDO_FUZE_RANGE.get() * 0.5))
 }
 
 /// Advance once the whole salvo is actually in the world.
@@ -802,7 +802,7 @@ pub fn no_torpedo_in_flight() -> std::sync::Arc<nova_protocol::nova_debug::harne
 /// Advance once the leading torpedo is within `distance` of the raider.
 #[cfg(feature = "debug")]
 pub fn torpedo_within(
-    distance: f32,
+    distance: Meters,
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     std::sync::Arc::new(move |world: &World| {
         torpedo_range(world).is_some_and(|range| range < distance)
@@ -825,7 +825,7 @@ pub fn assert_salvo_still_live(world: &mut World, _: f32, _: u32) {
 
 /// How far the closest live torpedo is from the raider, if there is one of each.
 #[cfg(feature = "debug")]
-pub fn torpedo_range(world: &World) -> Option<f32> {
+pub fn torpedo_range(world: &World) -> Option<Meters> {
     let raider = world
         .try_query_filtered::<(Entity, &EntityId), With<SpaceshipRootMarker>>()?
         .iter(world)
@@ -835,6 +835,6 @@ pub fn torpedo_range(world: &World) -> Option<f32> {
     world
         .try_query_filtered::<&GlobalTransform, With<TorpedoProjectileMarker>>()?
         .iter(world)
-        .map(|transform| transform.translation().distance(target))
-        .min_by(f32::total_cmp)
+        .map(|transform| Meters::from_engine(transform.translation().distance(target)))
+        .min_by(|a, b| f32::total_cmp(&a.get(), &b.get()))
 }

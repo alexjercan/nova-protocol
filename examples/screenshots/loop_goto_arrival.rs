@@ -49,13 +49,15 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 }
 
 #[cfg(feature = "debug")]
-fn fixed_leg_pose(world: &mut World, side: f32, along: f32, up: f32, look_ahead: f32) {
+fn fixed_leg_pose(world: &mut World, side: Meters, along: Meters, up: Meters, look_ahead: Meters) {
     let ship = ring::ship_position(world);
     let track = ring::ship_heading(world);
     ring::pin(
         world,
-        ship + ring::lit_side(track) * side + track * along + Vec3::Y * up,
-        ship + track * look_ahead,
+        ship + Meters3(
+            ring::lit_side(track) * side.get() + track * along.get() + Vec3::Y * up.get(),
+        ),
+        ship + Meters3(track * look_ahead.get()),
     );
 }
 
@@ -70,17 +72,17 @@ struct CutCamera {
 const CUT_INTERVAL: f32 = 0.65;
 
 #[cfg(feature = "debug")]
-const CUTS: [(f32, f32, f32, f32); 10] = [
-    (30.0, -10.0, 12.0, 20.0),
-    (32.0, 8.0, 18.0, 18.0),
-    (34.0, -16.0, 5.0, 18.0),
-    (36.0, 12.0, 10.0, 19.0),
-    (31.0, 16.0, -5.0, 16.0),
-    (34.0, -12.0, 14.0, 15.0),
-    (29.0, 5.0, 20.0, 13.0),
-    (32.0, -15.0, 7.0, 12.0),
-    (28.0, 12.0, 11.0, 10.0),
-    (30.0, -6.0, -4.0, 9.0),
+const CUTS: [(Meters, Meters, Meters, Meters); 10] = [
+    (Meters(300.0), Meters(-100.0), Meters(120.0), Meters(200.0)),
+    (Meters(320.0), Meters(80.0), Meters(180.0), Meters(180.0)),
+    (Meters(340.0), Meters(-160.0), Meters(50.0), Meters(180.0)),
+    (Meters(360.0), Meters(120.0), Meters(100.0), Meters(190.0)),
+    (Meters(310.0), Meters(160.0), Meters(-50.0), Meters(160.0)),
+    (Meters(340.0), Meters(-120.0), Meters(140.0), Meters(150.0)),
+    (Meters(290.0), Meters(50.0), Meters(200.0), Meters(130.0)),
+    (Meters(320.0), Meters(-150.0), Meters(70.0), Meters(120.0)),
+    (Meters(280.0), Meters(120.0), Meters(110.0), Meters(100.0)),
+    (Meters(300.0), Meters(-60.0), Meters(-40.0), Meters(90.0)),
 ];
 
 #[cfg(feature = "debug")]
@@ -111,7 +113,13 @@ fn drive_cut_camera(world: &mut World) {
 #[cfg(feature = "debug")]
 fn settle_camera(world: &mut World) {
     world.remove_resource::<CutCamera>();
-    fixed_leg_pose(world, 25.0, -7.0, 7.0, 0.0);
+    fixed_leg_pose(
+        world,
+        Meters(250.0),
+        Meters(-70.0),
+        Meters(70.0),
+        Meters::ZERO,
+    );
 }
 
 #[cfg(feature = "debug")]
@@ -131,7 +139,15 @@ fn arrival_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .deadline(30.0)
         .add()
         .step("frame the departure burn")
-        .on_enter(|world| ring::chase(world, 18.0, 14.0, 6.0, 12.0))
+        .on_enter(|world| {
+            ring::chase(
+                world,
+                Meters(180.0),
+                Meters(140.0),
+                Meters(60.0),
+                Meters(120.0),
+            )
+        })
         .until(elapsed(0.3))
         .add()
         .step("ride the outbound burn and coast")

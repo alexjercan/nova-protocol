@@ -5,7 +5,7 @@
 //! camera) and `wiki-radar.png` (the same latch from a tighter, lower camera,
 //! with the instrument as the subject).
 //!
-//! The set is a corvette in open space with a nav beacon roughly 750 units
+//! The set is a corvette in open space with a nav beacon roughly 7.5 km
 //! ahead. Nothing flies: the lock is the whole example.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
@@ -48,20 +48,20 @@ const LOCK_LOOP: &str = "lock-dwell";
 
 /// Scenario id of the player's ship.
 const PLAYER_ID: &str = "nav_player";
-/// Where the ship sits: up, out and roughly 750 units short of the beacon, so
+/// Where the ship sits: up, out and roughly 7.5 km short of the beacon, so
 /// the bracket has open sky around it.
-const START_POSITION: Vec3 = Vec3::new(0.0, -60.0, 754.0);
+const START_POSITION: Meters3 = Meters3::new(0.0, -600.0, 7_540.0);
 
 /// The nav beacon: the travel lock's subject. Sitting a long way downrange is
-/// the point - a destination a few units off the nose puts its bracket over the
-/// player's own hull, which is exactly what this framing must not do.
+/// the point - a destination a few tens of meters off the nose puts its bracket
+/// over the player's own hull, which is exactly what this framing must not do.
 const BEACON_ID: &str = "nav_beacon";
 /// Far enough ahead that the lock reads as a destination rather than as traffic.
-const BEACON_POSITION: Vec3 = Vec3::new(0.0, 0.0, -46.0);
-/// Radar signature, world units of lock range per unit being 30: the default 20
-/// (600 units) is short of this range, so the beacon authors the range the shot
-/// needs, the way the doc comment on the field asks.
-const BEACON_SIGNATURE: f32 = 40.0;
+const BEACON_POSITION: Meters3 = Meters3::new(0.0, 0.0, -460.0);
+/// Radar signature; lock range is 30 times it (a pure ratio), so 12 km here.
+/// The default 200 m (6 km of reach) is short of this range, so the beacon
+/// authors the range the shot needs, the way the doc comment on the field asks.
+const BEACON_SIGNATURE: Meters = Meters(400.0);
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -91,7 +91,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(nav_approach(&game_assets, &ships)));
 }
 
-/// The set: a parked corvette, a beacon 750 units downrange and a corridor of
+/// The set: a parked corvette, a beacon 7.5 km downrange and a corridor of
 /// rocks between them.
 fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let player = ship(
@@ -118,9 +118,9 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "hollow_far_",
         count: 26,
         seed: 90727,
-        distance: (200.0, 640.0),
-        radius: (4.0, 10.0),
-        y_spread: 160.0,
+        distance: (Meters(2_000.0), Meters(6_400.0)),
+        radius: (Meters(40.0), Meters(100.0)),
+        y_spread: Meters(1_600.0),
     };
 
     ScenarioConfig {
@@ -135,7 +135,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // exact key/rim/fill numbers.
             actions: [
                 vec![corridor.action(game_assets), player, beacon()],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],
@@ -159,7 +159,7 @@ fn beacon() -> EventActionConfig {
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: "WAYPOINT".to_string(),
-            radius: 3.0,
+            radius: Meters(30.0),
             color: Color::srgb(0.4, 0.75, 1.0),
             area_radius: None,
             lock_signature: Some(BEACON_SIGNATURE),
@@ -171,7 +171,7 @@ fn beacon() -> EventActionConfig {
 fn ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     rotation: Quat,
     controller: SpaceshipController,
     allegiance: Option<Allegiance>,
@@ -256,8 +256,8 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .on_enter(|world| {
             pose(
                 world,
-                START_POSITION + Vec3::new(-3.6, 1.0, 6.0),
-                START_POSITION + Vec3::new(0.0, 0.3, -10.0),
+                START_POSITION + Meters3::new(-36.0, 10.0, 60.0),
+                START_POSITION + Meters3::new(0.0, 3.0, -100.0),
             )
         })
         .until(elapsed(0.4))
@@ -279,7 +279,7 @@ fn hud_instrument(world: &mut World) {
 
 /// Pin the camera for a framing the follow camera does not give.
 #[cfg(feature = "debug")]
-fn pose(world: &mut World, position: Vec3, look_at: Vec3) {
+fn pose(world: &mut World, position: Meters3, look_at: Meters3) {
     pose_camera(world, position, look_at);
 }
 

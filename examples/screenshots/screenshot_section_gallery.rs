@@ -15,7 +15,7 @@
 //!   `assets/base/gltf/` (`scripts/gen-section-parts.py`), in the
 //!   cross-faction mechanical voice the thruster shells set, decoded straight
 //!   off disk by `shared/glb.rs` and shown at NATIVE size - they are authored
-//!   in cell units, so what stands here is what a grid cell gets. PDC
+//!   in build-grid cells, so what stands here is what a grid cell gets. PDC
 //!   candidates are three-part assemblies (yaw, pitch, barrel) posed at each
 //!   candidate's own joint offsets, at unit-turret scale like the art is
 //!   drawn; the shipped mount then scales the whole tree to its 0.5 box. The
@@ -63,10 +63,11 @@ mod glb;
 struct Cli;
 
 /// Centre-to-centre spacing across a row, wide enough for the 2x1x3 twin bay
-/// at a quarter yaw plus a margin.
+/// at a quarter yaw plus a margin. The stand lays meshes out at their native
+/// cell size, so every figure in this layout is in engine world units.
 const COLUMN_SPACING: f32 = 4.5;
 /// Centre-to-centre spacing between rows, sized against the 3-cell bays the
-/// same way.
+/// same way. Engine world units, like [`COLUMN_SPACING`].
 const ROW_SPACING: f32 = 5.5;
 /// Every subject stands at the same quarter yaw, TURNED AROUND: the working
 /// face of every section here is -Z (bay muzzles, barrel lines, the panels
@@ -337,7 +338,7 @@ fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
-            actions: ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions(),
+            actions: ThreePointRig::around("photo", Meters3::ZERO, 3.0).actions(),
         }],
         ..ScenarioConfig::new(
             "section_gallery".to_string(),
@@ -608,7 +609,8 @@ fn place_labels(
     }
 }
 
-/// What the camera aims at: the middle of the stand.
+/// What the camera aims at: the middle of the stand. Engine world units, the
+/// space the stand itself is laid out in.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
 /// Where the camera stands: backed off far enough to hold the fixed grid,
@@ -685,7 +687,11 @@ fn orbit_idle_camera(
 #[cfg(feature = "debug")]
 fn frame_stand(world: &mut World) {
     world.insert_resource(Nameplates::NamesOnly);
-    pose_camera(world, camera_position(), CAMERA_TARGET);
+    pose_camera(
+        world,
+        Meters3::from_engine(camera_position()),
+        Meters3::from_engine(CAMERA_TARGET),
+    );
 }
 
 /// Pose the harness camera on one row, backed off to that row's own width,
@@ -702,8 +708,8 @@ fn frame_row(world: &mut World, row: usize) {
     let span = (rows[row].items.len() as f32 + 0.5) * COLUMN_SPACING;
     pose_camera(
         world,
-        target + Vec3::new(0.0, span * 0.38, span * 0.62),
-        target,
+        Meters3::from_engine(target + Vec3::new(0.0, span * 0.38, span * 0.62)),
+        Meters3::from_engine(target),
     );
 }
 

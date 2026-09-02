@@ -131,7 +131,7 @@ fn hull_juice_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Ga
             // of turret rounds pushes it further, which throws a close camera
             // clean off the subject.
             let raider = hollow::raider_position(world);
-            hollow::pose(world, raider + Vec3::new(6.5, 2.2, 9.0), raider)
+            hollow::pose(world, raider + Meters3::new(65.0, 22.0, 90.0), raider)
         })
         .until(elapsed(0.5))
         .add()

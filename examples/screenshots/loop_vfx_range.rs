@@ -23,12 +23,12 @@
 //!
 //! ## The range
 //!
-//! A shooter at the origin and a target [`RANGE`] units down -Z, both
+//! A shooter at the origin and a target [`RANGE`] down -Z, both
 //! controller-less so nothing flies and nothing decides anything. Every
 //! section on both ships is authored to [`TOUGH_SECTION_HEALTH`], which is
 //! what lets the cycle repeat: the warhead lands its full 750 on the target
 //! and wounds it, and the next cycle has something left to shoot at. The
-//! shooter sits outside the 30-unit blast radius by construction - see
+//! shooter sits outside the 300 m blast radius by construction - see
 //! [`RANGE`] - so it is never damaged by its own ordnance.
 //!
 //! Every ship is unmanaged (no `WeaponsHot`), which is what lets the script
@@ -41,7 +41,7 @@
 //! A spinal lance is parked on its own hull above the shooter, bore down -Z,
 //! so its slug passes over the target and flies its whole lifetime into empty
 //! sky with the whole wake behind it. Not a section on the shooter: a lance
-//! on the shooter's axis puts its slug into the target 36 units on - a tick
+//! on the shooter's axis puts its slug into the target 360 m on - a tick
 //! and a half of flight, over before the wake's first frame at a software
 //! renderer's frame rate. The platform carries a hard magazine of one shell
 //! per pass in place of the shipped one shell and twelve-second reload, and
@@ -90,7 +90,7 @@ struct Cli;
 const LOOP_NAME: &str = "vfx-range";
 
 /// The close loop, over the last pass's torpedo only. A launch is a small
-/// event at range framing - the coast is under four units of a thirty-six unit
+/// event at range framing - the coast is under 40 m of a 360 m
 /// shot - so the one thing the release changed about it is invisible from
 /// there. Two loops rather than one long one: only one may be open at a time.
 #[cfg(feature = "debug")]
@@ -106,10 +106,10 @@ const BARE_SLUG_ENV: &str = "NOVA_VFX_RANGE_BARE_SLUG";
 /// How high above the shooter the lance platform is parked.
 ///
 /// The slug has to clear the target's top row with the rake sphere behind
-/// it: the slab reaches 1.5 units up and the rake is one unit wide, so four
-/// leaves a unit and a half of sky between the two. Higher and the platform
+/// it: the slab reaches 15 m up and the rake is 10 m wide, so 40 m
+/// leaves 15 m of sky between the two. Higher and the platform
 /// leaves the frame.
-const LANCE_PLATFORM_Y: f32 = 4.0;
+const LANCE_PLATFORM_Y: Meters = Meters(40.0);
 
 /// The lance's hard magazine for one run: one shell per pass, no reload.
 ///
@@ -120,12 +120,12 @@ const LANCE_SHELLS: u32 = 3;
 
 /// How far the target sits down -Z from the shooter.
 ///
-/// Above the shipped bay's 30-unit `blast_radius`, so the detonation at the
+/// Above the shipped bay's 300 m `blast_radius`, so the detonation at the
 /// target end cannot reach back and chew the gun platform over repeated
-/// cycles. Below the PDC's 200-unit reach by a wide margin, so a round crosses
+/// cycles. Below the PDC's 2 km reach by a wide margin, so a round crosses
 /// in about a third of a second and the burst reads as a burst rather than as
 /// a wait.
-const RANGE: f32 = 36.0;
+const RANGE: Meters = Meters(360.0);
 
 /// Frames held between ordering the torpedo and the aftermath step.
 ///
@@ -164,11 +164,12 @@ const TOUGH_SECTION_HEALTH: f32 = 20_000.0;
 /// under its bare kind name.
 const TORPEDO_BAY_SECTION_ID: &str = "torpedo_section";
 
-/// Where a PDC's centre sits when it is bolted to the top of a unit hull cell.
+/// Where a PDC's centre sits when it is bolted to the top of a one-cell hull
+/// section. BUILD-GRID cells, not meters.
 ///
 /// A turret is not a cell: it is a 0.5 mount whose ONE link point is its base
 /// plate, so it mates half its own size above the face rather than a full cell
-/// away. Placing it at a whole unit leaves the plate a quarter unit off the
+/// away. Placing it at a whole cell leaves the plate a quarter cell off the
 /// hull and the content lint refuses the ship outright - the graph comes back
 /// disconnected with the turret alone in its own component.
 const TURRET_MOUNT_Y: f32 = 0.75;
@@ -246,8 +247,12 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
                     .into_iter()
                     .map(EventActionConfig::SpawnScenarioObject)
                     .collect::<Vec<_>>(),
-                ThreePointRig::around("vfx range", Vec3::new(0.0, 0.0, -RANGE * 0.5), 3.0)
-                    .actions(),
+                ThreePointRig::around(
+                    "vfx range",
+                    Meters3(Vec3::new(0.0, 0.0, -RANGE.get() * 0.5)),
+                    3.0,
+                )
+                .actions(),
             ]
             .concat(),
         }],
@@ -284,7 +289,7 @@ fn shooter(sections: &GameSections) -> ScenarioObjectConfig {
     toughened(
         SHOOTER_ID,
         "Shooter",
-        Vec3::ZERO,
+        Meters3::ZERO,
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
@@ -313,7 +318,7 @@ fn target(sections: &GameSections) -> ScenarioObjectConfig {
     toughened(
         TARGET_ID,
         "Target",
-        Vec3::new(0.0, 0.0, -RANGE),
+        Meters3(Vec3::new(0.0, 0.0, -RANGE.get())),
         fixtures::ship(sections, SpaceshipController::None, &specs),
     )
 }
@@ -322,7 +327,7 @@ fn target(sections: &GameSections) -> ScenarioObjectConfig {
 /// [`LANCE_PLATFORM_Y`] above the shooter with its bore down -Z.
 ///
 /// The lance is three cells long and centred on its own origin, so at -1 it
-/// fills -2 to 0 and its muzzle sits half a unit ahead of the shooter's bow.
+/// fills -2 to 0 and its muzzle sits half a cell ahead of the shooter's bow.
 /// The controller at +1 is on the lance's aft link. Nothing stands ahead of
 /// the bore: a lance cannot traverse, so anything there is shot through.
 fn lance_platform(sections: &GameSections) -> ScenarioObjectConfig {
@@ -337,7 +342,7 @@ fn lance_platform(sections: &GameSections) -> ScenarioObjectConfig {
     let mut platform = toughened(
         LANCE_PLATFORM_ID,
         "Lance Platform",
-        Vec3::new(0.0, LANCE_PLATFORM_Y, 2.0),
+        Meters3(Vec3::new(0.0, LANCE_PLATFORM_Y.get(), 20.0)),
         fixtures::ship(sections, SpaceshipController::None, &specs),
     );
     if let ScenarioObjectKind::Spaceship(ship) = &mut platform.kind {
@@ -365,7 +370,7 @@ fn lance_platform(sections: &GameSections) -> ScenarioObjectConfig {
 fn toughened(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     mut ship: SpaceshipConfig,
 ) -> ScenarioObjectConfig {
     if let ShipSource::Inline(hull) = &mut ship.hull {
@@ -531,16 +536,21 @@ fn frame_range(world: &mut World) {
     // room for the ejecta thrown PAST the target - the fragments reach further
     // than the hull they came off, and framing to the hulls crops them.
     // Further out than this and a detonation is a bright speck.
-    let midpoint = Vec3::new(0.0, 0.0, -RANGE * 0.5);
+    let midpoint = Meters3(Vec3::new(0.0, 0.0, -RANGE.get() * 0.5));
     world.entity_mut(camera).insert(ScriptedCameraPose {
-        position: midpoint + Vec3::new(RANGE * 0.98, RANGE * 0.28, RANGE * 0.22),
+        position: midpoint
+            + Meters3(Vec3::new(
+                RANGE.get() * 0.98,
+                RANGE.get() * 0.28,
+                RANGE.get() * 0.22,
+            )),
         look_at: midpoint,
     });
 }
 
 /// Close on the shooter's bow, along the way the torpedo leaves.
 ///
-/// The bay ejects out of the ship's -Z and the coast is about 3.8 units, so
+/// The bay ejects out of the ship's -Z and the coast is about 38 m, so
 /// the frame is sized to that rather than to `RANGE`: the drop, the inert
 /// travel and the moment the drive catches all have to happen inside it. It
 /// is centred a coast and a burn down range rather than on the bay, so the lit
@@ -554,17 +564,18 @@ fn frame_launch(world: &mut World) {
         .iter(world)
         .next()
         .expect("the vfx range has a camera");
-    let look_at = Vec3::new(0.0, 0.0, -7.0);
+    let look_at = Meters3::new(0.0, 0.0, -70.0);
     world.entity_mut(camera).insert(ScriptedCameraPose {
-        position: look_at + Vec3::new(11.0, 3.2, 6.5),
+        position: look_at + Meters3::new(110.0, 32.0, 65.0),
         look_at,
     });
 }
 
-/// The world-space point the target slab occupies.
+/// The world-space point the target slab occupies, in ENGINE units - a
+/// commanded turret aim point is engine world space.
 #[cfg(feature = "debug")]
-const fn target_point() -> Vec3 {
-    Vec3::new(0.0, 0.0, -RANGE)
+fn target_point() -> Vec3 {
+    Vec3::new(0.0, 0.0, -RANGE.to_engine())
 }
 
 /// Point every turret at the slab.

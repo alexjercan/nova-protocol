@@ -65,7 +65,9 @@ const SUBJECT_SPIN: Vec3 = Vec3::new(0.0, 0.10, 0.04);
 
 /// Scripted send-off speed per freed fragment, on top of the inherited spin:
 /// enough to read as "drifting away" inside the loop's few seconds at this
-/// camera, slow enough to stay adrift rather than launched.
+/// camera, slow enough to stay adrift rather than launched. Added straight to
+/// an avian `LinearVelocity`, so it is an engine world-unit figure (world
+/// units per second).
 #[cfg(feature = "debug")]
 const FRAGMENT_DRIFT_SPEED: f32 = 1.1;
 
@@ -91,7 +93,11 @@ fn main() -> bevy::app::AppExit {
                 .step("frame the port flank")
                 .on_enter(|world| {
                     hide_hud(world);
-                    pose_camera(world, Vec3::new(-8.5, 3.0, 7.5), Vec3::new(-1.5, 0.6, 0.5));
+                    pose_camera(
+                        world,
+                        Meters3::new(-85.0, 30.0, 75.0),
+                        Meters3::new(-15.0, 6.0, 5.0),
+                    );
                 })
                 .until(elapsed(0.8))
                 .add()
@@ -150,7 +156,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         base: BaseScenarioObjectConfig {
             id: SUBJECT_ID.to_string(),
             name: "Subject".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::from_rotation_y(-0.5),
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
@@ -174,9 +180,9 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         id_prefix: "loop_rock_",
         count: 12,
         seed: 20260818,
-        distance: (55.0, 120.0),
-        radius: (1.0, 2.5),
-        y_spread: 30.0,
+        distance: (Meters(550.0), Meters(1_200.0)),
+        radius: (Meters(10.0), Meters(25.0)),
+        y_spread: Meters(300.0),
     };
 
     ScenarioConfig {
@@ -188,7 +194,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             filters: vec![],
             actions: [
                 vec![field.action(game_assets), subject],
-                ThreePointRig::around("photo", Vec3::ZERO, 1.0).actions(),
+                ThreePointRig::around("photo", Meters3::ZERO, 1.0).actions(),
             ]
             .concat(),
         }],

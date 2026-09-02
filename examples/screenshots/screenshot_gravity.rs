@@ -79,7 +79,11 @@ fn main() -> bevy::app::AppExit {
                 // behind it down-right, belt rocks between the two for depth.
                 .step("frame feature-gravity.png")
                 .on_enter(|world: &mut World| {
-                    pose_camera(world, Vec3::new(-6.5, 2.6, 9.5), Vec3::new(0.0, 0.0, -2.0));
+                    pose_camera(
+                        world,
+                        Meters3::new(-65.0, 26.0, 95.0),
+                        Meters3::new(0.0, 0.0, -20.0),
+                    );
                 })
                 .until(frames(SETTLE_FRAMES))
                 .add()
@@ -94,7 +98,7 @@ fn main() -> bevy::app::AppExit {
                 .on_enter(|world: &mut World| {
                     pose_camera(
                         world,
-                        Vec3::new(40.0, -6.0, -110.0),
+                        Meters3::new(400.0, -60.0, -1_100.0),
                         drydock::PLANETOID_POSITION,
                     );
                 })

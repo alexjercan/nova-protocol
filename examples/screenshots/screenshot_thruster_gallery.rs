@@ -57,7 +57,8 @@ mod glb;
 struct Cli;
 
 /// Centre-to-centre spacing across a row, wide enough for the 5x5 shells plus
-/// a margin.
+/// a margin. The stand lays meshes out at their native cell size, so every
+/// figure in this layout is in engine world units.
 const COLUMN_SPACING: f32 = 7.5;
 /// Centre-to-centre spacing between rows, sized against the longest subject
 /// (the 1x1x5 shell) the same way.
@@ -406,7 +407,7 @@ fn gallery_stage(game_assets: &GameAssets) -> ScenarioConfig {
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
-            actions: ThreePointRig::around("photo", Vec3::ZERO, 3.0).actions(),
+            actions: ThreePointRig::around("photo", Meters3::ZERO, 3.0).actions(),
         }],
         ..ScenarioConfig::new(
             "thruster_gallery".to_string(),
@@ -642,7 +643,8 @@ fn place_labels(
     }
 }
 
-/// What the camera aims at: the middle of the stand.
+/// What the camera aims at: the middle of the stand. Engine world units, the
+/// space the stand itself is laid out in.
 const CAMERA_TARGET: Vec3 = Vec3::ZERO;
 
 /// Where the camera stands: backed off far enough to hold the fixed grid,
@@ -720,7 +722,11 @@ fn orbit_idle_camera(
 /// Pose the harness camera on the whole stand.
 #[cfg(feature = "debug")]
 fn frame_stand(world: &mut World) {
-    pose_camera(world, camera_position(), CAMERA_TARGET);
+    pose_camera(
+        world,
+        Meters3::from_engine(camera_position()),
+        Meters3::from_engine(CAMERA_TARGET),
+    );
 }
 
 /// Pose the harness camera on the two mocked size rows.
@@ -729,7 +735,11 @@ fn frame_sizes(world: &mut World) {
     let rows = gallery_rows().len();
     // The z of the midpoint between row 1 and row 2.
     let target = Vec3::new(0.0, 0.0, (1.5 - (rows as f32 - 1.0) * 0.5) * ROW_SPACING);
-    pose_camera(world, target + Vec3::new(0.0, 12.0, 21.0), target);
+    pose_camera(
+        world,
+        Meters3::from_engine(target + Vec3::new(0.0, 12.0, 21.0)),
+        Meters3::from_engine(target),
+    );
 }
 
 /// Pose the harness camera on the selected first row.
@@ -737,7 +747,11 @@ fn frame_sizes(world: &mut World) {
 fn frame_shells(world: &mut World) {
     let rows = gallery_rows().len();
     let target = Vec3::new(0.0, 0.0, -(rows as f32 - 1.0) * 0.5 * ROW_SPACING);
-    pose_camera(world, target + Vec3::new(0.0, 9.0, 18.0), target);
+    pose_camera(
+        world,
+        Meters3::from_engine(target + Vec3::new(0.0, 9.0, 18.0)),
+        Meters3::from_engine(target),
+    );
 }
 
 /// The driven walk: load the gallery, frame it, shoot it, then step in on
