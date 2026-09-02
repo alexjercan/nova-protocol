@@ -1005,16 +1005,22 @@ function control(
     const row = el("label", "widget__control");
     const name = el("span", undefined, `${label}: `);
     const val = el("span", "widget__value", format(value));
-    name.appendChild(val);
-    // The label column is sized to its content, so a value that shortens
-    // mid-drag ("200 hp (reinforced hull)" to "210 hp") would resize the
-    // fader under the pointer. Reserve the widest reading the fader can show.
-    let widest = 0;
+    // The label column is sized to its content, so a reading that changes
+    // length mid-drag ("1.0 u (shipped)" to "1.5 u") would resize the fader
+    // under the pointer and the thumb would jump. The widest reading the
+    // fader can show sits hidden under the live one, so the column holds.
+    let widest = format(value);
     const steps = Math.min(4000, Math.round((max - min) / step));
     for (let i = 0; i <= steps; i++) {
-        widest = Math.max(widest, format(min + i * step).length);
+        const reading = format(min + i * step);
+        if (reading.length > widest.length) widest = reading;
     }
-    name.style.minWidth = `min(${label.length + 2 + widest}ch, 100%)`;
+    const ghost = el("span", "widget__value widget__value--ghost", widest);
+    ghost.setAttribute("aria-hidden", "true");
+    const reading = el("span", "widget__reading");
+    reading.appendChild(val);
+    reading.appendChild(ghost);
+    name.appendChild(reading);
     const input = el("input", "widget__slider");
     input.type = "range";
     input.min = String(min);

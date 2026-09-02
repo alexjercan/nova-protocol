@@ -1835,6 +1835,19 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     text-shadow: var(--glow-text);
     font-variant-numeric: tabular-nums;
 }
+/* A fader's reading and, under it, the widest reading it can show: the two
+   share one cell, so the label column is as wide as the widest and a value
+   that changes length mid-drag cannot move the fader. */
+.widget__reading {
+    display: inline-grid;
+    white-space: nowrap;
+}
+.widget__reading > * {
+    grid-area: 1 / 1;
+}
+.widget__value--ghost {
+    visibility: hidden;
+}
 /* The slider is a fader on the panel: a recessed hairline track and a solid
    phosphor key for a thumb. Track and thumb must be styled per engine. */
 .widget__slider {
