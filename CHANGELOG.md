@@ -51,9 +51,9 @@ does NOT get an entry - and it is the only place they are written down.
 - With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
   the bore ringing every section the shot would destroy, dimmed but still there
   through the twelve-second reload.
-- The editor's inspector and gallery read lengths and speeds in meters. The
-  file keeps the authored world unit (10 m); a box converts both ways, so a
-  builder types what the HUD reads.
+- The editor's inspector and gallery read and write lengths and speeds in
+  meters, the unit the file itself now holds, and a section's own mesh rows
+  read in build-grid cells.
 - Press `:` anywhere - menu, editor, flight, pause screen - and the ship
   computer opens on a second shell. One CRT, two languages: `commands`
   switches, and each keeps its own transcript and history.
@@ -77,6 +77,9 @@ does NOT get an entry - and it is the only place they are written down.
   chain of segment tiles instead of skipping everything larger than one cell.
 
 ### Modding & Mod Portal
+- **(breaking)** Content is authored in meters: a 300 m blast is
+  `blast_radius: 300`, not `30`. Every distance and speed in a mod or scenario
+  is ten times its old number.
 - A section declares animation tracks on its base config: a cue, nodes by name
   prefix, a motion and travel times. Kind systems steer cues; tracks move art
   only, never colliders.
@@ -106,8 +109,7 @@ does NOT get an entry - and it is the only place they are written down.
 - The wiki reads as a book - Start here, World, Ship sections, Interface,
   Reference - with the sections chapter open in the sidebar under its own
   overview, and weapon detail on the section pages.
-- Every wiki figure reads in meters, scopes and catalogs included; the game's
-  10 m world unit stays in content files, where the creator docs say so.
+- Every wiki figure reads in meters, scopes and catalogs included.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
 - The wiki gets a Commands page: the `:` shell, what its introduction reports,

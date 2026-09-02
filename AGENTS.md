@@ -36,8 +36,11 @@ Global `~/AGENTS.md` applies. This file defines project-specific instructions.
 - Name plugins `<Subsystem>Plugin` and system sets `<Subsystem>Systems`. State
   cross-plugin ordering explicitly.
 - Build apps and examples with `AppBuilder`. Use seeded `bevy_rand` for gameplay.
-- Author code and content in world units; one world unit is 10 m. Print every
-  player- or creator-facing figure in meters, never as `u`.
+- Author code and content in meters, through the `nova_events` quantity types.
+  World units are an engine detail: they appear only at a Bevy, physics,
+  rendering or build-grid boundary, which says so locally and converts with
+  `to_engine`/`from_engine`. One world unit is 10 m, and one build-grid cell is
+  one world unit. Print every player- or creator-facing figure in meters.
 - Write code that reads as its own documentation. Give public items a
   docstring. Comment inside a body only where the reason is not recoverable
   from the code; delete a comment that restates what the next line does.
