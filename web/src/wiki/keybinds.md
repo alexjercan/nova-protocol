@@ -291,6 +291,14 @@ Weapon sections are rebindable: in the editor, click a section to bind it to any
             </td>
         </tr>
         <tr>
+            <td>
+                <a href="../commands/">Command shell</a> (inspect, settings,
+                armed cheats; works with no ship, and over the menus)
+            </td>
+            <td><kbd>:</kbd></td>
+            <td>-</td>
+        </tr>
+        <tr>
             <td>Pause menu</td>
             <td><kbd>Esc</kbd></td>
             <td>

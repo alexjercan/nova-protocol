@@ -177,13 +177,24 @@ fn print_summary(report: &ContentReport) {
             acked.bundle, acked.element, acked.message, acked.ack_task, acked.ack_reason
         );
     }
+    // A creative map is not a finding and never gates: the classification says
+    // the scenario's runs do not count for records, not that anything is wrong.
+    for map in &report.creative_maps {
+        println!(
+            "MAP   [{}] {}: creative map - {}",
+            map.bundle,
+            map.scenario,
+            map.actions.join(", ")
+        );
+    }
     println!(
-        "content lint: {} error(s), {} warning(s), {} finding(s), {} scenario(s) balance-audited, {} acked",
+        "content lint: {} error(s), {} warning(s), {} finding(s), {} scenario(s) balance-audited, {} acked, {} creative map(s)",
         report.error_count(),
         report.warn_count(),
         report.findings.len(),
         report.scenarios_audited,
         report.acked.len(),
+        report.creative_maps.len(),
     );
 }
 

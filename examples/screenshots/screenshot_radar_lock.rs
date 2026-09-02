@@ -107,7 +107,6 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         None,
         kit::kenney_hull(ships, "cargoa"),

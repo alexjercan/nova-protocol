@@ -367,3 +367,38 @@ fn terminal_ui_renders_prompt_hint_and_invalid_coloring() {
         "typed input owns the prompt lane and clips inside it"
     );
 }
+
+/// The prompt strip is one set of nodes for both shells, so which shell is
+/// typing has to be PAINTED. A baked `nova>` was right until the CRT grew a
+/// second language.
+#[test]
+fn the_prompt_prefix_names_the_shell_that_is_typing() {
+    let mut app = App::new();
+    app.add_plugins(MinimalPlugins);
+    app.init_resource::<NovaOsTerminal>();
+    spawn_nova_os_shell(&mut app);
+
+    let prefix = |app: &mut App| {
+        app.world_mut()
+            .run_system_once(rebuild_terminal_ui)
+            .expect("terminal UI rebuild runs");
+        app.world_mut()
+            .query_filtered::<&Text, With<NovaOsPromptPrefixMarker>>()
+            .single(app.world())
+            .expect("one terminal prompt prefix")
+            .0
+            .clone()
+    };
+
+    assert_eq!(prefix(&mut app), "nova>");
+
+    app.world_mut()
+        .resource_mut::<NovaOsTerminal>()
+        .open_shell(ShellKind::Commands);
+    assert_eq!(prefix(&mut app), "cmd>");
+
+    app.world_mut()
+        .resource_mut::<NovaOsTerminal>()
+        .switch_shell(ShellKind::NovaOs);
+    assert_eq!(prefix(&mut app), "nova>");
+}

@@ -25,6 +25,11 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
 # The scenario ids sections and ships answer to.
 nova_events = { path = "../nova_events" }
+# The command language: the channel parses a `command` line with the very
+# parser the CRT prompt uses, and hands the invocation to the dispatcher
+# through `CommandChannel` - so the wire depends on the LANGUAGE, not on
+# the crate that runs it.
+nova_os = { path = "../nova_os" }
 # The snapshot serializer the runner calls after every stepped frame.
 nova_probe = { path = "../nova_probe" }
 

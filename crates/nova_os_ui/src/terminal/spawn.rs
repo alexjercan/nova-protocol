@@ -25,24 +25,37 @@ use nova_ui::font::UiFont;
 
 use super::{casing::*, components::*, content::*, crt::*, shell::*, style::*};
 
-/// Spawn the NOVA OS shell (backdrop plus inset NOVA OS monitor) when the player
-/// ship appears - mirrors the other HUD widgets.
-pub(crate) fn setup_nova_os(
-    add: On<Add, PlayerSpaceshipMarker>,
+/// Spawn the NOVA OS shell (backdrop plus inset NOVA OS monitor) once the UI
+/// font is loaded, and keep it spawned.
+///
+/// It used to spawn and despawn with the player ship, like the rest of the HUD.
+/// The CRT is no longer a flight surface: it is the terminal EMULATOR, and its
+/// Command shell is reachable from the main menu and the editor, neither of
+/// which has a ship. So the monitor is app-global, and the ship-scoped parts of
+/// it - the session, the flight log, the topbar's ship name - are reset or
+/// reconciled instead (see [`reset_nova_os_for_new_ship`]).
+///
+/// Idempotent: it early-returns once a root exists, so it is safe to run every
+/// frame.
+pub(crate) fn ensure_nova_os_spawned(
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
     mut images: Option<ResMut<Assets<Image>>>,
     ui_font: Option<Res<UiFont>>,
     hud_assets: Option<Res<NovaHudAssets>>,
     settings: Option<Res<NovaOsMonitorSettings>>,
-    q_spaceship: Query<
-        (Entity, Option<&Name>),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
+    game_state: Option<Res<State<GameStates>>>,
+    q_existing: Query<(), With<NovaOsRootMarker>>,
+    q_player: Query<Option<&Name>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
-    let Ok((_, ship_name)) = q_spaceship.get(add.entity) else {
+    if !q_existing.is_empty() {
         return;
-    };
+    }
+    // Nothing is reachable through a half-loaded world, and the fonts the
+    // monitor draws with are part of what is still loading.
+    if game_state.is_some_and(|state| *state.get() == GameStates::Loading) {
+        return;
+    }
     // The plugin always inits the resource; tolerate its absence so bare-app
     // rigs that only exercise other parts of the shell still spawn.
     let settings = settings.map(|s| *s).unwrap_or_default();
@@ -51,7 +64,10 @@ pub(crate) fn setup_nova_os(
     // rigs without the asset pipeline - the plate then spawns without the logo,
     // as it did before when the AssetServer was missing.
     let crt_mark = hud_assets.map(|a| a.nova_crt_mark.clone());
-    let ship_name = nova_os_ship_name(ship_name);
+    // The ship the monitor belongs to, if there is one yet. The monitor now
+    // outlives any single ship, so the topbar's ship segment is reconciled
+    // against the live one every frame; this is only the first reading.
+    let ship_name = nova_os_ship_name(q_player.iter().next().flatten());
 
     // Render-to-texture pipeline: on render-capable builds route the terminal
     // content to an offscreen image via a dedicated UI camera, so the screen node
@@ -352,7 +368,10 @@ pub(crate) fn spawn_nova_os_header(
                     ));
                     brand.spawn((
                         NovaOsBrandMarker,
-                        Text::new(nova_os_header_breadcrumb(TerminalMode::Prompt)),
+                        Text::new(nova_os_header_breadcrumb(
+                            ShellKind::NovaOs,
+                            TerminalMode::Prompt,
+                        )),
                         nova_os_text_font(DRAWER_SECTION_TITLE_FONT_PX, font.clone()),
                         TextColor(NOVA_OS_PHOSPHOR),
                     ));
@@ -707,31 +726,16 @@ pub(crate) fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Hand
         });
 }
 
-/// Despawn the NOVA OS shell when the player ship goes away.
-#[expect(
-    clippy::type_complexity,
-    reason = "one Or term per NOVA OS part the teardown despawns"
-)]
-pub(crate) fn remove_nova_os(
+/// Forget the ship-scoped half of the NOVA OS when the player ship goes away:
+/// the flight log and the NOVA OS session's transcript and history.
+///
+/// The monitor itself stays. It is app-global now, and the Command shell has no
+/// ship to belong to - which is why `reset_session` leaves that shell alone.
+pub(crate) fn reset_nova_os_for_new_ship(
     _remove: On<Remove, PlayerSpaceshipMarker>,
-    mut commands: Commands,
     mut log: ResMut<NovaOsFlightLog>,
     mut terminal: ResMut<NovaOsTerminal>,
-    q_parts: Query<
-        Entity,
-        Or<(
-            With<NovaOsRootMarker>,
-            With<NovaOsBackdropMarker>,
-            With<NovaOsImageCameraMarker>,
-            With<NovaOsImageContentRootMarker>,
-            With<NovaOsForwardedPointerMarker>,
-        )>,
-    >,
 ) {
     log.clear();
     terminal.reset_session();
-    for entity in &q_parts {
-        commands.entity(entity).despawn();
-    }
-    commands.remove_resource::<NovaOsRtt>();
 }

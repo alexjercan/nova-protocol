@@ -62,7 +62,6 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                infinite_ammo: false,
                             )),
                             modifications: [
                                 (

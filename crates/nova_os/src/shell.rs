@@ -18,6 +18,9 @@ pub enum CommandArity {
     None,
     /// Accepts `1..=max` argument words (e.g. `ship repair <id>` is `UpTo(1)`).
     UpTo(usize),
+    /// Accepts `min..=max` argument words, for a command whose arguments are
+    /// not all optional (`ammo infinite <ship-id> <on|off>` is `Between(2, 2)`).
+    Between(usize, usize),
 }
 
 impl CommandArity {
@@ -26,6 +29,7 @@ impl CommandArity {
         match self {
             CommandArity::None => count == 0,
             CommandArity::UpTo(max) => count <= max,
+            CommandArity::Between(min, max) => count >= min && count <= max,
         }
     }
 
@@ -38,6 +42,11 @@ impl CommandArity {
                 let word = if max == 1 { "argument" } else { "arguments" };
                 format!("takes at most {max} {word}")
             }
+            CommandArity::Between(min, max) if min == max => {
+                let word = if min == 1 { "argument" } else { "arguments" };
+                format!("takes {min} {word}")
+            }
+            CommandArity::Between(min, max) => format!("takes {min} to {max} arguments"),
         }
     }
 }
@@ -59,6 +68,9 @@ pub enum CliOutput {
     /// Extend the scrollback with the rows `nova_os_ui` placed in the snapshot
     /// under this command's name (e.g. `log`, `ship view`, `map view`).
     Snapshot,
+    /// Leave this shell for the game-level Command shell. The CRT stays open
+    /// and the world stays frozen; only the language changes.
+    EnterCommands,
 }
 
 /// What running a command DOES: launch its app, or perform a CLI action. This is
@@ -78,6 +90,12 @@ pub enum CommandDispatch {
     /// future queued/over-time, resource-costed action model plugs into. See
     /// [`crate::terminal::NovaOsTerminal::take_pending_invocation`].
     Gameplay,
+    /// Hand the parsed invocation to the game-level command dispatcher - the
+    /// Command shell's only dispatch. Unlike [`Self::Gameplay`] this is not a
+    /// per-app seam: one dispatcher owns the whole
+    /// [`crate::commands::COMMAND_CATALOG`], and the process channel drives it
+    /// through the same parser.
+    Command,
 }
 
 /// A command as the matcher and the pure terminal see it: the (possibly
@@ -115,7 +133,7 @@ pub(crate) fn is_version_flag(word: &str) -> bool {
 /// The registered names that are sub-commands of `name` (its word sequence plus
 /// one more word), e.g. `map view` is a sub-command of `map`. Drives the
 /// did-you-mean on a bad argument and the `subcommands:` line in per-command help.
-pub(crate) fn subcommands_of(name: &str, commands: &[TerminalCommandSpec]) -> Vec<&'static str> {
+pub fn subcommands_of(name: &str, commands: &[TerminalCommandSpec]) -> Vec<&'static str> {
     let prefix = format!("{name} ");
     terminal_command_names(commands)
         .filter(|candidate| candidate.starts_with(&prefix))
@@ -138,29 +156,48 @@ pub(crate) fn command_meta(
 /// `Run` carries the matched (possibly multi-word) name and how to dispatch it;
 /// the two error variants mirror the PoC's `takes no arguments` / `command not
 /// found` paths.
-pub(crate) enum ResolvedCommand {
+pub enum ResolvedCommand {
     /// A resolved, arity-valid command: dispatch it by `dispatch`. `args` holds
     /// the trailing argument words past the (possibly multi-word) command name -
     /// empty for the no-arg commands, the `<id>` for an arg-bearing gameplay verb.
     Run {
+        /// The matched command name.
         name: &'static str,
+        /// How to run it.
         dispatch: CommandDispatch,
+        /// The trailing argument words past the name.
         args: Vec<String>,
     },
     /// `<command> help` (or `-h`/`--help`): show that command's own usage.
-    Usage { name: &'static str },
+    Usage {
+        /// The command whose usage was asked for.
+        name: &'static str,
+    },
     /// `<command> version` (or `-v`/`--version`): show the NOVA OS version.
     Version,
+    /// The whole input is a word-prefix of one or more registered names but is
+    /// not a command itself (`ammo`, `cheats`). A shell answers by listing what
+    /// it could have been rather than "command not found".
+    Incomplete {
+        /// The typed words, as a registered command's parent.
+        name: &'static str,
+    },
+    /// Trailing words a command's arity does not accept.
     UnexpectedArguments {
+        /// The matched command name.
         command: String,
+        /// The arity it overran.
         arity: CommandArity,
         /// The trailing words past the command name that overran its arity - the
         /// offending input, so the error can name it (`map: unknown subcommand
         /// 'v'`).
         args: Vec<String>,
     },
+    /// Nothing matched.
     Unknown {
+        /// The offending first word.
         command: String,
+        /// The nearest registered name, if one is close enough.
         suggestion: Option<&'static str>,
     },
 }
@@ -168,7 +205,7 @@ pub(crate) enum ResolvedCommand {
 /// Every command name known at the prompt, in registry order (core builtins
 /// first, then registered apps and their subcommands), for completion and
 /// did-you-mean.
-pub(crate) fn terminal_command_names(
+pub fn terminal_command_names(
     commands: &[TerminalCommandSpec],
 ) -> impl Iterator<Item = &'static str> + '_ {
     commands.iter().map(|command| command.name)
@@ -191,10 +228,7 @@ fn command_name_matches(input_words: &[&str], name: &str) -> Option<usize> {
 /// `map view` beats the `map` app on longest-match), then validates the trailing
 /// words against that command's arity. There is no per-command special case:
 /// multi-word names and argument-taking commands both fall out of this.
-pub(crate) fn resolve_command(
-    command_line: &str,
-    commands: &[TerminalCommandSpec],
-) -> ResolvedCommand {
+pub fn resolve_command(command_line: &str, commands: &[TerminalCommandSpec]) -> ResolvedCommand {
     let words: Vec<&str> = command_line.split_whitespace().collect();
     let Some(&first) = words.first() else {
         return ResolvedCommand::Unknown {
@@ -209,6 +243,12 @@ pub(crate) fn resolve_command(
         })
         .max_by_key(|(_, name_words)| *name_words);
     let Some((spec, name_words)) = best else {
+        // The words typed so far may be a registered command's PARENT (`ammo`
+        // before `ammo refill`). Naming what it could have been beats a
+        // not-found on a word the catalog does contain.
+        if let Some(parent) = incomplete_parent(&words, commands) {
+            return ResolvedCommand::Incomplete { name: parent };
+        }
         return ResolvedCommand::Unknown {
             command: first.to_string(),
             suggestion: nearest_command(first, commands),
@@ -241,6 +281,23 @@ pub(crate) fn resolve_command(
             .map(|word| word.to_string())
             .collect(),
     }
+}
+
+/// The registered name whose leading words are exactly `words`, when `words` is
+/// a strict word-prefix of at least one command name and a command itself of
+/// none (`ammo` against `ammo refill`).
+///
+/// The answer is borrowed OUT of the matching registered name, so it stays
+/// `'static` and [`subcommands_of`] can list the children under it.
+fn incomplete_parent(words: &[&str], commands: &[TerminalCommandSpec]) -> Option<&'static str> {
+    commands.iter().find_map(|spec| {
+        let name: &'static str = spec.name;
+        let mut offsets = name.match_indices(' ').map(|(at, _)| at);
+        // The byte index just past the `words.len()`-th word of the name.
+        let end = offsets.nth(words.len() - 1)?;
+        let parent = &name[..end];
+        (parent.split_whitespace().eq(words.iter().copied())).then_some(parent)
+    })
 }
 
 fn nearest_command(input: &str, commands: &[TerminalCommandSpec]) -> Option<&'static str> {
@@ -305,10 +362,26 @@ mod tests {
             .collect();
         assert_eq!(
             registered,
-            vec!["help", "log", "objectives", "clear", "version", "exit"]
+            vec![
+                "help",
+                "log",
+                "objectives",
+                "clear",
+                "version",
+                "commands",
+                "exit",
+            ]
         );
 
-        for name in ["help", "clear", "log", "objectives", "version", "exit"] {
+        for name in [
+            "help",
+            "clear",
+            "log",
+            "objectives",
+            "version",
+            "commands",
+            "exit",
+        ] {
             assert!(
                 matches!(
                     resolve_command(name, &core_command_specs()),

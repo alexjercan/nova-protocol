@@ -1,0 +1,21 @@
+ACK   [the-ledger] ledger_ch4_the_buyer > auditor: close-spawn: 'auditor' (OnEnter(handoff_berth)) spawns 301u from the player spawn, inside its own 1000u threat envelope - a mid-fight reinforcement arriving on top of the fight | acked by 20260717-143806: The finale's drama entrance: the Auditor drops in at 301u by design. Its gun is the shared PDC every craft carries (the CargoB never had a
+             downgraded variant, and the base game has one turret now); the WARN is its torpedo tube's 1000u launch envelope, and shooting the incoming torpedo down IS the fight. It now telegraphs (8s engage_delay + a warning comms line) so the approach reads before it is lethal. Playtest verdict 2026-07-17; telegraph added 2026-07-22 (task 20260722-214110). The Auditor is spawned ONLY by the SELL branch now - the burn branch no longer fights (its spawn was removed, and this branch's stale duplicate ack was pruned).
+MAP   [base] broadside: creative map - CreateScenarioArea, ScatterObjects, SpawnScenarioObject
+MAP   [base] broadside_gunship: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [base] menu_waystation: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [base] menu_gauntlet: creative map - ForceTorpedoLaunch, ScatterObjects, SpawnScenarioObject
+MAP   [base] menu_weave: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [base] menu_duel: creative map - ForceTorpedoLaunch, ScatterObjects, SetAllegiance, SpawnScenarioObject
+MAP   [base] shakedown_run: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SetControllerVerb, SetSpeedCap, SpawnScenarioObject
+MAP   [base] lifeline: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [base] final_tally: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [example] example_arena: creative map - SpawnScenarioObject
+MAP   [example] example_menu: creative map - SpawnScenarioObject
+MAP   [gauntlet] gauntlet_run: creative map - CreateScenarioArea, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_ch1_dead_weight: creative map - DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_ch2_claim_jumpers: creative map - SpawnScenarioObject
+MAP   [the-ledger] ledger_ch2b_the_heavies: creative map - SpawnScenarioObject
+MAP   [the-ledger] ledger_ch3_quiet_channel: creative map - CreateScenarioArea, ScatterObjects, SetAllegiance, SpawnScenarioObject
+MAP   [the-ledger] ledger_ch4_the_buyer: creative map - SpawnScenarioObject
+MAP   [the-ledger] ledger_ch5_the_raid: creative map - ScatterObjects, SpawnScenarioObject
+content lint: 0 error(s), 0 warning(s), 0 finding(s), 13 scenario(s) balance-audited, 1 acked, 18 creative map(s)

@@ -31,7 +31,11 @@ pub(crate) struct NovaOsBedSfx;
 /// Fire a one-shot NOVA OS terminal cue, honoring the SND toggle
 /// ([`NovaOsMonitorSettings::sound_enabled`]). The interface-bus and master
 /// gains are applied downstream by the engine, like every other cue.
-pub(crate) fn play_nova_os_cue(
+///
+/// Public because the command dispatcher lives above this crate and cues its
+/// own answer: a command's ok/error lands after the world has been touched, not
+/// when the line was typed.
+pub fn play_nova_os_cue(
     commands: &mut Commands,
     bank: &SoundBank<UiSfx>,
     settings: &NovaOsMonitorSettings,

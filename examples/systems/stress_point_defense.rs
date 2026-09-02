@@ -505,11 +505,14 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
         )
     }));
     specs.extend((0..count).map(|i| {
+        // Saturation harness: the magazine and its reload cadence are not the
+        // subject, the rounds in the sky are.
         SectionSpec::new(
             format!("mount_{i}"),
             MOUNT_SECTION,
             Vec3::new(cell(i), MOUNT_SEAT, 0.0),
         )
+        .unlimited()
     }));
 
     SpaceshipConfig {
@@ -522,9 +525,6 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
                 // Computer, which is the subject.
                 input_mapping: default(),
                 speed_cap: None,
-                // Saturation harness: the magazine and its reload cadence are
-                // not the subject, the rounds in the sky are.
-                infinite_ammo: true,
             }),
             &specs,
         )
@@ -555,9 +555,7 @@ fn bay_position(i: usize) -> Vec3 {
 /// unpiloted emplacement fires because the range holds its tubes open, and does
 /// nothing else.
 ///
-/// The magazine is stripped from every tube: `infinite_ammo` is a PLAYER-side
-/// cheat and this hull has no player, so the bays are authored without one
-/// instead.
+/// The magazine is stripped from every tube, so the stream never thins out.
 fn launcher(sections: &GameSections) -> SpaceshipConfig {
     let count = bays();
     let side = (count as f32).sqrt().ceil();
@@ -567,25 +565,14 @@ fn launcher(sections: &GameSections) -> SpaceshipConfig {
         BASIC_CONTROLLER_SECTION_ID,
         Vec3::new(-half - 1.0, -half, 0.0),
     )];
-    specs.extend((0..count).map(|i| SectionSpec::new(bay_slot(i), BAY_SECTION, bay_position(i))));
+    specs.extend(
+        (0..count).map(|i| SectionSpec::new(bay_slot(i), BAY_SECTION, bay_position(i)).unlimited()),
+    );
 
-    let mut config = SpaceshipConfig {
+    SpaceshipConfig {
         allegiance: Some(Allegiance::Enemy),
         ..fixtures::ship(sections, SpaceshipController::None, &specs)
-    };
-    if let ShipSource::Inline(hull) = &mut config.hull {
-        for section in &mut hull.sections {
-            if let SectionSource::Inline(section) = &mut section.source {
-                if let SectionKind::Torpedo(bay) = &mut section.kind {
-                    bay.ammo_capacity = None;
-                    // An unlimited bay never reloads, and the loader's content
-                    // lint refuses a reload without a capacity to refill.
-                    bay.reload = None;
-                }
-            }
-        }
     }
-    config
 }
 
 /// The per-ship slot id of bay `i`.

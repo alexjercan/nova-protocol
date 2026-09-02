@@ -227,7 +227,6 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
             speed_cap: None,
             // NOT infinite: invariant 5 is about the magazine, and an
             // unlimited one would make it unfalsifiable.
-            infinite_ammo: false,
         }),
         hull: ShipSource::Inline(ShipHull {
             sections: vec![

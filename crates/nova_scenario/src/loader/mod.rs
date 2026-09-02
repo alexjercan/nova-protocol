@@ -732,7 +732,6 @@ mod tests {
             controller: SpaceshipController::Player(PlayerControllerConfig {
                 input_mapping,
                 speed_cap: Some(100.0),
-                infinite_ammo: true,
             }),
             hull: ShipSource::Inline(ShipHull {
                 sections: vec![SpaceshipSectionConfig {
@@ -845,7 +844,6 @@ mod tests {
             panic!("the ship is player-controlled");
         };
         assert_eq!(player_config.speed_cap, Some(100.0));
-        assert!(player_config.infinite_ammo);
         assert_eq!(
             player_config.input_mapping.get("thruster"),
             Some(&bindings),

@@ -1,6 +1,6 @@
 # The command console: reach into the game by name
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 50
 - TAGS: v0.13.0,console,input,tooling
 
@@ -281,3 +281,85 @@ The RUN mark and SCENARIO classification remain different subjects:
 `20260820-174148` landed the transport, input registry, snapshots, and reserved
 `action`/`command` keys in v0.12.0. Scheduled into v0.13.0 in the 2026-08-31
 planning round.
+
+## Settled
+
+The three open decisions, argued in full in `design.html`:
+
+1. **Escape.** It climbs one level, and the level you came in on is the floor.
+   From a NOVA OS prompt, Escape returns to `nova>` and a second powers off.
+   Opened with `:`, one Escape closes the computer - climbing into a NOVA OS
+   session the player never opened would invent a room.
+2. **Turning `ammo infinite` off.** Restore the section's AUTHORED capacity,
+   full, with the reload re-seeded and no cycle in flight. Putting back the
+   count from the moment of arming was rejected: while the cheat is on the
+   weapon never spends a round, so that count is not a state the world was
+   ever in. `SuspendedSectionAmmo` carries capacity + reload config, and only
+   sections that HAD a magazine carry it, so a weapon authored unlimited stays
+   unlimited when the cheat goes off.
+3. **Crate ownership.** Split the language from the executor. `nova_os` keeps
+   the catalog metadata, parser, `CommandResult` and `CommandChannel` and stays
+   a leaf; a new `nova_console` holds everything that touches the world and
+   sits above `nova_menu`, because a `graphics` or `volume` command writes the
+   resources the settings screen owns. `nova_channel` depends on `nova_os` (the
+   language), never on `nova_console` (the executor), so the wire cannot pull
+   gameplay into a tool that only wanted to type a line.
+
+## Progress
+
+Branch `command-console` (sprout), off `e65b5e07`. One commit per step:
+
+| commit | step |
+| --- | --- |
+| `c2b666ea` | The controller's `infinite_ammo` is gone. `SectionConfig::without_magazine` for content that wants a gun which never runs dry; `SetInfiniteAmmo` / `RefillAmmo` for live sections. Every example ported. |
+| `af0e0e52` | `InputSource` can be NAMED as well as read, so `bind` and `bindings` print what a rebind row prints. |
+| `95d754a9` | The CRT is reachable from every surface: `:`, the `ClockFreeze` named hold with `FreezeOwner::{PauseMenu, Terminal}`, and the surface restored on close. |
+| `55c16e93` | One emulator, two shells: `ShellKind`, per-shell `ShellSession`, the `commands` builtin, separate transcripts and histories, no animation replay. |
+| `f4f8f636` | The catalog, parser, classes, structured results, and the `nova_console` dispatcher. 27 commands. |
+| `ffbd1de9` | The channel's `command` lane. |
+| `006753e0` | Every scenario action classed for the creative-map lint; the report and CLI print each scenario's action list. |
+| `20bfe62c` | The wire acks in the same words as the screen: command, class, state, detail, rows. |
+| `c8ee8e73` | The prompt prefix is painted from the model, so switching shells changes `nova>` to `cmd>` without respawning the strip. |
+| `da157ae6` | `help` takes up to three words, because a command name can be three. A test walks every documented example back through the parser. |
+| `c71c0a5d` | Docs: the wiki Commands page, the two new actions in the creator reference, `nova_console` and `nova_channel` in the dev book, the changelog. |
+
+Two defects the live run found that `cargo check` could not: the prompt read
+`nova>` in the command shell (the prefix was baked into the spawned node), and
+the introduction's WORLD row read `running` on the reveal frame (the reveal is
+staged on the frame that QUEUES the pause, before the freeze applies - so
+`motion_word` reads `NextState<PauseStates>` too). Both have tests.
+
+## Proof
+
+Under `proof/`, bound to the commits above; `poc/` re-runs.
+
+- `poc/drive_commands.py` - the wire acceptance walk: the `action` refusal,
+  inspection, unknown ids, help and did-you-mean, a settings round trip,
+  refusal before arming, arming and the mark, both ammo cheats, the speed cap,
+  the five forbidden verbs, and `scenario load` clearing the mark.
+- `poc/drive_crt.py` - the same commands typed at the CRT, filmed with
+  `--record`.
+- `proof/01..05-*.png` - flight, the staged introduction, the cheat catalog,
+  the armed and marked header, flight restored after the close.
+- `proof/wire-transcript.txt`, `proof/settings-after-run.ron`,
+  `proof/content-lint.txt`.
+
+The freeze was checked in the live run, not inferred: `elapsed` held at 1.6334
+for 120 ticks with the CRT open and advanced again after Escape.
+
+## Open for the owner
+
+With injection classed per action, **all 18 scenarios in the tree are creative
+maps**, because `SpawnScenarioObject` and `ScatterObjects` are what every
+scenario does to exist at all. The per-action classification is correct on its
+own terms and meets this task's bar - no bookkeeping or presentation action is
+classed as injection - so it ships as written, and the report prints each
+scenario's ACTION LIST rather than a bare verdict.
+
+The ELIGIBILITY rule built on top of it needs a revisit before any badge is
+shown to a player: a signal that fires on everything carries nothing. Only four
+scenarios use an action that reaches into a RUNNING world (`menu_gauntlet`,
+`menu_duel`, `shakedown_run`, `ledger_ch3_quiet_channel`), which is the likely
+axis to score on.
+
+Landed on master as one squashed commit; the sprout was removed after.

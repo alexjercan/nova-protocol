@@ -28,7 +28,7 @@ fn ship_terminal() -> NovaOsTerminal {
     let mut registry = NovaOsCommandRegistry::default();
     registry.register(ship_command_tree());
     let mut terminal = NovaOsTerminal::default();
-    terminal.set_commands(registry.specs());
+    terminal.set_nova_os_commands(registry.specs());
     terminal
 }
 

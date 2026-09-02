@@ -34,6 +34,7 @@ Every ship carries a second seat of control: **NOVA OS**, the ship computer. Pre
 | <kbd>Shift</kbd>+<kbd>Esc</kbd> | Power off from anywhere, even inside an app. |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> or <kbd>Ctrl</kbd>+<kbd>[</kbd> | Leave the running app, keep the computer on. |
 | Type `exit`, or click the **PWR** button | The same animated power-off. |
+| <kbd>:</kbd> | Opens the same monitor on the [command shell](../commands/) instead - no ship needed, and it works over the pause menu too. |
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -123,7 +124,7 @@ Reopening after events happened in flight adds an unread count with the latest h
      takeover vs ship action): crates/nova_os/src/shell.rs:50-80. -->
 
 <div class="widget" data-widget="nova-os-surfaces">
-<p>Every command lands on one of three surfaces. Most print into the terminal scrollback: <code>help</code>, <code>log</code>, <code>objectives</code>, <code>clear</code>, <code>version</code>, <code>ship view</code>, <code>map view</code> and <code>ship section</code>. Two hand the whole screen to an app - <code>map</code> and <code>ship</code> - and swap the footer hint row to that app's keys under a breadcrumb like <code>NOVA OS // APPS / MAP</code>. The rest act on the live ship and print the result: <code>map goto</code> engages the autopilot, <code>ship reload</code> and <code>ship repair</code> service a section. <code>exit</code> powers the monitor off.</p>
+<p>Every command lands on one of three surfaces. Most print into the terminal scrollback: <code>help</code>, <code>log</code>, <code>objectives</code>, <code>clear</code>, <code>version</code>, <code>ship view</code>, <code>map view</code> and <code>ship section</code>. Two hand the whole screen to an app - <code>map</code> and <code>ship</code> - and swap the footer hint row to that app's keys under a breadcrumb like <code>NOVA OS // APPS / MAP</code>. The rest act on the live ship and print the result: <code>map goto</code> engages the autopilot, <code>ship reload</code> and <code>ship repair</code> service a section. <code>exit</code> powers the monitor off, and <code>commands</code> switches the same monitor to the <a href="../commands/">command shell</a>.</p>
 </div>
 
 | Command | What it does |
@@ -134,6 +135,7 @@ Reopening after events happened in flight adds an unread count with the latest h
 | `clear` | Clears the scrollback back to the boot report. |
 | `version` | Prints the version banner. |
 | `exit` | Powers the computer off and returns to flight. |
+| `commands` | Switches the monitor to the [command shell](../commands/) - the game-level language, with the picture and the freeze kept. |
 | `map` | Opens the **MAP** app. |
 | `map view` | Prints the local-space contact table. |
 | `map goto <label>` | Engages the flight autopilot toward a contact - the burn continues after the computer closes. |

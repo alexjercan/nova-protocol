@@ -127,7 +127,6 @@ SpawnScenarioObject((
             input_mapping: {
                 "turret_port": [Mouse(Left)],
             },
-            infinite_ammo: false,
         )),
         // The shipped corvette, by id.
         hull: Prototype("cargoa"),
@@ -195,7 +194,6 @@ crashing, so a missing dependency is visible instead of fatal.
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
 | `speed_cap` | `Option` number | `None` | soft manual-speed cap in world units per second (the Shakedown starts at `Some(25.0)`, 250 m/s); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
-| `infinite_ammo` | bool | required in shipped RON | DEBUG-ONLY CHEAT: weapons built without magazines - never run dry. Only a `debug` build honors it; the shipped game warns and keeps the authored magazines, so author `false` and balance the scenario around real ammunition |
 
 `AI((..))` fields:
 

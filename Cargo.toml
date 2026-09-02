@@ -715,6 +715,10 @@ members = [
   # The process channel: named inputs on stdin, snapshots on stdout
   # (task 20260820-174148).
   "crates/nova_channel",
+  # The Command shell's dispatcher. Sits ABOVE gameplay, scenario, settings and
+  # menu on purpose: `nova_os` owns the command language and stays a leaf, this
+  # crate owns running one against the live world (task 20260827-120347).
+  "crates/nova_console",
   "crates/nova_core",
   "crates/nova_debug",
   "crates/nova_editor",

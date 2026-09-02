@@ -10,6 +10,8 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::{
     audio::prelude::{SoundBank, UiSfx, NOVA_OS_COIL_VOLUME},
+    cheats::prelude::RunCheats,
+    markers::prelude::{PlayerSpaceshipMarker, SpaceshipRootMarker},
     PauseStates,
 };
 use nova_hud::prelude::HudNovaOsExempt;
@@ -272,34 +274,84 @@ pub(crate) fn nova_os_header_just_spawned(q_brand: Query<(), Added<NovaOsBrandMa
     !q_brand.is_empty()
 }
 
-/// Reconcile the persistent header with the active surface: the brand text swaps
-/// between the SHELL breadcrumb and the `APPS / <ID>` breadcrumb, and the header
-/// close control shows only while an app owns the screen. Keyed on `active_mode`
-/// (like [`rebuild_nova_os_footer_hints`]) so ordinary prompt edits do not
-/// rewrite the header; forced once when the header is freshly spawned so a reopen
-/// starts from the right state.
+/// Reconcile the persistent header with the active surface: the brand text
+/// names the live shell (`// SHELL`, `// COMMANDS`) or the running app's
+/// breadcrumb, the topbar head swaps between the ship the computer belongs to
+/// and the run's cheat state, and the header close control shows only while an
+/// app owns the screen.
+///
+/// Keyed on the whole (shell, mode, ship, arming) tuple so ordinary prompt
+/// edits do not rewrite the header; forced once when the header is freshly
+/// spawned so a reopen starts from the right state.
 pub(crate) fn reconcile_nova_os_header(
     terminal: Res<NovaOsTerminal>,
+    cheats: Option<Res<RunCheats>>,
     q_added: Query<(), Added<NovaOsBrandMarker>>,
+    q_ship: Query<Option<&Name>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut q_brand: Query<&mut Text, With<NovaOsBrandMarker>>,
+    mut q_status: Query<
+        (&mut Text, &mut TextColor),
+        (With<NovaOsStatusMarker>, Without<NovaOsBrandMarker>),
+    >,
     mut q_close: Query<&mut Visibility, With<NovaOsAppCloseMarker>>,
-    mut last_mode: Local<Option<TerminalMode>>,
+    mut last: Local<Option<NovaOsHeaderState>>,
 ) {
-    let mode = terminal.active_mode();
-    if q_added.is_empty() && *last_mode == Some(mode) {
+    let ship = nova_os_ship_name(q_ship.iter().next().flatten());
+    let state = NovaOsHeaderState {
+        shell: terminal.active_shell(),
+        mode: terminal.active_mode(),
+        armed: cheats.is_some_and(|cheats| cheats.is_armed()),
+        ship,
+    };
+    if q_added.is_empty() && last.as_ref() == Some(&state) {
         return;
     }
-    *last_mode = Some(mode);
     for mut text in &mut q_brand {
-        text.0 = nova_os_header_breadcrumb(mode);
+        text.0 = nova_os_header_breadcrumb(state.shell, state.mode);
     }
-    let close_visibility = match mode {
+    // The FPS tail belongs to `drive_nova_os_topbar_fps`, which runs on real
+    // time; splice the new head in front of whatever reading is on screen.
+    let head = match state.shell {
+        ShellKind::NovaOs => nova_os_topbar_head(&state.ship),
+        ShellKind::Commands => command_topbar_head(state.armed),
+    };
+    let armed_shell = state.shell == ShellKind::Commands && state.armed;
+    for (mut text, mut color) in &mut q_status {
+        let tail = text
+            .0
+            .split_once(NOVA_OS_TOPBAR_FPS_MARKER)
+            .map(|(_, tail)| tail.to_string())
+            .unwrap_or_else(|| nova_os_fps_segment(None));
+        text.0 = format!("{head}{NOVA_OS_TOPBAR_FPS_MARKER}{tail}");
+        // An armed run says so in the same amber the shell warns in, so the
+        // state is legible without reading the word.
+        let next = if armed_shell {
+            NOVA_OS_AMBER
+        } else {
+            NOVA_OS_PHOSPHOR_MUTED
+        };
+        if color.0 != next {
+            color.0 = next;
+        }
+    }
+    let close_visibility = match state.mode {
         TerminalMode::App { .. } => Visibility::Inherited,
         TerminalMode::Prompt => Visibility::Hidden,
     };
     for mut visibility in &mut q_close {
         *visibility = close_visibility;
     }
+    *last = Some(state);
+}
+
+/// Everything the header draws, so the reconciler can compare a whole frame's
+/// worth of answer against the last one it painted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NovaOsHeaderState {
+    shell: ShellKind,
+    mode: TerminalMode,
+    armed: bool,
+    ship: String,
 }
 
 /// Rebuild the footer hint row whenever the active surface changes, so the hints
@@ -321,13 +373,19 @@ pub(crate) fn rebuild_nova_os_footer_hints(
     mut commands: Commands,
     q_added: Query<(), Added<NovaOsFooterHintsMarker>>,
     q_footer: Query<(Entity, Option<&Children>), With<NovaOsFooterHintsMarker>>,
-    mut last_mode: Local<Option<TerminalMode>>,
+    mut last_mode: Local<Option<(ShellKind, TerminalMode)>>,
 ) {
-    if q_added.is_empty() && !bindings.is_changed() && *last_mode == Some(terminal.active_mode()) {
+    let surface = (terminal.active_shell(), terminal.active_mode());
+    if q_added.is_empty() && !bindings.is_changed() && *last_mode == Some(surface) {
         return;
     }
-    *last_mode = Some(terminal.active_mode());
-    let hints = nova_os_footer_hints(terminal.active_mode(), &registry, &bindings);
+    *last_mode = Some(surface);
+    let hints = nova_os_footer_hints(
+        terminal.active_shell(),
+        terminal.active_mode(),
+        &registry,
+        &bindings,
+    );
     let font = nova_os_font(ui_font.as_deref());
     for (footer, children) in &q_footer {
         if let Some(children) = children {
@@ -369,6 +427,7 @@ pub(crate) fn rebuild_terminal_ui(
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalPromptAfterMarker>>,
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalHintMarker>>,
         Query<(&mut Text, &mut TextColor), With<NovaOsTerminalGhostMarker>>,
+        Query<&mut Text, With<NovaOsPromptPrefixMarker>>,
     )>,
     // The scrollback revision and length last time we rebuilt. The length gates
     // the auto-scroll, so we only pin to the bottom when NEW output arrived:
@@ -428,6 +487,13 @@ pub(crate) fn rebuild_terminal_ui(
     for (mut text, mut color) in &mut text_targets.p3() {
         set_text_if_neq(&mut text, prompt_completion_ghost(&terminal));
         color.set_if_neq(TextColor(NOVA_OS_TEXT.with_alpha(0.34)));
+    }
+    // Which shell is typing is the one thing the prompt line says out loud, so
+    // it is painted from the model rather than baked into the node: switching
+    // shells has to change `nova>` to `cmd>` without respawning the strip.
+    // The trailing space lives in the layout's column gap.
+    for mut text in &mut text_targets.p4() {
+        set_text_if_neq(&mut text, terminal.prompt_prefix().trim_end().to_string());
     }
 }
 

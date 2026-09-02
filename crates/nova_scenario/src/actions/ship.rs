@@ -524,3 +524,175 @@ mod tests {
         );
     }
 }
+
+/// Switch unlimited ammunition on or off for a scenario ship's weapon sections
+/// by id.
+///
+/// This replaces the old `infinite_ammo` flag on the player controller config,
+/// which was authored once at spawn and honored only under the `debug` feature.
+/// An action instead of a flag, for three reasons: it works on a LIVE ship, it
+/// works in a shipped build (the command shell arms and marks the run, which is
+/// what the `cfg` was standing in for), and content that wants to grant it -
+/// a training scenario, a story beat - can now ask for it in the same
+/// vocabulary as everything else.
+///
+/// Switching it ON strips [`SectionAmmo`] and [`SectionReload`], recording what
+/// was there in [`SuspendedSectionAmmo`]; switching it OFF restores the
+/// authored capacity, full. See [`SuspendedSectionAmmo`] for why full.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetInfiniteAmmoActionConfig {
+    /// The `EntityId` of the scoped ship whose weapons to change.
+    #[reflect(@Names::Object)]
+    pub id: String,
+    /// Whether the ship's weapons fire without limit.
+    pub enabled: bool,
+}
+
+impl EventAction<NovaEventWorld> for SetInfiniteAmmoActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        let enabled = self.enabled;
+        debug!("SetInfiniteAmmo: '{}' -> {}", id, enabled);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = scoped_ship(world, &id) else {
+                    warn!("SetInfiniteAmmo: no scoped ship with id '{}'", id);
+                    return;
+                };
+                for section in live_ship_sections(world, ship) {
+                    apply_infinite_ammo(world, section, enabled);
+                }
+            });
+        });
+    }
+}
+
+/// Refill every finite magazine on a scenario ship by id, or one section of it.
+///
+/// The bounded, honest half of the ammunition cheat: it restores what a
+/// magazine can hold rather than removing the magazine. Authored content can
+/// use it for a resupply beat without the scenario granting unlimited fire.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RefillAmmoActionConfig {
+    /// The `EntityId` of the scoped ship to resupply.
+    #[reflect(@Names::Object)]
+    pub id: String,
+    /// One section's authored id, or `None` for every weapon on the ship.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub section: Option<String>,
+}
+
+impl EventAction<NovaEventWorld> for RefillAmmoActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.id.clone();
+        let section_id = self.section.clone();
+        debug!("RefillAmmo: '{}' section {:?}", id, section_id);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = scoped_ship(world, &id) else {
+                    warn!("RefillAmmo: no scoped ship with id '{}'", id);
+                    return;
+                };
+                let mut refilled = 0usize;
+                for section in live_ship_sections(world, ship) {
+                    let wanted_elsewhere = section_id.as_ref().is_some_and(|wanted| {
+                        world
+                            .entity(section)
+                            .get::<EntityId>()
+                            .is_none_or(|id| &id.0 != wanted)
+                    });
+                    if wanted_elsewhere {
+                        continue;
+                    }
+                    if refill_section(world, section) {
+                        refilled += 1;
+                    }
+                }
+                if refilled == 0 {
+                    warn!("RefillAmmo: '{}' has no finite magazine to refill", id);
+                }
+            });
+        });
+    }
+}
+
+/// The scoped scenario ship with this `EntityId`, if one is live.
+fn scoped_ship(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), (
+        With<ScenarioScopedMarker>,
+        With<SpaceshipRootMarker>,
+    )>();
+    query
+        .iter(world)
+        .find(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// Every section entity of one ship.
+///
+/// Public because the command shell's `ammo` cheats run the same operation
+/// against a live ship and have to report what they actually touched, which a
+/// deferred action cannot tell them.
+pub fn live_ship_sections(world: &mut World, ship: Entity) -> Vec<Entity> {
+    let mut query = world.query_filtered::<(Entity, &ChildOf), With<SectionMarker>>();
+    query
+        .iter(world)
+        .filter(|(_, child_of)| child_of.parent() == ship)
+        .map(|(entity, _)| entity)
+        .collect()
+}
+
+/// Strip or restore one section's magazine. See [`SuspendedSectionAmmo`].
+pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) {
+    let mut entity = world.entity_mut(section);
+    if enabled {
+        let Some(ammo) = entity.get::<SectionAmmo>().copied() else {
+            // Either already unlimited or not a weapon; both are already the
+            // state the caller asked for.
+            return;
+        };
+        let reload = entity
+            .get::<SectionReload>()
+            .map(|reload| SectionReloadConfig {
+                delay: reload.delay,
+                amount: reload.amount,
+            });
+        entity.insert(SuspendedSectionAmmo {
+            capacity: ammo.capacity,
+            reload,
+        });
+        entity.remove::<SectionAmmo>();
+        entity.remove::<SectionReload>();
+    } else {
+        let Some(suspended) = entity.get::<SuspendedSectionAmmo>().copied() else {
+            return;
+        };
+        entity.insert(SectionAmmo::new(suspended.capacity));
+        if let Some(reload) = suspended.reload {
+            entity.insert(SectionReload::from_config(reload));
+        }
+        entity.remove::<SuspendedSectionAmmo>();
+    }
+}
+
+/// Fill one section's magazine, if it has one. `false` when the section has no
+/// finite magazine to fill.
+pub fn refill_section(world: &mut World, section: Entity) -> bool {
+    let mut entity = world.entity_mut(section);
+    let Some(mut ammo) = entity.get_mut::<SectionAmmo>() else {
+        return false;
+    };
+    ammo.rounds = ammo.capacity;
+    // A magazine that was refilled is not mid-reload any more.
+    if let Some(mut reload) = entity.get_mut::<SectionReload>() {
+        reload.elapsed = 0.0;
+    }
+    true
+}

@@ -40,6 +40,14 @@ pub(super) fn gameplay_spec(name: &'static str) -> TerminalCommandSpec {
     }
 }
 
+/// A terminal switched to the Command shell, with its introduction already
+/// revealed so a test types against the same state a player would.
+pub(super) fn command_shell() -> NovaOsTerminal {
+    let mut terminal = NovaOsTerminal::default();
+    terminal.switch_shell(crate::terminal::ShellKind::Commands);
+    terminal
+}
+
 /// The core command set plus `extra`, as the terminal would see it once an app
 /// registered its tree.
 pub(super) fn core_with(

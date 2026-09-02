@@ -74,6 +74,10 @@ pub(crate) fn app() -> App {
     // touch.
     app.insert_resource(Time::<Virtual>::default());
     app.insert_resource(Time::<Physics>::default());
+    // The freeze ledger the pause and terminal holds are recorded in.
+    // `NovaGameplayPlugin` owns it in production; this harness adds no
+    // gameplay.
+    app.init_resource::<ClockFreeze>();
     // The rig defaults the settings readout renders. In production the owning
     // plugins register these - `SpaceshipPlayerInputPlugin`,
     // `SpaceshipCameraControllerPlugin`, `NovaHudPlugin`, `NovaOsPlugin`,

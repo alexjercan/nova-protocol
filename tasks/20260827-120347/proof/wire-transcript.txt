@@ -1,0 +1,190 @@
+
+== the reserved key is refused, permanently ==
+  ! error: `action` is not a wire lane and will not become one; use `command` and the command catalog
+  ok    `action` is refused and will not become a lane
+  ok    the refusal points at the command lane
+
+== read-only: the world answers by name ==
+  cmd> status
+       ok [readonly] shakedown_run / running
+       | WORLD ........ shakedown_run / running
+       | SHIPS ........ 1 live
+       | OBJECTIVES ... 0 open
+       | CHEATS ....... disabled / run clean
+  ok    status runs
+  ok    status is read-only
+  ok    status names the live scenario
+  cmd> ships
+       ok [readonly] 1 live
+       |   player_spaceship  player  1780/1780
+  ok    ships runs
+  ok    ships lists at least one id: ['player_spaceship']
+  cmd> ship player_spaceship
+       ok [readonly] player_spaceship: 9 sections
+       | ID ........... player_spaceship
+       | NAME ......... Player Spaceship
+       | SIDE ......... player
+       | HULL ......... 1780/1780
+       | SECTIONS ..... 9
+       | SPEED CAP .... 250 m/s
+       | AMMO ......... 2 finite
+  ok    ship player_spaceship resolves
+  cmd> sections player_spaceship
+       ok [readonly] 9 on player_spaceship
+       |   engine_port       thruster   70/70        unlimited
+       |   engine_starboard  thruster   70/70        unlimited
+       |   fuselage          controller 350/350      unlimited
+       |   nose              hull       180/180      unlimited
+       |   pod_port          hull       350/350      unlimited
+       |   pod_starboard     hull       350/350      unlimited
+       |   tail              hull       150/150      unlimited
+       |   turret_port       turret     130/130      500/500
+       |   turret_starboard  turret     130/130      500/500
+  ok    sections lists the ship's sections
+
+== an unknown id is a clear error, not a silent nothing ==
+  cmd> ship no_such_ship
+       error [readonly] no ship named 'no_such_ship' (live: player_spaceship)
+       | no ship named 'no_such_ship' (live: player_spaceship)
+  ok    an unknown ship id is an error
+  ok    the error names what was asked for
+
+== the catalog answers help without touching the world ==
+  cmd> help
+       ok [utility] shell usage
+       | Usage: <command> [arguments]
+       |   help [command]     this text, or one command's details
+       |   commands [class]   list every command, or one class
+       | 27 commands in 4 classes: utility, readonly, setting, cheat
+       | Cheats are refused until `cheats enable` arms them.
+       | `close` leaves the terminal; `clear` restores this introduction.
+  ok    help answers
+  cmd> graphix
+       error [None] command not found: graphix
+       | command not found: graphix
+       | did you mean graphics?
+       | Type 'help' for a list of commands.
+  ok    an unknown command is an error
+  ok    and it suggests the near miss
+
+== settings: the command without a value reads it ==
+  cmd> graphics
+       ok [setting] quality is High
+       | quality is High
+  ok    graphics reads
+  cmd> graphics low
+       ok [setting] quality is Low
+       | quality is Low
+  ok    graphics low applies
+  ok    graphics is a setting, not a cheat
+  cmd> graphics
+       ok [setting] quality is Low
+       | quality is Low
+  ok    the change stuck: quality is Low
+  cmd> volume master 0.5
+       ok [setting] master is 0.50
+       | master is 0.50
+  ok    volume master 0.5 applies
+  ok    and reports the value it set
+
+== a setting never marks the run ==
+  cmd> cheats status
+       ok [readonly] disabled / run clean
+       | ARMED ........ no
+       | RUN .......... clean
+  ok    the run is still clean: disabled / run clean
+
+== a cheat is refused until it is armed ==
+  cmd> ammo refill player_spaceship
+       refused [cheat] ammo refill: cheats are not armed - run `cheats enable` first
+       | ammo refill: cheats are not armed - run `cheats enable` first
+  ok    an unarmed cheat is refused
+  ok    the refusal says what to do
+  cmd> cheats status
+       ok [readonly] disabled / run clean
+       | ARMED ........ no
+       | RUN .......... clean
+  ok    a refused cheat does not mark the run
+
+== arming marks the run, immediately ==
+  cmd> cheats enable
+       ok [cheat] armed; this run is marked
+       | Cheats armed. THIS RUN IS MARKED.
+       | The mark stays until a fresh scenario is loaded.
+  ok    cheats enable runs unarmed - it IS the arming
+  cmd> cheats status
+       ok [readonly] enabled / run marked
+       | ARMED ........ yes
+       | RUN .......... marked
+  ok    the run is marked: enabled / run marked
+
+== the bounded cheat catalog ==
+  cmd> ammo infinite player_spaceship on
+       ok [cheat] player_spaceship: 2 weapons unlimited
+       | player_spaceship: 2 weapons now fire unlimited.
+  ok    unlimited ammunition goes on
+  cmd> ammo infinite player_spaceship off
+       ok [cheat] player_spaceship: 2 weapons finite
+       | player_spaceship: 2 weapons now fire finite.
+  ok    and back off
+  cmd> ammo refill player_spaceship
+       ok [cheat] player_spaceship: 2 magazines full
+       | player_spaceship: 2 magazines refilled.
+  ok    a refill runs once armed
+  cmd> speed-cap player_spaceship 50
+       ok [cheat] player_spaceship: cap 50 m/s
+       | player_spaceship: cap 50 m/s
+  ok    the speed cap is installed
+  cmd> speed-cap player_spaceship off
+       ok [cheat] player_spaceship: cap removed
+       | player_spaceship: cap removed
+  ok    and removed
+
+== what is deliberately not in the catalog ==
+  cmd> win
+       error [None] command not found: win
+       | command not found: win
+       | did you mean bind?
+       | Type 'help' for a list of commands.
+  ok    `win` is not a command
+  cmd> lose
+       error [None] command not found: lose
+       | command not found: lose
+       | did you mean close?
+       | Type 'help' for a list of commands.
+  ok    `lose` is not a command
+  cmd> outcome victory
+       error [None] command not found: outcome
+       | command not found: outcome
+       | Type 'help' for a list of commands.
+  ok    `outcome victory` is not a command
+  cmd> spawn raider
+       error [None] command not found: spawn
+       | command not found: spawn
+       | Type 'help' for a list of commands.
+  ok    `spawn raider` is not a command
+  cmd> variable set beat 9
+       error [readonly] variable: takes 1 argument
+       | variable: takes 1 argument
+       | variable - Read one scenario variable
+       | Usage: variable <name>
+       | Class: readonly (observe state; never mutates)
+       | Arguments: exactly 1 word
+       | Examples:
+       |   variable gates_cleared
+  ok    `variable set beat 9` is not a command
+
+== a fresh scenario is a fresh run ==
+  cmd> scenario load shakedown_run
+       ok [utility] loading shakedown_run
+       | Loading 'shakedown_run'.
+       | The abandoned attempt has no outcome; the new run is clean.
+  ok    scenario load runs
+  ok    abandoning a run is utility, not a cheat
+  cmd> cheats status
+       ok [readonly] disabled / run clean
+       | ARMED ........ no
+       | RUN .......... clean
+  ok    the mark is gone: disabled / run clean
+
+all checks passed

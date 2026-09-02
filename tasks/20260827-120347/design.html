@@ -1,0 +1,589 @@
+<title>The Command Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #faf9f6; --panel: #fffefb; --fg: #1b1a17; --muted: #6d6a62;
+    --line: #e5e2da; --accent: #9a6a1f; --in: #2f6f4f; --act: #93414f;
+    --chip: #f1ede3; --shade: #f4f1e9;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+      --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+      --chip: #22222a; --shade: #1a1a20;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16161a; --panel: #1c1c22; --fg: #e8e4da; --muted: #918d84;
+    --line: #2b2b32; --accent: #d9a24a; --in: #7fbf9a; --act: #dd8d9a;
+    --chip: #22222a; --shade: #1a1a20;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 400 15px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 52rem; margin: 0 auto; padding: 3.5rem 1.25rem 5rem; }
+
+  .eyebrow {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 .7rem;
+  }
+  h1 {
+    font: 700 1.9rem/1.2 var(--sans); margin: 0 0 .6rem;
+    letter-spacing: -.015em; text-wrap: balance;
+  }
+  .lede { color: var(--muted); font-size: 1.02rem; margin: 0 0 .9rem; max-width: 42rem; }
+  .meta { font: 400 .74rem/1.6 var(--mono); color: var(--muted); margin: 0 0 2.6rem; }
+  .meta span::after { content: "  ·  "; color: var(--line); }
+  .meta span:last-child::after { content: ""; }
+
+  h2 {
+    font: 600 1.12rem/1.3 var(--sans); margin: 3rem 0 .2rem;
+    padding-top: 1.4rem; border-top: 1px solid var(--line);
+    letter-spacing: -.01em;
+  }
+  h2 .n {
+    font: 500 .7rem/1 var(--mono); color: var(--accent);
+    letter-spacing: .1em; display: block; margin-bottom: .45rem;
+  }
+  h3 { font: 600 .95rem/1.4 var(--sans); margin: 1.8rem 0 .3rem; }
+  p { margin: .55rem 0; }
+  p.sub { color: var(--muted); margin-top: .1rem; }
+  ul, ol { margin: .55rem 0; padding-left: 1.15rem; }
+  li { margin: .3rem 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 600; }
+  code {
+    font: 400 .86em/1.5 var(--mono); background: var(--chip);
+    padding: .08em .32em; border-radius: 3px; word-break: break-word;
+  }
+  pre {
+    font: 400 .8rem/1.65 var(--mono); background: var(--shade);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: .85rem 1rem; overflow-x: auto; margin: .9rem 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .cm { color: var(--muted); }
+
+  /* the channel schematic */
+  .wire {
+    display: grid; grid-template-columns: 1fr; gap: .8rem;
+    margin: 1.6rem 0 .6rem;
+  }
+  @media (min-width: 44rem) { .wire { grid-template-columns: 1fr 1fr; } }
+  .lane {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+    padding: .9rem 1rem 1rem; border-top-width: 3px;
+    /* a grid item defaults to min-width:auto, so a long JSON line in the pre
+       widens the track instead of scrolling inside it. */
+    min-width: 0;
+  }
+  .lane.i { border-top-color: var(--in); }
+  .lane.a { border-top-color: var(--act); }
+  .lane h4 {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .14em;
+    text-transform: uppercase; margin: 0 0 .5rem;
+  }
+  .lane.i h4 { color: var(--in); }
+  .lane.a h4 { color: var(--act); }
+  .lane pre { margin: 0 0 .6rem; background: var(--shade); font-size: .74rem; }
+  .lane p { margin: .35rem 0 0; font-size: .86rem; color: var(--muted); }
+  .lane.f {
+    border: 1px dashed var(--line); border-top-width: 3px;
+    border-top-style: dashed; opacity: .8;
+  }
+  .lane.f h4 { color: var(--muted); }
+  .lane.a.f { border-top-color: var(--act); }
+  .lane.a.f h4 { color: var(--act); }
+  .lane.f .later {
+    font-size: .82em; letter-spacing: .08em; color: var(--accent);
+    border: 1px solid var(--line); border-radius: 3px; padding: .05em .35em;
+    margin-left: .4rem;
+  }
+  .lane .rule {
+    font: 500 .74rem/1.5 var(--mono); color: var(--fg);
+    display: block; margin-bottom: .35rem;
+  }
+
+  /* decision blocks */
+  .dec {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    border-radius: 0 6px 6px 0; padding: .85rem 1.05rem .95rem;
+    margin: 1.1rem 0;
+  }
+  .dec .q {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 .3rem;
+  }
+  .dec .call { font-weight: 600; margin: 0 0 .4rem; }
+  .dec p { margin: .4rem 0 0; font-size: .93rem; }
+  .dec p:first-of-type { margin-top: 0; }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .88rem; }
+  .scroll { overflow-x: auto; margin: 1rem 0; }
+  .scroll table { margin: 0; min-width: 34rem; }
+  th {
+    text-align: left; font: 500 .68rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--line); padding: .35rem .6rem .35rem 0;
+  }
+  td {
+    padding: .42rem .6rem .42rem 0; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  td.m, th.m { font-family: var(--mono); font-size: .82rem; white-space: nowrap; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; padding-right: 1.2rem; }
+  tr:last-child td { border-bottom: none; }
+
+  .tag {
+    font: 500 .68rem/1.5 var(--mono); border-radius: 3px;
+    padding: .05rem .38rem; white-space: nowrap;
+  }
+  .tag.ok { color: var(--in); background: var(--chip); }
+  .tag.no { color: var(--act); background: var(--chip); }
+  .tag.q  { color: var(--accent); background: var(--chip); }
+
+  .note {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--panel);
+    padding: .8rem 1rem; margin: 1.1rem 0; font-size: .93rem;
+  }
+  .note .h {
+    font: 500 .68rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); display: block;
+    margin-bottom: .35rem;
+  }
+  /* crate stack */
+  .stack { margin: 1.6rem 0 .5rem; }
+  .axis {
+    display: flex; align-items: center; gap: .5rem; margin: 0 0 .5rem;
+    font: 500 .66rem/1.4 var(--mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .axis .bar { flex: 1; height: 1px; background: var(--line); }
+  .tier {
+    display: grid; grid-template-columns: 1fr; gap: .45rem;
+    padding: .5rem 0; border-top: 1px dashed var(--line);
+  }
+  .tier:first-of-type { border-top: none; }
+  @media (min-width: 40rem) {
+    .tier { grid-template-columns: 7.5rem 1fr; gap: .9rem; align-items: start; }
+  }
+  .tier > .lbl {
+    font: 500 .64rem/1.5 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); padding-top: .5rem;
+  }
+  .tier.hi {
+    background: var(--shade); border-radius: 6px;
+    padding: .55rem .65rem; border-top: none; margin: .35rem 0;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .tier.hi > .lbl { color: var(--accent); }
+  .boxes { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .crate {
+    border: 1px solid var(--line); border-radius: 5px; background: var(--panel);
+    padding: .4rem .6rem .45rem; min-width: 8.5rem; flex: 1 1 auto;
+  }
+  .crate .nm { font: 600 .78rem/1.4 var(--mono); display: block; }
+  .crate .ow { font-size: .78rem; color: var(--muted); display: block; margin-top: .12rem; }
+  .crate.new {
+    border-color: var(--accent); border-left-width: 3px; background: var(--chip);
+  }
+  .crate.new .nm { color: var(--accent); }
+  .crate.dbg { border-style: dashed; opacity: .82; }
+  .crate.ext { background: none; border-style: dotted; }
+  .crate .badge {
+    font: 500 .6rem/1.4 var(--mono); letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted); float: right;
+    margin-left: .5rem;
+  }
+  .crate.new .badge { color: var(--accent); }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 1rem; margin: .7rem 0 0;
+    font: 400 .76rem/1.5 var(--sans); color: var(--muted);
+  }
+  .legend i { font-style: normal; display: inline-flex; align-items: center; gap: .35rem; }
+  .legend .sw {
+    width: .8rem; height: .8rem; border-radius: 3px; border: 1px solid var(--line);
+    display: inline-block;
+  }
+  .legend .sw.new { border-color: var(--accent); background: var(--chip); border-left-width: 3px; }
+  .legend .sw.dbg { border-style: dashed; }
+  .legend .sw.ext { border-style: dotted; background: none; }
+
+  .foot {
+    margin-top: 3.2rem; border-top: 1px solid var(--line); padding-top: 1.1rem;
+    color: var(--muted); font: 400 .82rem/1.7 var(--mono);
+  }
+</style>
+
+<main>
+  <p class="eyebrow">Task 20260827-120347 &middot; design</p>
+  <h1>Reaching into the game by name</h1>
+  <p class="lede">
+    A second language on the same CRT: one curated command catalog that
+    inspects the run, writes the player's settings, and runs a bounded set of
+    cheats that mark the run out loud. The process channel types the same
+    lines and reads the same answers back.
+  </p>
+  <p class="meta">
+    <span>v0.13.0</span><span>priority 50</span><span>console / input / tooling</span><span>written 2026-09-02</span>
+  </p>
+
+  <div class="note">
+    <span class="h">What this is not</span>
+    It is not arbitrary <code>EventActionConfig</code> execution. The scenario
+    enum is an authoring vocabulary and stays one; a new action does not become
+    a command by existing. The catalog below is the whole public surface, and
+    every row on it was put there on purpose.
+  </div>
+
+  <h2><span class="n">01</span>One emulator, two shells</h2>
+  <p>
+    The CRT was already a terminal: casing, glass, phosphor, sound, forwarded
+    pointer, scrollback, prompt, caret, completion ghost, staged welcome rows,
+    every editing key, and the pause it takes while it is open. All of that is
+    the EMULATOR and none of it is NOVA OS. The temptation was a second
+    console-looking overlay; that would have meant a second line editor, and
+    two line editors drift.
+  </p>
+  <p>
+    So the terminal grew a <code>ShellKind</code> and a per-shell
+    <code>ShellSession</code>, and the split falls exactly where the two
+    languages differ.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>The emulator owns</th><th>A shell owns</th></tr></thead>
+    <tbody>
+      <tr><td>casing, glass, phosphor, the open/close animation, the cue sounds</td><td>its command registry</td></tr>
+      <tr><td>the line editor: typing, Backspace, Home/End, history keys, Tab, PgUp/PgDn</td><td>its prompt prefix (<code>nova&gt;</code> / <code>cmd&gt;</code>)</td></tr>
+      <tr><td>the pause, the freed cursor, and Escape while open</td><td>its transcript and its history</td></tr>
+      <tr><td>the header and the right-hand status strip</td><td>its header text and its staged introduction</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Switching shells therefore keeps the picture up, keeps the freeze, and
+    restores the other shell's scrollback and history exactly. It does not
+    replay the power-on animation, because nothing powered on.
+  </p>
+
+  <div class="dec">
+    <p class="q">Settled &mdash; open decision 1</p>
+    <p class="call">Escape climbs one level, and the level you came in on is where the ground is.</p>
+    <p>
+      Entering Commands from a NOVA OS prompt makes NOVA OS the floor: Escape
+      returns to <code>nova&gt;</code>, and a second Escape powers off. Opening
+      with <code>:</code> makes Commands the floor: one Escape closes the
+      computer, because climbing into a NOVA OS session the player never opened
+      would be inventing a room.
+    </p>
+  </div>
+
+  <h2><span class="n">02</span>Where the code lives</h2>
+  <p>
+    The third open decision, and the one with the longest shadow: a dispatcher
+    that reads ships, writes settings and arms cheats touches nearly every
+    crate. Put it in <code>nova_os</code> and the terminal model &mdash; today a
+    leaf that a headless test can build in a line &mdash; drags gameplay,
+    scenario and menu behind it.
+  </p>
+
+  <div class="dec">
+    <p class="q">Settled &mdash; open decision 3</p>
+    <p class="call">Split the language from the executor. <code>nova_os</code> keeps the words; a new <code>nova_console</code> runs them.</p>
+    <p>
+      <code>nova_os</code> holds the catalog metadata, the parser, the
+      structured <code>CommandResult</code> and the <code>CommandChannel</code>
+      bus, and stays a leaf. <code>nova_console</code> holds everything that
+      touches the world, and sits ABOVE <code>nova_menu</code> because a
+      <code>graphics</code> or <code>volume</code> command writes the very
+      resources the settings screen owns &mdash; one of the two has to be
+      downstream, and it is not the menu.
+    </p>
+    <p>
+      The payoff shows up on the wire: <code>nova_channel</code> depends on
+      <code>nova_os</code> for the LANGUAGE and never on
+      <code>nova_console</code>. A tool that only wanted to type a line does not
+      pull in gameplay.
+    </p>
+  </div>
+
+  <div class="stack">
+    <div class="axis"><span>above</span><span class="bar"></span></div>
+    <div class="tier">
+      <span class="lbl">wiring</span>
+      <div class="boxes">
+        <div class="crate"><span class="nm">nova_core</span><span class="ow">adds the plugin after NovaMenuPlugin</span></div>
+      </div>
+    </div>
+    <div class="tier hi">
+      <span class="lbl">executor</span>
+      <div class="boxes">
+        <div class="crate new"><span class="nm">nova_console</span><span class="badge">new</span><span class="ow">dispatch, inspect, settings, cheats</span></div>
+      </div>
+    </div>
+    <div class="tier">
+      <span class="lbl">surfaces</span>
+      <div class="boxes">
+        <div class="crate"><span class="nm">nova_menu</span><span class="ow">the settings resources, the ':' gesture</span></div>
+        <div class="crate"><span class="nm">nova_os_ui</span><span class="ow">the CRT that paints a shell</span></div>
+        <div class="crate"><span class="nm">nova_scenario</span><span class="ow">the internal actions the cheats run</span></div>
+      </div>
+    </div>
+    <div class="tier">
+      <span class="lbl">language</span>
+      <div class="boxes">
+        <div class="crate new"><span class="nm">nova_os</span><span class="ow">catalog, parser, results, CommandChannel &mdash; still a leaf</span></div>
+      </div>
+    </div>
+    <div class="tier">
+      <span class="lbl">wire</span>
+      <div class="boxes">
+        <div class="crate dbg"><span class="nm">nova_channel</span><span class="badge">dev</span><span class="ow">depends on the language, not the executor</span></div>
+      </div>
+    </div>
+    <div class="axis"><span class="bar"></span><span>below</span></div>
+    <div class="legend">
+      <i><span class="sw new"></span>new or newly load-bearing</i>
+      <i><span class="sw dbg"></span>dev tooling, not shipped</i>
+    </div>
+  </div>
+
+  <p>
+    One ordering constraint holds the whole thing together:
+    <code>ConsoleSystems::Dispatch</code> runs
+    <code>.after(NovaOsSystems::Input).before(NovaOsSystems::Simulate)</code>,
+    so a line typed this frame is answered and painted this frame. The channel
+    submits in <code>PreUpdate</code>, so a wire command is dispatched in the
+    same frame and acknowledged after that <code>update()</code>.
+  </p>
+
+  <h2><span class="n">03</span>The class is the permission model</h2>
+  <p>
+    Four classes, checked once, at the top of the dispatcher. There is no
+    per-command permission code to forget to write, and there is no
+    <code>cfg(debug)</code> anywhere near it: the shell and the wire have the
+    same vocabulary in a shipped build as in a developer one. A cheat that only
+    exists in debug is a cheat nobody had to be honest about.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>class</th><th>may</th><th class="m">marks the run</th><th class="num">rows</th></tr></thead>
+    <tbody>
+      <tr><td class="m">Utility</td><td>control the shell; abandon one scenario for another</td><td><span class="tag ok">no</span></td><td class="num">5</td></tr>
+      <tr><td class="m">ReadOnly</td><td>observe, and never mutate</td><td><span class="tag ok">no</span></td><td class="num">12</td></tr>
+      <tr><td class="m">Setting</td><td>write the same persisted settings the menu writes</td><td><span class="tag ok">no</span></td><td class="num">5</td></tr>
+      <tr><td class="m">Cheat</td><td>change the live world &mdash; refused until armed</td><td><span class="tag no">arming does</span></td><td class="num">5</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>
+    Every row carries its own metadata &mdash; name, usage, summary, class,
+    arity, worked examples &mdash; and parsing, help, completion, the
+    <code>commands</code> listing, the introduction's registry count and the
+    wiki page all read that one table. The examples are load-bearing: a test
+    walks every documented example of every command back through the parser,
+    which is how <code>help ammo refill section</code> was caught failing on its
+    own arity.
+  </p>
+
+  <h2><span class="n">04</span>Arming marks the run, one way</h2>
+  <p>
+    <code>cheats enable</code> is the deliberate act, and it marks the run at
+    the moment it succeeds &mdash; not at the moment a cheat is used.
+  </p>
+  <p>
+    Marking on benefit was the alternative and it is worse in both directions.
+    A player who armed and then thought better of it still played a run that
+    could have been anything; and a mark that only lands on use gives the
+    refusal nothing true to say, so it has to pretend the command does not
+    exist. Marking on the ask lets the refusal be honest: <em>this is a cheat,
+    arm it if you mean it, and know what arming costs.</em>
+  </p>
+  <p>
+    The mark is one-way for the same reason. There is no command that unmarks
+    a run, because a run that was armed was never clean. What DOES clear it is
+    a new run: <code>scenario load &lt;id&gt;</code> abandons the current
+    attempt without assigning it an outcome and without advancing campaign
+    progress, then resets the arming and the mark together.
+  </p>
+
+  <h2><span class="n">05</span>What turning unlimited ammo off gives back</h2>
+  <p>
+    Unlimited fire works by REMOVING the magazine, because &ldquo;no
+    <code>SectionAmmo</code>&rdquo; is already the game's word for a weapon that
+    never runs dry. That leaves one question, and the task named it as an open
+    decision.
+  </p>
+
+  <div class="dec">
+    <p class="q">Settled &mdash; open decision 2</p>
+    <p class="call">Restore the section's AUTHORED capacity, full, with the reload re-seeded and no cycle in flight.</p>
+    <p>
+      The alternative was putting back the round count from the moment the
+      cheat was armed. It was rejected because that count is not a state the
+      world was ever in: while the cheat is on the weapon never spends a round,
+      so restoring a stale number invents a half-empty magazine out of a fight
+      the player did not have. Full is what the magazine effectively held the
+      whole time.
+    </p>
+    <p>
+      <code>SuspendedSectionAmmo</code> carries the authored capacity and the
+      reload config across the suspension, and only sections that HAD a
+      magazine carry it &mdash; so a weapon authored unlimited stays unlimited
+      when the cheat goes off.
+    </p>
+  </div>
+
+  <p>
+    The cheat is a scenario action underneath (<code>SetInfiniteAmmo</code>),
+    which is the point: it replaces the old <code>infinite_ammo</code> flag on
+    the player controller, which was authored once at spawn and honored only
+    under the <code>debug</code> feature. An action instead of a flag works on a
+    LIVE ship, works in a shipped build, and lets authored content ask for the
+    same thing in the same words. <code>RefillAmmo</code> is its bounded half:
+    it restores what a magazine holds instead of removing the magazine, so a
+    resupply beat does not have to grant unlimited fire.
+  </p>
+
+  <h2><span class="n">06</span>The wire says the same words</h2>
+  <p>
+    The channel does not get a vocabulary of its own. It carries the exact text
+    a player would type, resolved by the same parser, run by the same
+    dispatcher, and answered with the same structured result.
+  </p>
+
+  <div class="wire">
+    <div class="lane i">
+      <h4>in &middot; command</h4>
+      <pre><code>{"tick":120,"command":"graphics low"}
+{"tick":121,"command":"cheats enable"}
+{"tick":122,"command":"ammo infinite player_spaceship on"}</code></pre>
+      <p>The same line, character for character, that the CRT accepts.</p>
+    </div>
+    <div class="lane a f">
+      <h4>in &middot; action</h4>
+      <pre><code>{"tick":120,"action":{"SetAllegiance":...}}
+&rarr; error: `action` is not a wire lane and
+   will not become one; use `command` and
+   the command catalog</code></pre>
+      <p>
+        Permanently refused. v0.12.0 refused it with &ldquo;the console
+        vocabulary is task 20260827-120347&rdquo;; that task is this one, and
+        the answer is that the key never opens.
+      </p>
+    </div>
+  </div>
+
+  <pre><code class="cm">// out &middot; the acknowledgement names the command, not its internals</code>
+<code>{"line":22,"command":"ammo infinite","class":"cheat","state":"ok",
+ "detail":"player_spaceship: 2 weapons unlimited",
+ "rows":["player_spaceship: 2 weapons now fire unlimited."]}</code></pre>
+
+  <p>
+    A caller never learns which scenario action ran underneath, which is what
+    keeps the internal action free to change. <code>rows</code> is what the
+    screen printed; <code>detail</code> is the one-line summary; the
+    <code>class</code> is there so a driver can assert it never armed anything
+    by accident.
+  </p>
+
+  <h2><span class="n">07</span>What is deliberately absent</h2>
+  <p>
+    Seven capabilities that exist as scenario actions and are NOT commands. The
+    list is short and the reasoning is one sentence each, so that adding any of
+    them later is a decision somebody makes on purpose.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>not a command</th><th>why not</th></tr></thead>
+    <tbody>
+      <tr><td class="m">serialized EventActionConfig</td><td>the whole point &mdash; a catalog you can read is not the same object as an enum you can spell</td></tr>
+      <tr><td class="m">win / lose / Outcome</td><td>an outcome the player typed is not an outcome; it would also make the run mark pointless</td></tr>
+      <tr><td class="m">scenario-variable writes</td><td>a scenario's state machine is not a settings screen; a wrong write is unrecoverable and silent</td></tr>
+      <tr><td class="m">arbitrary spawn / despawn</td><td>needs an object vocabulary that only the authoring format has</td></tr>
+      <tr><td class="m">allegiance changes</td><td>rewrites the fight rather than helping the player through it</td></tr>
+      <tr><td class="m">forced torpedo launch</td><td>same &mdash; and it fires a real weapon at a real target from a prompt</td></tr>
+      <tr><td class="m">controller-verb changes</td><td>the flight model's grants are the ship's design, not a runtime toggle</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2><span class="n">08</span>The creative map, and what it turned up</h2>
+  <p>
+    The run mark and the scenario classification are different subjects and
+    stay apart. A shell cheat accuses the PLAYER; an authored scenario action
+    never does &mdash; but content that injects world state is worth reporting,
+    so the linter computes it.
+  </p>
+  <p>
+    One exhaustive match over all 28 actions is the single source of truth:
+    <code>own_injection()</code> returns a name for an action that injects and
+    <code>None</code> for one that only does bookkeeping or presentation.
+    <code>effect()</code> and <code>collect_injections()</code> both derive from
+    it, so they cannot disagree, and <code>Sequence</code> has no class of its
+    own &mdash; it carries whatever its steps carry. Ten actions inject:
+    <code>SpawnScenarioObject</code>, <code>ScatterObjects</code>,
+    <code>DespawnScenarioObject</code>, <code>CreateScenarioArea</code>,
+    <code>SetSpeedCap</code>, <code>SetControllerVerb</code>,
+    <code>SetAllegiance</code>, <code>ForceTorpedoLaunch</code>,
+    <code>SetInfiniteAmmo</code>, <code>RefillAmmo</code>.
+  </p>
+  <p>
+    A creative map is CONTEXT on the report, never a finding, and never touches
+    the lint's exit code.
+  </p>
+
+  <div class="note">
+    <span class="h">Open &mdash; for the owner</span>
+    With that classification, all 18 scenarios in the tree are creative maps,
+    because <code>SpawnScenarioObject</code> and <code>ScatterObjects</code> are
+    what every scenario does to exist at all. The per-action classification is
+    correct on its own terms and meets the stated bar &mdash; no bookkeeping or
+    presentation action is classed as injection &mdash; so it ships as written,
+    and the report prints each scenario's ACTION LIST rather than a bare
+    verdict. But the ELIGIBILITY rule built on top of it needs revisiting
+    before any badge is shown to a player: a signal that fires on everything
+    carries nothing. The likely fix is to score the actions that reach into a
+    RUNNING world &mdash; the six ship-state ones, which only four scenarios
+    use use &mdash; apart from the spawning that merely furnishes one.mdash; apart from the spawning that merely furnishes one.
+  </div>
+
+  <h2><span class="n">09</span>Proof</h2>
+  <p>
+    Everything under <code>proof/</code> is bound to the commits in this branch;
+    everything under <code>poc/</code> re-runs.
+  </p>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>artifact</th><th>shows</th></tr></thead>
+    <tbody>
+      <tr><td class="m">poc/drive_commands.py</td><td>the wire acceptance walk: the <code>action</code> refusal, inspection, unknown ids, help and did-you-mean, a settings round trip, refusal before arming, arming and the mark, both ammo cheats, the speed cap, the five forbidden verbs, and <code>scenario load</code> clearing the mark</td></tr>
+      <tr><td class="m">poc/drive_crt.py</td><td>the same commands typed at the CRT, filmed frame by frame with <code>--record</code></td></tr>
+      <tr><td class="m">proof/01..05-*.png</td><td>flight, the staged introduction, the cheat catalog, the armed and marked header, and flight restored after the close</td></tr>
+      <tr><td class="m">proof/wire-transcript.txt</td><td>the acknowledgement stream the driver asserted against</td></tr>
+      <tr><td class="m">proof/settings-after-run.ron</td><td>the persisted store, written by a <code>graphics</code> command and nothing else</td></tr>
+      <tr><td class="m">proof/content-lint.txt</td><td>the creative-map section of the content report</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p class="foot">
+    Depends on 20260820-174148, which shipped the transport, the input registry
+    and the reserved keys in v0.12.0. The <code>action</code> key it reserved is
+    now permanently closed.
+  </p>
+</main>

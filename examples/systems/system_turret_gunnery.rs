@@ -274,8 +274,6 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                 vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
             )]),
             speed_cap: None,
-            // Dev/tuning harness: fire freely.
-            infinite_ammo: true,
         }),
         hull: ShipSource::Inline(ShipHull {
             sections: vec![
@@ -300,7 +298,10 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
                     // that already points up; this one sits on the -Z end, so it
                     // needs the quarter turn to stand its base upright.
                     rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                    source: SectionSource::Inline(section("pdc_kinetic_turret_section")),
+                    // Dev/tuning harness: fire freely.
+                    source: SectionSource::Inline(
+                        section("pdc_kinetic_turret_section").without_magazine(),
+                    ),
                     modifications: vec![],
                 },
             ],

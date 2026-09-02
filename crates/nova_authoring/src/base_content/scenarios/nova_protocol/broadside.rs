@@ -149,7 +149,6 @@ fn player_ship() -> ScenarioObjectConfig {
                 // Finite ammo: catalog weapons auto-reload, so the PDC
                 // screen-and-brawl plays with real magazines and the diegetic
                 // ammo gauge instead of unlimited fire.
-                infinite_ammo: false,
             }),
             allegiance: None,
             // The cargoa corvette. RCS is off in the mainline campaign until

@@ -857,7 +857,6 @@ fn firing_ship() -> ScenarioObjectConfig {
                     vec![MouseButton::Left.into()],
                 )]),
                 speed_cap: None,
-                infinite_ammo: true,
             }),
             ..default()
         }),

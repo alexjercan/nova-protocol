@@ -261,7 +261,7 @@ fn terminal_with_map_goto() -> NovaOsTerminal {
         arg_hint: Some("<label>"),
         dispatch: CommandDispatch::Gameplay,
     });
-    terminal.set_commands(specs);
+    terminal.set_nova_os_commands(specs);
     terminal
 }
 

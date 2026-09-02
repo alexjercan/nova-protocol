@@ -36,6 +36,7 @@ for responsibilities and the dependency graph.
 | `nova_hud` | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it. |
 | `nova_os` | NOVA OS logic: the terminal model, shell grammar and app runtime. No bevy UI. |
 | `nova_os_ui` | The NOVA OS cockpit monitor the player opens with Tab: CRT terminal UI, forwarded pointer, and the `map`/`ship` apps. A peer of the HUD, added by `nova_core`. |
+| `nova_console` | The command shell's dispatcher: the executor behind the `cmd>` prompt and the channel's `command` lane. Sits above `nova_menu` because a setting command writes the resources the settings screen owns. |
 | `nova_scenario` | Scenario engine: events, filters, actions, variables, world, loader, objects. |
 | `nova_events` | Shared game-event kinds + entity identity components (gameplay <-> scenario). |
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge + prefs. |
@@ -48,6 +49,7 @@ for responsibilities and the dependency graph.
 | `nova_debug` | Debug-only plugin (inspector, overlays); compiled under the `debug` feature. |
 | `nova_info` | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers + the run-completion protocol. Bevy-only, game-agnostic. |
+| `nova_channel` | Dev tooling: the process channel. Named inputs, pointer moves, text, keys and `command` lines in on stdin; world snapshots and acknowledgements out on stdout. |
 | `nova_probe` | Dev tool (not in the shipped game): the in-game half of the run-harness - the capability plugins an example wires (frame time, timeline, invariants, world snapshot, scene census, frame cost). |
 | `nova_probe_cli` | Dev tool: the host half - spawns runs, grades artifacts, renders reports; the `probe run`/`report` CLI. |
 | `nova_perf_web` | Dev tool: the wasm app `probe run --platform web` boots and measures. |

@@ -51,7 +51,7 @@ fn toggle_app() -> App {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(StatesPlugin);
-    app.init_state::<GameStates>();
+    app.insert_state(GameStates::Playing);
     app.init_state::<PauseStates>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();
@@ -266,7 +266,7 @@ fn register_ship_view_command(app: &mut App) {
     });
     app.world_mut()
         .resource_mut::<NovaOsTerminal>()
-        .set_commands(specs);
+        .set_nova_os_commands(specs);
 }
 /// One right-stick-click press: press + update (toggle sets NextState), then
 /// release + clear + update (applies the transition; the clear stops the
@@ -312,7 +312,7 @@ fn objectives_app() -> App {
 }
 
 fn spawn_nova_os_shell(app: &mut App) {
-    app.add_observer(setup_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
     app.world_mut().spawn((
         Name::new("Survey Cutter"),
         SpaceshipRootMarker,
@@ -381,7 +381,7 @@ fn chin_controls_app() -> App {
     // mirrors `spawn_nova_os_shell_with_crt`'s callers.
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));
     app.add_plugins(StatesPlugin);
-    app.init_state::<GameStates>();
+    app.insert_state(GameStates::Playing);
     app.init_state::<PauseStates>();
     app.init_resource::<NovaOsFlightLog>();
     app.init_resource::<NovaOsTerminal>();
@@ -393,7 +393,7 @@ fn chin_controls_app() -> App {
     app.init_asset::<Font>();
     app.init_asset::<Image>();
     app.init_asset::<NovaOsCrtMaterial>();
-    app.add_observer(setup_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
     app.add_systems(
         Update,
         (animate_nova_os_crt, sync_nova_os_monitor_controls).run_if(in_state(PauseStates::NovaOs)),

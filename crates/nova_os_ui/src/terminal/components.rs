@@ -272,9 +272,14 @@ pub(crate) struct NovaOsOpenness(pub(super) f32);
 
 /// True after the user requested close; gameplay remains paused until the
 /// real-time close animation reaches zero.
+///
+/// Public because the CRT is opened from outside this crate as well: the `:`
+/// gesture that opens the Command shell lives with the other global modal keys
+/// in `nova_menu`, and an open must clear a close that is still running.
 #[derive(Resource, Default)]
-pub(crate) struct NovaOsCloseTransition {
-    pub(crate) closing: bool,
+pub struct NovaOsCloseTransition {
+    /// Whether a close is animating out right now.
+    pub closing: bool,
 }
 
 /// NovaOs-local combined flight log derived from [`StoryFeed`],

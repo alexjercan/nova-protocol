@@ -117,12 +117,11 @@ pub fn ambush_hollow(
             // ship whose guns no button reaches.
             input_mapping: turret_bindings(sections, &player_hull),
             speed_cap: None,
-            // The player holds fire through several beats; running dry
-            // mid-capture would leave a reload where the tracers should be.
-            infinite_ammo: true,
         }),
         None,
-        player_hull.clone(),
+        // The player holds fire through several beats; running dry mid-capture
+        // would leave a reload where the tracers should be.
+        unlimited_turrets(sections, player_hull.clone()),
     );
 
     // The lock subject: not AI, because an AI hostile flies to a 100-unit
@@ -263,7 +262,6 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         None,
         kit::kenney_hull(ships, "cargoa"),
@@ -392,6 +390,32 @@ pub fn fighter(patrol: Vec<Vec3>) -> SpaceshipController {
 /// turret prototype. Every craft mounts the one shared PDC now, whose id
 /// carries no hull prefix, so that filter matched nothing and handed back an
 /// empty map - a ship whose guns no button reaches, silently.
+/// The same hull with every turret rebuilt without a magazine, so a capture that
+/// holds fire never cuts to a reload.
+///
+/// A prototype section resolves to an inline copy of the catalog entry: the
+/// magazine lives in the section config, so a rig that wants unlimited fire has
+/// to author the gun rather than reference it.
+pub fn unlimited_turrets(
+    sections: &GameSections,
+    hull: Vec<SpaceshipSectionConfig>,
+) -> Vec<SpaceshipSectionConfig> {
+    hull.into_iter()
+        .map(|mut section| {
+            let SectionSource::Prototype(prototype) = &section.source else {
+                return section;
+            };
+            let Some(resolved) = sections.get_section(prototype) else {
+                return section;
+            };
+            if matches!(resolved.kind, SectionKind::Turret(_)) {
+                section.source = SectionSource::Inline(resolved.clone().without_magazine());
+            }
+            section
+        })
+        .collect()
+}
+
 pub fn turret_bindings(
     sections: &GameSections,
     hull: &[SpaceshipSectionConfig],

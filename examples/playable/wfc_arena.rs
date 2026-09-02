@@ -983,7 +983,6 @@ fn combatant(
                 SpaceshipController::Player(PlayerControllerConfig {
                     input_mapping: player_bindings(&hull, slot, binding_overrides),
                     speed_cap: None,
-                    infinite_ammo: false,
                 })
             } else {
                 SpaceshipController::AI(AIControllerConfig {

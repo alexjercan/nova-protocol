@@ -238,8 +238,8 @@ fn terminal_commands_clear_on_nova_os_teardown() {
     app.add_plugins(MinimalPlugins);
     app.init_resource::<NovaOsFlightLog>();
     app.init_resource::<NovaOsTerminal>();
-    app.add_observer(setup_nova_os);
-    app.add_observer(remove_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
+    app.add_observer(reset_nova_os_for_new_ship);
 
     let player = app
         .world_mut()

@@ -103,8 +103,28 @@ pub struct AckedFinding {
     pub ack_reason: String,
 }
 
-/// The whole report: the scope, the counts, every finding, and the
-/// acknowledged balance exceptions.
+/// One scenario whose script reaches into the simulation, and the actions that
+/// say so.
+///
+/// Not a finding. A creative map is content working exactly as authored: the
+/// author is not cheating and neither is anyone who plays it. What it changes
+/// is eligibility - a completion time from a scripted world means nothing - so
+/// the classification is computed here and never authored. Nobody can write a
+/// scenario that declares itself clean.
+#[derive(Debug, Clone)]
+pub struct CreativeMap {
+    /// The mod id the scenario belongs to.
+    pub bundle: String,
+    /// The content file, relative to the mod directory.
+    pub file: Option<String>,
+    /// The scenario id.
+    pub scenario: String,
+    /// The distinct injection actions its script runs, sorted.
+    pub actions: Vec<String>,
+}
+
+/// The whole report: the scope, the counts, every finding, the acknowledged
+/// balance exceptions, and the computed creative-map classification.
 #[derive(Debug, Clone, Default)]
 pub struct ContentReport {
     /// The `--target` mod id, or `None` for a whole-tree lint.
@@ -117,6 +137,8 @@ pub struct ContentReport {
     pub findings: Vec<Finding>,
     /// The acknowledged balance exceptions.
     pub acked: Vec<AckedFinding>,
+    /// The scenarios classed as creative maps, in walk order.
+    pub creative_maps: Vec<CreativeMap>,
 }
 
 impl ContentReport {
@@ -214,6 +236,39 @@ impl ContentReport {
             }
         }
 
+        if !self.creative_maps.is_empty() {
+            let _ = writeln!(md, "## Creative maps");
+            let _ = writeln!(md);
+            let _ = writeln!(
+                md,
+                "Computed, not authored: these scenarios reach into the simulation, and \
+                 the actions that say so are listed. Nothing here is a problem - a mod \
+                 built around a script is that mod working as written. What the \
+                 classification should cost a run is not settled; see the note below."
+            );
+            let _ = writeln!(md);
+            let _ = writeln!(
+                md,
+                "> Every scenario in the tree classifies. Spawning the cast and scattering \
+                 the field is what a scenario IS, so `SpawnScenarioObject` and \
+                 `ScatterObjects` do not discriminate. Read the ACTION LIST, not the \
+                 presence of a row."
+            );
+            let _ = writeln!(md);
+            for map in &self.creative_maps {
+                let file = map.file.as_deref().unwrap_or("(unknown file)");
+                let _ = writeln!(
+                    md,
+                    "- [{}] `{}` `{}` - {}",
+                    map.bundle,
+                    file,
+                    map.scenario,
+                    map.actions.join(", ")
+                );
+            }
+            let _ = writeln!(md);
+        }
+
         if !self.acked.is_empty() {
             let _ = writeln!(md, "## Acknowledged balance exceptions");
             let _ = writeln!(md);
@@ -304,6 +359,35 @@ impl ContentReport {
                 }
                 html.push_str("</table>\n");
             }
+        }
+
+        if !self.creative_maps.is_empty() {
+            html.push_str("<h2>Creative maps</h2>\n");
+            html.push_str(
+                "<p class=\"note\">Computed, not authored: these scenarios reach into the \
+                 simulation, and the actions that say so are listed. Nothing here is a \
+                 problem - a mod built around a script is that mod working as written. \
+                 Every scenario in the tree classifies, because spawning the cast and \
+                 scattering the field is what a scenario IS: read the action list, not the \
+                 presence of a row.</p>\n",
+            );
+            html.push_str("<table>\n");
+            html.push_str(
+                "<tr><th>mod</th><th>file</th><th>scenario</th><th>injection actions</th></tr>\n",
+            );
+            for map in &self.creative_maps {
+                let file = map.file.as_deref().unwrap_or("(unknown file)");
+                let _ = writeln!(
+                    html,
+                    "<tr><td>{}</td><td><code>{}</code></td><td><code>{}</code></td>\
+                     <td class=\"note\">{}</td></tr>",
+                    escape(&map.bundle),
+                    escape(file),
+                    escape(&map.scenario),
+                    escape(&map.actions.join(", ")),
+                );
+            }
+            html.push_str("</table>\n");
         }
 
         if !self.acked.is_empty() {
@@ -431,6 +515,7 @@ mod tests {
                 ),
             ],
             acked: vec![],
+            creative_maps: vec![],
         };
         let md = report.to_markdown();
         // Error is listed before Warn within the bundle.

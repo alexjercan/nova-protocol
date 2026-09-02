@@ -152,7 +152,14 @@ pub(crate) fn close_nova_os_from_menu_keys(
     }
     match terminal.active_mode() {
         TerminalMode::App { .. } => exit_app_with_coil(&mut terminal, &mut commands),
-        TerminalMode::Prompt => close.closing = true,
+        // One level at a time. A Command shell entered from the NOVA OS prompt
+        // climbs back to it; a shell that IS the ground floor - the CRT was
+        // opened straight into it - closes the computer.
+        TerminalMode::Prompt => {
+            if !terminal.back_out() {
+                close.closing = true;
+            }
+        }
     }
 }
 
@@ -269,6 +276,10 @@ pub(crate) fn handle_terminal_keyboard(
                     }
                     let (cue, volume) = match outcome {
                         TerminalSubmitOutcome::Empty => (None, 0.0),
+                        // The command dispatcher runs between this system and
+                        // the paint, and it cues its own answer: an ok here
+                        // would fire before the command had one.
+                        TerminalSubmitOutcome::Dispatched => (None, 0.0),
                         TerminalSubmitOutcome::Ran => (Some(UiSfx::NovaOsOk), NOVA_OS_OK_VOLUME),
                         TerminalSubmitOutcome::Errored => {
                             (Some(UiSfx::NovaOsError), NOVA_OS_ERROR_VOLUME)
@@ -410,7 +421,7 @@ pub(crate) fn sync_nova_os_commands(
     if up_to_date {
         return;
     }
-    terminal.set_commands(specs);
+    terminal.set_nova_os_commands(specs);
 }
 
 /// While an app owns the screen, keyboard input belongs to it: the terminal

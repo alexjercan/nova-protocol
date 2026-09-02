@@ -30,10 +30,11 @@
 //! weapon feels like. A ring segment gets no column: it previews a batch of two
 //! hundred rounds rather than a moment worth counting down.
 //!
-//! A weapon with no `SectionAmmo` fires without limit (the `infinite_ammo`
-//! path forces `ammo_capacity = None`, so the component is simply absent):
-//! the reconcile filter skips it and it gets no readout at all, which is the
-//! intended "don't even show it" behavior for infinite ammo.
+//! A weapon with no `SectionAmmo` fires without limit (an authored
+//! `ammo_capacity = None`, or the `ammo infinite` cheat taking the component
+//! off a live section): the reconcile filter skips it and it gets no readout at
+//! all, which is the intended "don't even show it" behavior for unlimited
+//! ammunition.
 //!
 //! The exact count is a debug-only overlay, never a gameplay affordance: the
 //! `rounds/capacity` `Text` child, its resource and its toggle only compile

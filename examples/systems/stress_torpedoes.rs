@@ -244,9 +244,11 @@ fn rack(sections: &GameSections) -> SpaceshipConfig {
         "basic_controller_section",
         Vec3::new(-half - 1.0, -half, 0.0),
     )];
-    specs.extend(
-        (0..TORPEDO_BAYS).map(|i| SectionSpec::new(bay_slot(i), BAY_SECTION, bay_position(i))),
-    );
+    specs.extend((0..TORPEDO_BAYS).map(|i| {
+        // Saturation harness: the six-round rack and its regen are not the
+        // subject, the thousand torpedoes are.
+        SectionSpec::new(bay_slot(i), BAY_SECTION, bay_position(i)).unlimited()
+    }));
 
     fixtures::ship(
         sections,
@@ -264,9 +266,6 @@ fn rack(sections: &GameSections) -> SpaceshipConfig {
                 })
                 .collect::<BTreeMap<_, _>>(),
             speed_cap: None,
-            // Saturation harness: the six-round rack and its regen are not the
-            // subject, the thousand torpedoes are.
-            infinite_ammo: true,
         }),
         &specs,
     )

@@ -137,7 +137,6 @@
                                 // is a debug-only cheat the shipped game
                                 // ignores; authoring it here claimed a combat
                                 // allowance a time trial never uses.
-                                infinite_ammo: false,
                             )),
                             hull: Inline((
                                 sections: [

@@ -227,11 +227,13 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
         )
     }));
     specs.extend((0..TURRET_MOUNTS).map(|i| {
+        // Saturation harness: the magazine is not the subject.
         SectionSpec::new(
             mount_slot(i),
             MOUNT_SECTION,
             Vec3::new(cell(i), MOUNT_SEAT, 0.0),
         )
+        .unlimited()
     }));
 
     fixtures::ship(
@@ -251,8 +253,6 @@ fn battery(sections: &GameSections) -> SpaceshipConfig {
                 })
                 .collect::<BTreeMap<_, _>>(),
             speed_cap: None,
-            // Saturation harness: the magazine is not the subject.
-            infinite_ammo: true,
         }),
         &specs,
     )

@@ -117,7 +117,9 @@ fn usage_arg_fragment(
     }
     match arity {
         CommandArity::None => String::new(),
-        CommandArity::UpTo(_) => format!(" {}", arg_hint.unwrap_or("<arg>")),
+        CommandArity::UpTo(_) | CommandArity::Between(_, _) => {
+            format!(" {}", arg_hint.unwrap_or("<arg>"))
+        }
     }
 }
 
@@ -187,21 +189,21 @@ pub fn prompt_before_cursor(terminal: &NovaOsTerminal) -> String {
     // The edit methods keep `cursor` on a char boundary; assert it here since
     // this slice would panic otherwise and `cursor` is now reachable only
     // through the crate's own getters.
-    debug_assert!(terminal.prompt.is_char_boundary(terminal.cursor));
-    terminal.prompt[..terminal.cursor].to_string()
+    debug_assert!(terminal.prompt().is_char_boundary(terminal.cursor()));
+    terminal.prompt()[..terminal.cursor()].to_string()
 }
 
 /// The typed text right of the caret (empty when the caret sits at the end).
 pub fn prompt_after_cursor(terminal: &NovaOsTerminal) -> String {
-    debug_assert!(terminal.prompt.is_char_boundary(terminal.cursor));
-    terminal.prompt[terminal.cursor..].to_string()
+    debug_assert!(terminal.prompt().is_char_boundary(terminal.cursor()));
+    terminal.prompt()[terminal.cursor()..].to_string()
 }
 
 /// The hint line shown under the prompt while the input is invalid (empty
 /// otherwise).
 pub fn prompt_hint_display(terminal: &NovaOsTerminal) -> String {
-    if terminal.parse_status == TerminalParseStatus::Invalid {
-        terminal.completion_hint.clone().unwrap_or_default()
+    if terminal.parse_status() == TerminalParseStatus::Invalid {
+        terminal.completion_hint().unwrap_or_default().to_string()
     } else {
         String::new()
     }
@@ -210,7 +212,7 @@ pub fn prompt_hint_display(terminal: &NovaOsTerminal) -> String {
 /// The dim inline completion ghost: the suffix of the command name the prompt is
 /// completing toward (empty unless the prompt is a valid prefix).
 pub fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
-    if terminal.parse_status != TerminalParseStatus::ValidPrefix {
+    if terminal.parse_status() != TerminalParseStatus::ValidPrefix {
         return String::new();
     }
     // On a valid prefix `completion_hint` holds the full command name the input is
@@ -219,8 +221,7 @@ pub fn prompt_completion_ghost(terminal: &NovaOsTerminal) -> String {
     // not the raw one, is what keeps a leading space from greening the prompt
     // with no ghost behind it.
     terminal
-        .completion_hint
-        .as_deref()
+        .completion_hint()
         .and_then(|name| name.strip_prefix(terminal.parsed_prompt()))
         .unwrap_or_default()
         .to_string()
@@ -282,6 +283,10 @@ mod tests {
                 },
                 TerminalRow {
                     kind: TerminalRowKind::Output,
+                    text: "  commands    Enter the game command shell".to_string()
+                },
+                TerminalRow {
+                    kind: TerminalRowKind::Output,
                     text: "  exit        Suspend the NOVA OS computer".to_string()
                 },
                 TerminalRow {
@@ -297,7 +302,7 @@ mod tests {
         // With an app tree registered, `help` lists the app AND its subcommand,
         // grouped after the core builtins.
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("map", "Open the local-space map"),
             cli_spec("map view", "Print local-space contacts"),
         ]));
@@ -327,6 +332,7 @@ mod tests {
                 "objectives",
                 "clear",
                 "version",
+                "commands",
                 "exit",
                 "map",
                 "map view",
@@ -338,7 +344,7 @@ mod tests {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "he");
 
-        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::ValidPrefix);
         assert_eq!(prompt_before_cursor(&terminal), "he");
         assert_eq!(prompt_after_cursor(&terminal), "");
         assert_eq!(prompt_completion_ghost(&terminal), "lp");
@@ -368,13 +374,21 @@ mod tests {
             .collect();
         assert_eq!(
             listed,
-            vec!["help", "log", "objectives", "clear", "version", "exit"]
+            vec![
+                "help",
+                "log",
+                "objectives",
+                "clear",
+                "version",
+                "commands",
+                "exit",
+            ]
         );
     }
     #[test]
     fn nova_os_command_help_and_version() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("map", "Open the local-space map"),
             cli_spec("map view", "Print local-space contacts"),
         ]));
@@ -449,7 +463,7 @@ mod tests {
             arg_hint: None,
             dispatch: CommandDispatch::Gameplay,
         };
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("map", "Open the local-space map"),
             cli_spec("map view", "Print local-space contacts"),
             goto,

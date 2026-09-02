@@ -28,7 +28,10 @@ use nova_gameplay::prelude::SectionInactiveMarker;
 
 /// `SectionAmmo`, `SectionReload` and `SectionReloadConfig`.
 pub mod prelude {
-    pub use super::{SectionAmmo, SectionReload, SectionReloadComplete, SectionReloadConfig};
+    pub use super::{
+        SectionAmmo, SectionReload, SectionReloadComplete, SectionReloadConfig,
+        SuspendedSectionAmmo,
+    };
 }
 
 /// Rounds remaining in a weapon section's magazine.
@@ -75,12 +78,36 @@ impl SectionAmmo {
     }
 }
 
+/// The magazine a section had before unlimited ammunition was switched on.
+///
+/// Unlimited ammunition works by REMOVING [`SectionAmmo`] and [`SectionReload`],
+/// because "no magazine" is already the game's word for a weapon that never
+/// runs dry - there is no second code path to keep honest. That leaves the
+/// question of what turning it off restores, and this is the answer: the
+/// section's authored capacity, full, with no reload in flight.
+///
+/// The alternative - putting back the round count from the moment the cheat was
+/// armed - was rejected. While the cheat is on the weapon never spends a round,
+/// so a stale count is not a state the world was ever in; restoring it would
+/// invent a half-empty magazine out of a fight the player did not have. Full is
+/// what the magazine has effectively held the whole time.
+///
+/// Only sections that HAD a magazine carry this, so a weapon authored unlimited
+/// stays unlimited when the cheat goes off.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub struct SuspendedSectionAmmo {
+    /// The authored magazine size to restore, full.
+    pub capacity: u32,
+    /// The reload cycle to restore with it, if the section had one.
+    pub reload: Option<SectionReloadConfig>,
+}
+
 /// Authored reload parameters for a weapon section's magazine.
 ///
 /// Attached to a section's config ([`TurretSectionConfig`] /
 /// [`TorpedoSectionConfig`] `reload`); when the section is built WITH a
 /// magazine (`ammo_capacity = Some`) a [`SectionReload`] is seeded from this.
-/// A weapon with no magazine (unlimited / `infinite_ammo`) gets neither, so the
+/// A weapon with no magazine (`ammo_capacity = None`) gets neither, so the
 /// "no [`SectionAmmo`] = unlimited" invariant is untouched.
 ///
 /// [`TurretSectionConfig`]: super::turret_section::TurretSectionConfig

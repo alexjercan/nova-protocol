@@ -34,6 +34,10 @@ use nova_gameplay::prelude::{PlayerSpaceshipMarker, SectionMarker, SpaceshipRoot
 use nova_input::prelude::{
     dispatch, ActionName, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
 };
+use nova_os::prelude::{
+    command_shell_specs, resolve_command_line, CommandChannel, CommandOutcome, CommandResult,
+    CommandSource,
+};
 use nova_ship::prelude::{
     SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
     SpaceshipTurretInputBinding,
@@ -124,6 +128,7 @@ pub fn channel_input_writer(world: &mut World) {
             Lane::Aim { wire, delta } => apply_aim(world, line, &wire, delta),
             Lane::Text(text) => apply_text(world, line, &text),
             Lane::Key(key) => apply_key(world, line, &key),
+            Lane::Command(text) => apply_command(world, line, &text),
             Lane::Pointer(_) => {}
         }
     }
@@ -149,6 +154,51 @@ fn refuse(world: &mut World, line: usize, message: String) {
 /// `nova_os.novaos_orbit_left`.
 pub fn wire_name(group: &str, name: &str) -> String {
     format!("{}.{name}", group.to_lowercase().replace(' ', "_"))
+}
+
+// -- command ------------------------------------------------------------------
+
+/// One command line, through the SAME parser the CRT prompt uses.
+///
+/// This runs in `PreUpdate`, so the invocation is waiting when the dispatcher's
+/// `Update` set drains it, and the answer is back before the runner collects
+/// the frame's acks. A line the catalog can answer on its own - `help`, a typo,
+/// a bad argument - never reaches the world and is acknowledged here.
+///
+/// The stdin line number is the sequence: an ack names the line that asked.
+fn apply_command(world: &mut World, line: usize, text: &str) {
+    let source = CommandSource::Channel { seq: line as u64 };
+    let outcome = resolve_command_line(text, &command_shell_specs());
+    let Some(mut channel) = world.get_resource_mut::<CommandChannel>() else {
+        // An app assembled without the dispatcher (a bare harness, not the
+        // game) has no command shell at all. Say so, rather than dropping the
+        // line silently.
+        return refuse(world, line, "this app has no command shell".to_string());
+    };
+    match outcome {
+        CommandOutcome::Answer(result) => channel.answer(source, *result),
+        CommandOutcome::Invoke(invocation) => channel.submit(source, invocation),
+    }
+}
+
+/// One command's acknowledgement: what was asked, what it was allowed to touch,
+/// how it ended, the one-line answer, and the lines the CRT would have printed.
+///
+/// `rows` is what makes the two front ends equal. `detail` alone answers a
+/// driver that only wants to know it worked; a driver that wanted to READ
+/// something - the ship list, the bindings - needs the same text a player sees.
+///
+/// Deliberately NOT the internal scenario action a cheat may have run: a driver
+/// contracts against the public command vocabulary, not the enum behind it.
+fn command_ack(line: u64, result: &CommandResult) -> serde_json::Value {
+    serde_json::json!({
+        "line": line,
+        "command": result.command,
+        "class": result.class.map(nova_os::prelude::CommandClass::label),
+        "state": result.status.label(),
+        "detail": result.detail,
+        "rows": result.rows.iter().map(|row| row.text.clone()).collect::<Vec<_>>(),
+    })
 }
 
 // -- input --------------------------------------------------------------------
@@ -434,7 +484,7 @@ fn entry(line: usize, input: &str, phase: &str, state: AckState) -> AppliedEntry
 /// [`TriggerState`]: bevy_enhanced_input::prelude::TriggerState
 pub fn drain_acks(world: &mut World) -> (Vec<serde_json::Value>, Vec<(usize, String)>) {
     let ChannelAck { applied, errors } = std::mem::take(&mut *world.resource_mut::<ChannelAck>());
-    let applied = applied
+    let mut applied: Vec<serde_json::Value> = applied
         .into_iter()
         .map(|entry| {
             let state = match entry.state {
@@ -453,6 +503,19 @@ pub fn drain_acks(world: &mut World) -> (Vec<serde_json::Value>, Vec<(usize, Str
             record
         })
         .collect();
+    // The command lane answers through the dispatcher's own queue rather than
+    // `ChannelAck`, because the run happens a schedule later than the apply.
+    // Only the channel's answers are taken; the CRT's own are left alone.
+    if let Some(mut channel) = world.get_resource_mut::<CommandChannel>() {
+        let answers =
+            channel.drain_answers_for(|source| matches!(source, CommandSource::Channel { .. }));
+        applied.extend(answers.into_iter().map(|(source, result)| {
+            let CommandSource::Channel { seq } = source else {
+                unreachable!("the filter above took channel answers only")
+            };
+            command_ack(seq, &result)
+        }));
+    }
     (applied, errors)
 }
 
@@ -484,7 +547,58 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<ChannelFrame>();
         world.init_resource::<ChannelAck>();
+        world.init_resource::<CommandChannel>();
         world
+    }
+
+    /// A real command never runs here: it is queued for the dispatcher, which
+    /// is a whole schedule away. What this pins is that the wire's answer comes
+    /// back on the line that asked, in the public vocabulary.
+    #[test]
+    fn a_command_line_is_queued_for_the_dispatcher_under_its_own_line_number() {
+        let mut world = ack_world();
+        apply_command(&mut world, 12, "graphics low");
+        let queued = world.resource_mut::<CommandChannel>().drain_pending();
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].0, CommandSource::Channel { seq: 12 });
+        assert_eq!(queued[0].1.name, "graphics");
+        assert_eq!(queued[0].1.args, vec!["low".to_string()]);
+    }
+
+    /// A line the catalog can answer on its own must not reach the world, and
+    /// must still ack - a driver that typo'd gets told, on its own line.
+    #[test]
+    fn a_command_the_catalog_answers_alone_acks_without_touching_the_world() {
+        let mut world = ack_world();
+        apply_command(&mut world, 3, "graphix");
+        assert!(!world.resource::<CommandChannel>().has_pending());
+
+        let (applied, errors) = drain_acks(&mut world);
+        assert!(errors.is_empty());
+        assert_eq!(applied.len(), 1);
+        assert_eq!(applied[0]["line"], 3);
+        assert_eq!(applied[0]["state"], "error");
+        assert_eq!(applied[0]["command"], "graphix");
+    }
+
+    /// The ack names the command and its class, never the scenario action a
+    /// cheat runs behind it.
+    #[test]
+    fn a_command_ack_carries_the_command_its_class_and_its_result() {
+        let ack = command_ack(
+            9,
+            &CommandResult::ok(
+                "graphics",
+                nova_os::prelude::CommandClass::Setting,
+                "graphics: low",
+            ),
+        );
+        assert_eq!(ack["line"], 9);
+        assert_eq!(ack["command"], "graphics");
+        assert_eq!(ack["class"], "setting");
+        assert_eq!(ack["state"], "ok");
+        assert_eq!(ack["detail"], "graphics: low");
+        assert_eq!(ack["rows"], serde_json::json!([]));
     }
 
     #[test]

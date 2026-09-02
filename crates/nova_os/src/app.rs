@@ -24,19 +24,43 @@ pub const NOVA_OS_TERMINAL_HINTS: &[&str] = &[
     "TYPE HELP",
 ];
 
+/// The Command-shell footer hints. Same editing grammar as the NOVA OS prompt,
+/// but Escape means BACK: it climbs to the shell this one was entered from, and
+/// only closes the computer when there is nothing underneath.
+pub const COMMAND_SHELL_HINTS: &[&str] = &[
+    "ENTER: RUN",
+    "UP/DN: HISTORY",
+    "PGUP/PGDN: SCROLL",
+    "ESC: BACK",
+    "TYPE HELP",
+];
+
+/// The Command-shell footer, with the rebindable completion key resolved
+/// against the live table. The completion key is the emulator's, not a shell's,
+/// so both prompts advertise the same one.
+pub fn command_shell_hints(bindings: &InputBindings) -> Vec<String> {
+    let mut hints = vec![format!("{}: COMPLETE", completion_key_label(bindings))];
+    hints.extend(COMMAND_SHELL_HINTS.iter().map(|hint| (*hint).to_string()));
+    hints
+}
+
+/// The label of whatever key currently completes at the prompt.
+fn completion_key_label(bindings: &InputBindings) -> String {
+    bindings
+        .get("novaos_toggle")
+        .and_then(|action| action.keyboard.first())
+        .map(InputSource::readout_label)
+        .unwrap_or_else(|| "Tab".to_string())
+        .to_uppercase()
+}
+
 /// The prompt-surface footer, with the rebindable completion key resolved
 /// against the live table.
 ///
 /// The monitor's own key doubles as autocomplete while the shell has the
 /// screen, so a player who moved `novaos_toggle` moved this too.
 pub fn terminal_hints(bindings: &InputBindings) -> Vec<String> {
-    let complete = bindings
-        .get("novaos_toggle")
-        .and_then(|action| action.keyboard.first())
-        .map(InputSource::readout_label)
-        .unwrap_or_else(|| "Tab".to_string())
-        .to_uppercase();
-    let mut hints = vec![format!("{complete}: COMPLETE")];
+    let mut hints = vec![format!("{}: COMPLETE", completion_key_label(bindings))];
     hints.extend(
         NOVA_OS_TERMINAL_HINTS
             .iter()
@@ -106,6 +130,7 @@ pub enum NovaOsAppInputOutcome {
 /// `NOVA_OS_TERMINAL_HINTS`.
 pub mod prelude {
     pub use super::{
-        terminal_hints, NovaOsAppInputOutcome, NovaOsAppRuntime, NOVA_OS_TERMINAL_HINTS,
+        command_shell_hints, terminal_hints, NovaOsAppInputOutcome, NovaOsAppRuntime,
+        COMMAND_SHELL_HINTS, NOVA_OS_TERMINAL_HINTS,
     };
 }

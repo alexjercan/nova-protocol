@@ -246,7 +246,7 @@ A `SpaceshipConfig` (`crates/nova_scenario/src/objects/spaceship.rs`) has a
 relative to the ship root (world units), with a `source` (`Inline` /
 `Prototype`) and optional `modifications`. The player
 config carries the input mapping (section id -> key/gamepad bindings) plus
-`speed_cap` and `infinite_ammo`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
+`speed_cap`; the AI config carries `patrol`/`orbit`/`leash`/`engage_delay`.
 
 Spawning: the base scenario bundle gives the root `RigidBody::Dynamic`; the
 spaceship object adds `SpaceshipRootMarker`, and an observer
@@ -924,9 +924,9 @@ per contact. A symmetric rule - ram damage - wants both.
 - `SectionAmmo` (`sections/ammo.rs`): optional magazine on a weapon section.
   Absent = unlimited fire; `ammo_capacity` in the turret/torpedo/railgun config
   opts in.
-  The player `infinite_ammo` flag builds that ship's weapons without magazines,
-  but only under the `debug` feature: a shipped build logs a warning and keeps
-  the authored magazines, so unlimited fire is a dev cheat, never a player state.
+  Unlimited fire is authored on the GUN, never granted ship-wide: a config with
+  no `ammo_capacity` (see `SectionConfig::without_magazine`) is the authoring
+  route, and the armed `ammo infinite` command is the runtime one.
 - `SectionReload` (`sections/ammo.rs`): optional idle batch reload on a
   magazine, from the turret/torpedo/railgun config
   `reload: Some((delay, amount))`.

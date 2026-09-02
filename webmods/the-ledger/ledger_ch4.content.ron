@@ -132,7 +132,6 @@
                                     ],
                                 },
                                 speed_cap: Some(25.0),
-                                infinite_ammo: false,
                             )),
                             hull: Inline((
                                 sections: [

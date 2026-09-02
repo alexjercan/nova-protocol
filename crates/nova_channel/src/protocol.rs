@@ -9,10 +9,12 @@
 use bevy::prelude::*;
 use nova_input::prelude::InputPhase;
 
-/// The keys the parent design page reserved for the console vocabulary. A line
-/// carrying one is refused with the follow-up task id, so a driver written
-/// against the future schema fails loudly instead of half-working.
-const RESERVED: [&str; 2] = ["action", "command"];
+/// The key that was reserved and will stay refused. `action` names the SCENARIO
+/// authoring enum, and the console vocabulary is deliberately not that enum: a
+/// new scenario action does not become a command. A driver reaching for it is
+/// told where the public vocabulary lives instead.
+const REFUSED_ACTION: &str =
+    "`action` is not a wire lane and will not become one; use `command` and the command catalog";
 
 /// One parsed line: an optional schedule tick and the lane payload. A line
 /// with no payload is the bare-tick step instruction.
@@ -47,6 +49,10 @@ pub enum Lane {
     Key(String),
     /// A pointer gesture.
     Pointer(PointerCmd),
+    /// One Command-shell line, in the exact text a player would type at the
+    /// CRT prompt. Parsed and run by the same dispatcher, so the two front ends
+    /// cannot drift.
+    Command(String),
 }
 
 /// The pointer lane's gestures.
@@ -81,12 +87,8 @@ pub fn parse_line(raw: &str) -> Result<Envelope, String> {
         return Err(format!("not a JSON object: {value}"));
     };
 
-    for reserved in RESERVED {
-        if object.contains_key(reserved) {
-            return Err(format!(
-                "`{reserved}` is reserved; the console vocabulary is task 20260827-120347"
-            ));
-        }
+    if object.contains_key("action") {
+        return Err(REFUSED_ACTION.to_string());
     }
 
     let tick = match object.get("tick") {
@@ -118,6 +120,7 @@ pub fn parse_line(raw: &str) -> Result<Envelope, String> {
         "text" => Lane::Text(as_string(value, "text")?),
         "key" => Lane::Key(as_string(value, "key")?),
         "pointer" => Lane::Pointer(parse_pointer(value)?),
+        "command" => Lane::Command(as_string(value, "command")?),
         _ => return Err(format!("unknown lane [{key:?}]")),
     };
     Ok(Envelope {
@@ -238,13 +241,19 @@ mod tests {
     }
 
     #[test]
-    fn the_reserved_lanes_are_refused_with_the_follow_up_task() {
+    fn the_action_key_is_refused_and_points_at_the_command_lane() {
         let error = parse_line(r#"{"tick":1,"action":"radar"}"#).unwrap_err();
+        assert_eq!(error, REFUSED_ACTION);
+    }
+
+    #[test]
+    fn the_command_lane_carries_the_text_a_player_would_type() {
         assert_eq!(
-            error,
-            "`action` is reserved; the console vocabulary is task 20260827-120347"
+            parse_line(r#"{"tick":120,"command":"graphics low"}"#)
+                .unwrap()
+                .lane,
+            Some(Lane::Command("graphics low".to_string()))
         );
-        assert!(parse_line(r#"{"tick":1,"command":"status"}"#).is_err());
     }
 
     #[test]

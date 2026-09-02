@@ -258,8 +258,8 @@ fn nova_os_app_state_resets_on_teardown() {
     app.add_plugins(MinimalPlugins);
     app.init_resource::<NovaOsFlightLog>();
     app.init_resource::<NovaOsTerminal>();
-    app.add_observer(setup_nova_os);
-    app.add_observer(remove_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
+    app.add_observer(reset_nova_os_for_new_ship);
 
     let player = app
         .world_mut()
@@ -295,7 +295,7 @@ fn nova_os_app_ui_spawns_chrome_and_close_button_exits() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(StatesPlugin);
-    app.init_state::<GameStates>();
+    app.insert_state(GameStates::Playing);
     app.init_state::<PauseStates>();
     app.init_resource::<NovaOsFlightLog>();
     app.init_resource::<NovaOsTerminal>();
@@ -307,8 +307,8 @@ fn nova_os_app_ui_spawns_chrome_and_close_button_exits() {
         SampleApp,
     ));
     app.insert_resource(registry);
-    app.add_observer(setup_nova_os);
-    app.add_observer(remove_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
+    app.add_observer(reset_nova_os_for_new_ship);
     app.add_systems(
         Update,
         sync_nova_os_app_ui.run_if(in_state(PauseStates::NovaOs)),
@@ -387,7 +387,7 @@ fn header_reconciles_breadcrumb_and_close_control_across_the_swap() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
     app.add_plugins(StatesPlugin);
-    app.init_state::<GameStates>();
+    app.insert_state(GameStates::Playing);
     app.init_state::<PauseStates>();
     app.init_resource::<NovaOsFlightLog>();
     app.init_resource::<NovaOsTerminal>();
@@ -399,8 +399,8 @@ fn header_reconciles_breadcrumb_and_close_control_across_the_swap() {
         SampleApp,
     ));
     app.insert_resource(registry);
-    app.add_observer(setup_nova_os);
-    app.add_observer(remove_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
+    app.add_observer(reset_nova_os_for_new_ship);
     app.add_systems(
         Update,
         (

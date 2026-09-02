@@ -47,7 +47,6 @@
                                     ],
                                 },
                                 speed_cap: Some(25.0),
-                                infinite_ammo: false,
                             )),
                             modifications: [
                                 (

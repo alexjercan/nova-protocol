@@ -230,6 +230,215 @@ pub fn source_label(sources: &[InputSource]) -> String {
         .unwrap_or_default()
 }
 
+/// Every keyboard key a binding may name, in the order a `bindings` listing
+/// prints them.
+///
+/// A written-out table rather than a derived one because `KeyCode` has no
+/// iterator and most of its variants - media keys, IME keys, `Fn` - are not
+/// things a player can rebind onto even though the type can hold them.
+const BINDABLE_KEYS: &[KeyCode] = &[
+    KeyCode::KeyA,
+    KeyCode::KeyB,
+    KeyCode::KeyC,
+    KeyCode::KeyD,
+    KeyCode::KeyE,
+    KeyCode::KeyF,
+    KeyCode::KeyG,
+    KeyCode::KeyH,
+    KeyCode::KeyI,
+    KeyCode::KeyJ,
+    KeyCode::KeyK,
+    KeyCode::KeyL,
+    KeyCode::KeyM,
+    KeyCode::KeyN,
+    KeyCode::KeyO,
+    KeyCode::KeyP,
+    KeyCode::KeyQ,
+    KeyCode::KeyR,
+    KeyCode::KeyS,
+    KeyCode::KeyT,
+    KeyCode::KeyU,
+    KeyCode::KeyV,
+    KeyCode::KeyW,
+    KeyCode::KeyX,
+    KeyCode::KeyY,
+    KeyCode::KeyZ,
+    KeyCode::Digit0,
+    KeyCode::Digit1,
+    KeyCode::Digit2,
+    KeyCode::Digit3,
+    KeyCode::Digit4,
+    KeyCode::Digit5,
+    KeyCode::Digit6,
+    KeyCode::Digit7,
+    KeyCode::Digit8,
+    KeyCode::Digit9,
+    KeyCode::F1,
+    KeyCode::F2,
+    KeyCode::F3,
+    KeyCode::F4,
+    KeyCode::F5,
+    KeyCode::F6,
+    KeyCode::F7,
+    KeyCode::F8,
+    KeyCode::F9,
+    KeyCode::F10,
+    KeyCode::F11,
+    KeyCode::F12,
+    KeyCode::Numpad0,
+    KeyCode::Numpad1,
+    KeyCode::Numpad2,
+    KeyCode::Numpad3,
+    KeyCode::Numpad4,
+    KeyCode::Numpad5,
+    KeyCode::Numpad6,
+    KeyCode::Numpad7,
+    KeyCode::Numpad8,
+    KeyCode::Numpad9,
+    KeyCode::Space,
+    KeyCode::Enter,
+    KeyCode::Tab,
+    KeyCode::Escape,
+    KeyCode::Backspace,
+    KeyCode::Delete,
+    KeyCode::Insert,
+    KeyCode::Home,
+    KeyCode::End,
+    KeyCode::PageUp,
+    KeyCode::PageDown,
+    KeyCode::CapsLock,
+    KeyCode::ArrowUp,
+    KeyCode::ArrowDown,
+    KeyCode::ArrowLeft,
+    KeyCode::ArrowRight,
+    KeyCode::ControlLeft,
+    KeyCode::ControlRight,
+    KeyCode::ShiftLeft,
+    KeyCode::ShiftRight,
+    KeyCode::AltLeft,
+    KeyCode::AltRight,
+    KeyCode::SuperLeft,
+    KeyCode::SuperRight,
+    KeyCode::BracketLeft,
+    KeyCode::BracketRight,
+    KeyCode::Backquote,
+    KeyCode::Comma,
+    KeyCode::Period,
+    KeyCode::Slash,
+    KeyCode::Semicolon,
+    KeyCode::Quote,
+    KeyCode::Minus,
+    KeyCode::Equal,
+    KeyCode::Backslash,
+    KeyCode::NumpadAdd,
+    KeyCode::NumpadSubtract,
+    KeyCode::NumpadMultiply,
+    KeyCode::NumpadDivide,
+    KeyCode::NumpadDecimal,
+    KeyCode::NumpadEnter,
+];
+
+/// Every mouse button a binding may name.
+const BINDABLE_MOUSE: &[MouseButton] =
+    &[MouseButton::Left, MouseButton::Right, MouseButton::Middle];
+
+/// Every gamepad button a binding may name.
+const BINDABLE_PAD: &[GamepadButton] = &[
+    GamepadButton::South,
+    GamepadButton::East,
+    GamepadButton::North,
+    GamepadButton::West,
+    GamepadButton::LeftTrigger,
+    GamepadButton::LeftTrigger2,
+    GamepadButton::RightTrigger,
+    GamepadButton::RightTrigger2,
+    GamepadButton::Select,
+    GamepadButton::Start,
+    GamepadButton::Mode,
+    GamepadButton::LeftThumb,
+    GamepadButton::RightThumb,
+    GamepadButton::DPadUp,
+    GamepadButton::DPadDown,
+    GamepadButton::DPadLeft,
+    GamepadButton::DPadRight,
+];
+
+impl InputSource {
+    /// Every source a player may bind an action to, keyboard then mouse then
+    /// pad. The completion and the `bindings` listing read this, so the set a
+    /// command offers is the set a command accepts.
+    pub fn bindable() -> impl Iterator<Item = InputSource> {
+        BINDABLE_KEYS
+            .iter()
+            .copied()
+            .map(InputSource::Keyboard)
+            .chain(BINDABLE_MOUSE.iter().copied().map(InputSource::Mouse))
+            .chain(BINDABLE_PAD.iter().copied().map(InputSource::Gamepad))
+    }
+
+    /// Read a source back from a written name.
+    ///
+    /// Accepts any spelling the game PRINTS for the source - the keycap label
+    /// (`W`, `LMB`), the readout label (`Left Ctrl`, `;`) and the variant name
+    /// (`KeyW`, `ControlLeft`) - case- and space-insensitively, so a player can
+    /// type back whatever the `bindings` listing showed them. A pad button may
+    /// be qualified with `pad:` to say which device is meant, since four face
+    /// buttons and four keyboard keys share the names A/B/X/Y.
+    pub fn parse(text: &str) -> Option<InputSource> {
+        let wanted = normalize_source_name(text);
+        if wanted.is_empty() {
+            return None;
+        }
+        if let Some(pad) = wanted.strip_prefix("pad:") {
+            return BINDABLE_PAD
+                .iter()
+                .copied()
+                .find(|button| pad_names(*button).iter().any(|name| name == pad))
+                .map(InputSource::Gamepad);
+        }
+        InputSource::bindable().find(|source| {
+            let names = match source {
+                InputSource::Keyboard(key) => vec![
+                    normalize_source_name(&keyboard_label(*key)),
+                    normalize_source_name(&key_symbol(*key)),
+                    normalize_source_name(&format!("{key:?}")),
+                ],
+                InputSource::Mouse(button) => vec![
+                    normalize_source_name(&InputSource::Mouse(*button).label()),
+                    normalize_source_name(&InputSource::Mouse(*button).readout_label()),
+                    normalize_source_name(&format!("{button:?}")),
+                ],
+                InputSource::Gamepad(button) => pad_names(*button),
+            };
+            names.iter().any(|name| *name == wanted)
+        })
+    }
+}
+
+/// The names one pad button answers to, already normalized.
+fn pad_names(button: GamepadButton) -> Vec<String> {
+    vec![
+        normalize_source_name(&gamepad_label(button)),
+        normalize_source_name(&format!("{button:?}")),
+    ]
+}
+
+/// Lower-case and strip the spaces, dashes and underscores a printed label
+/// carries, so `Left Ctrl`, `left-ctrl` and `ControlLeft` all compare equal
+/// against the same table.
+///
+/// A single character is left alone: `-` is the whole name of the minus key,
+/// and stripping it would leave nothing to compare.
+fn normalize_source_name(text: &str) -> String {
+    let text = text.trim().to_ascii_lowercase();
+    if text.chars().count() <= 1 {
+        return text;
+    }
+    text.chars()
+        .filter(|c| !matches!(c, ' ' | '-' | '_'))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +532,57 @@ mod tests {
             "Space",
             "a pad button is not a chip; the first keycap wins"
         );
+    }
+    /// Whatever the game PRINTS for a source has to read back as that source:
+    /// a player types back what the bindings listing showed them. A pad button
+    /// is qualified, because four of them share a name with a keyboard key.
+    #[test]
+    fn every_bindable_source_parses_back_from_what_it_prints() {
+        for source in InputSource::bindable() {
+            let qualify = |printed: String| match source {
+                InputSource::Gamepad(_) => format!("pad:{printed}"),
+                _ => printed,
+            };
+            for printed in [source.label(), source.readout_label()] {
+                let printed = qualify(printed);
+                assert_eq!(
+                    InputSource::parse(&printed),
+                    Some(source),
+                    "{printed:?} must read back as {source:?}",
+                );
+            }
+        }
+    }
+
+    /// A/B/X/Y name four face buttons AND four keyboard keys. The bare word is
+    /// the keyboard one; the pad needs its device.
+    #[test]
+    fn a_pad_face_button_needs_its_device_to_beat_the_keyboard_key() {
+        assert_eq!(
+            InputSource::parse("A"),
+            Some(InputSource::Keyboard(KeyCode::KeyA)),
+        );
+        assert_eq!(
+            InputSource::parse("pad:A"),
+            Some(InputSource::Gamepad(GamepadButton::South)),
+        );
+    }
+
+    /// Spelling is not the point: the spacing and case a label happens to use
+    /// must not decide whether a rebind works.
+    #[test]
+    fn a_source_name_ignores_case_spacing_and_the_variant_spelling() {
+        let ctrl = Some(InputSource::Keyboard(KeyCode::ControlLeft));
+        for spelling in [
+            "Left Ctrl",
+            "left ctrl",
+            "left-ctrl",
+            "ControlLeft",
+            "controlleft",
+        ] {
+            assert_eq!(InputSource::parse(spelling), ctrl, "{spelling}");
+        }
+        assert_eq!(InputSource::parse("  "), None);
+        assert_eq!(InputSource::parse("no such key"), None);
     }
 }

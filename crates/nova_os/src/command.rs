@@ -13,7 +13,11 @@
 use bevy::prelude::*;
 use nova_input::prelude::InputBindings;
 
-use crate::{app::prelude::*, shell::prelude::*, terminal::TerminalMode};
+use crate::{
+    app::prelude::*,
+    shell::prelude::*,
+    terminal::{ShellKind, TerminalMode},
+};
 
 /// What a [`TerminalCommand`] does when it runs: launch its app (owning the app
 /// runtime) or perform a CLI action.
@@ -171,6 +175,11 @@ pub fn core_terminal_commands() -> Vec<TerminalCommand> {
         TerminalCommand::cli("objectives", "Print active objectives", CliOutput::Snapshot),
         TerminalCommand::cli("clear", "Clear terminal scrollback", CliOutput::Clear),
         TerminalCommand::cli("version", "Print the NOVA OS version", CliOutput::Version),
+        TerminalCommand::cli(
+            "commands",
+            "Enter the game command shell",
+            CliOutput::EnterCommands,
+        ),
         TerminalCommand::cli("exit", "Suspend the NOVA OS computer", CliOutput::Exit),
     ]
 }
@@ -233,13 +242,15 @@ impl NovaOsCommandRegistry {
 /// at the prompt, or the running app's own [`NovaOsAppRuntime::hints`] while an
 /// app owns the screen.
 pub fn nova_os_footer_hints(
+    shell: ShellKind,
     mode: TerminalMode,
     registry: &NovaOsCommandRegistry,
     bindings: &InputBindings,
 ) -> Vec<String> {
-    match mode {
-        TerminalMode::Prompt => terminal_hints(bindings),
-        TerminalMode::App { id } => registry
+    match (shell, mode) {
+        (ShellKind::Commands, _) => command_shell_hints(bindings),
+        (ShellKind::NovaOs, TerminalMode::Prompt) => terminal_hints(bindings),
+        (ShellKind::NovaOs, TerminalMode::App { id }) => registry
             .app_runtime(id)
             .map(|app| app.hints(bindings))
             .unwrap_or_else(|| terminal_hints(bindings)),
@@ -289,6 +300,7 @@ mod tests {
                 "objectives",
                 "clear",
                 "version",
+                "commands",
                 "exit",
                 "map",
                 "map view",

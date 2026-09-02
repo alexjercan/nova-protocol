@@ -26,8 +26,10 @@ use bevy::prelude::*;
 pub mod asset_ref;
 pub mod audio;
 pub mod beacon;
+pub mod cheats;
 pub mod cooldown;
 pub mod damage;
+pub mod freeze;
 pub mod gravity;
 pub mod impact_sound;
 pub mod impact_spark;
@@ -98,14 +100,14 @@ pub mod prelude {
     // INERT (task 20260802-183403). The glob is gone with the dependency, but
     // the lesson outlives it: adding a name below is a decision.
     pub use super::{
-        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cooldown::prelude::*,
-        damage::prelude::*, gravity::prelude::*, impact_sound::prelude::*,
-        impact_spark::prelude::*, integrity::prelude::*, juice::prelude::*, lifetime::prelude::*,
-        markers::prelude::*, math::prelude::*, mesh::prelude::*, objectives::prelude::*,
-        plugin::prelude::*, projectile_hooks::prelude::*, relations::prelude::*,
-        rounds::prelude::*, settings::prelude::*, shake::prelude::*, soft_dot::prelude::*,
-        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
-        PauseStates,
+        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, cheats::prelude::*,
+        cooldown::prelude::*, damage::prelude::*, freeze::prelude::*, gravity::prelude::*,
+        impact_sound::prelude::*, impact_spark::prelude::*, integrity::prelude::*,
+        juice::prelude::*, lifetime::prelude::*, markers::prelude::*, math::prelude::*,
+        mesh::prelude::*, objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
+        relations::prelude::*, rounds::prelude::*, settings::prelude::*, shake::prelude::*,
+        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
+        GameMode, GameStates, PauseStates,
     };
 }
 

@@ -48,7 +48,6 @@ fn broken_mod() -> (tempfile::TempDir, &'static str) {
                                 input_mapping: {
                                     "guns": [ Keyboard(Space) ],
                                 },
-                                infinite_ammo: false,
                             )),
                             hull: Inline((
                                 sections: [

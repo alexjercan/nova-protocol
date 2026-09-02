@@ -486,7 +486,6 @@ fn player_ship() -> ScenarioObjectConfig {
                 // Finite ammo: the weapons auto-reload, so a spent magazine
                 // recovers on its own; the player sees the ammo readout and
                 // reload cadence from the first scenario.
-                infinite_ammo: false,
             }),
             hull: ships::hull(ships::CARGOA_SHIP_ID),
             modifications: vec![ships::on_section(

@@ -5,7 +5,7 @@
 //! `content lint` CLI and the CI gate test; not part of the game runtime.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
@@ -21,7 +21,9 @@ use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
-    content_report::{AckedFinding, Category, ContentReport, Finding, Severity as ReportSeverity},
+    content_report::{
+        AckedFinding, Category, ContentReport, CreativeMap, Finding, Severity as ReportSeverity,
+    },
 };
 
 /// The two report walks (`collect_*`), the two issue-only walks (`lint_*`),
@@ -478,6 +480,22 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
     out
 }
 
+/// The injection actions one scenario's script runs, sorted and deduplicated.
+///
+/// Empty means the scenario only does bookkeeping - objectives, variables,
+/// story, camera - which is what a scenario IS, and is not a classification.
+/// Non-empty makes it a creative map. Computed here and never authored: a
+/// scenario cannot declare itself clean.
+fn scenario_injections(scenario: &ScenarioConfig) -> Vec<String> {
+    let mut names: BTreeSet<&'static str> = BTreeSet::new();
+    for event in &scenario.events {
+        for action in &event.actions {
+            action.collect_injections(&mut names);
+        }
+    }
+    names.into_iter().map(str::to_string).collect()
+}
+
 fn lint_severity(severity: LintSeverity) -> ReportSeverity {
     match severity {
         LintSeverity::Error => ReportSeverity::Error,
@@ -642,6 +660,24 @@ fn build_report(
         }
     }
 
+    // 4. Creative-map classification. Context, not a finding: the report says
+    // which scenarios reach into the world, and nobody is accused of anything.
+    let mut creative_maps = Vec::new();
+    for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
+        for scenario in &bundle.scenarios {
+            let actions = scenario_injections(scenario);
+            if actions.is_empty() {
+                continue;
+            }
+            creative_maps.push(CreativeMap {
+                bundle: bundle.id.clone(),
+                file: file_of(&bundle.id, &scenario.id),
+                scenario: scenario.id.clone(),
+                actions,
+            });
+        }
+    }
+
     let bundles: Vec<String> = all
         .iter()
         .map(|b| b.id.clone())
@@ -654,6 +690,7 @@ fn build_report(
         scenarios_audited,
         findings,
         acked: acked_findings,
+        creative_maps,
     }
 }
 

@@ -138,7 +138,6 @@ pub fn the_ring_with_hull(
         SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         None,
         kit::kenney_hull(ships, hull),

@@ -196,8 +196,8 @@ fn commit_fresh_torpedoes(
 
 /// The defender: a real player hull with a flight computer and one PDC.
 ///
-/// `infinite_ammo` keeps the magazine out of the story - this range is about
-/// who holds the mount, not what an intercept costs.
+/// The PDC carries no magazine, which keeps ammunition out of the story - this
+/// range is about who holds the mount, not what an intercept costs.
 fn defender(sections: &GameSections) -> SpaceshipConfig {
     fixtures::ship(
         sections,
@@ -210,7 +210,6 @@ fn defender(sections: &GameSections) -> SpaceshipConfig {
                 ],
             )]),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         &[
             SectionSpec::new("defender_hull", "reinforced_hull_section", Vec3::ZERO),
@@ -223,7 +222,8 @@ fn defender(sections: &GameSections) -> SpaceshipConfig {
                 DEFENDER_GUNS,
                 "pdc_kinetic_turret_section",
                 Vec3::new(0.0, 0.75, 0.0),
-            ),
+            )
+            .unlimited(),
         ],
     )
 }

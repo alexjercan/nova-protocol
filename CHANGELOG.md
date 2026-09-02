@@ -54,6 +54,15 @@ does NOT get an entry - and it is the only place they are written down.
 - The editor's inspector and gallery read lengths and speeds in meters. The
   file keeps the authored world unit (10 m); a box converts both ways, so a
   builder types what the HUD reads.
+- Press `:` anywhere - menu, editor, flight, pause screen - and the ship
+  computer opens on a second shell. One CRT, two languages: `commands`
+  switches, and each keeps its own transcript and history.
+- The command shell reads the run and writes your settings: 27 commands in
+  four classes, with `help`, completion and the wiki catalog all generated
+  from one registry.
+- Cheats are refused until you run `cheats enable`, which marks the run one
+  way and turns the header amber. A fresh scenario is a fresh run and clears
+  the mark.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull
@@ -77,6 +86,15 @@ does NOT get an entry - and it is the only place they are written down.
 - A railgun authors an optional `rake_radius`: a sphere that trails the slug's
   tip and widens the hole out of the same power. Omitted, the slug stays a
   needle.
+- Two actions reach a live ship's magazines: `SetInfiniteAmmo` suspends them
+  and gives back the authored capacity, full; `RefillAmmo` tops up one section
+  or every weapon.
+- **(breaking)** A player controller's `infinite_ammo` is gone. Delete the
+  field: a gun that should never run dry omits its `ammo_capacity`, and
+  content grants the rest with `SetInfiniteAmmo`.
+- `content lint` reports each scenario's creative map - the world-injecting
+  actions it runs. It is context on the report, never a finding, and never
+  changes the exit code.
 
 ### Web & Platform
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
@@ -92,6 +110,9 @@ does NOT get an entry - and it is the only place they are written down.
   10 m world unit stays in content files, where the creator docs say so.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
+- The wiki gets a Commands page: the `:` shell, what its introduction reports,
+  and the whole catalog by class - utility, read-only, settings, and the
+  cheats that mark a run.
 
 ### Audio & Visuals
 - The sound set is re-recorded and twice the size: guns, ordnance, impacts,
@@ -147,6 +168,9 @@ does NOT get an entry - and it is the only place they are written down.
 - An autopilot deadline counts real seconds, so a beat behind the pause overlay
   or the ship computer - where the game clock stops - aborts named instead of
   holding the run open forever.
+- The process channel gains a `command` lane carrying the exact text a player
+  would type, answered with the same result the screen prints. `action` is
+  refused for good and points at it.
 
 ## [0.12.0] - 2026-08-31
 

@@ -548,6 +548,8 @@ fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
         EventActionConfig::SetControllerVerb(config) => Some(config),
         EventActionConfig::SetAllegiance(config) => Some(config),
         EventActionConfig::ForceTorpedoLaunch(config) => Some(config),
+        EventActionConfig::SetInfiniteAmmo(config) => Some(config),
+        EventActionConfig::RefillAmmo(config) => Some(config),
         EventActionConfig::CreateScenarioArea(config) => Some(config),
         EventActionConfig::NextScenario(config) => Some(config),
         EventActionConfig::SetCamera(config) => Some(config),
@@ -580,6 +582,8 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
         EventActionConfig::SetControllerVerb(config) => Some(config),
         EventActionConfig::SetAllegiance(config) => Some(config),
         EventActionConfig::ForceTorpedoLaunch(config) => Some(config),
+        EventActionConfig::SetInfiniteAmmo(config) => Some(config),
+        EventActionConfig::RefillAmmo(config) => Some(config),
         EventActionConfig::CreateScenarioArea(config) => Some(config),
         EventActionConfig::NextScenario(config) => Some(config),
         EventActionConfig::SetCamera(config) => Some(config),
@@ -640,6 +644,10 @@ pub(crate) enum ActionChoice {
     SetAllegiance,
     /// Order a ship's torpedo bays to launch.
     ForceTorpedoLaunch,
+    /// Take a ship's magazines away, or give them back.
+    SetInfiniteAmmo,
+    /// Refill a ship's magazines, or one section's.
+    RefillAmmo,
     /// Declare the scenario won or lost.
     Outcome,
     /// Queue a switch to another scenario.
@@ -658,7 +666,7 @@ pub(crate) enum ActionChoice {
 
 impl ActionChoice {
     /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 26] = [
+    pub(crate) const ALL: [ActionChoice; 28] = [
         ActionChoice::Objective,
         ActionChoice::ObjectiveComplete,
         ActionChoice::ObjectiveMarkerAttach,
@@ -678,6 +686,8 @@ impl ActionChoice {
         ActionChoice::SetControllerVerb,
         ActionChoice::SetAllegiance,
         ActionChoice::ForceTorpedoLaunch,
+        ActionChoice::SetInfiniteAmmo,
+        ActionChoice::RefillAmmo,
         ActionChoice::Outcome,
         ActionChoice::NextScenario,
         ActionChoice::Sequence,
@@ -709,6 +719,8 @@ impl ActionChoice {
             ActionChoice::SetControllerVerb => "Set Flight Verb",
             ActionChoice::SetAllegiance => "Set Allegiance",
             ActionChoice::ForceTorpedoLaunch => "Torpedo Launch",
+            ActionChoice::SetInfiniteAmmo => "Set Infinite Ammo",
+            ActionChoice::RefillAmmo => "Refill Ammo",
             ActionChoice::Outcome => "Outcome",
             ActionChoice::NextScenario => "Next Scenario",
             ActionChoice::Sequence => "Sequence",
@@ -741,6 +753,8 @@ impl ActionChoice {
             ActionChoice::SetControllerVerb => "verb",
             ActionChoice::SetAllegiance => "allegiance",
             ActionChoice::ForceTorpedoLaunch => "launch",
+            ActionChoice::SetInfiniteAmmo => "unlimited",
+            ActionChoice::RefillAmmo => "refill",
             ActionChoice::Outcome => "outcome",
             ActionChoice::NextScenario => "next",
             ActionChoice::Sequence => "sequence",
@@ -867,6 +881,16 @@ impl ActionChoice {
                     target: String::new(),
                 })
             }
+            ActionChoice::SetInfiniteAmmo => {
+                EventActionConfig::SetInfiniteAmmo(SetInfiniteAmmoActionConfig {
+                    id: String::new(),
+                    enabled: true,
+                })
+            }
+            ActionChoice::RefillAmmo => EventActionConfig::RefillAmmo(RefillAmmoActionConfig {
+                id: String::new(),
+                section: None,
+            }),
             ActionChoice::Outcome => EventActionConfig::Outcome(OutcomeActionConfig::new(
                 ScenarioOutcomeKind::Victory,
                 "",
@@ -947,6 +971,8 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
             EventActionConfig::SetControllerVerb(_) => ActionChoice::SetControllerVerb,
             EventActionConfig::SetAllegiance(_) => ActionChoice::SetAllegiance,
             EventActionConfig::ForceTorpedoLaunch(_) => ActionChoice::ForceTorpedoLaunch,
+            EventActionConfig::SetInfiniteAmmo(_) => ActionChoice::SetInfiniteAmmo,
+            EventActionConfig::RefillAmmo(_) => ActionChoice::RefillAmmo,
             EventActionConfig::CreateScenarioArea(_) => ActionChoice::CreateScenarioArea,
             EventActionConfig::NextScenario(_) => ActionChoice::NextScenario,
             EventActionConfig::SetCamera(_) => ActionChoice::SetCamera,

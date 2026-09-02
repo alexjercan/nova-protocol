@@ -38,6 +38,8 @@ pub struct SectionSpec {
     pub asset: String,
     /// Offset from the ship origin.
     pub position: Vec3,
+    /// Build the section with no magazine; see [`SectionSpec::unlimited`].
+    pub unlimited: bool,
 }
 
 impl SectionSpec {
@@ -47,7 +49,17 @@ impl SectionSpec {
             id: id.into(),
             asset: asset.into(),
             position,
+            unlimited: false,
         }
+    }
+
+    /// Take the magazine off this slot's weapon, so it never runs dry.
+    ///
+    /// The per-slot replacement for the removed ship-wide `infinite_ammo`
+    /// grant: a harness whose subject is not the magazine says so on the gun.
+    pub fn unlimited(mut self) -> Self {
+        self.unlimited = true;
+        self
     }
 }
 
@@ -69,12 +81,17 @@ pub fn ship(
                     id: spec.id.clone(),
                     position: spec.position,
                     rotation: Quat::IDENTITY,
-                    source: SectionSource::Inline(
-                        sections
+                    source: SectionSource::Inline({
+                        let section = sections
                             .get_section(&spec.asset)
                             .unwrap_or_else(|| panic!("section '{}' not found", spec.asset))
-                            .clone(),
-                    ),
+                            .clone();
+                        if spec.unlimited {
+                            section.without_magazine()
+                        } else {
+                            section
+                        }
+                    }),
                     modifications: vec![],
                 })
                 .collect(),

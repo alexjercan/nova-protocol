@@ -20,6 +20,7 @@ real code lives under `crates/`.
 | `nova_hud`      | The flight HUD: one module per widget (crosshairs, target inset, ammo readout, flight status, objective markers, the comms panel, the keybind dock, the screen-indicator projection they all share). Reads gameplay state and never drives it, so the dependency runs `nova_hud -> nova_gameplay`. `nova_core` adds `NovaHudPlugin` render-gated, and the crate places `NovaHudSystems` between the section and camera sets itself. |
 | `nova_os`       | NOVA OS logic with no UI in it: the terminal model (`terminal`), the shell command language and typo suggestions (`shell`), and the app runtime seam (`app`). |
 | `nova_os_ui`    | The NOVA OS cockpit monitor the player opens with Tab: the CRT casing and shader, the terminal nodes and keyboard/pointer systems (`terminal`), and the two apps that run on it - `map` (schematic local space) and `ship` (schematic player ship). A PEER of the flight HUD, not one of its widgets: `nova_core` adds it, and nothing in `nova_hud` reaches into it (it reads `NovaHudAssets` and `NovaHudSystems`, so it sits ABOVE `nova_hud`). |
+| `nova_console`  | The Command shell's dispatcher: the executor behind the CRT's `cmd>` prompt and the channel's `command` lane. `nova_os` owns the LANGUAGE (catalog metadata, parser, `CommandChannel`) and stays a leaf; this crate owns the half that touches the world - inspection, the persisted settings, and the armed cheats. It sits ABOVE `nova_menu` on purpose: a `graphics` or `volume` command writes the very resources the settings screen owns, and one of them has to be downstream. |
 | `nova_scenario` | Scenario/modding engine: `events`, `filters`, `actions`, `variables`, `world`, `loader`, `objects/`, `lint/` (the scenario half of the `content -- lint` checks), `render_scale` (the Low-preset resolution lever: scenario view into a reduced offscreen target, upscaled to the window). See [Scenario engine](scenario-system.md). |
 | `nova_events`   | Game event kinds and entity identity components, shared between gameplay and scenario. |
 | `nova_events_macros` | Procedural macros behind `nova_events`' derives. |
@@ -32,6 +33,7 @@ real code lives under `crates/`.
 | `nova_info`     | Exposes `APP_VERSION`, injected by `build.rs`. |
 | `nova_autopilot` | Scripted automation drivers and the run-completion protocol the harness examples share. Engine-facing but game-agnostic; `nova_debug`, `nova_probe` and `nova_probe_cli` all build on it. See [Automation harness](automation-harness.md). |
 | `nova_probe`    | Dev tooling (not in the shipped game): the IN-GAME half of the run-harness - the capability plugins an example wires to collect evidence about its own run (`capabilities::` `frametime`, `timeline`, `invariants`, `snapshot`, `census`, `framecost`, all bundled by `NovaProbePlugin`), the `contract` an example declares, and the wire format the host reads. See [Measuring performance](performance.md) and [Building and running](development.md). |
+| `nova_channel`  | Dev tooling (not in the shipped game): the process channel a harness drives the running game through - named input holds, aim deltas, text, raw keys, pointer moves and `command` lines read as JSON lines on stdin, with world snapshots and per-line acknowledgements written back on stdout. It depends on `nova_os` for the command LANGUAGE, never on `nova_console`, so the wire cannot pull gameplay into a tool that only wanted to type. See [Automation harness](automation-harness.md). |
 | `nova_probe_cli` | Dev tooling: the HOST half of the run-harness - spawns autopilot runs as child processes, grades their artifacts (`evaluation`) and renders the reports (`report`). Owns the `cargo run --features debug probe run/report` CLI. The two halves meet at the filesystem: nothing in `nova_probe` reads a run's output back. |
 | `nova_perf_web` | The wasm app `probe run --platform web` boots and measures: the real game started into a scenario with the frame-time capture armed. Dev tooling, never shipped. |
 | `nova_authoring` | The OFFLINE half of the content pipeline (never shipped): the Rust builders that define every built-in scenario and section, the `content -- gen` serializer that writes them to the committed `assets/base/**/*.content.ron`, and the `content -- lint` walk that validates a content tree. |
@@ -48,6 +50,7 @@ graph TD
     core --> ship["nova_ship"]
     core --> hud["nova_hud"]
     core --> osui["nova_os_ui"]
+    core --> console["nova_console"]
     core --> scenario["nova_scenario"]
     core --> assets["nova_assets"]
     ship --> gameplay
@@ -61,6 +64,9 @@ graph TD
     osui --> os["nova_os"]
     osui --> ui
     menu --> osui
+    console --> menu
+    console --> os
+    console --> scenario
     menu --> ui
     editor --> ship
     editor --> ui
@@ -190,12 +196,19 @@ juice, settings. The ship stack (input, sections, flight, camera, physics) is
   `Loading -> Playing`. The `GameMode` resource (`Sandbox` default | `NewGame`)
   records what the menu handed off to.
 - `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
-  ESC pause overlay; `NovaOs` is the Tab ship-computer takeover (same clock
-  freeze, cursor freed, no pause menu). Both frozen variants enter only from
-  `Unpaused` and exit back to it, never into each other. `nova_gameplay` owns
-  the enum and gates the spaceship sets; `nova_menu` owns the toggle, the
-  overlay UI, and the clock freeze (`Time<Virtual>` + `Time<Physics>`). Only
-  meaningful inside `Playing`; leaving `Playing` resets it.
+  ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
+  is showing - Tab opens the ship computer, `:` opens the command shell (same
+  clock freeze, cursor freed, no pause menu). Both frozen variants enter only
+  from `Unpaused` and exit back to it, never into each other. `nova_gameplay`
+  owns the enum and gates the spaceship sets; `nova_menu` owns the toggles and
+  the overlay UI. Only meaningful inside `Playing`; leaving `Playing` resets it.
+- The freeze itself is a NAMED hold, not a boolean: `ClockFreeze` counts
+  `FreezeOwner::{PauseMenu, Terminal}` and stops `Time<Virtual>` +
+  `Time<Physics>` while any owner holds. It has to be named because the two
+  surfaces overlap - `:` opens the terminal over an already-paused game, and an
+  unconditional unpause on its close handed a paused player a running world.
+  Switching CRT shells never passes through the hold at all, so the world does
+  not tick between a release and the re-hold it would otherwise need.
 - `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
   pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
   `examples/systems/system_scenario_grammar.rs`.
@@ -383,6 +396,11 @@ Never hand-edit the generated files; edit the builders and re-run `gen`.
 - States: `GameStates`, `PauseStates`, `GameMode` -
   `crates/nova_gameplay/src/lib.rs`; ESC overlay and clock freeze -
   `crates/nova_menu/src/pause.rs`.
+- The CRT's two shells: the terminal model and `ShellKind` -
+  `crates/nova_os/src/terminal/state.rs`; the command catalog, parser and
+  `CommandChannel` - `crates/nova_os/src/commands.rs`; the dispatcher that runs
+  them against the world - `crates/nova_console/src/dispatch.rs`; the `:`
+  gesture - `open_command_shell` in `crates/nova_menu/src/pause.rs`.
 - Frame-flow sets: `SpaceshipSystems` - `crates/nova_gameplay/src/plugin.rs`;
   chained in `Update` + `FixedUpdate` by `NovaShipPlugin` -
   `crates/nova_ship/src/lib.rs`.

@@ -83,15 +83,6 @@ pub struct PlayerControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub speed_cap: Option<f32>,
-    /// Give this player ship unlimited ammunition: its weapon sections are
-    /// built with `ammo_capacity = None`, so no [`SectionAmmo`] is attached and
-    /// the guns never run dry. Player-scoped: enemies are unaffected.
-    ///
-    /// A DEBUG-ONLY CHEAT. Only a build carrying the `debug` feature honors it -
-    /// examples and the probe harness, which want guns that never gate on a
-    /// reload. A shipped build logs a warning and keeps the authored magazines,
-    /// so no released scenario can hand the player free point defense.
-    pub infinite_ammo: bool,
 }
 
 /// AI-driver settings for a [`SpaceshipController::AI`] ship: its passive
@@ -406,31 +397,6 @@ fn insert_spaceship_sections(
         ShipCollapseSound(hull.collapse_sound.clone()),
     ));
 
-    // A player ship flagged for infinite ammo has its weapons built without a
-    // magazine: overriding `ammo_capacity` to None means `insert_turret_section`
-    // / `insert_torpedo_section` attach no `SectionAmmo`, which is exactly the
-    // unlimited-ammo default. Enemy ships are never flagged, so they keep theirs.
-    //
-    // The grant is a DEBUG-ONLY cheat. A shipped build ignores the flag and
-    // every player ship fights on its authored magazines, so point defense
-    // costs something; examples and harness runs, which build `--features
-    // debug`, keep guns that never gate on a reload.
-    let flagged =
-        matches!(controller_config, SpaceshipController::Player(config) if config.infinite_ammo);
-    #[cfg(feature = "debug")]
-    let infinite_ammo = flagged;
-    #[cfg(not(feature = "debug"))]
-    let infinite_ammo = {
-        if flagged {
-            warn!(
-                "insert_spaceship_sections: entity {:?} authors infinite_ammo, a debug-only \
-                 cheat; this build ignores it and keeps the authored magazines",
-                entity
-            );
-        }
-        false
-    };
-
     // An AI ship with no turret or torpedo section cannot fight; it becomes a
     // non-combatant below so it flies its routine and never chases. Tracked
     // through the section loop.
@@ -494,10 +460,7 @@ fn insert_spaceship_sections(
                 }
                 SectionKind::Turret(turret_config) => {
                     has_weapon = true;
-                    let mut turret_config = turret_config.clone();
-                    if infinite_ammo {
-                        turret_config.ammo_capacity = None;
-                    }
+                    let turret_config = turret_config.clone();
                     section_entity.insert(turret_section(turret_config));
 
                     match controller_config {
@@ -513,10 +476,7 @@ fn insert_spaceship_sections(
                 }
                 SectionKind::Torpedo(torpedo_config) => {
                     has_weapon = true;
-                    let mut torpedo_config = torpedo_config.clone();
-                    if infinite_ammo {
-                        torpedo_config.ammo_capacity = None;
-                    }
+                    let torpedo_config = torpedo_config.clone();
                     section_entity.insert(torpedo_section(torpedo_config));
 
                     match controller_config {
@@ -532,10 +492,7 @@ fn insert_spaceship_sections(
                 }
                 SectionKind::Railgun(railgun_config) => {
                     has_weapon = true;
-                    let mut railgun_config = railgun_config.clone();
-                    if infinite_ammo {
-                        railgun_config.ammo_capacity = None;
-                    }
+                    let railgun_config = railgun_config.clone();
                     section_entity.insert(railgun_section(railgun_config));
 
                     match controller_config {
@@ -754,79 +711,6 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
     }
 
-    /// `infinite_ammo` is a debug-only cheat. Under the `debug` feature a
-    /// flagged Player ship builds its weapon with no magazine (`ammo_capacity`
-    /// None, so `insert_turret_section` attaches no `SectionAmmo` - that half is
-    /// covered by the ammo tests); without it the flag is ignored and the
-    /// authored `Some(10)` survives, which is the shipped-build guarantee.
-    /// Unflagged keeps the magazine either way. Asserting on the section's
-    /// config helper is the right boundary for this scenario-side override.
-    #[test]
-    fn player_infinite_ammo_strips_the_weapon_magazine() {
-        fn turret_ammo_capacity(infinite_ammo: bool) -> Option<u32> {
-            let mut world = World::new();
-            world.init_resource::<GameSections>();
-            world.init_resource::<GameShips>();
-            world.add_observer(insert_spaceship_sections);
-            world.spawn((
-                Transform::default(),
-                spaceship_scenario_object(SpaceshipConfig {
-                    controller: SpaceshipController::Player(PlayerControllerConfig {
-                        infinite_ammo,
-                        ..default()
-                    }),
-                    hull: ShipSource::Inline(ShipHull {
-                        sections: vec![SpaceshipSectionConfig {
-                            id: "turret".to_string(),
-                            position: Vec3::ZERO,
-                            rotation: Quat::IDENTITY,
-                            source: SectionSource::Inline(SectionConfig {
-                                base: BaseSectionConfig {
-                                    id: "turret".to_string(),
-                                    ..default()
-                                },
-                                kind: SectionKind::Turret(TurretSectionConfig {
-                                    ammo_capacity: Some(10),
-                                    ..default()
-                                }),
-                            }),
-                            modifications: vec![],
-                        }],
-                        ..default()
-                    }),
-                    ..default()
-                }),
-            ));
-            world.flush();
-            let mut q = world.query::<&TurretSectionConfigHelper>();
-            q.iter(&world)
-                .next()
-                .expect("a turret section was spawned")
-                .ammo_capacity
-        }
-
-        #[cfg(feature = "debug")]
-        assert_eq!(
-            turret_ammo_capacity(true),
-            None,
-            "under `debug` infinite_ammo must strip the weapon magazine"
-        );
-        #[cfg(not(feature = "debug"))]
-        assert_eq!(
-            turret_ammo_capacity(true),
-            Some(10),
-            "outside `debug` the cheat is ignored and the magazine is kept"
-        );
-        assert_eq!(
-            turret_ammo_capacity(false),
-            Some(10),
-            "without the flag the authored magazine is kept"
-        );
-    }
-
-    /// An AI ship with no turret/torpedo section is tagged `AINonCombatant` at
-    /// spawn, so it flies its routine and never chases; an armed AI ship is
-    /// not. Non-AI ships never get the tag regardless.
     #[test]
     fn an_unarmed_ai_ship_is_flagged_non_combatant() {
         let mut world = World::new();

@@ -1,26 +1,27 @@
 //! Prompt editing: typing and caret movement, submit, tab completion, history
 //! recall and the parse refresh that keeps the prompt's status live.
+//!
+//! Every method here works on the ACTIVE shell's [`ShellSession`], so one
+//! editor serves both shell languages: the CRT owns the keys, and which
+//! vocabulary they are typed into is a field on the emulator.
 
 use bevy::prelude::*;
 
 use super::{
     state::{
-        parsed_prompt, NovaOsCommandInvocation, TerminalParseStatus, TerminalRow, TerminalRowKind,
+        parsed_prompt, CommandInvocation, NovaOsCommandInvocation, ShellKind, TerminalParseStatus,
+        TerminalRow, TerminalRowKind, MAX_HISTORY,
     },
     view::{command_help_rows, nova_os_version_rows, terminal_help_rows},
     NovaOsTerminal, TerminalCommandSnapshot, TerminalMode,
 };
-use crate::shell::{
-    resolve_command, subcommands_of, terminal_command_names, CliOutput, CommandDispatch,
-    ResolvedCommand,
+use crate::{
+    commands::prelude::{resolve_command_line, CommandOutcome, CommandStatus},
+    shell::{
+        resolve_command, subcommands_of, terminal_command_names, CliOutput, CommandDispatch,
+        ResolvedCommand,
+    },
 };
-
-const NOVA_OS_PROMPT_PREFIX: &str = "nova> ";
-
-/// The most command lines the history keeps. Only `reset_session` ever clears
-/// it, so an unbounded history is both an unbounded allocation and an unusable
-/// Up-arrow: 200 repeats of `log` means 200 presses to reach anything else.
-const MAX_HISTORY: usize = 200;
 
 /// The semantic result of a [`NovaOsTerminal::submit`], so the bevy layer can
 /// pick the sound cue without the pure model knowing about audio.
@@ -34,80 +35,84 @@ pub enum TerminalSubmitOutcome {
     Errored,
     /// An app launch word handed the screen to an app.
     Launched,
+    /// A Command-shell command was parsed and handed to the dispatcher. Its
+    /// rows and its ok/error cue belong to the dispatcher's result, one system
+    /// later in the same frame - the submit itself decided nothing.
+    Dispatched,
 }
 
 impl NovaOsTerminal {
     /// Insert typed text at the caret (control characters are filtered out).
     pub fn insert_text(&mut self, text: &str) {
+        let session = self.session_mut();
         for ch in text.chars().filter(|ch| !ch.is_control()) {
-            self.prompt.insert(self.cursor, ch);
-            self.cursor += ch.len_utf8();
+            session.prompt.insert(session.cursor, ch);
+            session.cursor += ch.len_utf8();
         }
-        self.history_cursor = None;
-        self.cycle_stem = None;
-        self.refresh_parse();
+        self.after_edit();
     }
 
     /// Delete the character before the caret.
     pub fn backspace(&mut self) {
-        if self.cursor == 0 {
+        let session = self.session_mut();
+        if session.cursor == 0 {
             return;
         }
-        if let Some((idx, _)) = self.prompt[..self.cursor].char_indices().last() {
-            self.prompt.drain(idx..self.cursor);
-            self.cursor = idx;
+        if let Some((idx, _)) = session.prompt[..session.cursor].char_indices().last() {
+            session.prompt.drain(idx..session.cursor);
+            session.cursor = idx;
         }
-        self.history_cursor = None;
-        self.cycle_stem = None;
-        self.refresh_parse();
+        self.after_edit();
     }
 
     /// Delete the character at the caret.
     pub fn delete(&mut self) {
-        if self.cursor >= self.prompt.len() {
+        let session = self.session_mut();
+        if session.cursor >= session.prompt.len() {
             return;
         }
-        let end = self.prompt[self.cursor..]
+        let end = session.prompt[session.cursor..]
             .char_indices()
             .nth(1)
-            .map(|(offset, _)| self.cursor + offset)
-            .unwrap_or(self.prompt.len());
-        self.prompt.drain(self.cursor..end);
-        self.history_cursor = None;
-        self.cycle_stem = None;
-        self.refresh_parse();
+            .map(|(offset, _)| session.cursor + offset)
+            .unwrap_or(session.prompt.len());
+        session.prompt.drain(session.cursor..end);
+        self.after_edit();
     }
 
     /// Move the caret one character left.
     pub fn move_cursor_left(&mut self) {
-        if self.cursor == 0 {
+        let session = self.session_mut();
+        if session.cursor == 0 {
             return;
         }
-        if let Some((idx, _)) = self.prompt[..self.cursor].char_indices().last() {
-            self.cursor = idx;
+        if let Some((idx, _)) = session.prompt[..session.cursor].char_indices().last() {
+            session.cursor = idx;
         }
     }
 
     /// Move the caret one character right.
     pub fn move_cursor_right(&mut self) {
-        if self.cursor >= self.prompt.len() {
+        let session = self.session_mut();
+        if session.cursor >= session.prompt.len() {
             return;
         }
-        self.cursor = self.prompt[self.cursor..]
+        session.cursor = session.prompt[session.cursor..]
             .char_indices()
             .nth(1)
-            .map(|(offset, _)| self.cursor + offset)
-            .unwrap_or(self.prompt.len());
+            .map(|(offset, _)| session.cursor + offset)
+            .unwrap_or(session.prompt.len());
     }
 
     /// Put the caret at the start of the line (Home, Ctrl+A).
     pub fn move_cursor_to_start(&mut self) {
-        self.cursor = 0;
+        self.session_mut().cursor = 0;
     }
 
     /// Put the caret at the end of the line (End, Ctrl+E).
     pub fn move_cursor_to_end(&mut self) {
-        self.cursor = self.prompt.len();
+        let session = self.session_mut();
+        session.cursor = session.prompt.len();
     }
 
     /// Cut everything before the caret (Ctrl+U).
@@ -116,51 +121,105 @@ impl NovaOsTerminal {
     /// prompt that is one line long, and the line it cut is one Up-arrow away
     /// in the history the moment it was submitted.
     pub fn kill_to_start(&mut self) {
-        if self.cursor == 0 {
+        let session = self.session_mut();
+        if session.cursor == 0 {
             return;
         }
-        self.prompt.drain(..self.cursor);
-        self.cursor = 0;
-        self.history_cursor = None;
-        self.cycle_stem = None;
-        self.refresh_parse();
+        session.prompt.drain(..session.cursor);
+        session.cursor = 0;
+        self.after_edit();
     }
 
     /// Cut everything from the caret to the end of the line (Ctrl+K).
     pub fn kill_to_end(&mut self) {
-        if self.cursor >= self.prompt.len() {
+        let session = self.session_mut();
+        if session.cursor >= session.prompt.len() {
             return;
         }
-        self.prompt.truncate(self.cursor);
-        self.history_cursor = None;
-        self.cycle_stem = None;
+        session.prompt.truncate(session.cursor);
+        self.after_edit();
+    }
+
+    /// What every prompt mutation ends with: the history recall and the
+    /// completion cycle both describe a line the player has now changed.
+    fn after_edit(&mut self) {
+        let session = self.session_mut();
+        session.history_cursor = None;
+        session.cycle_stem = None;
         self.refresh_parse();
     }
 
     /// Run the current prompt line against `snapshot`, appending output to the
     /// scrollback and returning what kind of command ran.
+    ///
+    /// The echo, the history and the prompt reset are the EMULATOR's, shared by
+    /// both shells; only the middle - what the line means - is per-language.
     pub fn submit(&mut self, snapshot: &TerminalCommandSnapshot) -> TerminalSubmitOutcome {
-        let command_line = self.prompt.trim().to_string();
+        let command_line = self.prompt().trim().to_string();
         if command_line.is_empty() {
             self.reset_prompt();
             return TerminalSubmitOutcome::Empty;
         }
 
+        let prefix = self.prompt_prefix();
         self.push_row(TerminalRow {
             kind: TerminalRowKind::Input,
-            text: format!("{NOVA_OS_PROMPT_PREFIX}{command_line}"),
+            text: format!("{prefix}{command_line}"),
         });
         self.push_history(command_line.clone());
-        self.history_cursor = None;
-        self.cycle_stem = None;
+        let session = self.session_mut();
+        session.history_cursor = None;
+        session.cycle_stem = None;
 
-        // One matcher resolves every command - app launch words AND CLI commands -
-        // as (possibly multi-word) names with per-command arity. Dispatch is
-        // generic over the resolved command's `CommandDispatch`; there is no
-        // per-command name special case. An app launch leaves the scrollback
-        // untouched (exit restores it) and hands the screen to the app; a CLI
-        // command performs its action against `snapshot`.
-        let outcome = match resolve_command(&command_line, &self.commands) {
+        let outcome = match self.active_shell() {
+            ShellKind::NovaOs => self.submit_nova_os(&command_line, snapshot),
+            ShellKind::Commands => self.submit_command(&command_line),
+        };
+
+        self.reset_prompt();
+        // The switch lands AFTER the reset so `commands` clears the line it was
+        // typed on, not the line waiting in the shell it opens.
+        if let Some(shell) = self.pending_shell.take() {
+            self.switch_shell(shell);
+        }
+        outcome
+    }
+
+    /// The Command shell: one parser, one dispatcher. Anything answerable from
+    /// the catalog is answered here; everything else is queued for the
+    /// dispatcher, which is the same seam the process channel pushes into.
+    fn submit_command(&mut self, command_line: &str) -> TerminalSubmitOutcome {
+        let specs = self.session().commands.clone();
+        match resolve_command_line(command_line, &specs) {
+            CommandOutcome::Answer(result) => {
+                let errored = result.status != CommandStatus::Ok;
+                self.extend_scrollback(result.rows);
+                if errored {
+                    TerminalSubmitOutcome::Errored
+                } else {
+                    TerminalSubmitOutcome::Ran
+                }
+            }
+            CommandOutcome::Invoke(invocation) => {
+                self.pending_command = Some(invocation);
+                TerminalSubmitOutcome::Dispatched
+            }
+        }
+    }
+
+    /// The NOVA OS shell: one matcher resolves every command - app launch words
+    /// AND CLI commands - as (possibly multi-word) names with per-command arity.
+    /// Dispatch is generic over the resolved command's `CommandDispatch`; there
+    /// is no per-command name special case. An app launch leaves the scrollback
+    /// untouched (exit restores it) and hands the screen to the app; a CLI
+    /// command performs its action against `snapshot`.
+    fn submit_nova_os(
+        &mut self,
+        command_line: &str,
+        snapshot: &TerminalCommandSnapshot,
+    ) -> TerminalSubmitOutcome {
+        let commands = self.session().commands.clone();
+        match resolve_command(command_line, &commands) {
             ResolvedCommand::Run {
                 name,
                 dispatch: CommandDispatch::App,
@@ -186,16 +245,36 @@ impl NovaOsTerminal {
             }
             ResolvedCommand::Run {
                 name,
+                dispatch: CommandDispatch::Command,
+                args,
+            } => {
+                // The Command catalog is not registered on this shell, so this
+                // is unreachable in practice; queueing it keeps the two shells'
+                // dispatch honest if one ever shares a spec with the other.
+                if let Some(spec) = crate::commands::command_spec(name) {
+                    self.pending_command = Some(CommandInvocation {
+                        name,
+                        class: spec.class,
+                        args,
+                    });
+                }
+                TerminalSubmitOutcome::Dispatched
+            }
+            ResolvedCommand::Run {
+                name,
                 dispatch: CommandDispatch::Cli(output),
                 ..
             } => {
                 match output {
                     CliOutput::Help => {
-                        self.extend_scrollback(terminal_help_rows(&self.commands));
+                        self.extend_scrollback(terminal_help_rows(&commands));
                     }
                     CliOutput::Version => self.extend_scrollback(nova_os_version_rows()),
                     CliOutput::Clear => self.reset_scrollback_to_welcome(snapshot),
                     CliOutput::Exit => self.pending_close = true,
+                    // The CRT stays open across this: the switch keeps the
+                    // freeze and the animation, and Escape climbs back here.
+                    CliOutput::EnterCommands => self.pending_shell = Some(ShellKind::Commands),
                     // Snapshot commands (log/objectives/ship/map view) print the
                     // rows `nova_os_ui` placed under their name.
                     CliOutput::Snapshot => self.extend_scrollback(snapshot.output(name)),
@@ -203,12 +282,20 @@ impl NovaOsTerminal {
                 TerminalSubmitOutcome::Ran
             }
             ResolvedCommand::Usage { name } => {
-                self.extend_scrollback(command_help_rows(name, &self.commands));
+                self.extend_scrollback(command_help_rows(name, &commands));
                 TerminalSubmitOutcome::Ran
             }
             ResolvedCommand::Version => {
                 self.extend_scrollback(nova_os_version_rows());
                 TerminalSubmitOutcome::Ran
+            }
+            ResolvedCommand::Incomplete { name } => {
+                self.push_row(TerminalRow {
+                    kind: TerminalRowKind::Error,
+                    text: format!("{name}: incomplete command"),
+                });
+                self.extend_scrollback(command_help_rows(name, &commands));
+                TerminalSubmitOutcome::Errored
             }
             ResolvedCommand::UnexpectedArguments {
                 command,
@@ -220,7 +307,7 @@ impl NovaOsTerminal {
                 // subcommands the first overrun word is a bad sub-command; name it
                 // (`map: unknown subcommand 'v'`). Otherwise it took an argument it
                 // does not accept (`help: takes no arguments`).
-                let subs = subcommands_of(&command, &self.commands);
+                let subs = subcommands_of(&command, &commands);
                 self.push_row(TerminalRow {
                     kind: TerminalRowKind::Error,
                     text: if subs.is_empty() {
@@ -230,7 +317,7 @@ impl NovaOsTerminal {
                         format!("{command}: unknown subcommand '{bad}'")
                     },
                 });
-                self.extend_scrollback(command_help_rows(&command, &self.commands));
+                self.extend_scrollback(command_help_rows(&command, &commands));
                 TerminalSubmitOutcome::Errored
             }
             ResolvedCommand::Unknown {
@@ -255,10 +342,7 @@ impl NovaOsTerminal {
                 });
                 TerminalSubmitOutcome::Errored
             }
-        };
-
-        self.reset_prompt();
-        outcome
+        }
     }
 
     /// Tab completion that CYCLES through the matches instead of locking onto the
@@ -271,11 +355,12 @@ impl NovaOsTerminal {
     pub fn complete(&mut self) -> bool {
         // The stem is the original typed text; while cycling it is preserved so
         // each Tab re-matches against it rather than the completed value.
-        let cycling = self.cycle_stem.is_some();
+        let cycling = self.session().cycle_stem.is_some();
         let stem = self
+            .session()
             .cycle_stem
             .clone()
-            .unwrap_or_else(|| self.prompt.clone());
+            .unwrap_or_else(|| self.session().prompt.clone());
         let matches = self.completion_matches(&stem);
         if matches.is_empty() {
             return false;
@@ -289,14 +374,15 @@ impl NovaOsTerminal {
             });
         }
         let index = if cycling {
-            (self.cycle_index + 1) % matches.len()
+            (self.session().cycle_index + 1) % matches.len()
         } else {
             0
         };
-        self.cycle_stem = Some(stem);
-        self.cycle_index = index;
-        self.prompt = matches[index].clone();
-        self.cursor = self.prompt.len();
+        let session = self.session_mut();
+        session.cycle_stem = Some(stem);
+        session.cycle_index = index;
+        session.prompt = matches[index].clone();
+        session.cursor = session.prompt.len();
         self.refresh_parse();
         true
     }
@@ -306,11 +392,12 @@ impl NovaOsTerminal {
     /// is past the command name. Drives Tab completion and the inline ghost, so
     /// both understand sub-commands (fish-style), not just top-level names.
     fn completion_matches(&self, stem: &str) -> Vec<String> {
-        let mut matches: Vec<String> = terminal_command_names(&self.commands)
+        let session = self.session();
+        let mut matches: Vec<String> = terminal_command_names(&session.commands)
             .filter(|name| name.starts_with(stem))
             .map(|name| name.to_string())
             .collect();
-        for name in terminal_command_names(&self.commands) {
+        for name in terminal_command_names(&session.commands) {
             // Only offer sub-verbs once the player is past this command's name
             // (`<name> <partial>`), so top-level completion stays clean.
             let Some(partial) = stem.strip_prefix(&format!("{name} ")) else {
@@ -330,11 +417,11 @@ impl NovaOsTerminal {
                 }
             }
         }
-        // Injected argument candidates for the arg-bearing gameplay verbs: once
-        // the player is past the command name (`ship repair <partial>`), offer the
-        // live section codes whose start matches the partial (case-insensitive, so
+        // Injected argument candidates for the arg-bearing verbs: once the
+        // player is past the command name (`ship repair <partial>`), offer the
+        // live ids whose start matches the partial (case-insensitive, so
         // `hu` -> `HULL-3`).
-        for (name, candidates) in &self.arg_completions {
+        for (name, candidates) in &session.arg_completions {
             let Some(partial) = stem.strip_prefix(&format!("{name} ")) else {
                 continue;
             };
@@ -356,39 +443,42 @@ impl NovaOsTerminal {
     /// Record a submitted command line, skipping an immediate repeat and
     /// dropping the oldest entries past [`MAX_HISTORY`].
     fn push_history(&mut self, command_line: String) {
-        if self.history.last() == Some(&command_line) {
+        let session = self.session_mut();
+        if session.history.last() == Some(&command_line) {
             return;
         }
-        self.history.push(command_line);
-        let excess = self.history.len().saturating_sub(MAX_HISTORY);
+        session.history.push(command_line);
+        let excess = session.history.len().saturating_sub(MAX_HISTORY);
         if excess > 0 {
-            self.history.drain(..excess);
+            session.history.drain(..excess);
         }
     }
 
     /// Recall the previous command from history into the prompt.
     pub fn history_previous(&mut self) {
-        if self.history.is_empty() {
+        let session = self.session();
+        if session.history.is_empty() {
             return;
         }
-        let next = match self.history_cursor {
+        let next = match session.history_cursor {
             Some(cursor) if cursor > 0 => cursor - 1,
             Some(cursor) => cursor,
-            None => self.history.len() - 1,
+            None => session.history.len() - 1,
         };
         self.set_history_cursor(next);
     }
 
     /// Advance to the next history entry, clearing the prompt past the end.
     pub fn history_next(&mut self) {
-        let Some(cursor) = self.history_cursor else {
+        let Some(cursor) = self.session().history_cursor else {
             return;
         };
-        if cursor + 1 >= self.history.len() {
-            self.history_cursor = None;
-            self.cycle_stem = None;
-            self.prompt.clear();
-            self.cursor = 0;
+        if cursor + 1 >= self.session().history.len() {
+            let session = self.session_mut();
+            session.history_cursor = None;
+            session.cycle_stem = None;
+            session.prompt.clear();
+            session.cursor = 0;
             self.refresh_parse();
             return;
         }
@@ -397,45 +487,57 @@ impl NovaOsTerminal {
 
     /// Re-evaluate the prompt's parse status and completion hint.
     pub fn refresh_parse(&mut self) {
-        let trimmed = parsed_prompt(&self.prompt);
+        let trimmed = parsed_prompt(&self.session().prompt).to_string();
         if trimmed.is_empty() {
-            self.parse_status = TerminalParseStatus::Empty;
-            self.completion_hint = Some("type help".to_string());
+            let session = self.session_mut();
+            session.parse_status = TerminalParseStatus::Empty;
+            session.completion_hint = Some("type help".to_string());
             return;
         }
-        match resolve_command(trimmed, &self.commands) {
+        let commands = self.session().commands.clone();
+        let (status, hint) = match resolve_command(&trimmed, &commands) {
             // A full, arity-valid command (app launch word or CLI command), or a
             // `<command> help` usage request - all valid input.
             ResolvedCommand::Run { .. }
             | ResolvedCommand::Usage { .. }
-            | ResolvedCommand::Version => {
-                self.parse_status = TerminalParseStatus::Valid;
-                self.completion_hint = None;
-            }
+            | ResolvedCommand::Version => (TerminalParseStatus::Valid, None),
             // Trailing words that overrun a command's arity - unless the whole
             // input is still a prefix of a LONGER command name (e.g. `ship vi`
             // toward `ship view`), in which case it is a valid prefix, not an
             // error.
             ResolvedCommand::UnexpectedArguments { command, arity, .. } => {
-                if let Some(name) = self.command_name_starting_with(trimmed) {
-                    self.parse_status = TerminalParseStatus::ValidPrefix;
-                    self.completion_hint = Some(name);
-                } else {
-                    self.parse_status = TerminalParseStatus::Invalid;
-                    self.completion_hint = Some(format!("{command}: {}", arity.rejection()));
+                match self.command_name_starting_with(&trimmed) {
+                    Some(name) => (TerminalParseStatus::ValidPrefix, Some(name)),
+                    None => (
+                        TerminalParseStatus::Invalid,
+                        Some(format!("{command}: {}", arity.rejection())),
+                    ),
+                }
+            }
+            // A parent word on the way to a real command is a prefix, not an
+            // error, exactly like a half-typed name.
+            ResolvedCommand::Incomplete { name } => {
+                match self.command_name_starting_with(&trimmed) {
+                    Some(completion) => (TerminalParseStatus::ValidPrefix, Some(completion)),
+                    None => (
+                        TerminalParseStatus::Invalid,
+                        Some(format!("{name}: incomplete command")),
+                    ),
                 }
             }
             ResolvedCommand::Unknown { suggestion, .. } => {
-                if let Some(name) = self.command_name_starting_with(trimmed) {
-                    self.parse_status = TerminalParseStatus::ValidPrefix;
-                    self.completion_hint = Some(name);
-                } else {
-                    self.parse_status = TerminalParseStatus::Invalid;
-                    self.completion_hint =
-                        suggestion.map(|suggestion| format!("did you mean {suggestion}?"));
+                match self.command_name_starting_with(&trimmed) {
+                    Some(name) => (TerminalParseStatus::ValidPrefix, Some(name)),
+                    None => (
+                        TerminalParseStatus::Invalid,
+                        suggestion.map(|suggestion| format!("did you mean {suggestion}?")),
+                    ),
                 }
             }
-        }
+        };
+        let session = self.session_mut();
+        session.parse_status = status;
+        session.completion_hint = hint;
     }
 
     /// The first command name (built-ins then app launch words) that has `stem` as
@@ -450,20 +552,20 @@ impl NovaOsTerminal {
     /// Clear the prompt line and its completion cycle (leaving the scrollback and
     /// history intact).
     pub fn reset_prompt(&mut self) {
-        self.prompt.clear();
-        self.cursor = 0;
-        self.cycle_stem = None;
+        let session = self.session_mut();
+        session.prompt.clear();
+        session.cursor = 0;
+        session.cycle_stem = None;
         self.refresh_parse();
     }
 
-    /// Hand the screen to the app with launch word `id`, the same transition
-    /// [`Self::submit`] performs for an app launch word. Pairs with
-    /// [`Self::exit_app`].
+    /// Put the history entry at `cursor` on the prompt.
     fn set_history_cursor(&mut self, cursor: usize) {
-        self.history_cursor = Some(cursor);
-        self.cycle_stem = None;
-        self.prompt = self.history[cursor].clone();
-        self.cursor = self.prompt.len();
+        let session = self.session_mut();
+        session.history_cursor = Some(cursor);
+        session.cycle_stem = None;
+        session.prompt = session.history[cursor].clone();
+        session.cursor = session.prompt.len();
         self.refresh_parse();
     }
 }
@@ -471,10 +573,13 @@ impl NovaOsTerminal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::terminal::{
-        fixtures::{app_spec, cli_spec, core_with, gameplay_spec, type_text},
-        nova_os_welcome_rows, prompt_completion_ghost,
-        state::MAX_SCROLLBACK_ROWS,
+    use crate::{
+        commands::prelude::CommandClass,
+        terminal::{
+            fixtures::{app_spec, cli_spec, command_shell, core_with, gameplay_spec, type_text},
+            nova_os_welcome_rows, prompt_completion_ghost,
+            state::{MAX_HISTORY, MAX_SCROLLBACK_ROWS},
+        },
     };
 
     #[test]
@@ -485,18 +590,18 @@ mod tests {
         terminal.backspace();
         type_text(&mut terminal, "ar");
         terminal.delete();
-        assert_eq!(terminal.prompt, "hear");
-        assert_eq!(terminal.cursor, 4);
+        assert_eq!(terminal.prompt(), "hear");
+        assert_eq!(terminal.cursor(), 4);
 
         terminal.submit(&TerminalCommandSnapshot::default());
         type_text(&mut terminal, "clear");
         terminal.submit(&TerminalCommandSnapshot::default());
         terminal.history_previous();
-        assert_eq!(terminal.prompt, "clear");
+        assert_eq!(terminal.prompt(), "clear");
         terminal.history_previous();
-        assert_eq!(terminal.prompt, "hear");
+        assert_eq!(terminal.prompt(), "hear");
         terminal.history_next();
-        assert_eq!(terminal.prompt, "clear");
+        assert_eq!(terminal.prompt(), "clear");
     }
     /// The caret jumps a typo does not need a walk to reach: Home / End and
     /// their Ctrl+A / Ctrl+E chords are the same two moves, and a kill takes
@@ -507,20 +612,24 @@ mod tests {
         type_text(&mut terminal, "map goto beacon");
 
         terminal.move_cursor_to_start();
-        assert_eq!(terminal.cursor, 0);
+        assert_eq!(terminal.cursor(), 0);
         terminal.move_cursor_to_end();
-        assert_eq!(terminal.cursor, "map goto beacon".len());
+        assert_eq!(terminal.cursor(), "map goto beacon".len());
 
         terminal.move_cursor_to_start();
         type_text(&mut terminal, "x");
         terminal.kill_to_start();
-        assert_eq!(terminal.prompt, "map goto beacon", "the typo alone is cut");
-        assert_eq!(terminal.cursor, 0);
+        assert_eq!(
+            terminal.prompt(),
+            "map goto beacon",
+            "the typo alone is cut"
+        );
+        assert_eq!(terminal.cursor(), 0);
 
         type_text(&mut terminal, "run ");
         terminal.kill_to_end();
-        assert_eq!(terminal.prompt, "run ", "and the rest of the line goes");
-        assert_eq!(terminal.cursor, "run ".len());
+        assert_eq!(terminal.prompt(), "run ", "and the rest of the line goes");
+        assert_eq!(terminal.cursor(), "run ".len());
     }
 
     /// A kill on a line with nothing to cut on that side leaves the line alone
@@ -531,10 +640,10 @@ mod tests {
         type_text(&mut terminal, "log");
 
         terminal.kill_to_end();
-        assert_eq!(terminal.prompt, "log", "the caret is already at the end");
+        assert_eq!(terminal.prompt(), "log", "the caret is already at the end");
         terminal.move_cursor_to_start();
         terminal.kill_to_start();
-        assert_eq!(terminal.prompt, "log", "and now at the start");
+        assert_eq!(terminal.prompt(), "log", "and now at the start");
     }
 
     #[test]
@@ -551,19 +660,16 @@ mod tests {
         terminal.submit(&TerminalCommandSnapshot::default());
 
         assert_eq!(terminal.scrollback(), nova_os_welcome_rows());
-        assert_eq!(terminal.prompt, "");
-        assert_eq!(terminal.completion_hint.as_deref(), Some("type help"));
+        assert_eq!(terminal.prompt(), "");
+        assert_eq!(terminal.completion_hint(), Some("type help"));
     }
     #[test]
     fn terminal_unknown_command_suggests_nearest_match() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "hlep");
 
-        assert_eq!(terminal.parse_status, TerminalParseStatus::Invalid);
-        assert_eq!(
-            terminal.completion_hint.as_deref(),
-            Some("did you mean help?")
-        );
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::Invalid);
+        assert_eq!(terminal.completion_hint(), Some("did you mean help?"));
 
         terminal.submit(&TerminalCommandSnapshot::default());
         // Shell-style rows: the error line, the suggestion, then a pointer at help.
@@ -602,11 +708,8 @@ mod tests {
     fn terminal_rejects_unexpected_command_arguments() {
         let mut terminal = NovaOsTerminal::default();
         type_text(&mut terminal, "help garbage");
-        assert_eq!(terminal.parse_status, TerminalParseStatus::Invalid);
-        assert_eq!(
-            terminal.completion_hint.as_deref(),
-            Some("help: takes no arguments")
-        );
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::Invalid);
+        assert_eq!(terminal.completion_hint(), Some("help: takes no arguments"));
         terminal.submit(&TerminalCommandSnapshot::default());
         // A shell-style `command: reason` line, followed by the command's usage
         // block (so the player sees how to use it).
@@ -642,7 +745,7 @@ mod tests {
     #[test]
     fn nova_os_subcommand_completion_and_ghost() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("map", "Open the local-space map"),
             cli_spec("map view", "Print local-space contacts"),
         ]));
@@ -650,7 +753,7 @@ mod tests {
         // A sub-command prefix is a VALID PREFIX (not a red error) and ghosts its
         // completion: `map h` -> `map help` (ghost `elp`), fish-style.
         type_text(&mut terminal, "map h");
-        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::ValidPrefix);
         assert_eq!(prompt_completion_ghost(&terminal), "elp");
 
         // Tab completes sub-commands: `map v` completes to a `map v...` command.
@@ -667,7 +770,7 @@ mod tests {
         // valid prefix that Tab-completes to a `map -...` flag.
         terminal.reset_prompt();
         type_text(&mut terminal, "map -");
-        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::ValidPrefix);
         assert!(terminal.complete(), "Tab completes a flag");
         assert!(
             terminal.prompt().starts_with("map -"),
@@ -693,7 +796,7 @@ mod tests {
     #[test]
     fn nova_os_gameplay_verb_queues_invocation_with_args() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
@@ -722,7 +825,7 @@ mod tests {
     #[test]
     fn nova_os_arg_completion_expands_injected_codes() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
@@ -738,16 +841,16 @@ mod tests {
         // A lowercase partial completes to the canonical code.
         type_text(&mut terminal, "ship repair pd");
         assert!(terminal.complete(), "Tab expands an injected section code");
-        assert_eq!(terminal.prompt, "ship repair PDC-1");
+        assert_eq!(terminal.prompt(), "ship repair PDC-1");
 
         // An ambiguous partial lists its matches and jumps to the first.
         terminal.reset_prompt();
         type_text(&mut terminal, "ship repair hu");
         assert!(terminal.complete());
         assert!(
-            terminal.prompt.starts_with("ship repair HULL-"),
+            terminal.prompt().starts_with("ship repair HULL-"),
             "completed to a HULL code: {}",
-            terminal.prompt,
+            terminal.prompt(),
         );
     }
 
@@ -757,7 +860,7 @@ mod tests {
     fn nova_os_tab_cycles_ambiguous_completions() {
         let mut terminal = NovaOsTerminal::default();
         // Three app words sharing the `sh` stem make the stem ambiguous.
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("ship", ""),
             app_spec("shield", ""),
             app_spec("shells", ""),
@@ -771,16 +874,17 @@ mod tests {
             Some("shells   shield   ship"),
             "the first Tab on an ambiguous stem lists the matches",
         );
-        assert_eq!(terminal.prompt, "shells");
+        assert_eq!(terminal.prompt(), "shells");
 
         // Repeat presses cycle through the rest, then wrap.
         terminal.complete();
-        assert_eq!(terminal.prompt, "shield");
+        assert_eq!(terminal.prompt(), "shield");
         terminal.complete();
-        assert_eq!(terminal.prompt, "ship");
+        assert_eq!(terminal.prompt(), "ship");
         terminal.complete();
         assert_eq!(
-            terminal.prompt, "shells",
+            terminal.prompt(),
+            "shells",
             "cycling wraps back to the first match"
         );
 
@@ -794,7 +898,10 @@ mod tests {
 
         // Any edit resets the cycle (PoC `resetCycle`).
         terminal.insert_text("x");
-        assert!(terminal.cycle_stem.is_none(), "editing resets the cycle");
+        assert!(
+            terminal.session().cycle_stem.is_none(),
+            "editing resets the cycle"
+        );
     }
 
     /// Injected argument candidates come out of a `HashMap`, so without an
@@ -803,7 +910,7 @@ mod tests {
     #[test]
     fn nova_os_completion_matches_are_sorted_and_deduplicated() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([
+        terminal.set_nova_os_commands(core_with([
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
@@ -842,7 +949,7 @@ mod tests {
             terminal.submit(&TerminalCommandSnapshot::default());
         }
         assert_eq!(
-            terminal.history,
+            terminal.session().history,
             vec!["help".to_string()],
             "a repeat of the last entry is not recorded again",
         );
@@ -852,9 +959,9 @@ mod tests {
             type_text(&mut terminal, &format!("help {index}"));
             terminal.submit(&TerminalCommandSnapshot::default());
         }
-        assert_eq!(terminal.history.len(), MAX_HISTORY);
+        assert_eq!(terminal.session().history.len(), MAX_HISTORY);
         assert_eq!(
-            terminal.history.last().map(String::as_str),
+            terminal.session().history.last().map(String::as_str),
             Some(format!("help {}", MAX_HISTORY + 19).as_str()),
             "the newest entry survives; the oldest are dropped",
         );
@@ -897,10 +1004,261 @@ mod tests {
     #[test]
     fn nova_os_ghost_survives_a_leading_space() {
         let mut terminal = NovaOsTerminal::default();
-        terminal.set_commands(core_with([app_spec("map", "Open the local-space map")]));
+        terminal.set_nova_os_commands(core_with([app_spec("map", "Open the local-space map")]));
         type_text(&mut terminal, " ma");
 
-        assert_eq!(terminal.parse_status, TerminalParseStatus::ValidPrefix);
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::ValidPrefix);
         assert_eq!(prompt_completion_ghost(&terminal), "p");
+    }
+
+    /// The two shells share one editor and one CRT but nothing else: each keeps
+    /// its own prompt, scrollback, history and command set, and switching back
+    /// finds the session exactly as it was left.
+    #[test]
+    fn the_two_shells_keep_separate_transcripts_and_histories() {
+        let mut terminal = NovaOsTerminal::default();
+        type_text(&mut terminal, "help");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        let nova_os_rows = terminal.scrollback().len();
+
+        assert!(terminal.switch_shell(ShellKind::Commands));
+        assert_eq!(terminal.active_shell(), ShellKind::Commands);
+        assert!(
+            terminal.scrollback().is_empty(),
+            "the Command shell opens on its own (still unrevealed) transcript",
+        );
+        assert_eq!(terminal.prompt_prefix(), "cmd> ");
+
+        type_text(&mut terminal, "status");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert!(terminal
+            .scrollback()
+            .iter()
+            .any(|row| row.text == "cmd> status"));
+        assert_eq!(
+            terminal
+                .take_pending_command()
+                .expect("a world-facing command is queued for the dispatcher")
+                .name,
+            "status",
+        );
+
+        assert!(terminal.switch_shell(ShellKind::NovaOs));
+        assert_eq!(
+            terminal.scrollback().len(),
+            nova_os_rows,
+            "the NOVA OS transcript came back untouched",
+        );
+        terminal.history_previous();
+        assert_eq!(
+            terminal.prompt(),
+            "help",
+            "each shell recalls its OWN history, not the other's",
+        );
+        assert_eq!(terminal.prompt_prefix(), "nova> ");
+    }
+
+    /// Switching shells is a field flip, not a reboot: the reveal state and the
+    /// pending-close request survive it, so the CRT neither replays its
+    /// animation nor loses a close the player asked for.
+    #[test]
+    fn switching_shells_replays_no_reveal_and_keeps_the_close_request() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.begin_boot(vec![TerminalRow::info("BOOT")]);
+        terminal.finish_boot();
+        assert!(terminal.is_revealed(ShellKind::NovaOs));
+
+        terminal.switch_shell(ShellKind::Commands);
+        assert!(!terminal.is_revealed(ShellKind::Commands));
+        terminal.begin_reveal(ShellKind::Commands, vec![TerminalRow::info("INTRO")]);
+        terminal.finish_boot();
+
+        terminal.switch_shell(ShellKind::NovaOs);
+        assert!(
+            terminal.is_revealed(ShellKind::NovaOs) && terminal.is_revealed(ShellKind::Commands),
+            "coming back does not re-arm either reveal",
+        );
+        assert!(
+            !terminal.has_pending_boot_rows(),
+            "nothing is queued to replay",
+        );
+
+        terminal.request_close();
+        terminal.switch_shell(ShellKind::Commands);
+        assert!(
+            terminal.take_pending_close(),
+            "the close request belongs to the emulator, not to one shell",
+        );
+    }
+
+    /// A shell switch must move the row-rebuild counter: the two sessions carry
+    /// different rows, and a UI keyed on a per-shell counter would paint the
+    /// old shell's transcript.
+    #[test]
+    fn a_shell_switch_moves_the_scrollback_revision() {
+        let mut terminal = NovaOsTerminal::default();
+        let before = terminal.scrollback_revision();
+        terminal.switch_shell(ShellKind::Commands);
+        assert_ne!(terminal.scrollback_revision(), before);
+        let switched = terminal.scrollback_revision();
+        assert!(
+            !terminal.switch_shell(ShellKind::Commands),
+            "switching to the active shell is a no-op",
+        );
+        assert_eq!(terminal.scrollback_revision(), switched);
+    }
+
+    /// Leaving the NOVA OS shell while an app owns the screen returns to its
+    /// prompt first, so coming back lands on a prompt rather than inside a tool
+    /// the other shell was typing into.
+    #[test]
+    fn leaving_nova_os_from_an_app_returns_to_its_prompt() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.set_nova_os_commands(core_with([app_spec("map", "Open the local-space map")]));
+        type_text(&mut terminal, "map");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Launched
+        );
+        assert_eq!(terminal.active_mode(), TerminalMode::App { id: "map" });
+
+        terminal.switch_shell(ShellKind::Commands);
+        assert_eq!(terminal.active_mode(), TerminalMode::Prompt);
+    }
+
+    /// The Command shell answers catalog questions itself and queues everything
+    /// that needs the live game, with the class the catalog documented.
+    #[test]
+    fn the_command_shell_answers_help_and_queues_world_commands() {
+        let mut terminal = command_shell();
+
+        type_text(&mut terminal, "help");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Ran,
+        );
+        assert!(
+            terminal.take_pending_command().is_none(),
+            "help is answered from the catalog; the dispatcher never sees it",
+        );
+        assert!(terminal
+            .scrollback()
+            .iter()
+            .any(|row| row.text.contains("commands in")));
+
+        type_text(&mut terminal, "ammo infinite player_ship on");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Dispatched,
+        );
+        let queued = terminal
+            .take_pending_command()
+            .expect("queued for dispatch");
+        assert_eq!(queued.name, "ammo infinite");
+        assert_eq!(queued.class, CommandClass::Cheat);
+        assert_eq!(queued.args, ["player_ship", "on"]);
+
+        // A typo is an error in the shell, and nothing reaches the dispatcher.
+        type_text(&mut terminal, "ammoo");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Errored,
+        );
+        assert!(terminal.take_pending_command().is_none());
+    }
+
+    /// The Command shell completes against its own catalog, so a half-typed
+    /// cheat ghosts toward the real command and Tab finishes it.
+    #[test]
+    fn the_command_shell_completes_against_its_own_catalog() {
+        let mut terminal = command_shell();
+        type_text(&mut terminal, "cheats en");
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::ValidPrefix);
+        assert_eq!(prompt_completion_ghost(&terminal), "able");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "cheats enable");
+
+        // A NOVA OS word is not a Command-shell word: the vocabularies are per
+        // shell, not one merged namespace.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "objectives");
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::Valid);
+        terminal.reset_prompt();
+        type_text(&mut terminal, "log");
+        assert_eq!(terminal.parse_status(), TerminalParseStatus::Invalid);
+    }
+
+    /// A new ship is a new NOVA OS session, and nothing else: the game-level
+    /// Command transcript and history outlive the ship they were typed near.
+    #[test]
+    fn a_ship_reset_leaves_the_command_shell_alone() {
+        let mut terminal = command_shell();
+        type_text(&mut terminal, "status");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        let rows = terminal.scrollback().len();
+
+        terminal.reset_session();
+        assert_eq!(terminal.active_shell(), ShellKind::Commands);
+        assert_eq!(terminal.scrollback().len(), rows);
+        terminal.history_previous();
+        assert_eq!(terminal.prompt(), "status");
+
+        terminal.switch_shell(ShellKind::NovaOs);
+        assert_eq!(terminal.scrollback(), nova_os_welcome_rows());
+        assert!(!terminal.is_booted(), "a fresh ship re-boots the NOVA OS");
+    }
+    /// `commands` is a step DOWN from the NOVA OS prompt, so Escape climbs back
+    /// to it; a CRT opened straight into the Command shell has nothing
+    /// underneath and Escape means close.
+    #[test]
+    fn commands_enters_the_command_shell_and_escape_climbs_back() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.insert_text("commands");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Ran,
+        );
+        assert_eq!(terminal.active_shell(), ShellKind::Commands);
+        assert_eq!(terminal.prompt_prefix(), "cmd> ");
+        assert_eq!(terminal.back_out_shell(), Some(ShellKind::NovaOs));
+
+        assert!(terminal.back_out());
+        assert_eq!(terminal.active_shell(), ShellKind::NovaOs);
+        assert_eq!(terminal.back_out_shell(), None);
+        assert!(
+            !terminal.back_out(),
+            "the ground floor has nothing to climb back to",
+        );
+    }
+
+    /// The switch clears the line it was typed on and leaves the line waiting in
+    /// the shell it opens.
+    #[test]
+    fn entering_a_shell_clears_only_the_line_it_was_typed_on() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.switch_shell(ShellKind::Commands);
+        terminal.insert_text("stat");
+        terminal.switch_shell(ShellKind::NovaOs);
+
+        terminal.insert_text("commands");
+        terminal.submit(&TerminalCommandSnapshot::default());
+        assert_eq!(terminal.active_shell(), ShellKind::Commands);
+        assert_eq!(terminal.prompt(), "stat");
+
+        terminal.switch_shell(ShellKind::NovaOs);
+        assert_eq!(terminal.prompt(), "", "the NOVA OS line was submitted");
+    }
+
+    /// `open_shell` is the direct `:` open: it enters the shell with no level
+    /// underneath, whether or not that shell was already active.
+    #[test]
+    fn opening_a_shell_directly_leaves_nothing_to_back_out_to() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.switch_shell(ShellKind::Commands);
+        assert_eq!(terminal.back_out_shell(), Some(ShellKind::NovaOs));
+
+        terminal.open_shell(ShellKind::Commands);
+        assert_eq!(terminal.active_shell(), ShellKind::Commands);
+        assert_eq!(terminal.back_out_shell(), None);
     }
 }

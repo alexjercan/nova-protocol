@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 26 at a glance:
+never panics a scenario). All 28 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -26,6 +26,8 @@ never panics a scenario). All 26 at a glance:
 | [`SetControllerVerb`](#setcontrollerverb) | [ship state](#ship-state) | grant or withhold one flight verb on a ship's controller |
 | [`SetAllegiance`](#setallegiance) | [ship state](#ship-state) | overwrite a ship's side at runtime |
 | [`ForceTorpedoLaunch`](#forcetorpedolaunch) | [ship state](#ship-state) | order a ship's torpedo bays to launch at a named target |
+| [`SetInfiniteAmmo`](#setinfiniteammo) | [ship state](#ship-state) | suspend or restore the finite magazine on every weapon of a ship |
+| [`RefillAmmo`](#refillammo) | [ship state](#ship-state) | top a ship's magazines back up, or just one section's |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -604,6 +606,60 @@ A missing target skips the launch entirely (no dumb-fire duds while the
 target is mid-respawn). On an AI-controlled ship the AI rewrites the bay
 trigger every frame and wins; give scripted batteries
 `controller: None`.
+
+</details>
+
+### SetInfiniteAmmo
+
+Suspend (or restore) the finite magazine on every weapon of a scoped ship, so
+a training range or a set-piece is not decided by a reload.
+
+```ron
+SetInfiniteAmmo((id: "player_spaceship", enabled: true)),
+SetInfiniteAmmo((id: "player_spaceship", enabled: false)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | scoped ship root; a dangling id is a lint Error |
+| `enabled` | bool | required | `true` suspends the magazines, `false` restores them |
+
+`true` puts each weapon's finite magazine aside and lets the section fire on
+its cooldown alone. `false` gives the magazine back at the section's own
+AUTHORED capacity, full, with the reload re-seeded from the section
+prototype - not at whatever count was left when it was suspended. A count
+from before the suspension is not a count the run earned either, and a full
+magazine is the one state a player and an author can both predict.
+
+Turning it on twice is idempotent, and turning it off on a ship that never had
+it on does nothing. A weapon authored with no magazine at all was already
+unlimited and is untouched in both directions.
+
+</details>
+
+### RefillAmmo
+
+Top a scoped ship's finite magazines back up without changing how they work.
+
+```ron
+RefillAmmo((id: "player_spaceship")),                          // every weapon
+RefillAmmo((id: "player_spaceship", section: "turret_dorsal")), // just one
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | scoped ship root; a dangling id is a lint Error |
+| `section` | `Option` string | `None` | one section's authored id; omitted refills every weapon on the ship |
+
+Each magazine returns to its authored capacity and any reload in flight is
+cleared. Weapons with no finite magazine - and any whose magazine is
+currently suspended by [`SetInfiniteAmmo`](#setinfiniteammo) - are skipped.
 
 </details>
 

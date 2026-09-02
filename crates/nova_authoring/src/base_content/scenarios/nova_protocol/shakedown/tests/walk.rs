@@ -838,24 +838,43 @@ fn every_gameplay_handler_is_beat_gated() {
 }
 
 /// The first/New Game scenario runs FINITE ammo now that catalog weapons
-/// auto-reload: guard that the player ship is built with `infinite_ammo` OFF,
-/// so the flag cannot be silently turned back on and hide the ammo readout /
-/// reload cadence. Fails if the flag is flipped - the mechanism test in
-/// nova_scenario would still pass, so this is the one that pins the user-facing
-/// behavior (was ON before the reload mechanic).
+/// auto-reload: guard that the player's guns keep their magazines, so nothing
+/// silently strips one and hides the ammo readout / reload cadence. This is the
+/// test that pins the user-facing behavior (was unlimited before the reload
+/// mechanic).
 #[test]
 fn the_new_game_player_has_finite_reloading_ammo() {
     let player = player_ship();
     let ScenarioObjectKind::Spaceship(config) = player.kind else {
         panic!("the player object must be a spaceship");
     };
-    let SpaceshipController::Player(controller) = config.controller else {
-        panic!("the player ship must be player-controlled");
-    };
-    assert!(
-        !controller.infinite_ammo,
-        "the New Game player must have finite (auto-reloading) ammo"
+    let catalog = crate::base_content::sections::section_catalog(
+        &crate::base_content::assets::BaseContentAssets::from_paths(),
     );
+    let magazine = |section: &SpaceshipSectionConfig| match &section.source {
+        SectionSource::Inline(c) => turret_magazine(&c.kind),
+        SectionSource::Prototype(id) => catalog
+            .iter()
+            .find(|c| c.base.id == *id)
+            .and_then(|c| turret_magazine(&c.kind)),
+    };
+    let sections = crate::generation::spawned_ship_sections(&config);
+    let capacities: Vec<_> = sections.iter().filter_map(magazine).collect();
+
+    assert!(!capacities.is_empty(), "the New Game player carries a gun");
+    assert!(
+        capacities.iter().all(Option::is_some),
+        "the New Game player must have finite (auto-reloading) ammo, got {capacities:?}"
+    );
+}
+
+/// `Some(capacity)` for a turret, `None` for anything that is not one. The
+/// magazine is `Option` inside that, so the caller sees both layers.
+fn turret_magazine(kind: &SectionKind) -> Option<Option<u32>> {
+    match kind {
+        SectionKind::Turret(turret) => Some(turret.ammo_capacity),
+        _ => None,
+    }
 }
 
 /// The player's controller section carries DisableVerb modifications for

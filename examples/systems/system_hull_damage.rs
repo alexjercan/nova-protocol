@@ -361,8 +361,6 @@ fn hull_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            // Dev/tuning harness: fire freely.
-            infinite_ammo: true,
         }),
         // A four-section spine plus one side-mounted hull. This established
         // range keeps a simple leaf removal for its COM assertions; the

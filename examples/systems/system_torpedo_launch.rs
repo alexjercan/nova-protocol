@@ -298,8 +298,6 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
                 ("lance".to_string(), trigger()),
             ]),
             speed_cap: None,
-            // Dev/tuning harness: fire freely.
-            infinite_ammo: true,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
@@ -307,8 +305,10 @@ fn torpedo_ship(sections: &GameSections) -> SpaceshipConfig {
             // The bays are 1x1x2: centred at -1.5 their two cells sit on the
             // grid, the serpent tube's aft socket mates the controller and the
             // lance tube mates the serpent's flank.
-            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.5)),
-            SectionSpec::new("lance", "lance_torpedo_section", Vec3::new(1.0, 0.0, -1.5)),
+            // Dev/tuning harness: both tubes fire freely.
+            SectionSpec::new("torpedo", "torpedo_section", Vec3::new(0.0, 0.0, -1.5)).unlimited(),
+            SectionSpec::new("lance", "lance_torpedo_section", Vec3::new(1.0, 0.0, -1.5))
+                .unlimited(),
         ],
     )
 }

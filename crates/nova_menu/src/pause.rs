@@ -1,13 +1,15 @@
 //! The pause overlay: ESC freezes the sim and raises a modal panel with
 //! Resume / Retry / Settings / Back to Main Menu / Exit.
 
-use avian3d::prelude::{Physics, PhysicsTime};
 use bevy::{
+    input::{keyboard::KeyboardInput, ButtonState},
     prelude::*,
     ui_widgets::{observe, Activate},
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
+use nova_os::prelude::{NovaOsTerminal, ShellKind};
+use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
@@ -94,26 +96,78 @@ pub(crate) fn toggle_pause(
     }
 }
 
-/// Freeze the simulation: virtual time (Update deltas + FixedUpdate
-/// accumulation, which physics follows) and avian's own physics clock, so
-/// nothing integrates regardless of which clock a system reads.
-pub(crate) fn pause_clocks(
-    mut virtual_time: ResMut<Time<Virtual>>,
-    mut physics_time: ResMut<Time<Physics>>,
+/// `:` opens the game command shell over whatever is on screen.
+///
+/// It lives beside [`toggle_pause`] rather than with the CRT because it is a
+/// GLOBAL modal gesture, and this crate is the one that already owns those: it
+/// can see the rebind capture that must swallow the key, and it runs over the
+/// main menu, the editor and flight alike.
+///
+/// Read as a logical character, not a key code, so a layout where `:` is not
+/// Shift+Semicolon still opens the shell with the key that prints one.
+pub(crate) fn open_command_shell(
+    mut keyboard: MessageReader<KeyboardInput>,
+    game_state: Option<Res<State<GameStates>>>,
+    current: Res<State<PauseStates>>,
+    rebind: Option<Res<crate::settings::PendingRebind>>,
+    mut next: ResMut<NextState<PauseStates>>,
+    mut close: ResMut<NovaOsCloseTransition>,
+    mut terminal: ResMut<NovaOsTerminal>,
 ) {
-    virtual_time.pause();
-    physics_time.pause();
+    let typed_colon = keyboard
+        .read()
+        .any(|event| event.state == ButtonState::Pressed && event.text.as_deref() == Some(":"));
+    if !typed_colon {
+        return;
+    }
+    // Inside the CRT the key is text: the shell is already open and the player
+    // is typing into it. Same for a chip waiting to capture a key.
+    if *current.get() == PauseStates::NovaOs {
+        return;
+    }
+    if rebind.is_some_and(|rebind| rebind.is_armed()) {
+        return;
+    }
+    // A half-loaded world has nothing to inspect and no settings surface to
+    // return to.
+    if game_state.is_some_and(|state| *state.get() == GameStates::Loading) {
+        return;
+    }
+    // The ground floor: Escape closes the computer rather than climbing into a
+    // NOVA OS session the player never opened.
+    terminal.open_shell(ShellKind::Commands);
+    close.closing = false;
+    next.set(PauseStates::NovaOs);
 }
 
-/// Unconditional: the pause menu is currently the only clock-pauser in the
-/// app. A future cutscene/debug freeze that also pauses these clocks will be
-/// stomped here and needs a coordination story first (review R1.6).
-pub(crate) fn unpause_clocks(
-    mut virtual_time: ResMut<Time<Virtual>>,
-    mut physics_time: ResMut<Time<Physics>>,
-) {
-    virtual_time.unpause();
-    physics_time.unpause();
+/// Freeze the simulation for the pause overlay: virtual time (Update deltas +
+/// FixedUpdate accumulation, which physics follows) and avian's own physics
+/// clock, so nothing integrates regardless of which clock a system reads.
+///
+/// The hold is named rather than unconditional. The CRT terminal freezes the
+/// same clocks, and the two surfaces overlap: `:` opens the command shell over
+/// a paused game, and an unconditional unpause on its close handed a paused
+/// player a running world.
+pub(crate) fn hold_clocks_for_pause_menu(mut clocks: Clocks) {
+    clocks.hold(FreezeOwner::PauseMenu);
+}
+
+/// Drop the pause overlay's hold. The world runs again only if the terminal is
+/// not also holding it.
+pub(crate) fn release_clocks_for_pause_menu(mut clocks: Clocks) {
+    clocks.release(FreezeOwner::PauseMenu);
+}
+
+/// Freeze the simulation for the CRT terminal, in either shell. Switching
+/// shells never passes through this, so the world does not tick between the
+/// release and the re-hold it would otherwise need.
+pub(crate) fn hold_clocks_for_terminal(mut clocks: Clocks) {
+    clocks.hold(FreezeOwner::Terminal);
+}
+
+/// Drop the terminal's hold.
+pub(crate) fn release_clocks_for_terminal(mut clocks: Clocks) {
+    clocks.release(FreezeOwner::Terminal);
 }
 
 /// The scenario locks and hides the cursor (nova_editor's grab systems); the
@@ -168,14 +222,11 @@ pub(crate) fn restore_cursor(
 
 /// Safety net for the Back to Main Menu path (and any future exit from
 /// Playing while paused): reset the pause state and clocks.
-pub(crate) fn force_unpause(
-    mut next: ResMut<NextState<PauseStates>>,
-    mut virtual_time: ResMut<Time<Virtual>>,
-    mut physics_time: ResMut<Time<Physics>>,
-) {
+pub(crate) fn force_unpause(mut next: ResMut<NextState<PauseStates>>, mut clocks: Clocks) {
     next.set(PauseStates::Unpaused);
-    virtual_time.unpause();
-    physics_time.unpause();
+    // Every surface that took a hold is being torn down with the scene, so
+    // none of them is left to release its own.
+    clocks.release_all();
 }
 
 /// The pause overlay: a dim full-screen layer with a centered panel.

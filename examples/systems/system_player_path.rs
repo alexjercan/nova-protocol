@@ -222,7 +222,6 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 ],
             )]),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         &[
             SectionSpec::new("controller", "basic_controller_section", Vec3::ZERO),
@@ -232,11 +231,13 @@ fn playable_run(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
                 "basic_thruster_section",
                 Vec3::new(0.0, 0.0, 2.0),
             ),
+            // The path is the subject, not the magazine.
             SectionSpec::new(
                 "guns",
                 "pdc_kinetic_turret_section",
                 Vec3::new(0.0, 0.75, 0.0),
-            ),
+            )
+            .unlimited(),
         ],
     );
 

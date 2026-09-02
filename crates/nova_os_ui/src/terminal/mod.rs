@@ -63,8 +63,9 @@ use nova_os::prelude::{NovaOsCommandRegistry, NovaOsTerminal, TerminalMode};
 /// Glob-import surface: `use nova_os_ui::terminal::prelude::*`.
 pub mod prelude {
     pub use super::{
-        components::NovaOsMonitorSettings,
+        components::{NovaOsCloseTransition, NovaOsMonitorSettings},
         crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+        sound::play_nova_os_cue,
     };
 }
 
@@ -73,11 +74,12 @@ use nova_hud::prelude::StoryFeed;
 use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, RegisterInputActions};
 
 pub use self::{
-    components::NovaOsMonitorSettings,
+    components::{NovaOsCloseTransition, NovaOsMonitorSettings},
     crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+    sound::play_nova_os_cue,
 };
 use self::{
-    components::{NovaOsCloseTransition, NovaOsDegauss, NovaOsFlightLog},
+    components::{NovaOsDegauss, NovaOsFlightLog},
     crt::{animate_nova_os_crt, mirror_nova_os_hover, reconcile_nova_os_target, NovaOsCrtMaterial},
     flight_log::{announce_objectives_in_terminal, log_combat_lock_drops, sync_nova_os_logs},
     input::{
@@ -95,7 +97,7 @@ use self::{
     sound::{
         apply_nova_os_bed_volume, play_nova_os_power_down, start_nova_os_sound, stop_nova_os_bed,
     },
-    spawn::{remove_nova_os, setup_nova_os},
+    spawn::{ensure_nova_os_spawned, reset_nova_os_for_new_ship},
 };
 pub(crate) use self::{
     content::{section_kind_from_markers, section_kind_label},
@@ -198,11 +200,16 @@ impl Plugin for NovaOsPlugin {
 
         // Tab opens the NOVA OS. It keeps running in all of Playing so an open
         // NOVA OS can reserve Tab for terminal completion instead of closing.
+        // The ship computer is a flight surface, so its key stays gated on
+        // Playing; the back-out is NOT - the Command shell opens over the main
+        // menu, and a computer that opened must always be closable.
         app.add_systems(
             Update,
-            (toggle_nova_os, close_nova_os_from_menu_keys)
+            (
+                toggle_nova_os.run_if(in_state(GameStates::Playing)),
+                close_nova_os_from_menu_keys,
+            )
                 .chain()
-                .run_if(in_state(GameStates::Playing))
                 .in_set(NovaOsSystems::Toggle),
         );
 
@@ -258,8 +265,11 @@ impl Plugin for NovaOsPlugin {
                     resource_changed::<NovaOsCommandRegistry>
                         .or_else(resource_added::<NovaOsTerminal>),
                 ),
-                handle_terminal_keyboard.run_if(in_state(GameStates::Playing)),
-                handle_nova_os_app_keyboard.run_if(in_state(GameStates::Playing)),
+                // Ungated by `GameStates`: both already require the CRT to own
+                // the screen, and the Command shell owns it over the main menu
+                // and the editor as well as over flight.
+                handle_terminal_keyboard,
+                handle_nova_os_app_keyboard,
             )
                 .chain()
                 .in_set(NovaOsSystems::Input),
@@ -344,9 +354,14 @@ impl Plugin for NovaOsPlugin {
             lift_exempt_chrome_over_nova_os.in_set(NovaOsSystems::Simulate),
         );
 
-        // The NOVA OS is a flight surface: spawn/despawn it with the player ship,
-        // like the rest of the HUD.
-        app.add_observer(setup_nova_os);
-        app.add_observer(remove_nova_os);
+        // The monitor is app-global: the Command shell is reachable from the
+        // main menu and the editor, which have no ship to hang a flight surface
+        // off. The spawn is idempotent, so this is a keep-alive rather than a
+        // one-shot, and the ship-scoped half is reset when the ship goes.
+        app.add_systems(
+            Update,
+            ensure_nova_os_spawned.in_set(NovaOsSystems::Simulate),
+        );
+        app.add_observer(reset_nova_os_for_new_ship);
     }
 }

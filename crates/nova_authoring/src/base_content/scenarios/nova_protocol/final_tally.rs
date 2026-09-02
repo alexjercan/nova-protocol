@@ -153,7 +153,6 @@ fn player_ship() -> ScenarioObjectConfig {
                     })
                     .collect(),
                 speed_cap: None,
-                infinite_ammo: false,
             }),
             allegiance: None,
             hull: ships::hull(ships::CARGOA_SHIP_ID),

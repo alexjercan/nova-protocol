@@ -1,0 +1,30 @@
+[package]
+name = "nova_console"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The Command shell's dispatcher: the executor behind the CRT prompt and the process channel"
+
+[dependencies]
+bevy = { version = "0.19.0" }
+nova_events = { path = "../nova_events" }
+nova_gameplay = { path = "../nova_gameplay" }
+nova_input = { path = "../nova_input" }
+nova_menu = { path = "../nova_menu" }
+nova_os = { path = "../nova_os" }
+nova_os_ui = { path = "../nova_os_ui" }
+nova_scenario = { path = "../nova_scenario" }
+nova_ship = { path = "../nova_ship" }
+
+[lints]
+workspace = true
+
+[features]
+debug = [
+  "bevy/track_location",
+  "nova_gameplay/debug",
+  "nova_menu/debug",
+  "nova_os_ui/debug",
+  "nova_scenario/debug",
+]

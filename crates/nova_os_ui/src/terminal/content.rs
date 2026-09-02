@@ -39,18 +39,41 @@ pub(crate) fn nova_os_fps_segment(fps: Option<u32>) -> String {
 /// whole number, or `None` before the diagnostic has a reading (shown as `--`).
 pub(crate) fn nova_os_status_text(ship_name: &str, fps: Option<u32>) -> String {
     let fps = nova_os_fps_segment(fps);
-    format!("SHIP: {ship_name}     LINK: LOCAL     FPS: {fps}")
+    format!(
+        "{}{NOVA_OS_TOPBAR_FPS_MARKER}{fps}",
+        nova_os_topbar_head(ship_name)
+    )
 }
 
-/// The header brand/breadcrumb line for the active surface. The terminal reads
-/// `NOVA OS <ver> // SHELL`; a launched app reads `NOVA OS <ver> // APPS / <ID>`
-/// where `<ID>` is the app's launch word upper-cased - NOT its `title()`, which
-/// may itself contain a `/` (the map's title is "MAP / LOCAL SPACE").
-pub(crate) fn nova_os_header_breadcrumb(mode: TerminalMode) -> String {
+/// The head of the NOVA OS topbar: what the computer is the computer OF.
+pub(crate) fn nova_os_topbar_head(ship_name: &str) -> String {
+    format!("SHIP: {ship_name}     LINK: LOCAL")
+}
+
+/// The head of the Command-shell topbar. The shell has no ship to name, so the
+/// first segment reports the one piece of state a player must be able to see at
+/// a glance: whether this run was armed.
+pub(crate) fn command_topbar_head(armed: bool) -> String {
+    let cheats = if armed { "ON " } else { "OFF" };
+    format!("CHEATS: {cheats}     LINK: LOCAL")
+}
+
+/// The header brand/breadcrumb line for the active surface. The NOVA OS prompt
+/// reads `NOVA OS <ver> // SHELL` and the Command shell `NOVA OS <ver> //
+/// COMMANDS`; a launched app reads `NOVA OS <ver> // APPS / <ID>` where `<ID>`
+/// is the app's launch word upper-cased - NOT its `title()`, which may itself
+/// contain a `/` (the map's title is "MAP / LOCAL SPACE"). An app is a NOVA OS
+/// surface only, so the Command shell never reaches that arm.
+pub(crate) fn nova_os_header_breadcrumb(shell: ShellKind, mode: TerminalMode) -> String {
     let ver = nova_os_version_label();
-    match mode {
-        TerminalMode::Prompt => format!("NOVA OS {ver} // SHELL"),
-        TerminalMode::App { id } => format!("NOVA OS {ver} // APPS / {}", id.to_uppercase()),
+    match (shell, mode) {
+        (ShellKind::Commands, _) => format!("NOVA OS {ver} // {}", shell.header_label()),
+        (ShellKind::NovaOs, TerminalMode::Prompt) => {
+            format!("NOVA OS {ver} // {}", shell.header_label())
+        }
+        (ShellKind::NovaOs, TerminalMode::App { id }) => {
+            format!("NOVA OS {ver} // APPS / {}", id.to_uppercase())
+        }
     }
 }
 

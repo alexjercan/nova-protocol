@@ -65,6 +65,14 @@ impl Plugin for NovaGameplayPlugin {
         app.init_resource::<crate::EscapeOwner>();
         app.register_type::<crate::EscapeOwner>();
 
+        // Who is holding the world still, and whether this attempt was ever
+        // armed for cheats. Both outlive the surfaces that write them, so they
+        // are owned here rather than by the pause menu or the terminal.
+        app.init_resource::<crate::freeze::ClockFreeze>();
+        app.register_type::<crate::freeze::ClockFreeze>();
+        app.init_resource::<crate::cheats::RunCheats>();
+        app.register_type::<crate::cheats::RunCheats>();
+
         // Mission state, not HUD state: the scenario loader writes it whether or
         // not anything renders it, so it is owned here rather than by the
         // render-gated HUD.

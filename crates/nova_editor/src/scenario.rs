@@ -882,7 +882,6 @@ fn player_ship(player: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
                 // The editor sandbox keeps normal finite magazines. Safe even
                 // on a range built for shooting: weapons auto-reload, so a dry
                 // gun is a cadence beat rather than a permanent disarm.
-                infinite_ammo: false,
             }),
             // What the builder saw is what they fly. The editor shows the same
             // derived skin over the same structure, so the flown ship must not

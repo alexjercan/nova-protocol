@@ -202,7 +202,7 @@ const ACKED_SCENARIO_RON: &str = r#"[
                     SpawnScenarioObject((
                         base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
-                            controller: Player((infinite_ammo: false)),
+                            controller: Player(()),
                             hull: Inline((
                                 sections: [
                                     (id: "controller", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype("basic_controller_section")),

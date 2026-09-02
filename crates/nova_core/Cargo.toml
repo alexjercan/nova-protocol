@@ -10,6 +10,9 @@ description = "Core systems and modules for the Nova Protocol game"
 bevy = { version = "0.19.0" }
 bevy_enhanced_input = { version = "0.26.0" }
 nova_assets = { path = "../nova_assets" }
+# The Command shell's dispatcher. Added HERE because it runs a command
+# against everything below it - gameplay, scenario, settings and the menu.
+nova_console = { path = "../nova_console" }
 nova_debug = { path = "../nova_debug", optional = true }
 nova_editor = { path = "../nova_editor" }
 nova_gameplay = { path = "../nova_gameplay" }
@@ -45,4 +48,4 @@ workspace = true
 # is a dev-dependency, and a `cargo build --bin` never resolves those. Routing
 # the feature here is what puts the per-system spans in the binary probe runs.
 trace = ["bevy/trace", "bevy/trace_chrome"]
-debug = ["nova_debug", "bevy/track_location", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]

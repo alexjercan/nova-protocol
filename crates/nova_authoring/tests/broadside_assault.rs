@@ -605,9 +605,10 @@ fn on_start_stages_the_slice() {
     let ScenarioObjectKind::Spaceship(player_ship) = &player.kind else {
         panic!("player is a spaceship");
     };
-    let SpaceshipController::Player(player_controller) = &player_ship.controller else {
-        panic!("player-controlled");
-    };
+    assert!(
+        matches!(player_ship.controller, SpaceshipController::Player(_)),
+        "player-controlled"
+    );
     // Playtest tuning: torpedoes are the ENEMY's weapon this chapter - the
     // player screens them, not trades them - and the magazine is finite with
     // auto-reload.
@@ -625,10 +626,19 @@ fn on_start_stages_the_slice() {
             .any(|s| matches!(section_kind(s, &catalog), Some(SectionKind::Turret(_)))),
         "the PDC turret is the player's weapon"
     );
+    // Finite auto-reloading ammo, matching Shakedown's chapter-one precedent
+    // (finite since task 20260717-085640). The magazine lives on the gun, so
+    // this reads the turret rather than a ship-wide grant.
+    let magazine = player_sections
+        .iter()
+        .find_map(|s| match section_kind(s, &catalog) {
+            Some(SectionKind::Turret(turret)) => Some(turret.ammo_capacity),
+            _ => None,
+        })
+        .expect("the PDC turret is the player's weapon");
     assert!(
-        !player_controller.infinite_ammo,
-        "finite auto-reloading ammo (matches Shakedown's chapter-one precedent, \
-         now finite since task 20260717-085640)"
+        magazine.is_some(),
+        "the chapter-two player must have finite (auto-reloading) ammo"
     );
 
     let hauler = ships

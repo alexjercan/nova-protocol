@@ -382,6 +382,14 @@ impl AppBuilder {
             self.app.add_plugins(NovaMenuPlugin);
         }
 
+        // The Command shell's dispatcher goes after the menu: a `graphics` or
+        // `volume` command writes the very resources the settings screen owns,
+        // and the shell is reachable from the menu itself. It is added
+        // unconditionally - an example with no menu still has a CRT, and the
+        // dispatcher answers `status` and `ships` there too.
+        self.app
+            .add_plugins(nova_console::prelude::NovaConsolePlugin);
+
         #[cfg(feature = "debug")]
         self.app.add_plugins(DebugPlugin);
 

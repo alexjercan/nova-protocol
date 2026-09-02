@@ -4596,9 +4596,25 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_input",
+ "nova_os",
  "nova_probe",
  "nova_ship",
  "serde_json",
+]
+
+[[package]]
+name = "nova_console"
+version = "0.12.0"
+dependencies = [
+ "bevy",
+ "nova_events",
+ "nova_gameplay",
+ "nova_input",
+ "nova_menu",
+ "nova_os",
+ "nova_os_ui",
+ "nova_scenario",
+ "nova_ship",
 ]
 
 [[package]]
@@ -4608,6 +4624,7 @@ dependencies = [
  "bevy",
  "bevy_enhanced_input",
  "nova_assets",
+ "nova_console",
  "nova_debug",
  "nova_editor",
  "nova_events",
@@ -4734,6 +4751,7 @@ dependencies = [
  "nova_hud",
  "nova_input",
  "nova_mod_format",
+ "nova_os",
  "nova_os_ui",
  "nova_scenario",
  "nova_ship",

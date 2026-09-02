@@ -545,7 +545,6 @@ fn nova_os_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            infinite_ammo: true,
         }),
         hull: ShipSource::Inline(ShipHull {
             sections: vec![

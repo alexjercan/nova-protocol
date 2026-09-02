@@ -354,7 +354,7 @@ const WIKI_PAGES = [
         tags: ["ui"],
         summary:
             "The Tab ship computer: a CRT terminal that freezes the game while you use it, the full command reference, the MAP and SHIP apps, section rebinding, and the monitor's own knobs and sounds.",
-        related: ["hud", "keybinds", "flight-autopilot"],
+        related: ["commands", "hud", "keybinds"],
         headings: [
             "Opening and closing",
             "The terminal",
@@ -364,6 +364,22 @@ const WIKI_PAGES = [
             "The ship",
             "Rebinding a section",
             "The monitor",
+        ],
+    },
+    {
+        slug: "commands",
+        md: "commands.md",
+        title: "Commands",
+        category: "Interface",
+        tags: ["ui"],
+        summary:
+            "The ':' command shell inside the same CRT: how to get in and out of it, what the introduction reports, the whole catalog by class - utility, read-only, settings and the armed cheats that mark your run - and the wire that speaks it too.",
+        related: ["nova-os", "settings", "keybinds"],
+        headings: [
+            "Getting in and out",
+            "What the introduction tells you",
+            "The commands",
+            "Driving it from outside",
         ],
     },
     {
@@ -668,7 +684,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "All 25 actions a scenario handler can run, grouped by spawning, mission, flow, ship state, timers, and camera.",
+            "All 28 actions a scenario handler can run, grouped by spawning, mission, pacing, flow, ship state, timers, and camera.",
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -684,11 +700,14 @@ const CREATE_PAGES = [
             "HintEmphasisSet",
             "HintEmphasisClear",
             "Outcome",
+            "Sequence",
             "NextScenario",
             "SetSpeedCap",
             "SetControllerVerb",
             "SetAllegiance",
             "ForceTorpedoLaunch",
+            "SetInfiniteAmmo",
+            "RefillAmmo",
             "TimerStart",
             "TimerCancel",
             "VariableSet",

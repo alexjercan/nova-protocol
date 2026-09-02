@@ -223,8 +223,6 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
         controller: SpaceshipController::Player(PlayerControllerConfig {
             input_mapping: BTreeMap::new(),
             speed_cap: None,
-            // Dev/tuning harness: fire freely.
-            infinite_ammo: true,
         }),
         hull: ShipSource::Inline(ShipHull {
             sections: player_sections,

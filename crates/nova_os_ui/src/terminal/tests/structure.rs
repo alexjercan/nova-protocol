@@ -10,7 +10,7 @@ use super::*;
 fn nova_os_renders_above_the_hud() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_observer(setup_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
     // setup_nova_os fires on the player ship's PlayerSpaceshipMarker add.
     app.world_mut()
         .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
@@ -56,7 +56,7 @@ fn nova_os_renders_above_the_hud() {
 fn nova_os_spawns_single_nova_os_monitor() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_observer(setup_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
     app.world_mut()
         .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
     app.update();
@@ -119,7 +119,7 @@ fn nova_os_spawns_single_nova_os_monitor() {
 fn nova_os_monitor_has_physical_casing_details() {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.add_observer(setup_nova_os);
+    app.add_systems(Update, ensure_nova_os_spawned);
     app.world_mut()
         .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker));
     app.update();
@@ -432,17 +432,17 @@ fn nova_os_header_breadcrumb_tracks_the_active_surface() {
     // wording, this task's DECISION.md).
     let ver = nova_os_version_label();
     assert_eq!(
-        nova_os_header_breadcrumb(TerminalMode::Prompt),
+        nova_os_header_breadcrumb(ShellKind::NovaOs, TerminalMode::Prompt),
         format!("NOVA OS {ver} // SHELL"),
     );
     assert_eq!(
-        nova_os_header_breadcrumb(TerminalMode::App { id: "map" }),
+        nova_os_header_breadcrumb(ShellKind::NovaOs, TerminalMode::App { id: "map" }),
         format!("NOVA OS {ver} // APPS / MAP"),
     );
     // The breadcrumb uses the launch word, not `title()` - a multi-word id
     // still upper-cases whole.
     assert_eq!(
-        nova_os_header_breadcrumb(TerminalMode::App { id: "ship" }),
+        nova_os_header_breadcrumb(ShellKind::NovaOs, TerminalMode::App { id: "ship" }),
         format!("NOVA OS {ver} // APPS / SHIP"),
     );
 }

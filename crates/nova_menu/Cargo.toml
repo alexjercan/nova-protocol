@@ -26,6 +26,7 @@ nova_ship = { path = "../nova_ship", features = ["serde"] }
 nova_hud = { path = "../nova_hud" }
 # The settings screen drives the NOVA OS monitor hardware (BRIGHT/SCAN/SND) and
 # the settings store persists it.
+nova_os = { path = "../nova_os" }
 nova_os_ui = { path = "../nova_os_ui" }
 nova_scenario = { path = "../nova_scenario" }
 # `serde` enables Serialize/Deserialize on `UiSkin` for the persisted settings.

@@ -20,7 +20,8 @@ use bevy::prelude::*;
 use nova_assets::prelude::ReloadContent;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
-use nova_os_ui::prelude::NovaOsMonitorSettings;
+use nova_os::prelude::NovaOsTerminal;
+use nova_os_ui::prelude::{NovaOsCloseTransition, NovaOsMonitorSettings};
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
 use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 
@@ -28,7 +29,8 @@ use nova_ui::{prelude::UiSkin, widget::button_on_setting};
 /// and [`NewGameScenario`] into scope.
 pub mod prelude {
     pub use super::{
-        ambience::MENU_BACKDROP_ENV, widgets::MenuCueSystems, NewGameScenario, NovaMenuPlugin,
+        ambience::MENU_BACKDROP_ENV, settings::WindowModeSetting, widgets::MenuCueSystems,
+        NewGameScenario, NovaMenuPlugin,
     };
 }
 
@@ -60,8 +62,9 @@ use outcome::{
     sync_outcome_overlay, sync_outcome_pause, sync_start_failure_overlay,
 };
 use pause::{
-    force_unpause, keep_frozen_cursor_released, pause_clocks, release_cursor, restore_cursor,
-    setup_pause_ui, toggle_pause, unpause_clocks,
+    force_unpause, hold_clocks_for_pause_menu, hold_clocks_for_terminal,
+    keep_frozen_cursor_released, open_command_shell, release_clocks_for_pause_menu,
+    release_clocks_for_terminal, release_cursor, restore_cursor, setup_pause_ui, toggle_pause,
 };
 use portal::{drive_update_choreography, UpdateRequested};
 pub use scenarios::NewGameScenario;
@@ -205,22 +208,35 @@ impl Plugin for NovaMenuPlugin {
         // zeroes deltas, it does not stop schedules - which is exactly what lets
         // the overlay stay interactive.
         app.add_systems(Update, toggle_pause.run_if(in_state(GameStates::Playing)));
+        // The command shell opens over every surface, so its key is NOT gated
+        // on Playing the way the pause overlay's is. It IS gated on the CRT
+        // existing: a menu-only rig has no monitor to open.
+        app.add_systems(
+            Update,
+            open_command_shell.run_if(
+                resource_exists::<NovaOsTerminal>
+                    .and_then(resource_exists::<NovaOsCloseTransition>),
+            ),
+        );
         app.add_systems(
             OnEnter(PauseStates::Paused),
-            (pause_clocks, release_cursor, setup_pause_ui),
+            (hold_clocks_for_pause_menu, release_cursor, setup_pause_ui),
         );
         app.add_systems(
             OnExit(PauseStates::Paused),
-            (unpause_clocks, restore_cursor),
+            (release_clocks_for_pause_menu, restore_cursor),
         );
         // The NOVA OS is a third variant on the same clock-freeze axis, but
         // WITHOUT `setup_pause_ui` - it draws its own surface in nova_gameplay's
         // HUD. Only ever entered from / exited to `Unpaused`, so these never race
         // the `Paused` hooks.
-        app.add_systems(OnEnter(PauseStates::NovaOs), (pause_clocks, release_cursor));
+        app.add_systems(
+            OnEnter(PauseStates::NovaOs),
+            (hold_clocks_for_terminal, release_cursor),
+        );
         app.add_systems(
             OnExit(PauseStates::NovaOs),
-            (unpause_clocks, restore_cursor),
+            (release_clocks_for_terminal, restore_cursor),
         );
         app.add_systems(OnExit(GameStates::Playing), force_unpause);
         // The message this plugin writes below. `nova_assets` owns it and adds
