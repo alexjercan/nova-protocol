@@ -22,10 +22,10 @@
 //! per-frame OnUpdate pulse; `cargo test -p nova_assets --test
 //! lifeline_convoy`).
 
-use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
-    OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, GameEventsPlugin, Meters, Meters3, OnDefeatedEvent,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -34,12 +34,12 @@ use nova_scenario::prelude::*;
 const LIFELINE_RON: &str = include_str!("../../../assets/base/scenarios/lifeline.content.ron");
 const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron");
 
-/// The design floor (u) between any triggered raider spawn and every
+/// The design floor between any triggered raider spawn and every
 /// friendly anchor. The true threat envelopes are derived by `content
 /// lint`'s balance audit (which runs in CI and is clean); this pin holds
 /// the authored MARGIN so a nearer respawn shows up as a failing test, not
 /// only as a lint warning to be acked away.
-const RAIDER_SPAWN_MIN_RANGE: f32 = 700.0;
+const RAIDER_SPAWN_MIN_RANGE: Meters = Meters(7_000.0);
 
 fn scenario_from(ron_str: &str) -> ScenarioConfig {
     let items: Vec<Content> = ron::de::from_str(ron_str).expect("content RON parses");
@@ -84,7 +84,7 @@ fn spawn_by_id<'a>(event: &'a ScenarioEventConfig, id: &str) -> &'a ScenarioObje
 
 /// Every spaceship spawned by ANY handler, with the handler's index -
 /// OnStart ships and the triggered raider waves alike.
-fn all_ship_spawns(scenario: &ScenarioConfig) -> Vec<(&str, Vec3, &SpaceshipConfig)> {
+fn all_ship_spawns(scenario: &ScenarioConfig) -> Vec<(&str, Meters3, &SpaceshipConfig)> {
     scenario
         .events
         .iter()
@@ -351,9 +351,9 @@ fn raider_spawns_keep_the_design_floor_from_every_friendly() {
         for anchor in anchors {
             assert!(
                 pos.distance(anchor) >= RAIDER_SPAWN_MIN_RANGE,
-                "{id} spawns {:.0}u from a friendly anchor (floor {})",
-                pos.distance(anchor),
-                RAIDER_SPAWN_MIN_RANGE
+                "{id} spawns {:.0} m from a friendly anchor (floor {:.0} m)",
+                pos.distance(anchor).get(),
+                RAIDER_SPAWN_MIN_RANGE.get()
             );
         }
         let SpaceshipController::AI(ai) = &ship.controller else {

@@ -110,9 +110,9 @@ pub fn asteroid(
     game_assets: &GameAssets,
     id: &str,
     name: &str,
-    position: Vec3,
-    radius: f32,
-    lock_signature: Option<f32>,
+    position: Meters3,
+    radius: Meters,
+    lock_signature: Option<Meters>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -222,12 +222,12 @@ mod tests {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
                 name: id.to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Beacon(BeaconConfig {
                 label: id.to_string(),
-                radius: 1.0,
+                radius: Meters(10.0),
                 color: Color::WHITE,
                 area_radius: None,
                 lock_signature: None,

@@ -54,19 +54,19 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "close_gate", expression: Term(Factor(Literal(Number(0.0)))))),
                     VariableSet((key: "close_said", expression: Term(Factor(Literal(Number(0.0)))))),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 40.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_1", name: "Ship One", position: (0.0, 0.0, 400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: Player(()),
                             hull: Inline((sections: [])),
                         )),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "beacon_1", name: "Beacon One", position: (90.0, 0.0, -100.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "ONE", radius: 3.0, color: Srgba((red: 1.0, green: 0.7, blue: 0.2, alpha: 1.0)), area_radius: Some(25.0))),
+                        base: (id: "beacon_1", name: "Beacon One", position: (900.0, 0.0, -1000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "ONE", radius: 30.0, color: Srgba((red: 1.0, green: 0.7, blue: 0.2, alpha: 1.0)), area_radius: Some(250.0))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "beacon_2", name: "Beacon Two", position: (-90.0, 0.0, -100.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "TWO", radius: 3.0, color: Srgba((red: 1.0, green: 0.25, blue: 0.2, alpha: 1.0)), area_radius: Some(25.0))),
+                        base: (id: "beacon_2", name: "Beacon Two", position: (-900.0, 0.0, -1000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "TWO", radius: 30.0, color: Srgba((red: 1.0, green: 0.25, blue: 0.2, alpha: 1.0)), area_radius: Some(250.0))),
                     )),
                 ],
             ),
@@ -84,7 +84,7 @@ const SCENARIO_RON: &str = r#"[
                     SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
                     StoryMessage((speaker: "Speaker One", text: "Something is closing on you.")),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 30.0, -260.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 300.0, -2600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
                             controller: AI((engage_delay: Some(8.0))),
                             hull: Inline((sections: [])),

@@ -72,15 +72,15 @@ const SCENARIO_RON: &str = r#"[
                         )),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 0.0, -600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 0.0, -6000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((controller: AI(()), hull: Inline((sections: [])))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_3", name: "Ship Three", position: (0.0, 0.0, -620.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_3", name: "Ship Three", position: (0.0, 0.0, -6200.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((controller: AI(()), hull: Inline((sections: [])))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "station_1", name: "Station One", position: (0.0, 0.0, -900.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "station_1", name: "Station One", position: (0.0, 0.0, -9000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((controller: AI(()), hull: Inline((sections: [])))),
                     )),
                 ],

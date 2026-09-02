@@ -56,22 +56,22 @@ const SCENARIO_RON: &str = r#"[
                         )),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "gate_1", name: "Gate One", position: (0.0, 0.0, -200.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "1", radius: 3.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(30.0))),
+                        base: (id: "gate_1", name: "Gate One", position: (0.0, 0.0, -2000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "1", radius: 30.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(300.0))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "gate_2", name: "Gate Two", position: (0.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "2", radius: 3.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(30.0))),
+                        base: (id: "gate_2", name: "Gate Two", position: (0.0, 0.0, -4000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "2", radius: 30.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(300.0))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "gate_3", name: "Gate Three", position: (0.0, 0.0, -600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "3", radius: 3.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(30.0))),
+                        base: (id: "gate_3", name: "Gate Three", position: (0.0, 0.0, -6000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "3", radius: 30.0, color: Srgba((red: 0.4, green: 0.8, blue: 1.0, alpha: 1.0)), area_radius: Some(300.0))),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "finish_1", name: "Finish", position: (0.0, 0.0, -800.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-                        kind: Beacon((label: "FINISH", radius: 3.0, color: Srgba((red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)), area_radius: Some(30.0))),
+                        base: (id: "finish_1", name: "Finish", position: (0.0, 0.0, -8000.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        kind: Beacon((label: "FINISH", radius: 30.0, color: Srgba((red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)), area_radius: Some(300.0))),
                     )),
-                    CreateScenarioArea((id: "area_1", name: "Penalty Zone", position: (40.0, 0.0, -300.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 40.0)),
+                    CreateScenarioArea((id: "area_1", name: "Penalty Zone", position: (400.0, 0.0, -3000.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 400.0)),
                 ],
             ),
             (

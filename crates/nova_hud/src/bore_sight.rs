@@ -558,6 +558,7 @@ impl Plugin for BoreSightPlugin {
 
 #[cfg(test)]
 mod tests {
+    use nova_events::units::prelude::*;
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;

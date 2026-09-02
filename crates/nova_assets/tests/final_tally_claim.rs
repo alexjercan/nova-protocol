@@ -20,11 +20,11 @@
 //! Harness mirrors lifeline_convoy.rs / broadside_assault.rs
 //! (`cargo test -p nova_assets --test final_tally_claim`).
 
-use bevy::{ecs::system::RunSystemOnce, math::Vec3, prelude::*};
+use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, LockEventInfo, OnDefeatedEvent,
-    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnTravelLockStartEvent,
-    OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, EventHandler, GameEventsPlugin, LockEventInfo, Meters, Meters3,
+    OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo,
+    OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{GameObjectives, GravitySettings};
 use nova_modding::prelude::Content;
@@ -34,12 +34,12 @@ const FINAL_TALLY_RON: &str =
     include_str!("../../../assets/base/scenarios/final_tally.content.ron");
 const BASE_BUNDLE_RON: &str = include_str!("../../../assets/base/base.bundle.ron");
 
-/// The design floor (u) between hostile spawns and the player spawn (the
+/// The design floor between hostile spawns and the player spawn (the
 /// lifeline_convoy convention); the flagship additionally keeps its own
-/// 1000u torpedo envelope clear of the player spawn (the balance audit's
+/// 10 km torpedo envelope clear of the player spawn (the balance audit's
 /// derived number - pinned here so the berth cannot creep back inside it).
-const HOSTILE_SPAWN_MIN_RANGE: f32 = 700.0;
-const FLAGSHIP_TORPEDO_ENVELOPE: f32 = 1000.0;
+const HOSTILE_SPAWN_MIN_RANGE: Meters = Meters(7_000.0);
+const FLAGSHIP_TORPEDO_ENVELOPE: Meters = Meters(10_000.0);
 
 /// Two frames, then run the world out to LIVE.
 ///
@@ -267,7 +267,7 @@ fn on_start_stages_the_claim() {
     let ScenarioObjectKind::Asteroid(anchor_rock) = &anchor.kind else {
         panic!("the claim anchor is an asteroid");
     };
-    assert_eq!(anchor.base.position, Vec3::new(0.0, -20.0, 0.0));
+    assert_eq!(anchor.base.position, Meters3::new(0.0, -200.0, 0.0));
     assert!(anchor_rock.invulnerable, "the well survives the fight");
     assert_eq!(
         anchor_rock.mass,
@@ -338,7 +338,7 @@ fn base_bundle_ships_final_tally() {
 /// (authored-vs-derived-values): the coast-in spawn sits outside even the
 /// worst-seed SOI; every hostile spawn keeps the design floor from the
 /// player spawn; the flagship's berth keeps its own torpedo envelope clear
-/// of the player spawn (the balance audit found 952u once - never again).
+/// of the player spawn (the balance audit found 9.52 km once - never again).
 #[test]
 fn layout_clearances_derive_from_the_measured_constants() {
     let scenario = scenario_from(FINAL_TALLY_RON);
@@ -351,14 +351,20 @@ fn layout_clearances_derive_from_the_measured_constants() {
 
     // The SOI, from the PRODUCTION constants: it falls out of the authored
     // mass alone, so unlike the body below it is the same on every seed.
-    let soi = (anchor_rock.mass.expect("the claim anchor authors a mass")
-        / GravitySettings::default().soi_cutoff_accel)
-        .sqrt();
+    // Engine boundary: a well's strength and the cutoff acceleration beside
+    // it are engine-side gravity numbers, so the radius they yield crosses
+    // once, here, to be compared against an authored position.
+    let soi = Meters::from_engine(
+        (anchor_rock.mass.expect("the claim anchor authors a mass")
+            / GravitySettings::default().soi_cutoff_accel)
+            .sqrt(),
+    );
     assert!(
         player.distance(anchor.base.position) >= soi,
         "the player coasts IN from outside the SOI \
-         ({:.0}u >= {soi:.0}u)",
-        player.distance(anchor.base.position)
+         ({:.0} m >= {:.0} m)",
+        player.distance(anchor.base.position).get(),
+        soi.get()
     );
 
     // Nothing spawns inside the planetoid's worst-case body.
@@ -381,15 +387,17 @@ fn layout_clearances_derive_from_the_measured_constants() {
         let pos = triggered_spawn(&scenario, id).base.position;
         assert!(
             pos.distance(player) >= HOSTILE_SPAWN_MIN_RANGE,
-            "'{id}' keeps the {HOSTILE_SPAWN_MIN_RANGE}u design floor"
+            "'{id}' keeps the {:.0} m design floor",
+            HOSTILE_SPAWN_MIN_RANGE.get()
         );
     }
     let flagship = triggered_spawn(&scenario, "flagship").base.position;
     assert!(
         flagship.distance(player) >= FLAGSHIP_TORPEDO_ENVELOPE,
         "the flagship's berth keeps its own torpedo envelope clear of the \
-         player spawn ({:.0}u >= {FLAGSHIP_TORPEDO_ENVELOPE}u)",
-        flagship.distance(player)
+         player spawn ({:.0} m >= {:.0} m)",
+        flagship.distance(player).get(),
+        FLAGSHIP_TORPEDO_ENVELOPE.get()
     );
 }
 

@@ -64,22 +64,22 @@ const SCENARIO_RON: &str = r#"[
                         )),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_2", name: "Ship Two", position: (60.0, 0.0, -80.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_2", name: "Ship Two", position: (600.0, 0.0, -800.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
-                            controller: AI((patrol: [(60.0, 0.0, -80.0), (100.0, 10.0, -140.0)])),
+                            controller: AI((patrol: [(600.0, 0.0, -800.0), (1000.0, 100.0, -1400.0)])),
                             allegiance: Some(Neutral),
                             hull: Inline((sections: [])),
                         )),
                     )),
                     SpawnScenarioObject((
-                        base: (id: "spaceship_3", name: "Ship Three", position: (-60.0, 0.0, -160.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                        base: (id: "spaceship_3", name: "Ship Three", position: (-600.0, 0.0, -1600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
-                            controller: AI((patrol: [(-60.0, 0.0, -160.0), (-20.0, 10.0, -220.0)])),
+                            controller: AI((patrol: [(-600.0, 0.0, -1600.0), (-200.0, 100.0, -2200.0)])),
                             allegiance: Some(Neutral),
                             hull: Inline((sections: [])),
                         )),
                     )),
-                    CreateScenarioArea((id: "area_1", name: "Watch Zone", position: (80.0, 0.0, -110.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 24.0)),
+                    CreateScenarioArea((id: "area_1", name: "Watch Zone", position: (800.0, 0.0, -1100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 240.0)),
                 ],
             ),
             // The clock-paced opening: a line, then the hand-off that finally
@@ -141,7 +141,7 @@ const SCENARIO_RON: &str = r#"[
                 filters: [
                     Expression((Equal(Term(Factor(Name("spotted"))), Term(Factor(Literal(Number(0.0))))))),
                     Expression((Equal(Term(Factor(Name("speed_warned"))), Term(Factor(Literal(Number(0.0))))))),
-                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(8.0))))))),
+                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(80.0))))))),
                 ],
                 actions: [
                     VariableSet((key: "speed_warned", expression: Term(Factor(Literal(Number(1.0)))))),
@@ -153,7 +153,7 @@ const SCENARIO_RON: &str = r#"[
                 filters: [
                     Expression((Equal(Term(Factor(Name("spotted"))), Term(Factor(Literal(Number(0.0))))))),
                     Expression((Equal(Term(Factor(Name("speed_warned"))), Term(Factor(Literal(Number(1.0))))))),
-                    Expression((LessThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(7.0))))))),
+                    Expression((LessThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(70.0))))))),
                 ],
                 actions: [
                     VariableSet((key: "speed_warned", expression: Term(Factor(Literal(Number(2.0)))))),
@@ -164,7 +164,7 @@ const SCENARIO_RON: &str = r#"[
                 filters: [
                     Expression((Equal(Term(Factor(Name("spotted"))), Term(Factor(Literal(Number(0.0))))))),
                     Expression((Equal(Term(Factor(Name("speed_warned"))), Term(Factor(Literal(Number(2.0))))))),
-                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(8.0))))))),
+                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(80.0))))))),
                 ],
                 actions: [
                     VariableSet((key: "speed_warned", expression: Term(Factor(Literal(Number(3.0)))))),
@@ -176,7 +176,7 @@ const SCENARIO_RON: &str = r#"[
                 filters: [
                     Expression((Equal(Term(Factor(Name("spotted"))), Term(Factor(Literal(Number(0.0))))))),
                     Expression((Equal(Term(Factor(Name("speed_warned"))), Term(Factor(Literal(Number(3.0))))))),
-                    Expression((LessThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(7.0))))))),
+                    Expression((LessThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(70.0))))))),
                 ],
                 actions: [
                     VariableSet((key: "speed_warned", expression: Term(Factor(Literal(Number(2.0)))))),
@@ -187,7 +187,7 @@ const SCENARIO_RON: &str = r#"[
                 filters: [
                     Expression((Equal(Term(Factor(Name("spotted"))), Term(Factor(Literal(Number(0.0))))))),
                     Expression((Equal(Term(Factor(Name("speed_warned"))), Term(Factor(Literal(Number(3.0))))))),
-                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(8.0))))))),
+                    Expression((GreaterThan(Term(Factor(Name("player_speed"))), Term(Factor(Literal(Number(80.0))))))),
                     Expression((GreaterThan(Term(Factor(Name("scenario_elapsed"))), Term(Factor(Name("speed_deadline")))))),
                 ],
                 actions: [
@@ -350,8 +350,8 @@ fn pump_clock(app: &mut App, to_secs: f64) {
 /// `track_player_speed` writes it off the player ship's velocity every live
 /// tick (unit-pinned in nova_scenario); here the CONTENT handlers that consume
 /// it are what is under test.
-fn pump_speed(app: &mut App, to_units: f64) {
-    seed_var(app, "player_speed", to_units);
+fn pump_speed(app: &mut App, meters_per_second: f64) {
+    seed_var(app, "player_speed", meters_per_second);
     app.update();
     app.update();
 }
@@ -445,7 +445,7 @@ fn a_prior_wake_disarms_every_other_trigger() {
 
     // Neither a paint nor a hot burn does anything after the first wake.
     combat_lock(&mut app, "spaceship_3", "spaceship_1");
-    pump_speed(&mut app, 20.0);
+    pump_speed(&mut app, 200.0);
     assert_eq!(
         number_var(&app, "speed_warned"),
         Some(0.0),
@@ -463,7 +463,7 @@ fn overspeed_warns_then_trips_only_on_a_held_fresh_breach() {
     let mut app = armed_app(&scenario);
 
     // First breach: WARNS only. Nobody wakes.
-    pump_speed(&mut app, 9.0);
+    pump_speed(&mut app, 90.0);
     assert_eq!(number_var(&app, "speed_warned"), Some(1.0));
     assert_eq!(
         number_var(&app, "spotted"),
@@ -475,7 +475,7 @@ fn overspeed_warns_then_trips_only_on_a_held_fresh_breach() {
     // A single CONTINUOUS burn never advances past the warning: the countdown
     // needs a rearm below the band first.
     for _ in 0..3 {
-        pump_speed(&mut app, 12.0);
+        pump_speed(&mut app, 120.0);
     }
     assert_eq!(
         number_var(&app, "speed_warned"),
@@ -484,13 +484,13 @@ fn overspeed_warns_then_trips_only_on_a_held_fresh_breach() {
     );
 
     // Slowing under the rearm band ARMS the countdown, silently.
-    pump_speed(&mut app, 6.0);
+    pump_speed(&mut app, 60.0);
     assert_eq!(number_var(&app, "speed_warned"), Some(2.0));
     assert_eq!(number_var(&app, "spotted"), Some(0.0));
 
     // A FRESH breach starts the countdown and stamps a deadline off the clock.
     // It does not trip yet - this is the reaction window.
-    pump_speed(&mut app, 9.0);
+    pump_speed(&mut app, 90.0);
     assert_eq!(number_var(&app, "speed_warned"), Some(3.0));
     assert_eq!(
         number_var(&app, "speed_deadline"),
@@ -517,15 +517,15 @@ fn easing_off_during_the_countdown_cancels_the_wake() {
     let mut app = armed_app(&scenario);
 
     // Warn, rearm, then a fresh breach starts the countdown.
-    pump_speed(&mut app, 9.0);
-    pump_speed(&mut app, 6.0);
-    pump_speed(&mut app, 9.0);
+    pump_speed(&mut app, 90.0);
+    pump_speed(&mut app, 60.0);
+    pump_speed(&mut app, 90.0);
     assert_eq!(number_var(&app, "speed_warned"), Some(3.0));
     assert_eq!(number_var(&app, "speed_deadline"), Some(3.5));
 
     // Ease off in time: the countdown CANCELS back to armed, silently.
     pump_clock(&mut app, 2.0);
-    pump_speed(&mut app, 6.0);
+    pump_speed(&mut app, 60.0);
     assert_eq!(number_var(&app, "speed_warned"), Some(2.0));
     assert_eq!(number_var(&app, "spotted"), Some(0.0));
 
@@ -537,7 +537,7 @@ fn easing_off_during_the_countdown_cancels_the_wake() {
 
     // A fresh breach starts a NEW countdown off the CURRENT clock; held past
     // it, they wake. The reprieve granted no immunity.
-    pump_speed(&mut app, 9.0);
+    pump_speed(&mut app, 90.0);
     assert_eq!(number_var(&app, "speed_deadline"), Some(13.5));
     pump_clock(&mut app, 14.0);
     assert_eq!(number_var(&app, "spotted"), Some(1.0));
