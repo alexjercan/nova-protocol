@@ -27,6 +27,7 @@
 //! replacement (the red reticle's presence anywhere IS the guided cue).
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::theme::combat;
@@ -292,9 +293,9 @@ fn drive_radar_candidate(
             .and_then(|target| {
                 let ship = player.map(|(ship, ..)| ship)?;
                 let position = q_positions.get(target).ok()?;
-                Some(nova_ui::units::distance(
+                Some(nova_ui::units::distance(Meters::from_engine(
                     ship.translation().distance(position.translation()),
-                ))
+                )))
             })
             .unwrap_or_default();
         for &child in children {

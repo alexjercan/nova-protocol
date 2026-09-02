@@ -11,6 +11,7 @@
 //! the candidate brackets is needed.
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::theme::combat;
@@ -372,7 +373,7 @@ fn update_edge_labels(
                 .get(**target)
                 .map(|transform| {
                     let distance = transform.translation().distance(player.translation());
-                    nova_ui::units::distance(distance)
+                    nova_ui::units::distance(Meters::from_engine(distance))
                 })
                 .unwrap_or_default();
             if **text != next {

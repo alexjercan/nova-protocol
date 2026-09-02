@@ -188,7 +188,7 @@ pub(super) fn charge_and_fire_railgun(
             center_of_mass,
             muzzle_position,
         );
-        let slug_velocity = bore_direction * config.slug_speed + muzzle_velocity;
+        let slug_velocity = bore_direction * config.slug_speed.to_engine() + muzzle_velocity;
 
         let mut slug = commands.spawn((
             Name::new("Railgun Slug"),
@@ -212,8 +212,10 @@ pub(super) fn charge_and_fire_railgun(
         // Authored-or-narrow: a lance with no `rake_radius` spawns a slug with
         // no rake component at all, so it takes the sweep's untouched
         // bore-width path rather than a widened one that happens to be zero.
-        if let Some(radius) = config.rake_radius.filter(|radius| *radius > 0.0) {
-            slug.insert(RoundRake::new(radius));
+        if let Some(radius) = config.rake_radius.filter(|radius| *radius > Meters::ZERO) {
+            // Engine boundary: the corridor is authored in meters and the
+            // sweep casts it in world units.
+            slug.insert(RoundRake::new(radius.to_engine()));
         }
         // Copied, not resolved through `ProjectileOwner`: the slug stays
         // attributable if the gun that fired it dies mid-flight.

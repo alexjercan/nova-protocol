@@ -226,7 +226,7 @@ fn commit_is_open(
     // builder's problem and not something the AI corrects for.
     let bore = section_pose.rotation() * Vec3::NEG_Z;
     let own_anchor = live_structure_anchor(transform, com);
-    let reach = config.slug_speed * config.slug_lifetime;
+    let reach = config.slug_speed.over(config.slug_lifetime).to_engine();
     if !ai_railgun_envelope(target_anchor - own_anchor, bore, reach) {
         return false;
     }

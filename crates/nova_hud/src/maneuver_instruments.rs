@@ -15,6 +15,7 @@
 
 use avian3d::prelude::*;
 use bevy::{light::NotShadowCaster, prelude::*};
+use nova_events::units::prelude::*;
 use nova_gameplay::{gravity::prelude::*, markers::prelude::*};
 use nova_ship::flight::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
@@ -221,7 +222,10 @@ fn drive_destination_readout(
                 // ETA and distance only: the ship's own speed chip already
                 // shows the velocity, and two speed readouts in one glance
                 // was playtest-flagged redundancy.
-                **text = format!("{eta}{}", nova_ui::units::distance(telemetry.distance));
+                **text = format!(
+                    "{eta}{}",
+                    nova_ui::units::distance(Meters::from_engine(telemetry.distance))
+                );
             }
             Err(_) => {
                 **anchor = None;
@@ -369,7 +373,9 @@ fn drive_radius_spoke_chip(
                 ));
                 **text = format!(
                     "r {}",
-                    nova_ui::units::distance(well_position.distance(ship_position))
+                    nova_ui::units::distance(Meters::from_engine(
+                        well_position.distance(ship_position),
+                    ))
                 );
             }
             None => {

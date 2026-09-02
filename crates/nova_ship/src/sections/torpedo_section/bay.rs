@@ -264,7 +264,9 @@ pub(super) fn shoot_spawn_projectile(
         let inertia_vel =
             rigid_body_point_velocity(**lin_vel, **ang_vel, center_of_mass, projectile_position);
 
-        let spawner_exit_velocity = spawner_direction * config.spawner_speed;
+        // Engine boundary: the authored ejection speed is meters per second,
+        // and avian's `LinearVelocity` counts world units.
+        let spawner_exit_velocity = spawner_direction * config.spawner_speed.to_engine();
         let linear_velocity = spawner_exit_velocity + inertia_vel;
 
         // Spawn AT the bay, no nudge: the old `+ exit * 0.01` was a static
@@ -332,7 +334,7 @@ pub(super) fn shoot_spawn_projectile(
             (
                 TorpedoGuidance {
                     nav_constant: config.nav_constant,
-                    max_speed: config.torpedo_type.max_speed,
+                    max_speed: config.torpedo_type.max_speed.to_engine(),
                 },
                 // The LAUNCH direction, which `projectile_rotation` above now
                 // agrees with: the torpedo is born pointing this way and is
@@ -344,14 +346,14 @@ pub(super) fn shoot_spawn_projectile(
                 TorpedoSteering(spawner_direction),
                 LinearDamping(config.linear_damping),
                 TorpedoBlast {
-                    radius: config.blast_radius,
+                    radius: config.blast_radius.to_engine(),
                     damage: config.blast_damage,
                 },
             ),
             (
                 TorpedoArming::new(
                     config.arm_time,
-                    config.arm_distance,
+                    config.arm_distance.to_engine(),
                     projectile_transform.translation,
                 ),
                 // Every launch is a COLD launch. The torpedo leaves on the
@@ -1299,7 +1301,7 @@ mod tests {
             Transform::default(),
             TorpedoSectionConfigHelper(TorpedoSectionConfig {
                 spawn_rotation: Quat::from_euler(EulerRot::XYZ, 0.4, -0.9, 0.2),
-                spawner_speed: 12.0,
+                spawner_speed: MetersPerSecond(120.0),
                 ..default()
             }),
             TorpedoSectionInput(true),
@@ -1386,7 +1388,7 @@ mod tests {
         let spawn_rotation = Quat::from_rotation_x(0.3);
         let section_local = Vec3::new(0.0, 1.0, 0.0);
         let spawn_offset = Vec3::new(0.0, 0.0, -1.0);
-        let spawner_speed = 30.0;
+        let spawner_speed = MetersPerSecond(300.0);
         let ship = app
             .world_mut()
             .spawn((
@@ -1467,7 +1469,7 @@ mod tests {
                 let cross = (offset - along * exit_dir).length();
                 max_raw_cross = max_raw_cross.max(cross);
                 assert!(
-                    along > -0.05 && along < 2.0 * spawner_speed * dt + 0.05,
+                    along > -0.05 && along < 2.0 * spawner_speed.to_engine() * dt + 0.05,
                     "raw launch must sit within two ticks of exit travel \
                      ahead of the bay: along {along}"
                 );
@@ -1480,7 +1482,8 @@ mod tests {
                 let render_cross = (render_offset - render_along * exit_dir).length();
                 max_render_cross = max_render_cross.max(render_cross);
                 assert!(
-                    render_along > -0.05 && render_along < 2.0 * spawner_speed * dt + 0.05,
+                    render_along > -0.05
+                        && render_along < 2.0 * spawner_speed.to_engine() * dt + 0.05,
                     "first rendered frame must sit within two ticks of exit \
                      travel ahead of the rendered bay: along {render_along}"
                 );
@@ -1592,7 +1595,7 @@ mod tests {
                     // side, so the run-in starts on the line the swing is
                     // measured against.
                     spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-                    spawner_speed: 10.0,
+                    spawner_speed: MetersPerSecond(100.0),
                     torpedo_type,
                     ..default()
                 }),
@@ -1782,7 +1785,7 @@ mod tests {
         // The same weave at the straight type's cruise cap: the control that
         // isolates the corkscrew from the cap.
         let evasive_uncapped = fly(TorpedoTypeConfig {
-            max_speed: straight_type().max_speed,
+            max_speed: straight_type().max_speed.to_engine(),
             ..TorpedoTypeConfig::default()
         });
         println!(
@@ -1858,7 +1861,7 @@ mod tests {
     fn straight_type() -> TorpedoTypeConfig {
         TorpedoTypeConfig {
             name: "Straight".to_string(),
-            max_speed: 35.0,
+            max_speed: MetersPerSecond(350.0),
             weave_angle: 0.0,
             weave_rate: 0.0,
             ..default()

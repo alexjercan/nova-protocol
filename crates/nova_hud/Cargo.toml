@@ -10,6 +10,9 @@ description = "The player's heads-up display: the diegetic instruments and overl
 avian3d = { version = "0.7" }
 bevy = { version = "0.19.0" }
 nova_input = { path = "../nova_input" }
+# The quantity types every readout here formats: a HUD reads a world-space
+# distance off avian and crosses to meters once, at the point it is read.
+nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_ship = { path = "../nova_ship" }
 nova_ui = { path = "../nova_ui" }

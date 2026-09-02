@@ -5,6 +5,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_ship::flight::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
@@ -270,8 +271,11 @@ fn drive_speed_chip(
                 // leave the chip dark while its text keeps updating.
                 **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
                 **text = match cap {
-                    Some(cap) => nova_ui::units::speed_rated(velocity.length(), **cap),
-                    None => nova_ui::units::speed(velocity.length()),
+                    Some(cap) => nova_ui::units::speed_rated(
+                        MetersPerSecond::from_engine(velocity.length()),
+                        MetersPerSecond::from_engine(**cap),
+                    ),
+                    None => nova_ui::units::speed(MetersPerSecond::from_engine(velocity.length())),
                 };
             }
             Err(_) => {

@@ -506,7 +506,7 @@ fn an_authored_rake_radius_reaches_the_slug() {
     let (_ship, lance) = spawn_lance_ship(
         &mut app,
         RailgunSectionConfig {
-            rake_radius: Some(1.25),
+            rake_radius: Some(Meters(12.5)),
             ..default()
         },
         Vec3::NEG_Z * 2.0,
@@ -526,7 +526,7 @@ fn a_rake_radius_of_zero_fires_a_narrow_slug() {
     let (_ship, lance) = spawn_lance_ship(
         &mut app,
         RailgunSectionConfig {
-            rake_radius: Some(0.0),
+            rake_radius: Some(Meters::ZERO),
             ..default()
         },
         Vec3::NEG_Z * 2.0,
@@ -538,17 +538,18 @@ fn a_rake_radius_of_zero_fires_a_narrow_slug() {
     assert_eq!(slug_rakes(&mut app), vec![None]);
 }
 
-/// The authoring contract, in the format content is written in: a lance
-/// authored before `rake_radius` existed still parses, and reads as the narrow
-/// gun it was. The field is skipped on the way out too, so regenerating the
-/// catalog does not rewrite every mod's railgun with a null.
+/// The authoring contract, in the format content is written in: a lance that
+/// omits the optional `rake_radius` reads as the narrow gun it is, and the
+/// field is skipped on the way out too, so regenerating the catalog does not
+/// rewrite every mod's railgun with a null. The distances are bare meters in
+/// the file - a slug at 15 km/s, not a typed wrapper.
 #[cfg(feature = "serde")]
 #[test]
-fn a_lance_authored_without_a_rake_still_parses_and_stays_narrow() {
+fn a_lance_that_omits_the_rake_parses_and_stays_narrow() {
     let authored = r#"(
         muzzle_offset: (0.0, 0.0, -1.5),
         charge_seconds: 1.5,
-        slug_speed: 1500.0,
+        slug_speed: 15000.0,
         slug_damage: 300.0,
         slug_power: 1800.0,
         slug_lifetime: 1.2,
@@ -572,10 +573,10 @@ fn a_lance_authored_without_a_rake_still_parses_and_stays_narrow() {
 #[test]
 fn an_authored_rake_survives_a_content_round_trip() {
     let config = RailgunSectionConfig {
-        rake_radius: Some(1.0),
+        rake_radius: Some(Meters(10.0)),
         ..default()
     };
     let written = ron::ser::to_string(&config).expect("a raking lance serializes");
     let read: RailgunSectionConfig = ron::from_str(&written).expect("and parses back");
-    assert_eq!(read.rake_radius, Some(1.0));
+    assert_eq!(read.rake_radius, Some(Meters(10.0)));
 }

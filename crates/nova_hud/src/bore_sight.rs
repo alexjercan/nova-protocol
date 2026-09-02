@@ -247,7 +247,11 @@ fn trace_bore(
     bore: Dir3,
     config: &RailgunSectionConfigHelper,
 ) -> BoreTrace {
-    let reach = (config.slug_speed * config.slug_lifetime).max(0.0);
+    let reach = config
+        .slug_speed
+        .over(config.slug_lifetime)
+        .to_engine()
+        .max(0.0);
     let mut damage = ProjectileDamage {
         amount: config.slug_damage,
         power: config.slug_power,
@@ -255,7 +259,7 @@ fn trace_bore(
         layers: u32::MAX,
         kind: DamageType::Pierce,
     };
-    let closing = config.slug_speed;
+    let closing = config.slug_speed.to_engine();
     let bite = hit_bite(damage, closing);
 
     let mut kills: Vec<(Entity, Vec3)> = Vec::new();
@@ -665,7 +669,7 @@ mod tests {
         let config = RailgunSectionConfig {
             slug_damage: 300.0,
             slug_power: 1_000.0,
-            slug_speed: 1_500.0,
+            slug_speed: MetersPerSecond(15_000.0),
             slug_lifetime: 1.0,
             ..default()
         };
@@ -708,7 +712,7 @@ mod tests {
         let config = RailgunSectionConfig {
             slug_damage: 300.0,
             slug_power: 1_000.0,
-            slug_speed: 1_500.0,
+            slug_speed: MetersPerSecond(15_000.0),
             slug_lifetime: 1.0,
             ..default()
         };
@@ -747,7 +751,7 @@ mod tests {
             // would take it to 66 - so the budget is deliberately cut to stop
             // the rake on the second.
             slug_power: 100.0,
-            slug_speed: 1_500.0,
+            slug_speed: MetersPerSecond(15_000.0),
             slug_lifetime: 1.0,
             ..default()
         };

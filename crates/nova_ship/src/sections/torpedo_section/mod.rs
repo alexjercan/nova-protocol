@@ -15,6 +15,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_hanabi::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
+use nova_events::units::prelude::*;
 use nova_gameplay::{lifetime::TempEntity, prelude::*};
 
 use super::local_pose_in_root;
@@ -97,8 +98,9 @@ pub struct TorpedoSectionConfig {
     pub spawn_recess: f32,
     /// The fire rate of the turret in rounds per second.
     pub fire_rate: f32,
-    /// The muzzle speed of the turret in units per second.
-    pub spawner_speed: f32,
+    /// The cold-launch ejection speed: how fast the bay kicks the torpedo
+    /// clear before its motor lights.
+    pub spawner_speed: MetersPerSecond,
     /// The lifetime of the projectile in seconds.
     pub projectile_lifetime: f32,
     /// Arming delay: minimum seconds after firing before the torpedo may
@@ -108,7 +110,7 @@ pub struct TorpedoSectionConfig {
     /// Arming distance: minimum distance from the muzzle the torpedo must travel
     /// before it may detonate, so it clears the firing ship first. Armed when
     /// this OR `arm_time` is reached.
-    pub arm_distance: f32,
+    pub arm_distance: Meters,
     /// Ejection delay: seconds the torpedo coasts INERT before its drive lights.
     ///
     /// A torpedo is not fired, it is DROPPED. The bay kicks it clear on a cold
@@ -138,9 +140,9 @@ pub struct TorpedoSectionConfig {
     /// thrust direction and relaxes the velocity toward wherever the nose points,
     /// so the flight path follows the guidance command.
     pub linear_damping: f32,
-    /// Blast radius on detonation, in units. The proximity fuze fires near the
-    /// target's skin, and blast damage falls off linearly to zero at this radius.
-    pub blast_radius: f32,
+    /// Blast radius on detonation. The proximity fuze fires near the target's
+    /// skin, and blast damage falls off linearly to zero at this radius.
+    pub blast_radius: Meters,
     /// Peak blast damage at the detonation centre, falling off to zero at
     /// `blast_radius`.
     pub blast_damage: f32,
@@ -244,15 +246,15 @@ impl Default for TorpedoSectionConfig {
             spawn_rotation: Quat::IDENTITY,
             spawn_recess: 0.0,
             fire_rate: 1.0,
-            spawner_speed: 1.0,
+            spawner_speed: MetersPerSecond(10.0),
             projectile_lifetime: 100.0,
             arm_time: 0.5,
-            arm_distance: 5.0,
+            arm_distance: Meters(50.0),
             ignition_delay: default_ignition_delay(),
             nav_constant: 3.0,
             linear_damping: 0.8,
-            blast_radius: 30.0,
-            // Matches the shipped standard torpedo: 750 over a 30 u linear
+            blast_radius: Meters(300.0),
+            // Matches the shipped standard torpedo: 750 over a 300 m linear
             // falloff, so an un-authored bay hits like the catalog's rather
             // than the pre-rework 100.
             blast_damage: 750.0,
@@ -324,7 +326,7 @@ pub struct TorpedoTypeConfig {
     /// an evasive torpedo should BE slower rather than fly just as fast behind
     /// a shorter timer, so the evasive type authors a lower cap and the taper
     /// band it never quite reaches comes down with it.
-    pub max_speed: f32,
+    pub max_speed: MetersPerSecond,
     /// Peak half-angle (radians) of the terminal weave: how far off the
     /// guidance solution the corkscrew tilts the steering command. `0.0`
     /// disables the weave and the torpedo flies the bare intercept.
@@ -396,7 +398,7 @@ impl Default for TorpedoTypeConfig {
             // Hazard orange, the Explosive hue the ammo readout already speaks:
             // the assault torpedo reads hot.
             tint: Color::srgb(0.95, 0.45, 0.1),
-            max_speed: 32.0,
+            max_speed: MetersPerSecond(320.0),
             weave_angle: 0.44,
             weave_rate: 1.4,
         }

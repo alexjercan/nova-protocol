@@ -1630,7 +1630,7 @@ mod point_defense_cost_tests {
     fn straight_type() -> TorpedoTypeConfig {
         TorpedoTypeConfig {
             name: "Straight".to_string(),
-            max_speed: 35.0,
+            max_speed: MetersPerSecond(350.0),
             weave_angle: 0.0,
             weave_rate: 0.0,
             ..Default::default()

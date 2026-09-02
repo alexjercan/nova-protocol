@@ -114,6 +114,12 @@ macro_rules! scalar_quantity {
                 Self(engine * METERS_PER_UNIT)
             }
 
+            /// Whether this is a real, finite quantity - what content
+            /// validation asks before it trusts an authored number.
+            pub fn is_finite(self) -> bool {
+                self.0.is_finite()
+            }
+
             /// The magnitude without its sign.
             pub fn abs(self) -> Self {
                 Self(self.0.abs())

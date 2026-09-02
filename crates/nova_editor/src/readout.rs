@@ -9,6 +9,7 @@
 //! a builder another derived number.
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
@@ -79,7 +80,9 @@ pub(crate) fn preview_stats(parts: &[(Vec3, Quat, SectionConfig)]) -> ShipStats 
         envelope: Some(AttitudeEnvelope::new(
             total_torque,
             properties.principal_angular_inertia.max_element(),
-            arm,
+            // Engine boundary: `structural_arm` measures the hull off its
+            // collider half-extents, which are build-grid cells.
+            Meters::from_engine(arm),
         )),
         mass: properties.mass,
         thrust: parts

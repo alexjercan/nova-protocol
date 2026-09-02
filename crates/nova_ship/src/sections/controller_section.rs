@@ -6,6 +6,7 @@
 
 use avian3d::prelude::*;
 use bevy::{ecs::entity::EntityHashMap, platform::collections::HashSet, prelude::*};
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{
     AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker, SectionMarker,
 };
@@ -482,7 +483,10 @@ pub(crate) fn update_controller_stack_tuning(
             ),
             Err(_) => (0.0, 0.0, 0.0),
         };
-        let budget = AttitudeEnvelope::new(total_torque, inertia, arm).available(spin);
+        // Engine boundary: `structural_arm` measures the hull off its avian
+        // colliders, so the arm arrives in world units.
+        let budget =
+            AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm)).available(spin);
         let precision = stack_curve(stack.len() as f32, STACK_PRECISION_LIMIT);
 
         for (_, entity, tuning) in stack {
@@ -979,8 +983,9 @@ mod tests {
     }
 
     /// The arm the pass derived, read back out of the ceiling it wrote: the
-    /// shipped hulls are all structure-bound, so `LOAD_LIMIT / ceiling` in
-    /// meters is exactly the arm that produced it.
+    /// shipped hulls are all structure-bound, so `LOAD_LIMIT / ceiling` is
+    /// exactly the arm that produced it, in world units to compare against the
+    /// rig geometry.
     fn hull_arm(app: &App, root: Entity) -> f32 {
         let budget: f32 = app
             .world()
@@ -989,7 +994,7 @@ mod tests {
             .filter_map(|entity| entity.get::<PDController>())
             .map(|pd| pd.max_angular_acceleration)
             .sum();
-        nova_events::prelude::LOAD_LIMIT / budget / nova_events::prelude::METERS_PER_UNIT
+        Meters(nova_events::prelude::LOAD_LIMIT.get() / budget).to_engine()
     }
 
     /// `count` shipped computers on `root`, massless so the rig isolates the

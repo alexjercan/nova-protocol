@@ -35,6 +35,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::{asset_ref::AssetRef, lifetime::TempEntity, prelude::*};
 
 use super::local_pose_in_root;
@@ -98,8 +99,8 @@ pub struct RailgunSectionConfig {
     /// Seconds from the trigger pull to the shot. The charge cannot be
     /// aborted, so this is aiming time, not a hold.
     pub charge_seconds: f32,
-    /// Muzzle speed of the slug, in units per second.
-    pub slug_speed: f32,
+    /// Muzzle speed of the slug.
+    pub slug_speed: MetersPerSecond,
     /// Damage the slug deals to EVERY layer it crosses. Flat: Pierce is not
     /// scaled by closing speed and does not decay with depth.
     pub slug_damage: f32,
@@ -109,7 +110,7 @@ pub struct RailgunSectionConfig {
     /// unlimited, so a lance stops when it runs out of thickness to spend and
     /// never because it met an arbitrary layer.
     pub slug_power: f32,
-    /// How wide a corridor the slug opens, in units. Omitted is a bore-width
+    /// How wide a corridor the slug opens. Omitted is a bore-width
     /// round and exactly the behavior every lance had before the field
     /// existed.
     ///
@@ -123,7 +124,7 @@ pub struct RailgunSectionConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
-    pub rake_radius: Option<f32>,
+    pub rake_radius: Option<Meters>,
     /// Seconds the slug lives before it expires unspent. With no layer cap
     /// this is also what stops a miss travelling forever.
     pub slug_lifetime: f32,
@@ -186,7 +187,7 @@ impl Default for RailgunSectionConfig {
             render_mesh_transform: None,
             muzzle_offset: Vec3::NEG_Z * 0.5,
             charge_seconds: 0.0,
-            slug_speed: 1_000.0,
+            slug_speed: MetersPerSecond(10_000.0),
             slug_damage: 50.0,
             slug_power: PIERCE_BASE_POWER,
             rake_radius: None,

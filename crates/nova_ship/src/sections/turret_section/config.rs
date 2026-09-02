@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 use bevy_hanabi::prelude::EffectAsset;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 
 use crate::prelude::*;
@@ -126,11 +127,11 @@ pub struct TurretSectionConfig {
     /// The turret's kinematic joint tree (base -> ... -> muzzle). Replaces the
     /// old flat yaw/pitch/offset/render-mesh fields.
     pub root: TurretJoint,
-    /// The muzzle speed of the turret in units per second. NOT a range knob:
+    /// The muzzle speed of the turret. NOT a range knob:
     /// [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
-    /// is anchored at the stock 100 u/s, so moving this rescales every
+    /// is anchored at the stock 1,000 m/s, so moving this rescales every
     /// speed-driven damage curve. Buy reach with `projectile_lifetime`.
-    pub muzzle_speed: f32,
+    pub muzzle_speed: MetersPerSecond,
     /// How long (s) a round lives before it expires. A turret has no `range`
     /// field: `muzzle_speed * projectile_lifetime` IS its reach, and this is
     /// the only knob that moves reach without touching damage. It is read
@@ -296,11 +297,11 @@ impl Default for TurretSectionConfig {
                     }],
                 }],
             },
-            muzzle_speed: 100.0,
-            // 200 u (2.0 km) of reach, matching the shipped PDCs so a bare
+            muzzle_speed: MetersPerSecond(1_000.0),
+            // 2 km of reach, matching the shipped PDCs so a bare
             // example turret behaves like a catalog one.
             projectile_lifetime: 2.0,
-            // Matches the old emergent kinetic (mass 0.1 @ muzzle 100 u/s).
+            // Matches the old emergent kinetic (mass 0.1 @ muzzle 1,000 m/s).
             bullet_damage: representative_kinetic_damage(0.1, 100.0),
             bullet_kind: DamageType::Kinetic,
             projectile_render_mesh: None,

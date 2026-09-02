@@ -4720,6 +4720,7 @@ version = "0.12.0"
 dependencies = [
  "avian3d",
  "bevy",
+ "nova_events",
  "nova_gameplay",
  "nova_input",
  "nova_ship",

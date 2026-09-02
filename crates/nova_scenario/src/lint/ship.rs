@@ -1,6 +1,7 @@
 //! Structural checks over a scenario's ships and their section configs.
 
 use bevy::prelude::Vec3;
+use nova_events::units::prelude::*;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
     PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig, SectionKind,
@@ -236,13 +237,14 @@ fn check_railgun_charge(
     }
     let bad_rake = config
         .rake_radius
-        .filter(|radius| *radius < 0.0 || !radius.is_finite());
+        .filter(|radius| *radius < Meters::ZERO || !radius.is_finite());
     if let Some(radius) = bad_rake {
         issues.push(LintIssue::error(
             source,
             format!(
                 "section '{section_id}': railgun rake_radius must be a finite, non-negative \
-                 number of units, got {radius}"
+                 number of meters, got {}",
+                radius.get()
             ),
         ));
     }

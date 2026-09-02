@@ -472,7 +472,11 @@ mod fire_discipline_tests {
         // graded the same way, one grade at a time, in nova_authoring's
         // base_content tests - this pins the engine default.
         let config = TurretSectionConfig::default();
-        let gate = config.muzzle_speed * config.projectile_lifetime * AI_FIRE_RANGE_FACTOR;
+        let gate = config
+            .muzzle_speed
+            .over(config.projectile_lifetime)
+            .to_engine()
+            * AI_FIRE_RANGE_FACTOR;
         assert!(
             gate > AI_STANDOFF_OUTER_EDGE,
             "default turret fire gate {gate:.0}u must cover the standoff \

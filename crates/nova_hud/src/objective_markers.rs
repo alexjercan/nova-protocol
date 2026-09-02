@@ -10,6 +10,7 @@
 //! Chrome tier, like the beacon chips - the same nav-chip family.
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::hud::{chip_node, chip_paint, ChipTone};
 
@@ -301,7 +302,11 @@ fn update_objective_marker_labels(
                 let distance = player_transform
                     .translation()
                     .distance(target_transform.translation());
-                format!("{}  {}", marker.label, nova_ui::units::distance(distance))
+                format!(
+                    "{}  {}",
+                    marker.label,
+                    nova_ui::units::distance(Meters::from_engine(distance))
+                )
             }
             None => marker.label.clone(),
         };

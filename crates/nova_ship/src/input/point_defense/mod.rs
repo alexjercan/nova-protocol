@@ -74,7 +74,11 @@ pub(crate) fn mount_may_shoot(
     aim: Vec3,
 ) -> bool {
     let muzzle_position = muzzle.translation();
-    let effective_range = config.muzzle_speed * config.projectile_lifetime * AI_FIRE_RANGE_FACTOR;
+    let effective_range = config
+        .muzzle_speed
+        .over(config.projectile_lifetime)
+        .to_engine()
+        * AI_FIRE_RANGE_FACTOR;
     anchor.distance(muzzle_position) <= effective_range
         && muzzle_on_target(muzzle.forward().into(), muzzle_position, aim)
 }

@@ -14,7 +14,7 @@ use avian3d::{
     prelude::*,
 };
 use bevy::prelude::*;
-use nova_events::prelude::{LOAD_LIMIT, METERS_PER_UNIT};
+use nova_events::{prelude::LOAD_LIMIT, units::prelude::*};
 
 /// The attitude envelope, which limit binds it, and the hull-arm helper the two
 /// callers that have no rigid body to read share.
@@ -57,27 +57,27 @@ pub struct AttitudeEnvelope {
     /// `sum(max_torque) / I`. Infinite while the hull has no measured inertia,
     /// which is the case for the first few ticks after a spawn.
     pub torque_ceiling: f32,
-    /// `LOAD_LIMIT / (arm * METERS_PER_UNIT)`. Infinite for a hull with no arm
-    /// - a point mass has nothing to tear.
+    /// `LOAD_LIMIT / arm`. Infinite for a hull with no arm - a point mass has
+    /// nothing to tear.
     pub structural_ceiling: f32,
 }
 
 impl AttitudeEnvelope {
     /// Derive the envelope from the hull's summed computer torque, its largest
-    /// principal moment of inertia, and its structural arm in world UNITS.
+    /// principal moment of inertia, and its structural arm.
     ///
     /// The largest principal moment is the conservative axis and the one
     /// `hull_turn_rate` budgets against, so one scalar covers a hull that is
     /// much easier to roll than to yaw.
-    pub fn new(total_torque: f32, angular_inertia: f32, arm_units: f32) -> Self {
+    pub fn new(total_torque: f32, angular_inertia: f32, arm: Meters) -> Self {
         let torque_ceiling = if angular_inertia > 0.0 {
             total_torque.max(0.0) / angular_inertia
         } else {
             f32::INFINITY
         };
-        let arm_meters = arm_units.max(0.0) * METERS_PER_UNIT;
-        let structural_ceiling = if arm_meters > 0.0 {
-            LOAD_LIMIT / arm_meters
+        let arm = arm.max(Meters::ZERO);
+        let structural_ceiling = if arm > Meters::ZERO {
+            LOAD_LIMIT.get() / arm.get()
         } else {
             f32::INFINITY
         };
@@ -244,7 +244,7 @@ mod tests {
     /// 0.5 rad/s2 model gave it.
     #[test]
     fn the_reference_hull_is_structure_bound_and_sharp() {
-        let envelope = AttitudeEnvelope::new(1501.0, 2.5, 1.5);
+        let envelope = AttitudeEnvelope::new(1501.0, 2.5, Meters(15.0));
         assert_eq!(envelope.binds(), AttitudeLimit::Structure);
         assert!((envelope.ceiling() - 5.232).abs() < 1e-2, "{envelope:?}");
         let flip = 2.0 * (core::f32::consts::PI / envelope.ceiling()).sqrt();
@@ -257,7 +257,7 @@ mod tests {
     /// A capital is a barge because it is a capital.
     #[test]
     fn a_capital_binds_on_torque_instead() {
-        let envelope = AttitudeEnvelope::new(1501.0, 7906.0, 15.0);
+        let envelope = AttitudeEnvelope::new(1501.0, 7906.0, Meters(150.0));
         assert_eq!(envelope.binds(), AttitudeLimit::Torque);
         let flip = 2.0 * (core::f32::consts::PI / envelope.ceiling()).sqrt();
         assert!((flip - 8.14).abs() < 0.05, "bang-bang 180 in {flip} s");
@@ -268,8 +268,8 @@ mod tests {
     /// buys nothing at all.
     #[test]
     fn torque_stacks_until_the_structure_catches_it() {
-        let one = AttitudeEnvelope::new(1501.0, 7906.0, 15.0);
-        let two = AttitudeEnvelope::new(3002.0, 7906.0, 15.0);
+        let one = AttitudeEnvelope::new(1501.0, 7906.0, Meters(150.0));
+        let two = AttitudeEnvelope::new(3002.0, 7906.0, Meters(150.0));
         assert!(
             (two.ceiling() / one.ceiling() - 2.0).abs() < 1e-3,
             "a torque-bound hull doubles: {} -> {}",
@@ -277,8 +277,8 @@ mod tests {
             two.ceiling()
         );
 
-        let fighter_one = AttitudeEnvelope::new(1501.0, 2.5, 1.5);
-        let fighter_ten = AttitudeEnvelope::new(15010.0, 2.5, 1.5);
+        let fighter_one = AttitudeEnvelope::new(1501.0, 2.5, Meters(15.0));
+        let fighter_ten = AttitudeEnvelope::new(15010.0, 2.5, Meters(15.0));
         assert_eq!(fighter_one.ceiling(), fighter_ten.ceiling());
     }
 
@@ -287,7 +287,7 @@ mod tests {
     /// hull gets its authority back to shed the rate with.
     #[test]
     fn a_hard_turn_spends_the_structural_margin() {
-        let envelope = AttitudeEnvelope::new(f32::INFINITY, 2.5, 1.5);
+        let envelope = AttitudeEnvelope::new(f32::INFINITY, 2.5, Meters(15.0));
         let ceiling = envelope.ceiling();
         assert_eq!(envelope.available(0.0), ceiling);
 
@@ -311,7 +311,7 @@ mod tests {
     /// zero inertia is "no propulsive limit known", so the structure answers.
     #[test]
     fn an_unmeasured_hull_falls_back_to_its_structure() {
-        let envelope = AttitudeEnvelope::new(1501.0, 0.0, 1.5);
+        let envelope = AttitudeEnvelope::new(1501.0, 0.0, Meters(15.0));
         assert_eq!(envelope.binds(), AttitudeLimit::Structure);
         assert!((envelope.ceiling() - 5.232).abs() < 1e-2, "{envelope:?}");
     }

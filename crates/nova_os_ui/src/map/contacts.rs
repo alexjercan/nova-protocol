@@ -7,7 +7,10 @@
 //! Touch this module when adding a kind of thing the map can show.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_events::prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME};
+use nova_events::{
+    prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME},
+    units::prelude::*,
+};
 use nova_gameplay::prelude::*;
 use nova_hud::allegiance_markers::allegiance_color;
 use nova_os::prelude::*;
@@ -130,7 +133,7 @@ impl MapContact {
                 self.kind.label(),
                 self.code,
                 self.name,
-                nova_ui::units::distance(0.0),
+                nova_ui::units::distance(Meters::ZERO),
                 self.kind.note()
             );
         }
@@ -139,7 +142,7 @@ impl MapContact {
             self.kind.label(),
             self.code,
             self.name,
-            nova_ui::units::distance(self.range),
+            nova_ui::units::distance(Meters::from_engine(self.range)),
             self.bearing_deg,
             self.mark_deg,
             self.kind.note(),
@@ -151,11 +154,11 @@ impl MapContact {
     /// showed). Range in the shared player-facing units (m/km).
     pub(crate) fn info_cell(&self) -> String {
         if self.kind == MapContactKind::OwnShip {
-            return format!("range {}", nova_ui::units::distance(0.0));
+            return format!("range {}", nova_ui::units::distance(Meters::ZERO));
         }
         format!(
             "{}  {:03.0} mark {:+03.0}",
-            nova_ui::units::distance(self.range),
+            nova_ui::units::distance(Meters::from_engine(self.range)),
             self.bearing_deg,
             self.mark_deg,
         )

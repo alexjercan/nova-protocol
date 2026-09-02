@@ -166,7 +166,7 @@ pub(super) fn update_torpedo_section_input(
                     ai_torpedo_envelope(
                         anchor - own_anchor,
                         *transform.forward(),
-                        config.blast_radius,
+                        config.blast_radius.to_engine(),
                     )
                 })
                 && line_clear(own_anchor);

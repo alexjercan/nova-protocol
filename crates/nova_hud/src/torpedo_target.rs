@@ -13,6 +13,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
@@ -434,7 +435,10 @@ fn closing_speed(
 /// The `DST` line, using the shared player-facing distance policy (meters
 /// below 1 km, kilometers above; 1 world unit = 10 m).
 fn distance_line(distance: f32) -> String {
-    format!("DST {}", nova_ui::units::distance(distance))
+    format!(
+        "DST {}",
+        nova_ui::units::distance(Meters::from_engine(distance))
+    )
 }
 
 /// The `CLS` line, using the shared closing-speed policy (signed m/s, 1 world
@@ -442,7 +446,10 @@ fn distance_line(distance: f32) -> String {
 /// opening. `None` (no velocity data on either body) renders a placeholder.
 fn closing_line(closing: Option<f32>) -> String {
     match closing {
-        Some(closing) => format!("CLS {}", nova_ui::units::closing_speed(closing)),
+        Some(closing) => format!(
+            "CLS {}",
+            nova_ui::units::closing_speed(MetersPerSecond::from_engine(closing))
+        ),
         None => "CLS   ---".to_string(),
     }
 }

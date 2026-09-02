@@ -5,6 +5,7 @@
 //! or accepts as a command.
 
 use bevy::prelude::*;
+use nova_events::units::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_os::prelude::*;
 use nova_ship::prelude::*;
@@ -79,7 +80,7 @@ pub(crate) fn apply_map_cli_commands(
                     "goto {} ({}): autopilot engaged, range {}",
                     contact.code,
                     contact.name,
-                    nova_ui::units::distance(contact.range),
+                    nova_ui::units::distance(Meters::from_engine(contact.range)),
                 ),
             }]
         }

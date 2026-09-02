@@ -263,7 +263,8 @@ pub(super) fn shoot_spawn_projectile(
                 // talk a barrel into shooting.
                 let exit_rotation =
                     projectile_rotation * rng.as_deref_mut().map_or(Quat::IDENTITY, muzzle_spread);
-                let muzzle_exit_velocity = (exit_rotation * Vec3::NEG_Z) * config.muzzle_speed;
+                let muzzle_exit_velocity =
+                    (exit_rotation * Vec3::NEG_Z) * config.muzzle_speed.to_engine();
                 let linear_velocity = muzzle_exit_velocity + inertia_vel;
 
                 // Sub-tick exactness: a shot due `lead` seconds into this tick
@@ -1153,7 +1154,7 @@ mod tests {
                 // The muzzle child below carries the fire timer directly; the
                 // config's per-muzzle rate is unused by this rig.
                 TurretSectionConfigHelper(TurretSectionConfig {
-                    muzzle_speed: 200.0,
+                    muzzle_speed: MetersPerSecond(2_000.0),
                     ..default()
                 }),
             ))
@@ -1262,7 +1263,7 @@ mod tests {
         // of zero.
         let exit_direction = Quat::from_rotation_y(0.3) * Vec3::NEG_Z;
         positions.sort_by(|a, b| a.dot(exit_direction).total_cmp(&b.dot(exit_direction)));
-        let expected_spacing = 200.0 / 24.0;
+        let expected_spacing = MetersPerSecond(2_000.0).to_engine() / 24.0;
         for window in positions.windows(2) {
             let stride = (window[1] - window[0]).dot(exit_direction);
             assert!(
@@ -1354,7 +1355,7 @@ mod tests {
         let exit_direction = muzzle_local_rot * Vec3::NEG_Z;
         // One tick of muzzle-exit travel: the most a mid-tick shot may lead
         // the barrel by on its first rendered frame.
-        let max_lead = 200.0 * 1.0 / 64.0 + 0.05;
+        let max_lead = MetersPerSecond(2_000.0).to_engine() / 64.0 + 0.05;
 
         let mut seen: HashSet<Entity> = HashSet::new();
         let mut sampled = 0usize;

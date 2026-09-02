@@ -348,7 +348,7 @@ pub fn update_turret_aim_point(
             muzzle_pos,
             target_pos + target_velocity * launch_delay,
             target_velocity,
-            config.muzzle_speed,
+            config.muzzle_speed.to_engine(),
         ));
     }
 }
@@ -620,7 +620,11 @@ mod tests {
         // The far edge of a gunfight: the PDC's own fire gate, muzzle_speed *
         // projectile_lifetime * AI_FIRE_RANGE_FACTOR = 100 * 2.0 * 0.9.
         let config = TurretSectionConfig::default();
-        let far = config.muzzle_speed * config.projectile_lifetime * 0.9;
+        let far = config
+            .muzzle_speed
+            .over(config.projectile_lifetime)
+            .to_engine()
+            * 0.9;
         let miss = far * TURRET_ON_TARGET_RAD.sin();
         assert!(
             miss < HULL_HIT_RADIUS * 2.0,
@@ -711,10 +715,12 @@ mod tests {
         // nose `weave_angle` off the guidance solution and spins that tilt at
         // `weave_rate`.
         let serpent = TorpedoTypeConfig::default();
-        let lateral = serpent.max_speed * serpent.weave_angle.sin() * serpent.weave_rate;
+        let lateral =
+            serpent.max_speed.to_engine() * serpent.weave_angle.sin() * serpent.weave_rate;
         // The flight time the on-target cone is graded at: a round's time to
         // the CLOSE edge of a gunfight.
-        let flight = CLOSE_ENGAGEMENT_RANGE / TurretSectionConfig::default().muzzle_speed;
+        let flight =
+            CLOSE_ENGAGEMENT_RANGE / TurretSectionConfig::default().muzzle_speed.to_engine();
         // A one-pole filter following a ramp settles exactly `tau` behind it.
         let shortfall = lateral * TARGET_TRACK_TAU * flight;
         assert!(
@@ -976,7 +982,7 @@ mod tests {
         );
         // Consistency: bullet (barrel direction * speed + inherited velocity)
         // and target meet at the flight time the solve implies.
-        let speed = TurretSectionConfig::default().muzzle_speed;
+        let speed = TurretSectionConfig::default().muzzle_speed.to_engine();
         let flight_time = aim.length() / speed;
         let barrel_dir = aim.normalize();
         let bullet_at_t = (barrel_dir * speed + Vec3::new(30.0, 0.0, 0.0)) * flight_time;
@@ -1073,7 +1079,7 @@ mod tests {
             let turret = app
                 .world_mut()
                 .spawn(turret_section(TurretSectionConfig {
-                    muzzle_speed: 1000.0, // near-straight lead so aim ~= target dir
+                    muzzle_speed: MetersPerSecond(10_000.0), // near-straight lead so aim ~= target dir
                     ..Default::default()
                 }))
                 .id();
@@ -1112,7 +1118,7 @@ mod tests {
         let turret = app
             .world_mut()
             .spawn(turret_section(TurretSectionConfig {
-                muzzle_speed: 1000.0,
+                muzzle_speed: MetersPerSecond(10_000.0),
                 ..Default::default()
             }))
             .id();
@@ -1150,7 +1156,7 @@ mod tests {
         let turret = app
             .world_mut()
             .spawn(turret_section(TurretSectionConfig {
-                muzzle_speed: 1000.0,
+                muzzle_speed: MetersPerSecond(10_000.0),
                 ..Default::default()
             }))
             .id();
@@ -1194,7 +1200,7 @@ mod tests {
         let turret = app
             .world_mut()
             .spawn(turret_section(TurretSectionConfig {
-                muzzle_speed: 1000.0,
+                muzzle_speed: MetersPerSecond(10_000.0),
                 ..Default::default()
             }))
             .id();
@@ -1324,7 +1330,7 @@ mod tests {
                 .world_mut()
                 .spawn(turret_section(TurretSectionConfig {
                     root,
-                    muzzle_speed: 1000.0,
+                    muzzle_speed: MetersPerSecond(10_000.0),
                     ..Default::default()
                 }))
                 .id();
@@ -1383,7 +1389,7 @@ mod tests {
         let turret = app
             .world_mut()
             .spawn(turret_section(TurretSectionConfig {
-                muzzle_speed: 1000.0,
+                muzzle_speed: MetersPerSecond(10_000.0),
                 ..Default::default()
             }))
             .id();
@@ -1548,7 +1554,7 @@ mod tests {
 
         let config = TurretSectionConfig {
             root,
-            muzzle_speed: 1000.0,
+            muzzle_speed: MetersPerSecond(10_000.0),
             ..default()
         };
         let turret = app.world_mut().spawn(turret_section(config)).id();
@@ -1628,7 +1634,7 @@ mod tests {
 
         let config = TurretSectionConfig {
             root: yaw,
-            muzzle_speed: 1000.0, // near-straight lead so aim ~= target dir
+            muzzle_speed: MetersPerSecond(10_000.0), // near-straight lead so aim ~= target dir
             ..default()
         };
         let turret = app.world_mut().spawn(turret_section(config)).id();
