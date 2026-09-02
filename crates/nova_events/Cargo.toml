@@ -13,5 +13,9 @@ serde = { version = "1.0.228" }
 serde_json = { version = "1" }
 nova_events_macros = { path = "../nova_events_macros" }
 
+[dev-dependencies]
+# The quantity types promise a bare number in RON; the serde tests check it.
+ron = { version = "0.12" }
+
 [lints]
 workspace = true

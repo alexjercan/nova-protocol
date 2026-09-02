@@ -4683,6 +4683,7 @@ version = "0.12.0"
 dependencies = [
  "bevy",
  "nova_events_macros",
+ "ron",
  "serde",
  "serde_json",
 ]
