@@ -1,8 +1,8 @@
 # Close the audio review's architectural leftovers
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 58
-- TAGS: v0.13.0,audio,hud,refactor,perf
+- TAGS: v0.13.0, audio, hud, refactor, perf
 
 Split out of the review of `20260824-125955` and `20260824-125947` on
 2026-09-02, at owner direction. The review fixed 21 defects; these are
