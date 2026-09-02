@@ -4,7 +4,7 @@
 // beats: a REAL STEALTH run past two NEUTRAL Magpie pickets (task
 // 20260723-000320: they patrol the flanks of the lane and only wake -
 // SetAllegiance -> Enemy - if the player enters a picket-watch zone,
-// paints one, or BURNS TOO HOT through the channel: over 8 u/s reads as
+// paints one, or BURNS TOO HOT through the channel: over 80 m/s reads as
 // noise the pickets hear, gated warn-then-trip on the reserved
 // player_speed readout, task 20260723-143603), and a debris pinch between
 // NAV-1 and NAV-2 (two invulnerable boulders tightening the lane, a
@@ -57,7 +57,7 @@
                         base: (
                             id: "ch3_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -76,7 +76,7 @@
                         base: (
                             id: "ch3_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -95,7 +95,7 @@
                         base: (
                             id: "ch3_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -165,7 +165,7 @@
                         base: (
                             id: "player_spaceship",
                             name: "Salvage Tug Kestrel",
-                            position: (0.0, 0.0, 40.0),
+                            position: (0.0, 0.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
@@ -180,7 +180,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(25.0),
+                                speed_cap: Some(250.0),
                             )),
                             hull: Inline((
                                 sections: [
@@ -338,14 +338,14 @@
                         base: (
                             id: "nav_1",
                             name: "Nav Drop 1",
-                            position: (0.0, 0.0, -90.0),
+                            position: (0.0, 0.0, -900.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "NAV-1",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -353,14 +353,14 @@
                         base: (
                             id: "nav_2",
                             name: "Nav Drop 2",
-                            position: (60.0, 15.0, -180.0),
+                            position: (600.0, 150.0, -1800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "NAV-2",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -368,14 +368,14 @@
                         base: (
                             id: "nav_3",
                             name: "Nav Drop 3",
-                            position: (-40.0, -20.0, -280.0),
+                            position: (-400.0, -200.0, -2800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "NAV-3",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -383,14 +383,14 @@
                         base: (
                             id: "vesh_yard",
                             name: "Vesh's Yard",
-                            position: (20.0, 0.0, -380.0),
+                            position: (200.0, 0.0, -3800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "YARD",
-                            radius: 3.0,
+                            radius: 30.0,
                             color: Srgba((red: 1.0, green: 0.55, blue: 0.15, alpha: 1.0)),
-                            area_radius: Some(30.0),
+                            area_radius: Some(300.0),
                             lock_signature: None,
                         )),
                     )),
@@ -400,21 +400,21 @@
                     // NAV-2 leg so the lane threads between them. Nominal radii
                     // are small on purpose: asteroid bodies run 3.5x-6x nominal
                     // (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so a nominal 3.5 is a
-                    // ~12-21u boulder. Centres are placed on a perpendicular to
+                    // ~120-210 m boulder. Centres are placed on a perpendicular to
                     // the leg through its midpoint (30, 7.5, -135), separated
-                    // 66u, leaving a clear gap (~66 - 2*21 = 24u at the 6x
-                    // worst case) far wider than the tug (~4u body) - a careful
+                    // 660 m, leaving a clear gap (~660 - 2*210 = 240 m at the 6x
+                    // worst case) far wider than the tug (~40 m body) - a careful
                     // pilot threads it, preserving the fighting-is-optional
                     // contract. No lock will save the player here; it is flown.
                     SpawnScenarioObject((
                         base: (
                             id: "pinch_boulder_port",
                             name: "Channel Boulder",
-                            position: (2.5, 7.5, -153.3),
+                            position: (25.0, 75.0, -1533.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 3.5,
+                            radius: 35.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
                             invulnerable: true,
@@ -425,11 +425,11 @@
                         base: (
                             id: "pinch_boulder_starboard",
                             name: "Channel Boulder",
-                            position: (57.5, 7.5, -116.7),
+                            position: (575.0, 75.0, -1167.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 3.5,
+                            radius: 35.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
                             invulnerable: true,
@@ -443,14 +443,14 @@
                         base: (
                             id: "pinch_clear",
                             name: "Channel Narrows",
-                            position: (45.0, 11.0, -160.0),
+                            position: (450.0, 110.0, -1600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "NARROWS",
-                            radius: 1.0,
+                            radius: 10.0,
                             color: Srgba((red: 0.9, green: 0.6, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(22.0),
+                            area_radius: Some(220.0),
                             lock_signature: None,
                         )),
                     )),
@@ -462,21 +462,21 @@
                     // ship needs none): they only wake via SetAllegiance when
                     // provoked - entering a picket-watch zone below, or
                     // painting one (OnCombatLockStart). Patrol lanes run parallel to
-                    // the NAV-1 -> NAV-2 leg, 55u out along the pinch
+                    // the NAV-1 -> NAV-2 leg, 550 m out along the pinch
                     // perpendicular, so the pinch gap is the one lane their
                     // watch does not cover.
                     SpawnScenarioObject((
                         base: (
                             id: "channel_magpie_1",
                             name: "Magpie 'Loose Tooth'",
-                            position: (53.8, 2.0, -71.5),
+                            position: (538.0, 20.0, -715.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 patrol: [
-                                    (53.8, 2.0, -71.5),
-                                    (97.8, 13.0, -137.5),
+                                    (538.0, 20.0, -715.0),
+                                    (978.0, 130.0, -1375.0),
                                 ],
                             )),
                             allegiance: Some(Neutral),
@@ -648,14 +648,14 @@
                         base: (
                             id: "channel_magpie_2",
                             name: "Magpie 'Second Owner'",
-                            position: (6.2, 13.0, -198.5),
+                            position: (62.0, 130.0, -1985.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             controller: AI((
                                 patrol: [
-                                    (6.2, 13.0, -198.5),
-                                    (-37.8, 2.0, -132.5),
+                                    (62.0, 130.0, -1985.0),
+                                    (-378.0, 20.0, -1325.0),
                                 ],
                             )),
                             allegiance: Some(Neutral),
@@ -825,26 +825,26 @@
                     )),
                     // The picket-watch zones: one detection bubble per patrol
                     // lane, centred on the lane (gap centre (30, 7.5, -135)
-                    // +/- 55u along the pinch perpendicular (0.833, 0, 0.554),
+                    // +/- 550 m along the pinch perpendicular (0.833, 0, 0.554),
                     // radius 24). Derived from the pinch geometry: the gap
-                    // clears ~12u either side of the leg at the 6x worst-case
-                    // boulder, and the bubble edge sits 55 - 24 = 31u out - a
-                    // 19u margin around the safe lane. A wide swing around
-                    // either boulder (its far edge reaches ~54u out) flies
+                    // clears ~120 m either side of the leg at the 6x worst-case
+                    // boulder, and the bubble edge sits 550 - 240 = 310 m out - a
+                    // 190 m margin around the safe lane. A wide swing around
+                    // either boulder (its far edge reaches ~540 m out) flies
                     // straight through the watch: thread the pinch or be seen.
                     CreateScenarioArea((
                         id: "picket_watch_starboard",
                         name: "Picket Watch (Starboard)",
-                        position: (75.8, 7.5, -104.5),
+                        position: (758.0, 75.0, -1045.0),
                         rotation: (0.0, 0.0, 0.0, 1.0),
-                        radius: 24.0,
+                        radius: 240.0,
                     )),
                     CreateScenarioArea((
                         id: "picket_watch_port",
                         name: "Picket Watch (Port)",
-                        position: (-15.8, 7.5, -165.5),
+                        position: (-158.0, 75.0, -1655.0),
                         rotation: (0.0, 0.0, 0.0, 1.0),
-                        radius: 24.0,
+                        radius: 240.0,
                     )),
                     // The channel: dense breakable debris around the line.
                     ScatterObjects((
@@ -852,10 +852,10 @@
                         count: 26,
                         seed: 4473,
                         region: Ring(
-                            inner: 60.0,
-                            outer: 200.0,
-                            y_min: -60.0,
-                            y_max: 40.0,
+                            inner: 600.0,
+                            outer: 2000.0,
+                            y_min: -600.0,
+                            y_max: 400.0,
                         ),
                         template: (
                             base: (
@@ -866,14 +866,14 @@
                             ),
                             kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "dep://base/textures/asteroid.png",
                                 mass: None,
                                 invulnerable: false,
                                 lock_signature: None,
                             )),
                         ),
-                        asteroid_radius: Some((1.5, 4.0)),
+                        asteroid_radius: Some((15.0, 40.0)),
                     )),
                     // --- Opening conversation (the Shakedown/ch1 idiom): Vesh
                     // briefs over the scenario clock, one line per BEAT, the
@@ -1189,8 +1189,8 @@
             // reaction window 20260723-182850): the fifth way to wake the
             // pickets. The channel wants a DARK, SLOW run; burning hot is noise
             // they hear. Warn-then-trip on the reserved player_speed readout
-            // (units/second, engine-written each tick):
-            //   - first breach over 8 u/s only WARNS (Vesh calls it, pickets
+            // (meters per second, engine-written each tick):
+            //   - first breach over 80 m/s only WARNS (Vesh calls it, pickets
             //     stay asleep);
             //   - the trip needs a FRESH breach after slowing back under 7 (the
             //     rearm band), so one continuous burn cannot warn-and-trip;
@@ -1212,7 +1212,7 @@
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(8.0)))),
+                        Term(Factor(Literal(Number(80.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
@@ -1239,7 +1239,7 @@
                     )),
                 ],
             ),
-            // Rearm: dropping back under 7 u/s after a warning arms the trip.
+            // Rearm: dropping back under 70 m/s after a warning arms the trip.
             // Silent - the run is quiet again; the payoff is simply that the
             // NEXT overspeed is the one that wakes them. The 7..8 gap is
             // hysteresis: without it a steady burn at ~8 would rearm and
@@ -1250,7 +1250,7 @@
                 filters: [
                     Expression((LessThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(7.0)))),
+                        Term(Factor(Literal(Number(70.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
@@ -1272,7 +1272,7 @@
                     )),
                 ],
             ),
-            // Start the countdown: a fresh breach over 8 u/s once armed does
+            // Start the countdown: a fresh breach over 80 m/s once armed does
             // NOT wake instantly - it starts the 3.5s `overspeed` timer
             // (speed_warned -> 3). Vesh gives the last-chance shout so the
             // countdown is telegraphed.
@@ -1281,7 +1281,7 @@
                 filters: [
                     Expression((GreaterThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(8.0)))),
+                        Term(Factor(Literal(Number(80.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
@@ -1312,7 +1312,7 @@
                     )),
                 ],
             ),
-            // Cancel: easing back under 7 u/s DURING the countdown is the
+            // Cancel: easing back under 70 m/s DURING the countdown is the
             // reprieve - the player heard it and slowed in time. Drop back to
             // armed (speed_warned -> 2), silently; a later fresh breach starts a
             // new countdown. Cancel on < 7 (the rearm band), not < 8, so a burn
@@ -1324,7 +1324,7 @@
                 filters: [
                     Expression((LessThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(7.0)))),
+                        Term(Factor(Literal(Number(70.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
@@ -1365,7 +1365,7 @@
                     Timer((key: "overspeed")),
                     Expression((GreaterThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(8.0)))),
+                        Term(Factor(Literal(Number(80.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),
@@ -1411,7 +1411,7 @@
                     Timer((key: "overspeed")),
                     Expression((LessThan(
                         Term(Factor(Name("player_speed"))),
-                        Term(Factor(Literal(Number(8.0)))),
+                        Term(Factor(Literal(Number(80.0)))),
                     ))),
                     Expression((Equal(
                         Term(Factor(Name("speed_warned"))),

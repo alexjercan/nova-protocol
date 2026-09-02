@@ -35,7 +35,7 @@
                         base: (
                             id: "ch1_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -54,7 +54,7 @@
                         base: (
                             id: "ch1_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -73,7 +73,7 @@
                         base: (
                             id: "ch1_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -123,7 +123,7 @@
                         base: (
                             id: "player_spaceship",
                             name: "Salvage Tug Kestrel",
-                            position: (0.0, 0.0, 40.0),
+                            position: (0.0, 0.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
@@ -138,7 +138,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(25.0),
+                                speed_cap: Some(250.0),
                             )),
                             hull: Inline((
                                 sections: [
@@ -295,8 +295,8 @@
                     // Nominal radius is NOT the visible size: the asteroid
                     // noise mesh reaches ASTEROID_GEOMETRIC_FACTOR_MIN..MAX
                     // (3.5..6.0) past the nominal sphere, so the real hull is
-                    // radius * ~6 at worst. These stay small (real ~7..12u) so
-                    // the quota crates 15..16u out never end up buried inside
+                    // radius * ~6 at worst. These stay small (real ~70..120 m) so
+                    // the quota crates 150..160 m out never end up buried inside
                     // the rock, AND so they stay under min_well_radius (5.0) -
                     // a bigger nominal would silently make each wreck a gravity
                     // well that tugs the tug across the whole work site.
@@ -304,12 +304,12 @@
                         base: (
                             id: "matron_bow",
                             name: "Ceres Matron - Bow Section",
-                            position: (0.0, 0.0, -80.0),
+                            position: (0.0, 0.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
                             invulnerable: true,
@@ -320,12 +320,12 @@
                         base: (
                             id: "matron_stern",
                             name: "Ceres Matron - Stern Section",
-                            position: (20.0, -8.0, -100.0),
+                            position: (200.0, -80.0, -1000.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 1.7,
+                            radius: 17.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
                             invulnerable: true,
@@ -338,39 +338,39 @@
                         base: (
                             id: "ledger_crate_1",
                             name: "Container MV-1",
-                            position: (12.0, 5.0, -70.0),
+                            position: (120.0, 50.0, -700.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: SalvageCrate((
                             pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
-                            size: 2.0,
-                            area_radius: 6.0,
+                            size: 20.0,
+                            area_radius: 60.0,
                         )),
                     )),
                     SpawnScenarioObject((
                         base: (
                             id: "ledger_crate_2",
                             name: "Container MV-2",
-                            position: (-14.0, -3.0, -88.0),
+                            position: (-140.0, -30.0, -880.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: SalvageCrate((
                             pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
-                            size: 2.0,
-                            area_radius: 6.0,
+                            size: 20.0,
+                            area_radius: 60.0,
                         )),
                     )),
                     SpawnScenarioObject((
                         base: (
                             id: "ledger_crate_3",
                             name: "Container MV-3",
-                            position: (8.0, -10.0, -108.0),
+                            position: (80.0, -100.0, -1080.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: SalvageCrate((
                             pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
-                            size: 2.0,
-                            area_radius: 6.0,
+                            size: 20.0,
+                            area_radius: 60.0,
                         )),
                     )),
                     // The fourth ping. Spawned dark: no objective, no marker,
@@ -379,13 +379,13 @@
                         base: (
                             id: "ledger_blackbox",
                             name: "Unlogged Container",
-                            position: (2.0, -16.0, -124.0),
+                            position: (20.0, -160.0, -1240.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: SalvageCrate((
                             pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"),
-                            size: 2.0,
-                            area_radius: 6.0,
+                            size: 20.0,
+                            area_radius: 60.0,
                         )),
                     )),
                     // The three crate objectives + their markers are NOT
@@ -399,16 +399,16 @@
                         base: (
                             id: "magpie_scout",
                             name: "Magpie Scout 'Sixpence'",
-                            position: (110.0, 20.0, -120.0),
+                            position: (1100.0, 200.0, -1200.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
                             allegiance: Some(Neutral),
                             controller: AI((
                                 patrol: [
-                                    (110.0, 20.0, -120.0),
-                                    (60.0, -10.0, -40.0),
-                                    (140.0, 0.0, -30.0),
+                                    (1100.0, 200.0, -1200.0),
+                                    (600.0, -100.0, -400.0),
+                                    (1400.0, 0.0, -300.0),
                                 ],
                             )),
                             hull: Inline((
@@ -528,10 +528,10 @@
                         count: 10,
                         seed: 4471,
                         region: Ring(
-                            inner: 150.0,
-                            outer: 210.0,
-                            y_min: -50.0,
-                            y_max: 10.0,
+                            inner: 1500.0,
+                            outer: 2100.0,
+                            y_min: -500.0,
+                            y_max: 100.0,
                         ),
                         template: (
                             base: (
@@ -542,14 +542,14 @@
                             ),
                             kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "dep://base/textures/asteroid.png",
                                 mass: None,
                                 invulnerable: false,
                                 lock_signature: None,
                             )),
                         ),
-                        asteroid_radius: Some((0.8, 2.0)),
+                        asteroid_radius: Some((8.0, 20.0)),
                     )),
                 ],
             ),

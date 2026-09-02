@@ -248,7 +248,7 @@
                         base: (
                             id: "example_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -267,7 +267,7 @@
                         base: (
                             id: "example_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -286,7 +286,7 @@
                         base: (
                             id: "example_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -332,7 +332,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(25.0),
+                                speed_cap: Some(250.0),
                             )),
                             hull: Inline((
                                 sections: [
@@ -379,12 +379,12 @@
                         base: (
                             id: "example_beacon",
                             name: "Range Beacon",
-                            position: (0.0, 0.0, -60.0),
+                            position: (0.0, 0.0, -600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "RANGE",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 0.4,
                                 green: 0.8,
@@ -401,12 +401,12 @@
                         base: (
                             id: "example_target_1",
                             name: "Derelict 1",
-                            position: (-14.0, 4.0, -45.0),
+                            position: (-140.0, 40.0, -450.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                             // Small size, not hidden health, keeps this tutorial target brief.
-                            radius: 0.25,
+                            radius: 2.5,
                             texture: "self://textures/rock.png",
                             mass: None,
                             invulnerable: false,
@@ -417,11 +417,11 @@
                         base: (
                             id: "example_target_2",
                             name: "Derelict 2",
-                            position: (15.0, -5.0, -60.0),
+                            position: (150.0, -50.0, -600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 0.3,
+                            radius: 3.0,
                             texture: "self://textures/rock.png",
                             mass: None,
                             invulnerable: false,
@@ -592,11 +592,11 @@
                         base: (
                             id: "example_target_3",
                             name: "Late Drifter",
-                            position: (60.0, 15.0, -140.0),
+                            position: (600.0, 150.0, -1400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "self://textures/rock.png",
                             mass: None,
                             invulnerable: false,
@@ -646,7 +646,7 @@
                     // is a content Error and never enters the menu rotation).
                     // The authored position IS the framing.
                     SetCamera((
-                        position: (0.0, 100.0, 335.0),
+                        position: (0.0, 1000.0, 3350.0),
                         look_at: (0.0, 0.0, 0.0),
                     )),
                     // The backdrop lights itself, like every shipped menu scene.
@@ -654,7 +654,7 @@
                         base: (
                             id: "example_menu_key",
                             name: "Key Light",
-                            position: (-120.0, 100.0, 120.0),
+                            position: (-1200.0, 1000.0, 1200.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -673,7 +673,7 @@
                         base: (
                             id: "example_menu_rim",
                             name: "Rim Light",
-                            position: (60.0, 80.0, -160.0),
+                            position: (600.0, 800.0, -1600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -692,7 +692,7 @@
                         base: (
                             id: "example_menu_fill",
                             name: "Fill Light",
-                            position: (140.0, -40.0, 80.0),
+                            position: (1400.0, -400.0, 800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -718,7 +718,7 @@
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
-                            radius: 18.0,
+                            radius: 180.0,
                             texture: "self://textures/rock.png",
                             mass: Some(36_000.0),
                             invulnerable: true,
@@ -729,7 +729,7 @@
                         base: (
                             id: "example_menu_orbiter",
                             name: "Orbiter",
-                            position: (130.0, 0.0, 0.0),
+                            position: (1300.0, 0.0, 0.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((

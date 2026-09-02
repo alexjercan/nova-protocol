@@ -17,8 +17,8 @@
 // only arms the NEXT gate's handler - the pilot still has to produce a fresh
 // OnEnter on that area. If two gate areas overlapped, a pilot already loitering
 // inside the next area when it went live would get no re-enter event and the
-// race would soft-lock. Gates here sit 81-102u apart with 16-28u area radii, so
-// this holds (min pairwise area gap ~36u); the gauntlet_course rig asserts
+// race would soft-lock. Gates here sit 810-1020 m apart with 160-280 m area radii, so
+// this holds (min pairwise area gap ~360 m); the gauntlet_course rig asserts
 // pairwise non-overlap - keep it green when repositioning gates.
 //
 // INVARIANT 2 (the racing line stays flyable): every asteroid's WORST-CASE body
@@ -26,7 +26,7 @@
 // mesh far past its nominal radius; shakedown_run soft-locked a beat on exactly
 // this) must clear the straight START->gate->...->FINISH polyline by a ship's
 // margin. The autopilot GOTO flies that line, so a clear line means no
-// soft-lock; rocks flank the line (the tightest ~9u past the ship margin), so
+// soft-lock; rocks flank the line (the tightest ~90 m past the ship margin), so
 // the ideal line is safe but a wide, sloppy turn clips a rock. The rig measures
 // this gap for every rock and the scatter field against the whole 3.5-6.0
 // factor range - do not eyeball it. (Playtest may want the rocks pulled tighter
@@ -58,7 +58,7 @@
                         base: (
                             id: "gauntlet_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -77,7 +77,7 @@
                         base: (
                             id: "gauntlet_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -96,7 +96,7 @@
                         base: (
                             id: "gauntlet_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -132,7 +132,7 @@
                                 // No guns on the course: the racer flies the
                                 // gauntlet unarmed, so there is nothing to bind.
                                 input_mapping: {},
-                                speed_cap: Some(25.0),
+                                speed_cap: Some(250.0),
                                 // No weapons, so no magazine to grant. The flag
                                 // is a debug-only cheat the shipped game
                                 // ignores; authoring it here claimed a combat
@@ -254,14 +254,14 @@
                         base: (
                             id: "gauntlet_start",
                             name: "Gauntlet Start",
-                            position: (0.0, 0.0, -40.0),
+                            position: (0.0, 0.0, -400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "START",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 0.2, green: 1.0, blue: 0.4, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -269,14 +269,14 @@
                         base: (
                             id: "gauntlet_gate_1",
                             name: "Gauntlet Gate 1",
-                            position: (30.0, 8.0, -115.0),
+                            position: (300.0, 80.0, -1150.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 1",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.85, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(20.0),
+                            area_radius: Some(200.0),
                             lock_signature: None,
                         )),
                     )),
@@ -284,14 +284,14 @@
                         base: (
                             id: "gauntlet_gate_2",
                             name: "Gauntlet Gate 2",
-                            position: (-25.0, -6.0, -195.0),
+                            position: (-250.0, -60.0, -1950.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 2",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.8, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(20.0),
+                            area_radius: Some(200.0),
                             lock_signature: None,
                         )),
                     )),
@@ -299,14 +299,14 @@
                         base: (
                             id: "gauntlet_gate_3",
                             name: "Gauntlet Gate 3",
-                            position: (20.0, 12.0, -280.0),
+                            position: (200.0, 120.0, -2800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 3",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.75, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(18.0),
+                            area_radius: Some(180.0),
                             lock_signature: None,
                         )),
                     )),
@@ -314,14 +314,14 @@
                         base: (
                             id: "gauntlet_gate_4",
                             name: "Gauntlet Gate 4",
-                            position: (-18.0, -4.0, -365.0),
+                            position: (-180.0, -40.0, -3650.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 4",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.7, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(18.0),
+                            area_radius: Some(180.0),
                             lock_signature: None,
                         )),
                     )),
@@ -329,14 +329,14 @@
                         base: (
                             id: "gauntlet_gate_5",
                             name: "Gauntlet Gate 5",
-                            position: (28.0, -10.0, -450.0),
+                            position: (280.0, -100.0, -4500.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 5",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(16.0),
+                            area_radius: Some(160.0),
                             lock_signature: None,
                         )),
                     )),
@@ -344,14 +344,14 @@
                         base: (
                             id: "gauntlet_gate_6",
                             name: "Gauntlet Gate 6",
-                            position: (-22.0, 14.0, -535.0),
+                            position: (-220.0, 140.0, -5350.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "GATE 6",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((red: 1.0, green: 0.5, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(16.0),
+                            area_radius: Some(160.0),
                             lock_signature: None,
                         )),
                     )),
@@ -359,14 +359,14 @@
                         base: (
                             id: "gauntlet_finish",
                             name: "Gauntlet Finish",
-                            position: (0.0, 0.0, -615.0),
+                            position: (0.0, 0.0, -6150.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "FINISH",
-                            radius: 2.5,
+                            radius: 25.0,
                             color: Srgba((red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)),
-                            area_radius: Some(28.0),
+                            area_radius: Some(280.0),
                             lock_signature: None,
                         )),
                     )),
@@ -375,12 +375,12 @@
                         base: (
                             id: "rock_1",
                             name: "Course Rock 1",
-                            position: (36.0, 12.0, -150.0),
+                            position: (360.0, 120.0, -1500.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 1.5,
+                            radius: 15.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -390,12 +390,12 @@
                         base: (
                             id: "rock_2",
                             name: "Course Rock 2",
-                            position: (-34.0, -10.0, -240.0),
+                            position: (-340.0, -100.0, -2400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -404,12 +404,12 @@
                         base: (
                             id: "rock_3",
                             name: "Course Rock 3",
-                            position: (30.0, 24.0, -238.0),
+                            position: (300.0, 240.0, -2380.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -418,12 +418,12 @@
                         base: (
                             id: "rock_4",
                             name: "Course Rock 4",
-                            position: (-36.0, 18.0, -322.0),
+                            position: (-360.0, 180.0, -3220.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -432,12 +432,12 @@
                         base: (
                             id: "rock_5",
                             name: "Course Rock 5",
-                            position: (36.0, -6.0, -320.0),
+                            position: (360.0, -60.0, -3200.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -450,8 +450,8 @@
                         count: 22,
                         seed: 433757350076153856,
                         region: Box(
-                            min: (72.0, -45.0, -500.0),
-                            max: (135.0, 45.0, -250.0),
+                            min: (720.0, -450.0, -5000.0),
+                            max: (1350.0, 450.0, -2500.0),
                         ),
                         template: (
                             base: (
@@ -462,24 +462,24 @@
                             ),
                             kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                                radius: 1.5,
+                                radius: 15.0,
                                 texture: "dep://base/textures/asteroid.png",
                                 invulnerable: true,
                             )),
                         ),
-                        asteroid_radius: Some((1.5, 3.0)),
+                        asteroid_radius: Some((15.0, 30.0)),
                     )),
                     // --- Act 3 (hazard): more rocks + a gravity well to sling ---
                     SpawnScenarioObject((
                         base: (
                             id: "rock_6",
                             name: "Course Rock 6",
-                            position: (38.0, 10.0, -405.0),
+                            position: (380.0, 100.0, -4050.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.5,
+                            radius: 25.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -488,12 +488,12 @@
                         base: (
                             id: "rock_7",
                             name: "Course Rock 7",
-                            position: (-34.0, -22.0, -410.0),
+                            position: (-340.0, -220.0, -4100.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -502,12 +502,12 @@
                         base: (
                             id: "rock_8",
                             name: "Course Rock 8",
-                            position: (-44.0, 22.0, -575.0),
+                            position: (-440.0, 220.0, -5750.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 2.0,
+                            radius: 20.0,
                             texture: "dep://base/textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -520,12 +520,12 @@
                         base: (
                             id: "gravity_well",
                             name: "Belt Planetoid",
-                            position: (-58.0, 12.0, -490.0),
+                            position: (-580.0, 120.0, -4900.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 4.0,
+                            radius: 40.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: Some(1_900.0),
                             invulnerable: true,
@@ -569,23 +569,23 @@
                     CreateScenarioArea((
                         id: "graze_slalom",
                         name: "Slalom Graze Zone",
-                        position: (30.0, 24.0, -238.0),
+                        position: (300.0, 240.0, -2380.0),
                         rotation: (0.0, 0.0, 0.0, 1.0),
-                        radius: 16.0,
+                        radius: 160.0,
                     )),
                     CreateScenarioArea((
                         id: "graze_hazard",
                         name: "Hazard Graze Zone",
-                        position: (38.0, 10.0, -405.0),
+                        position: (380.0, 100.0, -4050.0),
                         rotation: (0.0, 0.0, 0.0, 1.0),
-                        radius: 18.0,
+                        radius: 180.0,
                     )),
                     CreateScenarioArea((
                         id: "graze_well",
                         name: "Planetoid Graze Zone",
-                        position: (-58.0, 12.0, -490.0),
+                        position: (-580.0, 120.0, -4900.0),
                         rotation: (0.0, 0.0, 0.0, 1.0),
-                        radius: 30.0,
+                        radius: 300.0,
                     )),
                     Objective((
                         id: "gate_1",

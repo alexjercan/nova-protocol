@@ -43,7 +43,7 @@
                         base: (
                             id: "ch4_key",
                             name: "Key Light",
-                            position: (-60.0, 50.0, 60.0),
+                            position: (-600.0, 500.0, 600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -62,7 +62,7 @@
                         base: (
                             id: "ch4_rim",
                             name: "Rim Light",
-                            position: (30.0, 40.0, -80.0),
+                            position: (300.0, 400.0, -800.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -81,7 +81,7 @@
                         base: (
                             id: "ch4_fill",
                             name: "Fill Light",
-                            position: (70.0, -20.0, 40.0),
+                            position: (700.0, -200.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Light(Directional(
@@ -116,7 +116,7 @@
                         base: (
                             id: "player_spaceship",
                             name: "Salvage Tug Kestrel",
-                            position: (0.0, 0.0, 40.0),
+                            position: (0.0, 0.0, 400.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
@@ -131,7 +131,7 @@
                                         Gamepad(RightTrigger2),
                                     ],
                                 },
-                                speed_cap: Some(25.0),
+                                speed_cap: Some(250.0),
                             )),
                             hull: Inline((
                                 sections: [
@@ -289,12 +289,12 @@
                         base: (
                             id: "yard_hulk_1",
                             name: "Yard Hulk",
-                            position: (0.0, -10.0, -120.0),
+                            position: (0.0, -100.0, -1200.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Asteroid((
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
-                            radius: 7.0,
+                            radius: 70.0,
                             texture: "dep://base/textures/asteroid.png",
                             mass: None,
                             invulnerable: true,
@@ -305,14 +305,14 @@
                         base: (
                             id: "handoff_berth",
                             name: "Vesh's Berth",
-                            position: (90.0, 0.0, -100.0),
+                            position: (900.0, 0.0, -1000.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "HANDOFF",
-                            radius: 3.0,
+                            radius: 30.0,
                             color: Srgba((red: 1.0, green: 0.7, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -320,14 +320,14 @@
                         base: (
                             id: "burn_buoy",
                             name: "Burn Buoy",
-                            position: (-90.0, 0.0, -100.0),
+                            position: (-900.0, 0.0, -1000.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Beacon((
                             label: "BURN",
-                            radius: 3.0,
+                            radius: 30.0,
                             color: Srgba((red: 1.0, green: 0.25, blue: 0.2, alpha: 1.0)),
-                            area_radius: Some(25.0),
+                            area_radius: Some(250.0),
                             lock_signature: None,
                         )),
                     )),
@@ -375,7 +375,7 @@
                         base: (
                             id: "auditor",
                             name: "IV 'Auditor'",
-                            position: (0.0, 30.0, -260.0),
+                            position: (0.0, 300.0, -2600.0),
                             rotation: (0.0, 0.0, 0.0, 1.0),
                         ),
                         kind: Spaceship((
