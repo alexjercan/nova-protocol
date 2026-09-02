@@ -160,6 +160,32 @@ the slug takes the untouched narrow path. The base lance authors 1.0, measured
 against 4.0 in `system_railgun_lance`'s stand bank: both spend the same budget,
 and the radius chooses whether it goes through the hull or across its face.
 
+One fixed step of a raked slug, as `sweep_raking` resolves it:
+
+```mermaid
+flowchart TD
+    T[Pass one: sweep the narrow tip] -->|direct hit on a body| A[Arm that body for the slug's life]
+    T -->|passes near a body| M[Nothing - a near miss is a miss]
+    A --> S[Pass two: the sphere trailing the tip by its radius]
+    S -->|each collider of each armed body| C{Inside the swept capsule?}
+    C -->|beside the track| K[Contact at its lateral offset]
+    C -->|ahead of the tip| N[Untouched until the tip gets there]
+    C -->|already charged| N
+    K --> O[Pass three: order by depth, then axis outward, then entity]
+    T -->|the tip's own contacts| O
+    O --> P[Charge each once through pierce_remainder]
+    P -->|power left| S
+    P -->|budget empty| E[Slug spent]
+```
+
+The capsule test is analytic - the corridor measurement from `corridor_contact`
+against the sphere's track - rather than a spatial query, because parry's
+`intersection_test` returns false negatives for shallow overlaps against a
+capsule this long (a 1500 u/s slug sweeps 23 units a step), and the first
+version of the rake, which queried, cut a corridor with its corners missing.
+The body's own colliders are the candidate set, so there is no query cap under
+the power budget either.
+
 Recoil goes through `apply_linear_impulse_at_point` AT `muzzle_offset`, never at
 the centre of mass, so an off-axis lance yaws the hull every time it fires.
 `every_lance_puts_its_muzzle_on_the_brake_face` pins the offset to the face for

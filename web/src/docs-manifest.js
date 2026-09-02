@@ -54,7 +54,7 @@ const WIKI_PAGES = [
         category: "Start here",
         tags: ["ui"],
         summary:
-            "Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, neutralized, point defense, Kinetic/Pierce, the torpedo types, diegetic, and the m / km / m-per-s units.",
+            "Short definitions for the recurring terms and units - prograde/retrograde, standoff, sphere of influence, hysteresis, fine-lock, hot weapons, neutralized, point defense, Kinetic/Pierce, the torpedo types, the lance and its bore sight and corridor, diegetic, and the m / km / m-per-s units.",
         related: ["getting-started", "flight-autopilot", "targeting-radar"],
         headings: ["Units", "Terms"],
     },
@@ -192,12 +192,13 @@ const WIKI_PAGES = [
         category: "Interface",
         tags: ["ui"],
         summary:
-            "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, the target viewfinder, and the story comms panel.",
+            "What the heads-up display shows: visibility tiers, the diegetic flight readouts, lock brackets and reticles, a lance's bore sight, the target viewfinder, and the story comms panel.",
         related: ["targeting-radar", "flight-autopilot", "keybinds", "nova-os"],
         headings: [
             "Visibility tiers",
             "Flight readouts",
             "Locks and reticles",
+            "Bore sight",
             "Target viewfinder",
             "Comms and objectives",
         ],
@@ -273,11 +274,12 @@ const WIKI_PAGES = [
         category: "Combat",
         tags: ["combat"],
         summary:
-            "Turrets and torpedoes, speed-driven damage types (Kinetic punches, Pierce rakes, Explosive blasts), how far a round travels, and point-defense fire.",
+            "Turrets, torpedoes and the lance on one reach ladder, speed-driven damage types (Kinetic punches, Pierce rakes, Explosive blasts), how far a round travels, and point-defense fire.",
         related: ["targeting-radar", "sections", "factions"],
         headings: [
             "Turrets",
             "Torpedoes",
+            "The lance",
             "Damage types",
             "Closing speed",
             "How far a round travels",

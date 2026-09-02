@@ -146,6 +146,37 @@ const WEAVE_ZERO_RADII = 0.5; // projectile.rs:331
 const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:348 (rad, the balance knob)
 const SERPENT_WEAVE_RATE = 1.4; // mod.rs:349 (rad/s)
 
+// The spinal lance (standard.rs, `railgun_lance_section`). Its slug is a
+// Pierce round with NO layer cap (railgun_section/firing.rs:206 sets
+// `layers: u32::MAX`), so `slug_power` alone bounds what one shot takes, and
+// at 1500 u/s the pierce curve sits at its 3.0 ceiling whatever the ships are
+// doing. The shot's cycle is the charge plus the one-shell reload.
+const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:927
+const LANCE_SLUG_SPEED = 1500; // standard.rs:928
+const LANCE_SLUG_DAMAGE = 300; // standard.rs:942
+const LANCE_SLUG_POWER = 1800; // standard.rs:948
+const LANCE_RAKE_RADIUS = 1.0; // standard.rs:967
+const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:970
+const LANCE_RELOAD_DELAY = 12; // standard.rs:986
+const LANCE_CYCLE_SECS = LANCE_CHARGE_SECONDS + LANCE_RELOAD_DELAY;
+const LANCE_REACH_U = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME;
+const REINFORCED_HULL_HP = 200; // standard.rs:603
+
+// The kinetic PDC round (standard.rs:58; the pierce round is half of it,
+// :68) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1190),
+// from the measured along-the-line table at the head of ordnance.rs:13-21.
+// A torpedo's cruise caps are ordnance.rs:49 (Lance) and
+// torpedo_section/mod.rs:347 (Serpent).
+const KINETIC_PDC_BULLET_DAMAGE = 4.0; // standard.rs:58
+const PDC_MUZZLE_SPEED = 100; // standard.rs:485
+const SERPENT_REACH_U = 2914; // ordnance.rs:21
+const LANCE_TORPEDO_REACH_U = 3130; // ordnance.rs:21
+const SERPENT_CRUISE = 32; // torpedo_section/mod.rs:347
+const LANCE_TORPEDO_CRUISE = 35; // ordnance.rs:49
+// Rounds one stock PDC spends to stop each type (ordnance.rs:18).
+const ROUNDS_PER_LANCE_TORPEDO = 116;
+const ROUNDS_PER_SERPENT = 390;
+
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -536,6 +567,14 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
             s.weaponsHot ? "red while hot" : "amber"
         ),
         e(
+            "Bore sight (a hull with a lance)",
+            "instrument",
+            s.weaponsHot,
+            s.weaponsHot
+                ? "the line of fire, a ring on each section it would gut"
+                : "arrives with hot weapons; dimmed through a reload"
+        ),
+        e(
             "Allegiance markers",
             "instrument",
             true,
@@ -780,6 +819,150 @@ export function weaveFade(distance: number, blastRadius: number): number {
 }
 
 // ---- DOM helpers ----------------------------------------------------------
+
+// ---- lance corridor -------------------------------------------------------
+
+// The block the corridor scope shoots: unit cubes on a lattice, `x` across,
+// `y` up, `layer` deep along the bore, with the bore through (0, 0). It is
+// the stand bank of examples/systems/system_railgun_lance.rs in miniature -
+// the same 200 hp cells on the same lattice - so the walk below is checked
+// against what the game measured there (tests/widgets.test.ts).
+export interface CorridorCell {
+    x: number;
+    y: number;
+    layer: number;
+    /** Lateral distance from the bore to the cell's nearest point. */
+    offset: number;
+    /**
+     * How far past the entry face the slug's TIP is when the shot first
+     * reaches this cell: the tip's own contact down the bore column, the
+     * trailing sphere's for everything beside it. Infinity means never.
+     */
+    reach: number;
+    charged: boolean;
+}
+
+export interface CorridorResult {
+    /** Every cell in charge order; the charged ones lead. */
+    cells: CorridorCell[];
+    taken: number;
+    /** Power one crossing costs at the slug's speed. */
+    cost: number;
+    spent: number;
+    /** Cells taken per layer, entry face first. */
+    profile: number[];
+    /** Hull health the shot destroyed. */
+    removed: number;
+}
+
+// The rake rule (crates/nova_gameplay/src/rounds.rs, `sweep_raking`). A
+// sphere of the authored radius trails the tip by exactly that radius, so
+// its front is tangent to the tip and what it sweeps is a cylinder BEHIND
+// the tip. A cell `offset` off the bore is inside that cylinder - and so is
+// charged - once the tip is `radius - sqrt(radius^2 - offset^2)` past the
+// cell's near face; the bore column is the tip's own contact, and a needle
+// (radius 0) reaches the bore column and nothing else. Contacts are charged
+// by travel depth, then from the axis outward (pass three), each paying
+// `max health / pierce multiplier` out of the one budget (damage.rs
+// `pierce_remainder`), and the bite that empties the budget still lands. A
+// 1500 u/s slug pins that multiplier at its 3.0 ceiling. The budget is walked
+// in f32 exactly as the game walks it, because 27 x (200 / 3) IS 1800 and
+// only the rounding decides whether a 28th crossing lands - it does.
+export function lanceCorridor(
+    radius: number,
+    hp: number,
+    width: number,
+    height: number,
+    depth: number,
+    power = LANCE_SLUG_POWER
+): CorridorResult {
+    const cost = Math.fround(hp / PIERCE_POWER_CEILING);
+    const half = (n: number): number => Math.floor(n / 2);
+    const cells: CorridorCell[] = [];
+    for (let layer = 0; layer < depth; layer++) {
+        for (let y = -half(height); y <= half(height); y++) {
+            for (let x = -half(width); x <= half(width); x++) {
+                const offset = Math.hypot(
+                    Math.max(Math.abs(x) - 0.5, 0),
+                    Math.max(Math.abs(y) - 0.5, 0)
+                );
+                let reach = Infinity;
+                if (offset === 0) {
+                    reach = layer;
+                } else if (offset <= radius) {
+                    reach =
+                        layer +
+                        radius -
+                        Math.sqrt(radius * radius - offset * offset);
+                }
+                cells.push({ x, y, layer, offset, reach, charged: false });
+            }
+        }
+    }
+    cells.sort(
+        (a, b) =>
+            a.reach - b.reach ||
+            a.offset - b.offset ||
+            a.layer - b.layer ||
+            a.y - b.y ||
+            a.x - b.x
+    );
+    const profile = new Array<number>(depth).fill(0);
+    let remaining = Math.fround(power);
+    let taken = 0;
+    for (const cell of cells) {
+        if (cell.reach === Infinity || remaining <= 0) break;
+        cell.charged = true;
+        taken += 1;
+        profile[cell.layer] += 1;
+        remaining = Math.fround(remaining - cost);
+    }
+    return {
+        cells,
+        taken,
+        cost,
+        spent: taken * cost,
+        profile,
+        removed: taken * Math.min(hp, LANCE_SLUG_DAMAGE),
+    };
+}
+
+// The three weapon families' reach and time of flight to a target `range`
+// units out. Reach is never authored: a round's is muzzle speed times its
+// lifetime (config.rs:124-126), the slug's the same (standard.rs:928,:970),
+// and a torpedo's is the along-the-line speed it settles at over the bay's
+// lifetime. Infinity: the shot never arrives.
+export interface ReachRung {
+    name: string;
+    reach: number;
+    flightSecs: number;
+}
+export function reachLadder(range: number): ReachRung[] {
+    const tof = (reach: number, speed: number): number =>
+        range <= reach ? range / speed : Infinity;
+    return [
+        {
+            name: "PDC",
+            reach: PDC_REACH_U,
+            flightSecs: tof(PDC_REACH_U, PDC_MUZZLE_SPEED),
+        },
+        {
+            name: "Lance",
+            reach: LANCE_REACH_U,
+            flightSecs: tof(LANCE_REACH_U, LANCE_SLUG_SPEED),
+        },
+        {
+            name: "Serpent",
+            reach: SERPENT_REACH_U,
+            flightSecs: tof(SERPENT_REACH_U, SERPENT_CRUISE),
+        },
+        {
+            name: "Lance torpedo",
+            reach: LANCE_TORPEDO_REACH_U,
+            flightSecs: tof(LANCE_TORPEDO_REACH_U, LANCE_TORPEDO_CRUISE),
+        },
+    ];
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -7006,6 +7189,721 @@ function initTransientLights(host: HTMLElement): void {
 
 // ---- activation -----------------------------------------------------------
 
+// ---- lance-corridor -------------------------------------------------------
+
+// The corridor scope: one lance shot into a block of hull cells, replayed in
+// scope time. A slice through the bore on the left shows the tip, the sphere
+// trailing it and the cylinder it has swept; the entry face on the right
+// counts the layers each column lost. data-radius, data-hp, data-width,
+// data-height and data-depth seed the faders.
+function initLanceCorridor(host: HTMLElement): void {
+    const seedRadius = Number(host.dataset.radius);
+    const radius0 =
+        Number.isFinite(seedRadius) && seedRadius >= 0
+            ? seedRadius
+            : LANCE_RAKE_RADIUS;
+    const hp0 = numAttr(host, "hp", REINFORCED_HULL_HP);
+    const width0 = numAttr(host, "width", 5);
+    const height0 = numAttr(host, "height", 5);
+    const depth0 = numAttr(host, "depth", 4);
+    header(
+        host,
+        "Corridor scope: one lance shot into a hull block",
+        "A block of hull cells on a unit lattice, shot down its centre at " +
+            `${LANCE_SLUG_SPEED} u/s. The tip cuts the bore column; the ` +
+            "sphere trailing it widens that cut into a corridor, and every " +
+            `cell in the corridor takes the flat ${LANCE_SLUG_DAMAGE} and ` +
+            `pays a third of its max health out of the one ${LANCE_SLUG_POWER}` +
+            "-point budget. Play the tape, then drag the radius: wider is " +
+            "not more, it is elsewhere."
+    );
+
+    // Scope geometry. The slice is drawn cell for cell; the face grid is the
+    // same cell size, so a column's count reads against the cut beside it.
+    const S = 22;
+    const CY = 150;
+    const X0 = 110;
+    const Z_START = -1.6;
+    const TIP_SPEED = 1.5;
+    const FX = 460;
+    const FY = 150;
+    const BAR = { x: 16, y: 14, w: 140, h: 8 };
+    const HP_NAMES: Record<number, string> = {
+        60: "light hull",
+        100: "controller / bay",
+        130: "PDC turret",
+        180: "lance",
+        200: "reinforced hull",
+        480: "vector drive",
+    };
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 270",
+        role: "img",
+        "aria-label":
+            "Corridor scope: a lance slug entering a block of hull cells in " +
+            "side profile with a sphere trailing its tip, cells lighting as " +
+            "the corridor takes them, and the block's entry face beside it " +
+            "counting the layers each column lost.",
+    });
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    // Static furniture: the budget bar and the two panel labels.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(BAR.x),
+            y: String(BAR.y),
+            width: String(BAR.w),
+            height: String(BAR.h),
+            rx: "2",
+            class: "widget-mark--barframe",
+        })
+    );
+    const barFill = svgEl("rect", {
+        x: String(BAR.x),
+        y: String(BAR.y),
+        width: String(BAR.w),
+        height: String(BAR.h),
+        rx: "2",
+        class: "widget-mark--barfill",
+    });
+    svg.appendChild(barFill);
+    const barText = svgEl(
+        "text",
+        {
+            x: String(BAR.x),
+            y: String(BAR.y + 22),
+            class: "widget-mark--detail",
+        },
+        ""
+    );
+    svg.appendChild(barText);
+    svg.appendChild(
+        svgEl(
+            "text",
+            { x: String(X0), y: "58", class: "widget-mark--word" },
+            "SLICE THROUGH THE BORE"
+        )
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(FX),
+                y: "58",
+                "text-anchor": "middle",
+                class: "widget-mark--word",
+            },
+            "ENTRY FACE"
+        )
+    );
+    const verdict = svgEl(
+        "text",
+        {
+            x: String(X0),
+            y: "262",
+            class: "widget-mark--detail",
+        },
+        ""
+    );
+    svg.appendChild(verdict);
+
+    // Everything the block's shape decides is rebuilt per parameter change.
+    const dynamic = svgEl("g", {});
+    svg.appendChild(dynamic);
+
+    interface SliceCell {
+        cell: CorridorCell;
+        rect: SVGRectElement;
+    }
+    interface FaceCell {
+        x: number;
+        y: number;
+        rect: SVGRectElement;
+        cut: SVGRectElement;
+        count: SVGTextElement;
+    }
+    let result = lanceCorridor(radius0, hp0, width0, height0, depth0);
+    let radius = radius0;
+    let hp = hp0;
+    let depth = depth0;
+    let slice: SliceCell[] = [];
+    let face: FaceCell[] = [];
+    let profileText: SVGTextElement[] = [];
+    let corridor = svgEl("rect", {});
+    let sphere = svgEl("circle", {});
+    let dart = svgEl("rect", {});
+    const reachT = (cell: CorridorCell): number =>
+        (cell.reach - Z_START) / TIP_SPEED;
+    const duration = (): number =>
+        (depth + radius + 0.8 - Z_START) / TIP_SPEED + 0.3;
+
+    const rebuild = (): void => {
+        radius = Number(radiusControl.input.value);
+        hp = Number(hpControl.input.value);
+        const width = Number(widthControl.input.value);
+        const height = Number(heightControl.input.value);
+        depth = Number(depthControl.input.value);
+        result = lanceCorridor(radius, hp, width, height, depth);
+        dynamic.replaceChildren();
+        slice = [];
+        face = [];
+        profileText = [];
+        // The cylinder the sphere has swept so far, drawn under the cells.
+        corridor = svgEl("rect", {
+            y: String(CY - radius * S),
+            height: String(2 * radius * S),
+            class: "widget-mark--corridor",
+        });
+        dynamic.appendChild(corridor);
+        // The bore line, so the axis reads even before the slug arrives.
+        const sight = svgEl("line", {
+            x1: "0",
+            y1: String(CY),
+            x2: String(X0 + (depth + 3) * S),
+            y2: String(CY),
+            class: "widget-mark--ray",
+        });
+        dynamic.appendChild(sight);
+        // The slice: the row of cells through the bore, one column per
+        // layer, `x` running down the screen.
+        for (const cell of result.cells) {
+            if (cell.y !== 0) continue;
+            const rect = svgEl("rect", {
+                x: String(X0 + cell.layer * S + 1),
+                y: String(CY + cell.x * S - S / 2 + 1),
+                width: String(S - 2),
+                height: String(S - 2),
+                rx: "2",
+                class: "widget-mark--section",
+            });
+            dynamic.appendChild(rect);
+            slice.push({ cell, rect });
+        }
+        // Per-layer counts under the slice.
+        const bottom = CY + (Math.floor(width / 2) + 0.5) * S + 16;
+        for (let layer = 0; layer < depth; layer++) {
+            const text = svgEl(
+                "text",
+                {
+                    x: String(X0 + layer * S + S / 2),
+                    y: String(bottom),
+                    "text-anchor": "middle",
+                    class: "widget-mark--count",
+                },
+                "0"
+            );
+            dynamic.appendChild(text);
+            profileText.push(text);
+        }
+        // The entry face: every column once, counting the layers it lost.
+        for (const cell of result.cells) {
+            if (cell.layer !== 0) continue;
+            const px = FX + cell.x * S - S / 2 + 1;
+            const py = FY - cell.y * S - S / 2 + 1;
+            const rect = svgEl("rect", {
+                x: String(px),
+                y: String(py),
+                width: String(S - 2),
+                height: String(S - 2),
+                rx: "2",
+                class: "widget-mark--section",
+            });
+            const cut = svgEl("rect", {
+                x: String(px),
+                y: String(py),
+                width: String(S - 2),
+                height: String(S - 2),
+                rx: "2",
+                class: "widget-mark--cut",
+                "fill-opacity": "0",
+            });
+            const count = svgEl(
+                "text",
+                {
+                    x: String(px + S / 2 - 1),
+                    y: String(py + S / 2 + 3),
+                    class: "widget-mark--count",
+                },
+                ""
+            );
+            dynamic.appendChild(rect);
+            dynamic.appendChild(cut);
+            dynamic.appendChild(count);
+            face.push({ x: cell.x, y: cell.y, rect, cut, count });
+        }
+        // The rake's footprint on the face, and the bore itself.
+        if (radius > 0) {
+            dynamic.appendChild(
+                svgEl("circle", {
+                    cx: String(FX),
+                    cy: String(FY),
+                    r: String(radius * S),
+                    class: "widget-mark--rake",
+                })
+            );
+        }
+        dynamic.appendChild(
+            svgEl("circle", {
+                cx: String(FX),
+                cy: String(FY),
+                r: "2.5",
+                class: "widget-mark--bore",
+            })
+        );
+        // The sphere and the slug, over everything.
+        sphere = svgEl("circle", {
+            cy: String(CY),
+            r: String(radius * S),
+            class: "widget-mark--rake",
+            visibility: radius > 0 ? "visible" : "hidden",
+        });
+        dynamic.appendChild(sphere);
+        dart = svgEl("rect", {
+            y: String(CY - 1.5),
+            width: "18",
+            height: "3",
+            rx: "1.5",
+            class: "widget-mark--dart",
+        });
+        dynamic.appendChild(dart);
+
+        taken.textContent = `${result.taken} cells`;
+        spent.textContent = `${Math.round(result.spent)} of ${LANCE_SLUG_POWER}`;
+        removed.textContent = `${Math.round(result.removed)} hp`;
+        perCycle.textContent = `${(result.removed / LANCE_CYCLE_SECS).toFixed(0)} hp/s`;
+        profile.textContent = result.profile.join(" / ");
+    };
+
+    const setState = (
+        rect: SVGRectElement,
+        state: string,
+        flash: boolean
+    ): void => {
+        rect.setAttribute(
+            "class",
+            `widget-mark--section${state ? ` ${state}` : ""}${flash ? " is-flash" : ""}`
+        );
+    };
+    const renderFrame = (t: number): void => {
+        const z = Z_START + t * TIP_SPEED;
+        const tipX = X0 + z * S;
+        const centreX = tipX - radius * S;
+        const gone = z > depth + radius + 1.2;
+        dart.setAttribute("x", String(tipX - 18));
+        dart.setAttribute("visibility", gone ? "hidden" : "visible");
+        sphere.setAttribute("cx", String(centreX));
+        sphere.setAttribute(
+            "visibility",
+            radius > 0 && !gone ? "visible" : "hidden"
+        );
+        const sweptFrom = X0 + (Z_START - radius) * S;
+        corridor.setAttribute("x", String(sweptFrom));
+        corridor.setAttribute(
+            "width",
+            String(
+                Math.max(0, Math.min(centreX, X0 + (depth + 2) * S) - sweptFrom)
+            )
+        );
+        const dead = LANCE_SLUG_DAMAGE >= hp;
+        for (const { cell, rect } of slice) {
+            const at = reachT(cell);
+            if (cell.charged && t >= at) {
+                setState(rect, dead ? "is-dead" : "is-hit", t - at < 0.18);
+            } else if (!cell.charged && cell.reach !== Infinity && t >= at) {
+                setState(rect, "is-spared", false);
+            } else {
+                setState(rect, "", false);
+            }
+        }
+        // Counts so far: per layer for the slice's footer, per column for the
+        // face, and the budget the charged crossings have spent.
+        const perLayer = new Array<number>(depth).fill(0);
+        const perColumn = new Map<string, number>();
+        let charged = 0;
+        for (const cell of result.cells) {
+            if (!cell.charged || t < reachT(cell)) continue;
+            charged += 1;
+            perLayer[cell.layer] += 1;
+            const key = `${cell.x},${cell.y}`;
+            perColumn.set(key, (perColumn.get(key) ?? 0) + 1);
+        }
+        perLayer.forEach((n, layer) => {
+            profileText[layer].textContent = String(n);
+        });
+        for (const column of face) {
+            const n = perColumn.get(`${column.x},${column.y}`) ?? 0;
+            column.count.textContent = n > 0 ? String(n) : "";
+            column.cut.setAttribute(
+                "fill-opacity",
+                (n > 0 ? 0.18 + 0.62 * (n / depth) : 0).toFixed(2)
+            );
+            column.cut.setAttribute(
+                "class",
+                `widget-mark--cut${dead ? "" : " is-hit"}`
+            );
+        }
+        const power = Math.max(0, LANCE_SLUG_POWER - charged * result.cost);
+        barFill.setAttribute(
+            "width",
+            String((power / LANCE_SLUG_POWER) * BAR.w)
+        );
+        barText.textContent = `power ${Math.round(power)}`;
+        const done = t >= duration() - 0.05;
+        verdict.textContent = !done
+            ? ""
+            : result.taken <
+                result.cells.filter((c) => c.reach !== Infinity).length
+              ? "POWER SPENT - the corridor stops here"
+              : "CLEAN THROUGH - power to spare";
+    };
+
+    const transport = makeTransport(duration, renderFrame);
+    const onParam = (): void => {
+        rebuild();
+        transport.seekEnd();
+    };
+    const radiusControl = control(
+        "Rake radius",
+        0,
+        4,
+        0.5,
+        radius0,
+        (v) =>
+            `${v.toFixed(1)} u` +
+            (v === 0
+                ? " (needle)"
+                : v === LANCE_RAKE_RADIUS
+                  ? " (shipped)"
+                  : ""),
+        onParam
+    );
+    const hpControl = control(
+        "Cell health",
+        60,
+        480,
+        10,
+        hp0,
+        (v) => `${v} hp${HP_NAMES[v] ? ` (${HP_NAMES[v]})` : ""}`,
+        onParam
+    );
+    const widthControl = control(
+        "Block width",
+        1,
+        7,
+        2,
+        width0,
+        (v) => `${v} across`,
+        onParam
+    );
+    const heightControl = control(
+        "Block height",
+        1,
+        7,
+        2,
+        height0,
+        (v) => `${v} tall`,
+        onParam
+    );
+    const depthControl = control(
+        "Block depth",
+        1,
+        8,
+        1,
+        depth0,
+        (v) => `${v} deep`,
+        onParam
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(radiusControl.row);
+    controls.appendChild(hpControl.row);
+    controls.appendChild(widthControl.row);
+    controls.appendChild(heightControl.row);
+    controls.appendChild(depthControl.row);
+
+    const stats = el("div", "widget__stats");
+    const taken = stat(stats, "cells taken");
+    const spent = stat(stats, "power spent");
+    const removed = stat(stats, "hull removed");
+    const perCycle = stat(stats, `per ${LANCE_CYCLE_SECS} s cycle`);
+    const profileRow = el("div", "widget__stats");
+    const profile = stat(profileRow, "corridor profile, entry face first");
+    const note = el(
+        "p",
+        "widget__note",
+        "The block is the range the game measures this on: the shipped " +
+            `${LANCE_RAKE_RADIUS.toFixed(1)} against a 5 x 5 x 4 wall of ` +
+            `${REINFORCED_HULL_HP} hp cells took 28 cells as 9 / 9 / 9 / 1, ` +
+            "and the scope replays that exact walk. For scale, a kinetic " +
+            `PDC sustains 40 rounds/s x ${KINETIC_PDC_BULLET_DAMAGE} = ` +
+            `${Math.round(40 * KINETIC_PDC_BULLET_DAMAGE)} hp/s at ` +
+            "100 u/s closing, and only at a ninth of the reach."
+    );
+
+    host.appendChild(controls);
+    host.appendChild(transport.row);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(profileRow);
+    host.appendChild(note);
+    rebuild();
+    if (reducedMotion()) transport.seekEnd();
+    else transport.play();
+}
+
+// ---- weapon-reach ---------------------------------------------------------
+
+// The engagement ladder: the three weapon families' reaches on one range
+// axis with a target cursor, and what each of them can do about a target
+// that far out. data-range seeds the cursor.
+function initWeaponReach(host: HTMLElement): void {
+    const range0 = numAttr(host, "range", 1000);
+    header(
+        host,
+        "Engagement ladder: who reaches whom",
+        "Three weapons on one range axis. Drag the target out and read " +
+            "which of them can still touch it, how long the shot takes to " +
+            "arrive, and what the other side can do about it while it does."
+    );
+
+    const AXIS_MAX = 3400;
+    const X0 = 96;
+    const X1 = 540;
+    const AXIS_Y = 156;
+    const px = (u: number): number => X0 + (u / AXIS_MAX) * (X1 - X0);
+    const LANES = [
+        { name: "PDC", y: 40, reach: PDC_REACH_U, ext: 0 },
+        { name: "LANCE", y: 78, reach: LANCE_REACH_U, ext: 0 },
+        {
+            name: "TORPEDO",
+            y: 116,
+            reach: SERPENT_REACH_U,
+            ext: LANCE_TORPEDO_REACH_U,
+        },
+    ];
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 180",
+        role: "img",
+        "aria-label":
+            "Engagement ladder: three horizontal reach bands on one range " +
+            "axis - the PDC's short one, the lance's long one and the " +
+            "torpedoes' longer still - with a cursor at the chosen target " +
+            "range showing which of them can touch it.",
+    });
+    for (const u of [0, 500, 1000, 1500, 2000, 2500, 3000]) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(px(u)),
+                y1: "28",
+                x2: String(px(u)),
+                y2: String(AXIS_Y),
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(px(u)),
+                    y: String(AXIS_Y + 14),
+                    "text-anchor": "middle",
+                    class: "widget-mark--axis",
+                },
+                u === 0 ? "0 u" : String(u)
+            )
+        );
+    }
+    interface LaneMarks {
+        band: SVGRectElement;
+        dot: SVGCircleElement;
+        reach: number;
+    }
+    const lanes: LaneMarks[] = [];
+    for (const lane of LANES) {
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(X0 - 10),
+                    y: String(lane.y + 15),
+                    "text-anchor": "end",
+                    class: "widget-mark--word",
+                },
+                lane.name
+            )
+        );
+        const band = svgEl("rect", {
+            x: String(px(0)),
+            y: String(lane.y),
+            width: String(px(lane.reach) - px(0)),
+            height: "22",
+            rx: "2",
+            class: "widget-mark--reach",
+        });
+        svg.appendChild(band);
+        if (lane.ext > lane.reach) {
+            svg.appendChild(
+                svgEl("rect", {
+                    x: String(px(lane.reach)),
+                    y: String(lane.y),
+                    width: String(px(lane.ext) - px(lane.reach)),
+                    height: "22",
+                    rx: "2",
+                    class: "widget-mark--reach is-ext",
+                })
+            );
+        }
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(px(lane.ext || lane.reach) + 6),
+                    y: String(lane.y + 15),
+                    class: "widget-mark--detail",
+                },
+                `${lane.ext || lane.reach} u`
+            )
+        );
+        if (lane.ext) {
+            svg.appendChild(
+                svgEl(
+                    "text",
+                    {
+                        x: String(px(lane.ext)),
+                        y: String(lane.y + 33),
+                        "text-anchor": "end",
+                        class: "widget-mark--detail",
+                    },
+                    `Serpent ${lane.reach} u, Lance ${lane.ext} u`
+                )
+            );
+        }
+        const dot = svgEl("circle", {
+            cy: String(lane.y + 11),
+            r: "4",
+            class: "widget-mark--dot-now",
+        });
+        svg.appendChild(dot);
+        lanes.push({ band, dot, reach: lane.reach });
+    }
+    const cursor = svgEl("line", {
+        y1: "24",
+        y2: String(AXIS_Y),
+        class: "widget-mark--cursor",
+    });
+    svg.appendChild(cursor);
+    const contact = svgEl("path", {
+        class: "widget-mark--contact",
+    });
+    svg.appendChild(contact);
+    const cursorText = svgEl(
+        "text",
+        { y: "18", "text-anchor": "middle", class: "widget-mark--label-now" },
+        ""
+    );
+    svg.appendChild(cursorText);
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const stats = el("div", "widget__stack");
+    const rows: {
+        name: HTMLElement;
+        flight: HTMLElement;
+        answer: HTMLElement;
+    }[] = [];
+    const ANSWERS = [
+        `nothing: a round cannot be shot down. ${PDC_FIRE_RATE}/s cyclic, ` +
+            `${Math.round(sustainedRate({ capacity: PDC_CAPACITY, rate: PDC_FIRE_RATE, delay: PDC_RELOAD_DELAY, amount: PDC_RELOAD_AMOUNT }))}/s sustained`,
+        `nothing in flight: the ${LANCE_CHARGE_SECONDS} s charge is the ` +
+            `only tell. One corridor per ${LANCE_CYCLE_SECS} s`,
+        `point defense: about ${ROUNDS_PER_SERPENT} rounds a Serpent, ` +
+            `${ROUNDS_PER_LANCE_TORPEDO} a Lance. Six in the rack`,
+    ];
+    for (const lane of LANES) {
+        const row = el("div", "widget__cell");
+        const name = el("b", undefined, lane.name);
+        const flight = el("span", "widget__value", "");
+        const answer = el("span", undefined, "");
+        row.appendChild(name);
+        row.appendChild(document.createTextNode(" "));
+        row.appendChild(flight);
+        row.appendChild(document.createTextNode(" - "));
+        row.appendChild(answer);
+        stats.appendChild(row);
+        rows.push({ name, flight, answer });
+    }
+
+    const render = (): void => {
+        const range = Number(rangeControl.input.value);
+        const ladder = reachLadder(range);
+        const x = px(range);
+        cursor.setAttribute("x1", String(x));
+        cursor.setAttribute("x2", String(x));
+        contact.setAttribute(
+            "d",
+            `M${x - 6},${AXIS_Y + 1} L${x + 6},${AXIS_Y + 1} L${x},${AXIS_Y - 7} Z`
+        );
+        cursorText.setAttribute("x", String(x));
+        cursorText.textContent = `target ${range} u`;
+        const flight = (secs: number): string =>
+            secs === Infinity
+                ? "out of reach"
+                : secs < 10
+                  ? `${secs.toFixed(2)} s of flight`
+                  : `${secs.toFixed(0)} s of flight`;
+        // PDC and lance rungs, then the two torpedo types on one row.
+        lanes.forEach((lane, i) => {
+            const live = range <= lane.reach;
+            lane.band.setAttribute(
+                "class",
+                `widget-mark--reach${live ? " is-live" : ""}`
+            );
+            lane.dot.setAttribute("cx", String(x));
+            lane.dot.setAttribute(
+                "class",
+                live ? "widget-mark--dot-now" : "widget-mark--dot-old"
+            );
+            rows[i].answer.textContent = ANSWERS[i];
+        });
+        rows[0].flight.textContent = flight(ladder[0].flightSecs);
+        rows[1].flight.textContent = flight(ladder[1].flightSecs);
+        rows[2].flight.textContent =
+            ladder[2].flightSecs === Infinity &&
+            ladder[3].flightSecs === Infinity
+                ? "out of reach"
+                : `${flight(ladder[3].flightSecs).replace(" of flight", "")} Lance, ` +
+                  `${flight(ladder[2].flightSecs).replace(" of flight", "")} Serpent`;
+    };
+    const rangeControl = control(
+        "Target range",
+        50,
+        3400,
+        50,
+        range0,
+        (v) => `${v} u`,
+        render
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(rangeControl.row);
+    const note = el(
+        "p",
+        "widget__note",
+        "Reach is never an authored number: it is muzzle speed times how " +
+            "long the round lives, and a torpedo's is the speed it settles " +
+            "at along the line over the bay's lifetime. Enemy gunships " +
+            "close to about 1000 u and fight there - inside the lance, " +
+            "far outside the PDC, and where a torpedo takes half a minute " +
+            "to arrive."
+    );
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(stats);
+    host.appendChild(note);
+    render();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -7013,6 +7911,8 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "ammo-rhythm": initAmmoRhythm,
     "turret-arc": initTurretArc,
     "torpedo-run": initTorpedoRun,
+    "lance-corridor": initLanceCorridor,
+    "weapon-reach": initWeaponReach,
     "controller-arm": initControllerArm,
     "controller-margin": initControllerMargin,
     "thruster-mass": initThrusterMass,

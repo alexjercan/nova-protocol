@@ -899,6 +899,15 @@ kind: Railgun((
   is one shot every twelve quiet seconds, and the section's ammo gauge is the
   countdown.
 
+The scope below is the walk the game runs, on the block the range measures
+the gun with: drag `rake_radius` and read what a shot takes, what it spends and
+where it stops. The other faders are the block, so a mod's own hull can be
+approximated - a 60 hp cell is light plating, 480 a vector drive.
+
+<div class="widget" data-widget="lance-corridor">
+<p>Against a wall of 200 hp cells five across, five tall and four deep, the shipped 1.0 takes nine cells a layer - the bore column, its four face neighbours and its four diagonals - through all four layers and one cell out the back: 28 cells for 1867 of 1800 power, the last crossing landing because the budget was still above zero when it began. A radius of 4.0 takes the same 28 as the whole entry face and three of the next layer, and stops there. A radius of 0 is the needle: four cells in a line.</p>
+</div>
+
 Author a [`Charge` animation track](#animation-tracks) to give the gun a tell.
 The shipped lance walks a `charge_bolt` node the length of the bore, so how far
 the bolt has travelled is how much charge is left to run - readable by the

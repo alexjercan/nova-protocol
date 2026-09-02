@@ -213,6 +213,27 @@ Not run: the workspace test suite and Clippy.
 - **Rocks keep their contract.** They have no `Health` and stop the round,
   as they did before. Nothing in the bank argued for a rake rule for them.
 
+### Docs pass (2026-09-02)
+
+The wiki's Railgun page leads with a corridor scope (`lance-corridor` in
+`web/src/widgets.ts`): the stand bank's block, the tip and the trailing sphere
+replayed in scope time, the entry face counting what each column lost. Its
+model walks the budget in f32 and `web/tests/widgets.test.ts` pins it to the
+measured stands - `[9,9,9,1]`, `[25,3,0,0]`, `[3,3,3,3]`, `[1,1,1,1]`. The
+combat page gains the lance as a third family and an engagement ladder
+(`weapon-reach`); the HUD page gains the bore sight; the glossary, keybinds,
+creator chapter, dev book (a `sweep_raking` flowchart) and concept index are
+synced. Four capture slots and one loop slot are placeholders with no producer
+yet, and `catalog-railgun-lance-section.png` aliases the page's hero; the
+railgun icon is generated.
+
+One correction to the measurement above: the PDC's 267 dps assumed the
+200-round batch is spent in no time. The catalog's own sustained formula
+(`sections/mod.rs sustained_per_second`, amount over delay plus batch fire
+time) gives 40 rounds/s, which is **160 hp/s** kinetic at 100 u/s closing and
+320 at the head-on ceiling. The wiki cites 160. The verdict does not move: the
+corridor's 178 against the corvette line sits above it at nine times the reach.
+
 ## Not this task
 
 `AI_STANDOFF_RANGE` is 100 u while the lance reaches 1800 u, so every

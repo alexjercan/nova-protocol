@@ -17,13 +17,24 @@
     </div>
 </figure>
 
-A railgun is a **spinal lance**: three cells of rails and capacitor bank with no traverse of its own. It does not aim. The **ship** aims, you commit the shot, and what leaves rakes through everything standing in that line.
+A railgun is a **spinal lance**: three cells of rails and capacitor bank with no traverse of its own. It does not aim. The **ship** aims, you commit the shot, and what leaves cuts a corridor through everything standing in that line.
 
 It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a lance is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.
 
+<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs: charge_seconds 1.5 :927, slug_speed 1500 :928, slug_damage 300 :942, slug_power 1800 :948, rake_radius 1.0 :967, slug_lifetime 1.2 :970 (1800 u of reach), recoil_impulse 45 :974, ammo_capacity 1 :981, reload delay 12 :986. -->
+
+| The lance at a glance | |
+|---|---|
+| Commit | a **1.5 s** charge; nothing but the weapons safety can stop it |
+| Slug | **1500 u/s**, **1800 u** of reach, arrives in just over a second |
+| Damage | **300 Pierce** to every section in the corridor, flat, no falloff |
+| Corridor | about **three cells wide**, priced from one **1800**-point power budget |
+| Cycle | one shell, a **12 s** reload: a shot every 13.5 seconds |
+| Recoil | **45** at the muzzle: a shove on the spine, a shove and a yaw off it |
+
 ## The hull is the aim
 
-<!-- Behavior verified against crates/nova_ship/src/sections/railgun_section/mod.rs (RailgunSectionConfig :61, RailgunSectionInput :185) and firing.rs (the slug is born at the muzzle along the section's own -Z, :195-210; recoil applied at that point, :225). Sockets: crates/nova_authoring/src/base_content/sections/standard.rs lance_link_points :1069 - thirteen, none on the muzzle face, held by `no_lance_sockets_the_face_it_fires_through`. -->
+<!-- Behavior verified against crates/nova_ship/src/sections/railgun_section/mod.rs (RailgunSectionConfig :69, RailgunSectionInput :210) and firing.rs (the slug is born at the muzzle along the section's own -Z; recoil applied at that point). Sockets: crates/nova_authoring/src/base_content/sections/standard.rs lance_link_points :1088 - thirteen, none on the muzzle face, held by `no_lance_sockets_the_face_it_fires_through`. -->
 
 A lance fires down its own axis, so where it points is decided when you **bolt it on**, not when you shoot. Mounted on the spine it points where the nose points. Mounted on a flank it points wherever that flank faces, which is not where you are looking - and there is no HUD crosshair that will tell you otherwise, which is why the [bore sight](#the-bore-sight) exists.
 
@@ -35,15 +46,55 @@ Tapping the trigger starts a **1.5 second charge**, and that is the whole of the
 
 There is exactly one way out, and it is not the trigger: dropping your weapons back to **safe** dumps the charge and keeps the shell. A lance will not fire itself into a friendly you have just safed for.
 
+<figure class="figure">
+    <!-- Capture: assets/loops/loop-section-railgun.webm (short gameplay loop) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Loop capture needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/loops/loop-section-railgun.webm</span
+        >
+        <span class="figure__placeholder-note"
+            >A short loop: the bolt walks the bore, the shot
+            leaves, and a corridor opens through a hull block
+            and out the far side.</span
+        >
+    </div>
+</figure>
+
+<details class="explain">
+<summary>Show explanation</summary>
+
 The shell also carries your ship's motion with it, spin included: a lance fired while the hull is rolling throws its slug slightly off the tangent as well as down the bore. At 1500 units a second that is a small correction, but it is there, and it is one more reason to be flying straight when the charge ends.
 
 The charge is loud and visible, to you and to anyone watching. A bolt walks the length of the bore, so how far it has travelled is how much charge is left to run: an enemy across the gap can read a lance about to fire off its hull. The capacitor loop rises in pitch as it fills.
 
 That tell is the balance of the weapon. A lance in flight is unanswerable - the slug crosses 1800 units in just over a second - so the window in which it can be answered is the charge, by breaking the line before it ends.
 
+</details>
+
 ## The bore sight
 
-<!-- Behavior verified against crates/nova_hud/src/bore_sight.rs (module docs; the trace walks crossed sections through `pierce_remainder`, the same function that resolves the round; gated on WeaponsHot; drawn dimmed on an empty magazine; the line thickens with the charge). -->
+<!-- Behavior verified against crates/nova_hud/src/bore_sight.rs (module docs; the trace walks crossed sections through `pierce_remainder`, the same function that resolves the round; gated on WeaponsHot; drawn dimmed on an empty magazine, EMPTY_ALPHA_SCALE :81; the line thickens with the charge, CHARGE_THICKEN :65; a ring per section it would destroy, MARK_RADIUS :69). -->
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-railgun-sight.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-railgun-sight.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The sight line out of the muzzle across the gap
+            onto a corvette's long axis, a ring on each of the
+            sections the shot would gut, the line fat with a
+            charge nearly run.</span
+        >
+    </div>
+</figure>
 
 Because nothing else on the HUD says where a hull is pointing, the flight computer draws the line for you: a thin blue **sight line** out of the muzzle, ending exactly where the slug would end, with a **ring on every section that shot would destroy**.
 
@@ -53,13 +104,13 @@ The line thickens as the charge runs, so the seconds you are committed to holdin
 
 ## What one shot takes out
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs (health RAILGUN_BASE_HEALTH 180 :902,:39; three cells LANCE_CELLS :908,:328; charge_seconds 1.5 :927; slug_speed 1500 :928; slug_damage 300 :942; slug_power 1800 :948; slug_lifetime 1.2 :951 giving 1800 u of reach; recoil_impulse 45 :955; ammo_capacity 1 :962; reload delay 12 s :967). Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite :399 (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier (:258), which clamps at 3.0, and a 1500 u/s slug is always at that ceiling. No layer cap: firing.rs:206. The rake: rake_radius 1.0 standard.rs, swept in crates/nova_gameplay/src/rounds.rs sweep_raking; the three-times figure is examples/systems/system_railgun_lance.rs's stand bank, 59.3 dps to 177.8 over the same 13.5 s cycle. Drive healths standard.rs:674,:691. -->
+<!-- Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier :258, which clamps at 3.0 (PIERCE_POWER_CEILING :197), and a 1500 u/s slug is always at that ceiling. No layer cap: railgun_section/firing.rs:206 (`layers: u32::MAX`). The rake: rake_radius 1.0 standard.rs:967, swept in crates/nova_gameplay/src/rounds.rs sweep_raking :708 (the sphere trails the tip by its radius; only a body the tip hit directly is armed; contacts charged by depth then from the axis outward). The stand table and the three-times figure are examples/systems/system_railgun_lance.rs's stand bank (200 hp cells, 5 x 5 x 4 wall and 3 x 1 x 4 line), reproduced by the scope's model in web/tests/widgets.test.ts. Section healths standard.rs:603 (200), :674 (480), :691 (1250). -->
+
+<div class="widget" data-widget="lance-corridor">
+<p>The scope shoots a block of 200 hp reinforced hull cells, five across, five tall and four deep, with the shipped lance. The slug's tip cuts the centre column, and a one-unit sphere trailing the tip widens that cut to the eight cells around it - the face neighbours and the diagonals, never the second ring. Every cell in the corridor takes 300 and pays a third of its max health out of the one 1800-point budget, so the shot takes 28 cells as nine, nine, nine and one, removes 5600 hp, and stops with the exit hole as wide as the entry. Set the radius to zero and the same shot takes four cells in a line; set it to four and it takes the same 28 as the whole entry face plus three, and stops one layer in.</p>
+</div>
 
 The slug deals **300 Pierce damage to every section it takes**, flat. It is not scaled by how fast the two ships are closing and it does not decay with depth, so the tenth section in the line takes exactly what the first did. Three hundred clears every hull block, controller, mount and torpedo bay in the catalog outright, so an aligned shot takes a **corridor out of a ship** rather than damaging one.
-
-The corridor is wider than the bore. The slug drags a one-unit sphere behind its tip, so it takes the sections immediately beside the ones it actually crossed as well - about three cells across. It only ever widens what the tip has already reached: a ship the slug merely passes near loses nothing, and nothing ahead of the tip is touched by the shot that is on its way. The sphere keeps going after the tip is out the far side, so the exit hole is as wide as the corridor.
-
-How much it takes is one budget: **1800 power**, spent in the toughest each taken section could ever be, and a slug this fast always spends at the cheapest rate the rule allows. Width and depth come out of the same number. There is no layer cap under it.
 
 | what the corridor takes | health | sections in one shot |
 |---|---|---|
@@ -70,11 +121,46 @@ How much it takes is one budget: **1800 power**, spent in the toughest each take
 | Vector Thruster Section | 480 | 11 |
 | Capital Thruster Section | 1250 | 4 |
 
+The corridor is wider than the bore. The slug drags a one-unit sphere behind its tip, so it takes the sections immediately beside the ones it actually crossed as well - about three cells across. It only ever widens what the tip has already reached: a ship the slug merely passes near loses nothing, and nothing ahead of the tip is touched by the shot that is on its way. The sphere keeps going after the tip is out the far side, so the exit hole is as wide as the corridor.
+
+How much it takes is one budget: **1800 power**, spent in the toughest each taken section could ever be, and a slug this fast always spends at the cheapest rate the rule allows. Width and depth come out of the same number. There is no layer cap under it. Measured on the range the game tests the gun with, that is what the width is worth:
+
+| the same shot into | needle (no rake) | shipped corridor | a 4 u sphere |
+|---|---|---|---|
+| a corvette line, 3 x 1 x 4 cells | 4 cells, 800 hp | **12 cells, 2400 hp** | - |
+| a wall, 5 x 5 x 4 cells | 4 cells, 800 hp | 28 cells as 9 / 9 / 9 / 1 | 28 cells as 25 / 3 / 0 / 0 |
+| per 13.5 s cycle, corvette line | 59 hp/s | **178 hp/s** | - |
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-railgun-corridor.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-railgun-corridor.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The wall after the shot, entry face and exit face
+            side by side: a square hole three cells wide clean
+            through, the dead cells cold and cracked, the
+            second ring untouched.</span
+        >
+    </div>
+</figure>
+
+<details class="explain">
+<summary>Show explanation</summary>
+
 Twenty-seven reinforced hull blocks is past the depth of anything that flies, which is exactly why the shot is wide: nothing in the game is thick enough to spend a lance's budget in one column, so the surplus goes sideways instead of out the far side. Against a four-cell corvette line the corridor removes three times what the bare needle did. **Depth is not what this weapon costs you** - the commit, the recoil and the reload are.
+
+Wider is not more. Against a wall dense enough to bind the budget, a sphere four times the shipped radius removes exactly the same total, because both spend the same 1800 - it just spends it across the entry face and stops one layer in, where the shipped corridor bores three cells wide through all four layers and out the back. The radius chooses the shape of the hole; the power decides how much of it you get.
 
 The two large drives are the one place a lance does not simply delete what it touches: 300 does not clear 480 or 1250, so a lance cripples a capital drive over several passes instead of taking it off.
 
-Reach is 1800 units, which outranges every mount on the ship carrying it. That is what makes lining up worth doing.
+Reach is 1800 units, which outranges every mount on the ship carrying it. That is what makes lining up worth doing - the [combat page's engagement ladder](../../combat-weapons/#the-lance) puts the three weapons on one range axis.
+
+</details>
 
 ## The recoil
 
@@ -99,16 +185,16 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs :891-971 and assets/base/sections/base.content.ron:2258-2483. No shipped ship prototype mounts one; the editor sandbox's `picket_lance` does (crates/nova_editor/src/scenario.rs:824). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs :891-990 and assets/base/sections/base.content.ron (railgun_lance_section). No shipped ship prototype mounts one; the editor sandbox's `picket_lance` does (crates/nova_editor/src/scenario.rs). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-railgun.png</span></span></span><span class="catalog__title">Railgun - shipped prototypes</span></div>
 <table>
 <thead>
-<tr><th></th><th>Variant</th><th>Damage</th><th>Type</th><th>Depth</th><th>Charge</th><th>Magazine</th><th>Recharge</th><th>Muzzle</th><th>Reach</th><th>Health</th></tr>
+<tr><th></th><th>Variant</th><th>Damage</th><th>Type</th><th>Depth</th><th>Corridor</th><th>Charge</th><th>Magazine</th><th>Recharge</th><th>Muzzle</th><th>Reach</th><th>Health</th></tr>
 </thead>
 <tbody>
-<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">1500 u/s</td><td class="catalog__num">1800 u</td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">1.0 u rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">1500 u/s</td><td class="catalog__num">1800 u</td><td class="catalog__num">180</td></tr>
 </tbody>
 </table>
 </div>
 
-One lance ships, and no mainline hull carries it. It is a part you bolt on yourself in the ship editor, or one a scenario builds onto a hull it spawns - see [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change.
+One lance ships, and no mainline hull carries it. It is a part you bolt on yourself in the ship editor, or one a scenario builds onto a hull it spawns - see [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.

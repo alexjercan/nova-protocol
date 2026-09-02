@@ -25,7 +25,7 @@ The heads-up display is diegetic - the instruments read the ship's real state - 
 The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of the way when it does not. Idle cruise keeps a quiet screen - the velocity sphere, your speed, the dock's few live verbs, the always-on ship markers and the status bar - and everything else arrives with its moment.
 
 <div class="widget" data-widget="hud-context">
-<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges and redden the lead pips; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears every element.</p>
+<p>The situations and what each brings up: an engaged autopilot adds the mode chip and (for GOTO and ORBIT) the destination marker, and grows the speed chip; a combat lock adds the red reticle with its DST/CLS readout and the target viewfinder, and inverts the dock's RADAR chip; hot weapons raise the ammo gauges, redden the lead pips and put up a lance's bore sight; a nearly-dry or reloading group forces the gauges up on its own; Cinematic clears every element.</p>
 </div>
 
 <details class="explain">
@@ -33,7 +33,7 @@ The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of
 
 - **Autopilot burn** - the mode chip comes up, the speed chip grows (it is the number you are flying by), and the dock lights the maneuver you are flying. GOTO and ORBIT also put the destination marker and its readout up; STOP flies without one - there is no destination to mark.
 - **Combat lock** - the red reticle, its DST/CLS readout and the target viewfinder come up, and the RADAR chip inverts because the lock is the thing you would change.
-- **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses.
+- **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses. A hull carrying a lance draws its [bore sight](#bore-sight).
 - **Low ammo or reloading** - a nearly-dry group (a quarter magazine or less) pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger. An active reload holds them up the same way, with its own pulse.
 - **A posted objective** - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open NOVA OS.
 - **An incoming transmission** - the comms card arrives grown and settles while it holds.
@@ -61,6 +61,28 @@ The flight instruments sit around the ship, not in a status bar:
 ## Locks and reticles
 
 Locks are slot-coloured: a **white crosshair** is your travel (nav) lock, a **red reticle** is your combat lock. The combat reticle carries a readout riding its right edge - range to the target (`DST`), closing speed (`CLS`) and a health bar (measured against the hull the target was BUILT with, so it falls as you take sections off and never refills) - plus a focus meter that fills as a fine-lock dwell accumulates. Lock an asteroid and the bar is simply absent: a rock has no health to draw, and how much of it is left is something you read off the rock itself. While you hold the radar gesture a hollow box shows, coloured by the slot it will land in; a **white ring fills clockwise** around the target while the lock-on dwell charges, and vanishes with a cue the instant the lock snaps (sweep off before it fills to cancel). Clearing a lock pops a brief "unlatch" ghost. See [Targeting & radar](../targeting-radar/).
+
+## Bore sight
+
+<!-- Behavior verified against crates/nova_hud/src/bore_sight.rs: gated on WeaponsHot; the trace walks sections through the same `pierce_remainder` the round uses; a MARK_RADIUS 0.55 ring per section it would destroy; LINE_RADIUS 0.03 thickened CHARGE_THICKEN 2.4x at full charge; EMPTY_ALPHA_SCALE 0.3 on an empty magazine. -->
+
+A hull carrying a [railgun](../sections/railgun/) has one more instrument, because nothing else on the screen says where a hull is pointing: a thin **sight line** in the slug's own steel blue, out of the muzzle and ending exactly where the slug would end, with a **ring on every section that shot would destroy**. It is up whenever your weapons are hot, thickens as a charge runs, and stays up dimmed through the reload so the twelve seconds can be spent aiming.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-section-railgun-sight.png (shared with the Railgun page) -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-section-railgun-sight.png</span
+        >
+        <span class="figure__placeholder-note"
+            >The sight line out of the muzzle onto a corvette,
+            a ring on each section the shot would gut.</span
+        >
+    </div>
+</figure>
 
 ## Allegiance markers
 

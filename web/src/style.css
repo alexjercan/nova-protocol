@@ -2190,6 +2190,62 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     stroke-width: 2;
     fill: none;
 }
+/* The corridor scope: the sphere trailing the slug's tip (and its footprint
+   on the entry face), the cylinder it has swept so far, the bore, a cell the
+   sweep reached after the budget was gone, the face grid's cut overlay and
+   the per-column counts. */
+.widget-mark--rake {
+    stroke: var(--phosphor);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+    fill: none;
+}
+.widget-mark--corridor {
+    fill: var(--fill-hot);
+    stroke: none;
+}
+.widget-mark--bore {
+    fill: var(--phosphor-hot);
+    filter: drop-shadow(var(--glow-text));
+}
+.widget-mark--section.is-spared {
+    stroke: var(--phosphor-muted);
+    stroke-dasharray: 3 3;
+}
+.widget-mark--cut {
+    fill: var(--red);
+    stroke: none;
+}
+.widget-mark--cut.is-hit {
+    fill: var(--amber);
+}
+.widget-mark--count {
+    fill: var(--text);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-anchor: middle;
+}
+/* The engagement ladder: a reach band lights when the target sits inside it,
+   the torpedoes' second type extends the first's band, and the contact mark
+   rides the axis under the cursor. */
+.widget-mark--reach {
+    fill: var(--fill);
+    stroke: var(--edge-soft);
+}
+.widget-mark--reach.is-live {
+    fill: var(--fill-active);
+    stroke: var(--phosphor-dim);
+}
+.widget-mark--reach.is-ext {
+    fill: none;
+    stroke: var(--edge-soft);
+    stroke-dasharray: 3 3;
+}
+.widget-mark--contact {
+    fill: var(--amber);
+    stroke: none;
+}
 /* Words on the glass: per-section state words and lane labels; states carry
    the word, never color alone. */
 .widget-mark--word {

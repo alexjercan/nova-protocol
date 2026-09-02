@@ -1,6 +1,6 @@
 # Combat & weapons
 
-Two weapon families - precise turrets and area-effect torpedoes - feed one typed-damage model, so what you shoot matters as much as where you shoot it.
+Three weapon families - precise turrets, area-effect torpedoes and the spinal lance - feed one typed-damage model, so what you shoot matters as much as where you shoot it.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-combat.png -->
@@ -54,6 +54,45 @@ Which type is in the tubes is the difference between a salvo that costs a defend
         >
     </div>
 </figure>
+
+## The lance
+
+<!-- Values: crates/nova_authoring/src/base_content/sections/standard.rs railgun_lance_section (charge 1.5 :927, slug 1500 u/s :928 x 1.2 s :970 = 1800 u, 300 Pierce :942, 1800 power :948, rake 1.0 :967, one shell :981 back in 12 s :986); PDC reach 100 u/s :485 x 2.0 s :492; torpedo reach is the along-the-line table at the head of ordnance.rs:13-21 over the bay's 100 s lifetime standard.rs:1190; the AI's ~1 km fighting range is the raider orbit in crates/nova_ship/src/input/ai/. -->
+
+A [railgun](../sections/railgun/) is the third family and the odd one out: a **spinal lance** with no traverse, so the hull is the aim. Tapping the trigger commits a 1.5 second charge that nothing but the weapons safety can stop, and the slug that leaves crosses 1800 units in just over a second and takes a **corridor** out of whatever stands in the line - about three cells wide, every section in it hit for 300 Pierce. Then twelve seconds of reload before the next one.
+
+<figure class="figure">
+    <!-- Capture: assets/wiki-combat-railgun.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag"
+            >Screenshot needed</span
+        >
+        <span class="figure__placeholder-name"
+            >assets/wiki-combat-railgun.png</span
+        >
+        <span class="figure__placeholder-note"
+            >A lance shot mid-fight: the steel-blue slug
+            crossing the gap, a corridor opening through a
+            raider's flank and the far-side sections
+            bursting out.</span
+        >
+    </div>
+</figure>
+
+The three families are also three **reaches**, and the ladder is the shape of every fight: torpedoes at the long end, the lance in the middle, guns close in. Reach is never an authored number - it is muzzle speed times how long the round lives - and so is the time a shot takes to arrive, which is what actually separates them.
+
+<div class="widget" data-widget="weapon-reach">
+<p>A PDC round lives two seconds at 100 u/s, so it reaches 200 u. A lance slug lives 1.2 s at 1500 u/s and reaches 1800 u, arriving anywhere inside that in about a second. A torpedo cruises at 32 to 35 u/s for a hundred seconds, so it reaches about 2900 to 3100 u - and takes half a minute to cover the 1000 u a raider fights at. Nothing can shoot a round or a slug down; a torpedo costs the defender a hundred to four hundred rounds of point defense.</p>
+</div>
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Enemy gunships close to about 1000 u and fight there. That is inside a lance's reach and well outside a gun's, which is the lance's whole reason to exist: it is the weapon that answers a target the guns cannot touch yet, and the one that outranges every mount on the ship carrying it. It is also the only one of the three that arrives before its target can react - a slug is unanswerable in flight, so the charge is the only window the other side gets.
+
+A torpedo owns the long end but pays for it in time. At the range a raider fights, a Serpent is thirty seconds out, and every one of those seconds is a second the defender's mounts are working on it. That is why the torpedo fight is about saturation, the lance fight is about the line, and the gun fight is about closing - see [Point defense](#point-defense) for the first and the [railgun page](../sections/railgun/) for the second.
+
+</details>
 
 ## Cover & line of fire
 
@@ -153,15 +192,16 @@ it just does not answer.
 
 Every weapon in the game refills. A magazine is a **rate limit**, not a budget: no ship is ever left alive with nothing to fight with. What a weapon imposes instead is a rhythm, and it is the same rule for all of them - a batch lands only after a whole quiet interval, and every shot that lands restarts that interval.
 
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :286, reload delay 3.0 :288 / amount 200 :289, fire_rate 100 :262; bay ammo_capacity 6 :591, reload delay 10.0 :603 / amount 1 :604, fire_rate 1.0 :558) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is standard.rs:594's own formula, amount / (delay + amount / rate). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (PDC ammo_capacity 500 :502, reload delay 3.0 :504 / amount 200, fire_rate 100; bay ammo_capacity 6 :1225, reload delay 10.0 :1237 / amount 1, fire_rate 1.0; lance ammo_capacity 1 :981, reload delay 12.0 :986 / amount 1, charge 1.5 :927) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock :136, a whole batch lands at the delay :171-174, clamped at capacity :156, empty pulls never reset :134). The sustained column is sections/mod.rs:202's own formula, amount / (delay + batch fire time). -->
 
 | Weapon | Magazine | Cyclic rate | One batch | Quiet, empty to full | Sustained |
 | --- | --- | --- | --- | --- | --- |
 | PDC turret | 500 rounds | 100 /s | 200 rounds per 3 s | 9 s | 40 rounds/s |
 | Torpedo bay | 6 torpedoes | 1 /s | 1 torpedo per 10 s | 60 s | 0.09 /s |
+| Railgun lance | 1 shell | one per 1.5 s charge | 1 shell per 12 s | 12 s | 0.07 /s |
 
 <div class="widget" data-widget="ammo-rhythm">
-<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack.</p>
+<p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A lance is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half.</p>
 </div>
 
 The level is diegetic, on a gauge riding the weapon itself: a **ring** on each turret that drains as it fires, and a **row of pips** on the torpedo bay, one per loaded torpedo. While a weapon stays quiet the incoming batch pulses above the solid live rounds and brightens toward completion, and the gauge stays visible until it lands. (Some tutorial or sandbox ships fly with unlimited ammo, and then carry no gauge at all.)
@@ -173,7 +213,7 @@ The six are the torpedo bay's real weapon. Fired together they are a salvo the d
 Every round carries a damage type, and each turret has a loaded-ammo slot that sets its rounds' type. The type is visible on the outside of the fight as well as inside the numbers: the ammo readout is color-coded to it, and the round in flight is modelled and lit to match - a Kinetic slug is a stubby amber tracer, a Pierce round a longer, finer steel-blue dart. Close in you can see the difference in shape; across an engagement the color is what you read. A damage type is **not** a damage multiplier - the same round deals the same number to a hull, a thruster or a turret. What a type changes is how the round **travels** through what it hits, which is something you can watch happen:
 
 - **Kinetic** - the punch. The hardest single hit, and closing fast makes it harder still. It carries on only through what it **destroys**, spending its damage as it goes, and stops dead at anything it fails to kill.
-- **Pierce** - the rake. Lower damage per hit, but dealt **in full to every section it crosses**, alive or dead, and never worn down by depth. Closing fast buys it more **depth**, never more damage.
+- **Pierce** - the rake. Lower damage per hit, but dealt **in full to every section it crosses**, alive or dead, and never worn down by depth. Closing fast buys it more **depth**, never more damage. A [lance](../sections/railgun/) slug is this rule at its ceiling, with one thing a gun round never has: a sphere trailing its tip that widens the cut into a corridor, paid for out of the same depth budget.
 - **Explosive** - the torpedo's blast. Area pressure falling off from the centre, with no speed term. Ship sections shield what is behind them; a destroyed section transmits 65 percent of the pressure that reached it.
 
 So the two guns answer different problems. Against one thin target the slug wins outright. Against something deep - a stack of sections, a ship you are shooting down its long axis - a rake puts damage into several sections at once, and its **total** can exceed what one round nominally carries. That is the trade, not a bug.
@@ -182,7 +222,7 @@ So the two guns answer different problems. Against one thin target the slug wins
 
 Closing speed is how fast you and your target converge **along the round's line of flight**. Sideways motion counts for nothing, so a target circling you is not fleeing.
 
-Both curves are anchored at **100 u/s**, a PDC round's muzzle speed - what it closes at when neither ship is going anywhere. At that speed the multiplier is exactly 1.0, so a station-keeping duel plays out on the weapon's own numbers. Charging raises it; running from your target lowers it, and a stern chase is a real penalty. Both are clamped at each end: a head-on charge at most **doubles** Kinetic damage and at most **trebles** Pierce depth, while the worst tail chase still leaves a quarter of a slug's punch and half a penetrator's reach.
+Both curves are anchored at **100 u/s**, a PDC round's muzzle speed - what it closes at when neither ship is going anywhere. At that speed the multiplier is exactly 1.0, so a station-keeping duel plays out on the weapon's own numbers. Charging raises it; running from your target lowers it, and a stern chase is a real penalty. Both are clamped at each end: a head-on charge at most **doubles** Kinetic damage and at most **trebles** Pierce depth, while the worst tail chase still leaves a quarter of a slug's punch and half a penetrator's reach. A lance slug leaves at 1500 u/s, fifteen times the anchor, so it sits at the Pierce ceiling whatever the two ships are doing - closing speed is not a lever on the lance.
 
 The catalog ships four PDCs on two mounts: the single-barrel gatlings, **PDC Turret (Kinetic)** and **PDC Turret (Pierce)**, and their **Twin** counterparts, which split the same total fire rate across two offset barrels. Every variant shares the magazine and the reach, and the Pierce guns deal half the damage per hit - so mount a Kinetic and a Pierce and the punch-versus-rake trade is the only thing you are feeling.
 
@@ -212,7 +252,7 @@ A **Pierce** round does not pay for travel out of its damage at all. It carries 
 
 Two things follow from pricing power on the rating rather than on what is left. Light plating is nearly free to rake through while a heavy hull block eats most of a round's power in one go - the spaced-armour intuition, intact. And softening a section with other fire does **not** open a cheaper hole through it, so there is no trick of chipping first and raking after.
 
-Every rake also has a hard ceiling on how many sections one round may cross, so a round fired down the length of a lightly built ship cannot chain forever.
+Every gun rake also has a hard ceiling on how many sections one round may cross - six - so a round fired down the length of a lightly built ship cannot chain forever. The lance's slug is the one exception: it has no layer cap at all, and power alone decides where it stops.
 
 <div class="widget" data-widget="round-travel">
 <p>Worked example: five light hull sections at 60 hp each. A 100-damage kinetic slug at 100 u/s destroys the first section and hits the second for 40; at 200 u/s it punches twice as hard and destroys three. A pierce dart deals its full damage to every section it crosses: a crossing costs 60 of its 300 power at 100 u/s (five sections deep), only 20 at 300 u/s - but never more than six sections.</p>

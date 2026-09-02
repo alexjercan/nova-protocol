@@ -76,6 +76,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
   rakes through, the recoil and the tempo - and the dev book gets the lance's
   charge cycle, its sight and its AI envelope.
+- The Railgun page carries a corridor scope: pick a rake radius, a cell and a
+  block and watch one shot spend its power. The combat page ranks the PDC, the
+  lance and the torpedoes on one range ladder.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
 

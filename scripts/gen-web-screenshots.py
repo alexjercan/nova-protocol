@@ -17,7 +17,7 @@ capture pipeline:
      stance comparison) by decoding two already-copied figures with a tiny
      stdlib PNG codec, contain-scaling each into half the frame, and writing the
      side-by-side result. A distinct capture staged for the composite name wins.
-  3. It GENERATES the five 44x44 section icons directly (simple flat diagram
+  3. It GENERATES the six 44x44 section icons directly (simple flat diagram
      glyphs, matching the editor's per-section colours) - these are authored, not
      captured.
 
@@ -140,6 +140,13 @@ FIGURES = [
     ("wiki-section-turret.png",         "screenshot_section_weapons"),
     ("wiki-section-turret-twin.png",    "screenshot_section_weapons"),
     ("wiki-section-torpedo-bay.png",    "screenshot_section_weapons"),
+    # The lance. No capture example renders one yet - no shipped hull carries
+    # it - so its four slots stay pending until the weapons closeup or the
+    # railgun range grows a capture step.
+    ("wiki-section-railgun.png",          None),
+    ("wiki-section-railgun-sight.png",    None),
+    ("wiki-section-railgun-corridor.png", None),
+    ("wiki-combat-railgun.png",           None),
     # The drive family on one bench: the size comparison, then each large
     # drive on its own.
     ("wiki-section-drives.png",         "screenshot_section_drives"),
@@ -255,6 +262,7 @@ ALIASES = {
     "catalog-pdc-pierce-turret-section.png": "wiki-section-turret.png",
     "catalog-pdc-twin-kinetic-turret-section.png": "wiki-section-turret-twin.png",
     "catalog-pdc-twin-pierce-turret-section.png": "wiki-section-turret-twin.png",
+    "catalog-railgun-lance-section.png": "wiki-section-railgun.png",
 }
 
 # A `news-` still is a LEAF: an alias may write one, nothing may read one. A
@@ -278,6 +286,7 @@ ICONS = [
     ("icon-thruster.png",    "thruster",    (0xD1, 0x8A, 0x3E)),
     ("icon-turret.png",      "turret",      (0xC8, 0x55, 0x55)),
     ("icon-torpedo-bay.png", "torpedo-bay", (0x8E, 0x6F, 0xC0)),
+    ("icon-railgun.png",     "railgun",     (0x7A, 0xA6, 0xD6)),
 ]
 
 ICON_SIZE = 44
@@ -614,6 +623,12 @@ def draw_icon(section, accent):
         # A tube with a torpedo.
         c.rounded_rect(9, 18, 35, 26, 4, white)
         c.circle(30, 22, 3, accent)
+    elif section == "railgun":
+        # Two rails off a breech block, the charge bolt partway up the bore.
+        c.rect(6, 15, 13, 29, white)
+        c.rect(13, 17, 40, 20, white)
+        c.rect(13, 24, 40, 27, white)
+        c.circle(27, 22, 3, white)
     return c.bytes()
 
 
