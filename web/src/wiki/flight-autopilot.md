@@ -23,19 +23,9 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 250 m/s starter governor - `m/s` is metres per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
 
-## Balancing thrust through the hull
+## The hull decides the handling
 
-Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight (any tiny leftover spin is mopped up by the steering) - see [Thruster](../sections/thruster/).
-
-## Size decides the handling
-
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :23, METERS_PER_UNIT 10.0 :14) and crates/nova_ship/src/physics/attitude.rs (the two ceilings :70-86, the arm and what shortens it :131-164). "About two seconds": a bang-bang 180 is 2 * sqrt(pi / ceiling) (guidance.rs:302-303), and the shipped corvette's 2.76 u arm (attitude.rs:138) gives 78.48 / 27.6 = 2.84 rad/s2, so 2.10 s. -->
-
-How hard a hull turns is the lower of two limits: what its flight computers twist it with against the mass they swing, and what its own metal survives. Hull takes 8 G, measured out at the furthest section from the centre of mass, so a long ship on a long arm has the gentler limit. Nothing authors the result - it falls out of the hull you built. A small craft whips around; a hauler handles like the freighter it is.
-
-Every shipped craft is held by its structure rather than by its computers. Two things come with that: a hull that has lost its nose turns sharper than it did intact, because the arm got shorter, and a hull already deep in a hard turn has less authority left to tighten with.
-
-A hull can mount several [controllers](../sections/controller/) and their torque adds, but on a structure-bound craft that buys no extra turn rate - only a hull heavy enough to run its computers out first gains from a stack. What stacking always buys is precision: the hull starts braking its turn earlier and stops on the commanded heading instead of swinging back.
+Nothing about handling is authored; it falls out of the hull you built. A section weighs the box it is hit on, so a ship's mass is its shape. The main drive is whatever thrusters point forward, balanced through the live centre of mass so an asymmetric or battle-damaged layout still flies straight. And how hard the hull turns is the lower of two limits - what its flight computers can twist against the mass they swing, and what its own metal survives at 8 G out at the furthest section - so a small craft whips around, a hauler handles like the freighter it is, and a wreck that has lost its nose turns sharper than the whole ship did. The [Thruster](../sections/thruster/) and [Controller](../sections/controller/) pages put scopes and numbers on both halves.
 
 ## The autopilot flies the hull
 

@@ -79,6 +79,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The Railgun page carries a corridor scope: pick a rake radius, a power
   budget, a cell and a block and watch one shot spend it. The combat page ranks
   PDC, railgun and torpedoes on one range ladder.
+- The wiki reads as a book: Start here, World (flight, gravity, ships and
+  damage, targeting, combat, factions, scenarios), Ship sections, Interface,
+  Reference; weapon detail moves to the section pages.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
 

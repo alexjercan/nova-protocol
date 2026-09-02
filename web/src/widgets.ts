@@ -7681,9 +7681,10 @@ function initLanceCorridor(host: HTMLElement): void {
 
 // The engagement ladder: the three weapon families' reaches on one range
 // axis with a target cursor, and what each of them can do about a target
-// that far out. data-range seeds the cursor.
+// that far out. data-range seeds the cursor; the default is a hostile still
+// burning in, past the guns and inside the slug.
 function initWeaponReach(host: HTMLElement): void {
-    const range0 = numAttr(host, "range", 1000);
+    const range0 = numAttr(host, "range", 600);
     header(
         host,
         "Engagement ladder: who reaches whom",
@@ -7918,9 +7919,10 @@ function initWeaponReach(host: HTMLElement): void {
         "Reach is never an authored number: it is muzzle speed times how " +
             "long the round lives, and a torpedo's is the speed it settles " +
             "at along the line over the bay's lifetime. Enemy gunships " +
-            "close to about 1000 u and fight there - inside the railgun, " +
-            "far outside the PDC, and where a torpedo takes half a minute " +
-            "to arrive."
+            "close to about 100 u and fight there, inside everyone's " +
+            "guns; between a gun's 200 u and the slug's 1800 u only the " +
+            "railgun and a torpedo reach, and the slug gets there in " +
+            "about a second where the torpedo takes tens of them."
     );
     host.appendChild(controls);
     host.appendChild(plot);

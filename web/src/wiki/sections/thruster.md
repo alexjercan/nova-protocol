@@ -26,7 +26,11 @@ The thruster produces **forward thrust** and drives the exhaust plume. Throttle 
 
 A thruster bolts on by its forward end and by that end only. The rest of it is barrel, nozzle bell and exhaust, so the builder always seats it nose-in with the plume clear of the ship - you choose the face it grows from, not which way round it sits.
 
-The flight computer balances thrust through the ship's live center of mass, recruiting off-axis thrusters for counter-torque, so an asymmetric or battle-damaged thruster layout still flies straight instead of pinwheeling.
+## Balancing thrust through the hull
+
+Because thrusters sit wherever you bolted them, an off-center burn would spin the ship. The flight computer prevents that: it sets each engine's throttle to deliver the commanded forward thrust while cancelling the twist through the live center of mass, recruiting off-axis thrusters purely for counter-torque when the firing set cannot balance itself. An asymmetric or battle-damaged ship still flies straight - any tiny leftover spin is mopped up by the steering - so a drive shot off one flank costs you push, not control.
+
+## What a hurt drive tells you
 
 A hurt drive **looks** hurt. Past about a third of its health gone it cracks and throws sparks, and its exhaust runs short and guttering instead of steady. It never guts all the way out, because a dead plume means a shut-down drive and this one is not shut down: a damaged thruster delivers exactly the push a fresh one does. The plume tells you what a chaser has already taken off it, not what it can still do.
 

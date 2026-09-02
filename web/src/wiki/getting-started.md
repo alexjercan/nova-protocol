@@ -129,10 +129,13 @@ Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kb
 
 That is everything you need to get off the launch pad. The rest of the wiki is the full reference:
 
-- [Keybinds](../keybinds/) - the complete control reference for keyboard and gamepad.
 - [Flight & autopilot](../flight-autopilot/) - how ships move and what GOTO, ORBIT and STOP each do.
+- [Gravity wells](../gravity-wells/) - the pull every body in a scene exerts, and how to fly it.
+- [Ships & damage](../ships/) - what a hull is made of and how it comes apart.
 - [Targeting & radar](../targeting-radar/) - deliberate locking, stances, and per-section fine-lock.
-- [Ship sections](../sections/) - what each part of a ship does.
+- [Combat](../combat-weapons/) - the engagement ladder and the rules every weapon shares.
+- [Ship sections](../sections/) - what each part of a ship does, one page per part.
+- [Keybinds](../keybinds/) - the complete control reference for keyboard and gamepad.
 - [Glossary](../glossary/) - the recurring terms and units in one place.
 
 <p style="margin-top: 2.5em"><a href="../../play/" class="btn btn--primary">Launch the game</a></p>

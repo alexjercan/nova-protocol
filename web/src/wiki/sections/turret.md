@@ -20,6 +20,22 @@ A turret is an **articulated mount** - a base, the joints that swivel and elevat
 
 Turrets draw their aim from the combat lock and prefer a fine-locked section if you have one, falling back to live structure and then the camera ray.
 
+## Aiming with lead
+
+The mount aims at your combat lock with **true intercept lead** - the solution is computed in the shooter's own frame, so a moving ship's rounds actually land - bounded by its yaw and pitch limits and fire rate. Its rounds are sensor projectiles: they deal damage on contact with no physical shove, they carry on through what they hit by the rules of their [damage type](../../combat-weapons/#damage-types), and they curve through [gravity wells](../../gravity-wells/) like everything else. The point-defense cannon is tuned to chip a target down over a visible burst rather than delete it, and prioritizes shooting down inbound torpedoes. A mount can carry **more than one barrel** - a twin-barrel PDC aims and fires every muzzle it has, two offset streams that share the turret's one magazine and its total fire rate (see [Variants](#variants)).
+
+## Barrel discipline
+
+A gun fires only while its barrel is actually **on** the point it is aiming at.
+The tolerance is what a round can still hit: about a degree, which is a
+corvette's beam at a kilometre. So a mount shoots while it is tracking and
+**holds while it is slewing**, and two things follow from that. Wrenching the
+ship around mid-burst stops the guns until the barrels catch up. And a mount
+that cannot train on your target at all - the port gun ordered onto something
+off the starboard quarter, or anything under the keel - simply holds, while the
+mounts that CAN bear keep shooting. It is your ammunition either way; the rounds
+a gun does not spend are the ones that were going to miss.
+
 ## What it can bear on
 
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (turret_joint_tree :199: traverse limits None/None :221-222, elevation min -TURRET_DEPRESSION_LIMIT to FRAC_PI_2 :291-292 where that constant is PI/18 at :97, hinge speed PI rad/s :274,:284; pdc_turret_prototype :414: muzzle_speed 100.0 :473 x projectile_lifetime 2.0 :480 = 200 u of reach, and crates/nova_ship/src/sections/turret_section/config.rs:124-126 states that product IS the reach) and crates/nova_ship/src/sections/turret_section/aim.rs (fire gate TURRET_ON_TARGET_RAD = 1.6 / 100 :47, the per-muzzle gate :72, doc'd 0.92 deg; the reachability test is derived from the elevation hinge alone, arc.rs:46-102). -->
@@ -30,7 +46,28 @@ The mount turns all the way round, so nothing is out of reach sideways. What bou
 <p>Traverse is unlimited and the barrel elevates from 10 degrees below level to straight up, so one mount covers 58.7 percent of the sky and the rest is a blind cone under its own keel. Both hinges turn at 180 deg/s at once, so a swing costs the larger of the two angles rather than their sum - a 90 degree traverse takes half a second, which is 50 rounds the gun does not fire while it is moving. Reach is 200 u: muzzle speed times how long a round lives, not an authored range.</p>
 </div>
 
-That blind cone is the whole reason [point defense](../../combat-weapons/#point-defense) is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.
+That blind cone is the whole reason [point defense](#point-defense) is assigned per mount rather than per battery, and the reason a salvo arriving from one side meets fewer guns than one across the beam.
+
+## Reach and closing speed
+
+A gun is a **short-range** weapon. A round is not tracked forever: it expires after a couple of seconds, which puts a PDC slug's reach at about **2 km**. Everyone shoots the same gun, so a raider's rounds reach exactly as far as yours - what a scavenger-grade mount gives up is toughness, not range. Enemy ships know it - they close to roughly **1 km** and fight there, and they hold fire until they are inside their own reach, so a hostile burning toward you is not being polite, it is out of range. Closing speed moves the number in both directions: rounds inherit the ship that fired them, so a charge carries them further and running from your target cuts what they can reach along with what they hit for. [Combat](../../combat-weapons/#closing-speed) puts the multipliers on that, and the [engagement ladder](../../combat-weapons/#three-reaches) sets the gun's 200 u beside the other two families.
+
+## Point defense
+
+Every gun runs its own point defense, and each mount picks its
+OWN inbound torpedo rather than the whole battery swinging onto one. That is not
+a fairness rule, it is geometry: a turret is bolted to a hull and cannot depress
+its barrel back through its own ship, so a mount handed a torpedo coming in
+under the keel would sit there contributing nothing while a torpedo it could
+have hit flew past. A mount is only ever given something it can actually bear
+on; the fire splitting across a salvo falls out of that.
+
+Mounts also **hold** what they are tracking. Slewing takes real time, so a gun
+stays on its torpedo until that torpedo dies, drifts out of its arc, or
+something far more urgent arrives - a battery that re-decided every moment would
+spend the whole engagement swinging and hit nothing.
+
+So a salvo arriving from one side, or from below a hull, meets only the mounts that can actually train on it - the band above is exactly the band one gun defends. What your own idle mounts do with that, and when the flight computer is allowed to work them for you, is on [Combat](../../combat-weapons/#point-defense).
 
 ## Stowed between fights
 
@@ -77,7 +114,7 @@ A beaten mount cracks and, past about a third of its health gone, throws sparks 
 
 ## Variants
 
-Four turrets ship on two mounts. The gatlings put one barrel on the compact assembly every craft carries; the twins put two barrels on a broader one. A twin's tubes each fire at half the gatling's cadence, so the pair costs the same total rate and drains the magazine no faster - the trade is two offset streams instead of one dense one. Within each mount the only thing that separates the pair is the round it loads.
+Four turrets ship on two mounts. The gatlings put one barrel on the compact assembly every craft carries; the twins put two barrels on a broader one. A twin's tubes each fire at half the gatling's cadence, so the pair costs the same total rate and drains the magazine no faster - the trade is two offset streams instead of one dense one. Within each mount the only thing that separates the pair is the round it loads. The Pierce guns deal half the damage per hit, so mount a Kinetic and a Pierce and the punch-versus-rake trade on [Combat](../../combat-weapons/#damage-types) is the only thing you are feeling.
 
 <div class="catalog">
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared joint tree turret_joint_tree :199 (yaw unlimited :221-222, pitch -10deg to +90deg :291-292, slew PI :274,:284); pdc_turret_prototype :414 (health TURRET_BASE_HEALTH 130 :429,:32, muzzle 100 :473, lifetime 2.0 :480, magazine 500 :486, reload 3.0s/200 :487-489) with call sites :791-839 - gatlings on gatling_art :142 at GATLING_FIRE_RATE 100 :67, twins on twin_art :162 (two muzzles at x +-0.12) at TWIN_FIRE_RATE = half per muzzle :75; damage kinetic 4.0 :52, pierce 2.0 :62. Every craft mounts the kinetic gatling: ships/shared.rs `module` and `placement`. -->

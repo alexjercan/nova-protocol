@@ -65,7 +65,7 @@ assert.deepEqual(lanceCorridor(0, HP, 5, 5, 4).profile, [1, 1, 1, 1]);
     assert.equal(drive.removed, 300);
 }
 
-// The ladder: a raider's 1000 u is inside the lance and outside the PDC, and
+// The ladder: a target at 1000 u is inside the lance and outside the PDC, and
 // the slug's flight there is under a second.
 {
     const rungs = reachLadder(1000);

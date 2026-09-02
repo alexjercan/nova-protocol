@@ -158,7 +158,7 @@ Wider is not more. Against a wall dense enough to bind the budget, a sphere four
 
 The two large drives are the one place a slug does not simply delete what it touches: 300 does not clear 480 or 1250, so a railgun cripples a capital drive over several passes instead of taking it off.
 
-Reach is 1800 units, which outranges every mount on the ship carrying it. That is what makes lining up worth doing - the [combat page's engagement ladder](../../combat-weapons/#the-railgun) puts the three weapons on one range axis.
+Reach is 1800 units, which outranges every mount on the ship carrying it. That is what makes lining up worth doing - the [combat page's engagement ladder](../../combat-weapons/#three-reaches) puts the three weapons on one range axis.
 
 </details>
 
