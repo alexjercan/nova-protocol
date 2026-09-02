@@ -144,6 +144,8 @@ does NOT get an entry - and it is the only place they are written down.
   rest of the settings. Music is reserved: nothing routes to it yet.
 
 ### Internals & Tooling
+- `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
+  fields a new matchup; `--seed` replays one and a scripted run stays pinned.
 - Every example flies on your saved settings rather than the defaults: mouse
   sensitivity, keybinds, volumes, quality and skin. A scripted capture or probe
   run reads and writes none of them.

@@ -15,8 +15,10 @@
 //! future game's ship grammar.
 //!
 //! Combatants are DRAFTED: the collapse arms hulls with wild variance, so the
-//! arena walks the seed stream from `--seed` and fields the first hulls that
-//! clear an armament floor ([`MIN_TURRETS`], [`MIN_BAYS`]). Deterministic - one
+//! arena walks the seed stream from its head and fields the first hulls that
+//! clear an armament floor ([`MIN_TURRETS`], [`MIN_BAYS`]). A hand-run rolls a
+//! fresh head and logs it; `--seed` pins one, and a scripted run stays on
+//! [`DEFAULT_SEED`] ([`resolve_seed`]). Reproducible rather than fixed - one
 //! seed and one roster reproduce the matchup - and every skipped seed is logged
 //! with the armament that disqualified it. Half of every hull's tubes carry
 //! Lances ([`load_lances`]), which stages the owner's decoy doctrine: Serpents
@@ -150,9 +152,10 @@ use wfc::{refuse_broken_ships, style_at, tile_set, wfc_hull, StyleId};
 #[command(about = "A roster of wave-function-collapse ships fights in a dressed arena", long_about = None)]
 struct Cli {
     /// Where the draft starts reading the seed stream; each drafted hull takes
-    /// the next viable seed past the last one.
-    #[arg(long, default_value_t = DEFAULT_SEED)]
-    seed: u64,
+    /// the next viable seed past the last one. Unset, a hand-run rolls a fresh
+    /// head and logs it - see [`resolve_seed`].
+    #[arg(long)]
+    seed: Option<u64>,
     /// One hull of the roster, repeatable: `TEAM[:STYLE[:SEED]][:player]`,
     /// where TEAM is `amber` or `onyx`, STYLE initializes that side's style,
     /// SEED pins the collapse and a trailing `player` puts you
@@ -165,9 +168,36 @@ struct Cli {
     style: Option<String>,
 }
 
-/// The default first seed. Not `wfc_ships`' default on purpose: the two
-/// examples should not photograph the same hulls.
+/// The seed head a SCRIPTED run starts from. Not `wfc_ships`' default on
+/// purpose: the two examples should not photograph the same hulls.
 const DEFAULT_SEED: u64 = 20_260_816;
+
+/// Where the draft starts reading, in priority order: `--seed`, then
+/// [`SEED_ENV`], then the fixed [`DEFAULT_SEED`] for a scripted run, and
+/// otherwise a fresh roll from the OS.
+///
+/// A hand-run wants a NEW matchup each time - that is the whole point of a
+/// generator bench, and a fixed default meant every launch fielded the same
+/// two hulls. A capture or a probe sweep wants the opposite: the hero media
+/// photographs particular ships and a measurement compares like with like, so
+/// a harness run stays on the pinned head unless it names its own.
+///
+/// The head is logged by [`draft_roster`] - here it would be written before
+/// `AppBuilder` installs the log plugin, so nothing would carry it - and the
+/// lobby shows it in an editable field. Either way a matchup worth keeping is
+/// replayable with `--seed`.
+fn resolve_seed(asked: Option<u64>) -> u64 {
+    if let Some(seed) = asked.or_else(seed_from_env) {
+        return seed;
+    }
+    if HARNESS_ENVS
+        .iter()
+        .any(|key| std::env::var_os(key).is_some())
+    {
+        return DEFAULT_SEED;
+    }
+    rand::random::<u64>()
+}
 
 /// The two teams. Only Player<->Enemy reads as hostile in the relation model,
 /// so an AI-vs-AI fight needs one team flying the player's colors - the same
@@ -350,7 +380,7 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     let capture_thumbnail = ships.len() == 2;
     let roster = Roster {
-        seed: cli.seed,
+        seed: resolve_seed(cli.seed),
         ships,
         drafted: Vec::new(),
         style: 0,
@@ -815,6 +845,7 @@ fn draft_roster(
     from: u64,
     sections: &GameSections,
 ) -> Vec<(u64, ShipHull)> {
+    info!("wfc_arena: drafting from seed {from} - `--seed {from}` fields this matchup again");
     let mut cursor = from;
     let mut drafted = Vec::new();
     for (slot, ship) in ships.iter().enumerate() {
