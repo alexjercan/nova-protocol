@@ -15,7 +15,7 @@ use nova_assets::persist;
 use nova_gameplay::prelude::{
     GraphicsQuality, InterfaceVolume, MasterVolume, MusicVolume, WorldVolume,
 };
-use nova_input::prelude::{BindingSpec, InputBindings};
+use nova_input::prelude::{BindingSpec, InputBindings, MousePath, MouseSensitivity};
 use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ui::prelude::UiSkin;
 use serde::{Deserialize, Serialize};
@@ -43,6 +43,15 @@ pub struct PersistedSettings {
     /// not break when music lands.
     #[serde(default = "default_volume")]
     pub music_volume: f32,
+    /// Raw mouse-look gain (ship steering, free look, turret aim).
+    #[serde(default = "default_look_sensitivity")]
+    pub mouse_look_sensitivity: f32,
+    /// Raw gain of mouse-driven RCS translation.
+    #[serde(default = "default_rcs_sensitivity")]
+    pub mouse_rcs_sensitivity: f32,
+    /// Raw gain of free-camera mouse look.
+    #[serde(default = "default_free_camera_sensitivity")]
+    pub mouse_free_camera_sensitivity: f32,
     /// The graphics-quality preset.
     #[serde(default)]
     pub graphics_quality: GraphicsQuality,
@@ -73,6 +82,18 @@ fn default_volume() -> f32 {
     MasterVolume::default().0
 }
 
+fn default_look_sensitivity() -> f32 {
+    MousePath::Look.default_raw()
+}
+
+fn default_rcs_sensitivity() -> f32 {
+    MousePath::Rcs.default_raw()
+}
+
+fn default_free_camera_sensitivity() -> f32 {
+    MousePath::FreeCamera.default_raw()
+}
+
 fn default_bright_detent() -> usize {
     NovaOsMonitorSettings::default().bright_detent
 }
@@ -88,11 +109,15 @@ fn default_sound_enabled() -> bool {
 impl Default for PersistedSettings {
     fn default() -> Self {
         let monitor = NovaOsMonitorSettings::default();
+        let sensitivity = MouseSensitivity::default();
         Self {
             master_volume: MasterVolume::default().0,
             interface_volume: InterfaceVolume::default().0,
             world_volume: WorldVolume::default().0,
             music_volume: MusicVolume::default().0,
+            mouse_look_sensitivity: sensitivity.look,
+            mouse_rcs_sensitivity: sensitivity.rcs,
+            mouse_free_camera_sensitivity: sensitivity.free_camera,
             graphics_quality: GraphicsQuality::default(),
             ui_skin: UiSkin::default(),
             nova_os_bright_detent: monitor.bright_detent,
@@ -111,6 +136,7 @@ impl PersistedSettings {
         interface_volume: InterfaceVolume,
         world_volume: WorldVolume,
         music_volume: MusicVolume,
+        sensitivity: MouseSensitivity,
         quality: GraphicsQuality,
         skin: UiSkin,
         monitor: NovaOsMonitorSettings,
@@ -122,6 +148,9 @@ impl PersistedSettings {
             interface_volume: interface_volume.factor(),
             world_volume: world_volume.factor(),
             music_volume: music_volume.factor(),
+            mouse_look_sensitivity: sensitivity.raw(MousePath::Look),
+            mouse_rcs_sensitivity: sensitivity.raw(MousePath::Rcs),
+            mouse_free_camera_sensitivity: sensitivity.raw(MousePath::FreeCamera),
             graphics_quality: quality,
             ui_skin: skin,
             nova_os_bright_detent: monitor.bright_detent,
@@ -130,6 +159,17 @@ impl PersistedSettings {
             window_mode,
             keybinds: bindings.overrides(),
         }
+    }
+
+    /// The persisted mouse sensitivities as the live resource, with every
+    /// value clamped - a hand-edited or out-of-range number can only ever load
+    /// as one the slider could have produced.
+    pub fn mouse_sensitivity(&self) -> MouseSensitivity {
+        let mut sensitivity = MouseSensitivity::default();
+        sensitivity.set_raw(MousePath::Look, self.mouse_look_sensitivity);
+        sensitivity.set_raw(MousePath::Rcs, self.mouse_rcs_sensitivity);
+        sensitivity.set_raw(MousePath::FreeCamera, self.mouse_free_camera_sensitivity);
+        sensitivity
     }
 
     /// The persisted NOVA OS monitor settings as the live resource.
@@ -174,6 +214,7 @@ mod tests {
         storage::NativeStorage,
     };
     use nova_gameplay::prelude::{GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume};
+    use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_os_ui::prelude::NovaOsMonitorSettings;
     use nova_ui::prelude::UiSkin;
 
@@ -207,6 +248,9 @@ mod tests {
             interface_volume: 0.6,
             world_volume: 0.7,
             music_volume: 0.2,
+            mouse_look_sensitivity: MousePath::Look.range().raw(150.0),
+            mouse_rcs_sensitivity: MousePath::Rcs.range().raw(300.0),
+            mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(250.0),
             graphics_quality: GraphicsQuality::Low,
             ui_skin: UiSkin::Hardware,
             nova_os_bright_detent: 3,
@@ -279,6 +323,9 @@ mod tests {
                 interface_volume: InterfaceVolume::default().0,
                 world_volume: WorldVolume::default().0,
                 music_volume: MusicVolume::default().0,
+                mouse_look_sensitivity: MousePath::Look.default_raw(),
+                mouse_rcs_sensitivity: MousePath::Rcs.default_raw(),
+                mouse_free_camera_sensitivity: MousePath::FreeCamera.default_raw(),
                 graphics_quality: GraphicsQuality::default(),
                 ui_skin: UiSkin::default(),
                 nova_os_bright_detent: NovaOsMonitorSettings::default().bright_detent,
@@ -363,6 +410,63 @@ mod tests {
                 WorldVolume::default().0,
                 MusicVolume::default().0
             )
+        );
+        clear(&store);
+    }
+
+    /// The three mouse sensitivities persist as RAW gains, a store written
+    /// before they existed loads on their defaults, and a number no slider
+    /// could have produced is clamped on the way back into the resource.
+    #[test]
+    fn the_mouse_sensitivities_persist_default_and_clamp() {
+        let store = temp_store("mouse_sensitivity");
+        clear(&store);
+
+        let non_default = PersistedSettings {
+            mouse_look_sensitivity: MousePath::Look.range().raw(120.0),
+            mouse_rcs_sensitivity: MousePath::Rcs.range().raw(420.0),
+            mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(280.0),
+            ..PersistedSettings::default()
+        };
+        save_to(&store, KEY, &non_default);
+        let saved = load_from::<PersistedSettings>(&store, KEY).expect("the store round-trips");
+        let live = saved.mouse_sensitivity();
+        assert!((live.percent(MousePath::Look) - 120.0).abs() < 1e-2);
+        assert!((live.percent(MousePath::Rcs) - 420.0).abs() < 1e-2);
+        assert!((live.percent(MousePath::FreeCamera) - 280.0).abs() < 1e-2);
+
+        // A pre-sensitivity store: every path falls back to its default rather
+        // than failing the load, so adding the setting invalidated nobody's
+        // saved file.
+        write_raw(&store, b"(master_volume: 0.5)");
+        let older =
+            load_from::<PersistedSettings>(&store, KEY).expect("a pre-sensitivity store loads");
+        assert_eq!(older.master_volume, 0.5);
+        assert_eq!(older.mouse_sensitivity(), MouseSensitivity::default());
+
+        // A hand-edited store, well past both ends and one value not a number
+        // at all: what reaches the resource is always inside the slider's own
+        // range.
+        write_raw(
+            &store,
+            b"(mouse_look_sensitivity: 12.0, mouse_rcs_sensitivity: -3.0, \
+              mouse_free_camera_sensitivity: NaN)",
+        );
+        let corrupt = load_from::<PersistedSettings>(&store, KEY)
+            .expect("a corrupt-but-parsable store still loads")
+            .mouse_sensitivity();
+        assert!(
+            (corrupt.percent(MousePath::Look) - 300.0).abs() < 1e-2,
+            "clamped to the top"
+        );
+        assert!(
+            (corrupt.percent(MousePath::Rcs) - 100.0).abs() < 1e-2,
+            "clamped to the bottom"
+        );
+        assert_eq!(
+            corrupt.free_camera,
+            MousePath::FreeCamera.default_raw(),
+            "a value that is not a number reads as the default"
         );
         clear(&store);
     }

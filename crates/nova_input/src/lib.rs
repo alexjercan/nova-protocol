@@ -27,20 +27,25 @@ pub mod context;
 pub mod dispatch;
 pub mod poll;
 pub mod registry;
+pub mod sensitivity;
 pub mod source;
 
 use bevy::prelude::*;
 
-use crate::{context::ActiveContexts, registry::InputBindings};
+use crate::{
+    context::ActiveContexts, registry::InputBindings, sensitivity::MouseSensitivityPlugin,
+};
 
-/// Installs the empty [`InputBindings`] table. Every crate that owns actions
-/// registers into it from its own plugin's `build`, so the table is complete
-/// before the first frame and stays populated with no ship in the world.
+/// Installs the empty [`InputBindings`] table and the mouse sensitivities.
+/// Every crate that owns actions registers into the table from its own plugin's
+/// `build`, so it is complete before the first frame and stays populated with
+/// no ship in the world.
 pub struct NovaInputPlugin;
 
 impl Plugin for NovaInputPlugin {
     fn build(&self, app: &mut App) {
         install(app);
+        app.add_plugins(MouseSensitivityPlugin);
     }
 }
 
@@ -95,6 +100,10 @@ pub mod prelude {
         registry::{
             ActionAxes, ActionBinding, ActionName, BindingChip, BindingSpec, GamepadStick,
             InputBindings, WheelDirection,
+        },
+        sensitivity::{
+            apply_mouse_sensitivity, mouse_sensitivity, MousePath, MouseSensitivity,
+            MouseSensitivityPlugin, MouseSensitivityRange, MouseSensitivitySystems,
         },
         source::{
             binding_source, gamepad_label, key_symbol, keyboard_label, modifier_pair,

@@ -63,6 +63,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Cheats are refused until you run `cheats enable`, which marks the run one
   way and turns the header amber. A fresh scenario is a fresh run and clears
   the mark.
+- Settings > Controls gains a MOUSE group: separate look, RCS and free-camera
+  sensitivity sliders that reach a ship already flying. Mouse look now defaults
+  to two-thirds of its old gain.
 
 ### Ships & Sections
 - Every section wears an authored model at the thruster's standard: the hull

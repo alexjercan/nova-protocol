@@ -20,6 +20,7 @@ use bevy::prelude::*;
 use nova_assets::prelude::ReloadContent;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
+use nova_input::prelude::MouseSensitivity;
 use nova_os::prelude::NovaOsTerminal;
 use nova_os_ui::prelude::{NovaOsCloseTransition, NovaOsMonitorSettings};
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
@@ -75,9 +76,10 @@ use scenarios::{
 };
 use settings::{
     apply_settings_rebind, flush_settings_on_exit, load_persisted_settings,
-    on_volume_slider_change, persist_settings_on_change, refresh_settings_tab, settings_tab_dirty,
-    sync_volume_slider, PendingRebind, PendingSettingsSave, SettingsActiveTab,
-    SettingsControlsGroup, WindowModeSetting,
+    on_sensitivity_slider_change, on_volume_slider_change, persist_settings_on_change,
+    refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider,
+    PendingRebind, PendingSettingsSave, SettingsActiveTab, SettingsControlsGroup,
+    WindowModeSetting,
 };
 use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
 
@@ -119,6 +121,9 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<InterfaceVolume>();
         app.init_resource::<WorldVolume>();
         app.init_resource::<MusicVolume>();
+        // Owned by `nova_input`'s plugin in the assembled app; inited here too
+        // so the menu stands alone in slim and headless-test rigs.
+        app.init_resource::<MouseSensitivity>();
         app.init_resource::<GraphicsQuality>();
         // `NovaUiPlugin` above inits `UiSkin` transitively; repeat it here
         // so the invariant survives a future reorder.
@@ -129,10 +134,11 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<SettingsControlsGroup>();
         app.init_resource::<PendingRebind>();
         app.add_observer(on_volume_slider_change);
+        app.add_observer(on_sensitivity_slider_change);
         app.add_observer(button_on_setting::<GraphicsQuality>);
         app.add_observer(button_on_setting::<UiSkin>);
         app.add_observer(button_on_setting::<WindowModeSetting>);
-        app.add_systems(Update, sync_volume_slider);
+        app.add_systems(Update, (sync_volume_slider, sync_sensitivity_slider));
         // Ungated by menu state: the SAME body is the pause overlay's, which
         // only exists while playing.
         app.add_systems(

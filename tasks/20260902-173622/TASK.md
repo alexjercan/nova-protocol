@@ -1,6 +1,6 @@
 # Add independent mouse sensitivity settings
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
 - TAGS: v0.13.0, input, settings, ui
 
@@ -61,3 +61,44 @@ must not share one gain.
 Run only focused formatting, `nova_menu` settings tests, and affected
 `nova_ship` input/camera tests. Check both native persistence behavior and the
 WASM-safe compile path affected by the shared settings store.
+
+## Proof
+
+- `cargo fmt` on the eight changed crates' files: clean.
+- `cargo check -p nova_input -p nova_ship -p nova_menu --all-targets`: clean, no
+  warnings.
+- `cargo check -p nova_menu --target wasm32-unknown-unknown`: clean. The shared
+  settings store is the only WASM-visible seam and it compiles.
+- `cargo test -p nova_input --lib sensitivity`: 3 passed. The ranges project
+  percentages onto their own raw span, a corrupt or out-of-range value clamps,
+  and moving a gain reaches a binding that already exists.
+- `cargo test -p nova_ship --lib "camera::"`: 22 passed, including
+  `the_look_sensitivity_scales_mouse_look_and_never_the_stick`,
+  `the_free_camera_sensitivity_scales_only_its_own_mouse_look` and
+  `the_free_camera_sensitivity_never_touches_keyboard_movement`.
+- `cargo test -p nova_ship --lib flight_rig`: 13 passed, including
+  `the_rcs_sensitivity_scales_the_mouse_and_never_the_stick`.
+- `cargo test -p nova_menu --lib settings`: 36 passed, including
+  `the_mouse_sensitivities_persist_default_and_clamp`,
+  `the_mouse_group_shows_three_sensitivity_sliders_and_no_reset`,
+  `dragging_a_sensitivity_slider_sets_only_its_own_path` and
+  `dragging_a_sensitivity_slider_ticks_once_per_detent_and_not_while_it_rests`.
+- Skipped on instruction: the full workspace test suite and workspace Clippy.
+
+## Decisions the spec did not settle
+
+- The gain lives on the BINDING, not in the observer: a `MousePath` component
+  tags a mouse-motion binding and one `PreUpdate` system writes its `Scale`
+  before `EnhancedInputSystems::Update`. `camera_rotate` is one action read by
+  both the mouse and the right stick, so scaling in the observer would have
+  scaled the pad too. Tagging also makes "reaches a rig that already exists"
+  fall out for free - no rig rebuild, nothing to re-spawn on resume.
+- RCS lost its `RCS_STICK_SCALE` cancel. The mouse gain used to be applied in
+  the observer, which forced the stick to carry `1.0 / RCS_AIM_SENSITIVITY` to
+  undo it. With the gain on the mouse binding the stick needs no modifier and
+  full deflection is full intent, which is what it already was.
+- The sliders speak percent and the resource stores raw. `SliderRange` is in
+  percentage points and `SliderStep` is `(max - 100) / 20`, so whole-percent
+  readouts and 20 equal detents come from the widget rather than from rounding.
+- The Audio row builder is now shared (`SliderRow` / `build_slider_row`) instead
+  of copied. Entity names are unchanged, so the audio tests still key on them.
