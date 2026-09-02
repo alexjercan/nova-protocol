@@ -698,6 +698,38 @@ mod tests {
     }
 
     #[test]
+    fn a_voice_entity_carries_a_world_pose_and_no_local_one() {
+        // `drive_sfx_voices` writes the spatial emitter STRAIGHT into the
+        // voice's `GlobalTransform`, and that is only sound because nothing
+        // propagates a voice: it has a world pose and no `Transform`. Give it
+        // one - directly, or through a bevy `#[require]` on some component
+        // added here later - and `TransformSystems::Propagate` silently
+        // overwrites the placement every frame, collapsing every positional
+        // cue onto the origin.
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_systems(Update, start_sfx_voices);
+        let voice = app
+            .world_mut()
+            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Exterior).with_volume(0.5))
+            .id();
+
+        app.update();
+
+        let voice = app.world().entity(voice);
+        assert!(
+            voice.contains::<GlobalTransform>(),
+            "the engine parks the spatial emitter on the voice's world pose"
+        );
+        assert!(
+            !voice.contains::<Transform>(),
+            "a voice with a local transform is a voice Propagate owns, and the \
+             engine would be writing a pose something else overwrites"
+        );
+    }
+
+    #[test]
     fn a_one_shot_that_never_gets_a_sink_is_retired() {
         // The headless case: no audio device, so bevy never opens a sink and
         // `PlaybackMode::Despawn` never fires. Nothing else retires the voice.

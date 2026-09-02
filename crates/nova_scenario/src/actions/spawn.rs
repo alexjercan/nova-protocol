@@ -98,12 +98,24 @@ pub struct BaseScenarioObjectConfig {
 ///
 /// Deliberately carries NO body: a body is a per-kind decision, and three of the
 /// five kinds are static. Each kind's bundle declares its own `RigidBody`.
+///
+/// The `GlobalTransform` is SEEDED rather than left to bevy's requirement
+/// default, so the object knows where it is on the frame it spawns instead of
+/// on the frame after. A scenario object is a root, so its world pose IS its
+/// transform and the seed is exactly what `TransformSystems::Propagate` writes
+/// at the end of this same frame. Anything that reads a world pose before that
+/// pass would otherwise read the ORIGIN for one frame - audibly so for the
+/// audio engine, which places its emitters in `PostUpdate` ahead of Propagate
+/// on purpose, and would hear a ship three kilometres out at full volume in
+/// the middle of the stereo field for its first frame.
 pub fn base_scenario_object(config: &BaseScenarioObjectConfig) -> impl Bundle {
+    let transform = Transform::from_translation(config.position).with_rotation(config.rotation);
     (
         ScenarioScopedMarker,
         Name::new(config.name.clone()),
         EntityId::new(config.id.clone()),
-        Transform::from_translation(config.position).with_rotation(config.rotation),
+        transform,
+        GlobalTransform::from(transform),
         Visibility::Visible,
     )
 }
@@ -462,6 +474,37 @@ mod tests {
     // settled. Shared with nova_authoring's beat walks, which need the same
     // thing through an `App`.
     use crate::test_support::drain_spawns as drain;
+
+    /// The one-frame origin bug the audio engine hears: `AudioSystems` places
+    /// its emitters in `PostUpdate` BEFORE `TransformSystems::Propagate` - so
+    /// that no cue is ever heard at the wrong volume for a frame - which means
+    /// a freshly spawned object's `GlobalTransform` has never been propagated
+    /// when the mix reads it. Left at the requirement default it reads as the
+    /// world origin, and a ship burning three kilometres out arrives at full
+    /// volume, centre-panned, for exactly one frame.
+    ///
+    /// No `TransformPlugin` here on purpose: the assert is about the pose
+    /// BEFORE anything propagates.
+    #[test]
+    fn a_scenario_object_knows_where_it_is_on_the_frame_it_spawns() {
+        let mut world = World::new();
+        let at = Vec3::new(-3000.0, 40.0, 120.0);
+        let facing = Quat::from_rotation_y(std::f32::consts::FRAC_PI_3);
+        let object = world
+            .spawn(base_scenario_object(&BaseScenarioObjectConfig {
+                id: "raider".to_string(),
+                name: "Raider".to_string(),
+                position: at,
+                rotation: facing,
+            }))
+            .id();
+
+        let pose = world
+            .get::<GlobalTransform>(object)
+            .expect("a scenario object carries a world pose");
+        assert_eq!(pose.translation(), at, "not the origin, not next frame");
+        assert!(pose.rotation().angle_between(facing) < 1e-5);
+    }
 
     /// The authored `SpaceshipConfig.allegiance` override, through the
     /// production spawn path: a NEUTRAL AI ship ends NEUTRAL even though
