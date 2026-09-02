@@ -87,7 +87,9 @@ const REJECT_BUDGET: usize = 16;
 /// Only the recent past needs remembering: the sweep restarts each step from
 /// where the round now is and casts forward only, so anything already crossed
 /// is behind it. Eight is comfortably more than the layers any round is still
-/// overlapping at a step boundary.
+/// overlapping at a step boundary - which is the one thing this size has to
+/// clear, and what
+/// `the_bite_ring_holds_every_layer_a_round_can_rest_inside` pins.
 const BITE_MEMORY: usize = 8;
 
 /// How many colliders one round may resolve WITHIN a single step.
@@ -748,6 +750,103 @@ mod tests {
             assert!(
                 plate_health(&app, *plate) < PLATE_HP,
                 "layer {layer} was not raked - the slug stopped short inside one step"
+            );
+        }
+    }
+
+    /// The other half of the [`BITE_MEMORY`] / [`MAX_BITES_PER_STEP`] split,
+    /// which nothing pinned: the RING has to hold every layer a round can be
+    /// resting inside at once.
+    ///
+    /// Forgetting is only safe for colliders the round has travelled PAST. A
+    /// round at rest inside overlapping geometry - cladding over structure, a
+    /// slow round stopped mid-stack - is re-found by every later cast, so a
+    /// wrapped entry there is a layer charged twice. Eight overlapping layers
+    /// is far past anything the game builds, and that headroom is the point:
+    /// this fails the moment the ring is shrunk under it rather than when a
+    /// slower round through thinner plating quietly starts double-biting.
+    #[test]
+    fn the_bite_ring_holds_every_layer_a_round_can_rest_inside() {
+        /// Layers the round is inside at the same time. Fixed, not derived
+        /// from [`BITE_MEMORY`] - a test that shrinks with the constant it
+        /// guards proves nothing about it.
+        const OVERLAPPING_LAYERS: usize = 8;
+        const PLATE_HP: f32 = 1_000.0;
+        const BITE: f32 = 10.0;
+        /// Well under [`PIERCE_PLATE_THICKNESS`], so every layer contains the
+        /// same span of the round's flight.
+        const OVERLAP_PITCH: f32 = 0.3;
+        /// Slow: the round has to sit inside the whole stack for several steps
+        /// rather than clearing it inside one.
+        const CRAWL_SPEED: f32 = 50.0;
+
+        assert!(
+            OVERLAPPING_LAYERS <= BITE_MEMORY,
+            "the ring must remember every layer a round can be resting inside \
+             at once; below {OVERLAPPING_LAYERS} the oldest is re-bitten"
+        );
+        assert!(
+            BITE_MEMORY <= MAX_BITES_PER_STEP,
+            "a round may resolve more layers in a step than it remembers - \
+             the forgotten ones are behind it - but never fewer"
+        );
+
+        // STATIC, unlike `spawn_plate`'s free-floating slabs: eight dynamic
+        // bodies born inside one another are eight bodies the solver throws
+        // apart, and the ram model kills the whole stack before the round
+        // arrives. Static pairs raise no contacts, and the sweep casts against
+        // them exactly the same.
+        let mut app = round_app();
+        let plates: Vec<Entity> = (0..OVERLAPPING_LAYERS)
+            .map(|layer| {
+                let body = app
+                    .world_mut()
+                    .spawn((
+                        Name::new("layer"),
+                        RigidBody::Static,
+                        Transform::from_translation(Vec3::NEG_Z * (layer as f32) * OVERLAP_PITCH),
+                    ))
+                    .id();
+                app.world_mut()
+                    .spawn((
+                        ChildOf(body),
+                        SectionMarker,
+                        Transform::default(),
+                        Collider::cuboid(8.0, 8.0, PIERCE_PLATE_THICKNESS),
+                        ColliderDensity(1.0),
+                        Health::new(PLATE_HP),
+                    ))
+                    .id()
+            })
+            .collect();
+        settle(&mut app);
+
+        app.world_mut().spawn((
+            Name::new("crawler"),
+            TurretBulletProjectileMarker,
+            Transform::from_translation(Vec3::Z * 5.0),
+            RoundVelocity(Vec3::NEG_Z * CRAWL_SPEED),
+            ProjectileDamage {
+                amount: BITE,
+                // Priced to outlast the stack whatever the speed curve reads,
+                // so what stops the round is the geometry running out.
+                power: 1.0e6,
+                layers: u32::MAX,
+                kind: DamageType::Pierce,
+            },
+        ));
+        // Long enough for the round to enter the stack, rest inside all of it
+        // for several steps, and leave the far side.
+        for _ in 0..40 {
+            app.update();
+        }
+
+        for (layer, plate) in plates.iter().enumerate() {
+            let dealt = PLATE_HP - plate_health(&app, *plate);
+            assert!(
+                (dealt - BITE).abs() < 0.01,
+                "layer {layer} took {dealt} where one bite is {BITE} - the ring \
+                 forgot a collider the round was still inside"
             );
         }
     }

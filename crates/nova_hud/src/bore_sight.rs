@@ -103,8 +103,16 @@ pub struct BoreSightSegment {
 pub struct BoreSightMark {
     /// The railgun section whose shot this ring belongs to.
     pub lance: Entity,
-    /// Depth order along the bore (0 = the first section crossed).
-    pub index: usize,
+    /// The collider this ring is drawn on - the one carrying the health pool
+    /// the trace priced, which for a real section is the collider child.
+    ///
+    /// The ring's IDENTITY, and deliberately not its depth order. The order
+    /// changes every frame a nose sweeps across a hull, so reconciling on it
+    /// despawned and respawned a `Mesh3d` entity per frame for sections that
+    /// never stopped being marked. Keyed this way a ring is spawned when its
+    /// section starts being gutted and despawned when it stops, and the marks
+    /// in between are only re-posed.
+    pub target: Entity,
 }
 
 /// Shared meshes and materials for every sight, built on the first frame one
@@ -204,10 +212,17 @@ struct BoreTrace {
     /// Where the slug stops: the surface that expends it, or the end of its
     /// reach when nothing does.
     stop: Vec3,
-    /// Centre of every crossed section the shot would DESTROY, in depth order.
-    /// A section the slug crosses without killing is deliberately unmarked -
-    /// the read is "what comes off", not "what I touch".
-    kills: Vec<Vec3>,
+    /// Every crossed section the shot would DESTROY, in depth order: the
+    /// collider that carries the health pool, and the centre to ring it at. A
+    /// section the slug crosses without killing is deliberately unmarked - the
+    /// read is "what comes off", not "what I touch".
+    ///
+    /// The collider rides along because it is the ring's IDENTITY, not its
+    /// position in this list: a nose sweeping across a hull changes the depth
+    /// ORDER of the sections it would gut every frame, and a ring keyed on
+    /// that order would be despawned and respawned for a section that never
+    /// stopped being marked.
+    kills: Vec<(Entity, Vec3)>,
 }
 
 /// Walk the bore, spending the authored power the way the round will.
@@ -243,7 +258,7 @@ fn trace_bore(
     let closing = config.slug_speed;
     let bite = hit_bite(damage, closing);
 
-    let mut kills = Vec::new();
+    let mut kills: Vec<(Entity, Vec3)> = Vec::new();
     let mut crossed: Vec<Entity> = Vec::new();
     let mut origin = muzzle;
     let mut travelled = 0.0f32;
@@ -281,7 +296,7 @@ fn trace_bore(
             let centre = q_global
                 .get(hit.entity)
                 .map_or(at, |global| global.translation());
-            kills.push(centre);
+            kills.push((hit.entity, centre));
         }
 
         crossed.push(hit.entity);
@@ -372,7 +387,7 @@ fn sync_bore_sight(
         lance: Entity,
         state: SightState,
         line: Transform,
-        marks: Vec<Transform>,
+        marks: Vec<(Entity, Transform)>,
     }
 
     let mut drawn: Vec<Drawn> = Vec::new();
@@ -419,12 +434,17 @@ fn sync_bore_sight(
             let marks = trace
                 .kills
                 .iter()
-                .map(|centre| Transform {
-                    translation: *centre,
-                    // Face the ring across the bore, so it reads as something
-                    // the shot goes THROUGH.
-                    rotation: Quat::from_rotation_arc(Vec3::Y, *bore),
-                    ..default()
+                .map(|&(target, centre)| {
+                    (
+                        target,
+                        Transform {
+                            translation: centre,
+                            // Face the ring across the bore, so it reads as
+                            // something the shot goes THROUGH.
+                            rotation: Quat::from_rotation_arc(Vec3::Y, *bore),
+                            ..default()
+                        },
+                    )
                 })
                 .collect();
             drawn.push(Drawn {
@@ -453,11 +473,12 @@ fn sync_bore_sight(
         }
     }
     for (entity, mark, mut transform, mut material) in &mut q_mark {
-        match drawn
-            .iter()
-            .find(|d| d.lance == mark.lance)
-            .and_then(|d| d.marks.get(mark.index).map(|pose| (d.state, pose)))
-        {
+        match drawn.iter().find(|d| d.lance == mark.lance).and_then(|d| {
+            d.marks
+                .iter()
+                .find(|(target, _)| *target == mark.target)
+                .map(|(_, pose)| (d.state, pose))
+        }) {
             Some((state, pose)) => {
                 *transform = *pose;
                 let wanted = assets.mark_material(&mut materials, state);
@@ -488,10 +509,10 @@ fn sync_bore_sight(
                 NotShadowCaster,
             ));
         }
-        for (index, pose) in d.marks.iter().enumerate() {
+        for &(target, pose) in &d.marks {
             if q_mark
                 .iter()
-                .any(|(_, mark, ..)| mark.lance == d.lance && mark.index == index)
+                .any(|(_, mark, ..)| mark.lance == d.lance && mark.target == target)
             {
                 continue;
             }
@@ -502,11 +523,11 @@ fn sync_bore_sight(
                 crate::HudTier::Instrument,
                 BoreSightMark {
                     lance: d.lance,
-                    index,
+                    target,
                 },
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
-                *pose,
+                pose,
                 NotShadowCaster,
             ));
         }
@@ -663,6 +684,55 @@ mod tests {
             marks(&mut app),
             2,
             "a 300-point bite kills the 200 and the 100 and leaves the 500 standing"
+        );
+    }
+
+    /// The ring drawn on `target`, if the sight is drawing one.
+    fn mark_of(app: &mut App, target: Entity) -> Option<Entity> {
+        let world = app.world_mut();
+        let mut query = world.query::<(Entity, &BoreSightMark)>();
+        query
+            .iter(world)
+            .find(|(_, mark)| mark.target == target)
+            .map(|(entity, _)| entity)
+    }
+
+    /// A ring belongs to the SECTION it is drawn on, not to its place in the
+    /// depth order. A nose sweeping across a hull changes that order every
+    /// frame, and reconciling on it churned real `Mesh3d` entities - an
+    /// archetype move and a render-world sync each - for sections that never
+    /// stopped being marked.
+    #[test]
+    fn a_kill_ring_outlives_a_change_in_what_is_in_front_of_it() {
+        let mut app = sight_app();
+        let config = RailgunSectionConfig {
+            slug_damage: 300.0,
+            slug_power: 1_000.0,
+            slug_speed: 1_500.0,
+            slug_lifetime: 1.0,
+            ..default()
+        };
+
+        spawn_lance_ship(&mut app, config, true);
+        let near = spawn_plate(&mut app, -10.0, 200.0);
+        let far = spawn_plate(&mut app, -20.0, 200.0);
+        settle(&mut app);
+
+        assert_eq!(marks(&mut app), 2, "both plates come off");
+        let ring = mark_of(&mut app, far).expect("the far plate is ringed");
+
+        // The near plate hardens past one bite. It is still cheap enough to
+        // rake through (166.7 of the 1000 power budget), so the far plate
+        // stays marked - it simply becomes the FIRST kill instead of the
+        // second.
+        app.world_mut().entity_mut(near).insert(Health::new(500.0));
+        settle(&mut app);
+
+        assert_eq!(marks(&mut app), 1, "only the far plate still comes off");
+        assert_eq!(
+            mark_of(&mut app, far),
+            Some(ring),
+            "the far plate keeps the ring it already had"
         );
     }
 

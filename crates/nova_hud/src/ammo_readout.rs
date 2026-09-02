@@ -24,6 +24,12 @@
 //! bay previews exactly one returning torpedo, and a spent lance previews the
 //! one shell coming back across its long reload.
 //!
+//! A BAR pip also FILLS from its floor with the wait ([`AmmoReadoutPipFill`]).
+//! Brightness can say a shell is coming; it cannot say how much of twelve
+//! seconds is left, and on a one-shell lance that wait is most of what the
+//! weapon feels like. A ring segment gets no column: it previews a batch of two
+//! hundred rounds rather than a moment worth counting down.
+//!
 //! A weapon with no `SectionAmmo` fires without limit (the `infinite_ammo`
 //! path forces `ammo_capacity = None`, so the component is simply absent):
 //! the reconcile filter skips it and it gets no readout at all, which is the
@@ -96,7 +102,7 @@ const PIP_OUTLINE_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.85);
 pub mod prelude {
     pub use super::{
         ammo_readout_hud, AmmoReadoutHudMarker, AmmoReadoutKind, AmmoReadoutMarker, AmmoReadoutPip,
-        AmmoReadoutPlugin, AmmoReadoutSection, RING_SEGMENTS,
+        AmmoReadoutPipFill, AmmoReadoutPlugin, AmmoReadoutSection, RING_SEGMENTS,
     };
     #[cfg(feature = "debug")]
     pub use super::{AmmoReadoutDebug, AmmoReadoutNumber};
@@ -132,6 +138,20 @@ pub enum AmmoReadoutKind {
 /// A single chunk of a gauge, carrying its position in the lit order.
 #[derive(Component, Debug, Clone, Copy, Deref, DerefMut, Reflect)]
 pub struct AmmoReadoutPip(pub usize);
+
+/// The reload COLUMN inside one bar pip: a child node whose height is the
+/// fraction of the current wait that has run.
+///
+/// A bar pip is the entire gauge on a one-shell lance, so the pulse's
+/// brightness was carrying twelve seconds on its own - and brightness cannot
+/// say "four seconds left". A column can, and it reads at the same glance the
+/// pip does.
+///
+/// Only bar pips carry one. A ring segment is a coarse fraction of a large
+/// magazine, where the thing that is coming back is a batch of two hundred
+/// rounds rather than a moment worth waiting for.
+#[derive(Component, Debug, Clone, Copy, Reflect)]
+pub struct AmmoReadoutPipFill;
 
 /// The debug `rounds/capacity` text child of a readout. Debug-only: only
 /// compiled under the `debug` feature.
@@ -318,13 +338,28 @@ fn spawn_bar_readout(
                 for index in 0..pips as usize {
                     readout.spawn((
                         AmmoReadoutPip(index),
+                        // A column of its own so the reload fill can grow from
+                        // the pip's floor; clipped so a rounding error at the
+                        // top of the wait cannot spill past the outline.
                         Node {
                             width: Val::Px(BAR_PIP_W),
                             height: Val::Px(BAR_PIP_H),
+                            flex_direction: FlexDirection::Column,
+                            justify_content: JustifyContent::FlexEnd,
+                            overflow: Overflow::clip(),
                             ..default()
                         },
                         BackgroundColor(DIM_COLOR),
                         Outline::new(Val::Px(PIP_OUTLINE_PX), Val::ZERO, PIP_OUTLINE_COLOR),
+                        children![(
+                            AmmoReadoutPipFill,
+                            Node {
+                                width: Val::Percent(100.0),
+                                height: Val::Percent(0.0),
+                                ..default()
+                            },
+                            BackgroundColor(Color::NONE),
+                        )],
                     ));
                 }
                 #[cfg(feature = "debug")]
@@ -431,6 +466,20 @@ const WARN_PERIOD_SECS: f32 = 0.9;
 // reads (and still counts) as LIT at every phase of the breath.
 const WARN_ALPHA: (f32, f32) = (0.62, LIT_ALPHA);
 
+/// Alpha of the reload COLUMN inside an incoming bar pip. Above the pulse's
+/// own peak, so the level reads against the pip it is filling; below
+/// [`LIT_ALPHA`], so a column cannot be mistaken for a loaded round even at
+/// the top of its travel - and the top of its travel is the tick the shell
+/// lands. `the_reload_column_sits_between_the_pulse_and_a_live_round` pins
+/// both ends.
+const RELOAD_FILL_ALPHA: f32 = 0.70;
+
+/// Percent steps the reload column is quantized to. The column is a `Node`
+/// height, so every distinct value is a UI layout pass: at 100 steps a twelve
+/// second reload relayouts about eight times a second and still reads as
+/// continuous.
+const RELOAD_FILL_STEPS: f32 = 100.0;
+
 /// Incoming-batch pulse. Both ends brighten with progress, but the peak stays
 /// below the live-pip threshold so incoming rounds never read as usable.
 const RELOAD_PERIOD_SECS: f32 = 0.65;
@@ -468,7 +517,9 @@ fn reload_alpha(elapsed: f32, progress: f32) -> f32 {
 ///
 /// While the section reloads, the pips in its next batch pulse in the same hue
 /// and brighten with progress. Live rounds remain solid; later missing rounds
-/// remain dark.
+/// remain dark. A BAR pip also fills from its floor with the wait, which is how
+/// a one-shell lance says how long is left rather than only that something is
+/// coming.
 /// This is the single point that reads ammo/reload state, so growing to
 /// per-bullet-type magazines later stays a local change.
 fn drive_ammo_readouts(
@@ -477,7 +528,11 @@ fn drive_ammo_readouts(
     q_ammo: Query<&SectionAmmo>,
     q_reload: Query<&SectionReload>,
     q_loaded: Query<&LoadedBullet>,
-    mut q_pips: Query<(&AmmoReadoutPip, &mut BackgroundColor)>,
+    mut q_pips: Query<
+        (&AmmoReadoutPip, &mut BackgroundColor, Option<&Children>),
+        Without<AmmoReadoutPipFill>,
+    >,
+    mut q_fills: Query<(&mut Node, &mut BackgroundColor), With<AmmoReadoutPipFill>>,
 ) {
     for (section, kind, children) in &q_readouts {
         let Ok(ammo) = q_ammo.get(**section) else {
@@ -534,15 +589,37 @@ fn drive_ammo_readouts(
             reload_alpha(time.elapsed_secs(), reload.progress())
         }));
         let dim_color = hue.with_alpha(DIM_ALPHA);
+        // Quantized so a pip that is not moving writes no `Node` at all, and a
+        // pip that is moving writes one a hundred times over the whole wait
+        // instead of once a frame.
+        let fill_height = active_reload.map_or(0.0, |reload| {
+            (reload.progress() * RELOAD_FILL_STEPS).round() / RELOAD_FILL_STEPS
+        });
+        let fill_color = hue.with_alpha(RELOAD_FILL_ALPHA);
         for &child in children {
-            if let Ok((pip, mut color)) = q_pips.get_mut(child) {
-                color.0 = if **pip < steady_lit {
-                    lit_color
-                } else if **pip < reload_end {
-                    reload_color
-                } else {
-                    dim_color
+            let Ok((pip, mut color, pip_children)) = q_pips.get_mut(child) else {
+                continue;
+            };
+            let incoming = **pip >= steady_lit && **pip < reload_end;
+            color.0 = if **pip < steady_lit {
+                lit_color
+            } else if incoming {
+                reload_color
+            } else {
+                dim_color
+            };
+            for fill in pip_children.map(Children::iter).into_iter().flatten() {
+                let Ok((mut node, mut fill_background)) = q_fills.get_mut(fill) else {
+                    continue;
                 };
+                let height = Val::Percent(if incoming { fill_height * 100.0 } else { 0.0 });
+                let color = if incoming { fill_color } else { Color::NONE };
+                if node.height != height {
+                    node.height = height;
+                }
+                if fill_background.0 != color {
+                    fill_background.0 = color;
+                }
             }
         }
     }
@@ -607,6 +684,7 @@ impl Plugin for AmmoReadoutPlugin {
         app.register_type::<AmmoReadoutSection>();
         app.register_type::<AmmoReadoutKind>();
         app.register_type::<AmmoReadoutPip>();
+        app.register_type::<AmmoReadoutPipFill>();
 
         // Reconcile then light the chunks before the indicator projection
         // places the nodes, mirroring TurretLeadPlugin's slot.
@@ -1241,6 +1319,122 @@ mod tests {
             reload_pip_count(&mut world, turret),
             0,
             "a rested reload pulses nothing"
+        );
+    }
+
+    /// The height of the reload column in `section`'s FIRST bar pip, as a
+    /// percentage. `None` when that pip carries no column (a ring segment).
+    fn fill_percent(world: &mut World, section: Entity) -> Option<f32> {
+        let readout = world
+            .query_filtered::<(Entity, &AmmoReadoutSection), With<AmmoReadoutMarker>>()
+            .iter(world)
+            .find(|(_, s)| ***s == section)
+            .map(|(entity, _)| entity)
+            .expect("readout exists");
+        let pips: Vec<Entity> = world
+            .entity(readout)
+            .get::<Children>()
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        let fills: Vec<Entity> = pips
+            .into_iter()
+            .filter(|pip| world.entity(*pip).contains::<AmmoReadoutPip>())
+            .filter_map(|pip| world.entity(pip).get::<Children>().map(Children::iter))
+            .flatten()
+            .filter(|child| world.entity(*child).contains::<AmmoReadoutPipFill>())
+            .collect();
+        let fill = *fills.first()?;
+        match world.entity(fill).get::<Node>()?.height {
+            Val::Percent(percent) => Some(percent),
+            other => panic!("the reload column must be a percentage, not {other:?}"),
+        }
+    }
+
+    /// The lance is one pip and a twelve-second wait, so the pulse alone said
+    /// only "something is coming". The column says how much of the wait is
+    /// gone, which is most of what the weapon feels like.
+    #[test]
+    fn a_reloading_lance_fills_its_one_pip_as_the_wait_runs() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.spawn(ammo_readout_hud());
+        let player = spawn_player(&mut world);
+        let lance = spawn_railgun(&mut world, player, Some(SectionAmmo::new(1)));
+        world
+            .entity_mut(lance)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 0;
+        world.entity_mut(lance).insert(reload_at(12.0, 1, 0.25));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readouts).unwrap();
+
+        assert_eq!(
+            fill_percent(&mut world, lance),
+            Some(25.0),
+            "a quarter of the wait is a quarter of the pip"
+        );
+
+        world.entity_mut(lance).insert(reload_at(12.0, 1, 0.75));
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(
+            fill_percent(&mut world, lance),
+            Some(75.0),
+            "the column tracks the wait, not the pulse"
+        );
+
+        world.entity_mut(lance).remove::<SectionReload>();
+        world
+            .entity_mut(lance)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 1;
+        world.run_system_once(drive_ammo_readouts).unwrap();
+        assert_eq!(
+            fill_percent(&mut world, lance),
+            Some(0.0),
+            "a loaded lance shows no column at all"
+        );
+        assert_eq!(lit_pip_count(&mut world, lance), 1, "and reads as loaded");
+    }
+
+    /// A live round is a solid pip. A column is not one, at any height, or the
+    /// gauge would tell you a shell is back before it is.
+    #[test]
+    fn the_reload_column_sits_between_the_pulse_and_a_live_round() {
+        assert!(
+            RELOAD_ALPHA_END.1 < RELOAD_FILL_ALPHA,
+            "the column must read against the pulse it fills"
+        );
+        assert!(
+            RELOAD_FILL_ALPHA < LIT_ALPHA,
+            "a full column must still not read as a loaded round"
+        );
+    }
+
+    /// A ring segment previews a batch of two hundred rounds, not a moment
+    /// worth counting down, so the turret gauge is unchanged.
+    #[test]
+    fn a_turret_ring_segment_carries_no_reload_column() {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.spawn(ammo_readout_hud());
+        let player = spawn_player(&mut world);
+        let turret = spawn_turret(&mut world, player, Some(SectionAmmo::new(500)));
+        world
+            .entity_mut(turret)
+            .get_mut::<SectionAmmo>()
+            .unwrap()
+            .rounds = 0;
+        world.entity_mut(turret).insert(reload_at(3.0, 200, 0.5));
+        world.run_system_once(sync_ammo_readouts).unwrap();
+        world.run_system_once(drive_ammo_readouts).unwrap();
+
+        assert_eq!(fill_percent(&mut world, turret), None);
+        assert_eq!(
+            reload_pip_count(&mut world, turret),
+            3,
+            "the ring still previews its incoming batch by pulsing"
         );
     }
 
