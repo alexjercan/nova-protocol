@@ -135,6 +135,20 @@ pub enum SectionClass {
     Railgun,
 }
 
+impl SectionClass {
+    /// Whether this kind of section is a WEAPON: it carries a magazine, so it
+    /// can run dry and it can be reloaded.
+    ///
+    /// One method rather than the same three-variant match written out
+    /// wherever the question is asked. A kind enumerated by hand in several
+    /// places is the shape that produced most of the railgun review's
+    /// findings: a fourth weapon needs every copy edited, and nothing catches
+    /// the one that was missed.
+    pub fn is_weapon(self) -> bool {
+        matches!(self, Self::Turret | Self::Torpedo | Self::Railgun)
+    }
+}
+
 /// Physical mass given to a turret bullet so the emergent kinetic term rounds
 /// to nothing.
 ///
@@ -794,6 +808,27 @@ mod tests {
 
     fn health(app: &App, entity: Entity) -> f32 {
         app.world().get::<Health>(entity).unwrap().current
+    }
+
+    #[test]
+    fn every_section_kind_answers_whether_it_is_a_weapon() {
+        // Written out in full so a SEVENTH kind cannot be added without an
+        // answer here: the whole point of the method is that "which kinds are
+        // weapons" lives in one place.
+        for kind in [
+            SectionClass::Turret,
+            SectionClass::Torpedo,
+            SectionClass::Railgun,
+        ] {
+            assert!(kind.is_weapon(), "{kind:?} carries a magazine");
+        }
+        for kind in [
+            SectionClass::Hull,
+            SectionClass::Thruster,
+            SectionClass::Controller,
+        ] {
+            assert!(!kind.is_weapon(), "{kind:?} has no ammo feed");
+        }
     }
 
     /// The blast harness. `integrity_physics_app` brings the health store and

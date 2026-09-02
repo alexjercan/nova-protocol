@@ -464,10 +464,7 @@ impl PanelActions {
 }
 
 pub(crate) fn panel_action_state(view: &ShipSectionView) -> PanelActions {
-    let is_weapon = matches!(
-        view.kind,
-        SectionClass::Turret | SectionClass::Torpedo | SectionClass::Railgun
-    );
+    let is_weapon = view.kind.is_weapon();
 
     let repair_enabled = view.health.as_ref().map(|h| h.max > 0.0).unwrap_or(false);
     let reload_enabled = is_weapon && view.ammo.is_some();
