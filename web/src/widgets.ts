@@ -16,145 +16,208 @@
 // The widgets simulate the same rules the game runs; where a fixture is
 // invented for legibility (a stack of identical sections) it uses real
 // catalog values and says so in its caption.
+//
+// UNITS. Nova authors and reasons in METERS (crates/nova_events/src/units.rs),
+// so every constant lifted from a typed quantity (`Meters`, `MetersPerSecond`,
+// `MetersPerSecondSquared`) or from authored content is a metric number here
+// and needs no conversion to print. Engine world units survive where Nova
+// meets Bevy, avian, a mesh or the build grid - gravity's `mu` and cutoffs,
+// `FlightSettings`, the attitude arm, thruster impulse, the damage curves'
+// reference closing speed, ship part boxes - and those constants keep the
+// engine number with a comment saying so. One world unit is METERS_PER_UNIT
+// meters, and the `engine*` formatters below are the ONLY place a world-unit
+// figure crosses into a player-facing reading.
 
 // ---- constants verified against the game source ---------------------------
 
 // Turret aim servo (crates/nova_ship/src/sections/turret_section/aim.rs).
 // The servo closes `1 - exp(-rate * dt)` of the aim error per frame - the
-// same fraction per unit TIME at any frame rate (aim.rs:312). The rate is
+// same fraction per unit TIME at any frame rate (aim.rs:400). The rate is
 // derived from the old flat 0.35-of-the-error-per-frame gain at 60 fps
-// (aim.rs:254-258), which is the "old servo" curve shown for contrast.
-const AIM_CORRECTION_RATE = 25.847; // aim.rs:259
-const OLD_PER_FRAME_GAIN = 0.35; // aim.rs:255 (historical, documented)
+// (aim.rs:402-406), which is the "old servo" curve shown for contrast.
+const AIM_CORRECTION_RATE = 25.847; // aim.rs:407
+const OLD_PER_FRAME_GAIN = 0.35; // aim.rs:403 (historical, documented)
 
 // The fire gate: a round fired `e` radians off misses laterally by
-// `range * sin(e)`, so the widest usable error is hull half-beam over range,
-// 1.6 u / 100 u = 0.016 rad = 0.92 deg (aim.rs:19,24,47).
+// `range * sin(e)`, so the widest usable error is hull half-beam over range.
+// Both sides are engine geometry and stay in world units (aim.rs:25,30) - a
+// 1.6 u half-beam over a 100 u range, which is 16 m over 1 km - and the
+// RATIO they make is the dimensionless gate: 0.016 rad = 0.92 deg (aim.rs:53).
 const FIRE_GATE_RAD = 1.6 / 100;
 const FIRE_GATE_DEG = FIRE_GATE_RAD * (180 / Math.PI);
 
-// Damage travel rules (crates/nova_gameplay/src/damage.rs).
-const REFERENCE_CLOSING_SPEED = 100; // damage.rs:156 (PDC muzzle speed)
-const KINETIC_DAMAGE_FLOOR = 0.25; // damage.rs:162
-const KINETIC_DAMAGE_CEILING = 2.0; // damage.rs:168
-const PIERCE_POWER_FLOOR = 0.5; // damage.rs:172
-const PIERCE_POWER_CEILING = 3.0; // damage.rs:177
-const PIERCE_BASE_POWER = 300; // damage.rs:188
-const MAX_PIERCE_LAYERS = 6; // damage.rs:196
-const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:394
+// Damage travel rules (crates/nova_gameplay/src/damage.rs). Both bullet curves
+// are ratios against a reference closing speed, and that speed is still an
+// engine `f32` in WORLD UNITS per second: 100 u/s, which is the same speed as
+// the PDC's authored 1 000 m/s muzzle speed. Everything the widget feeds it is
+// therefore in world units too, and only the readout converts.
+const REFERENCE_CLOSING_SPEED = 100; // damage.rs:183 (world units/s)
+const KINETIC_DAMAGE_FLOOR = 0.25; // damage.rs:189
+const KINETIC_DAMAGE_CEILING = 2.0; // damage.rs:195
+const PIERCE_POWER_FLOOR = 0.5; // damage.rs:199
+const PIERCE_POWER_CEILING = 3.0; // damage.rs:204
+const PIERCE_BASE_POWER = 300; // damage.rs:215
+const MAX_PIERCE_LAYERS = 6; // damage.rs:223
+const EXPLOSIVE_SECTION_TRANSMISSION = 0.65; // damage.rs:523
 // Blast free pressure falls off linearly to zero at the radius
-// (damage.rs:435-442); each destroyed structural layer transmits 65%, a
-// surviving layer stops the wave (damage.rs:445-447; ray walk 494-551).
+// (damage.rs:565-571); each destroyed structural layer transmits 65%, a
+// surviving layer stops the wave (damage.rs:573-576; ray walk 620-680).
 
 // Gravity wells (crates/nova_gameplay/src/gravity.rs). Mass (`mu`) is the ONLY
 // authored gravity quantity: both the pull `a = mu / r^2` and the reach (the
-// SOI, where that pull decays to the cutoff) fall out of it (gravity.rs:22-28).
-const SOI_CUTOFF_ACCEL = 0.25; // gravity.rs:202
-const GRAVITY_FADE_FRACTION = 0.15; // gravity.rs:203
-const GRAVITY_SURFACE_MARGIN = 1.0; // gravity.rs:204
-const WELL_SWITCH_HYSTERESIS = 1.1; // gravity.rs:205
+// SOI, where that pull decays to the cutoff) fall out of it (gravity.rs:96-108).
+// The whole well model is ENGINE UNITS and stays that way: `mu` is u^3/s^2, so
+// an SI one would be a thousand times this, and the cutoff below is u/s^2.
+const SOI_CUTOFF_ACCEL = 0.25; // gravity.rs:211 (world units/s^2)
+const GRAVITY_FADE_FRACTION = 0.15; // gravity.rs:212
+const GRAVITY_SURFACE_MARGIN = 1.0; // gravity.rs:213 (world units)
+const WELL_SWITCH_HYSTERESIS = 1.1; // gravity.rs:214
 // ORBIT's trusted band (crates/nova_ship/src/flight/state.rs).
-const ORBIT_CLEARANCE_FACTOR = 1.5; // state.rs:385
-const ORBIT_BAND_SAFETY = 0.9; // state.rs:386
+const ORBIT_CLEARANCE_FACTOR = 1.5; // state.rs:392
+const ORBIT_BAND_SAFETY = 0.9; // state.rs:393
 // Shipped fixture: the Shakedown Run planetoid (crates/nova_authoring/src/
-// base_content/scenarios/nova_protocol/shakedown/mod.rs).
-const SHAKEDOWN_PLANETOID_MU = 27000; // shakedown/mod.rs:85
+// base_content/scenarios/nova_protocol/shakedown/mod.rs). A scenario's `mass`
+// is still an `Option<f32>` in u^3/s^2 (nova_scenario/src/objects/asteroid.rs:92).
+const SHAKEDOWN_PLANETOID_MU = 27000; // shakedown/mod.rs:87 (u^3/s^2)
 const ANCHOR_ROCK_MU = 45000; // scenarios/nova_protocol/final_tally.rs:183
 
-// Radar locking (crates/nova_ship/src/input/targeting/).
+// Radar locking (crates/nova_ship/src/input/targeting/). The dwell curve's
+// reference range is still an engine `f32` in world units (state.rs:54-57), so
+// the trainer's contact distances are world units too.
 const RADAR_TAP_SECS = 0.25; // gesture.rs:18
 const TARGETING_CONE_HALF_ANGLE_DEG = 18.0; // radar.rs:20
-const LOCK_DWELL_BASE = 0.6; // state.rs:72
-const LOCK_DWELL_RANGE_FACTOR = 1.5; // state.rs:73
-const LOCK_DWELL_REFERENCE_RANGE = 2000; // state.rs:74
-const LOCK_DWELL_MIN = 0.25; // state.rs:75
-const LOCK_DWELL_MAX = 2.5; // state.rs:76
+const LOCK_DWELL_BASE = 0.6; // state.rs:73
+const LOCK_DWELL_RANGE_FACTOR = 1.5; // state.rs:74
+const LOCK_DWELL_REFERENCE_RANGE = 2000; // state.rs:75 (world units)
+const LOCK_DWELL_MIN = 0.25; // state.rs:76
+const LOCK_DWELL_MAX = 2.5; // state.rs:77
 const COMBAT_DECAY_SECS = 30; // contacts.rs:24
 
 // GOTO flight controller (crates/nova_ship/src/flight/state.rs defaults;
 // the speed-envelope and flip rules are ported from flight/guidance.rs).
-const ARRIVAL_STANDOFF = 50; // state.rs:360
-const DECEL_MARGIN = 0.85; // state.rs:359
-const MIN_APPROACH_SPEED = 1.5; // state.rs:363
-const ARRIVAL_SPOOL_PAD = 0.5; // state.rs:370
-const STOP_SPEED_EPSILON = 0.2; // state.rs:362
-const TURN_RATE_SCALE = 0.9; // state.rs:367
-const TURN_RATE_MIN_DEG = 10; // state.rs:368
-const TURN_RATE_MAX_DEG = 240; // state.rs:369
-const RCS_ACCEL = 1.5; // state.rs:392
-const RCS_SPEED_CAP = 2.0; // state.rs:389
-// One world unit is 10 m for physics and for the HUD alike
-// (crates/nova_events/src/scale.rs:14). Widgets model in world units like the
-// game code and print meters (see the units helpers below).
+// `FlightSettings` is engine tuning and every length and speed on it is still
+// WORLD UNITS - the doc comments on the fields say so - so the GOTO scope
+// models in world units and converts only where it prints.
+const ARRIVAL_STANDOFF = 50; // state.rs:367 (world units)
+const DECEL_MARGIN = 0.85; // state.rs:366
+const MIN_APPROACH_SPEED = 1.5; // state.rs:370 (world units/s)
+const ARRIVAL_SPOOL_PAD = 0.5; // state.rs:377
+const STOP_SPEED_EPSILON = 0.2; // state.rs:369 (world units/s)
+const TURN_RATE_SCALE = 0.9; // state.rs:374
+const TURN_RATE_MIN_DEG = 10; // state.rs:375
+const TURN_RATE_MAX_DEG = 240; // state.rs:376
+const RCS_ACCEL = 1.5; // state.rs:399 (world units/s^2)
+const RCS_SPEED_CAP = 2.0; // state.rs:396 (world units/s)
+
 // ---- units -----------------------------------------------------------------
 //
-// The scopes model the game in its own world units and print meters. One world
-// unit is 10 m (METERS_PER_UNIT, crates/nova_events/src/scale.rs:14), and the
-// readings follow the HUD's policy: whole meters below a kilometer, kilometers
-// above it, speeds in m/s.
+// Readings follow the HUD's policy: whole meters below a kilometer, kilometers
+// above it, speeds in m/s. The four plain formatters take SI, because that is
+// what the authored catalog now holds. The four `engine*` ones take a world-
+// unit figure and are the ONLY place the engine scale is applied - they exist
+// for the scopes that model an engine quantity (gravity, the flight settings,
+// the attitude arm, the damage curves' closing speed, the build lattice).
 
+/**
+ * Meters in one engine world unit (crates/nova_events/src/units.rs:32).
+ *
+ * Still needed because several scopes model engine quantities directly: the
+ * gravity well (`mu` in u^3/s^2 and its u/s^2 cutoff), `FlightSettings`
+ * (standoff, approach floor, RCS), the structural arm read off collider
+ * boxes, the damage curves' reference closing speed, and the build lattice a
+ * railgun corridor is counted in - a cell is one world unit, so 10 m.
+ */
 export const METERS_PER_UNIT = 10;
-const UNITS_PER_KM = 1000 / METERS_PER_UNIT;
 
 function numText(n: number, decimals: number): string {
     return n.toLocaleString("en-US", { maximumFractionDigits: decimals });
 }
 
-/** A world-unit length as meters, or as kilometers from one kilometer up. */
-export function meters(units: number, decimals = 0): string {
-    const m = units * METERS_PER_UNIT;
+/** A length in meters, or in kilometers from one kilometer up. */
+export function meters(m: number, decimals = 0): string {
     if (Math.abs(m) >= 1000) return `${numText(m / 1000, 2)} km`;
     return `${numText(m, decimals)} m`;
 }
 
-/** A world-unit length as kilometers. */
-export function kilometers(units: number, decimals = 2): string {
-    return `${numText(units / UNITS_PER_KM, decimals)} km`;
+/** A length in meters, always as kilometers. */
+export function kilometers(m: number, decimals = 2): string {
+    return `${numText(m / 1000, decimals)} km`;
 }
 
-/** A world-unit speed as meters per second. */
-export function metersPerSec(unitsPerSec: number, decimals = 0): string {
-    return `${numText(unitsPerSec * METERS_PER_UNIT, decimals)} m/s`;
+/** A speed in meters per second. */
+export function metersPerSec(mps: number, decimals = 0): string {
+    return `${numText(mps, decimals)} m/s`;
 }
 
-/** A world-unit acceleration as meters per second squared. */
-export function metersPerSec2(unitsPerSec2: number, decimals = 1): string {
-    return `${numText(unitsPerSec2 * METERS_PER_UNIT, decimals)} m/s^2`;
+/** An acceleration in meters per second squared. */
+export function metersPerSec2(mps2: number, decimals = 1): string {
+    return `${numText(mps2, decimals)} m/s^2`;
 }
 
-// The attitude envelope (crates/nova_ship/src/physics/attitude.rs:72-93): a
+/** An engine world-unit length, read out in meters. */
+export function engineMeters(units: number, decimals = 0): string {
+    return meters(units * METERS_PER_UNIT, decimals);
+}
+
+/** An engine world-unit length, read out in kilometers. */
+export function engineKilometers(units: number, decimals = 2): string {
+    return kilometers(units * METERS_PER_UNIT, decimals);
+}
+
+/** An engine world-unit speed, read out in meters per second. */
+export function engineMetersPerSec(unitsPerSec: number, decimals = 0): string {
+    return metersPerSec(unitsPerSec * METERS_PER_UNIT, decimals);
+}
+
+/** An engine world-unit acceleration, read out in m/s^2. */
+export function engineMetersPerSec2(
+    unitsPerSec2: number,
+    decimals = 1
+): string {
+    return metersPerSec2(unitsPerSec2 * METERS_PER_UNIT, decimals);
+}
+
+// The attitude envelope (crates/nova_ship/src/physics/attitude.rs:69-91): a
 // hull's turn ceiling is the lower of its computers' torque over its inertia
 // and the structural load limit over its arm. Nothing authors the ceiling.
-const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:23
-const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:384
+// The load limit is SI (`MetersPerSecondSquared`); the arm arrives from
+// collider geometry in world units and crosses in `structuralCeiling` below,
+// exactly as `AttitudeEnvelope::new` takes `Meters::from_engine(arm)`
+// (controller_section.rs:487-489).
+const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
+const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:726
 // The shipped corvette's structural arm: centre of mass to the outer FACE of
-// its furthest section (attitude.rs:146-164). The GOTO widget flies this hull.
-// `hullState(CARGOA_PARTS)` re-derives it from the craft's own boxes and
-// agrees, which is the check that the assembly model below is the game's.
+// its furthest section (attitude.rs:136-149). WORLD UNITS - it is measured off
+// avian collider boxes, and the ship part tables below are the same geometry.
+// The GOTO widget flies this hull. `hullState(CARGOA_PARTS)` re-derives it from
+// the craft's own boxes and agrees, which is the check that the assembly model
+// below is the game's.
 const CORVETTE_ARM_U = 2.76;
 
 // Thrust is authored as an IMPULSE PER FIXED TICK and handed to avian with no
 // `dt` factor, so a hull's acceleration is its summed magnitude times the tick
-// RATE over its mass (thruster_section.rs:276-295,:370-373). Nothing
-// configures `Time<Fixed>`, so that rate is Bevy's own.
-const FIXED_TICK_HZ = 64; // thruster_section.rs:289-292
-const THRUSTER_MAGNITUDE = 1.0; // standard.rs:354, ships/shared.rs:281
+// RATE over its mass (thruster_section.rs:474-481,:569-575) - and that
+// acceleration comes out in WORLD UNITS per second squared. Nothing configures
+// `Time<Fixed>`, so the rate is Bevy's own.
+const FIXED_TICK_HZ = 64; // thruster_section.rs:489
+const THRUSTER_MAGNITUDE = 1.0; // standard.rs:650, ships/shared.rs:285
 
 // Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
-const LIGHT_HULL_HP = 60; // standard.rs:400-419 (light_hull_section)
-const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:573 (Serpent/Lance warhead)
-const TORPEDO_BLAST_RADIUS = 30; // standard.rs:565
+// Authored content is METERS now, so the blast radius is the metric number.
+const LIGHT_HULL_HP = 60; // standard.rs:758 (light_hull_section)
+const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:1207 (Serpent/Lance warhead)
+const TORPEDO_BLAST_RADIUS = 300; // standard.rs:1199 (Meters)
 
-// The shared turret mount (standard.rs `turret_joint_tree` :111-189). Traverse
-// is unbounded (:142-143) and elevation runs from the depression floor to
-// straight up (:157-158), so what a mount cannot see is a cone under its own
-// keel and nothing else. Every hinge slews at the same rate (:141,:150).
-const TURRET_DEPRESSION_DEG = -10; // standard.rs:84,157 (PI / 18)
-const TURRET_ELEVATION_DEG = 90; // standard.rs:158 (FRAC_PI_2)
-const TURRET_SLEW_DEG_S = 180; // standard.rs:141,150 (PI rad/s)
+// The shared turret mount (standard.rs `turret_joint_tree` :206-318). Traverse
+// is unbounded (:279-282) and elevation runs from the depression floor to
+// straight up (:298-299), so what a mount cannot see is a cone under its own
+// keel and nothing else. Every hinge slews at the same rate (:279,:291).
+const TURRET_DEPRESSION_DEG = -10; // standard.rs:104,298 (PI / 18)
+const TURRET_ELEVATION_DEG = 90; // standard.rs:299 (FRAC_PI_2)
+const TURRET_SLEW_DEG_S = 180; // standard.rs:281,291 (PI rad/s)
 // A turret has no range field: muzzle speed times projectile lifetime IS its
-// reach (config.rs:124-126), 100 world units per second over 2.0 s.
-const PDC_REACH_U = 200; // standard.rs:273,280
+// reach (config.rs:135-144), 1 000 m/s over 2.0 s.
+const PDC_REACH = 2000; // meters; standard.rs:486,493
 
 // Magazines and the quiet interval that refills them
 // (crates/nova_ship/src/sections/ammo.rs). One reload rule serves every
@@ -163,54 +226,63 @@ const PDC_REACH_U = 200; // standard.rs:273,280
 // the delay (ammo.rs:171-174), and the total is clamped at capacity
 // (ammo.rs:156). An EMPTY trigger pull never resets it (ammo.rs:134), so a
 // dry weapon reloads while the trigger is still held down.
-const PDC_CAPACITY = 500; // standard.rs:286
-const PDC_RELOAD_DELAY = 3.0; // standard.rs:288
-const PDC_RELOAD_AMOUNT = 200; // standard.rs:289
-const PDC_FIRE_RATE = 100; // standard.rs:262 (rounds per second)
-const BAY_CAPACITY = 6; // standard.rs:591
-const BAY_RELOAD_DELAY = 10.0; // standard.rs:603
-const BAY_RELOAD_AMOUNT = 1; // standard.rs:604
-const BAY_FIRE_RATE = 1.0; // standard.rs:558 (launches per second)
+const PDC_CAPACITY = 500; // standard.rs:503
+const PDC_RELOAD_DELAY = 3.0; // standard.rs:505
+const PDC_RELOAD_AMOUNT = 200; // standard.rs:506
+const PDC_FIRE_RATE = 100; // standard.rs:74 (rounds per second)
+const BAY_CAPACITY = 6; // standard.rs:1226
+const BAY_RELOAD_DELAY = 10.0; // standard.rs:1238
+const BAY_RELOAD_AMOUNT = 1; // standard.rs:1239
+const BAY_FIRE_RATE = 1.0; // standard.rs:1189 (launches per second)
 
 // The terminal weave (crates/nova_ship/src/sections/torpedo_section/). The
 // corkscrew rides at full amplitude beyond three blast radii and tapers to
 // nothing half a radius out, so the torpedo arrives dead on the aim point
-// (projectile.rs:330-334).
-const WEAVE_FULL_RADII = 3.0; // projectile.rs:332
-const WEAVE_ZERO_RADII = 0.5; // projectile.rs:331
-const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:348 (rad, the balance knob)
-const SERPENT_WEAVE_RATE = 1.4; // mod.rs:349 (rad/s)
+// (projectile.rs:435-439).
+const WEAVE_FULL_RADII = 3.0; // projectile.rs:437
+const WEAVE_ZERO_RADII = 0.5; // projectile.rs:436
+const SERPENT_WEAVE_ANGLE = 0.44; // mod.rs:414 (rad, the balance knob)
+const SERPENT_WEAVE_RATE = 1.4; // mod.rs:415 (rad/s)
 
 // The spinal lance (standard.rs, `railgun_lance_section`). Its slug is a
 // Pierce round with NO layer cap (railgun_section/firing.rs:206 sets
 // `layers: u32::MAX`), so `slug_power` alone bounds what one shot takes, and
-// at 1500 world units per second the pierce curve sits at its 3.0 ceiling whatever the ships are
+// at 15 000 m/s the pierce curve sits at its 3.0 ceiling whatever the ships are
 // doing. The shot's cycle is the charge plus the one-shell reload.
-const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:927
-const LANCE_SLUG_SPEED = 1500; // standard.rs:928
-const LANCE_SLUG_DAMAGE = 300; // standard.rs:942
-const LANCE_SLUG_POWER = 1800; // standard.rs:948
-const LANCE_RAKE_RADIUS = 1.0; // standard.rs:967
-const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:970
-const LANCE_RELOAD_DELAY = 12; // standard.rs:986
+const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:928
+const LANCE_SLUG_SPEED = 15000; // standard.rs:929 (MetersPerSecond)
+const LANCE_SLUG_DAMAGE = 300; // standard.rs:943
+const LANCE_SLUG_POWER = 1800; // standard.rs:949
+const LANCE_RAKE_RADIUS = 10; // standard.rs:968 (Meters)
+const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:971
+const LANCE_RELOAD_DELAY = 12; // standard.rs:987
 const LANCE_CYCLE_SECS = LANCE_CHARGE_SECONDS + LANCE_RELOAD_DELAY;
-const LANCE_REACH_U = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME;
-const REINFORCED_HULL_HP = 200; // standard.rs:603
+const LANCE_REACH = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME; // meters
+// The corridor scope counts BUILD CELLS, and a cell is one world unit - the
+// same crossing the gun makes when it hands the rake to the sweep as
+// `radius.to_engine()` (railgun_section/firing.rs:215-218). This is the one
+// place the authored corridor meets the lattice.
+export const LANCE_RAKE_RADIUS_CELLS = LANCE_RAKE_RADIUS / METERS_PER_UNIT;
+const REINFORCED_HULL_HP = 200; // standard.rs:604
 
-// The kinetic PDC round (standard.rs:58; the pierce round is half of it,
-// :68) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1190),
-// from the measured along-the-line table at the head of ordnance.rs:13-21.
-// A torpedo's cruise caps are ordnance.rs:49 (Lance) and
-// torpedo_section/mod.rs:347 (Serpent).
-const KINETIC_PDC_BULLET_DAMAGE = 4.0; // standard.rs:58
-const PDC_MUZZLE_SPEED = 100; // standard.rs:485
-const SERPENT_REACH_U = 2914; // ordnance.rs:21
-const LANCE_TORPEDO_REACH_U = 3130; // ordnance.rs:21
-const SERPENT_CRUISE = 32; // torpedo_section/mod.rs:347
-const LANCE_TORPEDO_CRUISE = 35; // ordnance.rs:49
+// The kinetic PDC round (standard.rs:59; the pierce round is half of it,
+// :69) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1191),
+// from the measured along-the-line table at the head of ordnance.rs:13-21 -
+// that table is still quoted in world units, so the reaches and cruise caps
+// below are its numbers stated in meters. A torpedo's cruise cap is authored:
+// ordnance.rs:49 (Lance) and torpedo_section/mod.rs:413 (Serpent).
+const KINETIC_PDC_BULLET_DAMAGE = 4.0; // standard.rs:59
+const PDC_MUZZLE_SPEED = 1000; // standard.rs:486 (MetersPerSecond)
+const SERPENT_REACH = 29140; // meters; ordnance.rs:21 (2 914 u)
+const LANCE_TORPEDO_REACH = 31300; // meters; ordnance.rs:21 (3 130 u)
+const SERPENT_CRUISE = 320; // torpedo_section/mod.rs:413 (MetersPerSecond)
+const LANCE_TORPEDO_CRUISE = 350; // ordnance.rs:49 (MetersPerSecond)
 // Rounds one stock PDC spends to stop each type (ordnance.rs:18).
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
+// The starter ship's soft manual-speed cap: what a torpedo has to catch when
+// the target is running (shakedown/mod.rs:243, `MetersPerSecond`).
+const PLAYER_SPEED_CAP = 250;
 
 // ---- pure models (mirror the Rust rules) ----------------------------------
 
@@ -228,7 +300,8 @@ export function aimLagNowDeg(fps: number, crossDegS: number): number {
     return crossDegS / fps / gain;
 }
 
-// damage.rs:226-228.
+// damage.rs:253-255. Closing speed is world units per second, the same
+// system as REFERENCE_CLOSING_SPEED.
 export function kineticDamageMultiplier(closingSpeed: number): number {
     return clamp(
         closingSpeed / REFERENCE_CLOSING_SPEED,
@@ -236,7 +309,7 @@ export function kineticDamageMultiplier(closingSpeed: number): number {
         KINETIC_DAMAGE_CEILING
     );
 }
-// damage.rs:238-240.
+// damage.rs:265-267, on the same world-unit closing speed.
 export function piercePowerMultiplier(closingSpeed: number): number {
     return clamp(
         closingSpeed / REFERENCE_CLOSING_SPEED,
@@ -250,7 +323,7 @@ interface SectionResult {
     dealt: number;
 }
 
-// Kinetic walk (damage.rs:319-331 rule): the round spends its damage budget;
+// Kinetic walk (damage.rs:441-452 rule): the round spends its damage budget;
 // it carries on only through sections it destroys, and a section it fails to
 // destroy absorbs it whole.
 export function kineticWalk(
@@ -279,7 +352,7 @@ export function kineticWalk(
     return { results, leftover: Math.max(0, remaining) };
 }
 
-// Pierce walk (damage.rs:332-340 rule): full authored damage to every section
+// Pierce walk (damage.rs:454-462 rule): full authored damage to every section
 // crossed; crossing costs the section's MAX health (not remaining) out of the
 // round's power budget, with a hard layer ceiling.
 export function pierceWalk(
@@ -311,7 +384,7 @@ interface BlastLayer {
     state: "dead" | "holds" | "shielded";
 }
 
-// Blast ray walk (damage.rs:519-551 rule) over structural layers at fixed
+// Blast ray walk (damage.rs:620-680 rule) over structural layers at fixed
 // distances: linear falloff, 0.65x per destroyed layer, a surviving layer
 // zeroes everything behind it.
 export function blastWalk(
@@ -377,12 +450,17 @@ export function blastFront(
     };
 }
 
-// The two ceilings and the lower one (attitude.rs:72-93). Inertia is the
+// The two ceilings and the lower one (attitude.rs:69-91). Inertia is the
 // hull's largest principal moment; the arm runs from the centre of mass to the
 // outer face of the furthest live section, in world units.
 export function torqueCeiling(torque: number, inertia: number): number {
     return inertia > 0 ? Math.max(torque, 0) / inertia : Infinity;
 }
+// The one crossing in the attitude model: the arm is measured off collider
+// boxes in world units, the load limit is `MetersPerSecondSquared`, so the arm
+// becomes meters before the division - exactly what the game does when it
+// calls `AttitudeEnvelope::new(.., Meters::from_engine(arm))`
+// (controller_section.rs:487-489). The result is rad/s^2 either way.
 export function structuralCeiling(armUnits: number): number {
     const arm = Math.max(armUnits, 0) * METERS_PER_UNIT;
     return arm > 0 ? LOAD_LIMIT / arm : Infinity;
@@ -399,23 +477,23 @@ export function attitudeCeiling(
 }
 
 // The rate at which the centripetal load alone spends the whole structural
-// budget: hold it and nothing is left to turn harder with (attitude.rs:108-110).
+// budget: hold it and nothing is left to turn harder with (attitude.rs:108-113).
 export function sustainedTurnRate(armUnits: number): number {
     return Math.sqrt(structuralCeiling(armUnits));
 }
 
-// A bang-bang 180 at `alpha` takes `2 * sqrt(pi / alpha)` (guidance.rs:302-303).
+// A bang-bang 180 at `alpha` takes `2 * sqrt(pi / alpha)` (guidance.rs:307-308).
 export function flipSeconds(alpha: number): number {
     return alpha > 0 ? 2 * Math.sqrt(Math.PI / alpha) : Infinity;
 }
 
 // SOI from mass alone: the distance where the raw inverse-square pull decays
-// to the cutoff, floored at the body radius (gravity.rs:97-99).
+// to the cutoff, floored at the body radius (gravity.rs:96-108).
 export function soiRadius(mu: number, bodyRadius: number): number {
     return Math.max(Math.sqrt(mu / SOI_CUTOFF_ACCEL), bodyRadius);
 }
 
-// The pull at distance r (gravity.rs:310-337): inverse square off `mu`,
+// The pull at distance r (gravity.rs:301-333): inverse square off `mu`,
 // clamped at the surface margin (no singularity slingshots), smoothstepped to
 // exactly zero across the outer 15% of the SOI.
 export function wellAccel(
@@ -424,25 +502,25 @@ export function wellAccel(
     bodyRadius: number,
     soi: number
 ): number {
-    if (mu <= 0 || soi <= 0 || r >= soi) return 0; // gravity.rs:318-320
-    const rEff = Math.max(r, bodyRadius + GRAVITY_SURFACE_MARGIN); // :323
-    const base = mu / (rEff * rEff); // gravity.rs:324
-    const fadeStart = soi * (1 - GRAVITY_FADE_FRACTION); // gravity.rs:328
+    if (mu <= 0 || soi <= 0 || r >= soi) return 0; // gravity.rs:314-316
+    const rEff = Math.max(r, bodyRadius + GRAVITY_SURFACE_MARGIN); // gravity.rs:319
+    const base = mu / (rEff * rEff); // gravity.rs:320
+    const fadeStart = soi * (1 - GRAVITY_FADE_FRACTION); // gravity.rs:324
     let fade = 1;
     if (r > fadeStart) {
         const t = clamp((soi - r) / Math.max(soi - fadeStart, 1e-12), 0, 1);
-        fade = t * t * (3 - 2 * t); // gravity.rs:329-334
+        fade = t * t * (3 - 2 * t); // gravity.rs:325-330
     }
-    return base * fade; // gravity.rs:336
+    return base * fade; // gravity.rs:332
 }
 
-// gravity.rs:341-346. The ORBIT verb burns to this tangentially.
+// gravity.rs:335-342. The ORBIT verb burns to this tangentially.
 export function circularOrbitSpeed(mu: number, r: number): number {
     if (mu <= 0 || r <= 0) return 0;
     return Math.sqrt(mu / r);
 }
 
-// The band ORBIT will accept a ring in (guidance.rs:218-234): clear of the
+// The band ORBIT will accept a ring in (guidance.rs:216-236): clear of the
 // surface by the clearance factor, safely inside the fade band. Null when the
 // band is empty (ORBIT refuses the well).
 export function orbitBand(
@@ -454,9 +532,9 @@ export function orbitBand(
     return min > max ? null : { min, max };
 }
 
-// Dominant-well pick over (id, pull) candidates (gravity.rs:353-376): the
+// Dominant-well pick over (id, pull) candidates (gravity.rs:344-372): the
 // strongest wins, but an incumbent holds until a challenger clearly beats it
-// - strictly more than `hysteresis x` the incumbent's pull (gravity.rs:369).
+// - strictly more than `hysteresis x` the incumbent's pull (gravity.rs:365).
 export function dominantWell(
     current: number | null,
     pulls: number[]
@@ -481,7 +559,7 @@ export function dominantWell(
     return strongest;
 }
 
-// Lock-on dwell before a radar lock commits (radar.rs:245-260): base time
+// Lock-on dwell before a radar lock commits (radar.rs:239-252): base time
 // stretched by range up to the reference, hard-clamped either side.
 export function lockDwellSecs(distance: number): number {
     const reach = clamp(distance / LOCK_DWELL_REFERENCE_RANGE, 0, 1);
@@ -489,7 +567,7 @@ export function lockDwellSecs(distance: number): number {
     return clamp(raw, LOCK_DWELL_MIN, LOCK_DWELL_MAX);
 }
 
-// Staged clearing on a tap (gesture.rs:152-175): one lock per tap, combat
+// Staged clearing on a tap (gesture.rs:125-175): one lock per tap, combat
 // first; the travel branch is gated on weapons LOWERED.
 export function clearStep(
     raised: boolean,
@@ -637,7 +715,7 @@ export function relation(a: Side, b: Side): "own" | "hostile" | "neutral" {
 }
 
 // The hull's average turn rate from its DERIVED attitude ceiling
-// (guidance.rs:306-314): a bang-bang 180 at `alpha` averages
+// (guidance.rs:307-318): a bang-bang 180 at `alpha` averages
 // `sqrt(pi * alpha) / 2`, scaled and clamped by the flight settings.
 export function hullTurnRate(alpha: number): number {
     const optimum = Math.sqrt(Math.PI * Math.max(alpha, 0)) * 0.5;
@@ -646,7 +724,7 @@ export function hullTurnRate(alpha: number): number {
     return clamp(optimum * TURN_RATE_SCALE, lo, hi);
 }
 
-// The arrival speed envelope (guidance.rs:20-41), gravity-free form: the
+// The arrival speed envelope (guidance.rs:25-60), gravity-free form: the
 // fastest closing speed from which a flip taking `lead` seconds still stops
 // in `distance`. With lead 0 this is exactly sqrt(2 * a * margin * d).
 export function arrivalSpeedLimit(
@@ -663,7 +741,7 @@ export function arrivalSpeedLimit(
     );
 }
 
-// The flip line (guidance.rs:86-108), gravity-free: GOTO swings retrograde
+// The flip line (guidance.rs:86-118), gravity-free: GOTO swings retrograde
 // once `distance <= standoff + v * lead + v^2 / (2 * a * margin)`.
 export function gotoFlipDistance(
     v: number,
@@ -845,7 +923,7 @@ export function turretSlewSecs(
 }
 
 // How much of the authored weave amplitude survives at `distance` from the
-// target (projectile.rs:330-334): full beyond three blast radii, linear to
+// target (projectile.rs:435-439): full beyond three blast radii, linear to
 // zero half a radius out, so the run-in ends on the aim point.
 export function weaveFade(distance: number, blastRadius: number): number {
     const terminal = blastRadius * WEAVE_ZERO_RADII;
@@ -857,11 +935,13 @@ export function weaveFade(distance: number, blastRadius: number): number {
 
 // ---- lance corridor -------------------------------------------------------
 
-// The block the corridor scope shoots: unit cubes on a lattice, `x` across,
-// `y` up, `layer` deep along the bore, with the bore through (0, 0). It is
-// the stand bank of examples/systems/system_railgun_lance.rs in miniature -
-// the same 200 hp cells on the same lattice - so the walk below is checked
-// against what the game measured there (tests/widgets.test.ts).
+// The block the corridor scope shoots: BUILD CELLS on a lattice, `x` across,
+// `y` up, `layer` deep along the bore, with the bore through (0, 0). A cell is
+// one world unit, so 10 m on a side, and every length in this model - the rake
+// radius, the offsets, the tip's travel - is counted in cells. It is the stand
+// bank of examples/systems/system_railgun_lance.rs in miniature - the same
+// 200 hp cells on the same lattice - so the walk below is checked against what
+// the game measured there (tests/widgets.test.ts).
 export interface CorridorCell {
     x: number;
     y: number;
@@ -890,7 +970,7 @@ export interface CorridorResult {
     removed: number;
 }
 
-// The rake rule (crates/nova_gameplay/src/rounds.rs, `sweep_raking`). A
+// The rake rule (crates/nova_gameplay/src/rounds.rs:714, `sweep_raking`). A
 // sphere of the authored radius trails the tip by exactly that radius, so
 // its front is tangent to the tip and what it sweeps is a cylinder BEHIND
 // the tip. A cell `offset` off the bore is inside that cylinder - and so is
@@ -900,9 +980,13 @@ export interface CorridorResult {
 // by travel depth, then from the axis outward (pass three), each paying
 // `max health / pierce multiplier` out of the one budget (damage.rs
 // `pierce_remainder`), and the bite that empties the budget still lands. A
-// slug at 1500 world units per second pins that multiplier at its 3.0 ceiling. The budget is walked
-// in f32 exactly as the game walks it, because 27 x (200 / 3) IS 1800 and
-// only the rounding decides whether a 28th crossing lands - it does.
+// slug at 15 000 m/s pins that multiplier at its 3.0 ceiling. The budget is
+// walked in f32 exactly as the game walks it, because 27 x (200 / 3) IS 1800
+// and only the rounding decides whether a 28th crossing lands - it does.
+//
+// `radius` is in CELLS, not meters: the sweep casts the authored corridor in
+// world units (railgun_section/firing.rs:215-218), and the lattice counts the
+// same units. LANCE_RAKE_RADIUS_CELLS is the shipped 10 m stated that way.
 export function lanceCorridor(
     radius: number,
     hp: number,
@@ -963,10 +1047,11 @@ export function lanceCorridor(
 }
 
 // The three weapon families' reach and time of flight to a target `range`
-// units out. Reach is never authored: a round's is muzzle speed times its
-// lifetime (config.rs:124-126), the slug's the same (standard.rs:928,:970),
+// METERS out. Reach is never authored: a round's is muzzle speed times its
+// lifetime (config.rs:135-144), the slug's the same (standard.rs:929,:971),
 // and a torpedo's is the along-the-line speed it settles at over the bay's
-// lifetime. Infinity: the shot never arrives.
+// lifetime. Every speed and reach here is SI, so the flight time is seconds
+// with no conversion anywhere. Infinity: the shot never arrives.
 export interface ReachRung {
     name: string;
     reach: number;
@@ -978,23 +1063,23 @@ export function reachLadder(range: number): ReachRung[] {
     return [
         {
             name: "PDC",
-            reach: PDC_REACH_U,
-            flightSecs: tof(PDC_REACH_U, PDC_MUZZLE_SPEED),
+            reach: PDC_REACH,
+            flightSecs: tof(PDC_REACH, PDC_MUZZLE_SPEED),
         },
         {
             name: "Lance",
-            reach: LANCE_REACH_U,
-            flightSecs: tof(LANCE_REACH_U, LANCE_SLUG_SPEED),
+            reach: LANCE_REACH,
+            flightSecs: tof(LANCE_REACH, LANCE_SLUG_SPEED),
         },
         {
             name: "Serpent",
-            reach: SERPENT_REACH_U,
-            flightSecs: tof(SERPENT_REACH_U, SERPENT_CRUISE),
+            reach: SERPENT_REACH,
+            flightSecs: tof(SERPENT_REACH, SERPENT_CRUISE),
         },
         {
             name: "Lance torpedo",
-            reach: LANCE_TORPEDO_REACH_U,
-            flightSecs: tof(LANCE_TORPEDO_REACH_U, LANCE_TORPEDO_CRUISE),
+            reach: LANCE_TORPEDO_REACH,
+            flightSecs: tof(LANCE_TORPEDO_REACH, LANCE_TORPEDO_CRUISE),
         },
     ];
 }
@@ -1567,7 +1652,9 @@ function initRoundTravel(host: HTMLElement): void {
     const plot = el("div", "widget__plot");
     plot.appendChild(svg);
 
-    // Inset: the two closing-speed clamp curves (damage.rs:227 and :239).
+    // Inset: the two closing-speed clamp curves (damage.rs:253 and :265).
+    // The axis is WORLD UNITS per second, because that is what the curves in
+    // damage.rs read; every tick prints the same speed in m/s.
     const IX0 = 44;
     const IX1 = 548;
     const IY0 = 118;
@@ -1618,7 +1705,9 @@ function initRoundTravel(host: HTMLElement): void {
                     "text-anchor": lastTick ? "end" : "middle",
                     class: "widget-mark--axis",
                 },
-                lastTick ? metersPerSec(v) : numText(v * METERS_PER_UNIT, 0)
+                lastTick
+                    ? engineMetersPerSec(v)
+                    : numText(v * METERS_PER_UNIT, 0)
             )
         );
     }
@@ -1911,7 +2000,7 @@ function initRoundTravel(host: HTMLElement): void {
         400,
         10,
         REFERENCE_CLOSING_SPEED,
-        (v) => metersPerSec(v),
+        (v) => engineMetersPerSec(v),
         onParam
     );
     const damageControl = control(
@@ -1941,18 +2030,19 @@ function initRoundTravel(host: HTMLElement): void {
 
 // ---- blast-layers ---------------------------------------------------------
 
-// A PPI blast scope: detonation at the origin, range rings in u, the
+// A PPI blast scope: detonation at the origin, range rings in meters, the
 // structural layers as arcs on one bearing, the shock front replayed in
-// scope time, and a pressure-vs-distance profile of the centre ray. The
+// scope time, and a pressure-vs-distance profile of the centre ray. Every
+// distance in here is METERS, the system the warhead is authored in. The
 // slider defaults are the shipped Serpent/Lance warhead.
 function initBlastLayers(host: HTMLElement): void {
     const hp = numAttr(host, "hp", LIGHT_HULL_HP);
-    const LAYER_DISTANCES = [10, 12, 14];
-    const TARGET_DISTANCE = 16;
+    const LAYER_DISTANCES = [100, 120, 140];
+    const TARGET_DISTANCE = 160;
     // Presentation only: the game resolves a blast in one fixed tick; the
     // scope replays it at a legible sweep speed.
-    const WAVE_SPEED = 12; // world units of front travel per scope second
-    const RING_STEP = 10;
+    const WAVE_SPEED = 120; // meters of front travel per scope second
+    const RING_STEP = 100;
     header(
         host,
         "Blast scope: pressure through a hull",
@@ -2030,7 +2120,7 @@ function initBlastLayers(host: HTMLElement): void {
         const holdIdx = blast.layers.findIndex((l) => l.state === "holds");
         holdDist = holdIdx < 0 ? Infinity : LAYER_DISTANCES[holdIdx];
         scopeR =
-            Math.ceil(Math.max(radius, TARGET_DISTANCE + 4) / RING_STEP) *
+            Math.ceil(Math.max(radius, TARGET_DISTANCE + 40) / RING_STEP) *
             RING_STEP;
         ppu = R_PX / scopeR;
         svg.replaceChildren();
@@ -2052,7 +2142,7 @@ function initBlastLayers(host: HTMLElement): void {
                         y: String(CY - r * ppu - 3),
                         class: "widget-mark--axis",
                     },
-                    r === scopeR ? meters(r) : numText(r * METERS_PER_UNIT, 0)
+                    r === scopeR ? meters(r) : numText(r, 0)
                 )
             );
         }
@@ -2127,7 +2217,7 @@ function initBlastLayers(host: HTMLElement): void {
         });
         svg.appendChild(targetArc);
         const [llx, lly] = pt(
-            (LAYER_DISTANCES[2] + 4) * ppu,
+            (LAYER_DISTANCES[2] + 40) * ppu,
             BEARING - HALF_ARC - 0.3
         );
         svg.appendChild(
@@ -2336,11 +2426,11 @@ function initBlastLayers(host: HTMLElement): void {
         );
         wave.setAttribute("r", String(front * ppu));
         wave.setAttribute("opacity", front >= radius ? "0.35" : "1");
-        det.setAttribute("opacity", front < 2.5 ? "1" : "0.45");
+        det.setAttribute("opacity", front < 25 ? "1" : "0.45");
         blast.layers.forEach((layer, i) => {
             const d = LAYER_DISTANCES[i];
             const crossed = front >= d;
-            const flash = crossed && front < d + 2.2;
+            const flash = crossed && front < d + 22;
             let cls = "widget-mark--layer";
             if (crossed) {
                 if (layer.state === "dead") cls += " is-dead";
@@ -2378,7 +2468,7 @@ function initBlastLayers(host: HTMLElement): void {
         let tCls = "widget-mark--target-arc";
         if (targetReached) {
             tCls += blast.target > 0 ? " is-hit" : " is-shielded";
-            if (front < TARGET_DISTANCE + 2.2) tCls += " is-flash";
+            if (front < TARGET_DISTANCE + 22) tCls += " is-flash";
         }
         targetArc.setAttribute("class", tCls);
         // Ray-profile cursor.
@@ -2444,9 +2534,9 @@ function initBlastLayers(host: HTMLElement): void {
     );
     const radiusControl = control(
         "Blast radius",
-        16,
-        60,
-        2,
+        160,
+        600,
+        20,
         TORPEDO_BLAST_RADIUS,
         (v) => meters(v),
         onParam
@@ -2510,7 +2600,7 @@ function shipPart(
 // A turret MOUNT POINT carries no art and no box of its own: the shared PDC
 // fills it, so the section that lands there is the PDC's own cube
 // (sections/standard.rs:71,:228,:240-242).
-const PDC_TURRET_SIZE = 0.5; // standard.rs:71
+const PDC_TURRET_SIZE = 0.5; // standard.rs:91
 const TURRET_BASE_HEALTH = 130; // standard.rs:32
 function turretMount(id: string, label: string, center: Vec3T): ShipPart {
     return {
@@ -3168,7 +3258,7 @@ function initControllerArm(host: HTMLElement): void {
         ray.setAttribute("y1", String(cy));
         ray.setAttribute("x2", String(tipX));
         ray.setAttribute("y2", String(tipY));
-        armLabel.textContent = `arm ${meters(state.arm, 1)}, ceiling ${structural.toFixed(2)} rad/s^2`;
+        armLabel.textContent = `arm ${engineMeters(state.arm, 1)}, ceiling ${structural.toFixed(2)} rad/s^2`;
 
         nowDot.setAttribute("cx", String(bx(state.arm)));
         nowDot.setAttribute("cy", String(by(structural)));
@@ -3176,7 +3266,7 @@ function initControllerArm(host: HTMLElement): void {
         intactDot.setAttribute("opacity", damaged ? "1" : "0");
         intactLabel.setAttribute("opacity", damaged ? "1" : "0");
 
-        armStat.textContent = `${meters(state.arm, 1)}`;
+        armStat.textContent = `${engineMeters(state.arm, 1)}`;
         ceilingStat.textContent = `${ceiling.toFixed(2)} rad/s^2`;
         bindsStat.textContent =
             torque < structural ? "torque-limited" : "structure-limited";
@@ -3186,7 +3276,7 @@ function initControllerArm(host: HTMLElement): void {
         const gain = (structural / structuralCeiling(intact.arm) - 1) * 100;
         if (!destroyed.size) {
             readout.textContent =
-                `Nine sections, ${meters(state.arm, 1)} of arm. The metal ` +
+                `Nine sections, ${engineMeters(state.arm, 1)} of arm. The metal ` +
                 `gives up at ${structural.toFixed(2)} rad/s^2, and the one ` +
                 `flight computer in its fuselage could push ` +
                 `${torque.toFixed(1)} - ${(torque / structural).toFixed(0)} ` +
@@ -3197,7 +3287,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
-                `and the arm has grown to ${meters(state.arm, 1)} - so the ` +
+                `and the arm has grown to ${engineMeters(state.arm, 1)} - so the ` +
                 `wreck turns ${Math.abs(gain).toFixed(0)}% SOFTER than the ` +
                 "whole ship did. Losing weight off one end drags the balance " +
                 "point toward the other, and the reach to whatever is left " +
@@ -3206,7 +3296,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}. ` +
-                `The arm is down to ${meters(state.arm, 1)} and the wreck ` +
+                `The arm is down to ${engineMeters(state.arm, 1)} and the wreck ` +
                 `turns ${gain.toFixed(0)}% harder than the whole ship did - ` +
                 `a 180 in ${flipSeconds(ceiling).toFixed(2)} s against ` +
                 `${flipSeconds(structuralCeiling(intact.arm)).toFixed(2)} s.`;
@@ -3214,7 +3304,7 @@ function initControllerArm(host: HTMLElement): void {
             readout.textContent =
                 `${destroyed.size} section${destroyed.size === 1 ? "" : "s"} ` +
                 `gone${adrift.length ? ` and ${adrift.length} adrift` : ""}, ` +
-                `and the arm is still ${meters(state.arm, 1)}. Damage only ` +
+                `and the arm is still ${engineMeters(state.arm, 1)}. Damage only ` +
                 "buys a turn when it takes weight off ONE end: cut the same " +
                 "amount off both and the balance point stays where it was.";
         }
@@ -3510,7 +3600,7 @@ function initControllerMargin(host: HTMLElement): void {
         "p",
         "widget__note",
         "The corvette's own numbers: a " +
-            `${meters(arm, 1)} arm, so ${structural.toFixed(2)} rad/s^2 ` +
+            `${engineMeters(arm, 1)} arm, so ${structural.toFixed(2)} rad/s^2 ` +
             `of budget and ${sustainedDeg.toFixed(0)} deg/s of committed ` +
             "turn. A longer ship commits earlier and a shorter one later, " +
             "but the shape of this curve is the same on every hull, because " +
@@ -3604,7 +3694,7 @@ function initGravityWell(host: HTMLElement): void {
                         class: "widget-mark--axis",
                     },
                     a === surface
-                        ? metersPerSec2(a, 0)
+                        ? engineMetersPerSec2(a, 0)
                         : numText(a * METERS_PER_UNIT, 0)
                 )
             );
@@ -3621,7 +3711,9 @@ function initGravityWell(host: HTMLElement): void {
                         "text-anchor": last ? "end" : "middle",
                         class: "widget-mark--axis",
                     },
-                    last ? kilometers(r, 1) : numText(r / UNITS_PER_KM, 1)
+                    last
+                        ? engineKilometers(r, 1)
+                        : numText((r * METERS_PER_UNIT) / 1000, 1)
                 )
             );
         }
@@ -3686,7 +3778,7 @@ function initGravityWell(host: HTMLElement): void {
                     y: String(Y1 + 26),
                     class: "widget-mark--label-old",
                 },
-                `SOI ${meters(soi)}`
+                `SOI ${engineMeters(soi)}`
             )
         );
         // ORBIT's trusted band, as a strip on the axis.
@@ -3744,7 +3836,7 @@ function initGravityWell(host: HTMLElement): void {
         cursor.setAttribute("x2", String(x(r)));
         dot.setAttribute("cx", String(x(r)));
         dot.setAttribute("cy", String(y(a)));
-        pullStat.textContent = metersPerSec2(a, 1);
+        pullStat.textContent = engineMetersPerSec2(a, 1);
         const fadeStart = soi * (1 - GRAVITY_FADE_FRACTION);
         const zone =
             r >= soi
@@ -3755,13 +3847,13 @@ function initGravityWell(host: HTMLElement): void {
                     ? "ON THE CLAMP"
                     : "INVERSE SQUARE";
         zoneStat.textContent = zone;
-        soiStat.textContent = meters(soi);
+        soiStat.textContent = engineMeters(soi);
         const band = orbitBand(bodyR, soi);
         const inBand = band !== null && r >= band.min && r <= band.max;
         orbitStat.textContent =
             r >= soi || r <= bodyR
                 ? "--"
-                : `${metersPerSec(circularOrbitSpeed(mu, r))}` +
+                : `${engineMetersPerSec(circularOrbitSpeed(mu, r))}` +
                   (inBand ? "" : " (outside the ORBIT band)");
         readout.classList.remove("is-warn");
         if (r >= soi) {
@@ -3780,7 +3872,7 @@ function initGravityWell(host: HTMLElement): void {
         } else if (inBand) {
             readout.textContent =
                 `Clean inverse square. ORBIT would accept a ring here, at ` +
-                `${metersPerSec(circularOrbitSpeed(mu, r))} tangential.`;
+                `${engineMetersPerSec(circularOrbitSpeed(mu, r))} tangential.`;
         } else {
             readout.textContent =
                 "Clean inverse square - but outside ORBIT's trusted band " +
@@ -3808,7 +3900,7 @@ function initGravityWell(host: HTMLElement): void {
         120,
         5,
         90,
-        (v) => meters(v),
+        (v) => engineMeters(v),
         onParam
     );
     const rControl = control(
@@ -3817,7 +3909,7 @@ function initGravityWell(host: HTMLElement): void {
         100,
         1,
         40,
-        (v) => meters(Math.round((v / 100) * xMax)),
+        (v) => engineMeters(Math.round((v / 100) * xMax)),
         update
     );
     // The distance fader spans the live scope range, so its readout re-labels
@@ -3825,7 +3917,7 @@ function initGravityWell(host: HTMLElement): void {
     const relabel = (): void => {
         const val = rControl.row.querySelector(".widget__value");
         if (val)
-            val.textContent = meters(
+            val.textContent = engineMeters(
                 Math.round((Number(rControl.input.value) / 100) * xMax)
             );
     };
@@ -3867,7 +3959,7 @@ function initDominantWell(host: HTMLElement): void {
     header(
         host,
         "Handoff scope: the dominant well",
-        `Two wells ${meters(D)} apart. Where their spheres of influence overlap ` +
+        `Two wells ${engineMeters(D)} apart. Where their spheres of influence overlap ` +
             "the pulls do not blend - you feel only the DOMINANT well, and " +
             "it keeps ownership until a challenger pulls more than 1.10x " +
             "harder. Drag the ship across the boundary both ways: the " +
@@ -3950,7 +4042,7 @@ function initDominantWell(host: HTMLElement): void {
                         "text-anchor": p === D ? "end" : "middle",
                         class: "widget-mark--axis",
                     },
-                    p === 0 ? "WELL A" : p === D ? "WELL B" : meters(p)
+                    p === 0 ? "WELL A" : p === D ? "WELL B" : engineMeters(p)
                 )
             );
         }
@@ -4049,8 +4141,8 @@ function initDominantWell(host: HTMLElement): void {
         dotA.setAttribute("cy", String(yRef(a)));
         dotB.setAttribute("cx", String(x(p)));
         dotB.setAttribute("cy", String(yRef(b)));
-        pullAStat.textContent = metersPerSec2(a, 1);
-        pullBStat.textContent = metersPerSec2(b, 1);
+        pullAStat.textContent = engineMetersPerSec2(a, 1);
+        pullBStat.textContent = engineMetersPerSec2(b, 1);
         ownerStat.textContent =
             owner === null ? "NONE" : owner === 0 ? "WELL A" : "WELL B";
         readout.classList.remove("is-warn");
@@ -4082,7 +4174,7 @@ function initDominantWell(host: HTMLElement): void {
         D,
         2,
         120,
-        (v) => meters(v),
+        (v) => engineMeters(v),
         update
     );
     const controls = el("div", "widget__controls");
@@ -4262,7 +4354,7 @@ function initGotoVerb(host: HTMLElement): void {
                         "text-anchor": "end",
                         class: "widget-mark--axis",
                     },
-                    metersPerSec(v)
+                    engineMetersPerSec(v)
                 )
             );
         }
@@ -4275,7 +4367,7 @@ function initGotoVerb(host: HTMLElement): void {
                     "text-anchor": "end",
                     class: "widget-mark--axis",
                 },
-                meters(targetDistance)
+                engineMeters(targetDistance)
             )
         );
         // The arrival envelope: the fastest speed the flip still recovers
@@ -4355,12 +4447,12 @@ function initGotoVerb(host: HTMLElement): void {
         cursorDot = svgEl("circle", { r: "4", class: "widget-mark--dot-now" });
         svg.appendChild(cursorDot);
         // Resolved stats.
-        peakStat.textContent = `${metersPerSec(sim.peakV)}`;
-        flipStat.textContent = `${meters(sim.flipX)} out, T+${sim.flipT.toFixed(1)}s`;
+        peakStat.textContent = `${engineMetersPerSec(sim.peakV)}`;
+        flipStat.textContent = `${engineMeters(sim.flipX)} out, T+${sim.flipT.toFixed(1)}s`;
         etaStat.textContent = `${sim.duration.toFixed(1)} s`;
         standoffStat.textContent =
-            `${meters(sim.standoff)} off the center ` +
-            `(${meters(ARRIVAL_STANDOFF)} + the body)`;
+            `${engineMeters(sim.standoff)} off the center ` +
+            `(${engineMeters(ARRIVAL_STANDOFF)} + the body)`;
     };
 
     const PHASE_LABEL: Record<GotoSample["phase"], string> = {
@@ -4403,7 +4495,7 @@ function initGotoVerb(host: HTMLElement): void {
         cursorDot.setAttribute("cy", String(py(s.v)));
         if (s.phase === "burn") {
             readout.textContent =
-                `Burning out at ${metersPerSec(s.v)} - under the envelope, ` +
+                `Burning out at ${engineMetersPerSec(s.v)} - under the envelope, ` +
                 "so the flip still recovers all of it.";
         } else if (s.phase === "flip") {
             readout.textContent =
@@ -4431,7 +4523,7 @@ function initGotoVerb(host: HTMLElement): void {
         3000,
         50,
         1200,
-        (v) => meters(v),
+        (v) => engineMeters(v),
         onParam
     );
     const accelControl = control(
@@ -4440,7 +4532,7 @@ function initGotoVerb(host: HTMLElement): void {
         20,
         1,
         8,
-        (v) => metersPerSec2(v, 0),
+        (v) => engineMetersPerSec2(v, 0),
         onParam
     );
     const controls = el("div", "widget__controls");
@@ -4566,7 +4658,7 @@ function initLockSweep(host: HTMLElement): void {
                     "text-anchor": anchor,
                     class: "widget-mark--detail",
                 },
-                `${meters(c.dist)} - dwell ${lockDwellSecs(c.dist).toFixed(2)} s`
+                `${engineMeters(c.dist)} - dwell ${lockDwellSecs(c.dist).toFixed(2)} s`
             )
         );
         const travelBox = svgEl("rect", {
@@ -4738,7 +4830,7 @@ function initLockSweep(host: HTMLElement): void {
         held = false;
         cancelAnimationFrame(raf);
         if (heldSecs < RADAR_TAP_SECS) {
-            // A tap: staged clearing (gesture.rs:152-175).
+            // A tap: staged clearing (gesture.rs:125-175).
             const step = clearStep(
                 raised,
                 combatLock !== null,
@@ -5815,7 +5907,7 @@ function initTurretArc(host: HTMLElement): void {
         `Both hinges turn at ${TURRET_SLEW_DEG_S} deg/s at the same time, so ` +
             "a swing costs the larger of the two angles rather than their " +
             "sum; the timings above assume the barrel starts level and on " +
-            `the old bearing. Reach is ${meters(PDC_REACH_U)} - muzzle speed times ` +
+            `the old bearing. Reach is ${meters(PDC_REACH)} - muzzle speed times ` +
             "how long a round lives, not an authored range."
     );
 
@@ -5832,38 +5924,40 @@ function initTurretArc(host: HTMLElement): void {
 interface TorpedoType {
     name: string;
     weaveAngle: number;
-    cruise: number; // authored cap, world units per second
-    lineSpeed: number; // measured speed along the direct line, world units per second
-    runSecs: number; // measured time over the 300-unit (3 km) run-in
+    cruise: number; // authored cap, meters per second
+    lineSpeed: number; // measured speed along the direct line, m/s
+    runSecs: number; // measured time over the 3 km run-in
     rounds: number; // rounds one stock PDC spends to stop it
-    killedAt: number; // where that PDC finally kills it, world units out
+    killedAt: number; // where that PDC finally kills it, meters out
     lane: number;
 }
 
-// The run-in the harness measured: 300 u, one stock PDC. Every number in the
+// The run-in the harness measured: 3 km, one stock PDC. Every number in the
 // table is the module header of
 // crates/nova_authoring/src/base_content/sections/ordnance.rs:13-21 - a
-// measurement, not a derivation, so nothing here is interpolated.
-const TORPEDO_RUN_IN = 300;
+// measurement, not a derivation, so nothing here is interpolated. That table
+// is still quoted in world units, so each figure below is its number stated
+// in meters (300 u = 3 000 m, 35 u/s = 350 m/s, and so on).
+const TORPEDO_RUN_IN = 3000;
 const TORPEDO_TYPES: TorpedoType[] = [
     {
         name: "LANCE",
         weaveAngle: 0,
-        cruise: 35,
-        lineSpeed: 31.3,
+        cruise: LANCE_TORPEDO_CRUISE,
+        lineSpeed: 313,
         runSecs: 9.1,
-        rounds: 116,
-        killedAt: 114,
+        rounds: ROUNDS_PER_LANCE_TORPEDO,
+        killedAt: 1140,
         lane: 86,
     },
     {
         name: "SERPENT",
         weaveAngle: SERPENT_WEAVE_ANGLE,
-        cruise: 32,
-        lineSpeed: 29.1,
+        cruise: SERPENT_CRUISE,
+        lineSpeed: 291,
         runSecs: 9.78,
-        rounds: 390,
-        killedAt: 40,
+        rounds: ROUNDS_PER_SERPENT,
+        killedAt: 400,
         lane: 178,
     },
 ];
@@ -5875,7 +5969,7 @@ function initTorpedoRun(host: HTMLElement): void {
         host,
         "The run-in: Lance against Serpent",
         "Same warhead, same rack, same blast - the only difference is how " +
-            "they cross the last few hundred units. Press PLAY and watch " +
+            "they cross the last three kilometres. Press PLAY and watch " +
             "both go in. Arm the defender and watch where each one dies."
     );
 
@@ -5883,20 +5977,20 @@ function initTorpedoRun(host: HTMLElement): void {
     const X1 = 512;
     const dx = (d: number): number => X1 - (d / TORPEDO_RUN_IN) * (X1 - X0);
     // The one measured amplitude: at the shipped 0.44 rad and 1.4 rad/s the
-    // torpedo swings 11.1 u off the direct line (torpedo_section/mod.rs). The
-    // drawn swing scales off that anchor with sin(angle), never off a number
-    // nobody measured.
-    const MEASURED_SWING_U = 11.1;
-    const pxPerU = (X1 - X0) / TORPEDO_RUN_IN;
+    // torpedo swings 111 m off the direct line (the harness measured 11.1 u).
+    // The drawn swing scales off that anchor with sin(angle), never off a
+    // number nobody measured.
+    const MEASURED_SWING = 111;
+    const pxPerMeter = (X1 - X0) / TORPEDO_RUN_IN;
     const swingPx = (angle: number): number =>
-        (MEASURED_SWING_U * pxPerU * Math.sin(angle)) /
+        (MEASURED_SWING * pxPerMeter * Math.sin(angle)) /
         Math.sin(SERPENT_WEAVE_ANGLE);
 
     const svg = svgEl("svg", {
         viewBox: "0 0 560 236",
         role: "img",
         "aria-label":
-            "Two torpedo run-ins over three hundred units: a Lance flying " +
+            "Two torpedo run-ins over three kilometres: a Lance flying " +
             "the bare intercept and a Serpent corkscrewing off it, the " +
             "corkscrew tapering to nothing in the terminal band, with the " +
             "point where one point-defense mount kills each of them.",
@@ -5947,7 +6041,7 @@ function initTorpedoRun(host: HTMLElement): void {
             "target"
         )
     );
-    for (const d of [300, 200, 100, 0])
+    for (const d of [3000, 2000, 1000, 0])
         svg.appendChild(
             svgEl(
                 "text",
@@ -5957,7 +6051,7 @@ function initTorpedoRun(host: HTMLElement): void {
                     "text-anchor": "middle",
                     class: "widget-mark--axis",
                 },
-                d === 300 ? `${meters(d)} out` : numText(d / UNITS_PER_KM, 1)
+                d === TORPEDO_RUN_IN ? `${meters(d)} out` : numText(d / 1000, 1)
             )
         );
 
@@ -6045,7 +6139,10 @@ function initTorpedoRun(host: HTMLElement): void {
 
     const stats = el("div", "widget__stats");
     const arrivalStat = stat(stats, "arrives");
-    const runnerStat = stat(stats, "closes on a 250 m/s runner");
+    const runnerStat = stat(
+        stats,
+        `closes on a ${PLAYER_SPEED_CAP} m/s runner`
+    );
     const costStat = stat(stats, "rounds one PDC spends");
     const readout = el("p", "widget__readout");
 
@@ -6118,7 +6215,7 @@ function initTorpedoRun(host: HTMLElement): void {
             (t) => `${t.name.toLowerCase()} ${t.runSecs.toFixed(2)} s`
         ).join(", ");
         runnerStat.textContent = TORPEDO_TYPES.map(
-            (t) => `${metersPerSec(t.lineSpeed - 25)}`
+            (t) => `${metersPerSec(t.lineSpeed - PLAYER_SPEED_CAP)}`
         ).join(" / ");
         costStat.textContent = on
             ? TORPEDO_TYPES.map((t) => `${t.rounds}`).join(" / ")
@@ -6156,7 +6253,7 @@ function initTorpedoRun(host: HTMLElement): void {
             "measurement over this exact 3 km run-in against one stock " +
             "mount - not a formula run on the cruise caps. The drawn " +
             "corkscrew is scaled from the one swing the harness measured: " +
-            `${meters(MEASURED_SWING_U)} off the direct line at the shipped ` +
+            `${meters(MEASURED_SWING)} off the direct line at the shipped ` +
             `${SERPENT_WEAVE_ANGLE} rad and ${SERPENT_WEAVE_RATE} rad/s.`
     );
 
@@ -6197,7 +6294,7 @@ function initThrusterMass(host: HTMLElement): void {
     );
 
     const EXTRA_MAX = 8;
-    const ACCEL_MAX = 70;
+    const ACCEL_MAX = 700; // m/s^2
     const X0 = 48;
     const X1 = 484;
     const Y0 = 196;
@@ -6206,10 +6303,17 @@ function initThrusterMass(host: HTMLElement): void {
     const y = (a: number): number =>
         Y0 - (clamp(a, 0, ACCEL_MAX) / ACCEL_MAX) * (Y0 - Y1);
     // A basic drive is a unit cube (base_section.rs:79-85) pushing 1.0
-    // (standard.rs:354), so each one added is +1 of impulse over +1 of mass.
+    // (standard.rs:650), so each one added is +1 of impulse over +1 of mass.
+    // The impulse, the tick rate and the box masses are all ENGINE figures, so
+    // the quotient is world units per second squared - and this is the one
+    // place it crosses into the m/s^2 every reading below is in.
     const accel = (rig: DriveRig, extra: number): number =>
-        ((rig.drives + extra) * THRUSTER_MAGNITUDE * FIXED_TICK_HZ) /
-        (hullState(rig.parts).mass + extra);
+        (((rig.drives + extra) * THRUSTER_MAGNITUDE * FIXED_TICK_HZ) /
+            (hullState(rig.parts).mass + extra)) *
+        METERS_PER_UNIT;
+    // What one drive carrying only itself would do: the hard ceiling every
+    // curve climbs toward, in the same m/s^2.
+    const DRIVE_CEILING = THRUSTER_MAGNITUDE * FIXED_TICK_HZ * METERS_PER_UNIT;
 
     const svg = svgEl("svg", {
         viewBox: "0 0 560 230",
@@ -6219,7 +6323,7 @@ function initThrusterMass(host: HTMLElement): void {
             "All three climb toward the same hard ceiling, and the light " +
             "yacht starts more than twice as high as the hauler.",
     });
-    for (const a of [0, 20, 40, 60]) {
+    for (const a of [0, 200, 400, 600]) {
         svg.appendChild(
             svgEl("line", {
                 x1: String(X0),
@@ -6266,9 +6370,9 @@ function initThrusterMass(host: HTMLElement): void {
     svg.appendChild(
         svgEl("line", {
             x1: String(X0),
-            y1: String(y(FIXED_TICK_HZ)),
+            y1: String(y(DRIVE_CEILING)),
             x2: String(X1),
-            y2: String(y(FIXED_TICK_HZ)),
+            y2: String(y(DRIVE_CEILING)),
             class: "widget-mark--gate",
         })
     );
@@ -6277,15 +6381,15 @@ function initThrusterMass(host: HTMLElement): void {
             "text",
             {
                 x: String(X1),
-                y: String(y(FIXED_TICK_HZ) - 5),
+                y: String(y(DRIVE_CEILING) - 5),
                 "text-anchor": "end",
                 class: "widget-mark--label-gate",
             },
-            `${metersPerSec2(FIXED_TICK_HZ, 0)} - a hull built of nothing but drives`
+            `${metersPerSec2(DRIVE_CEILING, 0)} - a hull built of nothing but drives`
         )
     );
 
-    // The corvette and the hauler end within 3 u/s^2 of each other, which is
+    // The corvette and the hauler end within 30 m/s^2 of each other, which is
     // seven pixels: the end labels are pushed apart to a readable gap rather
     // than left to sit on the curve heights exactly.
     const ends = DRIVE_RIGS.map((rig, index) => ({
@@ -6350,8 +6454,8 @@ function initThrusterMass(host: HTMLElement): void {
         massStat.textContent = mass.toFixed(2);
         drivesStat.textContent = String(rig.drives + extra);
         accelStat.textContent = metersPerSec2(a, 1);
-        gStat.textContent = `${((a * METERS_PER_UNIT) / 9.81).toFixed(1)} G`;
-        sprintStat.textContent = `${(100 / a).toFixed(1)} s`;
+        gStat.textContent = `${(a / 9.81).toFixed(1)} G`;
+        sprintStat.textContent = `${(1000 / a).toFixed(1)} s`;
 
         const stock = DRIVE_RIGS.map((r) => accel(r, 0));
         if (extra === 0) {
@@ -6360,7 +6464,7 @@ function initThrusterMass(host: HTMLElement): void {
                 `yacht weighs ${hullState(RACER_PARTS).mass.toFixed(2)} and ` +
                 `pulls ${metersPerSec2(stock[0], 0)}; the hauler weighs ` +
                 `${hullState(CARGOB_PARTS).mass.toFixed(2)} and pulls ` +
-                `${stock[2].toFixed(1)}. Nothing authored that gap - it is ` +
+                `${metersPerSec2(stock[2], 0)}. Nothing authored that gap - it is ` +
                 "the volume of the boxes each hull is built from.";
         } else {
             const gain = ((a / accel(rig, 0) - 1) * 100).toFixed(0);
@@ -6369,7 +6473,7 @@ function initThrusterMass(host: HTMLElement): void {
                 `${rig.name}: ${metersPerSec2(a, 0)}, ${gain}% up on stock. ` +
                 "Each one is a unit of mass as well as a unit of push, so " +
                 `the return tapers - and no stack of them passes ` +
-                `${metersPerSec2(FIXED_TICK_HZ, 0)}, which is what one drive would do ` +
+                `${metersPerSec2(DRIVE_CEILING, 0)}, which is what one drive would do ` +
                 "carrying only itself.";
         }
     };
@@ -6827,12 +6931,13 @@ function initBattlefieldLoad(host: HTMLElement): void {
 // later. Damping is avian's per-substep `v /= 1 + dt*k`, which at the fixed
 // step is exponential decay to within a rounding error, so the widget models
 // the coast as `v(t) = v0 * exp(-k t)`.
-const TORPEDO_LINEAR_DAMPING = 0.8; // torpedo_section/mod.rs:224
-const TORPEDO_EJECT_SPEED = 8.0; // base_content/sections/standard.rs:607
-const TORPEDO_IGNITION_DELAY = 0.6; // torpedo_section/mod.rs:406
+const TORPEDO_LINEAR_DAMPING = 0.8; // torpedo_section/mod.rs:265 (1/s)
+const TORPEDO_EJECT_SPEED = 80; // standard.rs:1190 (MetersPerSecond)
+const TORPEDO_IGNITION_DELAY = 0.6; // torpedo_section/mod.rs:451
 // The shipped warhead mesh is `nose_cone_mesh(0.16, 0.65, 0.35)` - a 0.65 body
-// under a 0.35 nose, so one unit end to end (torpedo_section/render.rs:130).
-const TORPEDO_BODY_LENGTH = 1.0;
+// under a 0.35 nose, so one world unit end to end, which is 10 m
+// (torpedo_section/render.rs:131-134).
+const TORPEDO_BODY_LENGTH = 10;
 
 function coastDistance(speed: number, seconds: number): number {
     const k = TORPEDO_LINEAR_DAMPING;
@@ -6858,9 +6963,9 @@ function initIgnitionDelay(host: HTMLElement): void {
     );
     const charge = control(
         "ejection charge",
-        1,
-        20,
-        0.5,
+        10,
+        200,
+        5,
         TORPEDO_EJECT_SPEED,
         (v) => metersPerSec(v),
         () => update()
@@ -6876,10 +6981,10 @@ function initIgnitionDelay(host: HTMLElement): void {
     const X0 = 70;
     const X1 = 610;
     const AXIS = 84;
-    const FULL_SCALE = 12; // units of travel across the drawn axis
+    const FULL_SCALE = 120; // meters of travel across the drawn axis
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}` });
-    const px = (u: number): number =>
-        X0 + Math.min(u / FULL_SCALE, 1) * (X1 - X0);
+    const px = (m: number): number =>
+        X0 + Math.min(m / FULL_SCALE, 1) * (X1 - X0);
 
     svg.appendChild(
         svgEl("line", {
@@ -6890,12 +6995,12 @@ function initIgnitionDelay(host: HTMLElement): void {
             class: "widget-mark--axis",
         })
     );
-    for (let u = 0; u <= FULL_SCALE; u += 2) {
+    for (let m = 0; m <= FULL_SCALE; m += 20) {
         svg.appendChild(
             svgEl("line", {
-                x1: String(px(u)),
+                x1: String(px(m)),
                 y1: String(AXIS - 5),
-                x2: String(px(u)),
+                x2: String(px(m)),
                 y2: String(AXIS + 5),
                 class: "widget-mark--grid",
             })
@@ -6904,12 +7009,12 @@ function initIgnitionDelay(host: HTMLElement): void {
             svgEl(
                 "text",
                 {
-                    x: String(px(u)),
+                    x: String(px(m)),
                     y: String(AXIS + 20),
                     "text-anchor": "middle",
                     class: "widget-mark--detail",
                 },
-                meters(u)
+                meters(m)
             )
         );
     }
@@ -7246,11 +7351,12 @@ function initTransientLights(host: HTMLElement): void {
 // counts the layers each column lost. data-radius, data-hp, data-width,
 // data-height and data-depth seed the faders.
 function initLanceCorridor(host: HTMLElement): void {
+    // The faders and the lattice count CELLS; `data-radius` seeds cells too.
     const seedRadius = Number(host.dataset.radius);
     const radius0 =
         Number.isFinite(seedRadius) && seedRadius >= 0
             ? seedRadius
-            : LANCE_RAKE_RADIUS;
+            : LANCE_RAKE_RADIUS_CELLS;
     const hp0 = numAttr(host, "hp", REINFORCED_HULL_HP);
     const width0 = numAttr(host, "width", 5);
     const height0 = numAttr(host, "height", 5);
@@ -7259,8 +7365,9 @@ function initLanceCorridor(host: HTMLElement): void {
     header(
         host,
         "Corridor scope: one railgun shot into a hull block",
-        "A block of hull cells on a unit lattice, shot down its centre at " +
-            `${metersPerSec(LANCE_SLUG_SPEED)}. The tip cuts the bore column; the ` +
+        "A block of hull cells on the build lattice - a cell is 10 m on a " +
+            `side - shot down its centre at ${metersPerSec(LANCE_SLUG_SPEED)}. ` +
+            "The tip cuts the bore column; the " +
             "sphere trailing it widens that cut into a corridor, and every " +
             `cell in the corridor takes the flat ${LANCE_SLUG_DAMAGE} and ` +
             `pays a third of its max health out of the one ${LANCE_SLUG_POWER}` +
@@ -7620,10 +7727,10 @@ function initLanceCorridor(host: HTMLElement): void {
         0.5,
         radius0,
         (v) =>
-            meters(v) +
+            engineMeters(v) +
             (v === 0
                 ? " (needle)"
-                : v === LANCE_RAKE_RADIUS
+                : v === LANCE_RAKE_RADIUS_CELLS
                   ? " (shipped)"
                   : ""),
         onParam
@@ -7692,7 +7799,7 @@ function initLanceCorridor(host: HTMLElement): void {
         "p",
         "widget__note",
         "The block is the range the game measures this on: the shipped " +
-            `${LANCE_RAKE_RADIUS.toFixed(1)} against a 5 x 5 x 4 wall of ` +
+            `${meters(LANCE_RAKE_RADIUS)} rake against a 5 x 5 x 4 wall of ` +
             `${REINFORCED_HULL_HP} hp cells took 28 cells as 9 / 9 / 9 / 1, ` +
             "and the scope replays that exact walk. For scale, a kinetic " +
             `PDC sustains 40 rounds/s x ${KINETIC_PDC_BULLET_DAMAGE} = ` +
@@ -7718,7 +7825,7 @@ function initLanceCorridor(host: HTMLElement): void {
 // that far out. data-range seeds the cursor; the default is a hostile still
 // burning in, past the guns and inside the slug.
 function initWeaponReach(host: HTMLElement): void {
-    const range0 = numAttr(host, "range", 600);
+    const range0 = numAttr(host, "range", 6000);
     header(
         host,
         "Engagement ladder: who reaches whom",
@@ -7727,19 +7834,19 @@ function initWeaponReach(host: HTMLElement): void {
             "arrive, and what the other side can do about it while it does."
     );
 
-    const AXIS_MAX = 3400;
+    const AXIS_MAX = 34000; // meters
     const X0 = 96;
     const X1 = 540;
     const AXIS_Y = 156;
-    const px = (u: number): number => X0 + (u / AXIS_MAX) * (X1 - X0);
+    const px = (m: number): number => X0 + (m / AXIS_MAX) * (X1 - X0);
     const LANES = [
-        { name: "PDC", y: 40, reach: PDC_REACH_U, ext: 0 },
-        { name: "RAILGUN", y: 78, reach: LANCE_REACH_U, ext: 0 },
+        { name: "PDC", y: 40, reach: PDC_REACH, ext: 0 },
+        { name: "RAILGUN", y: 78, reach: LANCE_REACH, ext: 0 },
         {
             name: "TORPEDO",
             y: 116,
-            reach: SERPENT_REACH_U,
-            ext: LANCE_TORPEDO_REACH_U,
+            reach: SERPENT_REACH,
+            ext: LANCE_TORPEDO_REACH,
         },
     ];
 
@@ -7752,12 +7859,12 @@ function initWeaponReach(host: HTMLElement): void {
             "torpedoes' longer still - with a cursor at the chosen target " +
             "range showing which of them can touch it.",
     });
-    for (const u of [0, 500, 1000, 1500, 2000, 2500, 3000]) {
+    for (const m of [0, 5000, 10000, 15000, 20000, 25000, 30000]) {
         svg.appendChild(
             svgEl("line", {
-                x1: String(px(u)),
+                x1: String(px(m)),
                 y1: "28",
-                x2: String(px(u)),
+                x2: String(px(m)),
                 y2: String(AXIS_Y),
                 class: "widget-mark--grid",
             })
@@ -7766,12 +7873,12 @@ function initWeaponReach(host: HTMLElement): void {
             svgEl(
                 "text",
                 {
-                    x: String(px(u)),
+                    x: String(px(m)),
                     y: String(AXIS_Y + 14),
                     "text-anchor": "middle",
                     class: "widget-mark--axis",
                 },
-                u === 0 ? "0 km" : numText(u / UNITS_PER_KM, 0)
+                m === 0 ? "0 km" : numText(m / 1000, 0)
             )
         );
     }
@@ -7938,9 +8045,9 @@ function initWeaponReach(host: HTMLElement): void {
     };
     const rangeControl = control(
         "Target range",
-        50,
-        3400,
-        50,
+        500,
+        34000,
+        500,
         range0,
         (v) => meters(v),
         render
