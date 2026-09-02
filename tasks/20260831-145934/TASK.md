@@ -35,6 +35,7 @@ that reaches into the world by name.
 - p80 `20260831-083625` - section models to the thruster's standard
 - p72 `20260824-125947` - railgun: a spinal kinetic weapon family
 - p68 `20260824-125959` - more campaign chapters after the ledger
+- p65 `20260902-143732` - explore an ionized wake for the railgun slug
 - p60 `20260824-125955` - the audio direction pass
 - p55 `20260714-001140` - gamepad navigation, and a playthrough on hardware
 - p50 `20260827-120347` - the console and the action vocabulary
