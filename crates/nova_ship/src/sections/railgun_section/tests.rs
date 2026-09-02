@@ -61,6 +61,16 @@ fn slugs(app: &mut App) -> Vec<ProjectileDamage> {
     q.iter(world).copied().collect()
 }
 
+/// Every slug in the world, as the rake it carries - `None` for a slug that
+/// wears no [`RoundRake`] at all.
+fn slug_rakes(app: &mut App) -> Vec<Option<f32>> {
+    let world = app.world_mut();
+    let mut q = world.query_filtered::<Option<&RoundRake>, With<RailgunSlugProjectileMarker>>();
+    q.iter(world)
+        .map(|rake| rake.map(RoundRake::radius))
+        .collect()
+}
+
 fn hold_trigger(app: &mut App, lance: Entity, held: bool) {
     **app
         .world_mut()
@@ -466,4 +476,106 @@ fn an_uncommitted_lance_keeps_its_bore_dark() {
         Visibility::Hidden,
         "and the light is off, not merely dim"
     );
+}
+
+/// AUTHORED-OR-NARROW. A lance that authors no rake fires the round it always
+/// fired: no [`RoundRake`] component at all, so the sweep takes its untouched
+/// bore-width path rather than a widened one that happens to be zero. Every
+/// mod authored before the field existed keeps the gun it wrote.
+#[test]
+fn a_lance_with_no_authored_rake_fires_the_round_it_always_fired() {
+    let mut app = railgun_app();
+    let (_ship, lance) =
+        spawn_lance_ship(&mut app, RailgunSectionConfig::default(), Vec3::NEG_Z * 2.0);
+
+    hold_trigger(&mut app, lance, true);
+    app.update();
+
+    assert_eq!(
+        slug_rakes(&mut app),
+        vec![None],
+        "a lance with no authored rake widened its slug anyway"
+    );
+}
+
+/// The authored width reaches the shell. It is the gun's number, not the
+/// sweep's: a mod that wants a wider corridor says so on the section.
+#[test]
+fn an_authored_rake_radius_reaches_the_slug() {
+    let mut app = railgun_app();
+    let (_ship, lance) = spawn_lance_ship(
+        &mut app,
+        RailgunSectionConfig {
+            rake_radius: Some(1.25),
+            ..default()
+        },
+        Vec3::NEG_Z * 2.0,
+    );
+
+    hold_trigger(&mut app, lance, true);
+    app.update();
+
+    assert_eq!(slug_rakes(&mut app), vec![Some(1.25)]);
+}
+
+/// A rake authored at zero is a rake authored at nothing. Nobody should be
+/// able to reach the widened path with a degenerate sphere on it.
+#[test]
+fn a_rake_radius_of_zero_fires_a_narrow_slug() {
+    let mut app = railgun_app();
+    let (_ship, lance) = spawn_lance_ship(
+        &mut app,
+        RailgunSectionConfig {
+            rake_radius: Some(0.0),
+            ..default()
+        },
+        Vec3::NEG_Z * 2.0,
+    );
+
+    hold_trigger(&mut app, lance, true);
+    app.update();
+
+    assert_eq!(slug_rakes(&mut app), vec![None]);
+}
+
+/// The authoring contract, in the format content is written in: a lance
+/// authored before `rake_radius` existed still parses, and reads as the narrow
+/// gun it was. The field is skipped on the way out too, so regenerating the
+/// catalog does not rewrite every mod's railgun with a null.
+#[cfg(feature = "serde")]
+#[test]
+fn a_lance_authored_without_a_rake_still_parses_and_stays_narrow() {
+    let authored = r#"(
+        muzzle_offset: (0.0, 0.0, -1.5),
+        charge_seconds: 1.5,
+        slug_speed: 1500.0,
+        slug_damage: 300.0,
+        slug_power: 1800.0,
+        slug_lifetime: 1.2,
+        recoil_impulse: 45.0,
+    )"#;
+
+    let config: RailgunSectionConfig =
+        ron::from_str(authored).expect("a lance authored before the field still parses");
+    assert_eq!(config.rake_radius, None);
+    assert_eq!(config.slug_power, 1800.0);
+
+    let written = ron::ser::to_string(&config).expect("a narrow lance serializes");
+    assert!(
+        !written.contains("rake_radius"),
+        "an unauthored rake was written back into the content: {written}"
+    );
+}
+
+/// And the other way: a rake that IS authored survives the round trip.
+#[cfg(feature = "serde")]
+#[test]
+fn an_authored_rake_survives_a_content_round_trip() {
+    let config = RailgunSectionConfig {
+        rake_radius: Some(1.0),
+        ..default()
+    };
+    let written = ron::ser::to_string(&config).expect("a raking lance serializes");
+    let read: RailgunSectionConfig = ron::from_str(&written).expect("and parses back");
+    assert_eq!(read.rake_radius, Some(1.0));
 }

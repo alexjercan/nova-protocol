@@ -53,13 +53,15 @@ The line thickens as the charge runs, so the seconds you are committed to holdin
 
 ## What one shot takes out
 
-<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs (health RAILGUN_BASE_HEALTH 180 :902,:39; three cells LANCE_CELLS :908,:328; charge_seconds 1.5 :927; slug_speed 1500 :928; slug_damage 300 :942; slug_power 1800 :948; slug_lifetime 1.2 :951 giving 1800 u of reach; recoil_impulse 45 :955; ammo_capacity 1 :962; reload delay 12 s :967). Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite :399 (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier (:258), which clamps at 3.0, and a 1500 u/s slug is always at that ceiling. No layer cap: firing.rs:206. Drive healths standard.rs:674,:691. -->
+<!-- Values from crates/nova_authoring/src/base_content/sections/standard.rs (health RAILGUN_BASE_HEALTH 180 :902,:39; three cells LANCE_CELLS :908,:328; charge_seconds 1.5 :927; slug_speed 1500 :928; slug_damage 300 :942; slug_power 1800 :948; slug_lifetime 1.2 :951 giving 1800 u of reach; recoil_impulse 45 :955; ammo_capacity 1 :962; reload delay 12 s :967). Pierce rule: crates/nova_gameplay/src/damage.rs hit_bite :399 (flat, not speed-scaled) and pierce_remainder :427 - power spent per layer is max health / pierce_power_multiplier (:258), which clamps at 3.0, and a 1500 u/s slug is always at that ceiling. No layer cap: firing.rs:206. The rake: rake_radius 1.0 standard.rs, swept in crates/nova_gameplay/src/rounds.rs sweep_raking; the three-times figure is examples/systems/system_railgun_lance.rs's stand bank, 59.3 dps to 177.8 over the same 13.5 s cycle. Drive healths standard.rs:674,:691. -->
 
-The slug deals **300 Pierce damage to every layer it crosses**, flat. It is not scaled by how fast the two ships are closing and it does not decay with depth, so the tenth section in the line takes exactly what the first did. Three hundred clears every hull block, controller, mount and torpedo bay in the catalog outright, so an aligned shot takes a **column out of a ship** rather than damaging one.
+The slug deals **300 Pierce damage to every section it takes**, flat. It is not scaled by how fast the two ships are closing and it does not decay with depth, so the tenth section in the line takes exactly what the first did. Three hundred clears every hull block, controller, mount and torpedo bay in the catalog outright, so an aligned shot takes a **corridor out of a ship** rather than damaging one.
 
-Depth is a separate budget: **1800 power**, spent in the toughest each crossed section could ever be, and a slug this fast always crosses at the cheapest rate the rule allows. There is no layer cap under that budget.
+The corridor is wider than the bore. The slug drags a one-unit sphere behind its tip, so it takes the sections immediately beside the ones it actually crossed as well - about three cells across. It only ever widens what the tip has already reached: a ship the slug merely passes near loses nothing, and nothing ahead of the tip is touched by the shot that is on its way. The sphere keeps going after the tip is out the far side, so the exit hole is as wide as the corridor.
 
-| what the line crosses | health | crossings in one shot |
+How much it takes is one budget: **1800 power**, spent in the toughest each taken section could ever be, and a slug this fast always spends at the cheapest rate the rule allows. Width and depth come out of the same number. There is no layer cap under it.
+
+| what the corridor takes | health | sections in one shot |
 |---|---|---|
 | Light Hull Section | 60 | 90 |
 | Basic Controller, Torpedo Bay | 100 | 54 |
@@ -68,7 +70,7 @@ Depth is a separate budget: **1800 power**, spent in the toughest each crossed s
 | Vector Thruster Section | 480 | 11 |
 | Capital Thruster Section | 1250 | 4 |
 
-Twenty-seven reinforced hull blocks is past the depth of anything that flies. **Depth is not what this weapon costs you** - the commit, the recoil and the reload are.
+Twenty-seven reinforced hull blocks is past the depth of anything that flies, which is exactly why the shot is wide: nothing in the game is thick enough to spend a lance's budget in one column, so the surplus goes sideways instead of out the far side. Against a four-cell corvette line the corridor removes three times what the bare needle did. **Depth is not what this weapon costs you** - the commit, the recoil and the reload are.
 
 The two large drives are the one place a lance does not simply delete what it touches: 300 does not clear 480 or 1250, so a lance cripples a capital drive over several passes instead of taking it off.
 

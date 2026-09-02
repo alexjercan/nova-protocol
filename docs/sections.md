@@ -28,7 +28,7 @@ readings](#damage-is-two-readings)).
 | `Controller` | Attitude controller (`steering_lag`, `max_torque`); lag derives the internal PD gains, torque feeds the hull's attitude envelope (see below). Also grants flight `verbs` (STOP/GOTO/ORBIT maneuvers plus LOCK targeting and RCS fine-translation). A ship needs one to be drivable; several SHARE one attitude loop. |
 | `Turret`     | Aims and fires bullets. An authored joint tree (hinges + muzzles, each joint with its own `offset`/`axis`/`speed`/limits/`render_mesh`), section-wide `muzzle_speed` + authored `bullet_damage` + `bullet_kind`, per-muzzle `fire_rate`, optional `ammo_capacity`. |
 | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammo_capacity`. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
-| `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds the depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
+| `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
 Generic prototypes are authored in
@@ -149,6 +149,16 @@ pipeline. `slug_damage` is dealt FLAT to every layer (`hit_bite` does not scale
 Pierce), while each crossing costs that layer's MAX health divided by
 `pierce_power_multiplier` - and a 1500 u/s slug always sits at that curve's 3.0
 ceiling, so the shipped 1800 power is 27 reinforced hull blocks.
+
+Nothing that flies is 27 blocks deep, so the optional `rake_radius` spends the
+surplus on WIDTH: a sphere of that radius trails the tip, tangent to it, and
+everything it sweeps over a body the tip DIRECTLY hit takes the same flat bite
+out of the same budget. `RoundRake` carries the arming, per body and for the
+slug's life; `sweep_raking` resolves the tip, the trailing capsule and the
+charge order in three passes. Omitted, no `RoundRake` is inserted at all and
+the slug takes the untouched narrow path. The base lance authors 1.0, measured
+against 4.0 in `system_railgun_lance`'s stand bank: both spend the same budget,
+and the radius chooses whether it goes through the hull or across its face.
 
 Recoil goes through `apply_linear_impulse_at_point` AT `muzzle_offset`, never at
 the centre of mass, so an off-axis lance yaws the hull every time it fires.

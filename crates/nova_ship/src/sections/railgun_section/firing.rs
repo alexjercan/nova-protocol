@@ -209,6 +209,12 @@ pub(super) fn charge_and_fire_railgun(
             TempEntity(config.slug_lifetime),
             Visibility::Visible,
         ));
+        // Authored-or-narrow: a lance with no `rake_radius` spawns a slug with
+        // no rake component at all, so it takes the sweep's untouched
+        // bore-width path rather than a widened one that happens to be zero.
+        if let Some(radius) = config.rake_radius.filter(|radius| *radius > 0.0) {
+            slug.insert(RoundRake::new(radius));
+        }
         // Copied, not resolved through `ProjectileOwner`: the slug stays
         // attributable if the gun that fired it dies mid-flight.
         if let Some(&allegiance) = allegiance {

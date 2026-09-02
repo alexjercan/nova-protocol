@@ -820,6 +820,7 @@ kind: Railgun((
     slug_damage: 300.0,
     slug_power: 1800.0,
     slug_lifetime: 1.2,
+    rake_radius: Some(1.0),
     recoil_impulse: 45.0,
     fire_sound: Some("dep://base/sounds/railgun_fire.wav"),
     charge_sound: Some("dep://base/sounds/railgun_charge.wav"),
@@ -849,11 +850,34 @@ kind: Railgun((
 - `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
   is not scaled by closing speed and it does not decay with depth, so the tenth
   section in the line takes what the first did.
-- `slug_power` - the pierce budget, spent in the MAX health of each layer
-  crossed. This is the ONLY bound on depth; the layer count is deliberately
-  unlimited, so a lance stops when it runs out of thickness to spend rather
-  than at an arbitrary layer. The shipped 1800 against 200 hp reinforced hull
-  is nine cells of armor in one line.
+- `slug_power` - the pierce budget, spent in the MAX health of each section
+  the shot takes. This is the ONLY bound; the layer count is deliberately
+  unlimited, so a lance stops when it runs out of material to spend rather than
+  at an arbitrary layer. A crossing costs that section's max health divided by
+  the pierce speed curve, which a 1500 u/s slug pins at its 3.0 ceiling, so the
+  shipped 1800 buys twenty-seven crossings of 200 hp reinforced hull.
+- `rake_radius` (optional) - how wide a corridor the shot cuts, in units. Omit
+  it and the slug is a needle: it cuts exactly the column its bore crossed,
+  which is what every lance did before this field existed.
+  Author it and a sphere of that radius TRAILS the tip, its front tangent to
+  the slug, sweeping a cylinder out of everything the tip has already reached.
+  Three rules make it a rake and not a blast:
+  - **The tip has to hit first.** A body the narrow slug only passed near is
+    never opened, however far inside the radius it sits, and each separate
+    body needs its own direct hit. A widened near miss is still a miss.
+  - **It never reaches ahead.** The sphere trails, so a section the slug has
+    not arrived at yet cannot be damaged by the shot that is about to arrive.
+    It keeps sweeping after the tip leaves the far side, which is what opens
+    an exit as wide as the corridor instead of a bore-sized one.
+  - **It spends the same budget.** Every section in the corridor takes the
+    flat `slug_damage` once and pays out of the same `slug_power`. There is no
+    second damage number, no falloff and no blast.
+  Wider is not more. Against dense material the budget binds either way, so a
+  big radius removes the same total and spends it sideways on the entry face
+  instead of forward through the hull: the shipped 1.0 bores three cells wide
+  through a four-deep wall and out the back, while 4.0 strips the front layer
+  and stops one cell in. Pick the radius for the SHAPE you want, then let the
+  power decide how much of it you get.
 - `recoil_impulse` - impulse applied backwards along the bore at the muzzle
   point on the tick the slug leaves. Raw impulse with no `dt`, in the units a
   thruster's magnitude carries. Because it lands at the muzzle and not at the
@@ -881,7 +905,7 @@ the bolt has travelled is how much charge is left to run - readable by the
 firing player on their own hull and by an enemy across the gap. Without the
 track the gun still charges; it just charges invisibly.
 
-<!-- Grammar verified against crates/nova_ship/src/sections/railgun_section/mod.rs (config :61-147, commit :179-185, charge state :187-193) and firing.rs (Pierce :207). Values from assets/base/sections/base.content.ron (:2258-2483). -->
+<!-- Grammar verified against crates/nova_ship/src/sections/railgun_section/mod.rs (config :61-147 including rake_radius, commit :179-185, charge state :187-193) and firing.rs (Pierce :207, authored-or-narrow rake :215). Rake rules: crates/nova_gameplay/src/rounds.rs sweep_raking. Values from assets/base/sections/base.content.ron (:2258-2484). Radius comparison measured in examples/systems/system_railgun_lance.rs's stand bank. -->
 
 ## A section in a mod
 

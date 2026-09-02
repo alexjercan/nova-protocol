@@ -946,6 +946,25 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // depth of anything that flies. Depth is NOT the cost of this
                 // weapon; the commit, the recoil and the reload are.
                 slug_power: 1800.0,
+                // The width that budget is actually spent on. No shipped hull
+                // is more than about six cells deep, so a bore-width slug left
+                // 85 percent of its power on the far side of everything it
+                // ever hit.
+                //
+                // ONE UNIT, from the range's measurement bank. It is the
+                // smallest radius that reaches the immediate lateral
+                // neighbour on every shipped hull - the cargoa's pods stand
+                // 0.81 off its spine and the cargob's 0.61 - and on the unit
+                // lattice hulls are built on it takes the face and diagonal
+                // neighbours of the cell it bores through and stops short of
+                // the second ring at 1.5. The corridor is three cells wide,
+                // which is a hole you can see and not a ship you delete.
+                //
+                // Wider is NOT more: against dense material the power budget
+                // binds either way, so a 4.0 rake removes the same total and
+                // spends it sideways on the entry face instead of forward
+                // through the hull. See `system_railgun_lance` invariant 9.
+                rake_radius: Some(1.0),
                 // 1800 u of reach. A spinal gun outranges every mount on the
                 // ship carrying it, which is what makes lining up worth doing.
                 slug_lifetime: 1.2,

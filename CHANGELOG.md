@@ -28,9 +28,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A spinal railgun lance joins the catalog: no traverse, so the ship aims it.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
-- A lance slug rakes through everything in the line, gutting a hull section and
-  crippling the big drives. Power, not a layer count, bounds the depth, so an
-  aligned shot takes a column out of a ship.
+- A lance slug rakes a corridor about three cells wide through everything in
+  the line, gutting hull sections and crippling the big drives. Power, not a
+  layer count or the bore, bounds what one shot takes.
 - Firing a lance shoves the ship that fired. The impulse lands at the muzzle,
   so a lance mounted off the ship's axis yaws it as well as pushing it back.
 - A lance holds one shell and gets it back on a twelve-second idle reload.
@@ -68,6 +68,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** A section's and an asteroid's `impact_sound` is gone. Each
   names a `material`, and `Impact` rows pair a damage type with a material, so
   a mod can voice one round against one surface.
+- A railgun authors an optional `rake_radius`: a sphere that trails the slug's
+  tip and widens the hole out of the same power. Omitted, the slug stays a
+  needle.
 
 ### Web & Platform
 - The wiki gets a Railgun page - the commit and its one way out, what a slug

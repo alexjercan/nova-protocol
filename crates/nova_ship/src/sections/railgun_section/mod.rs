@@ -20,6 +20,14 @@
 //! It rides `nova_gameplay::rounds` like any gun round, so it curves in wells,
 //! is charged once per layer, and needs no second damage pipeline.
 //!
+//! An authored [`RailgunSectionConfig::rake_radius`] turns that budget sideways.
+//! No shipped craft is deep enough to spend 1800 power along one line, so a
+//! lance that only ever cut a bore-width hole threw most of every shot out
+//! through the far side. The rake drags a sphere behind the slug's tip and
+//! charges what it sweeps out of the SAME budget, which converts the surplus
+//! depth into a corridor you can see. Omitting the field is the old behavior
+//! exactly.
+//!
 //! Recoil is real and is applied AT THE MUZZLE, not at the centre of mass:
 //! `apply_linear_impulse_at_point` turns a lance mounted off the ship's axis
 //! into a lance that spins the ship every time it fires. Where the builder put
@@ -94,6 +102,21 @@ pub struct RailgunSectionConfig {
     /// unlimited, so a lance stops when it runs out of thickness to spend and
     /// never because it met an arbitrary layer.
     pub slug_power: f32,
+    /// How wide a corridor the slug opens, in units. Omitted is a bore-width
+    /// round and exactly the behavior every lance had before the field
+    /// existed.
+    ///
+    /// A rake spends the SAME [`slug_power`](Self::slug_power) budget on width
+    /// that it would otherwise have spent on depth it never finds. Only a body
+    /// the narrow slug hits DIRECTLY is raked, so this widens what an aligned
+    /// shot destroys and never what it hits: a near miss stays a miss, and a
+    /// fighter on the centreline still presents almost no material to spend
+    /// the budget on.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub rake_radius: Option<f32>,
     /// Seconds the slug lives before it expires unspent. With no layer cap
     /// this is also what stops a miss travelling forever.
     pub slug_lifetime: f32,
@@ -159,6 +182,7 @@ impl Default for RailgunSectionConfig {
             slug_speed: 1_000.0,
             slug_damage: 50.0,
             slug_power: PIERCE_BASE_POWER,
+            rake_radius: None,
             slug_lifetime: 5.0,
             recoil_impulse: 0.0,
             fire_sound: None,

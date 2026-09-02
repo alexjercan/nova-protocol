@@ -5,13 +5,16 @@
 //! rule about what it may pass through.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::prelude::*;
 
-/// [`RoundVelocity`], [`RoundBitten`], [`NovaRoundPlugin`] and [`NovaRoundSystems`].
+/// [`RoundVelocity`], [`RoundBitten`], [`RoundRake`], [`NovaRoundPlugin`] and
+/// [`NovaRoundSystems`].
 pub mod prelude {
-    pub use super::{NovaRoundPlugin, NovaRoundSystems, RoundBitten, RoundVelocity, PIERCE_SKIN};
+    pub use super::{
+        NovaRoundPlugin, NovaRoundSystems, RoundBitten, RoundRake, RoundVelocity, PIERCE_SKIN,
+    };
 }
 
 /// A gun round's own velocity, in units/second.
@@ -66,6 +69,84 @@ impl RoundBitten {
     }
 }
 
+/// A round that cuts WIDER than its bore: the sphere a raking slug drags behind
+/// its tip, and the bodies that tip has earned it against.
+///
+/// The narrow tip is unchanged and is still the whole of the round's aim. What
+/// it now also does is ARM a body: only a body the tip struck directly is ever
+/// raked, so a widened near miss stays a miss, each separate body has to be hit
+/// on its own account, and one ship cannot be opened by a shot lined up on the
+/// ship beside it. Once armed it stays armed for the round's whole life, across
+/// the empty space inside a hull as much as across its plating.
+///
+/// Behind the tip the sphere trails by exactly its own radius, which puts its
+/// front face tangent to the tip. The volume it sweeps is therefore a
+/// continuous cylinder over ground the round has ALREADY crossed, and it can
+/// never reach a section the round has not yet arrived at. It keeps sweeping
+/// after the tip leaves the far side, which is what opens an exit the same
+/// width as the corridor instead of a bore-sized one.
+///
+/// The rake spends the SAME [`ProjectileDamage`] the tip does. No second
+/// budget, no falloff, no second damage type: a section caught beside the
+/// corridor takes the same flat Pierce bite and costs the same thickness. A
+/// dense hull therefore spends the shell sooner, and a fighter on the
+/// centreline still presents almost nothing to spend it on - the width converts
+/// depth the round was wasting into damage, rather than adding lethality of its
+/// own.
+///
+/// The two sets are exact rather than a ring, and that is forced.
+/// [`RoundBitten`] is safe to forget out of BECAUSE the tip only ever casts
+/// forward; the rake's volume reaches BACKWARD by two radii, so a section
+/// resolved near a step boundary is offered again on the next step and a
+/// forgotten entry is a section charged twice. A raking round is a rare,
+/// one-in-flight thing - a lance holds a single shell behind a twelve second
+/// reload - so an exact set costs nothing that the ring was protecting a
+/// thousand bullets a second from.
+#[derive(Component, Clone, Debug, Reflect)]
+#[reflect(Component)]
+pub struct RoundRake {
+    /// The trailing sphere's radius, in units.
+    radius: f32,
+    /// Bodies the narrow tip has struck, and which may therefore be raked.
+    armed: Vec<Entity>,
+    /// Colliders this round has already charged, by either half of the sweep.
+    charged: Vec<Entity>,
+}
+
+impl RoundRake {
+    /// A rake of `radius` units, armed against nothing yet.
+    pub fn new(radius: f32) -> Self {
+        Self {
+            radius,
+            armed: Vec::new(),
+            charged: Vec::new(),
+        }
+    }
+
+    /// The trailing sphere's radius, in units.
+    pub fn radius(&self) -> f32 {
+        self.radius
+    }
+
+    fn is_armed(&self, body: Entity) -> bool {
+        self.armed.contains(&body)
+    }
+
+    fn arm(&mut self, body: Entity) {
+        if !self.is_armed(body) {
+            self.armed.push(body);
+        }
+    }
+
+    fn has_charged(&self, collider: Entity) -> bool {
+        self.charged.contains(&collider)
+    }
+
+    fn charge(&mut self, collider: Entity) {
+        self.charged.push(collider);
+    }
+}
+
 /// Ordering handle for [`advance_rounds`], so a scenario or a range can put
 /// work either side of the sweep.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -107,6 +188,14 @@ const MAX_BITES_PER_STEP: usize = 32;
 /// outside the surface it just crossed rather than inside it.
 pub const PIERCE_SKIN: f32 = 1.0e-3;
 
+/// How many times the lateral contact search alternates between the corridor
+/// axis and the candidate's surface.
+///
+/// Two settles a convex shape: the first pass lands somewhere on it, the second
+/// on the point of it nearest the corridor. Every section, rock node and plate
+/// the sweep meets is convex.
+const CORRIDOR_CONTACT_PASSES: usize = 2;
+
 /// Registers the round sweep after the physics step, in [`FixedPostUpdate`].
 ///
 /// AFTER [`PhysicsSystems::Last`] so the round's step resolves against a world
@@ -118,6 +207,7 @@ impl Plugin for NovaRoundPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<RoundVelocity>();
         app.register_type::<RoundBitten>();
+        app.register_type::<RoundRake>();
         // The sweep integrates the well pull itself, so it needs the tunables
         // whether or not `NovaGravityPlugin` is in the app. Both plugins
         // `init_resource` the same defaulted settings, so this is
@@ -172,6 +262,9 @@ impl Plugin for NovaRoundPlugin {
 /// Each resolved collider is excluded from the rest of the step's casts. A
 /// Pierce round restarting from the surface it just crossed would otherwise
 /// re-hit the same section at distance zero and charge it twice.
+///
+/// A round wearing [`RoundRake`] takes the wider path, which resolves the same
+/// contacts the same way and then also pays for what its trailing sphere swept.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system owning the whole sweep beats splitting the round's step across two"
@@ -180,7 +273,7 @@ fn advance_rounds(
     mut commands: Commands,
     time: Res<Time>,
     settings: Res<GravitySettings>,
-    spatial: SpatialQuery,
+    world: SweepWorld,
     mut q_rounds: Query<
         (
             Entity,
@@ -189,32 +282,29 @@ fn advance_rounds(
             &mut RoundBitten,
             Option<&mut ProjectileDamage>,
             Option<&ProjectileOwner>,
+            Option<&mut RoundRake>,
         ),
         With<GunRoundMarker>,
     >,
     q_wells: Query<(&Position, &GravityWell)>,
-    q_sensors: Query<(), With<Sensor>>,
-    q_collider_of: Query<&ColliderOf>,
-    q_health: Query<&Health>,
-    q_velocity: Query<&LinearVelocity>,
 ) {
     let dt = time.delta_secs();
     if dt <= 0.0 {
         return;
     }
-    let round_shape = Collider::sphere(ROUND_RADIUS);
     // How far the fastest thing in the world travels in one step, which is the
     // most a single-instant pose can be wrong by. Widening the CANDIDATE cast
     // by it means the exact test below can never be denied a real hit; a false
     // positive only costs one more cast. Measured per step rather than fixed
     // because rounds are no longer bodies - this walks tens of ships, torpedoes
     // and rocks, not thousands of rounds.
-    let fastest = q_velocity
+    let fastest = world
+        .velocity
         .iter()
         .fold(0.0f32, |widest, velocity| widest.max(velocity.length()));
     let reach = fastest * dt;
 
-    for (entity, mut transform, mut velocity, mut bitten, damage, owner) in &mut q_rounds {
+    for (entity, mut transform, mut velocity, mut bitten, damage, owner, rake) in &mut q_rounds {
         let start = transform.translation;
         **velocity += well_pull(start, &q_wells, &settings) * dt;
         let step = **velocity * dt;
@@ -224,134 +314,609 @@ fn advance_rounds(
             // A round at rest crossed nothing this step.
             continue;
         };
-        let speed = velocity.length();
+        let sweep = Sweep {
+            start,
+            velocity: **velocity,
+            speed: velocity.length(),
+            direction,
+            reach,
+            dt,
+        };
         let Some(mut damage) = damage else {
             // A bare test spawn with no authored damage: it flies, and the
             // first thing it meets expends it, exactly as the body path did.
-            resolve_undamaged(
-                &mut commands,
-                entity,
-                &spatial,
-                &round_shape,
-                reach,
-                start,
-                direction,
-                step.length(),
-                owner,
-                &q_sensors,
-                &q_collider_of,
-            );
+            resolve_undamaged(&mut commands, entity, &world, sweep, step.length(), owner);
             continue;
         };
 
-        let mut origin = start;
-        // TIME remaining in the step, not distance: the exact test works in a
-        // target's rest frame, where the round covers a different distance.
-        let mut remaining = dt;
-        // Candidates the exact test rejected. They are near misses this step,
-        // not bites, so they must not enter `bitten` and be ignored forever.
-        let mut rejected = [Entity::PLACEHOLDER; REJECT_BUDGET];
-        let mut rejects = 0usize;
-        let mut bites = 0usize;
-        // What the candidate pass has to look past: one step of target motion
-        // (the pose sample) plus the widest acceptance margin the exact test
-        // can allow, taken at the fastest closing speed in the world so one
-        // shape serves every round.
-        let candidate_margin = reach;
+        match rake {
+            Some(mut rake) => sweep_raking(
+                &mut commands,
+                &world,
+                entity,
+                &mut transform,
+                &mut bitten,
+                &mut damage,
+                owner,
+                &mut rake,
+                sweep,
+            ),
+            None => sweep_narrow(
+                &mut commands,
+                &world,
+                entity,
+                &mut transform,
+                &mut bitten,
+                &mut damage,
+                owner,
+                sweep,
+            ),
+        }
+    }
+}
 
-        while remaining > 0.0 && bites < MAX_BITES_PER_STEP && rejects < REJECT_BUDGET {
+/// One round's segment for this step, and the two step-wide numbers the resolve
+/// prices it against. The whole of what both halves need to know that is not a
+/// query.
+#[derive(Clone, Copy)]
+struct Sweep {
+    /// Where the round stood at the top of the step.
+    start: Vec3,
+    /// Its velocity for the whole segment, gravity already integrated.
+    velocity: Vec3,
+    /// The length of that velocity, cached because the walk divides by it.
+    speed: f32,
+    /// The line it travels, in world space.
+    direction: Dir3,
+    /// How far the fastest thing in the world moves in one step: the widest a
+    /// single-instant pose sample can be wrong by.
+    reach: f32,
+    /// The step, in seconds.
+    dt: f32,
+}
+
+/// The world one sweep reads, gathered into one parameter so each half of the
+/// resolve can be its own function instead of carrying a dozen queries down
+/// through it.
+#[derive(SystemParam)]
+struct SweepWorld<'w, 's> {
+    spatial: SpatialQuery<'w, 's>,
+    sensors: Query<'w, 's, (), With<Sensor>>,
+    collider_of: Query<'w, 's, &'static ColliderOf>,
+    body_colliders: Query<'w, 's, &'static RigidBodyColliders>,
+    collider_local: Query<'w, 's, &'static ColliderTransform>,
+    shape: Query<'w, 's, &'static Collider>,
+    body_pose: Query<'w, 's, (&'static Position, &'static Rotation), With<RigidBody>>,
+    health: Query<'w, 's, &'static Health>,
+    velocity: Query<'w, 's, &'static LinearVelocity>,
+}
+
+impl SweepWorld<'_, '_> {
+    /// The body a collider hangs off, or the collider itself when it hangs off
+    /// nothing. The rake's notion of ONE TARGET: a hit arms the body, and only
+    /// that body's own colliders are ever raked for it.
+    fn body_of(&self, collider: Entity) -> Entity {
+        self.collider_of
+            .get(collider)
+            .map_or(collider, |of| of.body)
+    }
+
+    /// How fast whatever `collider` is attached to is moving.
+    ///
+    /// Velocities live on the BODIES, not the colliders. A target with no body
+    /// of its own (or no velocity: a Static planetoid) counts as at rest, which
+    /// is what it is.
+    fn body_velocity_of(&self, collider: Entity) -> Vec3 {
+        self.collider_of
+            .get(collider)
+            .ok()
+            .and_then(|of| self.velocity.get(of.body).ok())
+            .map_or(Vec3::ZERO, |velocity| **velocity)
+    }
+
+    /// The pose the sweep tests a collider at: its OWN body's sampled pose
+    /// composed with its local transform.
+    ///
+    /// Deliberately not the collider's own [`Position`]. Avian writes a child
+    /// collider's world pose at the top of the step and a body-owned one after
+    /// the solver, so on a moving ship the two are a step apart - and the rake
+    /// resolves everything in the body's rest frame, where one consistent pose
+    /// sample is the whole of its exactness.
+    fn collider_pose(&self, collider: Entity) -> Option<(Vec3, Quat)> {
+        let local = self.collider_local.get(collider).ok()?;
+        let of = self.collider_of.get(collider).ok()?;
+        let (position, rotation) = self.body_pose.get(of.body).ok()?;
+        Some((
+            position.0 + rotation.0 * local.translation,
+            rotation.0 * local.rotation.0,
+        ))
+    }
+
+    /// Where the corridor meets `collider`: the point on it nearest the line of
+    /// flight, that point's depth along the line, and its distance off it.
+    ///
+    /// Alternating projection, seeded from the collider's own centre - project
+    /// the axis point onto the surface, re-read the depth the result sits at,
+    /// project again. Two passes settle a convex shape, and every section, rock
+    /// node and plate this sweep meets is convex. The point matters as much as
+    /// the health does: a lateral bite recorded on the central axis carves the
+    /// corridor in the wrong place and puts the impact cue somewhere the player
+    /// can see nothing happened.
+    fn corridor_contact(&self, collider: Entity, from: Vec3, heading: Dir3) -> Option<Corridor> {
+        let (centre, rotation) = self.collider_pose(collider)?;
+        let shape = self.shape.get(collider).ok()?;
+        let mut at = centre;
+        let mut depth = (centre - from).dot(*heading);
+        for _ in 0..CORRIDOR_CONTACT_PASSES {
+            let axis = from + heading * depth;
+            at = shape.project_point(centre, rotation, axis, true).0;
+            depth = (at - from).dot(*heading);
+        }
+        Some(Corridor {
+            at,
+            depth,
+            offset: (at - from - heading * depth).length(),
+        })
+    }
+}
+
+/// Where one candidate sits against the corridor the round is cutting.
+struct Corridor {
+    /// The point on the candidate nearest the line of flight, in the frame the
+    /// sweep measured it in.
+    at: Vec3,
+    /// How far along the line of flight that point sits.
+    depth: f32,
+    /// How far off the line of flight it sits.
+    offset: f32,
+}
+
+/// One contact the step found: what was struck, when the round reached it, how
+/// far off the bore it sat, and where the bite lands.
+struct Contact {
+    collider: Entity,
+    /// The body it hangs off, so a direct hit can arm the rake against it.
+    body: Entity,
+    /// Seconds from the start of the step. THE sort key, and it is a time
+    /// rather than a distance because two targets moving at different speeds
+    /// have no shared notion of depth.
+    elapsed: f32,
+    /// Distance off the line of flight. The tie-break, so an exhausted budget
+    /// leaves a centred hole rather than an arbitrary half-cut.
+    offset: f32,
+    /// World-space point the bite is dealt at.
+    at: Vec3,
+    /// Closing speed against the body, which prices the crossing.
+    closing: f32,
+    /// Whether the narrow tip struck it, as opposed to the trailing sphere.
+    direct: bool,
+}
+
+/// What one forward cast resolved.
+struct TipHit {
+    collider: Entity,
+    /// Seconds from the START of the step, for ordering against a lateral.
+    elapsed: f32,
+    /// Seconds from where the tip stood when the cast went out, which is what
+    /// the walk advances by.
+    impact: f32,
+    at: Vec3,
+    closing: f32,
+}
+
+/// The tip's walk along one step: where it has got to, what is left of the
+/// step, and the near misses it has already looked past.
+struct TipWalk {
+    /// The cast shape, matching the collider a body-backed round carried.
+    shape: Collider,
+    origin: Vec3,
+    /// TIME crossed and time left, not distance: the exact test works in a
+    /// target's rest frame, where the round covers a different distance.
+    elapsed: f32,
+    remaining: f32,
+    /// Candidates the exact test rejected. They are near misses this step, not
+    /// bites, so they must not enter `bitten` and be ignored forever.
+    rejected: [Entity; REJECT_BUDGET],
+    rejects: usize,
+    bites: usize,
+    /// What this step's casts have already resolved. [`RoundBitten`] covers
+    /// this for a walk that charges as it goes; a walk that defers the charge
+    /// (see [`sweep_raking`]) has nothing else to stop the next cast finding
+    /// the same collider at distance zero.
+    found: Vec<Entity>,
+}
+
+impl TipWalk {
+    fn new(sweep: Sweep) -> Self {
+        Self {
+            shape: Collider::sphere(ROUND_RADIUS),
+            origin: sweep.start,
+            elapsed: 0.0,
+            remaining: sweep.dt,
+            rejected: [Entity::PLACEHOLDER; REJECT_BUDGET],
+            rejects: 0,
+            bites: 0,
+            found: Vec::new(),
+        }
+    }
+
+    /// The next collider the tip actually reaches, skipping what it has bitten,
+    /// what it has already looked past, and anything in `skip`.
+    fn next(
+        &mut self,
+        world: &SweepWorld,
+        sweep: Sweep,
+        owner: Option<&ProjectileOwner>,
+        bitten: &RoundBitten,
+        skip: &[Entity],
+    ) -> Option<TipHit> {
+        while self.remaining > 0.0
+            && self.bites < MAX_BITES_PER_STEP
+            && self.rejects < REJECT_BUDGET
+        {
             // Copied, not borrowed: the predicate is handed to the cast while
             // `bitten` still has to be written after it returns.
             let already = *bitten;
-            let near = &rejected[..rejects];
-            let found = spatial.cast_shape_predicate(
-                &round_shape,
-                origin,
+            let near = &self.rejected[..self.rejects];
+            let found = &self.found;
+            let candidate = world.spatial.cast_shape_predicate(
+                &self.shape,
+                self.origin,
                 Quat::IDENTITY,
-                direction,
-                &ShapeCastConfig::from_max_distance(speed * remaining)
-                    .with_target_distance(candidate_margin),
+                sweep.direction,
+                &ShapeCastConfig::from_max_distance(sweep.speed * self.remaining)
+                    // What the candidate pass has to look past: one step of
+                    // target motion (the pose sample) plus the widest
+                    // acceptance margin the exact test can allow, taken at the
+                    // fastest closing speed in the world so one shape serves
+                    // every round.
+                    .with_target_distance(sweep.reach),
                 &SpatialQueryFilter::default(),
                 &|collider| {
-                    passable(collider, owner, &q_sensors, &q_collider_of)
+                    passable(collider, owner, &world.sensors, &world.collider_of)
                         && !already.contains(collider)
                         && !near.contains(&collider)
+                        && !found.contains(&collider)
+                        && !skip.contains(&collider)
                 },
-            );
-            let Some(candidate) = found else {
-                break;
-            };
+            )?;
 
-            // Velocities live on the BODIES, not the colliders. A target with
-            // no body of its own (or no velocity: a Static planetoid) counts as
-            // at rest, which is what it is.
-            let target_velocity = q_collider_of
-                .get(candidate.entity)
-                .ok()
-                .and_then(|of| q_velocity.get(of.body).ok())
-                .map_or(Vec3::ZERO, |velocity| **velocity);
-
+            let target_velocity = world.body_velocity_of(candidate.entity);
             let Some(impact) = rest_frame_impact(
-                &spatial,
-                &round_shape,
+                &world.spatial,
+                &self.shape,
                 candidate.entity,
-                origin,
-                **velocity,
+                self.origin,
+                sweep.velocity,
                 target_velocity,
-                remaining,
-                dt,
+                self.remaining,
+                sweep.dt,
             ) else {
                 // Widened past it: close enough to be a candidate, not close
                 // enough to be a hit. Skip it and look further along.
-                rejected[rejects] = candidate.entity;
-                rejects += 1;
+                self.rejected[self.rejects] = candidate.entity;
+                self.rejects += 1;
                 continue;
             };
 
-            let at = origin + **velocity * impact;
-            let closing = closing_speed(**velocity, target_velocity);
-            // A collider with no Health is a wall to either round type.
-            let health = q_health.get(candidate.entity).ok();
-            trace!(
-                "advance_rounds: round {:?} struck {:?} (health {}, closing {:.1}) at {:?}",
-                entity,
-                candidate.entity,
-                health.is_some(),
-                closing,
-                at
-            );
-            match spend_piercing_damage(
-                &mut commands,
-                candidate.entity,
-                Some(entity),
-                health,
-                *damage,
-                closing,
-                Some(at),
-            ) {
-                Some(remainder) => {
-                    *damage = remainder;
-                    bitten.remember(candidate.entity);
-                    bites += 1;
-                    let skin = if speed > 0.0 {
-                        PIERCE_SKIN / speed
-                    } else {
-                        0.0
-                    };
-                    let advance = (impact + skin).min(remaining);
-                    origin += **velocity * advance;
-                    remaining -= advance;
-                }
-                None => {
-                    // Expended on this layer: it stops where it struck, so the
-                    // last rendered frame and any hit effect sit on the surface
-                    // rather than a step past it.
-                    transform.translation = at;
-                    commands.entity(entity).try_despawn();
-                    break;
-                }
+            self.bites += 1;
+            self.found.push(candidate.entity);
+            return Some(TipHit {
+                collider: candidate.entity,
+                elapsed: self.elapsed + impact,
+                impact,
+                at: self.origin + sweep.velocity * impact,
+                closing: closing_speed(sweep.velocity, target_velocity),
+            });
+        }
+        None
+    }
+
+    /// Restart the walk just past a resolved hit, so the next cast leaves the
+    /// surface it crossed rather than starting inside it.
+    fn advance(&mut self, sweep: Sweep, impact: f32) {
+        let skin = if sweep.speed > 0.0 {
+            PIERCE_SKIN / sweep.speed
+        } else {
+            0.0
+        };
+        let advance = (impact + skin).min(self.remaining);
+        self.origin += sweep.velocity * advance;
+        self.elapsed += advance;
+        self.remaining -= advance;
+    }
+}
+
+/// The narrow sweep: cast forward, charge whatever the exact test confirms, and
+/// restart from the surface just crossed. What every round that is not raking
+/// does, and what a raking round's tip still does.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the round's whole mutable state, at one call site"
+)]
+fn sweep_narrow(
+    commands: &mut Commands,
+    world: &SweepWorld,
+    entity: Entity,
+    transform: &mut Transform,
+    bitten: &mut RoundBitten,
+    damage: &mut ProjectileDamage,
+    owner: Option<&ProjectileOwner>,
+    sweep: Sweep,
+) {
+    let mut walk = TipWalk::new(sweep);
+    while let Some(hit) = walk.next(world, sweep, owner, bitten, &[]) {
+        // A collider with no Health is a wall to either round type.
+        let health = world.health.get(hit.collider).ok();
+        trace!(
+            "advance_rounds: round {:?} struck {:?} (health {}, closing {:.1}) at {:?}",
+            entity,
+            hit.collider,
+            health.is_some(),
+            hit.closing,
+            hit.at
+        );
+        match spend_piercing_damage(
+            commands,
+            hit.collider,
+            Some(entity),
+            health,
+            *damage,
+            hit.closing,
+            Some(hit.at),
+        ) {
+            Some(remainder) => {
+                *damage = remainder;
+                bitten.remember(hit.collider);
+                walk.advance(sweep, hit.impact);
+            }
+            None => {
+                // Expended on this layer: it stops where it struck, so the
+                // last rendered frame and any hit effect sit on the surface
+                // rather than a step past it.
+                transform.translation = hit.at;
+                commands.entity(entity).try_despawn();
+                return;
             }
         }
+    }
+}
+
+/// The raking sweep: find where the tip goes and what it arms, sweep the
+/// trailing sphere over the ground it crossed, then charge for BOTH in the
+/// order the round reached them.
+///
+/// THREE passes and not one, because the two halves share one budget. What
+/// stops the round is not knowable while the tip is still walking: a section
+/// beside the corridor costs exactly what a section on it costs, so a shell can
+/// run out on a lateral hit at a depth the tip has not reached yet. Pass one
+/// therefore only DISCOVERS, against a provisional budget that can only ever
+/// over-estimate how far the tip gets - laterals spend more, never less - so
+/// its walk is an upper bound on the real one and nothing real is missed.
+/// Nothing is charged until pass three walks the merged list in travel order
+/// and stops where the power runs out.
+///
+/// Nothing here caps the merged list. [`MAX_BITES_PER_STEP`] still bounds how
+/// many times the tip CASTS, which is what it was always for, but the trailing
+/// sphere's candidates come out of one intersection test and are bounded by the
+/// geometry that was really there. The authored power budget is the only thing
+/// that decides how much of it gets paid for.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the round's whole mutable state, at one call site"
+)]
+fn sweep_raking(
+    commands: &mut Commands,
+    world: &SweepWorld,
+    entity: Entity,
+    transform: &mut Transform,
+    bitten: &mut RoundBitten,
+    damage: &mut ProjectileDamage,
+    owner: Option<&ProjectileOwner>,
+    rake: &mut RoundRake,
+    sweep: Sweep,
+) {
+    let mut contacts: Vec<Contact> = Vec::new();
+    let mut armed_now: Vec<(Entity, f32)> = Vec::new();
+
+    // PASS ONE: the tip. It alone decides what the rake is allowed to touch -
+    // a body the narrow round only passed near is never armed, so a widened
+    // near miss stays a miss and one ship cannot be opened by a shot lined up
+    // on the ship beside it.
+    let mut walk = TipWalk::new(sweep);
+    let mut provisional = *damage;
+    while let Some(hit) = walk.next(world, sweep, owner, bitten, &rake.charged) {
+        let body = world.body_of(hit.collider);
+        if !rake.is_armed(body) && !armed_now.iter().any(|&(known, _)| known == body) {
+            armed_now.push((body, hit.elapsed));
+        }
+        contacts.push(Contact {
+            collider: hit.collider,
+            body,
+            elapsed: hit.elapsed,
+            offset: 0.0,
+            at: hit.at,
+            closing: hit.closing,
+            direct: true,
+        });
+        let Some(left) = pierce_remainder(
+            provisional,
+            world.health.get(hit.collider).ok(),
+            hit.closing,
+        ) else {
+            break;
+        };
+        provisional = left;
+        walk.advance(sweep, hit.impact);
+    }
+
+    // PASS TWO: the trailing sphere, once per armed body so each is swept in
+    // the rest frame its own motion defines. A body armed THIS step is only
+    // raked from the instant the tip reached it: everything before that is a
+    // sphere passing a target the round had not hit yet.
+    let direct: Vec<Entity> = contacts.iter().map(|contact| contact.collider).collect();
+    let armed_before = rake.armed.clone();
+    for body in armed_before {
+        collect_rake_contacts(world, rake, body, 0.0, owner, sweep, &direct, &mut contacts);
+    }
+    for &(body, armed_at) in &armed_now {
+        collect_rake_contacts(
+            world,
+            rake,
+            body,
+            armed_at,
+            owner,
+            sweep,
+            &direct,
+            &mut contacts,
+        );
+    }
+
+    // PASS THREE: charge, in the order the round reached them. Nearer wins;
+    // at the same depth the axis is paid before the edge, so a budget that runs
+    // out leaves a centred hole.
+    contacts.sort_by(|left, right| {
+        left.elapsed
+            .total_cmp(&right.elapsed)
+            .then(left.offset.total_cmp(&right.offset))
+            .then(left.collider.to_bits().cmp(&right.collider.to_bits()))
+    });
+    for contact in contacts {
+        let health = world.health.get(contact.collider).ok();
+        trace!(
+            "advance_rounds: raking round {:?} struck {:?} (health {}, direct {}, offset {:.2}) \
+             at {:?}",
+            entity,
+            contact.collider,
+            health.is_some(),
+            contact.direct,
+            contact.offset,
+            contact.at
+        );
+        match spend_piercing_damage(
+            commands,
+            contact.collider,
+            Some(entity),
+            health,
+            *damage,
+            contact.closing,
+            Some(contact.at),
+        ) {
+            Some(remainder) => {
+                *damage = remainder;
+                bitten.remember(contact.collider);
+                rake.charge(contact.collider);
+                if contact.direct {
+                    rake.arm(contact.body);
+                }
+            }
+            None => {
+                // Expended here. The tip is what stops, and when a LATERAL
+                // spends the last of the budget the tip is level with it - the
+                // sphere's front face is tangent to the tip - so the round
+                // stops on the axis at that depth.
+                transform.translation = sweep.start + sweep.velocity * contact.elapsed;
+                commands.entity(entity).try_despawn();
+                return;
+            }
+        }
+    }
+}
+
+/// Everything the trailing sphere swept through on one armed body this step.
+///
+/// The sphere's centre trails the tip by exactly its own radius, so what it
+/// sweeps over a step is the capsule between the two centres: its front face is
+/// tangent to the tip at every instant, which is what makes a section AHEAD of
+/// the round unreachable, and its rear cap is flush with the last step's, which
+/// is what makes the corridor continuous. It keeps sweeping after the tip has
+/// left the far side of the body, and that is what opens an exit the same width
+/// as the corridor rather than a bore-sized one.
+///
+/// Swept in the BODY's rest frame, for the reason [`rest_frame_impact`] gives:
+/// one pose sample spans a whole step, so a body that moved during it is tested
+/// where it started. A volume this fat would have survived the approximation
+/// where the narrow tip could not - but the contact points are what the carve
+/// and the impact cue are placed at, and a corridor drawn a step of ship motion
+/// away from its own hole is visible.
+///
+/// The capsule is resolved ANALYTICALLY, from the corridor measurement, and not
+/// by handing parry a capsule collider to intersection-test. At 1500 u/s a step
+/// is 23 units long, and a shape that thin and that long is badly enough
+/// conditioned for GJK that shallow overlaps come back as misses: swept down a
+/// 5x5x4 lattice of unit cells it reported 31 of the 36 it covers, dropping the
+/// four cells whose corners reach 0.29 into it while taking the identical four
+/// one layer deeper. The corridor already measures the nearest point, its depth
+/// and its offset exactly, and comparing that against the sphere's centre track
+/// is both the same test and a cheaper one.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one body's sweep needs the whole flight and both exclusion sets"
+)]
+fn collect_rake_contacts(
+    world: &SweepWorld,
+    rake: &RoundRake,
+    body: Entity,
+    armed_at: f32,
+    owner: Option<&ProjectileOwner>,
+    sweep: Sweep,
+    direct: &[Entity],
+    out: &mut Vec<Contact>,
+) {
+    let body_velocity = world
+        .velocity
+        .get(body)
+        .map_or(Vec3::ZERO, |velocity| **velocity);
+    let relative = sweep.velocity - body_velocity;
+    let Ok(heading) = Dir3::new(relative) else {
+        // A body running exactly with the round never meets it.
+        return;
+    };
+    let pace = relative.length();
+    let closing = closing_speed(sweep.velocity, body_velocity);
+    // The sphere's centre, in depth from where the round started the step: it
+    // begins one radius BEHIND the start, because it trails the tip by exactly
+    // that, and ends one radius behind wherever the tip finished.
+    let track = -rake.radius..=(pace * sweep.dt - rake.radius);
+
+    // The BODY's own colliders are the whole candidate set - which is what
+    // arming means - so there is no world query here to cap, and no layer
+    // count either. What bounds the rake is the power budget, and only that.
+    let Ok(colliders) = world.body_colliders.get(body) else {
+        return;
+    };
+    for collider in colliders.iter() {
+        if direct.contains(&collider)
+            || rake.has_charged(collider)
+            || !passable(collider, owner, &world.sensors, &world.collider_of)
+        {
+            continue;
+        }
+        let Some(corridor) = world.corridor_contact(collider, sweep.start, heading) else {
+            continue;
+        };
+        // Beside the track this is the offset outright, which is the cylinder;
+        // past either end it leans into the cap, which is what keeps a section
+        // the tip has not reached yet out.
+        let lead = corridor.depth - corridor.depth.clamp(*track.start(), *track.end());
+        if corridor.offset.hypot(lead) > rake.radius {
+            continue;
+        }
+        let elapsed = (corridor.depth / pace).clamp(0.0, sweep.dt);
+        if elapsed < armed_at {
+            continue;
+        }
+        out.push(Contact {
+            collider,
+            body,
+            elapsed,
+            offset: corridor.offset,
+            // Back into world space: by the time the sphere reaches this point
+            // the body has run on from the pose the sweep sampled it at.
+            at: corridor.at + body_velocity * elapsed,
+            closing,
+            direct: false,
+        });
     }
 }
 
@@ -413,31 +978,22 @@ fn rest_frame_impact(
 /// The first tangible, non-owner collider on the segment expends an
 /// authorless round. Split out only to keep [`advance_rounds`] readable; a
 /// production round always carries [`ProjectileDamage`].
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the cast needs its whole context and this is one call site"
-)]
 fn resolve_undamaged(
     commands: &mut Commands,
     entity: Entity,
-    spatial: &SpatialQuery,
-    shape: &Collider,
-    margin: f32,
-    origin: Vec3,
-    direction: Dir3,
+    world: &SweepWorld,
+    sweep: Sweep,
     distance: f32,
     owner: Option<&ProjectileOwner>,
-    q_sensors: &Query<(), With<Sensor>>,
-    q_collider_of: &Query<&ColliderOf>,
 ) {
-    let hit = spatial.cast_shape_predicate(
-        shape,
-        origin,
+    let hit = world.spatial.cast_shape_predicate(
+        &Collider::sphere(ROUND_RADIUS),
+        sweep.start,
         Quat::IDENTITY,
-        direction,
-        &ShapeCastConfig::from_max_distance(distance).with_target_distance(margin),
+        sweep.direction,
+        &ShapeCastConfig::from_max_distance(distance).with_target_distance(sweep.reach),
         &SpatialQueryFilter::default(),
-        &|collider| passable(collider, owner, q_sensors, q_collider_of),
+        &|collider| passable(collider, owner, &world.sensors, &world.collider_of),
     );
     if hit.is_some() {
         commands.entity(entity).try_despawn();
@@ -1439,6 +1995,522 @@ mod tests {
             plate_health(&app, shooter),
             100.0,
             "and must not damage it on the way"
+        );
+    }
+
+    // ---- The rake: what a slug that cuts wider than its bore may touch ----
+
+    /// A hull cell. Every shipped hull section is a unit cube, so the rake
+    /// tests are priced against the same geometry the catalog authors.
+    const RAKE_CELL: f32 = 1.0;
+
+    /// A reinforced hull cell's health, which is the thickest layer in the
+    /// catalog and the one the lance is balanced against.
+    const RAKE_CELL_HP: f32 = 200.0;
+
+    /// The base lance's rake. One cell wide: it reaches every immediate
+    /// neighbour of the column the tip crossed (a face at 0.5, a diagonal at
+    /// 0.707) and nothing in the ring past it (1.5).
+    const RAKE_TEST_RADIUS: f32 = 1.0;
+
+    /// Where a raking slug sets off from, comfortably clear of every fixture.
+    const RAKE_START_Z: f32 = 6.0;
+
+    /// A hull of cells on ONE body, which is what a ship is: every section is a
+    /// child collider of the same root, and that root is the rake's whole
+    /// notion of a target. Returns the body and its cells, in the order given.
+    fn spawn_hull(app: &mut App, centres: &[Vec3], hp: f32) -> (Entity, Vec<Entity>) {
+        let body = app
+            .world_mut()
+            .spawn((Name::new("hull"), RigidBody::Dynamic, Transform::default()))
+            .id();
+        let cells = centres
+            .iter()
+            .map(|&centre| {
+                app.world_mut()
+                    .spawn((
+                        ChildOf(body),
+                        SectionMarker,
+                        Transform::from_translation(centre),
+                        Collider::cuboid(RAKE_CELL, RAKE_CELL, RAKE_CELL),
+                        ColliderDensity(1.0),
+                        Health::new(hp),
+                    ))
+                    .id()
+            })
+            .collect();
+        (body, cells)
+    }
+
+    /// The shipped lance's muzzle speed, which puts a whole fixture inside ONE
+    /// step: 1500 u/s is 23 units of travel per fixed tick.
+    const RAKE_SHIPPED_SPEED: f32 = 1500.0;
+
+    /// A lance slug flying -Z from [`RAKE_START_Z`] at the anchor closing speed,
+    /// where the pierce multiplier reads exactly 1.0 and a crossing costs the
+    /// layer's max health outright.
+    fn spawn_lance_slug(app: &mut App, power: f32, rake: Option<f32>) -> Entity {
+        spawn_lance_slug_at(app, power, rake, PIERCE_TEST_SPEED)
+    }
+
+    /// The same slug at a chosen speed, for the tests that are about how much of
+    /// the flight one step covers.
+    fn spawn_lance_slug_at(app: &mut App, power: f32, rake: Option<f32>, speed: f32) -> Entity {
+        let mut slug = app.world_mut().spawn((
+            Name::new("slug"),
+            RailgunSlugProjectileMarker,
+            Transform::from_translation(Vec3::Z * RAKE_START_Z),
+            RoundVelocity(Vec3::NEG_Z * speed),
+            ProjectileDamage {
+                // Past a reinforced cell's whole pool, as the shipped lance's
+                // is: what a cell LOSES is its health, and the arithmetic under
+                // test is the power budget.
+                amount: 300.0,
+                power,
+                // The owner's call, and the shipped lance's: power is the only
+                // bound.
+                layers: u32::MAX,
+                kind: DamageType::Pierce,
+            },
+        ));
+        if let Some(radius) = rake {
+            slug.insert(RoundRake::new(radius));
+        }
+        slug.id()
+    }
+
+    /// Fly the slug far enough to clear every rake fixture.
+    fn fly(app: &mut App) {
+        for _ in 0..24 {
+            app.update();
+        }
+    }
+
+    fn hurt(app: &App, cell: Entity, hp: f32) -> bool {
+        plate_health(app, cell) < hp
+    }
+
+    /// Every [`SurfaceImpact`] the sweep reported, in order.
+    #[derive(Resource, Default)]
+    struct Impacts(Vec<(Entity, Vec3)>);
+
+    fn record_impacts(impact: On<SurfaceImpact>, mut log: ResMut<Impacts>) {
+        log.0.push((impact.entity, impact.at));
+    }
+
+    /// Where the sweep said it struck `cell`.
+    fn impact_on(app: &App, cell: Entity) -> Vec3 {
+        app.world()
+            .resource::<Impacts>()
+            .0
+            .iter()
+            .find(|(entity, _)| *entity == cell)
+            .expect("the cell reported no impact")
+            .1
+    }
+
+    /// A 3x3 face of cells centred on the bore, one cell deep.
+    fn cross_section(z: f32) -> Vec<Vec3> {
+        let mut cells = vec![Vec3::new(0.0, 0.0, z)];
+        for x in [-1.0f32, 0.0, 1.0] {
+            for y in [-1.0f32, 0.0, 1.0] {
+                if x != 0.0 || y != 0.0 {
+                    cells.push(Vec3::new(x, y, z));
+                }
+            }
+        }
+        cells
+    }
+
+    /// The old gun, unchanged. A lance with no authored rake spawns a slug with
+    /// no [`RoundRake`] at all, and that slug cuts exactly the column its bore
+    /// crossed - which is the whole of the compatibility promise the optional
+    /// field makes to content authored before it existed.
+    #[test]
+    fn a_slug_with_no_rake_cuts_only_the_cell_its_bore_crossed() {
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(&mut app, &cross_section(0.0), RAKE_CELL_HP);
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, None);
+        fly(&mut app);
+
+        assert!(
+            hurt(&app, cells[0], RAKE_CELL_HP),
+            "the bore's own cell was not cut"
+        );
+        for (index, cell) in cells.iter().enumerate().skip(1) {
+            assert!(
+                !hurt(&app, *cell, RAKE_CELL_HP),
+                "neighbour {index} was cut by a slug carrying no rake"
+            );
+        }
+    }
+
+    /// The rake proper: the tip's own cell arms the body, and the sphere
+    /// trailing it takes every immediate neighbour of the column with it.
+    #[test]
+    fn a_raked_slug_opens_the_cells_around_the_one_its_tip_crossed() {
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(&mut app, &cross_section(0.0), RAKE_CELL_HP);
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        for (index, cell) in cells.iter().enumerate() {
+            assert!(
+                hurt(&app, *cell, RAKE_CELL_HP),
+                "cell {index} sat inside the corridor and was not cut"
+            );
+        }
+    }
+
+    /// THE WHOLE CORRIDOR IN ONE STEP. At the shipped 1500 u/s a fixed tick is
+    /// 23 units of travel, so a hull this size is crossed entirely inside one
+    /// sweep and the trailing capsule is 23 units long against a 1-unit cell.
+    ///
+    /// Handing a shape that long to parry's intersection test loses the cells it
+    /// only shallowly overlaps - the four corners at 0.707 read as misses while
+    /// the four faces at 0.5 read as hits, and the same four one layer deeper
+    /// read as hits too. The sweep resolves the capsule analytically instead,
+    /// and this pins that: a corridor that thins to a plus sign at the entry
+    /// face and opens to a square one cell in is the shape of that bug.
+    #[test]
+    fn a_raked_slug_crossing_in_one_step_still_takes_the_shallow_corners() {
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(&mut app, &cross_section(0.0), RAKE_CELL_HP);
+        settle(&mut app);
+
+        spawn_lance_slug_at(
+            &mut app,
+            5_000.0,
+            Some(RAKE_TEST_RADIUS),
+            RAKE_SHIPPED_SPEED,
+        );
+        fly(&mut app);
+
+        for (index, cell) in cells.iter().enumerate() {
+            assert!(
+                hurt(&app, *cell, RAKE_CELL_HP),
+                "cell {index} sat inside the corridor and was not cut"
+            );
+        }
+    }
+
+    /// ARMING IS PER BODY. A hull the narrow tip never touched takes nothing,
+    /// however far inside the trailing sphere it sits - so a shot lined up on
+    /// one ship cannot open the ship flying beside it, and a widened near miss
+    /// is still a miss.
+    #[test]
+    fn a_body_the_tip_never_touched_takes_no_rake_damage() {
+        let mut app = round_app();
+        let (_, aimed) = spawn_hull(&mut app, &[Vec3::ZERO], RAKE_CELL_HP);
+        // Half a unit off the bore: well inside a one-unit rake, and its own
+        // body.
+        let (_, beside) = spawn_hull(&mut app, &[Vec3::new(1.0, 0.0, 0.0)], RAKE_CELL_HP);
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        assert!(
+            hurt(&app, aimed[0], RAKE_CELL_HP),
+            "the hull the shot was lined up on was not cut"
+        );
+        assert!(
+            !hurt(&app, beside[0], RAKE_CELL_HP),
+            "a hull the tip never struck was raked through its neighbour's hit"
+        );
+    }
+
+    /// The sphere TRAILS. Its front face is tangent to the tip, so at every
+    /// instant of the flight nothing has been cut that the round has not yet
+    /// arrived at - checked as the invariant it is, once per step, rather than
+    /// as one reading at the end.
+    #[test]
+    fn the_rake_never_reaches_a_cell_the_tip_has_not_arrived_at() {
+        /// Half a cell, plus room for the step the reading is taken a moment
+        /// after.
+        const AHEAD_EPSILON: f32 = 1.0e-3;
+
+        let mut app = round_app();
+        let mut centres = Vec::new();
+        for layer in 0..6 {
+            let z = -(layer as f32) * 2.0;
+            centres.push(Vec3::new(0.0, 0.0, z));
+            centres.push(Vec3::new(1.0, 0.0, z));
+        }
+        let (_, cells) = spawn_hull(&mut app, &centres, RAKE_CELL_HP);
+        settle(&mut app);
+
+        let slug = spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        for _ in 0..24 {
+            app.update();
+            let Some(transform) = app.world().get::<Transform>(slug) else {
+                break;
+            };
+            let tip = transform.translation.z;
+            for (index, cell) in cells.iter().enumerate() {
+                if !hurt(&app, *cell, RAKE_CELL_HP) {
+                    continue;
+                }
+                // The near face of the cell: the first of it the round can
+                // possibly have reached.
+                let face = centres[index].z + RAKE_CELL * 0.5;
+                assert!(
+                    tip <= face + AHEAD_EPSILON,
+                    "cell {index} at z {face} was cut while the tip was still back at {tip}"
+                );
+            }
+        }
+    }
+
+    /// A section lying at an angle across the corridor is caught by the swept
+    /// CAPSULE, and it is caught on the part of itself that is really in the
+    /// way. Its centre sits two and a half units off the bore - past any rake -
+    /// while its near end reaches inside; a search that priced candidates by
+    /// their centres would call this a miss.
+    #[test]
+    fn an_angled_section_beside_the_corridor_is_raked() {
+        let mut app = round_app();
+        app.init_resource::<Impacts>();
+        app.add_observer(record_impacts);
+        let body = app
+            .world_mut()
+            .spawn((Name::new("hull"), RigidBody::Dynamic, Transform::default()))
+            .id();
+        let column = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                SectionMarker,
+                Transform::from_translation(Vec3::ZERO),
+                Collider::cuboid(RAKE_CELL, RAKE_CELL, RAKE_CELL),
+                ColliderDensity(1.0),
+                Health::new(RAKE_CELL_HP),
+            ))
+            .id();
+        let strut = app
+            .world_mut()
+            .spawn((
+                ChildOf(body),
+                SectionMarker,
+                Transform::from_translation(Vec3::new(2.5, 0.0, -2.5))
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::FRAC_PI_4)),
+                Collider::cuboid(0.6, 1.0, 6.0),
+                ColliderDensity(1.0),
+                Health::new(RAKE_CELL_HP),
+            ))
+            .id();
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        assert!(
+            hurt(&app, column, RAKE_CELL_HP),
+            "the bore's own cell was not cut"
+        );
+        assert!(
+            hurt(&app, strut, RAKE_CELL_HP),
+            "the angled strut reached into the corridor and was not raked"
+        );
+        let landed = impact_on(&app, strut);
+        assert!(
+            landed.x < RAKE_TEST_RADIUS,
+            "the strut's bite was recorded at {landed:?}, out at its centre rather than on \
+             the end of it that was really in the corridor"
+        );
+    }
+
+    /// ONCE PER ROUND, not once per step and not once per pass. The trailing
+    /// volume reaches BACKWARD, so a section resolved near a step boundary is
+    /// offered again on the next step; and the body stays armed across the
+    /// empty space inside a hull, so the far compartment is raked without the
+    /// near one being charged twice on the way.
+    #[test]
+    fn a_raked_cell_is_charged_once_across_steps_and_an_internal_gap() {
+        /// Deeper than the slug's bite, so what a cell lost is readable rather
+        /// than clamped at zero.
+        const DEEP_CELL_HP: f32 = 900.0;
+        const BITE: f32 = 300.0;
+
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(
+            &mut app,
+            &[
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                // A compartment twenty units on, past many whole steps of
+                // empty space.
+                Vec3::new(0.0, 0.0, -20.0),
+                Vec3::new(1.0, 0.0, -20.0),
+            ],
+            DEEP_CELL_HP,
+        );
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        for (index, cell) in cells.iter().enumerate() {
+            let left = plate_health(&app, *cell);
+            assert!(
+                (left - (DEEP_CELL_HP - BITE)).abs() < 0.05,
+                "cell {index} kept {left} of {DEEP_CELL_HP}: it was charged {} times, not once",
+                (DEEP_CELL_HP - left) / BITE
+            );
+        }
+    }
+
+    /// The width is paid for out of the DEPTH, not added beside it. The same
+    /// hull, the same budget, the same shot: the raking slug spends its power
+    /// on the cells beside the corridor and stops short of a layer the narrow
+    /// one reaches.
+    #[test]
+    fn a_lateral_bite_spends_the_slugs_power_and_stops_it_sooner() {
+        /// Three crossings of a reinforced cell at the anchor speed, and a
+        /// hundred over.
+        const THREE_LAYERS: f32 = 700.0;
+
+        fn deep_cell_survived(rake: Option<f32>) -> bool {
+            let mut app = round_app();
+            let mut centres = Vec::new();
+            for layer in 0..5 {
+                centres.push(Vec3::new(0.0, 0.0, -(layer as f32) * 2.0));
+            }
+            centres.push(Vec3::new(1.0, 0.0, 0.0));
+            centres.push(Vec3::new(1.0, 0.0, -2.0));
+            let (_, cells) = spawn_hull(&mut app, &centres, RAKE_CELL_HP);
+            settle(&mut app);
+
+            spawn_lance_slug(&mut app, THREE_LAYERS, rake);
+            fly(&mut app);
+
+            // The third cell down the bore: inside a narrow slug's budget,
+            // past a raking one's.
+            !hurt(&app, cells[2], RAKE_CELL_HP)
+        }
+
+        assert!(
+            !deep_cell_survived(None),
+            "a narrow slug on this budget should still reach the third layer"
+        );
+        assert!(
+            deep_cell_survived(Some(RAKE_TEST_RADIUS)),
+            "the rake cut two neighbours and still reached as deep as the narrow slug: \
+             the width is not being paid for out of the same power"
+        );
+    }
+
+    /// An exhausted budget leaves a CENTRED hole. Candidates are paid nearest
+    /// first and, at the same depth, from the axis outward, so a shell that
+    /// runs out mid-layer stops at the edge of what it opened rather than
+    /// cutting an arbitrary half of it. Deterministic, too: the same shot into
+    /// the same hull twice leaves the same hole.
+    #[test]
+    fn an_exhausted_rake_is_paid_from_the_axis_outward() {
+        /// Two crossings of a reinforced cell at the anchor speed, exactly.
+        const TWO_LAYERS: f32 = 400.0;
+        /// Wide enough to offer the cell in the second ring as a candidate
+        /// (its near face is 1.5 out), so the budget is what excludes it.
+        const WIDE_RAKE: f32 = 2.0;
+
+        fn run() -> [bool; 3] {
+            let mut app = round_app();
+            let (_, cells) = spawn_hull(
+                &mut app,
+                &[
+                    Vec3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    Vec3::new(2.0, 0.0, 0.0),
+                ],
+                RAKE_CELL_HP,
+            );
+            settle(&mut app);
+
+            spawn_lance_slug(&mut app, TWO_LAYERS, Some(WIDE_RAKE));
+            fly(&mut app);
+
+            [
+                hurt(&app, cells[0], RAKE_CELL_HP),
+                hurt(&app, cells[1], RAKE_CELL_HP),
+                hurt(&app, cells[2], RAKE_CELL_HP),
+            ]
+        }
+
+        assert_eq!(
+            run(),
+            [true, true, false],
+            "the two crossings the budget bought were not the two nearest the bore"
+        );
+        assert_eq!(run(), run(), "the same shot cut two different holes");
+    }
+
+    /// The sweep does not stop when the tip leaves. The sphere is a radius
+    /// BEHIND the tip, so the far side of a hull is opened after the round has
+    /// already passed through it - which is what makes the exit the same width
+    /// as the corridor instead of a bore-sized puncture.
+    #[test]
+    fn the_trailing_sphere_opens_the_far_side_after_the_tip_has_left() {
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(
+            &mut app,
+            &[
+                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, -1.0),
+                Vec3::new(0.0, 0.0, -2.0),
+                // Beside the exit and PAST the last cell on the bore: nothing
+                // here is on the line of fire, so only a sweep that keeps
+                // running after the tip is clear can reach it.
+                Vec3::new(1.0, 0.0, -3.5),
+            ],
+            RAKE_CELL_HP,
+        );
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        assert!(
+            hurt(&app, cells[2], RAKE_CELL_HP),
+            "the last cell on the bore was not crossed"
+        );
+        assert!(
+            hurt(&app, cells[3], RAKE_CELL_HP),
+            "the exit was left bore-sized: the sphere stopped sweeping with the tip"
+        );
+    }
+
+    /// A lateral bite lands ON THE SECTION IT BIT. Health alone cannot tell a
+    /// corridor from a needle: put every mark on the bore and the right
+    /// sections die while the hole is drawn in the wrong place.
+    #[test]
+    fn a_lateral_bite_is_recorded_where_the_corridor_met_the_cell() {
+        let mut app = round_app();
+        app.init_resource::<Impacts>();
+        app.add_observer(record_impacts);
+        let (_, cells) = spawn_hull(
+            &mut app,
+            &[Vec3::ZERO, Vec3::new(1.0, 0.0, 0.0)],
+            RAKE_CELL_HP,
+        );
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        let bore = impact_on(&app, cells[0]);
+        let lateral = impact_on(&app, cells[1]);
+        assert!(
+            bore.x.abs() < 0.1,
+            "the direct hit was recorded off the bore, at {bore:?}"
+        );
+        assert!(
+            (lateral.x - RAKE_CELL * 0.5).abs() < 0.1,
+            "the lateral bite was recorded at {lateral:?} rather than on the inner face of \
+             the cell it cut"
         );
     }
 }

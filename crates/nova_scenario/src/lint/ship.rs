@@ -211,9 +211,13 @@ fn check_reload_config(
     }
 }
 
-/// Flag a lance whose charge clock cannot run. A non-finite or negative
-/// `charge_seconds` divides the cue's progress by nonsense; zero is legal and
-/// means an instant commit, which is a design choice rather than a mistake.
+/// Flag a lance whose clock or whose corridor cannot be built.
+///
+/// A non-finite or negative `charge_seconds` divides the cue's progress by
+/// nonsense; zero is legal and means an instant commit, which is a design
+/// choice rather than a mistake. A non-finite or negative `rake_radius` is a
+/// sphere with no size to sweep; zero is legal there too and means the narrow
+/// gun, which is also what omitting the field means.
 fn check_railgun_charge(
     section_id: &str,
     config: &RailgunSectionConfig,
@@ -227,6 +231,18 @@ fn check_railgun_charge(
                 "section '{section_id}': railgun charge_seconds must be a finite, non-negative \
                  number of seconds, got {}",
                 config.charge_seconds
+            ),
+        ));
+    }
+    let bad_rake = config
+        .rake_radius
+        .filter(|radius| *radius < 0.0 || !radius.is_finite());
+    if let Some(radius) = bad_rake {
+        issues.push(LintIssue::error(
+            source,
+            format!(
+                "section '{section_id}': railgun rake_radius must be a finite, non-negative \
+                 number of units, got {radius}"
             ),
         ));
     }

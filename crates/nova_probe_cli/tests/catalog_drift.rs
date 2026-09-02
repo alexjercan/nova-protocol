@@ -215,6 +215,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "one slug rakes every layer",
             "recoil shoves the ship that fired",
             "the lance holds one shell",
+            "the authored rake rides the shot",
+            "the rake widens the corridor",
+            "the rake spends one budget",
+            "a wide rake craters instead of boring",
         ],
     ),
     (
