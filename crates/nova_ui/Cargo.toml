@@ -8,9 +8,9 @@ description = "Shared UI theme and widgets for the Nova Protocol game"
 
 [dependencies]
 bevy = { version = "0.19.0" }
-# The one definition of the world scale (`METERS_PER_UNIT`). `nova_events` is
-# the deepest crate both the display side and the physics side can reach, so
-# the formatter here and `nova_ship` read the same constant.
+# The physical quantity types the formatter takes. `nova_events` is the deepest
+# crate both the display side and the physics side can reach, so a readout and
+# a hull measure a meter the same way.
 nova_events = { path = "../nova_events" }
 # `serde` enables Serialize/Deserialize on `UiSkin` so it can persist through the
 # settings store, mirroring nova_gameplay's setting resources. Optional: the
