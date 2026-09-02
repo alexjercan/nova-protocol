@@ -82,7 +82,10 @@ pub enum SectionAnimationMotion {
     /// the node's placement rotation aims the slide, so two housing lids
     /// authored mirror-rotated part in opposite directions off one track.
     Translate {
-        /// Node-local displacement at full progress, in world units.
+        /// Node-local displacement at full progress, in world units (10 m
+        /// each). Mesh-frame geometry rather than an authored distance: it is
+        /// measured off the glTF node it slides, so it stays in the units that
+        /// model is built in.
         offset: Vec3,
     },
 }

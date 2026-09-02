@@ -233,7 +233,7 @@ mod ammunition_tests {
     /// Point-defense rounds one WEAVING torpedo costs a mount to stop, measured
     /// by `point_defense_cost_tests` (nova_ship, torpedo projectile) against the
     /// real lead solve and the real fire-alignment gate across the shipped
-    /// 150 u envelope. A straight torpedo costs 116; the terminal weave is what
+    /// 1,500 m envelope. A straight torpedo costs 116; the terminal weave is what
     /// makes it 369, and that tripling is why the bay's reload rate had to be
     /// re-derived rather than restored to what it was before the weave.
     const ROUNDS_PER_WEAVING_INTERCEPT: f32 = 369.0;

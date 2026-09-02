@@ -516,7 +516,7 @@ mod tests {
     fn a_hull_voice_is_never_attenuated_however_far_the_camera_pulls_back() {
         // The routing fact that replaces the old "if this is the player, skip
         // attenuation" special case: the survey dolly stretches the camera to
-        // 250 u and your own engines must not fade for it.
+        // 250 world units (2.5 km) and your own engines must not fade for it.
         let listener = listener_at(Vec3::new(0.0, 0.0, 250.0));
         let voice = voice_at(AudioRoute::Hull, 0.3, Vec3::ZERO);
         let placement = place_voice(&voice, 1.0, Some(&listener), &VoicePoint::At(Vec3::ZERO));

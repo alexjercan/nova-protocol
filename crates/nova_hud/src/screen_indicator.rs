@@ -354,10 +354,10 @@ fn arrow_angle(dir: Vec2) -> f32 {
 /// collider node, or a ship's sections), so the whole subtree is walked
 /// rather than just the root. SENSOR colliders are excluded by the query:
 /// they are invisible trigger volumes, not apparent size - a locked
-/// beacon's only collider is its 70u trigger sphere, and the reticle
-/// wrapped the trigger instead of the 2u orb - the same class of bug as the
-/// salvage-crate bracket. A sensor-only subtree yields None and the consumer
-/// falls back to its min_px.
+/// beacon's only collider is its authored 700 m trigger sphere, and the
+/// reticle wrapped the trigger instead of the 20 m orb - the same class of bug
+/// as the salvage-crate bracket. A sensor-only subtree yields None and the
+/// consumer falls back to its min_px.
 pub(crate) fn target_world_aabb(
     entity: Entity,
     q_children: &Query<&Children>,

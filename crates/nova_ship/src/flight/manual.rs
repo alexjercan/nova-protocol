@@ -1,6 +1,10 @@
 //! Manual piloting: the analog main-drive burn a pilot flies without an
 //! autopilot, and the RCS fine-adjust primitive both the pilot and the
 //! autopilot's terminal settle drive.
+//!
+//! Engine units throughout: the caps and tapers here are compared against an
+//! avian `LinearVelocity`, so a speed is a world unit per second and a world
+//! unit is 10 m.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;

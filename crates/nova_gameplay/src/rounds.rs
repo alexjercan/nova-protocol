@@ -3,6 +3,12 @@
 //! interacts with nothing but what it hits, which is what lets one shape cast
 //! replace a body. Change this module when a round gains a force, a shape, or a
 //! rule about what it may pass through.
+//!
+//! Engine units throughout: the round rides a Bevy transform and is swept
+//! against avian colliders, so every distance below is a world unit (10 m) and
+//! every speed a world unit per second. Authored fields the sweep is graded
+//! against - `muzzle_speed`, `slug_speed`, `blast_radius` - are quoted in the
+//! meters a creator reads in the content file.
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};
@@ -841,9 +847,10 @@ fn sweep_raking(
 /// away from its own hole is visible.
 ///
 /// The capsule is resolved ANALYTICALLY, from the corridor measurement, and not
-/// by handing parry a capsule collider to intersection-test. At 1500 u/s a step
-/// is 23 units long, and a shape that thin and that long is badly enough
-/// conditioned for GJK that shallow overlaps come back as misses: swept down a
+/// by handing parry a capsule collider to intersection-test. At the lance's
+/// authored 15 km/s a step is 23 units long, and a shape that thin and that
+/// long is badly enough conditioned for GJK that shallow overlaps come back as
+/// misses: swept down a
 /// 5x5x4 lattice of unit cells it reported 31 of the 36 it covers, dropping the
 /// four cells whose corners reach 0.29 into it while taking the identical four
 /// one layer deeper. The corridor already measures the nearest point, its depth
@@ -1004,10 +1011,10 @@ fn resolve_undamaged(
 ///
 /// Sensors are transparent for the reason they always were: scenario trigger
 /// areas, beacon spheres and blast shells are sensor colliders, and expending
-/// rounds on a beacon's 70u trigger boundary once made a pirate un-hittable
-/// while it patrolled near one. The firing body is transparent because the
-/// muzzle sits on its own hull - the rule [`ProjectileOwner`] used to enforce
-/// through avian's pair filter, which a non-body never reaches.
+/// rounds on a beacon's authored 700 m trigger boundary once made a pirate
+/// un-hittable while it patrolled near one. The firing body is transparent
+/// because the muzzle sits on its own hull - the rule [`ProjectileOwner`] used
+/// to enforce through avian's pair filter, which a non-body never reaches.
 fn passable(
     collider: Entity,
     owner: Option<&ProjectileOwner>,
@@ -2042,8 +2049,9 @@ mod tests {
         (body, cells)
     }
 
-    /// The shipped lance's muzzle speed, which puts a whole fixture inside ONE
-    /// step: 1500 u/s is 23 units of travel per fixed tick.
+    /// The shipped lance's muzzle speed, authored as 15 km/s, which puts a
+    /// whole fixture inside ONE step: 1500 world units per second is 23 units
+    /// of travel per fixed tick.
     const RAKE_SHIPPED_SPEED: f32 = 1500.0;
 
     /// A lance slug flying -Z from [`RAKE_START_Z`] at the anchor closing speed,
@@ -2166,9 +2174,10 @@ mod tests {
         }
     }
 
-    /// THE WHOLE CORRIDOR IN ONE STEP. At the shipped 1500 u/s a fixed tick is
-    /// 23 units of travel, so a hull this size is crossed entirely inside one
-    /// sweep and the trailing capsule is 23 units long against a 1-unit cell.
+    /// THE WHOLE CORRIDOR IN ONE STEP. At the lance's authored 15 km/s a fixed
+    /// tick is 23 units of travel, so a hull this size is crossed entirely
+    /// inside one sweep and the trailing capsule is 23 units long against a
+    /// 1-unit cell.
     ///
     /// Handing a shape that long to parry's intersection test loses the cells it
     /// only shallowly overlaps - the four corners at 0.707 read as misses while

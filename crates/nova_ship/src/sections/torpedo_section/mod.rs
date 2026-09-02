@@ -10,6 +10,14 @@
 //! [`SectionKind`] selects it. The private `bay`, `projectile` and `render`
 //! submodules hold the launch path, the in-flight systems and the particle/mesh
 //! rendering.
+//!
+//! Two unit registers meet here, and the type says which is which.
+//! [`TorpedoSectionConfig`] and [`TorpedoTypeConfig`] are the AUTHORED surface,
+//! so their distances and speeds are SI ([`Meters`], [`MetersPerSecond`]).
+//! Everything the bay copies onto a live projectile - [`TorpedoGuidance`],
+//! [`TorpedoBlast`] - has already crossed the seam and is in world units, one
+//! of which is 10 m. Mount geometry measured off the section mesh
+//! (`spawn_offset`, `spawn_recess`) stays in world units too.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -84,8 +92,10 @@ pub struct TorpedoSectionConfig {
     pub spawn_offset: Vec3,
     /// The rotation of the spawn point of the projectile relative to the torpedo section.
     pub spawn_rotation: Quat,
-    /// How far BEHIND the muzzle the torpedo is born, in units back along the
-    /// launch axis. `spawn_offset` is the muzzle point - the launch flash and
+    /// How far BEHIND the muzzle the torpedo is born, in world units (10 m
+    /// each) back along the launch axis - mount geometry measured off the
+    /// section mesh, like `spawn_offset`, so it stays in the units that mesh
+    /// is built in. `spawn_offset` is the muzzle point - the launch flash and
     /// the spatial sound play there - and the recess starts the torpedo this
     /// deep inside the tube so it slides out through the (open) muzzle door
     /// instead of materializing in front of it. `0.0` births it at the
@@ -311,7 +321,7 @@ pub struct TorpedoTypeConfig {
     /// would not be - a tint drawn from a random or a timer would put the
     /// frame's asset work back on the size of the salvo.
     pub tint: Color,
-    /// Cruise speed cap in units per second. The thruster tapers off as the
+    /// Cruise speed cap, in meters per second. The thruster tapers off as the
     /// torpedo approaches this speed. Without a cap the torpedo accelerates the
     /// whole flight and arrives so fast that its minimum turning circle
     /// (speed / turn rate) is larger than the proximity fuze - it then orbits
@@ -363,18 +373,20 @@ impl Default for TorpedoTypeConfig {
     /// combat model is balanced against (see the field docs for the exchange
     /// the angle buys).
     ///
-    /// The cruise cap is 32.0 against the straight type's 35.0, and it is the
-    /// evasive type's PRICE - the thing that makes "evasion costs something"
-    /// true rather than asserted. Swept against the three standing constraints
-    /// (`defend` for the first two, the real body for the third):
+    /// The cruise cap is 320 m/s against the straight type's 350 m/s, and it is
+    /// the evasive type's PRICE - the thing that makes "evasion costs
+    /// something" true rather than asserted. Swept against the three standing
+    /// constraints (`defend` for the first two, the real body for the third).
+    /// The cap column is the AUTHORED figure; the kill range is measured off
+    /// avian, so it is world units:
     ///
     /// | cap | rounds an intercept costs | killed at | arrival vs straight |
     /// |---|---|---|---|
-    /// | 35.0 | 369 (3.18x) | 38.8 u | **1.5% SOONER** |
-    /// | 34.0 | 375 (3.23x) | 39.0 u | +1.3% |
-    /// | **32.0** | **390 (3.36x)** | **39.9 u** | **+7.5%** |
-    /// | 30.0 | 409 (3.53x) | 41.8 u | +14.5% |
-    /// | 24.0 | 484 (4.17x) | 47.6 u | - |
+    /// | 350 m/s | 369 (3.18x) | 38.8 u | **1.5% SOONER** |
+    /// | 340 m/s | 375 (3.23x) | 39.0 u | +1.3% |
+    /// | **320 m/s** | **390 (3.36x)** | **39.9 u** | **+7.5%** |
+    /// | 300 m/s | 409 (3.53x) | 41.8 u | +14.5% |
+    /// | 240 m/s | 484 (4.17x) | 47.6 u | - |
     ///
     /// Dying CLOSE is the binding constraint and it erodes monotonically with
     /// the cap, so the value is the smallest cut that buys an arrival gap a
@@ -428,12 +440,13 @@ fn is_default_projectile_health(health: &f32) -> bool {
 
 /// Default [`TorpedoSectionConfig::ignition_delay`], in seconds.
 ///
-/// Sized against the bays that exist rather than picked: they eject at 8 units
-/// a second into damping, which carries the torpedo about 4 units - several
-/// body lengths, and clear of the hull - before the motor catches. Long enough
-/// that the drop and the burn read as two events at gameplay range, short
-/// enough that the launch is still prompt - and inside the 5-unit
-/// `arm_distance`, so nothing about the safety separation changes.
+/// Sized against the bays that exist rather than picked: they eject at the
+/// authored 80 m/s into damping, which carries the torpedo about 40 m -
+/// several body lengths, and clear of the hull - before the motor catches.
+/// Long enough that the drop and the burn read as two events at gameplay
+/// range, short enough that the launch is still prompt - and inside the
+/// authored 50 m `arm_distance`, so nothing about the safety separation
+/// changes.
 fn default_ignition_delay() -> f32 {
     0.6
 }

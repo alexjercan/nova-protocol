@@ -18,6 +18,11 @@
 //! lands on, the closing-speed curves, and the travel rule
 //! ([`spend_piercing_damage`]) that decides whether a round survives what it
 //! just hit.
+//!
+//! Closing speed here is an ENGINE quantity: it comes off an avian
+//! `LinearVelocity`, so it is world units per second and a world unit is 10 m.
+//! Where a curve is anchored on an AUTHORED field the doc quotes that field in
+//! meters, because meters is what a creator reads in the content file.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -163,10 +168,12 @@ impl SectionClass {
 /// nor knockback. Kept small but non-zero to avoid a zero-mass dynamic body.
 pub const NEUTRALIZED_BULLET_MASS: f32 = 1.0e-6;
 
-/// The closing speed both bullet curves read exactly 1.0 at, in units/second.
+/// The closing speed both bullet curves read exactly 1.0 at, in world units
+/// per second - the curves are graded against an avian `LinearVelocity`, and a
+/// world unit is 10 m.
 ///
-/// Chosen as the shipped PDC's `muzzle_speed` (100.0, on both PDC
-/// prototypes), which is also the speed
+/// Chosen as the shipped PDC's `muzzle_speed`, which a creator reads in the
+/// content file as 1000 m/s on both PDC prototypes, and which is also the speed
 /// [`representative_kinetic_damage`] authored the historical per-hit against.
 /// A round fired from a station-keeping ship at a station-keeping target closes
 /// at exactly its muzzle speed, so the normal engagement multiplier is 1.0 and

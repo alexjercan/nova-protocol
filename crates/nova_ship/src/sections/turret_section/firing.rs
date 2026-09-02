@@ -1,6 +1,11 @@
 //! Turret firing: the fixed-clock muzzle loop that spawns bullets and the
 //! bullet's own contact rule - deal the round's bite, then let its type decide
 //! whether it travels on.
+//!
+//! Engine units throughout: the muzzle pose is a Bevy transform and the stride
+//! is measured against an avian `LinearVelocity`, so every length here is a
+//! world unit (10 m) and every speed a world unit per second. The authored
+//! `muzzle_speed` crosses the seam once, where the round is spawned.
 
 use std::time::Duration;
 

@@ -10,6 +10,11 @@
 //! `left: 100%`, so UI layout keeps it on the reticle's scaled edge and
 //! visibility inheritance hides it with the reticle - no projection or
 //! visibility code of its own.
+//!
+//! The lock's range and closing speed arrive as ENGINE figures (world units,
+//! one of which is 10 m, off a transform and an avian `LinearVelocity`). They
+//! cross into meters once, through `Meters::from_engine` /
+//! `MetersPerSecond::from_engine`, and `nova_ui::units` formats them.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;

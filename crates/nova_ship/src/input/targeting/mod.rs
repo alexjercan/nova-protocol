@@ -29,6 +29,11 @@
 //! picker's gate, and [`ThreatContacts`] keeps the ranked hostile set alive
 //! for the edge-indicator arrows. All state lives on the PLAYER ship root as
 //! components (respawn hygiene; the AI mirrors the same components).
+//!
+//! ENGINE UNITS throughout: a lock gate is compared against a Bevy
+//! `GlobalTransform` every frame, so every range and signature here is world
+//! units, one of which is 10 m. A scenario authors a signature in METERS and
+//! the loader crosses the seam once, at spawn.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;

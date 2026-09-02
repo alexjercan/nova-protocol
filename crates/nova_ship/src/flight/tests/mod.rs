@@ -4,6 +4,11 @@
 //! and thruster impulse system, so these cover the whole diegetic pipeline:
 //! autopilot -> rotation command -> PD torque -> hull swings -> aligned ->
 //! spooled burn -> impulse -> velocity. No external forces anywhere.
+//!
+//! Engine units throughout this test tree: every rig reads and writes avian
+//! `Position` and `LinearVelocity` directly, so a distance is a world unit
+//! (10 m), a speed a world unit per second and an acceleration a world unit
+//! per second squared.
 
 mod control;
 mod goto;

@@ -15,9 +15,18 @@
 //! slug's transform ([`follow_railgun_wakes`]), and when the slug goes the
 //! emitter stops spawning and lingers for one lifetime before it despawns.
 //!
+//! # Units
+//!
+//! Engine units throughout: the wake rides a Bevy transform and is measured in
+//! the ground an avian body covered, so every length below is a world unit
+//! (10 m) and every rate is per world unit. The one AUTHORED number the wake
+//! is sized against is the lance's `slug_speed`, which a creator reads in the
+//! content file as 15 000 m/s - 1500 world units per second here.
+//!
 //! # Why particles are spread along the ground covered, not left at a point
 //!
-//! At 1500 u/s a slug crosses more than twenty units between two fixed steps.
+//! At the lance's 15 km/s a slug crosses more than twenty units between two
+//! fixed steps.
 //! A spawner that emits where the emitter IS draws the wake as a row of
 //! puffs one step apart. Instead every frame's particles are placed a random
 //! fraction of the way back along the segment the slug covered since the
@@ -50,7 +59,8 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RailgunWakeTuning {
     /// Seconds a haze particle lives. The wake's length is this times the
-    /// slug's speed: half a second is 750 units behind the shipped lance.
+    /// slug's speed: half a second is 750 world units - 7.5 km - behind the
+    /// shipped lance.
     pub lifetime: f32,
     /// Haze particles per world unit of flight.
     pub density: f32,
@@ -114,7 +124,7 @@ const LINGER_MARGIN: f32 = 0.05;
 /// Brightness of the light riding the slug, in lumens.
 pub const RAILGUN_SLUG_LIGHT_LUMENS: f32 = 300_000.0;
 
-/// How far the slug's light reaches, in world units.
+/// How far the slug's light reaches, in world units (250 m).
 pub const RAILGUN_SLUG_LIGHT_RANGE: f32 = 25.0;
 
 /// The light riding a slug. A child of the slug, so it dies with it and the
@@ -322,8 +332,8 @@ pub(super) fn follow_railgun_wakes(
 /// After hanabi's own tick, which wrote the asset's rate (zero) and would
 /// overwrite this if it ran second. Only a READY effect is charged: a spawn
 /// count set on one still compiling is dropped by the renderer, and the
-/// ground it covered would be lost from the wake - at 1500 u/s that is the
-/// first twenty-odd units of every shot.
+/// ground it covered would be lost from the wake - at the lance's 15 km/s that
+/// is the first twenty-odd units of every shot.
 pub(super) fn count_railgun_wake_spawns(
     mut q_emitter: Query<(
         &mut RailgunWakeEmitter,

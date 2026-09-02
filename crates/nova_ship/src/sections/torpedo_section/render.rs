@@ -1,5 +1,10 @@
 //! Render and particle systems for the torpedo bay and its in-flight
 //! projectile, gated behind the section plugin's `render` flag.
+//!
+//! Engine units throughout: meshes, particle offsets and `PointLight::range`
+//! all count world units, one of which is 10 m. Where a constant is sized
+//! against an AUTHORED field the doc quotes that field in meters, because
+//! meters is what a creator reads in the content file.
 
 use std::f32::consts::PI;
 
@@ -459,18 +464,19 @@ fn build_default_blast_core_effect() -> EffectAsset {
 /// How bright a detonation lights the hulls around it, in lumens.
 ///
 /// Sized against the blast radius rather than picked: `PointLight` falls off
-/// with the square of distance, so a light meant to still read at the 30-unit
-/// edge of the shipped warhead's damage sphere has to be large at its centre.
+/// with the square of distance, so a light meant to still read at the edge of
+/// the shipped warhead's 300 m damage sphere (30 units out) has to be large at
+/// its centre.
 /// This lands a little under bevy's own outdoor-sun illuminance at that edge,
 /// which is the intent - at the rim of a nuclear fireball, being lit like
 /// daylight is the understatement.
 const BLAST_LIGHT_LUMENS: f32 = 40_000_000.0;
 
-/// How far the detonation light reaches, in world units.
+/// How far the detonation light reaches, in world units (900 m).
 ///
-/// Three times the shipped 30-unit blast radius. The light is the only part of
-/// a detonation that is meant to be seen from outside it: the fireball says
-/// something went off there, and the light says it went off near YOU.
+/// Three times the shipped warhead's 300 m blast radius. The light is the only
+/// part of a detonation that is meant to be seen from outside it: the fireball
+/// says something went off there, and the light says it went off near YOU.
 const BLAST_LIGHT_RANGE: f32 = 90.0;
 
 /// How long the detonation light burns, in seconds.
@@ -599,8 +605,8 @@ pub(super) fn insert_particle_effect(
 /// launching ship's hull for a few frames as the torpedo pulls away.
 const IGNITION_LIGHT_LUMENS: f32 = 100_000.0;
 
-/// How far the ignition light reaches, in world units. Short: it is meant to
-/// light the bay it just left and nothing further.
+/// How far the ignition light reaches, in world units (180 m). Short: it is
+/// meant to light the bay it just left and nothing further.
 const IGNITION_LIGHT_RANGE: f32 = 18.0;
 
 /// How long the ignition light burns, in seconds. It is a light-off, not a

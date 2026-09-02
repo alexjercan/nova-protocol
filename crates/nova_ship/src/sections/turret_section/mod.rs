@@ -1,5 +1,10 @@
 //! A turret section is a component that can be added to an entity to give it a turret-like
 //! behavior.
+//!
+//! ENGINE UNITS in the submodules' internals: aim, firing and render all work
+//! against Bevy transforms and avian velocities, so a length there is a world
+//! unit (10 m) and a speed a world unit per second. The AUTHORED surface is
+//! [`TurretSectionConfig`], whose distances and speeds are SI.
 
 mod aim;
 mod arc;

@@ -18,6 +18,10 @@
 //! out that the two ear distances are nearly equal. Keeping the radius close to
 //! the ear gap is what makes the pan land on the right side at all; see
 //! `a_source_on_the_left_is_louder_in_the_left_ear`.
+//!
+//! Engine units throughout: the ear gap, the emitter sphere and every range
+//! quoted below are world units, one of which is 10 m. They are rig geometry
+//! measured against bevy transforms, not anything a creator authors.
 
 use bevy::prelude::*;
 

@@ -528,7 +528,8 @@ mod tests {
     #[test]
     fn the_hum_level_is_the_ships_own_throttle_undimmed_by_distance() {
         // Distance is the engine's business now: this layer reports the burn
-        // and nothing else, so a ship 400 u out still reports its full curve.
+        // and nothing else, so a ship 400 world units (4 km) out still reports
+        // its full curve.
         let mut app = loop_app();
         let ship = spawn_burning_ship(&mut app, Vec3::new(400.0, 0.0, 0.0), 0.5);
         settle(&mut app);

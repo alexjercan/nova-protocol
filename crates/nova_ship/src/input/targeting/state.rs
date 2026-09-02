@@ -35,10 +35,10 @@ pub struct TargetingSettings {
     /// dwell) as the ship drifts. Fresh acquisition still uses the plain
     /// gate.
     pub range_hysteresis: f32,
-    /// Lock range for committed torpedoes. Small object, hot drive: far
-    /// more visible than its size but not across the map. Covers every
-    /// real point-defense engagement (AI launch range 1000u, heat
-    /// fallback 550u) with margin; a playtest knob.
+    /// Lock range for committed torpedoes, world units. Small object, hot
+    /// drive: far more visible than its size but not across the map. 2500 u is
+    /// 25 km, which covers the AI's whole launch envelope
+    /// (`AI_TORPEDO_MAX_RANGE`, 1000 u / 10 km) with margin; a playtest knob.
     pub torpedo_lock_range: f32,
     /// Acquisition dwell: a candidate must stay steady under the ray for this
     /// many seconds AT POINT-BLANK before it hard-commits to its slot; the

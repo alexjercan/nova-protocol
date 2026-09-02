@@ -19,6 +19,10 @@
 //! material, which is a different effect with a different meaning
 //! ([`chunk`](super::chunk)).
 //!
+//! Engine units throughout: chip sizes, crater radii and throw speeds are
+//! world units (one is 10 m) and world units per second, because they are
+//! measured against carve-field geometry and avian velocities.
+//!
 //! # Dust, and only dust
 //!
 //! What this throws is decoration and nothing else. The material a hemisphere

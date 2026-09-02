@@ -21,14 +21,19 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 /// `muzzle_speed * projectile_lifetime`, and this factor turns that reach
 /// into the gate below. Muzzle speed is pinned by
 /// [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
-/// (both damage curves read 1.0 at 100 u/s), so LIFETIME is the only knob
-/// that moves reach, and everything here is tuned against the gate it
-/// produces. Shipped values, at 1 unit = 10 m:
+/// (both damage curves read 1.0 at the muzzle speed a creator authors as
+/// 1 000 m/s), so LIFETIME is the only knob that moves reach, and everything
+/// here is tuned against the gate it produces. The reach source is AUTHORED
+/// and quoted in meters; the reach and the gate are compared against avian
+/// positions, so they are world units, one of which is 10 m:
 ///
 /// | reach source | reach | fire gate (x0.9) |
 /// |---|---|---|
-/// | PDC / better turret, 100 u/s x 2.0 s | 200 u (2.0 km) | 180 u (1.8 km) |
-/// | light / enemy turret, 60 u/s x 3.0 s | 180 u (1.8 km) | 162 u (1.6 km) |
+/// | every shipped PDC, 1 000 m/s x 2.0 s | 200 u (2.0 km) | 180 u (1.8 km) |
+///
+/// The shipped catalog is one gun in four dressings, so 180 u is the weakest
+/// gate as well as the only one. A mod authoring a slower round or a shorter
+/// lifetime moves its own gate down under every constant below.
 ///
 /// Change a lifetime and these must be re-derived in the SAME commit:
 ///
@@ -48,13 +53,15 @@ use crate::{input::point_defense::mount_may_shoot, prelude::*};
 ///   change is a balance-audit change; re-run `balance_audit_gate`.
 ///
 /// The factor stays at 0.9 rather than tightening to the ~0.75 that would be
-/// strictly safe against a target fleeing at the player's 25 u/s speed cap.
+/// strictly safe against a target fleeing at the player's authored 250 m/s
+/// speed cap.
 /// The gate is computed in the SHOOTER's frame while true reach is
 /// `closing_speed * lifetime`, so it over-reads against a runner and
 /// under-reads against a charger. That error scales with reach, and the
-/// lifetime cut shrank it 2.5x on its own (75 u of overshoot at the old
-/// 5.0 s, 30 u now); buying the rest would cost a quarter of the envelope in
-/// the head-on case a fight is actually decided in.
+/// lifetime cut shrank it 2.5x on its own (750 m of overshoot at the old
+/// 5.0 s, 300 m now); buying the rest would cost a quarter of the envelope in
+/// the head-on case a fight is actually decided in. The gate itself and every
+/// constant listed above stay engine-side, in world units.
 pub const AI_FIRE_RANGE_FACTOR: f32 = 0.9;
 /// Burst cadence (s): guns fire for the window, then hold, cyclically.
 pub(super) const AI_BURST_FIRE_SECS: f32 = 1.5;
@@ -443,7 +450,8 @@ mod fire_discipline_tests {
     #[test]
     fn no_fire_beyond_the_effective_range() {
         // Dead ahead and perfectly aligned, but past muzzle_speed *
-        // lifetime * margin (default 100 * 2 * 0.9 = 180 u): the bullet
+        // lifetime * margin (the authored 1 000 m/s is 100 u/s, so
+        // 100 * 2 * 0.9 = 180 u): the bullet
         // dies in flight, so discipline holds.
         let (mut world, turret, _) = firing_world(Vec3::new(0.0, 0.0, -200.0), Vec3::ZERO);
 

@@ -652,9 +652,9 @@ mod tests {
         query.iter(world).count()
     }
 
-    /// A slug at 1500 u/s is far past the power curve's 3x ceiling, so every
-    /// plate costs a third of its max health. Named so the arithmetic in the
-    /// tests below is checkable rather than magic.
+    /// A slug at the lance's authored 15 km/s is far past the power curve's 3x
+    /// ceiling, so every plate costs a third of its max health. Named so the
+    /// arithmetic in the tests below is checkable rather than magic.
     fn power_cost(max_health: f32) -> f32 {
         max_health / 3.0
     }

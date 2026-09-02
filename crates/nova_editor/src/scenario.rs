@@ -5,6 +5,13 @@
 //! never completes, no chapter to chain into, and the only outcome is your own
 //! death - which offers a retry of this same range. F1 is the way out.
 //!
+//! ENGINE UNITS in this layout. The positions, radii and reaches below are
+//! world units - one is 10 m - because they are checked against the editor
+//! stage's own geometry and against avian-derived figures (an SOI radius, a
+//! noise-displaced body radius). They cross into the authored register once,
+//! where the scenario config is built, through `Meters::from_engine` /
+//! `Meters3::from_engine`; nothing here does the arithmetic by hand.
+//!
 //! What is out there: two seeded rock belts, a corridor of inert target hulks
 //! to shoot, three DORMANT pickets that only fight once you paint or crowd
 //! them (the farthest of which mounts the spinal lance), two beacons that swap the sky, one planetoid parked far enough away to

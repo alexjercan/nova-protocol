@@ -1,5 +1,11 @@
 //! In-flight torpedo behavior: target tracking, arming, proportional-navigation
 //! guidance (steer/thrust) and proximity detonation.
+//!
+//! Engine units throughout: the guidance runs against an avian `Position` and
+//! `LinearVelocity` every tick, so every distance here is a world unit (10 m)
+//! and every speed a world unit per second. The bay crosses the seam once, at
+//! launch, so the AUTHORED `max_speed`, `arm_distance` and `blast_radius` a
+//! creator reads in meters arrive here already converted.
 
 use super::*;
 
@@ -514,7 +520,8 @@ pub(super) fn torpedo_terminal_weave(
 /// alone - it is commanded to world identity, and the PD controller spent the
 /// coast rotating it off its launch attitude. The drive then lit pointing
 /// somewhere else and threw the run-in wide, which the real-flight weave test
-/// caught as 13 u of swing on the arm that is supposed to fly straight.
+/// caught as 13 world units - 130 m - of swing on the arm that is supposed to
+/// fly straight.
 pub(super) fn torpedo_sync_system(
     q_torpedo: Query<&TorpedoSteering, With<TorpedoProjectileMarker>>,
     mut q_controller: Query<
@@ -1439,7 +1446,8 @@ mod point_defense_cost_tests {
     use super::*;
     use crate::sections::turret_section::{lead_intercept_point, muzzle_on_target};
 
-    /// Default turret `muzzle_speed`.
+    /// Default turret `muzzle_speed`, authored as 1 000 m/s, in world units
+    /// per second.
     const BULLET_SPEED: f32 = 100.0;
     /// Default muzzle `fire_rate`, rounds per second.
     const FIRE_RATE: f32 = 100.0;

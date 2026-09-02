@@ -1,5 +1,12 @@
 //! The bay's launch path: building the bay section, ticking its fire timer,
 //! spawning a torpedo, and killing a torpedo whose body is shot down.
+//!
+//! Engine units past the spawn: the bay's AUTHORED config is SI and crosses
+//! the seam here (`spawner_speed`, `blast_radius`, `max_speed` are all
+//! `.to_engine()`d into the components below), so every figure downstream of
+//! that - and every figure in the flight rigs at the bottom of this file - is
+//! a world unit (10 m) or a world unit per second. Docs name authored fields
+//! in meters and measured flight in units.
 
 use super::*;
 
@@ -342,7 +349,7 @@ pub(super) fn shoot_spawn_projectile(
                 // instead asked for a nose 90 degrees off the way the torpedo
                 // was travelling, and the coast gave the controller the whole
                 // window to act on it - the drive then lit across the run-in
-                // and threw the flight 13 u off the line.
+                // and threw the flight 13 world units - 130 m - off the line.
                 TorpedoSteering(spawner_direction),
                 LinearDamping(config.linear_damping),
                 TorpedoBlast {
@@ -1508,9 +1515,9 @@ mod tests {
     }
 
     /// How far downrange [`fly`] puts its target. Past the terminal fade band
-    /// (three blast radii, 90 u) with room to spare, so most of the flight is
-    /// flown at full weave - which is exactly the part of a real engagement
-    /// the weave exists for.
+    /// (three blast radii - the shipped warhead authors 300 m, so 90 u) with
+    /// room to spare, so most of the flight is flown at full weave - which is
+    /// exactly the part of a real engagement the weave exists for.
     const TARGET_RANGE: f32 = 300.0;
 
     /// One midcourse run-in, as flown by the real body.
@@ -1717,7 +1724,8 @@ mod tests {
         // never moved, which is the trap the terminal fade exists to avoid.
         //
         // The rig's target carries no section colliders, so the fuze takes its
-        // fallback arm - centre distance against half the blast radius, 15 u -
+        // fallback arm - centre distance against half the authored 300 m blast
+        // radius, 15 u -
         // and `closest` is the last position SAMPLED before the fuze despawns
         // the torpedo. Landing just outside 15 is therefore the arrival, not a
         // miss: the sample either side of the threshold is one step apart. The
@@ -1764,7 +1772,7 @@ mod tests {
     /// cap itself, lowered on the evasive type, which lowers the band it never
     /// quite reaches. What the real body flies over a 300 u run-in:
     ///
-    /// | | straight (35.0) | evasive (32.0) | evasive AT 35.0 |
+    /// | | straight (350 m/s) | evasive (320 m/s) | evasive AT 350 m/s |
     /// |---|---|---|---|
     /// | path flown | 284.3 u | 289.2 u | 289.6 u |
     /// | time to fuze | 9.10 s | **9.78 s** | **8.97 s** |

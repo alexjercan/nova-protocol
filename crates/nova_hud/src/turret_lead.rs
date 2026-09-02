@@ -329,9 +329,9 @@ mod tests {
     /// it from Update - always one frame behind, so the crosshair jittered
     /// against any moving target by one frame of intercept motion. The rig
     /// uses the REAL TurretLeadPlugin wiring plus the aim system registered
-    /// under its production set, drives a target across the sky at 60 u/s,
-    /// and demands the pip anchor equal the same frame's freshly published
-    /// aim point, every frame.
+    /// under its production set, drives a target across the sky at 60 world
+    /// units per second (600 m/s), and demands the pip anchor equal the same
+    /// frame's freshly published aim point, every frame.
     #[test]
     fn pip_anchor_carries_the_same_frame_intercept() {
         use core::time::Duration;

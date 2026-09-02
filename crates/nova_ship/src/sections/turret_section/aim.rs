@@ -1,5 +1,11 @@
 //! Turret aiming: the lead-intercept solve and the per-frame hinge pass that
 //! swings each articulated joint toward the aim point.
+//!
+//! Engine units throughout: a hull span comes off an avian collider and an
+//! intercept is solved against a `LinearVelocity`, so every length here is a
+//! world unit - one of which is 10 m - and every speed is a world unit per
+//! second. Authored fields the cone is graded against are quoted in the meters
+//! a creator reads in the content file.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -14,13 +20,13 @@ use crate::physics::prelude::rigid_body_point_velocity;
 pub struct TurretSectionAimSystems;
 
 /// Half the beam of a shipped corvette, in world units: the cargoa's pods span
-/// x -1.6..1.6 (the hull is 4.9 u long by 3.2 u across by 1.6 u deep). What a
-/// round has to land inside to hit a ship at all.
+/// x -1.6..1.6 (the hull is 4.9 u long by 3.2 u across by 1.6 u deep - 49 m by
+/// 32 m by 16 m). What a round has to land inside to hit a ship at all.
 pub const HULL_HIT_RADIUS: f32 = 1.6;
 
-/// The CLOSE edge of a gunfight, in world units. Nova's scale is 100 u = 1 km
-/// and gunfights are fought at 1-2 km, so this is the range at which the cone
-/// below is widest.
+/// The CLOSE edge of a gunfight, in world units: 100 u is 1 km, and gunfights
+/// are fought at 1-2 km, so this is the range at which the cone below is
+/// widest.
 pub const CLOSE_ENGAGEMENT_RANGE: f32 = 100.0;
 
 /// How far off its aim point a muzzle may point and still count as ON it:
@@ -620,7 +626,8 @@ mod tests {
         );
 
         // The far edge of a gunfight: the PDC's own fire gate, muzzle_speed *
-        // projectile_lifetime * AI_FIRE_RANGE_FACTOR = 100 * 2.0 * 0.9.
+        // projectile_lifetime * AI_FIRE_RANGE_FACTOR - the authored 1 000 m/s
+        // is 100 u/s, so 100 * 2.0 * 0.9 = 180 u.
         let config = TurretSectionConfig::default();
         let far = config
             .muzzle_speed

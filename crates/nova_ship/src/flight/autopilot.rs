@@ -2,6 +2,11 @@
 //! the desired velocity for the goal, rotate the cheapest engine group onto
 //! the velocity error, and burn. Plus the disengage cleanup that cools the
 //! engines and parks the helm.
+//!
+//! Engine units throughout: every figure here is read from or written to an
+//! avian `Position`, `LinearVelocity` or `Forces`, so a distance is a world
+//! unit (10 m), a speed a world unit per second and an acceleration a world
+//! unit per second squared.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;

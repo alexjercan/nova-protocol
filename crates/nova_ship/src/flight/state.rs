@@ -1,6 +1,12 @@
 //! Flight state: the components an engaged maneuver rides on, the
 //! telemetry it publishes, and the reflected tunables every flight system
 //! reads.
+//!
+//! Engine units throughout: every distance, speed and acceleration here is
+//! compared against an avian `Position` or `LinearVelocity` each tick, so it
+//! is world units (10 m), world units per second, or world units per second
+//! squared. Where a tunable is sized against an AUTHORED field the doc quotes
+//! that field in meters, because meters is what a creator reads in the file.
 
 use bevy::prelude::*;
 
@@ -41,9 +47,10 @@ pub struct FlightSpeedCap(pub f32);
 
 /// Per-ship override (world units) of [`FlightSettings::arrival_standoff`]
 /// for translation legs, on the ship root: how far from a GOTO/GotoPos goal
-/// this ship's computer comes to rest. Scenario-authored for ships that must
-/// visibly REACH their marks (a nav drill parking on its beacons) instead of
-/// stopping the default 50 u short. Narrow like the speed cap: only the
+/// this ship's computer comes to rest. A scenario authors it in meters and the
+/// loader crosses the seam, for ships that must visibly REACH their marks (a
+/// nav drill parking on its beacons) instead of stopping the default 500 m
+/// short. Narrow like the speed cap: only the
 /// GOTO/GotoPos arrival rule reads it - the ORBIT park and every global
 /// tuning stay on [`FlightSettings`] - and ships without the component keep
 /// the default.
@@ -263,8 +270,8 @@ pub struct FlightSettings {
     /// Below 1.0 it brakes early, absorbing spool lag and PD settling instead
     /// of overshooting the goal.
     pub decel_margin: f32,
-    /// GOTO arrives at rest this far from the target, world units. Kept
-    /// outside the torpedo's 30u blast radius on purpose.
+    /// GOTO arrives at rest this far from the target, world units (500 m).
+    /// Kept outside the torpedo's authored 300 m blast radius on purpose.
     pub arrival_standoff: f32,
     /// The autopilot only burns when the nose is at least this aligned with
     /// the burn direction (cosine) - same discipline as the AI.
@@ -342,7 +349,7 @@ pub struct FlightSettings {
     pub orbit_band_safety: f32,
     /// Default RCS fine-adjust speed cap (u/s): the terminal speed a held RCS
     /// nudge builds to on each ship-local axis before `rcs_burn_system`
-    /// tapers the push to zero. Small by design - the last few meters of a
+    /// tapers the push to zero. Small by design - the last tens of meters of a
     /// docking approach. Overridable per hull with [`RcsSpeedCap`].
     pub rcs_speed_cap: f32,
     /// RCS thrust as an acceleration (u/s^2): how hard a full-deflection RCS

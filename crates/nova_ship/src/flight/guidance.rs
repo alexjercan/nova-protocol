@@ -2,6 +2,11 @@
 //! the ORBIT plan and its desired velocity, and rotation authority. No
 //! queries, no world - every helper here is unit-testable in isolation, and
 //! the autopilot is the only caller.
+//!
+//! Engine units throughout: these helpers are handed avian positions,
+//! velocities and accelerations, so a distance is a world unit (10 m), a speed
+//! a world unit per second and an acceleration a world unit per second
+//! squared. Nothing here is authored.
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 

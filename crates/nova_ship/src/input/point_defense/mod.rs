@@ -12,6 +12,10 @@
 //! side of the same story - what the raise and the lock MEAN - lives in
 //! [`targeting`](super::targeting), and the capability that switches the whole
 //! thing off is [`FlightVerb::PointDefense`] on the ship's computer.
+//!
+//! ENGINE UNITS throughout, as under [`ai`](super::ai): every range and speed
+//! here is compared against an avian `Position` or `LinearVelocity` each tick,
+//! so it is world units (one is 10 m) or world units per second.
 
 mod assignment;
 mod ownership;

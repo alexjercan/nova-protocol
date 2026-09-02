@@ -1,5 +1,9 @@
 //! Turret render children: joint meshes, the projectile mesh, and the
 //! muzzle-flash and bullet-trail effects.
+//!
+//! Engine units throughout: meshes and tracer lengths are Bevy geometry, so
+//! every length here is a world unit, one of which is 10 m. Authored fields
+//! the art is sized against are quoted in the meters a creator reads.
 
 use avian3d::prelude::LinearVelocity;
 use bevy::prelude::*;
@@ -363,9 +367,9 @@ pub(super) fn insert_turret_joint_render(
 /// have crossed.
 ///
 /// It is the DEFAULT, not the rule: the clamp scales with the round's speed, so
-/// a 1500 u/s lance slug carries its own on [`RoundTracer::max_length`]. A
-/// clamp sized for a 100 u/s round would erase the streak of a round fifteen
-/// times faster.
+/// a lance slug, authored at 15 km/s, carries its own on
+/// [`RoundTracer::max_length`]. A clamp sized for the PDC's authored 1 000 m/s
+/// would erase the streak of a round fifteen times faster.
 pub(crate) const TRACER_MAX_LENGTH: f32 = 4.0;
 
 /// How much of a frame's travel a round is drawn across.

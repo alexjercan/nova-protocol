@@ -6,6 +6,9 @@
 //! model changes - not to retune it, which is
 //! [`LOAD_LIMIT`](nova_events::scale::LOAD_LIMIT) and the controllers' authored
 //! torque.
+//!
+//! Engine units throughout: the arm and the collider extents it is measured
+//! from are world units, one of which is 10 m. Nothing here is authored.
 
 use avian3d::{
     dynamics::rigid_body::mass_properties::bevy_heavy::{

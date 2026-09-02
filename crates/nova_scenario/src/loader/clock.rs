@@ -950,7 +950,8 @@ mod tests {
         assert_eq!(speed(&app), 0.0, "a stationary player reads zero speed");
 
         // A new velocity is reflected the next tick.
-        app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = Vec3::new(6.0, 0.0, 8.0); // |v| = 10 u/s
+        // |v| = 10 u/s, which the readout prints as 100 m/s.
+        app.world_mut().get_mut::<LinearVelocity>(player).unwrap().0 = Vec3::new(6.0, 0.0, 8.0);
         app.update();
         assert_eq!(speed(&app), 100.0, "player_speed follows the live velocity");
 

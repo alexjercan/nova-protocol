@@ -300,11 +300,12 @@ pub struct ControllerSectionTuning {
 /// The torque one shipped flight computer carries.
 ///
 /// PROVISIONAL, and a floor rather than an estimate: it was pinned by putting
-/// the structure/torque crossover at a 10 u hull, and the largest hull in the
-/// game is 2.93 u, so the inertia at that radius is an extrapolation and every
-/// measured hull comes out heavier than the curve it was read off. Nothing that
-/// ships can settle it, and nothing that ships can see it either - all four
-/// reference hulls are structure-bound with 12x to 115x of headroom.
+/// the structure/torque crossover at a 100 m structural arm, and the largest
+/// hull in the game reaches only 29.3 m, so the inertia at that radius is an
+/// extrapolation and every measured hull comes out heavier than the curve it
+/// was read off. Nothing that ships can settle it, and nothing that ships can
+/// see it either - all four reference hulls are structure-bound with 12x to
+/// 115x of headroom.
 const DEFAULT_MAX_TORQUE: f32 = 1501.0;
 
 /// The hidden response profile. At the shipped 0.5 second lag this derives the

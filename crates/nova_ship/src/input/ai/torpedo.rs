@@ -239,7 +239,9 @@ mod torpedo_tests {
 
     #[test]
     fn the_envelope_is_a_range_band_with_rough_alignment() {
-        let blast_radius = 30.0; // min range = 30 * 3 = 90 m
+        // Engine units: the shipped 300 m warhead is 30 u, so the
+        // blast-derived floor is 30 * 3 = 90 u (900 m).
+        let blast_radius = 30.0;
         let forward = Vec3::NEG_Z;
 
         assert!(
@@ -314,9 +316,9 @@ mod torpedo_tests {
 
     #[test]
     fn an_engaged_ship_pulls_the_trigger_inside_the_envelope() {
-        // Default blast radius 30 -> min range 90; 300 m dead ahead is in
-        // band and aligned, the default state is Engage, the cadence
-        // starts elapsed: everything open.
+        // Default blast radius 30 u (the authored 300 m) -> min range
+        // 90 u; 300 u dead ahead is in band and aligned, the default state
+        // is Engage, the cadence starts elapsed: everything open.
         let (mut world, _, _, bay) = torpedo_world(Vec3::new(0.0, 0.0, -300.0));
 
         world.run_system_once(update_torpedo_section_input).unwrap();

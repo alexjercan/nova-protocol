@@ -12,17 +12,17 @@
 //!
 //! | | Lance | Serpent |
 //! |---|---|---|
-//! | cruise cap | 35.0 u/s | 32.0 u/s |
+//! | cruise cap | 350 m/s | 320 m/s |
 //! | weave half-angle | 0.00 rad | 0.44 rad |
 //! | rounds one PDC spends to stop it | ~116 | ~390 |
-//! | where that PDC finally kills it | ~114 u out | ~40 u out |
-//! | time over a 300 u run-in | 9.10 s | 9.78 s |
-//! | speed along the line | 31.3 u/s | 29.1 u/s |
-//! | reach at the bay's 100 s lifetime | 3130 u | 2914 u |
+//! | where that PDC finally kills it | ~1.14 km out | ~400 m out |
+//! | time over a 3 km run-in | 9.10 s | 9.78 s |
+//! | speed along the line | 313 m/s | 291 m/s |
+//! | reach at the bay's 100 s lifetime | 31.3 km | 29.1 km |
 //!
 //! So the Lance is the torpedo you fire at something that will not shoot back:
-//! it arrives ~7% sooner, and against a target RUNNING at the player's 25 u/s
-//! speed cap it closes at 6.3 u/s where a Serpent manages 4.1 - half again as
+//! it arrives ~7% sooner, and against a target RUNNING at the player's 250 m/s
+//! speed cap it closes at 63 m/s where a Serpent manages 41 - half again as
 //! fast, which is where "long range at something that cannot answer" actually
 //! bites. And a defender meeting Lances is a defender whose point defense
 //! WORKS, which is what makes the type the campaign's difficulty lever.
@@ -55,7 +55,7 @@ const LANCE_MAX_SPEED: MetersPerSecond = MetersPerSecond(350.0);
 /// solution solves a straight line exactly, so point defense kills it a full
 /// envelope out instead of on its own doorstep. What it buys is the fastest
 /// cruise of any assault torpedo and the shortest path to the target, which is
-/// most of a second over a 300 u run and half again the closing speed on
+/// most of a second over a 3 km run and half again the closing speed on
 /// anything running away. Bombardment ordnance for an enemy that cannot
 /// answer - and the campaign's way of showing a player a torpedo they can
 /// screen before showing them one they cannot.
@@ -76,7 +76,7 @@ pub(crate) fn lance() -> TorpedoTypeConfig {
 
 /// **Serpent** - the assault torpedo: the terminal weave that costs a defender
 /// roughly three times the ammunition per intercept, bought with a cruise cap
-/// 3 u/s under the [`lance`]'s.
+/// 30 m/s under the [`lance`]'s.
 ///
 /// The same warhead as the Lance, flown differently and more slowly. See
 /// [`TorpedoTypeConfig`] for the sweep behind both numbers; this is the engine

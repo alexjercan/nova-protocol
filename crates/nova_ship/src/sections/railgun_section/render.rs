@@ -4,6 +4,11 @@
 //! Gameplay says WHEN (the `RailgunFired` event, the slug's spawn); this says
 //! what that looks like, and every system here is behind the plugin's `render`
 //! flag so a headless server builds none of it.
+//!
+//! Engine units throughout: meshes, tracer lengths and `PointLight::range` all
+//! count world units, one of which is 10 m. Authored fields the art is sized
+//! against - `slug_speed`, `muzzle_speed` - are quoted in the meters a creator
+//! reads in the content file.
 
 use nova_gameplay::transient_light::prelude::LightFlash;
 
@@ -32,8 +37,8 @@ const SLUG_EMISSIVE_GAIN: f32 = 40.0;
 /// that is what the shot IS: a capacitor bank dumping into a bore, seen from
 /// the ship that owns it.
 const MUZZLE_LIGHT_LUMENS: f32 = 900_000.0;
-/// How far the muzzle flash reaches, in world units. Long enough to throw the
-/// firing ship's own hull into relief for a frame.
+/// How far the muzzle flash reaches, in world units (600 m). Long enough to
+/// throw the firing ship's own hull into relief for a frame.
 const MUZZLE_LIGHT_RANGE: f32 = 60.0;
 /// How long the muzzle flash burns, in seconds. A discharge, not a burn.
 const MUZZLE_LIGHT_SECS: f32 = 0.18;
@@ -49,9 +54,9 @@ pub(super) const RAIL_GLOW_COLOR: Color = Color::srgb(0.45, 0.85, 1.0);
 /// A sixth of the muzzle flash on purpose: the charge has to be seen building
 /// without ever competing with what it builds to.
 pub(super) const CHARGE_LIGHT_LUMENS: f32 = 150_000.0;
-/// How far the charge glow reaches, in world units. Enough to light the hull
-/// the lance is bolted to and no further - the charge is the firing ship's
-/// business until the shot makes it everyone's.
+/// How far the charge glow reaches, in world units (200 m). Enough to light
+/// the hull the lance is bolted to and no further - the charge is the firing
+/// ship's business until the shot makes it everyone's.
 const CHARGE_LIGHT_RANGE: f32 = 20.0;
 /// Exponent the charge fraction is raised to before it drives the glow.
 ///
@@ -108,12 +113,12 @@ impl FromWorld for RailgunSlugArt {
     }
 }
 
-/// Longest a slug's streak may be drawn, in world units.
+/// Longest a slug's streak may be drawn, in world units (400 m).
 ///
-/// The PDC's 4.0 is sized for a 100 u/s round; this one leaves the bore at
-/// 1500 and would be clamped to a quarter of its own body. At 60 fps the
-/// shutter asks for about 9 units and at 30 fps about 18, so this only ever
-/// catches a real stall - which is what the clamp is for.
+/// The PDC's 4.0 is sized for a round authored at 1000 m/s; this one leaves
+/// the bore at 15 km/s and would be clamped to a quarter of its own body. At
+/// 60 fps the shutter asks for about 9 units and at 30 fps about 18, so this
+/// only ever catches a real stall - which is what the clamp is for.
 const SLUG_TRACER_MAX_LENGTH: f32 = 40.0;
 
 /// Dress a fired slug.

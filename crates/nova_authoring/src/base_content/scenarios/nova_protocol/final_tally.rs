@@ -100,12 +100,13 @@ const CAST_OFF_DELAY: f64 = 6.0;
 const CAST_OFF_DEADLINE: f64 = 600.0;
 
 /// The planetoid: nominal 200 m, surface gravity 6 - the shakedown
-/// planetoid's proven numbers (geometric body 700-1200 m, SOI 5.6-9.6 km,
-/// from the measured ASTEROID_GEOMETRIC_FACTOR range; the harness pins the
-/// derived clearances).
+/// planetoid's proven numbers. The geometric body is 700-1200 m, from the
+/// measured ASTEROID_GEOMETRIC_FACTOR range; the sphere of influence is 4.24 km
+/// and does NOT vary with the seed, because it falls out of the well's own
+/// strength alone. The harness pins both derived clearances.
 const ANCHOR_POS: Meters3 = Meters3::new(0.0, -200.0, 0.0);
 const ANCHOR_RADIUS: Meters = Meters(200.0);
-/// Player spawn: outside even the worst-seed SOI (9.6 km from the well), so
+/// Player spawn: 11.5 km out, well outside the 4.24 km sphere of influence, so
 /// the approach COASTS into the pull - the tutorial callback.
 const PLAYER_SPAWN: Meters3 = Meters3::new(0.0, 200.0, 11_500.0);
 /// The anchorage: two big invulnerable hull-section rocks off the

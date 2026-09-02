@@ -22,9 +22,9 @@
 //!   TRIGGERED handler. Mid-fight player position is unknowable statically,
 //!   so the spawn point is the proxy; shipped arenas fight near their
 //!   spawns. Scaling the threshold by the hostile's OWN weapon envelope
-//!   keeps the rule honest at both ends: a light-turret mook 395u out
-//!   (135u outside its 270u reach) is an approach, not an ambush, while a
-//!   better-turret capital 301u out (inside its 450u reach) is on top of
+//!   keeps the rule honest at both ends: a light-turret mook 3,950 m out
+//!   (1,350 m outside its 2,700 m reach) is an approach, not an ambush, while a
+//!   better-turret capital 3,010 m out (inside its 4,500 m reach) is on top of
 //!   the fight the frame it exists.
 //!
 //! The per-scenario invariant PINS for base's own encounters live in their own

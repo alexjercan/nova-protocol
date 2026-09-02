@@ -58,7 +58,8 @@ const MAP_LAYER: usize = 21;
 /// The map camera renders BEFORE the NOVA OS offscreen pass (-20) so its image is
 /// ready when the NOVA OS content samples it.
 const MAP_CAMERA_ORDER: isize = -30;
-/// Distance-ring radii (world units) drawn on the map floor as scale reference.
+/// Distance-ring radii (world units, so 400 m / 800 m / 1.2 km) drawn on the
+/// map floor as scale reference.
 const MAP_RING_RADII: [f32; 3] = [40.0, 80.0, 120.0];
 /// Orbit-radius zoom clamp (world units from the focus).
 const MAP_RADIUS_MIN: f32 = 30.0;

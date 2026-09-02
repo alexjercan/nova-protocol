@@ -506,7 +506,8 @@ mod tests {
         let mut app = rig();
         app.world_mut()
             .spawn(LinearVelocity(Vec3::new(f32::NAN, 0.0, 0.0)));
-        // 25 u/s cap: 10x bound is 250; 300 is absurd, 100 is fine.
+        // `FlightSpeedCap` is an engine number: 25 world units per second, or
+        // 250 m/s. The 10x bound is 250; 300 is absurd, 100 is fine.
         app.world_mut().spawn((
             LinearVelocity(Vec3::new(300.0, 0.0, 0.0)),
             FlightSpeedCap(25.0),

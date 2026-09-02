@@ -27,6 +27,13 @@
 //! only stable one here, since the noise mesh puts the geometric radius
 //! anywhere in 3.5-6.0x the authored radius depending on the seed.
 //!
+//! Engine units throughout: a well is applied against an avian `Position` and
+//! written back as a `Forces` acceleration every tick, so `mu` is u^3/s^2,
+//! every radius here is a world unit (10 m) and every acceleration is u/s^2.
+//! A scenario authors a body's radius in METERS and the loader crosses the
+//! seam before [`GravityWell::from_mass`] ever sees it, so where a doc below
+//! names a rock by size it names it in meters.
+//!
 //! The math lives in pure helpers ([`well_accel`], [`circular_orbit_speed`],
 //! [`dominant_well`]) so the well-force core stays game-agnostic - a candidate
 //! for extraction once the game is done - and so the ORBIT autopilot verb
@@ -136,19 +143,20 @@ pub struct GravitySettings {
     /// scenario does not author one. Fixed rather than radius-scaled - reach
     /// and strength are properties of mass alone - which means it can only be
     /// right for one size of body, so it is sized for the bodies that
-    /// ACTUALLY take it: the 5-8u set-dressing rocks that clear
+    /// ACTUALLY take it: the 50-80 m set-dressing rocks that clear
     /// [`Self::min_well_radius`] without being anything a beat is built on
     /// (every planetoid a player orbits authors its own mass). At 4 000 those
-    /// run 1.7-8.2 u/s^2 at their geometric surface and a ~126u SOI, near the
-    /// 6 u/s^2 / 8-radii well they used to get.
+    /// run 1.7-8.2 u/s^2 at their geometric surface and a ~126 u (1.26 km)
+    /// SOI, near the 6 u/s^2 / 8-radii well they used to get.
     /// A much larger default would be clamped straight to
     /// [`Self::max_surface_gravity`] on every one of them - a fixed mass on a
     /// small body is a strong body. A body big enough for 4 000 to feel thin
     /// is a body worth authoring.
     pub default_mass: f32,
-    /// Bodies below this nominal radius (world units) get no well by default;
-    /// the 1-3u field rocks stay flat space. A scenario can still author a
-    /// well onto a small body explicitly.
+    /// Bodies below this nominal radius (world units - the default 5.0 is the
+    /// 50 m a scenario authors) get no well by default; the 10-30 m field
+    /// rocks stay flat space. A scenario can still author a well onto a small
+    /// body explicitly.
     pub min_well_radius: f32,
     /// Acceleration (u/s^2) below which a well is treated as having no reach:
     /// the SOI is the distance at which `mu / r^2` decays to this. The one
@@ -157,9 +165,9 @@ pub struct GravitySettings {
     /// unchanged strength.
     /// 0.25 is ~1.2% of a reference ship's ~21 u/s^2 of thrust authority: far
     /// below what a pilot can feel, and it lets a campaign planetoid reach
-    /// 400-500u without exceeding [`Self::max_surface_gravity`] on the
-    /// smallest mesh seed - the same order the radius-derived
-    /// `soi_factor: 8.0` gave it (560-960u, seed depending), so the playtest
+    /// 400-500 u (4-5 km) without exceeding [`Self::max_surface_gravity`] on
+    /// the smallest mesh seed - the same order the radius-derived
+    /// `soi_factor: 8.0` gave it (560-960 u, seed depending), so the playtest
     /// that raised that factor from 4.0 ("had to be almost near it to
     /// experience the pull") still holds. Reach and strength are now one
     /// number, so this is the exchange rate between them: raising it makes

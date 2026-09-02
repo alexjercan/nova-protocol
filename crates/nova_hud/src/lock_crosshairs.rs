@@ -458,9 +458,9 @@ mod tests {
         );
     }
 
-    /// A world with a player (at the origin), the radar box + label, and
-    /// one named target 100 u ahead. Returns (world, player, target, box,
-    /// label).
+    /// A world with a player (at the origin), the radar box + label, and one
+    /// named target 100 world units - 1 km - ahead. Returns (world, player,
+    /// target, box, label).
     fn box_world() -> (World, Entity, Entity, Entity, Entity) {
         let mut world = World::new();
         let target = world

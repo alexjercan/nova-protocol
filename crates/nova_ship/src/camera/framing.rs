@@ -2,6 +2,11 @@
 //! eased across a handback) and how far back it sits - the per-mode rig, the
 //! burn push, the orbit survey dolly, and the velocity lead that keeps the
 //! framing speed-invariant.
+//!
+//! Engine units throughout: a rig offset is a Bevy transform and a lead is
+//! measured against an avian velocity, so every distance below is a world
+//! unit (10 m) and every speed is a world unit per second (10 m/s). Nothing
+//! here is authored.
 
 use avian3d::prelude::{ComputedCenterOfMass, LinearVelocity};
 use bevy::prelude::*;

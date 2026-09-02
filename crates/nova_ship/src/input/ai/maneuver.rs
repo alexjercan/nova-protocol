@@ -1,6 +1,10 @@
 //! How an engaged AI ship moves: the standoff envelope and jink directions,
 //! the absolute rotation command fed to the flight controller, and the
 //! alignment-gated thrust that flies them.
+//!
+//! Engine units, as everywhere under `ai/`. The AUTHORED fields the envelope
+//! is bounded by - a turret's `muzzle_speed`, the player's speed cap - are
+//! quoted in the meters a creator reads in the content file.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -24,15 +28,14 @@ const AI_CHASE_SPEED_GAIN: f32 = 0.2;
 const AI_ORBIT_SPEED: f32 = 8.0;
 const AI_MAX_CHASE_SPEED: f32 = 20.0;
 /// Preferred engagement range (u): where a fight SETTLES, so this - not the
-/// fire gate - is the distance a player sees combat happen at. 100 u = 1.0 km
-/// at 1 unit = 10 m.
+/// fire gate - is the distance a player sees combat happen at. 100 u = 1.0 km.
 ///
 /// Bounded from above by the fire gate: `AI_STANDOFF_RANGE +
 /// AI_STANDOFF_BAND` (125 u) must sit inside the WEAKEST shipped gun's
-/// `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR` (162 u for the
-/// 60 u/s scavenger turret, 180 u for a PDC), or a ship orbits outside its
-/// own reach and never fires - silently. Moves with every lifetime change:
-/// see AI_FIRE_RANGE_FACTOR in `guns.rs` for the whole chain.
+/// `muzzle_speed * projectile_lifetime * AI_FIRE_RANGE_FACTOR` - 180 u for
+/// every shipped PDC, which authors 1 000 m/s over 2.0 s - or a ship orbits
+/// outside its own reach and never fires - silently. Moves with every lifetime
+/// change: see AI_FIRE_RANGE_FACTOR in `guns.rs` for the whole chain.
 const AI_STANDOFF_RANGE: f32 = 100.0;
 /// Half-width (u) of the band around the preferred range where the orbit
 /// term dominates the radial term. Kept at ~a quarter of the standoff: the

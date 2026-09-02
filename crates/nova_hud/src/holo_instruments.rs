@@ -276,8 +276,8 @@ mod tests {
         world
     }
 
-    /// A 50u standoff on the ship->goal line (the ship sits at the
-    /// origin), the same shape the autopilot publishes.
+    /// A 50 world unit (500 m) standoff on the ship->goal line (the ship sits
+    /// at the origin), the same shape the autopilot publishes.
     fn park_point(goal: Vec3) -> Vec3 {
         goal - goal.normalize_or_zero() * 50.0
     }

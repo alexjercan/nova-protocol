@@ -2,6 +2,12 @@
 //! the ship - a speed chip parked beside the velocity sphere and a mode chip
 //! (verb + phase) shown only while the autopilot is engaged; manual flight
 //! keeps a quiet HUD. Plus the projected marker on the GOTO destination.
+//!
+//! Anything measured here is an ENGINE figure - a world unit is 10 m, a speed
+//! is world units per second - because it comes off a bevy transform or an
+//! avian `LinearVelocity`. Readouts cross into meters once, through
+//! `Meters::from_engine` / `MetersPerSecond::from_engine`, and `nova_ui::units`
+//! does the formatting; nothing here converts by hand.
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
@@ -34,7 +40,7 @@ const SPEED_FONT_PX: f32 = 15.0;
 const CHIP_FONT_PX: f32 = 12.0;
 
 /// The speed chip parks to the right of the ship, clear of the velocity
-/// sphere (world radius 5.6 u for the outer gravity shell) at typical
+/// sphere (world radius 5.6 u - 56 m - for the outer gravity shell) at typical
 /// chase-camera distance. Fixed px in v1; a projected-radius offset is the
 /// richer option if the fixed one misbehaves at extreme zooms.
 /// Lifted clear of the bottom-centre keybind dock: the

@@ -415,7 +415,8 @@ mod tests {
             "delivery guard: the variable does not exist until the handler runs"
         );
 
-        // 12u at 60 u/s: inside the 6u sensor within ~0.15s; run half a
+        // Engine geometry: 12 u at 60 u/s puts the mover inside the
+        // authored 60 m pickup sensor (6 u) within ~0.15s; run half a
         // second of fixed ticks so collision, event queue and handler all
         // get their turns.
         for _ in 0..25 {
@@ -519,7 +520,8 @@ mod tests {
             "delivery guard: silent before the pass"
         );
 
-        // 12u at 60 u/s: inside the 6u sensor within ~0.15s; a half second of
+        // Engine geometry: 12 u at 60 u/s puts the mover inside the
+        // authored 60 m pickup sensor (6 u) within ~0.15s; a half second of
         // fixed ticks covers collision detection and the observer's flush.
         for _ in 0..25 {
             app.update();
