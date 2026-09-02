@@ -53,9 +53,10 @@ folder and bundle shape.
 
 A menu backdrop POSES ITS OWN CAMERA: author a
 [`SetCamera`](../actions/#setcamera) in its `OnStart` (the reference shot is
-`position: (0, 100, 335)` looking at the origin). A backdrop without one is
-a content Error and never enters the menu rotation - the menu derives no
-pose of its own.
+`position: (0, 570, 1920)` in meters, looking at the origin, which frames
+about 1,060 m either side of the origin in a 4:3 window). A backdrop without
+one is a content Error and never enters the menu rotation - the menu derives
+no pose of its own.
 
 ## Handler shape
 

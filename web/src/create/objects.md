@@ -33,14 +33,14 @@ same geometry on every load.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `body_radius` | number | required | the well's published body radius, world units |
-| `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2), same unit as an asteroid's `mass`. `None` = a zero-strength well: it frames and anchors but never pulls |
+| `body_radius` | number | required | the well's published body radius, meters |
+| `mass` | `Option` number | `None` | well STRENGTH: the gravitational parameter mu, same dial as an asteroid's `mass`. NOT an SI mass and not a length - it carries a length cubed over a time squared, so it stays an engine number while the radius beside it is metric. What comes out of the pair IS metric: `soi = 20 * sqrt(mass)` meters of reach. `None` = a zero-strength well: it frames and anchors but never pulls |
 
 ```ron
 SpawnScenarioObject((
     base: (id: "patrol_anchor", name: "Patrol Anchor", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Anchor((
-        body_radius: 80.0,
+        body_radius: 800.0,
         mass: Some(30000.0),
     )),
 )),
@@ -56,20 +56,20 @@ default mass and radar signature together.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `radius` | number | required | nominal radius in world units, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
+| `radius` | number | required | nominal radius in meters, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
 | `texture` | asset ref | required | surface texture (`dep://base/textures/asteroid.png` is the stock rock) |
 | `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
-| `mass` | `Option` number | `None` | the gravity parameter mu (u^3/s^2). `Some` ALWAYS makes this rock a well: pull is `a = mu / r^2`; size it by the sphere of influence you want (`mu = soi_cutoff_accel * soi^2`). `None` = the global rule (a default mass only if the radius qualifies it as a well) |
+| `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
 | `material` | `Option` string | `None` | what the rock is MADE of, looked up in the [impact table](../impacts/) against the round that hit it. `None` = `"rock"` |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
-| `lock_signature` | `Option` number | `None` | radar signature override; `None` = the radius (big rocks lock far) |
+| `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = the radius (big rocks lock far). Lock range is thirty times the signature, so a 200 m rock is lockable from 6 km |
 | `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "planetoid", name: "Planetoid", position: (250.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    base: (id: "planetoid", name: "Planetoid", position: (2500.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Asteroid((
-        radius: 20.0,
+        radius: 200.0,
         texture: "dep://base/textures/asteroid.png",
         mass: Some(45000.0),
         invulnerable: true,
@@ -84,15 +84,23 @@ pieces become debris. When no viable connected solid remains, destruction fires
 ### Sizing a rock you want shot
 
 `radius` IS the durability, so it is the only knob, and it is CUBIC. Material
-costs 8 hit points per cubic world unit - absolutely, on every body, whatever
-its size - so doubling a radius multiplies the time to break it by about eight.
-The stock kinetic PDC deals 4.0 per round at 100 rounds a second, which is 50
-cubic units a second of held fire. A radius-3 rock is about 2.4 minutes of that;
-a radius-0.3 rock is a couple of seconds.
+costs 8 hit points per 1,000 m3 - 125 m3 to the hit point - absolutely, on every
+body, whatever its size, so doubling a radius multiplies the time to break it by
+about eight. Read that price as a VOLUME and never as a length: it says how much
+material one hit point takes off, and it is the one figure here that does not
+scale the way a distance does.
+
+The stock kinetic PDC deals 4.0 per round at 100 rounds a second, so held fire
+eats 50,000 m3 a second. A rock authored at `radius: 30` is about 2.4 minutes of
+that, one at `radius: 3` a couple of seconds. Both read against the MESH rather
+than the nominal figure - the noise silhouette reaches several times the
+authored radius, and that swell is the solid the guns have to chew.
 
 Author the size you want the fight to take. The shipped tutorial targets are
-`radius: 0.25` and `0.3` for exactly this reason: small size, not hidden health,
+`radius: 2.5` and `3.0` for exactly this reason: small size, not hidden health,
 is what keeps a target brief now that there is no `health` field to turn down.
+
+<!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/standard.rs (KINETIC_PDC_BULLET_DAMAGE 4.0 :59, GATLING_FIRE_RATE 100.0 :74). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
 
 ## Spaceship
 
@@ -164,12 +172,12 @@ SpawnScenarioObject((
     base: (
         id: "raider_1",
         name: "Raider",
-        position: (0.0, 0.0, -300.0),
+        position: (0.0, 0.0, -3000.0),
         rotation: (0.0, 0.0, 0.0, 1.0),
     ),
     kind: Spaceship((
         controller: AI((
-            patrol: [(0.0, 0.0, -300.0), (80.0, 0.0, -220.0)],
+            patrol: [(0.0, 0.0, -3000.0), (800.0, 0.0, -2200.0)],
             engage_delay: Some(8.0),
         )),
         hull: Prototype("cargoa_raider"),
@@ -193,19 +201,19 @@ crashing, so a missing dependency is visible instead of fatal.
 | field | type | default | meaning |
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
-| `speed_cap` | `Option` number | `None` | soft manual-speed cap in world units per second (the Shakedown starts at `Some(25.0)`, 250 m/s); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
+| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (the Shakedown starts at `Some(250.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 
 `AI((..))` fields:
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `patrol` | list of 3-tuples | `[]` | waypoint loop while nothing hostile is detected; empty = station-keep. Legs blocked by a sized body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock |
+| `patrol` | list of 3-tuples | `[]` | waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. Legs blocked by a sized body (an asteroid's geometric radius) are flown around automatically, so routes need not measure every rock |
 | `orbit` | `Option` string | `None` | id of a gravity-well object to orbit passively. Precedence: orbit > patrol > idle |
-| `engage_range` | `Option` number | `None` | hostile-detection override (world units): a passive ship leaves its routine for a hostile inside this range instead of the default 400 (4 km). Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
-| `pd_range` | `Option` number | `None` | point-defense override (world units): the guns hold fire until an inbound hostile torpedo is inside this range instead of the default 150 (1.5 km). Short = staged close-in intercepts; past the turret's ~180 (1.8 km) reach it just wastes the opening shots |
-| `waypoint_slack` | `Option` number | `None` | patrol arrival slack override (world units) on top of the arrival standoff; the default is 25. Small = the ship turns onto the next leg closer to each waypoint. Below ~2 risks stalling outside the advance gate - author small, not zero |
-| `arrival_standoff` | `Option` number | `None` | how far from a GOTO goal this ship's computer comes to rest, instead of the engine's default 50 (500 m). Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
-| `leash` | `Option` number | `None` | territorial tether radius; combat breaks off beyond it; `None` = chases freely |
+| `engage_range` | `Option` number | `None` | hostile-detection override in meters: a passive ship leaves its routine for a hostile inside this range instead of the default 4,000 m. Wide = a long-watch emplacement that wakes for targets nothing else detects; short = a ship that ignores a nearby brawl |
+| `pd_range` | `Option` number | `None` | point-defense override in meters: the guns hold fire until an inbound hostile torpedo is inside this range instead of the default 1,500 m. Short = staged close-in intercepts; past the turret's ~1,800 m reach it just wastes the opening shots |
+| `waypoint_slack` | `Option` number | `None` | patrol arrival slack override in meters on top of the arrival standoff; the default is 250 m. Small = the ship turns onto the next leg closer to each waypoint. Below ~20 m risks stalling outside the advance gate - author small, not zero |
+| `arrival_standoff` | `Option` number | `None` | how far, in meters, from a GOTO goal this ship's computer comes to rest, instead of the engine's default 500 m. Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
+| `leash` | `Option` number | `None` | territorial tether radius in meters; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
 
 An UNARMED AI ship (no turret or torpedo section) is automatically a
@@ -225,7 +233,7 @@ Each entry places one section in continuous ship-root space:
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scenario-local section id; keys `input_mapping` (shipped ships use semantic ids such as `"turret_port"`) |
-| `position` | 3-tuple | required | continuous offset from the ship root |
+| `position` | 3-tuple | required | continuous offset from the ship root, in BUILD CELLS (one cell is 10 m) - the one authored position that is not metric |
 | `rotation` | 4-tuple | required | rotation relative to the root; structural link points rotate with the section |
 | `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
 | `modifications` | list | `[]` | spawn-time deltas (below) |
@@ -258,19 +266,19 @@ live distance, edge-clamped direction cue).
 | field | type | default | meaning |
 |---|---|---|---|
 | `label` | string | required | HUD chip text ("BEACON 1") |
-| `radius` | number | required | visual orb radius, world units |
+| `radius` | number | required | visual orb radius, meters |
 | `color` | color | required | orb + emissive tint, tagged: `Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0))` |
-| `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed |
-| `lock_signature` | `Option` number | `None` | radar signature override; default 20 (a lock range of about 600, or 6 km) - author bigger for longer GOTO legs |
+| `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius in meters - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed |
+| `lock_signature` | `Option` number | `None` | radar signature override in meters; the default 200 m gives a lock range of about 6 km - author bigger for longer GOTO legs |
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "beacon_1", name: "BEACON 1", position: (0.0, 0.0, -350.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    base: (id: "beacon_1", name: "BEACON 1", position: (0.0, 0.0, -3500.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Beacon((
         label: "BEACON 1",
-        radius: 2.0,
+        radius: 20.0,
         color: Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0)),
-        area_radius: Some(70.0),
+        area_radius: Some(700.0),
     )),
 )),
 ```
@@ -286,14 +294,14 @@ automatically.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `size` | number | required | visible box edge length, world units |
-| `area_radius` | number | required | the pickup sensor sphere ("collected" distance) |
+| `size` | number | required | visible box edge length, meters |
+| `area_radius` | number | required | the pickup sensor sphere ("collected" distance), meters |
 | `pickup_sound` | `Option` asset ref | `None` | the collection ding, player pickups only (`Some("dep://base/sounds/salvage_pickup.wav")` is the stock one); omitted = silent |
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "crate_1", name: "Supply Pod", position: (40.0, 5.0, -60.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: SalvageCrate((size: 1.5, area_radius: 8.0, pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"))),
+    base: (id: "crate_1", name: "Supply Pod", position: (400.0, 50.0, -600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: SalvageCrate((size: 15.0, area_radius: 80.0, pickup_sound: Some("dep://base/sounds/salvage_pickup.wav"))),
 )),
 ```
 
@@ -312,22 +320,22 @@ workhorse.
 | `illuminance` | number | required | lux (the shipped key lights run ~11000) |
 | `color` | color | required | tagged `Srgba((..))` |
 | `shadows` | bool | required | shadow casting; convention: exactly ONE caster per scene |
-| `aim` | `Option` 3-tuple | `None` | point the light AT this world position, ignoring `base.rotation` (hand-authoring an aim quaternion is impractical); `None` uses the rotation |
+| `aim` | `Option` 3-tuple | `None` | point the light AT this world position in meters, ignoring `base.rotation` (hand-authoring an aim quaternion is impractical); `None` uses the rotation |
 
 `Point` - a positional lamp with falloff: a star, a floodlight, a nebula
 glow.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `intensity` | number | required | lumens; needs tuning by eye against your scene scale (~2.5M for a yard lamp 200, or 2 km, out) |
-| `range` | number | required | contribution cutoff distance, world units |
-| `radius` | number | required | source radius (softens the terminator) |
+| `intensity` | number | required | lumens; needs tuning by eye against your scene scale (~2.5M for a yard lamp 2 km out) |
+| `range` | number | required | contribution cutoff distance, meters (the shipped lamps run 4,000) |
+| `radius` | number | required | source radius in meters (softens the terminator; the shipped lamps run 120) |
 | `color` | color | required | tagged `Srgba((..))` |
 | `shadows` | bool | required | shadow casting |
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "key", name: "Key Light", position: (-60.0, 50.0, 60.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    base: (id: "key", name: "Key Light", position: (-600.0, 500.0, 600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
     kind: Light(Directional(
         illuminance: 11000.0,
         color: Srgba((red: 1.0, green: 0.96, blue: 0.9, alpha: 1.0)),

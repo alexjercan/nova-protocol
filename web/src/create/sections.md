@@ -17,6 +17,14 @@ This page is the field-by-field section reference. For general RON spelling
 rules such as double parentheses, `Some(...)`, and asset schemes, see
 [RON spelling rules](../reference/#how-ron-content-is-written).
 
+**Units.** Every reach, blast and speed on this page is authored in meters and
+meters per second - `blast_radius: 300.0` is 300 m, and there is no conversion
+to do. A section's own GEOMETRY is the exception, because a section is built on
+a grid: its `collider`, its `link_points`, a turret joint's `offset`, a bay's
+`spawn_offset` and `spawn_recess`, a railgun's `muzzle_offset` and a thruster's
+exhaust cone are all counted in BUILD CELLS, and one cell is 10 m on a side.
+Each field below says which it is.
+
 ## The Section item
 
 A content file is a list. Each section is one `Section((...))` item with a
@@ -358,9 +366,12 @@ kind: Thruster((
 | `shape.exhaust_inner_max` | number | `0.5` | Inner core peak intensity. |
 | `shape.emissive_color`, `shape.emissive_inner_color` | linear color | cyan, blue | Outer and inner glow colors. |
 
-Every nested exhaust field has a default, so a mod can override only the values
-it needs. Copy a semantic engine part from
-`assets/base/sections/base.content.ron` for a complete rectangular example.
+The cone is MESH geometry, sized in cells inside the section that carries it,
+not a distance out in the world: `offset`, the nozzle size and both flame
+lengths are all fractions of a 10 m cell. Every nested exhaust field has a
+default, so a mod can override only the values it needs. Copy a semantic engine
+part from `assets/base/sections/base.content.ron` for a complete rectangular
+example.
 
 ## Controller
 
@@ -415,19 +426,22 @@ A hull may mount several controllers, but they do NOT each steer it: the ship
 derives ONE attitude loop and shares it out. The turn ceiling it derives is
 never authored:
 
-<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :72-88, arm :146-164, sustained rate :108-110, vector load :121-130), crates/nova_events/src/scale.rs (METERS_PER_UNIT 10.0 :14, LOAD_LIMIT 8 * 9.81 :23), crates/nova_ship/src/sections/controller_section.rs (linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 1501.0 :384). -->
+<!-- Numbers verified against crates/nova_ship/src/physics/attitude.rs (envelope :75-90, arm in meters :75, structural_arm measured in world units :149, sustained rate :111, vector load :124-130), crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 :17), crates/nova_ship/src/sections/controller_section.rs (the one arm conversion, Meters::from_engine :490, linear torque sum :385-388, STACK_PRECISION_LIMIT 1.5 :259, stack_curve :267-269, smallest steering_lag :379-383) and crates/nova_authoring/src/base_content/sections/standard.rs (steering_lag 0.5 :376, max_torque 1501.0 :384). -->
 
 ```text
-ceiling = min( sum(max_torque) / I , 78.48 / (r * 10) )   rad/s2
+ceiling = min( sum(max_torque) / I , 78.48 / r )   rad/s2
 ```
 
 - `I` - the hull's largest principal moment of angular inertia, measured by the
-  physics engine from the live section colliders and their densities.
-- `r` - the structural arm in world units: the distance from the hull's centre
-  of mass to the outer FACE of its furthest live section.
+  physics engine from the live section colliders and their densities. An engine
+  number, and `max_torque` is one too: torque over inertia is a rate whatever
+  scale the two are measured in, as long as it is the same scale.
+- `r` - the structural arm in METERS: the distance from the hull's centre of
+  mass to the outer FACE of its furthest live section. It is the one figure here
+  the engine measures for itself - off the live colliders, in world units - and
+  it crosses into meters once, where the envelope is built.
 - `78.48` m/s2 is 8 G, the load hull metal takes. One global constant, the same
   for every ship and every mod.
-- `10` is meters per world unit.
 
 So `max_torque` is the only handling number you author, and it binds only on a
 hull heavy enough that its computers give up before its metal does. Everything
@@ -441,11 +455,10 @@ Three consequences to author around:
 
 - **Damage sharpens a hull.** Losing sections shortens `r`, which raises the
   ceiling. A wreck turns harder than it did intact.
-- **A hard turn spends the margin.** Write `r_m` for the arm in meters
-  (`r * 10`). The turning load `alpha * r_m` and the centripetal load
-  `omega^2 * r_m` add as a vector, and that sum is what must stay under 8 G. So
-  a hull holds `sqrt(78.48 / r_m)` rad/s indefinitely and has no authority left
-  to tighten past it.
+- **A hard turn spends the margin.** The turning load `alpha * r` and the
+  centripetal load `omega^2 * r` add as a vector, and that sum is what must stay
+  under 8 G. So a hull holds `sqrt(78.48 / r)` rad/s indefinitely and has no
+  authority left to tighten past it.
 - **Stacking buys precision, not authority.** A stack starts arresting a turn
   earlier and lands on the commanded attitude instead of swinging past. That
   gain approaches x1.5 from below: x1.25 at two computers, x1.375 at four,
@@ -524,7 +537,7 @@ kind: Turret((
             )],
         )],
     ),
-    muzzle_speed: 100.0,
+    muzzle_speed: 1000.0,
     projectile_lifetime: 2.0,
     bullet_damage: 4.0,
     bullet_kind: Kinetic,
@@ -587,12 +600,12 @@ Section-wide fields (once, alongside `root`):
   sinking. A mount that authors no `StowLift`
   [animation track](#animation-tracks) never stows, so these two mean nothing on
   a fixed gun; omit either for a silent half.
-- `muzzle_speed` - projectile launch speed in units per second (shared by all
+- `muzzle_speed` - projectile launch speed in METERS PER SECOND (shared by all
   muzzles; `fire_rate` is per-muzzle, see the joint fields above).
 - `projectile_lifetime` - projectile lifetime in seconds. A turret has no
-  range field: `muzzle_speed * projectile_lifetime` IS its reach (the stock PDC
-  reaches 200 units, 2 km). An AI ship holds fire past 90% of that and settles
-  into a fight at ~100 units, so a gun authored with much less reach than that
+  range field: `muzzle_speed * projectile_lifetime` IS its reach, in meters (the
+  stock PDC reaches 2 km). An AI ship holds fire past 90% of that and settles
+  into a fight at ~1 km, so a gun authored with much less reach than that
   belongs on a player ship - an AI carrying it orbits outside its own range and
   never fires.
 - `bullet_damage` - authored damage per hit, before the closing-speed curve. It
@@ -613,8 +626,8 @@ Section-wide fields (once, alongside `root`):
   - `Explosive` on a bullet is spent on its first hit. A torpedo blast uses the
     Explosive pressure rule described below.
 
-  Both curves read exactly 1.0 when the round closes at 100 (1,000 m/s, a stock PDC's
-  `muzzle_speed`), so author `bullet_damage` for a station-keeping engagement
+  Both curves read exactly 1.0 when the round closes at 1,000 m/s, a stock PDC's
+  `muzzle_speed`, so author `bullet_damage` for a station-keeping engagement
   and speed does the rest. Nothing of any type gets through a collider with no
   health of its own - an asteroid or a planetoid is a wall.
 - `projectile_render_mesh` (optional) - custom bullet mesh. Omit it and the
@@ -643,19 +656,19 @@ kind: Torpedo((
     spawn_rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
     spawn_recess: 1.0,
     fire_rate: 1.0,
-    spawner_speed: 8.0,
+    spawner_speed: 80.0,
     projectile_lifetime: 100.0,
     arm_time: 0.5,
-    arm_distance: 5.0,
+    arm_distance: 50.0,
     ignition_delay: 0.6,
     nav_constant: 3.0,
     linear_damping: 0.8,
-    blast_radius: 30.0,
+    blast_radius: 300.0,
     blast_damage: 750.0,
     torpedo_type: (
         name: "Serpent",
         tint: Srgba((red: 0.95, green: 0.45, blue: 0.1, alpha: 1.0)),
-        max_speed: 32.0,
+        max_speed: 320.0,
         weave_angle: 0.44,
         weave_rate: 1.4,
     ),
@@ -693,13 +706,13 @@ kind: Torpedo((
   `0.0` births it at the muzzle point itself, and any depth is safe: the cold
   coast means the torpedo has no colliders until its drive lights.
 - `fire_rate` - launches per second.
-- `spawner_speed` - the ejection charge, in units per second. A torpedo is not
+- `spawner_speed` - the ejection charge, in meters per second. A torpedo is not
   fired, it is dropped: this is the cold kick that pushes it clear of the hull,
   not the speed it flies at. That comes from the drive, once it lights.
 - `projectile_lifetime` - torpedo lifetime in seconds.
 - `arm_time`, `arm_distance` - the torpedo may detonate only after this many
-  seconds OR this distance from the muzzle (arms on whichever comes first), so
-  it clears the firing ship.
+  seconds OR this many METERS from the muzzle (arms on whichever comes first),
+  so it clears the firing ship.
 - `ignition_delay` - seconds the torpedo coasts INERT before its drive lights.
   For that whole window it has no thrust, no guidance, no fuze and no colliders:
   it can neither be shot down nor touch the ship it is leaving. Size it against
@@ -710,7 +723,8 @@ kind: Torpedo((
   higher leads a moving target harder).
 - `linear_damping` - drag on the torpedo body (gives a real terminal velocity so
   the flight path follows guidance).
-- `blast_radius`, `blast_damage` - damage radius and peak centre pressure.
+- `blast_radius`, `blast_damage` - damage radius in meters and peak centre
+  pressure.
   `blast_radius` no longer decides WHERE a torpedo goes off against a locked
   body (see [the fuze](#the-fuze-is-not-a-bay-field)); it is the reach of the
   pressure and the band the weave fades over. The visible sphere is the damage radius; pressure falls
@@ -733,7 +747,7 @@ kind: Torpedo((
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
   opposed to the tube it loads into. A type is DATA, not an enum: base authors
   its three (the straight-running Lance, the weaving Serpent, and the crimson
-  siege Breaker - a cruise of 70 (700 m/s) with a shallow 0.22 rad weave - that only the hidden
+  siege Breaker - a cruise of 700 m/s with a shallow 0.22 rad weave - that only the hidden
   `heavy_torpedo_section` bay loads), and a mod authors its own by writing the
   same five fields:
   - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`,
@@ -744,7 +758,7 @@ kind: Torpedo((
     `Srgba((red: .., green: .., blue: .., alpha: 1.0))`. Two types a player is
     meant to tell apart want different colours: it is the only difference visible
     before the flight paths have diverged.
-  - `max_speed` (world units per second; `35.0` on the Lance, `32.0` on the Serpent, so 350 and 320 m/s) - cruise speed
+  - `max_speed` (m/s; `350.0` on the Lance, `320.0` on the Serpent) - cruise speed
     cap. The thruster tapers off as the torpedo approaches it, so it decides
     time to target and, with `projectile_lifetime`, how far the ordnance can
     reach. **This is where an evasive type pays for its weave**, and it has to
@@ -767,10 +781,10 @@ kind: Torpedo((
     amplitude.
 
   The ANGLE is the exchange: measured against one stock PDC across the shipped
-  150 (1.5 km) point-defense envelope, a Serpent costs ~370 rounds to stop and is only
-  killed ~40 (400 m) out, where a Lance costs ~120 and dies ~115 (1.15 km) out. The RATE is the
-  picture, not the price - the intercept cost barely moves with it, while the
-  visible swing runs 24 (240 m) at 0.7 rad/s down to 6 (60 m) at 2.2.
+  1,500 m point-defense envelope, a Serpent costs ~370 rounds to stop and is only
+  killed ~400 m out, where a Lance costs ~120 and dies ~1,150 m out. The RATE is
+  the picture, not the price - the intercept cost barely moves with it, while the
+  visible swing runs 240 m at 0.7 rad/s down to 60 m at 2.2.
 
   A weave does NOT pay for itself, which is why the shipped Serpent authors a
   lower `max_speed`. A corkscrew is a longer path, but only by ~1.7% as the real
@@ -790,9 +804,9 @@ kind: Torpedo((
 ### The fuze is not a bay field
 
 Where a torpedo goes off is engine behaviour, not an authored number. An armed
-torpedo that locked an ENTITY fuzes three world units from the nearest point of
-any collider linked to that body, or at the distance the torpedo covers in one
-frame, whichever is larger. The margin clears the torpedo's own body and the
+torpedo that locked an ENTITY fuzes 30 m from the nearest point of any collider
+linked to that body, or at the distance the torpedo covers in one frame,
+whichever is larger. The margin clears the torpedo's own body and the
 next physics step while keeping the pressure and crater on the target. Two other
 cases:
 
@@ -816,11 +830,11 @@ kind: Railgun((
     render_mesh: Some("dep://base/gltf/railgun_lance.glb#Scene0"),
     muzzle_offset: (0.0, 0.0, -1.5),
     charge_seconds: 1.5,
-    slug_speed: 1500.0,
+    slug_speed: 15000.0,
     slug_damage: 300.0,
     slug_power: 1800.0,
     slug_lifetime: 1.2,
-    rake_radius: Some(1.0),
+    rake_radius: Some(10.0),
     recoil_impulse: 45.0,
     fire_sound: Some("dep://base/sounds/railgun_fire.wav"),
     charge_sound: Some("dep://base/sounds/railgun_charge.wav"),
@@ -843,9 +857,9 @@ kind: Railgun((
   aborted: this is AIMING time, not a hold. The gun does not re-check the nose
   when the charge ends, so a target that slid off the line in that window is
   simply missed.
-- `slug_speed`, `slug_lifetime` - muzzle speed in units per second, and how
+- `slug_speed`, `slug_lifetime` - muzzle speed in meters per second, and how
   long the slug lives. Their product is the reach: the shipped railgun is
-  1500 (15,000 m/s) for 1.2 s, or 1800 world units - 18 km. With no layer cap on penetration, the
+  15,000 m/s for 1.2 s, so 18 km. With no layer cap on penetration, the
   lifetime is also what stops a miss travelling forever.
 - `slug_damage` - Pierce damage dealt to EVERY layer the slug rakes. Flat: it
   is not scaled by closing speed and it does not decay with depth, so the tenth
@@ -854,9 +868,9 @@ kind: Railgun((
   the shot takes. This is the ONLY bound; the layer count is deliberately
   unlimited, so a slug stops when it runs out of material to spend rather than
   at an arbitrary layer. A crossing costs that section's max health divided by
-  the pierce speed curve, which a slug at 1500 (15,000 m/s) pins at its 3.0 ceiling, so the
+  the pierce speed curve, which a slug at 15,000 m/s pins at its 3.0 ceiling, so the
   shipped 1800 buys twenty-seven crossings of 200 hp reinforced hull.
-- `rake_radius` (optional) - how wide a corridor the shot cuts, in units. Omit
+- `rake_radius` (optional) - how wide a corridor the shot cuts, in meters. Omit
   it and the slug is a needle: it cuts exactly the column its bore crossed,
   which is what every railgun did before this field existed.
   Author it and a sphere of that radius TRAILS the tip, its front tangent to
@@ -874,8 +888,8 @@ kind: Railgun((
     second damage number, no falloff and no blast.
   Wider is not more. Against dense material the budget binds either way, so a
   big radius removes the same total and spends it sideways on the entry face
-  instead of forward through the hull: the shipped 1.0 bores three cells wide
-  through a four-deep wall and out the back, while 4.0 strips the front layer
+  instead of forward through the hull: the shipped 10 m bores three cells wide
+  through a four-deep wall and out the back, while 40 m strips the front layer
   and stops one cell in. Pick the radius for the SHAPE you want, then let the
   power decide how much of it you get.
 - `recoil_impulse` - impulse applied backwards along the bore at the muzzle
@@ -906,7 +920,7 @@ mod's own gun and hull can be approximated - a 60 hp cell is light plating,
 480 a vector drive.
 
 <div class="widget" data-widget="lance-corridor">
-<p>Against a wall of 200 hp cells five across, five tall and four deep, the shipped 1.0 takes nine cells a layer - the bore column, its four face neighbours and its four diagonals - through all four layers and one cell out the back: 28 cells for 1867 of 1800 power, the last crossing landing because the budget was still above zero when it began. A radius of 4.0 takes the same 28 as the whole entry face and three of the next layer, and stops there. A radius of 0 is the needle: four cells in a line.</p>
+<p>Against a wall of 200 hp cells five across, five tall and four deep - a cell is 10 m on a side - the shipped 10 m radius takes nine cells a layer: the bore column, its four face neighbours and its four diagonals, through all four layers and one cell out the back. That is 28 cells for 1867 of 1800 power, the last crossing landing because the budget was still above zero when it began. A radius of 40 m takes the same 28 as the whole entry face and three of the next layer, and stops there. A radius of 0 is the needle: four cells in a line.</p>
 </div>
 
 Author a [`Charge` animation track](#animation-tracks) to give the gun a tell.

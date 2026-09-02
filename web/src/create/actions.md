@@ -53,8 +53,8 @@ object and carries its config - the six kinds are the
 
 ```ron
 SpawnScenarioObject((
-    base: (id: "rock_1", name: "Rock", position: (10.0, 0.0, -40.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 5.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
+    base: (id: "rock_1", name: "Rock", position: (100.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
 )),
 ```
 
@@ -72,7 +72,7 @@ The `base` block:
 |---|---|---|---|
 | `id` | string | required | the object's scenario id - the address every event, filter and by-id action uses |
 | `name` | string | required | display name |
-| `position` | 3-tuple | required | world position |
+| `position` | 3-tuple | required | world position, meters |
 | `rotation` | 4-tuple | required | world rotation quaternion `(x, y, z, w)` |
 
 The same spawn id twice in ONE handler is a lint Error; the same id across
@@ -90,13 +90,13 @@ ScatterObjects((
     id_prefix: "asteroid_",
     count: 20,
     seed: 433757350076153856,
-    region: Box(min: (-100.0, -20.0, -100.0), max: (100.0, 20.0, 100.0)),
+    region: Box(min: (-1000.0, -200.0, -1000.0), max: (1000.0, 200.0, 1000.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 1.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
+        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
     ),
-    asteroid_radius: Some((1.0, 3.0)),
-    min_separation: Some(32.0),
+    asteroid_radius: Some((10.0, 30.0)),
+    min_separation: Some(320.0),
 )),
 ```
 
@@ -108,10 +108,10 @@ ScatterObjects((
 | `id_prefix` | string | required | id prefix for the copies (a filter id starting with this prefix lints clean) |
 | `count` | integer | required | copies; runtime cap 4096, absurd counts are a lint Error |
 | `seed` | integer | required | RNG seed - the same seed gives the same layout every load. Asteroid templates without an authored `seed` also get deterministic per-rock silhouette seeds derived from it, so the field's shapes are stable too |
-| `region` | region | required | sampling volume (below) |
+| `region` | region | required | sampling volume in meters (below) |
 | `template` | object config | required | the object each copy clones (any kind; same `base`/`kind` shape as `SpawnScenarioObject`) |
-| `asteroid_radius` | `Option` (lo, hi) | `None` | Asteroid templates only: randomize each rock's radius in `[lo, hi)` |
-| `min_separation` | `Option` number | `None` | minimum centre-to-centre distance (world units) against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped |
+| `asteroid_radius` | `Option` (lo, hi) | `None` | Asteroid templates only: randomize each rock's radius, in meters, in `[lo, hi)` |
+| `min_separation` | `Option` number | `None` | minimum centre-to-centre distance in meters against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped |
 
 `region` variants (struct variants - single parens, named fields):
 
@@ -157,7 +157,7 @@ id.
 
 ```ron
 CreateScenarioArea((id: "safe_zone", name: "Safe Zone",
-    position: (0.0, 0.0, -100.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 10.0)),
+    position: (0.0, 0.0, -1000.0), rotation: (0.0, 0.0, 0.0, 1.0), radius: 100.0)),
 ```
 
 <details class="explain">
@@ -167,9 +167,9 @@ CreateScenarioArea((id: "safe_zone", name: "Safe Zone",
 |---|---|---|---|
 | `id` | string | required | the id `OnEnter`/`OnExit` report as the area |
 | `name` | string | required | display name |
-| `position` | 3-tuple | required | sphere centre |
+| `position` | 3-tuple | required | sphere centre, meters |
 | `rotation` | 4-tuple | required | rotation (cosmetic for a sphere) |
-| `radius` | number | required | sensor radius, world units |
+| `radius` | number | required | sensor radius, meters |
 
 Works mid-scenario, and works even when created AROUND a body already
 inside (the entry still fires).
@@ -519,7 +519,7 @@ one and resets its clock.
 Install, update or remove the soft manual-speed governor on a scoped ship.
 
 ```ron
-SetSpeedCap((id: "player_spaceship", cap: Some(25.0))),
+SetSpeedCap((id: "player_spaceship", cap: Some(250.0))),
 SetSpeedCap((id: "player_spaceship"))              // release the governor
 ```
 
@@ -529,7 +529,7 @@ SetSpeedCap((id: "player_spaceship"))              // release the governor
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scoped ship root |
-| `cap` | `Option` number | `None` | `Some(25.0)` installs/updates the cap (world units per second, 10 m/s each); `None` or omitted REMOVES it |
+| `cap` | `Option` number | `None` | `Some(250.0)` installs/updates the cap, in m/s; `None` or omitted REMOVES it |
 
 </details>
 
@@ -760,7 +760,7 @@ Pin the scenario camera at a pose (drops free-fly control; the pose is
 re-enforced every frame).
 
 ```ron
-SetCamera((position: (0.0, 30.0, 80.0), look_at: (0.0, 0.0, 0.0))),
+SetCamera((position: (0.0, 300.0, 800.0), look_at: (0.0, 0.0, 0.0))),
 ```
 
 <details class="explain">
@@ -768,8 +768,8 @@ SetCamera((position: (0.0, 30.0, 80.0), look_at: (0.0, 0.0, 0.0))),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `position` | 3-tuple | required | world camera position |
-| `look_at` | 3-tuple | required | world point to face (up is +Y) |
+| `position` | 3-tuple | required | world camera position, meters |
+| `look_at` | 3-tuple | required | world point to face, meters (up is +Y) |
 
 Part of the screenshot/photo surface; no scenario camera present is a warn
 no-op.
