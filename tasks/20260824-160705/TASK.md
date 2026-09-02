@@ -1,8 +1,8 @@
 # Redesign Autopilot pacing and probe contracts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 45
-- TAGS: v0.13.0,autopilot,probe
+- TAGS: v0.13.0, autopilot, probe
 
 ## Goal
 
