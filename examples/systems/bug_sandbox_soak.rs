@@ -58,7 +58,7 @@ use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
 use crate::{
     editor_stage::{ADD_MENU, EMPTY_SPACE},
-    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+    editor_walk::{inside_a_ship, the_ship_is_up},
 };
 
 #[derive(Parser)]

@@ -406,7 +406,6 @@ fn gallery_script() -> Script {
             script
                 .step("open the damage-level loop")
                 .on_enter(|world| loop_start(world, DAMAGE_LOOP))
-                .until(frames(1))
                 .add(),
             |script, index| {
                 script

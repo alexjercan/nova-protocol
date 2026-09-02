@@ -93,7 +93,6 @@ fn main() -> bevy::app::AppExit {
                 .step("open the controller loop")
                 .on_enter(hide_hud)
                 .on_enter(|world| loop_start(world, CONTROLLER_LOOP))
-                .until(frames(1))
                 .add()
                 .step("flip and burn")
                 .until(ring::player_retro_burning())

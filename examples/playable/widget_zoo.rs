@@ -650,13 +650,6 @@ struct ZooProbe {
     slider_after_press: f32,
 }
 
-/// Frames a beat waits for the gesture to land: the picking backend needs a
-/// frame to raycast the new pointer position, the widget observers a frame to
-/// react, and `rebuild_body` a frame to respawn. Generous rather than tight -
-/// this runs on a software-rendered CI GPU.
-#[cfg(feature = "debug")]
-const SETTLE: u32 = 10;
-
 /// The whole driven run, one beat per gesture.
 ///
 /// A gesture beat and its VERDICT beat are separate on purpose: the gesture's
@@ -666,13 +659,17 @@ const SETTLE: u32 = 10;
 #[cfg(feature = "debug")]
 fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     use nova_protocol::prelude::{
-        click_named, frames, hover_named, move_cursor, press_mouse, release_mouse, ui_node_centre,
+        click_named, hover_named, move_cursor, pointer_at_node, pointer_pressed, pointer_released,
+        press_mouse, release_mouse, ui_node_centre, ui_node_diagnosis, ui_node_present,
+        BEAT_DEADLINE_SECS,
     };
 
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
         // Let the first body spawn and lay out before anything is pointed at.
-        .step("zoo: settle")
-        .until(frames(SETTLE * 2))
+        .step("zoo: the panel is up")
+        .until(ui_node_present(IDLE_BUTTON))
+        .diagnose(ui_node_diagnosis(IDLE_BUTTON))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: hover a button")
         .on_enter({
@@ -685,7 +682,8 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
                 hover(world);
             }
         })
-        .until(frames(SETTLE))
+        .until(pointer_at_node(IDLE_BUTTON, Vec2::ZERO))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: the hover face is lit")
         .on_enter(|world: &mut World| {
@@ -705,11 +703,11 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             world.resource_mut::<ZooProbe>().hover_alpha = alpha;
             info!("zoo: hover face lit ({idle} -> {alpha})");
         })
-        .until(frames(1))
         .add()
         .step("zoo: press the hovered button")
         .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: the pressed face is lit")
         .on_enter(|world: &mut World| {
@@ -727,21 +725,23 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             );
             info!("zoo: pressed face lit ({hover} -> {alpha})");
         })
-        .until(frames(1))
         .add()
         .step("zoo: release the button")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // Reskin: a full click on the Skin control's Hardware option. `Activate`
         // fires on RELEASE over the same widget, so a click is two beats.
         .step("zoo: click Hardware")
         .on_enter(click_named(SKIN_HARDWARE))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: release on Hardware")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: the skin flipped")
         .on_enter(|world: &mut World| {
@@ -755,15 +755,16 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             // skin - the exact moment a reconciler ghosts or duplicates.
             assert_live_tree(world, "after the reskin");
         })
-        .until(frames(1))
         .add()
         .step("zoo: click a HUD-level option")
         .on_enter(click_named(LEVEL_MINIMAL))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: release on the HUD-level option")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: the HUD level changed")
         .on_enter(|world: &mut World| {
@@ -773,23 +774,26 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             );
             info!("zoo: demo level is Minimal");
         })
-        .until(frames(1))
         .add()
         .step("zoo: click a checkbox")
         .on_enter(click_named(CHECK_FIRST))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: release on the checkbox")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: click a toggle")
         .on_enter(click_named(TOGGLE_FIRST))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: release on the toggle")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: both flips landed")
         .on_enter(|world: &mut World| {
@@ -808,17 +812,18 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             // The second rebuild trigger: a check flip respawns the body too.
             assert_live_tree(world, "after the check flip");
         })
-        .until(frames(1))
         .add()
         // The slider drag: hover the track, press (which SNAPS the value to the
         // press position), then move along the track and release.
         .step("zoo: hover the slider")
         .on_enter(hover_named(SLIDER))
-        .until(frames(SETTLE))
+        .until(pointer_at_node(SLIDER, Vec2::ZERO))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: press on the slider")
         .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: drag along the track")
         .on_enter(|world: &mut World| {
@@ -835,11 +840,13 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             move_cursor(centre + Vec2::new(SLIDER_DRAG_PX * 0.5, 0.0))(world);
             move_cursor(centre + Vec2::new(SLIDER_DRAG_PX, 0.0))(world);
         })
-        .until(frames(SETTLE))
+        .until(pointer_at_node(SLIDER, Vec2::new(SLIDER_DRAG_PX, 0.0)))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: release the slider")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("zoo: the slider moved")
         .on_enter(|world: &mut World| {
@@ -862,7 +869,6 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             );
             info!("zoo: slider dragged {after_press} -> {now}");
         })
-        .until(frames(1))
         .add()
 }
 

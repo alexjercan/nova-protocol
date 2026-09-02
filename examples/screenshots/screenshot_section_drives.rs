@@ -38,8 +38,6 @@ use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
 #[path = "shared/showcase.rs"]
 mod showcase;
-#[cfg(feature = "debug")]
-use showcase::STEP_DEADLINE_SECS;
 
 #[derive(Parser)]
 #[command(name = "screenshot_section_drives")]

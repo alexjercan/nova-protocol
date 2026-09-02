@@ -2200,11 +2200,6 @@ fn reap_team_chevrons(
     }
 }
 
-/// Seconds a load step may sit before the run aborts naming it (llvmpipe
-/// headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// Seconds the fight gets to prove itself: both teams firing and both dealt
 /// damage. The cold opening now sits IN FRONT of the predicate - grace plus
 /// the passive closing to [`ENGAGE_RANGE`] spends ~15-25 s before a shot is
@@ -2265,7 +2260,6 @@ fn arena_script(
     script
         .step("open the arena loop")
         .on_enter(move |world: &mut World| loop_start(world, loop_name))
-        .until(frames(1))
         .add()
         .step("record the live duel")
         .until(elapsed(6.0))

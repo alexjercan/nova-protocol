@@ -219,7 +219,6 @@ fn radar_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         script = script
             .step("open the lock loop")
             .on_enter(|world| loop_start(world, LOCK_LOOP))
-            .until(frames(1))
             .add();
     }
 

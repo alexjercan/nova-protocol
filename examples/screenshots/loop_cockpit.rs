@@ -61,7 +61,6 @@ fn cockpit_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("open the cockpit loop")
         .on_enter(|world| loop_start(world, LOOP_NAME))
-        .until(frames(1))
         .add()
         .step("hold the quiet view")
         .until(elapsed(0.7))

@@ -57,7 +57,6 @@ fn flight_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("open the player-flight loop")
         .on_enter(|world| loop_start(world, LOOP_NAME))
-        .until(frames(1))
         .add()
         .step("hold the built hull")
         .until(elapsed(0.5))

@@ -64,14 +64,23 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the computer")
                 .on_enter(press_tab)
-                .until(frames(SETTLE_FRAMES))
+                .until(computer::raster_open())
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("type the map command")
                 .on_enter(|world| type_word(world, "map"))
-                .until(frames(6))
+                .until(computer::command_line_reads("map"))
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("launch the map app")
                 .on_enter(press_enter)
+                .until(computer::app_owns_the_screen("map"))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                // Owning the screen is not being STILL: the app's offscreen
+                // scene builds and settles over frames, which is render work
+                // and stays a frame count.
+                .step("settle the map app for the shot")
                 .until(frames(SETTLE_FRAMES))
                 .add()
                 .step("capture the map app")
@@ -85,13 +94,18 @@ fn main() -> bevy::app::AppExit {
                     press_escape(world);
                     type_word(world, "ship");
                 })
-                .until(frames(6))
+                .until(computer::command_line_reads("ship"))
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Launch the ship schematic app and let its RTT scene
                 // build/settle. This exercises the real render path (a
                 // wgsl/render panic would fail the run).
                 .step("launch the ship app")
                 .on_enter(press_enter)
+                .until(computer::app_owns_the_screen("ship"))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                .step("settle the ship app for the shot")
                 .until(frames(SETTLE_FRAMES))
                 .add()
                 // The last step holds until the PNG is on disk, so the driver

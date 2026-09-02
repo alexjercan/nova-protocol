@@ -64,23 +64,32 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the computer")
                 .on_enter(press_tab)
-                .until(frames(SETTLE_FRAMES))
+                .until(computer::raster_open())
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Run `help` then `ship view` so command-output formatting is
                 // on screen (bare `ship` now LAUNCHES the app; `ship view` is
                 // the CLI status print).
                 .step("run the help command")
                 .on_enter(|world| run_command(world, "help"))
-                .until(frames(6))
+                .until(computer::the_shell_answered())
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("run the ship view command")
                 .on_enter(|world| run_command(world, "ship view"))
-                .until(frames(6))
+                .until(computer::the_shell_answered())
+                .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Leave a valid prefix in the input to show the inline
                 // completion ghost.
                 .step("leave an inline-completion prefix")
                 .on_enter(|world| type_word(world, "lo"))
+                .until(computer::command_line_reads("lo"))
+                .deadline(STEP_DEADLINE_SECS)
+                .add()
+                // The ghost completion is PAINTED off that prefix, so the shot
+                // still owes the renderer its stillness.
+                .step("settle the completion ghost")
                 .until(frames(SETTLE_FRAMES))
                 .add()
                 // The last step holds until the PNG is on disk, so the driver

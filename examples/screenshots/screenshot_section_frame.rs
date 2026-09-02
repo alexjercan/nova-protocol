@@ -34,7 +34,7 @@ use nova_protocol::prelude::*;
 mod showcase;
 use showcase::section_ship;
 #[cfg(feature = "debug")]
-use showcase::{present_section, SectionShot, STEP_DEADLINE_SECS};
+use showcase::{present_section, SectionShot};
 
 #[derive(Parser)]
 #[command(name = "screenshot_section_frame")]

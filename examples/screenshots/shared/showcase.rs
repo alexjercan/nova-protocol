@@ -174,13 +174,6 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
 #[cfg(feature = "debug")]
 pub const CAMERA_BEARING: Vec3 = Vec3::new(0.78, 0.36, 0.51);
 
-/// Seconds a step may sit before it is called a stall. Sized with headroom for
-/// a slow software-rendered CI GPU (llvmpipe). An expiry is an error exit
-/// naming the step, so a run that never loads the showcase fails loudly instead
-/// of producing an unframed shot.
-#[cfg(feature = "debug")]
-pub const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// One closeup: which section, which way it has to be turned, how close.
 #[cfg(feature = "debug")]
 pub struct SectionShot {

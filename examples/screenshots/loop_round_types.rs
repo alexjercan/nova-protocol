@@ -113,7 +113,6 @@ fn round_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         .step("open the round-type loop")
         .on_enter(|world| loop_start(world, LOOP_NAME))
-        .until(frames(1))
         .add()
         .step("hold the intact layers")
         .until(frames(20))

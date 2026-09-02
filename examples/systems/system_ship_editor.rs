@@ -167,24 +167,6 @@ fn report_frame(world: &mut World) {
 #[cfg(feature = "debug")]
 const FLOWN_RANGE: &str = "editor_sandbox";
 
-/// In-step seconds a beat of this walk gets before the run gives up on it.
-///
-/// THE ONLY NUMBER LEFT. Every wait here is a condition on the app - the widget
-/// laid out, the picking pointer registering the press, the editor solving a
-/// placement, the section landing - so this is a backstop rather than a settle:
-/// a healthy run satisfies each beat within a frame or two of the gesture and
-/// never comes near it. That is why it can be generous against a
-/// software-rendered CI GPU without slowing a good run down, where the frame
-/// count it replaced was paid in full by every beat on every machine.
-///
-/// What it buys is the diagnostic. A frame count sails past whatever it was
-/// guessing at, and the run then fails several beats later on a snapshot
-/// assertion that raced; an unmet condition fails AT its beat, naming it - "the
-/// editor never solved a placement there" instead of "expected 5 sections, got
-/// 4".
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// How far, in pixels, the stage drag carries a grabbed node.
 ///
 /// Short on purpose. The transform rig is scaled to a fixed share of the view,
@@ -3522,24 +3504,10 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     }
 
     fn click_a_widget(self, label: &str, name: &str) -> Self {
-        let target = name.to_string();
-        self.step(format!("{label}: the widget is up"))
-            .until(ui_node_present(name.to_string()))
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: press"))
-            .on_enter(click_named(target))
-            .until(pointer_pressed())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            // Widgets act on `Activate`, which fires on RELEASE over the same
-            // node, so this is the beat that carries the button's effect - and
-            // the caller's next beat is where that effect is waited on.
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
+        // Widgets act on `Activate`, which fires on RELEASE over the same node,
+        // so the release beat carries the button's effect - and the caller's
+        // next beat is where that effect is waited on.
+        self.click_named(label, name, pointer_released(), BEAT_DEADLINE_SECS)
     }
 
     fn press_and_release(self, label: &str, landed: Wait) -> Self {

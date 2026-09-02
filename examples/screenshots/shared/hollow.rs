@@ -788,7 +788,7 @@ pub fn torpedo_within(
 /// Fail the run if the salvo dies before the capture range, rather than shooting
 /// an empty approach.
 #[cfg(feature = "debug")]
-pub fn assert_salvo_still_live(world: &mut World, _: f32) {
+pub fn assert_salvo_still_live(world: &mut World, _: f32, _: u32) {
     let live = world
         .query_filtered::<Entity, With<TorpedoProjectileMarker>>()
         .iter(world)

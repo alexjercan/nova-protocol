@@ -191,10 +191,6 @@ fn load_scene(
     commands.insert_resource(compare::CompareRoster::new(entries));
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// The roster indices the walk dresses the focus sphere with: one gas giant
 /// and the Martian pick, so both map families get a close-up frame.
 #[cfg(feature = "debug")]

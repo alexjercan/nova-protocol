@@ -14,8 +14,9 @@
 //! `nova_menu/src/settings.rs`:
 //!
 //!   - the armed chip waits for `all_released()` before it will capture
-//!     (`awaiting_release`, `settings.rs:646`), so the click that armed it
-//!     must fully release and idle a frame before the key goes down;
+//!     (`awaiting_release`, `settings.rs:646`), so the key beat holds until
+//!     the registry ITSELF has taken J rather than assuming one frame of
+//!     quiet was enough;
 //!   - Escape both cancels a capture AND toggles the pause overlay
 //!     (`pause.rs:62`), so no beat here uses Escape past the first one.
 //!
@@ -26,7 +27,7 @@
 //!
 //! Run (no display needed):
 //! ```text
-//! cargo run --example system_headless_rebind --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_headless_rebind --features debug
 //! # look for: `headless rebind: PASS the registry took J for main_drive`.
 //! ```
 
@@ -66,237 +67,132 @@ fn main() -> bevy::app::AppExit {
         PrimaryWindow,
     ));
 
-    app.init_resource::<Spike>();
-    app.add_systems(PreUpdate, drive.after(bevy::input::InputSystems));
+    app.add_plugins(
+        nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            .step("headless rebind: reach Playing with no renderer")
+            .until(state_is(GameStates::Playing))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step("headless rebind: the store started clean")
+            .on_enter(assert_the_store_is_isolated)
+            .add()
+            .step("headless rebind: ESC opens the pause overlay")
+            .on_enter(press_key(KeyCode::Escape))
+            .until(resource_where::<State<PauseStates>>(|pause| {
+                *pause.get() == PauseStates::Paused
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless rebind: release ESC")
+            .on_enter(release_key(KeyCode::Escape))
+            .add()
+            // The walk in. Every activation reconciles the settings body, so
+            // each click re-resolves the NEXT name from scratch - and each aim
+            // holds until the pick map says it landed, because the scenario
+            // loading screen fades out OVER the fresh overlay and eats picks
+            // for about a second.
+            .click_named(
+                "headless rebind: open Settings",
+                "Pause Settings Button",
+                ui_node_present("Settings Tab: Controls"),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "headless rebind: open Controls",
+                "Settings Tab: Controls",
+                ui_node_present("Controls Group: FLIGHT"),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "headless rebind: open FLIGHT",
+                "Controls Group: FLIGHT",
+                ui_node_present("Rebind: main_drive Desk"),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "headless rebind: arm main_drive",
+                "Rebind: main_drive Desk",
+                pointer_released(),
+                BEAT_DEADLINE_SECS,
+            )
+            // J goes down and stays down until the REGISTRY has taken it. The
+            // armed chip captures only once everything is released, so the
+            // beat that presses cannot also be the beat that reads the result.
+            .step("headless rebind: press J")
+            .on_enter(press_key(KeyCode::KeyJ))
+            .add()
+            .step("headless rebind: release J")
+            .on_enter(release_key(KeyCode::KeyJ))
+            .add()
+            .step("headless rebind: the registry took J for main_drive")
+            .until(main_drive_is_bound_to(KeyCode::KeyJ))
+            .diagnose(|world: &World| format!("main_drive holds {:?}", keyboard_column(world)))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless rebind: record the pass")
+            .on_enter(record_the_rebind)
+            .add(),
+    );
 
     app.run()
 }
 
+/// The keyboard column `main_drive` currently binds, empty when the row is not
+/// registered.
 #[cfg(feature = "debug")]
-#[derive(Resource)]
-struct Spike {
-    step: usize,
-    wait: u32,
-    /// Frames since the current click target FIRST resolved - the gesture
-    /// counter, distinct from `wait` (frames since the step began).
-    phase: u32,
-    started: std::time::Instant,
+fn keyboard_column(world: &World) -> Vec<InputSource> {
+    world
+        .get_resource::<InputBindings>()
+        .and_then(|bindings| bindings.get("main_drive"))
+        .map(|row| row.keyboard.clone())
+        .unwrap_or_default()
 }
 
+/// Advance once `main_drive`'s whole keyboard column is `key` - not "contains",
+/// because the rebind REPLACES the column and W and Space going away is half
+/// of what this range proves.
 #[cfg(feature = "debug")]
-impl Default for Spike {
-    fn default() -> Self {
-        Self {
-            step: 0,
-            wait: 0,
-            phase: 0,
-            started: std::time::Instant::now(),
-        }
-    }
-}
-
-#[cfg(feature = "debug")]
-const DEADLINE_SECS: u64 = 180;
-
-/// Drive one click on a named widget the way a person does: aim, wait until
-/// the pointer is ACTUALLY over it, press, release. True once the release
-/// fired.
-///
-/// The hover gate is the actionability check, and it is load-bearing: a
-/// resolvable rect is NOT clickable yet. The scenario loading screen fades
-/// out OVER the freshly opened pause overlay and eats every pick for about a
-/// second, so a driver that presses on a frame count clicks the fade, not the
-/// button. The press waits until the pick map says the aim landed on the
-/// widget itself, re-aiming every frame while anything else - an occluder, a
-/// reflow - keeps it off.
-#[cfg(feature = "debug")]
-fn click_named(world: &mut World, name: &str) -> bool {
-    if ui_node_rect(world, name).is_none() {
-        world.resource_mut::<Spike>().phase = 0;
-        return false;
-    }
-    let phase = world.resource::<Spike>().phase;
-    match phase {
-        0 | 1 => {
-            hover_named(name)(world);
-            if phase == 1 && hovering(world, name) {
-                world.resource_mut::<Spike>().phase = 2;
-            } else {
-                world.resource_mut::<Spike>().phase = 1;
-                let wait = world.resource::<Spike>().wait;
-                if wait % 60 == 59 {
-                    info!(
-                        "click: aim at {name} blocked; the pointer is over {:?}",
-                        hovered(world)
-                    );
-                }
-            }
-        }
-        2 => {
-            press_mouse(MouseButton::Left)(world);
-            world.resource_mut::<Spike>().phase = 3;
-        }
-        _ => {
-            release_mouse(MouseButton::Left)(world);
-            world.resource_mut::<Spike>().phase = 0;
-            return true;
-        }
-    }
-    false
-}
-
-/// Whether the window mouse pointer's picks include `name` - checked against
-/// each hit AND its ancestors, because picking reports the deepest node (for
-/// a labelled button, its text).
-#[cfg(feature = "debug")]
-fn hovering(world: &World, name: &str) -> bool {
-    use bevy::picking::{hover::HoverMap, pointer::PointerId};
-    let Some(hits) = world.resource::<HoverMap>().get(&PointerId::Mouse) else {
-        return false;
-    };
-    hits.keys().any(|hit| {
-        std::iter::successors(Some(*hit), |entity| {
-            world.get::<ChildOf>(*entity).map(|child| child.parent())
-        })
-        .any(|entity| {
-            world
-                .get::<Name>(entity)
-                .is_some_and(|named| named.as_str() == name)
-        })
+fn main_drive_is_bound_to(
+    key: KeyCode,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        keyboard_column(world) == vec![InputSource::Keyboard(key)]
     })
 }
 
-/// What the window mouse pointer is over, named where possible - so a blocked
-/// aim names its occluder.
+/// A leftover override means `NOVA_CONFIG_ROOT` did not isolate, and this run
+/// would be reading the developer's own `settings.ron`.
 #[cfg(feature = "debug")]
-fn hovered(world: &World) -> Vec<String> {
-    use bevy::picking::{hover::HoverMap, pointer::PointerId};
-    let Some(hits) = world.resource::<HoverMap>().get(&PointerId::Mouse) else {
-        return Vec::new();
-    };
-    hits.keys()
-        .map(|hit| {
-            std::iter::successors(Some(*hit), |entity| {
-                world.get::<ChildOf>(*entity).map(|child| child.parent())
-            })
-            .find_map(|entity| world.get::<Name>(entity).map(|name| name.to_string()))
-            .unwrap_or_else(|| "unnamed".to_string())
-        })
-        .collect()
+fn assert_the_store_is_isolated(world: &mut World) {
+    assert!(
+        world.resource::<InputBindings>().overrides().is_empty(),
+        "the isolated store must start clean - a leftover override means \
+         NOVA_CONFIG_ROOT did not isolate"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the rebind store starts isolated",
+        serde_json::json!({}),
+    );
 }
 
+/// State what the registry now holds, and that the diff-against-defaults set
+/// carries it.
 #[cfg(feature = "debug")]
-fn drive(world: &mut World) {
-    let spike = world.resource::<Spike>();
-    let (step, wait) = (spike.step, spike.wait);
-    if spike.started.elapsed().as_secs() > DEADLINE_SECS {
-        panic!("headless rebind: STALLED at step {step} after {DEADLINE_SECS}s");
-    }
-
-    let advance = |world: &mut World| {
-        let mut spike = world.resource_mut::<Spike>();
-        spike.step += 1;
-        spike.wait = 0;
-        spike.phase = 0;
-    };
-    let hold = |world: &mut World| world.resource_mut::<Spike>().wait += 1;
-    let click = |world: &mut World, name: &str| {
-        if click_named(world, name) {
-            advance(world);
-        } else {
-            hold(world);
-        }
-    };
-
-    match step {
-        0 => {
-            if *world.resource::<State<GameStates>>().get() == GameStates::Playing {
-                assert!(
-                    world.resource::<InputBindings>().overrides().is_empty(),
-                    "the isolated store must start clean - a leftover override \
-                     means NOVA_CONFIG_ROOT did not isolate"
-                );
-                nova_probe::probe_marker(
-                    world,
-                    "outcome: the rebind store starts isolated",
-                    serde_json::json!({}),
-                );
-                advance(world);
-            }
-        }
-        1 => {
-            if wait < 5 {
-                hold(world);
-            } else {
-                press_key(KeyCode::Escape)(world);
-                advance(world);
-            }
-        }
-        2 => {
-            release_key(KeyCode::Escape)(world);
-            advance(world);
-        }
-        3 => {
-            if *world.resource::<State<PauseStates>>().get() == PauseStates::Paused {
-                advance(world);
-            } else {
-                hold(world);
-            }
-        }
-        // The walk in: every activation reconciles the settings body, so each
-        // beat re-resolves the NEXT name from scratch.
-        4 => click(world, "Pause Settings Button"),
-        5 => click(world, "Settings Tab: Controls"),
-        6 => click(world, "Controls Group: FLIGHT"),
-        7 => {
-            if wait == 0 {
-                info!("headless rebind: FLIGHT rows are up; arming main_drive");
-            }
-            click(world, "Rebind: main_drive Desk");
-        }
-        // The armed chip waits for all_released(); give it clean frames with
-        // nothing down before the key arrives.
-        8 => {
-            if wait < 3 {
-                hold(world);
-            } else {
-                press_key(KeyCode::KeyJ)(world);
-                advance(world);
-            }
-        }
-        9 => {
-            release_key(KeyCode::KeyJ)(world);
-            advance(world);
-        }
-        10 => {
-            let bindings = world.resource::<InputBindings>();
-            let main_drive = bindings
-                .get("main_drive")
-                .expect("main_drive is a registry row");
-            if main_drive.keyboard == vec![InputSource::Keyboard(KeyCode::KeyJ)] {
-                assert!(
-                    bindings.overrides().contains_key("main_drive"),
-                    "the diff-against-defaults set must carry the rebind"
-                );
-                let column = format!("{:?}", main_drive.keyboard);
-                info!("headless rebind: PASS the registry took J for main_drive");
-                info!("headless rebind: keyboard column is now {column} (W and Space are gone)");
-                nova_probe::probe_marker(
-                    world,
-                    "outcome: the registry takes a wire rebind",
-                    serde_json::json!({ "main_drive": column }),
-                );
-                world.write_message(AppExit::Success);
-                advance(world);
-            } else if wait > 240 {
-                panic!(
-                    "headless rebind: J never landed; main_drive holds {:?}",
-                    main_drive.keyboard
-                );
-            } else {
-                hold(world);
-            }
-        }
-        _ => {}
-    }
+fn record_the_rebind(world: &mut World) {
+    assert!(
+        world
+            .resource::<InputBindings>()
+            .overrides()
+            .contains_key("main_drive"),
+        "the diff-against-defaults set must carry the rebind"
+    );
+    let column = format!("{:?}", keyboard_column(world));
+    info!("headless rebind: PASS the registry took J for main_drive");
+    info!("headless rebind: keyboard column is now {column} (W and Space are gone)");
+    nova_probe::probe_marker(
+        world,
+        "outcome: the registry takes a wire rebind",
+        serde_json::json!({ "main_drive": column }),
+    );
 }

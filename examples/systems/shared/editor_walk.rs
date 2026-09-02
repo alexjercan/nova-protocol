@@ -2,15 +2,6 @@
 
 use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
-/// In-step seconds a gesture beat gets before the run gives up on it.
-///
-/// Every wait in these walks is a CONDITION - the button laid out, the picking
-/// pointer registering the press, the preview ship spawned - so this is a
-/// backstop rather than a settle. A frame count could only say that some
-/// frames had gone by, which buys nothing when the point of the beat is that
-/// the editor has REACTED.
-pub const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// Advance once the editor is inside a ship - what Add Ship does.
 ///
 /// False while there is no [`EditorProbe`] at all. The probe arrives with the

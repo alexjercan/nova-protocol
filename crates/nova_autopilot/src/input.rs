@@ -259,6 +259,62 @@ pub fn click_at(
     }
 }
 
+/// Why [`ui_node_rect`] found no target called `name` - the sentence a stalled
+/// layout beat needs.
+///
+/// [`ui_node_rect`] answers `None` for four different worlds: nothing carries
+/// that [`Name`]; something does but its ancestry hides it; something visible
+/// carries it but has not been through `ui_layout_system` (or is
+/// `Display::None`, which keeps the same zero-size box); or a component it
+/// reads was never registered. Those are four different bugs with four
+/// different fixes, and a predicate can only say `false`. Hand this to
+/// [`diagnose`](crate::autopilot::StepBuilder::diagnose) and the abort names
+/// which one it hit.
+pub fn ui_node_diagnosis(name: impl Into<String>) -> impl Fn(&World) -> String + Send + Sync {
+    let name = name.into();
+    move |world: &World| {
+        let Some(mut query) = world.try_query::<(&Name, &ComputedNode, &InheritedVisibility)>()
+        else {
+            return format!(
+                "no UI node type is registered at all, so `{name}` cannot have spawned"
+            );
+        };
+        let mut hidden = 0usize;
+        let mut unlaid = 0usize;
+        let mut laid_out = 0usize;
+        for (node_name, computed, visibility) in query.iter(world) {
+            if node_name.as_str() != name {
+                continue;
+            }
+            if !visibility.get() {
+                hidden += 1;
+            } else if computed.size().cmpgt(Vec2::ZERO).all() {
+                laid_out += 1;
+            } else {
+                unlaid += 1;
+            }
+        }
+        match (hidden, unlaid, laid_out) {
+            (0, 0, 0) => format!("nothing in the world is named `{name}`"),
+            (_, 0, 0) => {
+                format!("{hidden} node(s) named `{name}` exist but are hidden by their ancestry")
+            }
+            (0, _, 0) => format!(
+                "{unlaid} visible node(s) named `{name}` exist but carry no laid-out box \
+                 (the layout pass has not run, or they are Display::None)"
+            ),
+            (_, _, 0) => format!(
+                "{unlaid} visible node(s) named `{name}` carry no laid-out box, and {hidden} \
+                 more are hidden by their ancestry"
+            ),
+            _ => format!(
+                "{laid_out} node(s) named `{name}` ARE laid out and visible - the wait \
+                 that stalled was not this one, or the box appeared after it expired"
+            ),
+        }
+    }
+}
+
 /// The logical-pixel RECT of the laid-out UI node called `name`, if there is
 /// one.
 ///
@@ -830,6 +886,56 @@ mod tests {
             ui_node_rect(app.world_mut(), "No Such List"),
             None,
             "an unknown name resolves to nothing rather than to some other node"
+        );
+    }
+
+    /// The four worlds `ui_node_rect` collapses into `None`, told apart. A
+    /// stalled layout beat prints one of these, and they have four different
+    /// fixes - boot the UI, check the name, unhide it, wait for layout.
+    #[test]
+    fn the_node_diagnosis_names_which_failure_it_hit() {
+        let why = ui_node_diagnosis("Play Button");
+
+        let mut world = World::new();
+        assert!(
+            why(&world).contains("no UI node type is registered"),
+            "an app whose UI never booted is its own failure: {}",
+            why(&world)
+        );
+
+        // Spawning ANOTHER node registers the components, so the question
+        // becomes about this name rather than about the world.
+        world.spawn((
+            Name::new("Quit Button"),
+            UiGlobalTransform::default(),
+            ComputedNode::default(),
+            InheritedVisibility::VISIBLE,
+        ));
+        assert!(
+            why(&world).contains("nothing in the world is named"),
+            "a misspelled or unspawned name is not a layout problem: {}",
+            why(&world)
+        );
+
+        let node = world
+            .spawn((
+                Name::new("Play Button"),
+                UiGlobalTransform::default(),
+                ComputedNode::default(),
+                InheritedVisibility::VISIBLE,
+            ))
+            .id();
+        assert!(
+            why(&world).contains("no laid-out box"),
+            "a spawned but unsized node has not been through layout: {}",
+            why(&world)
+        );
+
+        world.entity_mut(node).insert(InheritedVisibility::HIDDEN);
+        assert!(
+            why(&world).contains("hidden by their ancestry"),
+            "a hidden node is a different failure from a missing one: {}",
+            why(&world)
         );
     }
 

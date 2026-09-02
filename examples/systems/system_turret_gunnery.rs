@@ -626,7 +626,7 @@ struct HeldInput {
 /// trigger's single `just_pressed` edge was cleared before the weapon saw it,
 /// so the range aimed perfectly and never fired a round.
 #[cfg(feature = "debug")]
-fn hold_inputs(world: &mut World, _elapsed: f32) {
+fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {

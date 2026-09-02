@@ -126,7 +126,6 @@ fn script() -> AutopilotPlugin<DemoState> {
         .add()
         .step("release the button")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(1))
         .add()
         .step("settle in Done")
         .enter(DemoState::Done)

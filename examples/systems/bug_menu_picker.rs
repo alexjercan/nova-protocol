@@ -218,7 +218,7 @@ fn scenario_row_names(world: &mut World) -> Vec<String> {
 /// Open the picker, click each row once, measure the panes after each, report
 /// whether the split held, and launch the last selection.
 #[cfg(feature = "debug")]
-fn scenarios_autopilot(world: &mut World, _elapsed: f32) {
+fn scenarios_autopilot(world: &mut World, _elapsed: f32, _frame: u32) {
     let playing = matches!(
         *world.resource::<State<GameStates>>().get(),
         GameStates::Playing

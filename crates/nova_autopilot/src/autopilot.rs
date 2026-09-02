@@ -14,9 +14,9 @@
 //! | `deadline` | in-step seconds after which an unsatisfied `until` ABORTS the run, naming the step |
 //!
 //! The step advances the first frame `until` holds. Elapsed time is one
-//! predicate among many ([`elapsed`](crate::predicate::elapsed)), so
-//! [`hold`](AutopilotPlugin::hold) - enter a state, wait N seconds - is sugar
-//! over the same machinery rather than a second mechanism.
+//! predicate among many ([`elapsed`](crate::predicate::elapsed)), so a timed
+//! beat - enter a state, wait N seconds - is the same machinery as every other
+//! wait rather than a second mechanism.
 //!
 //! It is inert unless the [`AUTOPILOT_ENV`] environment variable is set, so a
 //! game adds it unconditionally and pays nothing in a normal run:
@@ -66,10 +66,7 @@
 //! enforced: the run-level value comes from the harness that launches the
 //! process, which this crate cannot see.
 
-use std::sync::{
-    atomic::{AtomicU8, Ordering as AtomicOrdering},
-    Arc,
-};
+use std::sync::Arc;
 
 use bevy::{input::InputSystems, prelude::*, state::state::FreelyMutableState};
 
@@ -82,10 +79,16 @@ pub const AUTOPILOT_ENV: &str = "NOVA_AUTOPILOT";
 /// A step's entry action: full world access, run once when the step begins.
 type EnterFn = dyn Fn(&mut World) + Send + Sync;
 
-/// A step's per-frame action: full world access plus the elapsed seconds IN
-/// THIS STEP (not since the run started - that clock is the one every script
-/// used to correct away by hand).
-type EachFn = dyn Fn(&mut World, f32) + Send + Sync;
+/// A step's per-frame action: full world access, the elapsed seconds IN THIS
+/// STEP (not since the run started - that clock is the one every script used to
+/// correct away by hand), and the count of driven frames this step has had,
+/// starting at 1 on its first driven frame.
+///
+/// The frame index is there because a gesture that has to act on PARTICULAR
+/// frames within one step - a double click, whose two releases must land two
+/// frames apart - would otherwise have to smuggle a counter of its own through
+/// the closures. The driver is already holding that number.
+type EachFn = dyn Fn(&mut World, f32, u32) + Send + Sync;
 
 /// Message written each time a [`loop_from`](AutopilotPlugin::loop_from)
 /// autopilot restarts its cycle because other completion collectors are still
@@ -98,6 +101,11 @@ type EachFn = dyn Fn(&mut World, f32) + Send + Sync;
 #[derive(Message)]
 pub struct AutopilotLoop;
 
+/// A step's stall diagnosis: read the world at the moment the deadline expired
+/// and say what the wait was actually looking at. Run ONCE, on the abort path,
+/// so it may be as expensive as the answer needs.
+type DiagnoseFn = dyn Fn(&World) -> String + Send + Sync;
+
 /// One beat of a script. Built through [`AutopilotPlugin::step`]; the driver
 /// stores the list and walks it.
 struct Step<S: States + FreelyMutableState> {
@@ -107,6 +115,7 @@ struct Step<S: States + FreelyMutableState> {
     each: Option<Arc<EachFn>>,
     until: Arc<Predicate>,
     deadline: Option<f32>,
+    diagnose: Option<Arc<DiagnoseFn>>,
 }
 
 // Hand-written rather than derived: `#[derive(Clone)]` would add an `S: Clone`
@@ -121,6 +130,7 @@ impl<S: States + FreelyMutableState> Clone for Step<S> {
             each: self.each.clone(),
             until: Arc::clone(&self.until),
             deadline: self.deadline,
+            diagnose: self.diagnose.clone(),
         }
     }
 }
@@ -192,23 +202,73 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
                 each: None,
                 until: immediately(),
                 deadline: None,
+                diagnose: None,
             },
             plugin: self,
         }
     }
 
-    /// Append a timed step: enter `state` and hold it for `seconds` before
-    /// advancing. Sugar for
-    /// `step("hold:<state>").enter(state).until(elapsed(seconds))`.
+    /// Append the three beats of a CLICK on the UI node called `name`: wait for
+    /// it to lay out, press it, and release it - the last beat holding until
+    /// `landed`, which is what the click was FOR.
     ///
-    /// A wall-clock beat is still a wall-clock beat: prefer a step that waits
-    /// on what has to HAPPEN wherever one exists, because a software renderer
-    /// can collapse a generous-looking window into a handful of frames.
-    pub fn hold(self, state: S, seconds: f32) -> Self {
-        let name = format!("hold:{state:?}");
-        self.step(name)
-            .enter(state)
-            .until(crate::predicate::elapsed(seconds))
+    /// The one spelling of the fleet's most-used gesture. Three beats because
+    /// that is the real shape: `click_named` warns and CONTINUES when the name
+    /// resolves to nothing, so a press fired at a panel that has not laid out
+    /// yet is a beat silently lost; and widgets act on `Activate`, which fires
+    /// on RELEASE over the same node, so the release is the beat that carries
+    /// the effect.
+    ///
+    /// `landed` is the point of the parameter. A gesture that ends on
+    /// [`pointer_released`](crate::predicate::pointer_released) has only proved
+    /// that the pointer let go - the walk then asserts the button's effect on
+    /// whatever frame it happens to reach. Passing the effect itself
+    /// (`state_is(Playing)`, `ui_node_present("Inspector Field Name")`,
+    /// `and(editor_field_focused(), ..)`) makes a click that MISSED fail here,
+    /// named, instead of three beats later on a symptom. Pass
+    /// `pointer_released()` where the effect is genuinely the caller's next
+    /// beat to wait on.
+    ///
+    /// The layout beat carries [`ui_node_diagnosis`](crate::input::ui_node_diagnosis),
+    /// so a stall says which of "no such node", "hidden", and "not laid out
+    /// yet" it hit.
+    pub fn click_named(
+        self,
+        label: &str,
+        name: &str,
+        landed: Arc<Predicate>,
+        deadline: f32,
+    ) -> Self {
+        let aim = name.to_string();
+        let re_aim = name.to_string();
+        self.step(format!("{label}: the widget is up"))
+            .until(crate::predicate::ui_node_present(name.to_string()))
+            .diagnose(crate::input::ui_node_diagnosis(name.to_string()))
+            .deadline(deadline)
+            .add()
+            // Aimed, then WAITED on. A resolvable rect is not a clickable
+            // widget: an overlay on its way out takes every pick, and a reflow
+            // moves the widget out from under an aim already sent. Re-aimed
+            // every frame, so the beat recovers from the reflow instead of
+            // holding a stale coordinate until the deadline.
+            .step(format!("{label}: aim"))
+            .on_enter(crate::input::hover_named(aim))
+            .each(move |world: &mut World, _, _| {
+                crate::input::hover_named(re_aim.clone())(world);
+            })
+            .until(crate::predicate::pointer_over_node(name.to_string()))
+            .diagnose(crate::predicate::pointer_hover_diagnosis(name.to_string()))
+            .deadline(deadline)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(crate::input::press_mouse(MouseButton::Left))
+            .until(crate::predicate::pointer_pressed())
+            .deadline(deadline)
+            .add()
+            .step(format!("{label}: release"))
+            .on_enter(crate::input::release_mouse(MouseButton::Left))
+            .until(landed)
+            .deadline(deadline)
             .add()
     }
 
@@ -233,31 +293,25 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
     pub fn double_click_named(self, label: &str, name: &str, deadline: f32) -> Self {
         let second = name.to_string();
         let first = name.to_string();
-        // The phase is the step's own frame counter. Reset on entry rather than
-        // just initialised, so a looping script drives the gesture again.
-        let phase = Arc::new(AtomicU8::new(0));
-        let armed = phase.clone();
-        let ticks = phase.clone();
-        let released = crate::predicate::pointer_released();
         self.step(format!("{label}: the widget is up"))
             .until(crate::predicate::ui_node_present(name.to_string()))
+            .diagnose(crate::input::ui_node_diagnosis(name.to_string()))
             .deadline(deadline)
             .add()
             .step(format!("{label}: double click"))
-            .on_enter(move |world: &mut World| {
-                armed.store(0, AtomicOrdering::Relaxed);
-                crate::input::click_named(first.clone())(world);
+            .on_enter(crate::input::click_named(first))
+            // The step's own frame index, which the driver already keeps: frame
+            // 1 is the one after entry, so the gesture reads press (on entry),
+            // release, press, release on four consecutive frames.
+            .each(move |world: &mut World, _, frame| match frame {
+                1 | 3 => crate::input::release_mouse(MouseButton::Left)(world),
+                2 => crate::input::click_named(second.clone())(world),
+                _ => {}
             })
-            .each(
-                move |world: &mut World, _| match ticks.fetch_add(1, AtomicOrdering::Relaxed) {
-                    0 | 2 => crate::input::release_mouse(MouseButton::Left)(world),
-                    1 => crate::input::click_named(second.clone())(world),
-                    _ => {}
-                },
-            )
-            .until(Arc::new(move |world: &World| {
-                phase.load(AtomicOrdering::Relaxed) > 3 && released(world)
-            }))
+            .until(crate::predicate::and(
+                crate::predicate::frames(4),
+                crate::predicate::pointer_released(),
+            ))
             .deadline(deadline)
             .add()
     }
@@ -278,7 +332,7 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
     /// (an "any key to start" screen), gate it to the gameplay state to avoid
     /// tripping those transitions early:
     /// `if *world.resource::<State<GameState>>().get() != GameState::Playing { return; }`.
-    pub fn input(mut self, f: impl Fn(&mut World, f32) + Send + Sync + 'static) -> Self {
+    pub fn input(mut self, f: impl Fn(&mut World, f32, u32) + Send + Sync + 'static) -> Self {
         self.input = Some(Arc::new(f));
         self
     }
@@ -332,10 +386,30 @@ impl<S: States + FreelyMutableState> StepBuilder<S> {
     }
 
     /// Run `f` every frame this step is current, with the elapsed seconds IN
-    /// THIS STEP. Takes precedence over a plugin-wide
-    /// [`input`](AutopilotPlugin::input) closure.
-    pub fn each(mut self, f: impl Fn(&mut World, f32) + Send + Sync + 'static) -> Self {
+    /// THIS STEP and the count of driven frames it has had (1 on the first).
+    /// Takes precedence over a plugin-wide [`input`](AutopilotPlugin::input)
+    /// closure.
+    ///
+    /// The frame index is for a gesture that must act on PARTICULAR frames -
+    /// see [`double_click_named`](AutopilotPlugin::double_click_named), whose
+    /// two releases have to land two frames apart at any frame rate. Ignore it
+    /// (`|world, _, _|`) for a closure that just drives every frame.
+    pub fn each(mut self, f: impl Fn(&mut World, f32, u32) + Send + Sync + 'static) -> Self {
         self.step.each = Some(Arc::new(f));
+        self
+    }
+
+    /// Explain a stall: run `f` when this step's [`deadline`](Self::deadline)
+    /// expires and append what it returns to the abort message.
+    ///
+    /// A predicate answers only true or false, so a step that timed out says
+    /// how long it waited and nothing about WHY. Where the wait collapses
+    /// several distinct failures into one `false` - a node that does not exist,
+    /// one that exists and is hidden, one that exists and has not laid out -
+    /// this is where they are told apart. Run once, on the abort path only, so
+    /// it may cost whatever the answer costs.
+    pub fn diagnose(mut self, f: impl Fn(&World) -> String + Send + Sync + 'static) -> Self {
+        self.step.diagnose = Some(Arc::new(f));
         self
     }
 
@@ -349,6 +423,11 @@ impl<S: States + FreelyMutableState> StepBuilder<S> {
     /// Abort the run if the step is still current `seconds` after it began.
     /// The expiry is an ERROR exit naming the step, never a completion - see
     /// the module docs on sizing it under the run-level deadline.
+    ///
+    /// REAL seconds, not the app's. A host that pauses its own clock - Nova
+    /// stops `Time<Virtual>` behind the pause overlay and the ship computer -
+    /// would otherwise freeze every deadline set from there on, and a stalled
+    /// beat would hold the run open until something outside it gave up.
     pub fn deadline(mut self, seconds: f32) -> Self {
         self.step.deadline = Some(seconds);
         self
@@ -372,6 +451,15 @@ pub(crate) struct AutopilotClock {
     pub(crate) step_elapsed: f32,
     /// Driven frames since the current step was entered.
     pub(crate) step_frames: u32,
+    /// REAL seconds since the current step was entered - the clock a deadline
+    /// is measured on.
+    ///
+    /// Not [`step_elapsed`](Self::step_elapsed): that runs on the app's own
+    /// `Time`, which Nova PAUSES with the game. A walk that opens the pause
+    /// overlay or the ship computer freezes it, and every deadline set past
+    /// that point stops counting - a stalled beat then holds the run open
+    /// until the outer harness kills it, with nothing naming the step.
+    pub(crate) step_real: f32,
 }
 
 /// Internal driver state; kept out of the prelude per the crate conventions.
@@ -485,22 +573,30 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
         let mut clock = world.resource_mut::<AutopilotClock>();
         clock.step_elapsed = 0.0;
         clock.step_frames = 0;
+        clock.step_real = 0.0;
         world.insert_resource(st);
         return;
     }
 
     let dt = world.resource::<Time>().delta_secs();
-    let (elapsed, step_elapsed) = {
+    let real = world.resource::<Time<Real>>().delta_secs();
+    let (elapsed, step_elapsed, step_frames, step_real) = {
         let mut clock = world.resource_mut::<AutopilotClock>();
         clock.elapsed += dt;
         clock.step_elapsed += dt;
         clock.step_frames += 1;
-        (clock.elapsed, clock.step_elapsed)
+        clock.step_real += real;
+        (
+            clock.elapsed,
+            clock.step_elapsed,
+            clock.step_frames,
+            clock.step_real,
+        )
     };
 
     let step = st.steps[st.index].clone();
     if let Some(each) = &step.each {
-        each(world, step_elapsed);
+        each(world, step_elapsed, step_frames);
     }
 
     // While looping, finish the moment other collectors are done rather
@@ -524,17 +620,19 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
     }
 
     if !(step.until)(world) {
-        if step
-            .deadline
-            .is_some_and(|deadline| step_elapsed >= deadline)
-        {
+        if step.deadline.is_some_and(|deadline| step_real >= deadline) {
             let state = world.resource::<State<S>>().get().clone();
+            let why = step
+                .diagnose
+                .as_ref()
+                .map(|diagnose| format!(" - {}", diagnose(world)))
+                .unwrap_or_default();
             // An expired step is an ABORT, not a completion - error exits
             // do not negotiate with the other collectors, and the driver must
             // never report done for a script that stalled.
             error!(
-                "autopilot: step `{}` stalled after {step_elapsed:.1}s \
-                 (run {elapsed:.1}s, state {state:?})",
+                "autopilot: step `{}` stalled after {step_real:.1}s \
+                 (run {elapsed:.1}s, state {state:?}){why}",
                 step.name
             );
             world.write_message(AppExit::error());
@@ -604,6 +702,18 @@ mod tests {
         Boot,
         Playing,
         Over,
+    }
+
+    /// The timed beat, spelled once for the tests that need several of them.
+    ///
+    /// It used to be public API (`AutopilotPlugin::hold`) and had no caller
+    /// outside this module: the fleet writes `.step(..).enter(..)
+    /// .until(elapsed(..))` out, because a beat worth naming is worth naming.
+    impl AutopilotPlugin<TestState> {
+        fn hold(self, state: TestState, seconds: f32) -> Self {
+            let name = format!("hold:{state:?}");
+            self.step(name).enter(state).until(elapsed(seconds)).add()
+        }
     }
 
     /// Arm the plugin for the whole test binary. Set once, never removed and
@@ -720,7 +830,7 @@ mod tests {
     }
 
     #[test]
-    fn hold_is_sugar_for_the_elapsed_predicate() {
+    fn a_timed_step_holds_its_state_for_the_elapsed_seconds() {
         let mut app = app(AutopilotPlugin::new()
             .hold(TestState::Playing, 0.1)
             .hold(TestState::Over, 0.1));
@@ -789,7 +899,7 @@ mod tests {
         let mut each_app =
             app(AutopilotPlugin::new()
                 .hold(TestState::Playing, 10.0)
-                .input(|world, _| {
+                .input(|world, _, _| {
                     world
                         .resource_mut::<ButtonInput<KeyCode>>()
                         .press(KeyCode::Space);
@@ -847,7 +957,7 @@ mod tests {
             .hold(TestState::Playing, 0.1)
             .step("second")
             .enter(TestState::Over)
-            .each(move |_, t| recorder.lock().unwrap().push(t))
+            .each(move |_, t, _| recorder.lock().unwrap().push(t))
             .until(elapsed(0.1))
             .add());
 
@@ -888,6 +998,30 @@ mod tests {
         );
     }
 
+    /// A deadline is REAL seconds. A host that pauses its own clock - Nova
+    /// stops `Time<Virtual>` behind the pause overlay and the ship computer -
+    /// must not be able to freeze the backstop: a walk that stalls in a paused
+    /// screen would otherwise hold the run open forever with nothing naming
+    /// the step (`system_headless_drag` did, for 180 seconds, on a beat whose
+    /// widget had been renamed).
+    #[test]
+    fn a_deadline_still_expires_while_the_app_clock_is_paused() {
+        let mut app = app(AutopilotPlugin::new()
+            .step("wait for something that never comes")
+            .until(resource_where::<Gate>(|gate| gate.0))
+            .deadline(0.1)
+            .add());
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+
+        let observed = run(&mut app, 20);
+
+        assert_eq!(
+            observed,
+            vec![AppExit::error()],
+            "the deadline runs on the wall, not on the clock the app paused"
+        );
+    }
+
     /// A deadline is a backstop, not a timer: a step that satisfies its
     /// predicate in time advances normally and the run passes.
     #[test]
@@ -918,7 +1052,7 @@ mod tests {
             .hold(TestState::Playing, 0.1)
             .loop_from("hold:Playing")
             .on_loop(move |_| *counter.lock().unwrap() += 1)
-            .input(move |_, t| recorder.lock().unwrap().push(t)));
+            .input(move |_, t, _| recorder.lock().unwrap().push(t)));
         // A second, slower collector: what the autopilot loops FOR.
         completion::register(&mut app, crate::loops::LOOP_CAPTURE);
 

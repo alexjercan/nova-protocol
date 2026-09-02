@@ -393,7 +393,7 @@ struct HeldInput {
 }
 
 #[cfg(feature = "debug")]
-fn hold_inputs(world: &mut World, _elapsed: f32) {
+fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {

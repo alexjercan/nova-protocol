@@ -46,9 +46,17 @@ const STRAY: Vec2 = Vec2::new(10.0, 10.0);
 /// Frames are manual, so the run does not depend on how fast the test host is.
 const FRAME: Duration = Duration::from_nanos(16_666_667);
 
-/// Beats between the gestures: enough for a press to be seen and reported, and
-/// enough for a stray to do its damage if it is going to.
-const SETTLE: u32 = 3;
+/// Frames the foreign event gets to do its damage in.
+///
+/// The one wait in this rig that cannot be a condition: the stray is
+/// OVERRIDDEN on the pinned path, so there is nothing to observe arriving.
+/// Three frames is the picking backend reading the event, the hover map
+/// rebuilding from it, and a click being dispatched off that map - the whole
+/// window in which an unpinned run loses the gesture.
+const STRAY_FRAMES: u32 = 3;
+
+/// In-step seconds a gesture beat gets before the rig gives up on it.
+const BEAT_DEADLINE_SECS: f32 = 5.0;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 enum TestState {
@@ -185,19 +193,26 @@ fn report_hits(
 fn script(pinned: bool) -> AutopilotPlugin<TestState> {
     AutopilotPlugin::<TestState>::new()
         .step("let the target lay out")
-        .until(frames(SETTLE))
+        .until(ui_node_present(TARGET))
+        .diagnose(ui_node_diagnosis(TARGET))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("click the target")
         .on_enter(click_named(TARGET))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The only frame count in the rig, and the reason is the test itself:
+        // a pinned run OVERRIDES the stray, so there is no arrival to wait on.
+        // The stray gets its whole window and is expected to change nothing.
         .step("a foreign pointer event lands")
         .on_enter(move |world: &mut World| foreign_move(world, pinned))
-        .until(frames(SETTLE))
+        .until(frames(STRAY_FRAMES))
         .add()
         .step("release the target")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_released())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
 }
 

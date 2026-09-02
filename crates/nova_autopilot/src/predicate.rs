@@ -50,8 +50,14 @@ pub type Predicate = dyn Fn(&World) -> bool + Send + Sync;
 ///
 /// The clock is per step, not per run: it zeroes when the step is entered (and
 /// again on every loop cycle), which is what the scripts' hand-rolled
-/// `playing_since` offsets used to do. [`hold`](crate::autopilot::AutopilotPlugin::hold)
-/// is this predicate plus a state entry.
+/// `playing_since` offsets used to do. A timed beat is
+/// `.step(..).enter(..).until(elapsed(secs))` - the same machinery every other
+/// wait uses, not a second mechanism.
+///
+/// The APP's seconds, unlike a [`deadline`](crate::autopilot::StepBuilder::deadline),
+/// which is real ones. That split is deliberate: a beat waiting on the scene to
+/// move must stop counting when the host pauses the scene, and the deadline is
+/// what still ends the run - named - if the pause never lifts.
 ///
 /// False before the driver has armed (no clock in the world yet), so a
 /// predicate evaluated outside a run never claims its time is up.
@@ -65,10 +71,33 @@ pub fn elapsed(secs: f32) -> Arc<Predicate> {
 
 /// Hold the step for `count` driven frames, then advance.
 ///
-/// The frame-count twin of [`elapsed`], for beats that need the game's systems
-/// to have RUN a given number of times (a UI reconcile, a physics settle)
-/// rather than a wall-clock duration - the two differ sharply under a software
-/// renderer.
+/// The frame-count twin of [`elapsed`], for work that is inherently counted in
+/// FRAMES rather than in seconds or in application state. It is the right
+/// contract in exactly four places, and the wrong one everywhere else:
+///
+/// 1. **Render and capture stillness.** The frames a posed scene needs to come
+///    to rest before its shot. There is no observable for "the picture stopped
+///    changing" short of comparing rendered frames.
+/// 2. **Deterministic media duration.** An armed loop run pins
+///    [`TimeUpdateStrategy::ManualDuration`](bevy::time::TimeUpdateStrategy) to
+///    `1/fps`, so a frame count IS encoded webm length, exactly and
+///    reproducibly. [`elapsed`] would agree on the armed path and diverge
+///    wildly on the smoke one.
+/// 3. **A verdict that NOTHING happened.** There is no message for a verb that
+///    never ran, so a beat proving a key was ignored can only give it frames to
+///    be ignored in.
+/// 4. **Deliberate separation** an assertion must not itself gate, where
+///    waiting on the real condition would prove the thing under test.
+///
+/// Anywhere else, a frame count is a guess at how long hidden state takes to
+/// change, and it fails in the one way a wait must not: it ALWAYS completes.
+/// Too short, and the run does not stall with a named beat - it takes a wrong
+/// picture, or fails several beats later on a symptom. Prefer the observable,
+/// and give it a [`deadline`](crate::autopilot::StepBuilder::deadline).
+///
+/// `frames(1)` is not a wait at all: a step's entry gets its own frame, and the
+/// next driven frame is the first one polled, so `frames(1)` and no `.until` at
+/// all advance together. Write the bare step.
 pub fn frames(count: u32) -> Arc<Predicate> {
     Arc::new(move |world: &World| {
         world
@@ -99,6 +128,44 @@ pub fn resource_where<R: Resource>(
     f: impl Fn(&R) -> bool + Send + Sync + 'static,
 ) -> Arc<Predicate> {
     Arc::new(move |world: &World| world.get_resource::<R>().is_some_and(&f))
+}
+
+/// Advance once the primary window REPORTS `width` x `height` in logical
+/// pixels.
+///
+/// The ack of a resize. Asking for a window size is a request: winit answers
+/// it on its own schedule, and the UI lays out against the answer, not against
+/// the ask. A beat that measured before the answer arrived measured the old
+/// shape - which is what a settle count was guessing at.
+///
+/// The answer alone is not the layout, so a beat that then READS a laid-out
+/// box wants `and(window_size_is(w, h), frames(2))`: the resize, plus the pass
+/// that consumes it.
+pub fn window_size_is(width: f32, height: f32) -> Arc<Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&Window, With<bevy::window::PrimaryWindow>>()
+            .is_some_and(|mut query| {
+                query.iter(world).any(|window| {
+                    (window.width() - width).abs() < 0.5 && (window.height() - height).abs() < 0.5
+                })
+            })
+    })
+}
+
+/// Advance once the primary window REPORTS `factor` as its scale factor -
+/// [`window_size_is`]'s DPI twin, and the same request-versus-answer
+/// distinction.
+pub fn window_scale_factor_is(factor: f32) -> Arc<Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&Window, With<bevy::window::PrimaryWindow>>()
+            .is_some_and(|mut query| {
+                query
+                    .iter(world)
+                    .any(|window| (window.scale_factor() - factor).abs() < f32::EPSILON)
+            })
+    })
 }
 
 /// Advance once at least one entity matches the query filter `F`
@@ -188,6 +255,103 @@ pub fn pointer_released() -> Arc<Predicate> {
     Arc::new(|world: &World| mouse_holds_primary(world, false))
 }
 
+/// Advance once the WINDOW MOUSE pointer reports `offset` from the centre of
+/// the laid-out node called `name`.
+///
+/// The ack of a [`hover_named`](crate::input::hover_named) beat, and of a drag
+/// leg aimed relative to a track, where [`pointer_at`] cannot be written
+/// because the target is a layout the script does not know at build time.
+///
+/// It answers for the POINTER, not for the widget: a beat that then asserts
+/// the node reports `Hovered` is asserting something this did not already
+/// prove - the pointer arriving and the picking backend deciding what is under
+/// it are two different facts.
+///
+/// False while the node has no laid-out box, for the same reason
+/// [`ui_node_present`] is: a pointer cannot have arrived at a rect that does
+/// not exist.
+pub fn pointer_at_node(name: impl Into<String>, offset: Vec2) -> Arc<Predicate> {
+    let name = name.into();
+    Arc::new(move |world: &World| {
+        crate::input::ui_node_centre(world, &name)
+            .is_some_and(|centre| pointer_reports(world, centre + offset))
+    })
+}
+
+/// Advance once the pick map says the mouse pointer is OVER the node named
+/// `name` - the node itself or anything under it.
+///
+/// A stronger claim than [`pointer_at_node`], and a different one: a resolvable
+/// rect says where a widget WOULD be, and the pointer standing there says the
+/// aim went out. Neither says the widget can be clicked. An overlay above it -
+/// a loading-screen fade on its way out, a reflow that moved it after the aim -
+/// takes every pick, and the click lands on the occluder.
+///
+/// Checked against each hit AND its ancestors, because picking reports the
+/// deepest node: for a labelled button, that is its text.
+pub fn pointer_over_node(name: impl Into<String>) -> Arc<Predicate> {
+    let name = name.into();
+    Arc::new(move |world: &World| {
+        pointer_hits(world)
+            .into_iter()
+            .any(|hit| named_in_ancestry(world, hit, &name))
+    })
+}
+
+/// Every entity the mouse pointer currently picks. Empty when picking has not
+/// registered, which is the same answer as "over nothing".
+fn pointer_hits(world: &World) -> Vec<Entity> {
+    use bevy::picking::{hover::HoverMap, pointer::PointerId};
+
+    world
+        .get_resource::<HoverMap>()
+        .and_then(|hover| hover.get(&PointerId::Mouse))
+        .map(|hits| hits.keys().copied().collect())
+        .unwrap_or_default()
+}
+
+/// The chain from `entity` up through its parents.
+fn ancestry(world: &World, entity: Entity) -> impl Iterator<Item = Entity> + '_ {
+    std::iter::successors(Some(entity), move |entity| {
+        world.get::<ChildOf>(*entity).map(ChildOf::parent)
+    })
+}
+
+/// Whether `entity` or any ancestor of it carries `name`.
+fn named_in_ancestry(world: &World, entity: Entity, name: &str) -> bool {
+    ancestry(world, entity).any(|entity| {
+        world
+            .get::<Name>(entity)
+            .is_some_and(|named| named.as_str() == name)
+    })
+}
+
+/// What the mouse pointer is over right now, named where it can be - so an aim
+/// that will not land names its occluder instead of only failing.
+///
+/// Pair it with [`pointer_over_node`] through
+/// [`diagnose`](crate::autopilot::StepBuilder::diagnose).
+pub fn pointer_hover_diagnosis(
+    name: impl Into<String>,
+) -> impl Fn(&World) -> String + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &World| {
+        let hits = pointer_hits(world);
+        if hits.is_empty() {
+            return format!("the pointer picks nothing at all, so `{name}` is not under it");
+        }
+        let over: Vec<String> = hits
+            .into_iter()
+            .map(|hit| {
+                ancestry(world, hit)
+                    .find_map(|entity| world.get::<Name>(entity).map(ToString::to_string))
+                    .unwrap_or_else(|| "unnamed".to_string())
+            })
+            .collect();
+        format!("the pointer is over {over:?}, not `{name}`")
+    }
+}
+
 /// How close the reported pointer must be to count as arrived, in logical
 /// pixels. A pointer that reports the position it was sent to reports it
 /// exactly; the tolerance is there for the rounding a scale factor introduces.
@@ -201,20 +365,24 @@ const POINTER_TOLERANCE: f32 = 1.0;
 /// a click fired before that lands where the pointer USED to be - on the panel
 /// the walk just left rather than on the empty space it aimed at.
 pub fn pointer_at(position: Vec2) -> Arc<Predicate> {
-    Arc::new(move |world: &World| {
-        use bevy::picking::pointer::{PointerId, PointerLocation};
+    Arc::new(move |world: &World| pointer_reports(world, position))
+}
 
-        world
-            .try_query::<(&PointerId, &PointerLocation)>()
-            .is_some_and(|mut query| {
-                query.iter(world).any(|(id, at)| {
-                    id.is_mouse()
-                        && at.location.as_ref().is_some_and(|location| {
-                            location.position.distance(position) <= POINTER_TOLERANCE
-                        })
-                })
+/// Whether the WINDOW MOUSE reports standing within [`POINTER_TOLERANCE`] of
+/// `position` - the one read behind [`pointer_at`] and [`pointer_at_node`].
+fn pointer_reports(world: &World, position: Vec2) -> bool {
+    use bevy::picking::pointer::{PointerId, PointerLocation};
+
+    world
+        .try_query::<(&PointerId, &PointerLocation)>()
+        .is_some_and(|mut query| {
+            query.iter(world).any(|(id, at)| {
+                id.is_mouse()
+                    && at.location.as_ref().is_some_and(|location| {
+                        location.position.distance(position) <= POINTER_TOLERANCE
+                    })
             })
-    })
+        })
 }
 
 /// Whether [`PointerId::Mouse`]'s primary button is in `held`.
@@ -290,6 +458,7 @@ mod tests {
             elapsed: step_elapsed,
             step_elapsed,
             step_frames,
+            step_real: step_elapsed,
         });
         world
     }
@@ -412,6 +581,45 @@ mod tests {
 
         world.despawn(enemy);
         assert!(!alive(&world) && cleared(&world));
+    }
+
+    /// The resize acks answer for what the WINDOW reports, not for what was
+    /// asked: a request is answered on winit's schedule, and a beat that
+    /// measured before the answer measured the old shape.
+    #[test]
+    fn the_window_acks_read_the_shape_the_window_reports() {
+        use bevy::window::{PrimaryWindow, WindowResolution};
+
+        let mut world = World::new();
+        assert!(
+            !window_size_is(1280.0, 600.0)(&world),
+            "no window is not a resize"
+        );
+        assert!(!window_scale_factor_is(2.0)(&world));
+
+        let window = world
+            .spawn((
+                Window {
+                    resolution: WindowResolution::new(1024, 768),
+                    ..default()
+                },
+                PrimaryWindow,
+            ))
+            .id();
+        assert!(window_size_is(1024.0, 768.0)(&world));
+        assert!(
+            !window_size_is(1280.0, 600.0)(&world),
+            "the ask is not the answer"
+        );
+        assert!(window_scale_factor_is(1.0)(&world));
+
+        world
+            .entity_mut(window)
+            .get_mut::<Window>()
+            .expect("the window is there")
+            .resolution
+            .set(1280.0, 600.0);
+        assert!(window_size_is(1280.0, 600.0)(&world));
     }
 
     #[test]
@@ -602,10 +810,13 @@ mod tests {
 }
 
 /// The `Predicate` type and its combinators: time, frames, state, resource,
-/// entity, pointer, UI-node, screenshot and loop conditions plus `and`/`or`/`not`.
+/// entity, pointer, UI-node, window, screenshot and loop conditions plus
+/// `and`/`or`/`not`.
 pub mod prelude {
     pub use super::{
-        and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_pressed,
-        pointer_released, resource_where, shot_written, state_is, ui_node_present, Predicate,
+        and, any_entity, elapsed, frames, loop_written, not, or, pointer_at, pointer_at_node,
+        pointer_hover_diagnosis, pointer_over_node, pointer_pressed, pointer_released,
+        resource_where, shot_written, state_is, ui_node_present, window_scale_factor_is,
+        window_size_is, Predicate,
     };
 }

@@ -143,25 +143,28 @@ required one:
 | `name` | what a log line and a stall message call this beat |
 | `enter` | the state to set on entry |
 | `on_enter` | a world action run once, on entry (a synthesized gesture, a scenario poke) |
-| `each` | a world action run every frame, with the IN-STEP elapsed seconds |
+| `each` | a world action run every frame, with the IN-STEP elapsed seconds and the IN-STEP frame index |
 | `until` | the predicate that advances the step |
 | `deadline` | in-step seconds after which an unsatisfied `until` ABORTS the run, naming the step |
+| `diagnose` | a reader of the world appended to that abort message, so the stall says WHY |
 
 The step advances the first frame `until` holds. **Name a step after what it is
 waiting FOR, not after what it pokes** - the name is what a stall message
 carries, and "stalled on `lock the prey`" is a diagnosis where "stalled after 30
 seconds" is a shrug.
 
-Elapsed time is one predicate among many, so `hold(state, secs)` - enter a
-state, wait N seconds - is sugar for
-`step("hold:<state>").enter(state).until(elapsed(secs))` rather than a second
-mechanism. The vocabulary is in `nova_autopilot::predicate` (`elapsed`,
+Elapsed time is one predicate among many, and there is no second mechanism
+beside the step list: "wait N seconds in this state" is
+`step("...").enter(state).until(elapsed(secs))`, written out where anyone
+reading the script can see what it waits for. The vocabulary is in
+`nova_autopilot::predicate` (`elapsed`,
 `frames`, `state_is`, `resource_where`, `any_entity`, `ui_node_present`,
-`pointer_pressed`, `pointer_released`, `pointer_at`, `shot_written`,
+`pointer_pressed`, `pointer_released`, `pointer_at`, `pointer_at_node`,
+`window_size_is`, `window_scale_factor_is`, `shot_written`,
 `loop_written`, `and`, `or`, `not`), the
 gestures in `nova_autopilot::input` (`press_key`, `release_key`, `type_text`,
 `press_edit_key`, `press_mouse`, `release_mouse`, `move_cursor`, `click_at`,
-`scroll_lines`, `scroll_pixels`), and the Nova-typed
+`click_named`, `scroll_lines`, `scroll_pixels`), and the Nova-typed
 predicates in `nova_debug::harness` (`scenario_variable_is`, `section_gone`,
 `player_ship_present`, and the `editor_*` set below). Anything the vocabulary
 cannot express is a plain closure: `Arc::new(|world: &World| ...)`.
@@ -180,13 +183,14 @@ outcomes - see `examples/systems/system_input_modes.rs`, which presses each key
 down both channels and then asserts what the field holds as well as what the
 document holds.
 
-### A UI gesture is three waits, not three sleeps
+### A UI gesture is four waits, not four sleeps
 
-A click on a widget owes the app three acks, and each one is a predicate:
+A click on a widget owes the app four acks, and each one is a predicate:
 
 | Beat | Waits on | Why a frame count is not that |
 | --- | --- | --- |
 | the widget is up | `ui_node_present(name)` | `click_named` WARNS and continues on an unresolved name, so a press at a panel that has not laid out is a beat silently lost |
+| aim | `pointer_over_node(name)` | a resolvable rect is not a clickable widget: an overlay on its way out takes every pick, and a reflow moves the widget out from under an aim already sent |
 | press | `pointer_pressed()` | the picking backend turns the button event into pointer state a `PreUpdate` later, and a release before that is a click the widget never saw |
 | release | `pointer_released()` | `Activate` fires on the release edge, so this is the beat the button's effect belongs after |
 
@@ -199,6 +203,23 @@ the settles existed for. And the pointer acks answer for `PointerId::Mouse`
 alone, because that is the pointer the gestures drive; an app may carry others
 (Nova's terminal parks a forwarded one), and a second pointer sitting in the
 opposite state would otherwise ack for the one the beat actually moved.
+
+The aim beat re-hovers EVERY frame rather than holding the coordinate it first
+sent, so a reflow moves it along instead of stranding it; it carries
+`pointer_hover_diagnosis(name)`, which names the occluder that took the pick.
+
+Those four beats are one builder, not a shape each script re-types:
+`AutopilotPlugin::click_named(label, name, landed, deadline)`, with
+`double_click_named` beside it. `landed` is the caller's own condition - what
+the click was FOR - so a click whose effect never arrived stalls on the beat
+that made it. `pointer_released()` is the weakest thing to pass and the right
+one where the effect is waited on by the beat after.
+
+The layout beat carries `ui_node_diagnosis(name)`, so a stall there says which
+of the four ways `ui_node_present` can be false actually happened: no such name,
+a name hidden by its ancestry, a visible node with no laid-out box, or no UI
+node type registered at all. Those are three different bugs with three different
+fixes, and the deadline message used to name none of them.
 
 What the button DID is the caller's next beat, and it is a condition too. The
 editor publishes its own decisions as data for exactly this: `nova_editor`'s
@@ -285,6 +306,32 @@ settle sized off the mechanism (`LAUNCH_SETTLE_SECS`, `BURN_WINDOW_SECS`,
 a derivation on its constant; what it must not do is read the quantity the
 assert decides.
 
+### What a frame count is for
+
+`frames(n)` stays in the vocabulary, with a narrow job. A frame is not a unit of
+work - the same count is milliseconds on a workstation and most of a second
+under lavapipe - so a count is only honest where the thing being waited for is
+counted in frames. Four cases qualify:
+
+| Case | Example |
+| --- | --- |
+| render, raster or shader work coming to rest before a shot | `frames(SETTLE_FRAMES)` ahead of `shoot` |
+| deterministic media duration | the `loop_*` ranges, where `LoopProfile` pins the frame clock so a count IS a webm length |
+| a verdict that NOTHING happened | "the pointer stayed put while a stray moved" has no positive event to wait on |
+| deliberate separation between an action and the assert that tests it | keeping a beat strictly weaker than the claim it precedes |
+
+Everything else is a guess at how long hidden state takes to change, and the
+state is nearly always readable: a window resize lands in
+`Camera::logical_viewport_size`, a DPI change lands in
+`ComputedNode::inverse_scale_factor`, a shell command lands in the terminal's
+own scrollback revision. Wait on the landing. `frames(1)` in particular is
+nothing at all - a step with no `until` already advances on its first driven
+frame - so it says only that its author wanted a step.
+
+Deadlines come from two shared constants rather than a copy per file:
+`STEP_DEADLINE_SECS` (30s, a world condition) and `BEAT_DEADLINE_SECS` (20s, one
+gesture), both in `nova_debug::harness`.
+
 ### The runway anti-pattern
 
 The shape to avoid is a wall-clock RUNWAY plus one closure that re-derives a
@@ -294,12 +341,15 @@ step machine from booleans:
 app.add_plugins(
     AutopilotPlugin::<GameStates>::new()
         .self_completing()
-        .hold(GameStates::Loading, 30.0)   // a runway, unrelated to Loading
+        .step("hold")                      // a runway, unrelated to Loading
+        .enter(GameStates::Loading)
+        .until(elapsed(30.0))
+        .add()
         .input(script),                    // every frame, in every state
 );
 app.add_systems(Last, guard_script_completion);
 
-fn script(world: &mut World, elapsed: f32) {
+fn script(world: &mut World, elapsed: f32, _frame: u32) {
     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
         return;
     }
@@ -419,13 +469,18 @@ script it already has.
 
 ### Deadlines
 
-A step's `deadline` is IN-STEP seconds and is unset by default, leaving
+A step's `deadline` is IN-STEP REAL seconds and is unset by default, leaving
 `NOVA_AUTOPILOT_DEADLINE` as the run-level backstop for a script that hangs
 somewhere without one. Set a deadline where a stall is worth NAMING, and **keep
 the sum of a script's deadlines under the run-level value** - otherwise the
 generic hang detector wins the race and the named-step diagnostic is lost. That
 ordering is documented, not enforced: the run-level value comes from the harness
 that launches the process, which the crate cannot see.
+
+Real seconds, not the app's: Nova pauses `Time<Virtual>` behind the pause
+overlay and the ship computer, so a deadline measured on the game clock stops
+counting the moment a walk opens either - and a beat that stalls there holds the
+run open with nothing naming the step.
 
 ### Do not `enter` a state something else owns
 

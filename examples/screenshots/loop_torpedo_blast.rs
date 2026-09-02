@@ -138,7 +138,6 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the loop")
                 .on_enter(|world| loop_start(world, LOOP_NAME))
-                .until(frames(1))
                 .add()
                 .step("ride the salvo in")
                 .until(no_torpedo_in_flight())
@@ -161,7 +160,7 @@ fn main() -> bevy::app::AppExit {
                 // debris and rocks stream past, and the loop's last frame is
                 // a readable aftermath.
                 .step("let the blast clear")
-                .each(|world, _| {
+                .each(|world, _, _| {
                     let target = target_position(world);
                     pose_camera(world, target + Vec3::new(14.0, -10.0, 11.0), target);
                 })

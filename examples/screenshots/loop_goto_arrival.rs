@@ -144,7 +144,6 @@ fn arrival_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("open the arrival loop")
         .on_enter(|world| loop_start(world, LOOP_NAME))
-        .until(frames(1))
         .add()
         .step("watch the retrograde flip")
         .until(ring::player_retro_burning())

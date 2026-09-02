@@ -23,7 +23,7 @@
 //!
 //! Run (no display needed - that is the point):
 //! ```text
-//! cargo run --example system_headless_pointer --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_headless_pointer --features debug
 //! # look for: `headless pointer: pause census` naming the overlay's widgets,
 //! # then `headless pointer: PASS clicked Resume with no renderer`.
 //! ```
@@ -58,158 +58,109 @@ fn main() -> bevy::app::AppExit {
         PrimaryWindow,
     ));
 
-    app.init_resource::<Spike>();
-    // The autopilot's own slot: after this frame's real input collection, so a
-    // synthesized press is fresh (`just_pressed`) for everything in `Update`.
-    app.add_systems(PreUpdate, drive.after(bevy::input::InputSystems));
-
-    app.run()
-}
-
-/// The beat the run is on. One beat per frame at most; a beat that waits on
-/// the world holds its step until the world answers or the deadline names it.
-#[cfg(feature = "debug")]
-#[derive(Resource)]
-struct Spike {
-    step: usize,
-    /// Frames the current step has waited (settle pacing between gestures).
-    wait: u32,
-    started: std::time::Instant,
-}
-
-#[cfg(feature = "debug")]
-impl Default for Spike {
-    fn default() -> Self {
-        Self {
-            step: 0,
-            wait: 0,
-            started: std::time::Instant::now(),
-        }
-    }
-}
-
-/// The whole run must fit here; a stall means the virtual window did NOT bring
-/// the stack up, and the panic names the step that proves it.
-#[cfg(feature = "debug")]
-const DEADLINE_SECS: u64 = 180;
-
-#[cfg(feature = "debug")]
-fn drive(world: &mut World) {
-    let spike = world.resource::<Spike>();
-    let (step, wait) = (spike.step, spike.wait);
-    if spike.started.elapsed().as_secs() > DEADLINE_SECS {
-        panic!("headless pointer: STALLED at step {step} after {DEADLINE_SECS}s");
-    }
-
-    let advance = |world: &mut World| {
-        let mut spike = world.resource_mut::<Spike>();
-        spike.step += 1;
-        spike.wait = 0;
-    };
-    let hold = |world: &mut World| world.resource_mut::<Spike>().wait += 1;
-
-    match step {
-        // The scenario comes up through the menu's own New Game door.
-        0 => {
-            if *world.resource::<State<GameStates>>().get() == GameStates::Playing {
-                info!("headless pointer: reached Playing with no renderer");
-                advance(world);
-            }
-        }
-        // Let a full layout + picking pass run against the virtual window
-        // before the first gesture reads anything back.
-        1 => {
-            if wait < 5 {
-                hold(world);
-            } else {
-                press_key(KeyCode::Escape)(world);
-                advance(world);
-            }
-        }
-        2 => {
-            release_key(KeyCode::Escape)(world);
-            advance(world);
-        }
-        3 => {
-            if *world.resource::<State<PauseStates>>().get() == PauseStates::Paused {
-                info!("headless pointer: ESC opened the pause overlay");
-                advance(world);
-            } else {
-                hold(world);
-            }
-        }
-        // The layout proof: the overlay's widgets must resolve to real,
-        // non-zero rects. This census is exactly what the channel's `ui`
-        // block will report, so print it in that spirit.
-        4 => {
-            let Some(resume) = ui_node_rect(world, "Resume Button") else {
-                hold(world);
-                return;
-            };
-            info!("headless pointer: pause census");
-            for name in [
-                "Pause Overlay",
-                "Pause Panel",
-                "Pause Title",
-                "Resume Button",
-                "Pause Settings Button",
-            ] {
-                match ui_node_rect(world, name) {
-                    Some(rect) => info!(
-                        "  {name}: centre ({:.0}, {:.0}) size {:.0} x {:.0}",
-                        rect.center().x,
-                        rect.center().y,
-                        rect.width(),
-                        rect.height()
-                    ),
-                    None => info!("  {name}: not laid out"),
-                }
-            }
-            assert!(
-                resume.width() > 0.0 && resume.height() > 0.0,
-                "the Resume button laid out without a box: {resume:?}"
-            );
-            nova_probe::probe_marker(
-                world,
-                "outcome: the pause overlay lays out with no renderer",
-                serde_json::json!({
-                    "resume_w": resume.width(),
-                    "resume_h": resume.height(),
-                }),
-            );
-            hover_named("Resume Button")(world);
-            advance(world);
-        }
-        // The click spans frames the way a player's does: picking reads the
-        // move a frame after it is written, and `Activate` fires on
-        // release-over. Two settle frames after the hover, then press, then
-        // release on its own frame.
-        5 => {
-            if wait < 2 {
-                hold(world);
-            } else {
-                press_mouse(MouseButton::Left)(world);
-                advance(world);
-            }
-        }
-        6 => {
-            release_mouse(MouseButton::Left)(world);
-            advance(world);
-        }
-        7 => {
-            if *world.resource::<State<PauseStates>>().get() == PauseStates::Unpaused {
+    app.add_plugins(
+        nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            // The scenario comes up through the menu's own New Game door.
+            .step("headless pointer: reach Playing with no renderer")
+            .until(state_is(GameStates::Playing))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: ESC opens the pause overlay")
+            .on_enter(press_key(KeyCode::Escape))
+            .until(the_game_is(PauseStates::Paused))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: release ESC")
+            .on_enter(release_key(KeyCode::Escape))
+            .add()
+            // The layout proof. `ui_node_present` waits for a BOX, so this is
+            // the claim itself - with no renderer the overlay would lay out to
+            // nothing - and the census below states what it found.
+            .step("headless pointer: the pause overlay laid out")
+            .until(ui_node_present("Resume Button"))
+            .diagnose(ui_node_diagnosis("Resume Button"))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: census the overlay")
+            .on_enter(census_the_overlay)
+            .add()
+            // The click spans beats the way a player's does: picking reads the
+            // move a frame after it is written, and `Activate` fires on
+            // release-over.
+            .step("headless pointer: hover Resume")
+            .on_enter(hover_named("Resume Button"))
+            .until(pointer_at_node("Resume Button", Vec2::ZERO))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: press Resume")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: release Resume")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(pointer_released())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: the wire click resumed the game")
+            .until(the_game_is(PauseStates::Unpaused))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless pointer: record the pass")
+            .on_enter(|world: &mut World| {
                 info!("headless pointer: PASS clicked Resume with no renderer");
                 nova_probe::probe_marker(
                     world,
                     "outcome: a wire click resumes the game",
                     serde_json::json!({}),
                 );
-                world.write_message(AppExit::Success);
-                advance(world);
-            } else {
-                hold(world);
-            }
+            })
+            .add(),
+    );
+
+    app.run()
+}
+
+/// Advance once the pause machine holds `state`.
+#[cfg(feature = "debug")]
+fn the_game_is(
+    state: PauseStates,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<State<PauseStates>>(move |pause| *pause.get() == state)
+}
+
+/// Print where the overlay's widgets landed, and state that Resume has a box.
+///
+/// Exactly what the channel's `ui` block will report, so it is printed in that
+/// spirit rather than as a bare assertion.
+#[cfg(feature = "debug")]
+fn census_the_overlay(world: &mut World) {
+    let resume = ui_node_rect(world, "Resume Button").expect("the beat before waited for its box");
+    info!("headless pointer: pause census");
+    for name in [
+        "Pause Overlay",
+        "Pause Panel",
+        "Pause Title",
+        "Resume Button",
+        "Pause Settings Button",
+    ] {
+        match ui_node_rect(world, name) {
+            Some(rect) => info!(
+                "  {name}: centre ({:.0}, {:.0}) size {:.0} x {:.0}",
+                rect.center().x,
+                rect.center().y,
+                rect.width(),
+                rect.height()
+            ),
+            None => info!("  {name}: not laid out"),
         }
-        _ => {}
     }
+    nova_probe::probe_marker(
+        world,
+        "outcome: the pause overlay lays out with no renderer",
+        serde_json::json!({
+            "resume_w": resume.width(),
+            "resume_h": resume.height(),
+        }),
+    );
 }

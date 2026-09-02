@@ -85,14 +85,6 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
-/// Frames a beat waits for a gesture to land. The forwarded pointer is two
-/// frames behind by construction - `forward_nova_os_pointer` runs in `Update`,
-/// so the `PointerInput` it writes is picked up in the FOLLOWING frame's
-/// `PreUpdate` - and the observers react a frame after that. Generous rather
-/// than tight: this runs on a software-rendered CI GPU.
-#[cfg(feature = "debug")]
-const SETTLE: u32 = 12;
-
 /// Seconds a beat gives the world to reach a state it was asked for (an app
 /// launch, a close, the slide). Kept well under the harness completion deadline
 /// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so a stall is an error naming THIS
@@ -147,11 +139,11 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("nova_os: the computer is open")
         .on_enter(assert_computer_open)
-        .until(frames(1))
         .add()
         .step("nova_os: type the ship command")
         .on_enter(type_text("ship"))
-        .until(frames(SETTLE))
+        .until(the_command_line_reads("ship"))
+        .deadline(REACT_SECS)
         .add()
         .step("nova_os: launch the ship app")
         .on_enter(submit_line)
@@ -160,23 +152,27 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("nova_os: the ship app owns the screen")
         .on_enter(assert_app_on_screen)
-        .until(frames(SETTLE))
         .add()
+        // The WINDOW pointer arriving where the aim sent it. Not the same
+        // claim as the next beat's - that one is about the FORWARDED pointer
+        // reaching the offscreen tree, which this cannot and must not prove.
         .step("nova_os: aim at the close control through the glass")
         .on_enter(aim_through_the_glass)
-        .until(frames(SETTLE))
+        .until(the_pointer_reached_the_glass())
+        .deadline(REACT_SECS)
         .add()
         .step("nova_os: the pointer reached the offscreen tree")
         .on_enter(assert_hover_through_the_glass)
-        .until(frames(1))
         .add()
+        // Again the WINDOW mouse: the beat after it claims the press reached
+        // the widget behind the glass, which is a different fact.
         .step("nova_os: press the close control")
         .on_enter(press_mouse(MouseButton::Left))
-        .until(frames(SETTLE))
+        .until(pointer_pressed())
+        .deadline(REACT_SECS)
         .add()
         .step("nova_os: the press landed on the widget")
         .on_enter(assert_press_through_the_glass)
-        .until(frames(1))
         .add()
         // `Activate` fires on RELEASE over the same widget, so a click is two
         // beats. The shell returning to the prompt is the advance condition:
@@ -189,11 +185,11 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("nova_os: the click through the glass closed the app")
         .on_enter(assert_click_closed_the_app)
-        .until(frames(SETTLE))
         .add()
         .step("nova_os: type the map command")
         .on_enter(type_text("map"))
-        .until(frames(SETTLE))
+        .until(the_command_line_reads("map"))
+        .deadline(REACT_SECS)
         .add()
         .step("nova_os: launch the map app")
         .on_enter(submit_line)
@@ -202,7 +198,6 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("nova_os: the app switch left one screen")
         .on_enter(assert_one_screen)
-        .until(frames(1))
         .add()
 }
 
@@ -222,6 +217,35 @@ fn app_owns_the_screen(
 ) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
     resource_where::<NovaOsTerminal>(move |terminal| {
         terminal.active_mode() == TerminalMode::App { id }
+    })
+}
+
+/// Advance once the terminal's command line holds exactly `text`.
+///
+/// The shell's own record of what it took, not a guess at how long a keystroke
+/// takes to reach it: `type_text` writes every character in ONE frame, so a
+/// frame count here was never a typing rate.
+#[cfg(feature = "debug")]
+fn the_command_line_reads(
+    text: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
+}
+
+/// Advance once the WINDOW pointer stands where [`aim_through_the_glass`] sent
+/// it - the warp resolved again from the live layout, so a panel that moved
+/// under the beat holds it open instead of letting a stale coordinate through.
+#[cfg(feature = "debug")]
+fn the_pointer_reached_the_glass() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>
+{
+    std::sync::Arc::new(|world: &World| {
+        let Some(image_px) = ui_node_centre(world, CLOSE_CONTROL) else {
+            return false;
+        };
+        let Some(window_px) = nova_os_window_px_showing(world, image_px) else {
+            return false;
+        };
+        pointer_at(window_px)(world)
     })
 }
 

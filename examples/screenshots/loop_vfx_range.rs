@@ -409,7 +409,6 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .add()
         .step("open the vfx loop")
         .on_enter(|world| loop_start(world, LOOP_NAME))
-        .until(frames(1))
         .add();
 
     for pass in 1..=3 {
@@ -449,7 +448,6 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
                 .add()
                 .step("open the cold launch loop")
                 .on_enter(|world| loop_start(world, LAUNCH_LOOP))
-                .until(frames(1))
                 .add();
         }
 

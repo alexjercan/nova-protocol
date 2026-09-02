@@ -22,7 +22,7 @@
 //!
 //! Run (no display needed):
 //! ```text
-//! cargo run --example system_headless_novaos --features debug
+//! NOVA_AUTOPILOT=1 cargo run --example system_headless_novaos --features debug
 //! # look for: `headless novaos: registry holds N actions`, then
 //! # `headless novaos: PASS typed into NOVA OS with no renderer`.
 //! ```
@@ -58,150 +58,92 @@ fn main() -> bevy::app::AppExit {
         PrimaryWindow,
     ));
 
-    app.init_resource::<Spike>();
-    app.add_systems(PreUpdate, drive.after(bevy::input::InputSystems));
-
-    app.run()
-}
-
-#[cfg(feature = "debug")]
-#[derive(Resource)]
-struct Spike {
-    step: usize,
-    wait: u32,
-    started: std::time::Instant,
-}
-
-#[cfg(feature = "debug")]
-impl Default for Spike {
-    fn default() -> Self {
-        Self {
-            step: 0,
-            wait: 0,
-            started: std::time::Instant::now(),
-        }
-    }
-}
-
-#[cfg(feature = "debug")]
-const DEADLINE_SECS: u64 = 180;
-
-#[cfg(feature = "debug")]
-fn drive(world: &mut World) {
-    let spike = world.resource::<Spike>();
-    let (step, wait) = (spike.step, spike.wait);
-    if spike.started.elapsed().as_secs() > DEADLINE_SECS {
-        panic!("headless novaos: STALLED at step {step} after {DEADLINE_SECS}s");
-    }
-
-    let advance = |world: &mut World| {
-        let mut spike = world.resource_mut::<Spike>();
-        spike.step += 1;
-        spike.wait = 0;
-    };
-    let hold = |world: &mut World| world.resource_mut::<Spike>().wait += 1;
-
-    match step {
-        0 => {
-            if *world.resource::<State<GameStates>>().get() == GameStates::Playing {
-                // The registry proof: with the gate removed, the verbs the
-                // channel must advertise all exist off-screen too.
-                let bindings = world.resource::<InputBindings>();
-                let count = bindings.iter().count();
-                info!("headless novaos: registry holds {count} actions");
-                assert!(
-                    bindings.get("novaos_toggle").is_some(),
-                    "the NOVA OS toggle must register headless - it is the verb \
-                     the render gate used to drop"
-                );
-                assert!(
-                    count > 30,
-                    "the full table is ~33 actions; {count} means a group is \
-                     still gated out"
-                );
-                nova_probe::probe_marker(
-                    world,
-                    "outcome: the NOVA OS verb registers headless",
-                    serde_json::json!({ "actions": count }),
-                );
-                nova_probe::probe_marker(
-                    world,
-                    "outcome: the whole action table registers headless",
-                    serde_json::json!({ "actions": count }),
-                );
-                advance(world);
-            }
-        }
-        // Tab, held across the enhanced-input read so the edge cannot fall
-        // between two collectors, then released.
-        1 => {
-            if wait < 5 {
-                hold(world);
-            } else {
-                press_key(KeyCode::Tab)(world);
-                advance(world);
-            }
-        }
-        2 => {
-            if wait < 2 {
-                hold(world);
-            } else {
-                release_key(KeyCode::Tab)(world);
-                advance(world);
-            }
-        }
-        3 => {
-            if *world.resource::<State<PauseStates>>().get() == PauseStates::NovaOs {
-                info!("headless novaos: Tab opened the monitor");
-                advance(world);
-            } else {
-                hold(world);
-            }
-        }
-        // The boot banner reveals on real time; the prompt is only worth
-        // typing at once the reveal has drained.
-        4 => {
-            let terminal = world.resource::<NovaOsTerminal>();
-            if terminal.is_booted() && !terminal.has_pending_boot_rows() {
-                type_text("map")(world);
-                advance(world);
-            } else {
-                hold(world);
-            }
-        }
-        // The model proof: the characters landed in the RESOURCE, which is
-        // the terminal's backend - the CRT texture nobody drew is just its
-        // projection.
-        5 => {
-            let terminal = world.resource::<NovaOsTerminal>();
-            if terminal.prompt() == "map" {
-                info!("headless novaos: the prompt holds {:?}", terminal.prompt());
-                press_edit_key(Key::Enter)(world);
-                advance(world);
-            } else if wait > 120 {
-                panic!(
-                    "headless novaos: typed `map` but the prompt holds {:?}",
-                    terminal.prompt()
-                );
-            } else {
-                hold(world);
-            }
-        }
-        6 => {
-            let terminal = world.resource::<NovaOsTerminal>();
-            if terminal.active_mode() == (TerminalMode::App { id: "map" }) {
+    app.add_plugins(
+        nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            .step("headless novaos: reach Playing with no renderer")
+            .until(state_is(GameStates::Playing))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            // The registry proof: with the gate removed, the verbs the channel
+            // must advertise all exist off-screen too.
+            .step("headless novaos: census the action table")
+            .on_enter(census_the_registry)
+            .add()
+            // Tab, held across the enhanced-input read so the edge cannot fall
+            // between two collectors, then released once the monitor is up.
+            .step("headless novaos: Tab opens the monitor")
+            .on_enter(press_key(KeyCode::Tab))
+            .until(resource_where::<State<PauseStates>>(|pause| {
+                *pause.get() == PauseStates::NovaOs
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless novaos: release Tab")
+            .on_enter(release_key(KeyCode::Tab))
+            .add()
+            // The boot banner reveals on real time; the prompt is only worth
+            // typing at once the reveal has drained.
+            .step("headless novaos: the boot banner drained")
+            .until(resource_where::<NovaOsTerminal>(|terminal| {
+                terminal.is_booted() && !terminal.has_pending_boot_rows()
+            }))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            // The model proof: the characters land in the RESOURCE, which is
+            // the terminal's backend - the CRT texture nobody drew is just its
+            // projection.
+            .step("headless novaos: the prompt took the typing")
+            .on_enter(type_text("map"))
+            .until(resource_where::<NovaOsTerminal>(|terminal| {
+                terminal.prompt() == "map"
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless novaos: Enter launches the map app")
+            .on_enter(press_edit_key(Key::Enter))
+            .until(resource_where::<NovaOsTerminal>(|terminal| {
+                terminal.active_mode() == (TerminalMode::App { id: "map" })
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless novaos: record the pass")
+            .on_enter(|world: &mut World| {
                 info!("headless novaos: PASS typed into NOVA OS with no renderer");
                 nova_probe::probe_marker(
                     world,
                     "outcome: the terminal takes typing with no renderer",
                     serde_json::json!({}),
                 );
-                world.write_message(AppExit::Success);
-                advance(world);
-            } else {
-                hold(world);
-            }
-        }
-        _ => {}
-    }
+            })
+            .add(),
+    );
+
+    app.run()
+}
+
+/// Count the registered actions and state that the table came up whole.
+#[cfg(feature = "debug")]
+fn census_the_registry(world: &mut World) {
+    let bindings = world.resource::<InputBindings>();
+    let count = bindings.iter().count();
+    info!("headless novaos: registry holds {count} actions");
+    assert!(
+        bindings.get("novaos_toggle").is_some(),
+        "the NOVA OS toggle must register headless - it is the verb the render \
+         gate used to drop"
+    );
+    assert!(
+        count > 30,
+        "the full table is ~33 actions; {count} means a group is still gated out"
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the NOVA OS verb registers headless",
+        serde_json::json!({ "actions": count }),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the whole action table registers headless",
+        serde_json::json!({ "actions": count }),
+    );
 }

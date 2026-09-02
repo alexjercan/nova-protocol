@@ -905,10 +905,6 @@ fn orbit_idle_camera(
     }
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// Pose the harness camera on the stand.
 #[cfg(feature = "debug")]
 fn frame_stand(world: &mut World) {

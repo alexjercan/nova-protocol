@@ -73,16 +73,6 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// In-step seconds a gesture beat gets before the run gives up on it.
-///
-/// Every wait in this walk is a CONDITION - the button laid out, the picking
-/// pointer registering the press, the menu torn down - so this is a backstop
-/// rather than a settle. A frame count could only say that some frames had gone
-/// by, which on a software-rendered CI GPU is a different amount of work every
-/// time.
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// The button the walk clicks, and the node whose absence proves the teardown.
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";

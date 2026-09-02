@@ -653,10 +653,6 @@ fn update_readout(
     }
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// Pose the harness camera on the row that is actually standing.
 #[cfg(feature = "debug")]
 fn frame_row(world: &mut World) {

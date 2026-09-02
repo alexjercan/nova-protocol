@@ -56,11 +56,13 @@ pub mod prelude {
         input::{
             assert_named_visible, click_at, click_named, hover_named, move_cursor, press_edit_key,
             press_key, press_mouse, release_key, release_mouse, scroll_lines, scroll_pixels,
-            type_text, ui_node_centre, ui_node_rect,
+            type_text, ui_node_centre, ui_node_diagnosis, ui_node_rect,
         },
         predicate::{
-            and, any_entity, elapsed, frames, loop_written, or, pointer_at, pointer_pressed,
-            pointer_released, resource_where, shot_written, state_is, ui_node_present,
+            and, any_entity, elapsed, frames, loop_written, or, pointer_at, pointer_at_node,
+            pointer_hover_diagnosis, pointer_over_node, pointer_pressed, pointer_released,
+            resource_where, shot_written, state_is, ui_node_present, window_scale_factor_is,
+            window_size_is,
         },
         // The logical key `press_edit_key` takes. Bevy's prelude carries
         // `KeyCode` - the PHYSICAL key - but not this one.
@@ -81,7 +83,8 @@ pub mod prelude {
             loop_end, loop_start, nova_autopilot, nova_screenshot, player_ship_present,
             pose_camera, press_action, release_action, scenario_camera_present,
             scenario_variable_is, script_reports_done, section_gone, shoot, CaptureLog,
-            LoopCapturePlugin, LoopProfile, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES, SHOT_DEADLINE_SECS,
+            LoopCapturePlugin, LoopProfile, BEAT_DEADLINE_SECS, NOVA_AUTOPILOT_STEP, SETTLE_FRAMES,
+            SHOT_DEADLINE_SECS, STEP_DEADLINE_SECS,
         },
         DebugPlugin,
     };

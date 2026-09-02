@@ -51,7 +51,7 @@ use nova_ui::prelude::InputMode;
 #[cfg(feature = "debug")]
 use crate::{
     editor_stage::{ADD_MENU, EMPTY_SPACE},
-    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+    editor_walk::{inside_a_ship, the_ship_is_up},
     section_aim::a_section_on_screen,
 };
 

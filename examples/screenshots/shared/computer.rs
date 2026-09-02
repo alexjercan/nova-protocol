@@ -27,7 +27,13 @@ use bevy::input::{
     ButtonState,
 };
 use bevy::prelude::*;
-use nova_protocol::prelude::*;
+use nova_protocol::{
+    nova_os_ui::{
+        nova_os::prelude::{NovaOsTerminal, TerminalMode},
+        terminal::nova_os_openness,
+    },
+    prelude::*,
+};
 
 /// A single named player ship at the origin - enough for the NOVA OS computer to
 /// spawn (it keys off the player ship root) and for `ship` to have real sections.
@@ -185,9 +191,76 @@ pub fn press_enter(world: &mut World) {
     });
 }
 
-/// Type a command and submit it.
+/// Advance once the CRT's raster has finished blooming open.
+///
+/// Not a dwell: the raster blooms on over real time and the tube shows a
+/// squeezed window onto the image until it settles, so a shot taken mid-slide
+/// is a picture of the transition rather than of the computer.
+#[cfg(feature = "debug")]
+pub fn raster_open() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON)
+    })
+}
+
+/// Advance once the shell says `id` owns the screen - the terminal model's own
+/// answer, not a node count a half-built app surface would satisfy.
+#[cfg(feature = "debug")]
+pub fn app_owns_the_screen(
+    id: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<NovaOsTerminal>(move |terminal| {
+        terminal.active_mode() == TerminalMode::App { id }
+    })
+}
+
+/// Advance once the terminal's command line holds exactly `text`.
+///
+/// [`type_word`] writes every character in ONE frame, so a frame count after it
+/// was never a typing rate - it was a guess at how long the shell takes to
+/// answer. This is the shell's own record of what it took.
+#[cfg(feature = "debug")]
+pub fn command_line_reads(
+    text: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
+}
+
+/// What the scrollback read when the last command was submitted, so
+/// [`the_shell_answered`] can tell this command's output from the last one's.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct ShellBaseline(u64);
+
+/// Advance once the shell has PRINTED something new and is back at the prompt -
+/// the honest end of "run a command", where a frame count only said that some
+/// frames had gone by.
+///
+/// The revision, not the row count: a command whose output scrolls the oldest
+/// rows off the top would leave the count unchanged.
+#[cfg(feature = "debug")]
+pub fn the_shell_answered() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let before = world
+            .get_resource::<ShellBaseline>()
+            .map_or(0, |mark| mark.0);
+        world
+            .get_resource::<NovaOsTerminal>()
+            .is_some_and(|terminal| {
+                terminal.scrollback_revision() > before
+                    && terminal.active_mode() == TerminalMode::Prompt
+            })
+    })
+}
+
+/// Type a command and submit it, marking the scrollback first so
+/// [`the_shell_answered`] answers for THIS command.
 #[cfg(feature = "debug")]
 pub fn run_command(world: &mut World, command: &str) {
+    let before = world
+        .get_resource::<NovaOsTerminal>()
+        .map_or(0, |terminal| terminal.scrollback_revision());
+    world.insert_resource(ShellBaseline(before));
     type_word(world, command);
     press_enter(world);
 }

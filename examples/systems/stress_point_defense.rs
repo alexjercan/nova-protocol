@@ -419,7 +419,6 @@ fn main() -> bevy::app::AppExit {
                     .on_enter(mark_the_envelope_full)
                     .on_enter(hide_hud)
                     .on_enter(|world| loop_start(world, POINT_DEFENSE_LOOP))
-                    .until(frames(1))
                     .add()
                     .step("record the battery dividing the salvo")
                     .until(elapsed(4.0))

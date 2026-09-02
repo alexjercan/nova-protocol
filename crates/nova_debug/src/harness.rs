@@ -51,7 +51,7 @@
 //!
 //! // Poke fire/thrust while in Playing (gate input to the gameplay state so it
 //! // does not run during Loading):
-//! app.add_plugins(nova_autopilot().input(|world, _elapsed| {
+//! app.add_plugins(nova_autopilot().input(|world, _elapsed, _frame| {
 //!     use nova_gameplay::GameStates;
 //!     if *world.resource::<State<GameStates>>().get() != GameStates::Playing {
 //!         return;
@@ -138,6 +138,26 @@ pub const SETTLE_FRAMES: u32 = 30;
 /// completion deadline, and never reached by a capture that works.
 pub const SHOT_DEADLINE_SECS: f32 = 20.0;
 
+/// In-step seconds a beat gets to reach a WORLD condition before the run
+/// aborts naming it: an asset load finishing, a state transition landing, a
+/// scene coming up.
+///
+/// One value for the whole fleet. The thirteen identical per-example copies
+/// this replaced were not thirteen judgements about how long a scene takes -
+/// they were one number pasted twelve times.
+///
+/// It is a BACKSTOP, not a settle: a beat that waits on a condition reaches
+/// this only when the condition never came, and then the abort names the beat.
+pub const STEP_DEADLINE_SECS: f32 = 30.0;
+
+/// In-step seconds a GESTURE beat gets: a widget laying out, the picking
+/// pointer registering a press or a release, the pointer arriving where it was
+/// sent.
+///
+/// Shorter than [`STEP_DEADLINE_SECS`] because a gesture that landed is
+/// answered within a few frames; one that takes twenty seconds missed.
+pub const BEAT_DEADLINE_SECS: f32 = 20.0;
+
 /// The name of the single step [`nova_autopilot()`] builds, so a caller can
 /// [`loop_from`](AutopilotPlugin::loop_from) it without repeating the string.
 pub const NOVA_AUTOPILOT_STEP: &str = "nova: play the loading-gated window";
@@ -216,9 +236,11 @@ pub fn section_gone(id: impl Into<String>) -> Arc<Predicate> {
 /// instead of idling out and passing.
 ///
 /// Not in `nova_autopilot`'s own vocabulary on purpose: it reads a collector's
-/// state to decide a step, which is a knot only this migration needs. A script
-/// written fresh ends its last step on a world predicate and lets the driver
-/// report done.
+/// state to decide a step. That is the right shape only where the beat list is
+/// not known when the script is BUILT - `bug_menu_picker` walks however many
+/// scenario rows the catalog holds - and the wrong shape everywhere else. A
+/// script with a fixed beat list ends each step on a world predicate and lets
+/// the driver report done.
 pub fn script_reports_done() -> Arc<Predicate> {
     resource_where::<HarnessCompletion>(|completion| !completion.is_pending(AUTOPILOT))
 }

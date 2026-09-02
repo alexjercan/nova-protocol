@@ -33,7 +33,7 @@ use nova_ui::widget::Selected;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
-use ui_walk::{Gestures, STEP_DEADLINE_SECS};
+use ui_walk::Gestures;
 
 #[derive(Parser)]
 #[command(name = "screenshot_scenario_picker")]
@@ -142,7 +142,6 @@ fn picker_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                  PREVIOUS selection"
             );
         })
-        .until(frames(1))
         .add()
         // The last step holds until the PNG is on disk, so the driver cannot
         // report done out from under a pending write.

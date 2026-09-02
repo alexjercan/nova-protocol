@@ -844,7 +844,7 @@ struct HeldInput {
 /// trigger's single `just_pressed` edge was cleared before the weapon saw it,
 /// so the range never fired a round.
 #[cfg(feature = "debug")]
-fn hold_inputs(world: &mut World, _elapsed: f32) {
+fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {
@@ -1057,7 +1057,6 @@ fn torpedo_script() -> Script {
         .add()
         .step("open the torpedo type loop")
         .on_enter(|world| loop_start(world, TYPES_LOOP))
-        .until(frames(1))
         .add()
         .step("hold the straight and weaving trails")
         .until(elapsed(4.0))

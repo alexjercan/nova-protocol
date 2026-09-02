@@ -32,7 +32,7 @@ use nova_protocol::prelude::*;
 #[path = "shared/ui_walk.rs"]
 mod ui_walk;
 #[cfg(feature = "debug")]
-use ui_walk::{Gestures, STEP_DEADLINE_SECS};
+use ui_walk::Gestures;
 
 #[derive(Parser)]
 #[command(name = "screenshot_menu")]
@@ -109,7 +109,6 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         // again under a different name.
         .step("the settings panel is up")
         .on_enter(assert_named_visible("Settings Panel"))
-        .until(frames(1))
         .add()
         .step("capture the settings panel")
         .on_enter(shot("wiki-settings.png"))

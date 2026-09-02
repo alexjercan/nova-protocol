@@ -996,10 +996,6 @@ fn orbit_idle_camera(
     }
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// Ceiling on the whole row walk. Generous because the row count is only
 /// known at runtime; a single stuck shot still fails fast on its own
 /// [`SHOT_DEADLINE_SECS`] inside [`drive_row_walk`].

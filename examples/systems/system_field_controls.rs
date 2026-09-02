@@ -57,10 +57,6 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// In-step seconds a gesture beat gets before the run gives up on it.
-#[cfg(feature = "debug")]
-const BEAT_DEADLINE_SECS: f32 = 20.0;
-
 /// The top-bar menu carrying the object palette.
 #[cfg(feature = "debug")]
 const ADD_MENU: &str = "Add Menu Button";

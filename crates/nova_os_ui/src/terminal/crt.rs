@@ -529,7 +529,7 @@ fn nova_os_glass_rect(node: &ComputedNode, xf: &UiGlobalTransform) -> (Vec2, Vec
 /// image point nowhere: off the picture, or swallowed by the raster collapse
 /// mid-power-on. A caller must treat that as "not clickable yet", never as a
 /// coordinate to clamp.
-pub fn nova_os_window_px_showing(world: &mut World, image_px: Vec2) -> Option<Vec2> {
+pub fn nova_os_window_px_showing(world: &World, image_px: Vec2) -> Option<Vec2> {
     let image = world.get_resource::<NovaOsRtt>()?.image.clone();
     let image_size = world
         .get_resource::<Assets<Image>>()
@@ -539,8 +539,8 @@ pub fn nova_os_window_px_showing(world: &mut World, image_px: Vec2) -> Option<Ve
     let power = nova_os_openness(world).unwrap_or(1.0);
     let (node, xf) = {
         let mut query = world
-            .query_filtered::<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>(
-            );
+            .try_query_filtered::<(&ComputedNode, &UiGlobalTransform), With<NovaOsSamplingSurfaceMarker>>(
+            )?;
         let (node, xf) = query.single(world).ok()?;
         (*node, *xf)
     };

@@ -57,7 +57,7 @@ use nova_protocol::prelude::*;
 #[cfg(feature = "debug")]
 use crate::{
     editor_stage::{ADD_MENU, EMPTY_SPACE},
-    editor_walk::{inside_a_ship, the_ship_is_up, BEAT_DEADLINE_SECS},
+    editor_walk::{inside_a_ship, the_ship_is_up},
     section_aim::a_section_on_screen,
 };
 
@@ -82,12 +82,15 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// Frames a resize is given to reach layout in.
+/// Frames the editor's Frame verb is given to bring the camera to rest.
 ///
-/// A window change is not one frame's work: winit answers the request, the UI
-/// re-lays out, and the chip reads its own size from the pass before it.
+/// The one wait here that stays a count. Framing is a camera EASE with no
+/// arrival flag on it, and the chip is read off a projection of that camera, so
+/// a beat that ran while it was still moving would measure a moving picture.
+/// The window changes below no longer use this: they have a landing to wait
+/// for, and they wait for it.
 #[cfg(feature = "debug")]
-const SETTLE_FRAMES: u32 = 24;
+const REFRAME_FRAMES: u32 = 24;
 
 /// The part the walk founds its ship with. A thruster because the chip only
 /// exists for a BINDABLE section: a hull takes no key and wears no chip.
@@ -276,6 +279,56 @@ fn read_the_plates(world: &mut World) {
     info!("scale: {} nameplates, none over another", placed.len());
 }
 
+/// Advance once the UI has re-laid out at `factor`.
+///
+/// `ComputedNode::inverse_scale_factor` is the scale the LAYOUT pass ran at, so
+/// this is the pass landing rather than the request being made: `set_scale`
+/// writes the override inside the beat's own frame, and a wait on the window
+/// alone would answer yes before one node had moved.
+#[cfg(feature = "debug")]
+fn the_layout_ran_at(factor: f32) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    and(
+        window_scale_factor_is(factor),
+        std::sync::Arc::new(move |world: &World| {
+            world
+                .try_query::<(&Name, &ComputedNode)>()
+                .is_some_and(|mut query| {
+                    query.iter(world).any(|(name, computed)| {
+                        name.as_str() == CHIP
+                            && (computed.inverse_scale_factor() - 1.0 / factor).abs() < 1e-3
+                    })
+                })
+        }),
+    )
+}
+
+/// Advance once a reshape has reached the pixels the chip is measured in: the
+/// window reports the new shape AND the camera whose viewport `offsets_now`
+/// clamps against has picked it up.
+///
+/// The camera half is the one that matters. `set_size` writes the resolution in
+/// the beat's own frame; the viewport it is read in trails it.
+#[cfg(feature = "debug")]
+fn the_window_reshaped(
+    width: f32,
+    height: f32,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    and(
+        window_size_is(width, height),
+        std::sync::Arc::new(move |world: &World| {
+            world
+                .try_query_filtered::<&Camera, With<Camera3d>>()
+                .is_some_and(|mut query| {
+                    query.iter(world).any(|camera| {
+                        camera.logical_viewport_size().is_some_and(|size| {
+                            (size.x - width).abs() < 0.5 && (size.y - height).abs() < 0.5
+                        })
+                    })
+                })
+        }),
+    )
+}
+
 /// Advance once the editor is back out at the scenario.
 #[cfg(feature = "debug")]
 fn outside_the_ship() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
@@ -416,9 +469,12 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(editor_tool_is(EditorTool::Select))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The chip has to EXIST before it can be stamped. Its presence is not
+        // what the run proves - the run proves its offsets hold across shapes -
+        // so waiting for it gates nothing the beats below assert.
         .step("scale: release Escape")
         .on_enter(release_key(KeyCode::Escape))
-        .until(frames(SETTLE_FRAMES))
+        .until(ui_node_present(CHIP))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         // The baseline every later shape is read against.
@@ -438,12 +494,12 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // placement is the same at 1x.
         .step("scale: double the scale factor")
         .on_enter(set_scale(2.0))
-        .until(frames(SETTLE_FRAMES))
+        .until(the_layout_ran_at(2.0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: reframe at 2x")
         .on_enter(frame_the_ship)
-        .until(frames(SETTLE_FRAMES))
+        .until(frames(REFRAME_FRAMES))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: the chip hangs the same at 2x")
@@ -456,17 +512,17 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // in.
         .step("scale: back to 1x")
         .on_enter(set_scale(1.0))
-        .until(frames(SETTLE_FRAMES))
+        .until(the_layout_ran_at(1.0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: go wide")
         .on_enter(set_size(1280.0, 600.0))
-        .until(frames(SETTLE_FRAMES))
+        .until(the_window_reshaped(1280.0, 600.0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: reframe wide")
         .on_enter(frame_the_ship)
-        .until(frames(SETTLE_FRAMES))
+        .until(frames(REFRAME_FRAMES))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: the chip hangs the same wide")
@@ -477,12 +533,12 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         .step("scale: go narrow")
         .on_enter(set_size(760.0, 600.0))
-        .until(frames(SETTLE_FRAMES))
+        .until(the_window_reshaped(760.0, 600.0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: reframe narrow")
         .on_enter(frame_the_ship)
-        .until(frames(SETTLE_FRAMES))
+        .until(frames(REFRAME_FRAMES))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: the chip hangs the same narrow")
@@ -499,7 +555,7 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         // Out to the scenario, where the stage wears the document's names.
         .step("scale: back to the stock shape")
         .on_enter(set_size(1024.0, 768.0))
-        .until(frames(SETTLE_FRAMES))
+        .until(the_window_reshaped(1024.0, 768.0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: leave the ship")
@@ -509,12 +565,10 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         .step("scale: release Escape again")
         .on_enter(release_key(KeyCode::Escape))
-        .until(frames(SETTLE_FRAMES))
-        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: frame the whole scenario")
         .on_enter(frame_the_ship)
-        .until(frames(SETTLE_FRAMES))
+        .until(frames(REFRAME_FRAMES))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: the plates stand apart")

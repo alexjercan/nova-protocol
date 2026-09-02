@@ -129,6 +129,24 @@ does NOT get an entry - and it is the only place they are written down.
 - `loop_vfx_range` parks a lance above the shooter and fires it over the
   target once per pass, so the cycle measures the wake; `NOVA_VFX_RANGE_BARE_SLUG=1`
   runs the same cycle with a bare slug.
+- A driven range waits on what it changed rather than on a frame count: a
+  resize, a DPI change, a shell command and a pointer each have a landing, and
+  two thirds of the fleet's frame waits are gone.
+- A stalled "the widget is up" beat says which way it failed - no such name,
+  hidden by its ancestry, or laid out to nothing - instead of only naming the
+  step it died on.
+- One `click_named` beat builder replaces the four spellings of a widget click:
+  it holds until the pointer really picks the widget, and its release beat
+  carries what the click was FOR, not a settle.
+- `AutopilotPlugin::hold` is gone: a timed beat spells its own `elapsed` step,
+  and `each` receives the in-step frame index, so a multi-frame gesture needs no
+  counter of its own.
+- The five headless spike ranges run on the scripted driver: 56 numbered step
+  arms become named beats waiting on the pointer, the widget and the registry,
+  so a stall names the beat instead of a number.
+- An autopilot deadline counts real seconds, so a beat behind the pause overlay
+  or the ship computer - where the game clock stops - aborts named instead of
+  holding the run open forever.
 
 ## [0.12.0] - 2026-08-31
 

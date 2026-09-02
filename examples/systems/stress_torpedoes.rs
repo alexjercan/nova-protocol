@@ -357,7 +357,7 @@ struct HeldInput {
 /// synthesized press is still `just_pressed` when the game's `Update` input
 /// systems read it.
 #[cfg(feature = "debug")]
-fn hold_inputs(world: &mut World, _elapsed: f32) {
+fn hold_inputs(world: &mut World, _elapsed: f32, _frame: u32) {
     let held = world.resource::<HeldInput>();
     let (combat, fire) = (held.combat, held.fire);
     if combat {

@@ -42,7 +42,7 @@ mod ui_walk;
 #[cfg(feature = "debug")]
 use ui_walk::{
     count_sections, pose_editor_camera, the_build_camera_is_posed, the_editor_can_play,
-    the_editor_is_inside_a_ship, the_skin_is_on, Gestures, STEP_DEADLINE_SECS,
+    the_editor_is_inside_a_ship, the_skin_is_on, Gestures,
 };
 
 #[derive(Parser)]

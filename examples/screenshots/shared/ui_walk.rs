@@ -38,13 +38,6 @@ use std::sync::Arc;
 use bevy::prelude::*;
 use nova_protocol::{nova_debug::harness::Predicate, prelude::*};
 
-/// Seconds a step may sit before it is called a stall. Sized with headroom for a
-/// slow software-rendered CI GPU (llvmpipe), where every beat costs more
-/// wall-clock than on a real GPU. An expiry is an error exit naming the step,
-/// which is the point: a walk that never reaches the menu or the editor now
-/// fails loudly instead of idling out a fixed window.
-pub const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// Where the editor camera is put before the ship is built.
 ///
 /// The editor's own camera sits at `(0, 5, 10)` looking down the -Z axis, dead
@@ -304,21 +297,7 @@ pub trait Gestures {
 
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn click(self, label: &str, name: &str) -> Self {
-        let target = name.to_string();
-        self.step(format!("{label}: the widget is up"))
-            .until(ui_node_present(name.to_string()))
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: press"))
-            .on_enter(click_named(target))
-            .until(pointer_pressed())
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
-            .step(format!("{label}: release"))
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
+        self.click_named(label, name, pointer_released(), STEP_DEADLINE_SECS)
     }
 
     fn place(self, label: &str, on: Vec3, face: Vec3) -> Self {

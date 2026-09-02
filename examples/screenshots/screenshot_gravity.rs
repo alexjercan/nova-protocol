@@ -36,13 +36,6 @@ use nova_protocol::prelude::*;
 #[command(about = "The drydock's planetoid, framed from the yard and from close in. Autopilot-only: a posed set behind a scripted camera", long_about = None)]
 struct Cli;
 
-/// Seconds a step may sit before it is called a stall. Sized with headroom for
-/// a slow software-rendered CI GPU (llvmpipe). An expiry is an error exit
-/// naming the step, so a run that never loads the scene fails loudly instead of
-/// producing an unframed shot.
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(custom_plugin).build();

@@ -193,10 +193,6 @@ fn load_scene(
     commands.insert_resource(compare::CompareRoster::new(entries));
 }
 
-/// Seconds a step may sit before the run aborts naming it (llvmpipe headroom).
-#[cfg(feature = "debug")]
-const STEP_DEADLINE_SECS: f32 = 30.0;
-
 /// The roster indices the walk dresses the focus rock with: the two picks
 /// (Rock030, Rock035), so the smoke path exercises the swap and the capture
 /// path shoots each pick worn by the big rock.
