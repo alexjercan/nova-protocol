@@ -5,6 +5,7 @@
 //! act; after a beat the carousel turns to the next backdrop.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -20,60 +21,60 @@ use crate::{
 const CORVETTE_ROUNDS_PER_TURRET: u32 = 400;
 
 /// The corvette's station-keeping circuit, just left of frame center (the menu
-/// panel owns the right half): a six-point ring with ~55 u legs and a little
+/// panel owns the right half): a six-point ring with ~550 m legs and a little
 /// vertical wander - enough motion to read as a ship on watch, small enough
 /// that the guns, not the flying, stay the show. Its centroid anchors the
-/// leash. RAISED ~25 u above the fight plane: at y 0 the ship parked in
+/// leash. RAISED ~250 m above the fight plane: at y 0 the ship parked in
 /// front of the far rock cluster and vanished into the low contrast; up
 /// here it reads against black sky, above the band's sightline.
-const HOLD_LOOP: [Vec3; 6] = [
-    Vec3::new(-5.0, 25.0, 0.0),
-    Vec3::new(-32.5, 33.0, 48.0),
-    Vec3::new(-87.5, 20.0, 48.0),
-    Vec3::new(-115.0, 25.0, 0.0),
-    Vec3::new(-87.5, 35.0, -48.0),
-    Vec3::new(-32.5, 18.0, -48.0),
+const HOLD_LOOP: [Meters3; 6] = [
+    Meters3::new(-50.0, 250.0, 0.0),
+    Meters3::new(-325.0, 330.0, 480.0),
+    Meters3::new(-875.0, 200.0, 480.0),
+    Meters3::new(-1_150.0, 250.0, 0.0),
+    Meters3::new(-875.0, 350.0, -480.0),
+    Meters3::new(-325.0, 180.0, -480.0),
 ];
 
 /// The corvette's authored detection range. Two geometry facts hang off it: the
-/// batteries park ~720 u from the circuit's centroid, so a detection range that
+/// batteries park ~7.2 km from the circuit's centroid, so a detection range that
 /// reached them would pull the corvette off station toward whichever battery its
 /// acquisition found; and a leaked hit still overrides the passive gate (damage
 /// memory ignores detection range), which is why the batteries ALSO stay beyond
-/// leash + turret reach (250 + 200) of the centroid - a lunging corvette can
+/// leash + turret reach (2.5 km + 2 km) of the centroid - a lunging corvette can
 /// never bring its guns into range before the leash walks it home. Authored
-/// rather than left to the 400 u default so the framing survives a retune of
+/// rather than left to the 4 km default so the framing survives a retune of
 /// the engine constants.
-const CORVETTE_ENGAGE_RANGE: f32 = 300.0;
+const CORVETTE_ENGAGE_RANGE: Meters = Meters(3_000.0);
 
-/// Battery parks: far off both flanks of the frame (~+-230 u visible at
+/// Battery parks: far off both flanks of the frame (~+-2.3 km visible at
 /// origin depth), at slightly scattered y/z so the inbound lanes fan instead
-/// of stacking. All are >700 u from the circuit centroid (see
+/// of stacking. All are >7 km from the circuit centroid (see
 /// [`CORVETTE_ENGAGE_RANGE`]); with launches SCRIPTED there is no AI launch
 /// envelope to stay inside of.
-const BATTERY_PARKS: [(&str, Vec3, f64, f64); 4] = [
+const BATTERY_PARKS: [(&str, Meters3, f64, f64); 4] = [
     // (id, park, first launch at, relaunch every)
     (
         "gauntlet_battery_w1",
-        Vec3::new(-800.0, 20.0, 150.0),
+        Meters3::new(-8_000.0, 200.0, 1_500.0),
         3.0,
         15.0,
     ),
     (
         "gauntlet_battery_w2",
-        Vec3::new(-780.0, -30.0, -170.0),
+        Meters3::new(-7_800.0, -300.0, -1_700.0),
         8.0,
         18.0,
     ),
     (
         "gauntlet_battery_e1",
-        Vec3::new(660.0, 25.0, 140.0),
+        Meters3::new(6_600.0, 250.0, 1_400.0),
         12.0,
         21.0,
     ),
     (
         "gauntlet_battery_e2",
-        Vec3::new(640.0, -20.0, -160.0),
+        Meters3::new(6_400.0, -200.0, -1_600.0),
         16.0,
         24.0,
     ),
@@ -85,7 +86,7 @@ const BATTERY_PARKS: [(&str, Vec3, f64, f64); 4] = [
 /// point-defense targets for the Player-allegiance corvette. Rotation stays
 /// identity: the bay launches along its +Y like a vertical cell and PN
 /// guidance arcs the torpedo onto the lane.
-fn battery(id: &str, park: Vec3) -> ScenarioObjectConfig {
+fn battery(id: &str, park: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -131,13 +132,13 @@ pub(crate) fn menu_gauntlet(
     stage.push(backdrop_beacon(
         "gauntlet_nav_a",
         "KP-7",
-        Vec3::new(-150.0, -10.0, 20.0),
+        Meters3::new(-1_500.0, -100.0, 200.0),
         Color::srgb(1.0, 0.75, 0.4),
     ));
     stage.push(backdrop_beacon(
         "gauntlet_nav_b",
         "KP-12",
-        Vec3::new(-30.0, -18.0, -110.0),
+        Meters3::new(-300.0, -180.0, -1_100.0),
         Color::srgb(1.0, 0.75, 0.4),
     ));
 
@@ -146,30 +147,30 @@ pub(crate) fn menu_gauntlet(
     }
 
     // Depth dressing, below the station circuit and the torpedo lanes (which
-    // run at y ~ +-30 from the flanks to the circuit - the rocks cannot
+    // run at y ~ +-300 m from the flanks to the circuit - the rocks cannot
     // block launches or eat torpedoes).
     let rock_scatter = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: "gauntlet_rock_".to_string(),
         count: 26,
         seed: SCATTER_SEED ^ 0x3,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 140.0,
-            outer: 230.0,
-            y_min: -75.0,
-            y_max: -30.0,
+            center: Meters3::ZERO,
+            inner: Meters(1_400.0),
+            outer: Meters(2_300.0),
+            y_min: Meters(-750.0),
+            y_max: Meters(-300.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "gauntlet_rock_".to_string(),
                 name: "Gauntlet Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
                 invulnerable: false,
@@ -177,7 +178,7 @@ pub(crate) fn menu_gauntlet(
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.0, 3.0)),
+        asteroid_radius: Some((Meters(10.0), Meters(30.0))),
         min_separation: None,
     });
 
@@ -202,15 +203,15 @@ pub(crate) fn menu_gauntlet(
                 // If a torpedo leaks through, the hit overrides the passive
                 // gate and the corvette lunges; the leash walks it back onto
                 // the circuit once the damage memory fades.
-                leash: Some(250.0),
+                leash: Some(Meters(2_500.0)),
                 engage_range: Some(CORVETTE_ENGAGE_RANGE),
-                // Hold the intercepts for the camera: the default 150 u PD
-                // ring kills inbound torpedoes at the frame edge; 130 u waits
-                // until the ordnance is well inside even the narrow 4:3 shot
-                // before the tracer stream opens up. The shorter window means
-                // more leaks - which is drama, and the fall of the stand is
-                // the scene's ending anyway.
-                pd_range: Some(130.0),
+                // Hold the intercepts for the camera: the default 1.5 km PD
+                // ring kills inbound torpedoes at the frame edge; 1.3 km
+                // waits until the ordnance is well inside even the narrow 4:3
+                // shot before the tracer stream opens up. The shorter window
+                // means more leaks - which is drama, and the fall of the stand
+                // is the scene's ending anyway.
+                pd_range: Some(Meters(1_300.0)),
                 ..Default::default()
             }),
             // Player-grade corvette with HARD magazines: the full 100-rounds/s
@@ -249,18 +250,18 @@ pub(crate) fn menu_gauntlet(
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
                 // Closer than the reference shot: the corvette IS this scene,
-                // and at 300 u it was a handful of pixels. From (0, 80, 260)
-                // the 4:3 half-frame is ~150 u at origin depth - the raised
+                // and at 3 km it was a handful of pixels. From (0, 800, 2,600)
+                // the 4:3 half-frame is ~1.5 km at origin depth - the raised
                 // circuit and its intercepts stay in shot, bigger.
                 .chain([
-                    // HELD at 260 against the audio pass that pulled the
-                    // duel's camera in: KP-7 sits at x -150 and a 4:3 frame
-                    // sees +-0.55 x the camera distance, so this pose already
-                    // has the beacon exactly on the left edge. Coming in far
-                    // enough to matter for the rolloff (~200) crops it. The
-                    // corvette reads at ~0.03 of full volume from here, which
-                    // is the cost of keeping the shot.
-                    backdrop_camera(Vec3::new(0.0, 80.0, 260.0)),
+                    // HELD at 2,600 m against the audio pass that pulled the
+                    // duel's camera in: KP-7 sits at x -1,500 m and a 4:3
+                    // frame sees +-0.55 x the camera distance, so this pose
+                    // already has the beacon exactly on the left edge. Coming
+                    // in far enough to matter for the rolloff (~2 km) crops
+                    // it. The corvette reads at ~0.03 of full volume from
+                    // here, which is the cost of keeping the shot.
+                    backdrop_camera(Meters3::new(0.0, 800.0, 2_600.0)),
                     rock_scatter,
                     spawn_ship,
                     // Stall watchdog (the duel's idiom): a corvette crippled

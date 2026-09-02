@@ -27,6 +27,7 @@
 //! is locked - a post-kill death declares nothing), 2 won, 3 lost.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -98,32 +99,32 @@ const CAST_OFF_DELAY: f64 = 6.0;
 /// arrive fails loudly instead of leaving the claim empty.
 const CAST_OFF_DEADLINE: f64 = 600.0;
 
-/// The planetoid: nominal 20u, surface gravity 6 - the shakedown
-/// planetoid's proven numbers (geometric body 70-120u, SOI 560-960u, from
-/// the measured ASTEROID_GEOMETRIC_FACTOR range; the harness pins the
+/// The planetoid: nominal 200 m, surface gravity 6 - the shakedown
+/// planetoid's proven numbers (geometric body 700-1200 m, SOI 5.6-9.6 km,
+/// from the measured ASTEROID_GEOMETRIC_FACTOR range; the harness pins the
 /// derived clearances).
-const ANCHOR_POS: Vec3 = Vec3::new(0.0, -20.0, 0.0);
-const ANCHOR_RADIUS: f32 = 20.0;
-/// Player spawn: outside even the worst-seed SOI (960u from the well), so
+const ANCHOR_POS: Meters3 = Meters3::new(0.0, -200.0, 0.0);
+const ANCHOR_RADIUS: Meters = Meters(200.0);
+/// Player spawn: outside even the worst-seed SOI (9.6 km from the well), so
 /// the approach COASTS into the pull - the tutorial callback.
-const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 20.0, 1150.0);
+const PLAYER_SPAWN: Meters3 = Meters3::new(0.0, 200.0, 11_500.0);
 /// The anchorage: two big invulnerable hull-section rocks off the
 /// planetoid's shoulder, clear of its worst-case body.
-const WRECK_BOW_POS: Vec3 = Vec3::new(200.0, 20.0, 140.0);
-const WRECK_STERN_POS: Vec3 = Vec3::new(-90.0, -40.0, 230.0);
+const WRECK_BOW_POS: Meters3 = Meters3::new(2_000.0, 200.0, 1_400.0);
+const WRECK_STERN_POS: Meters3 = Meters3::new(-900.0, -400.0, 2_300.0);
 /// Picket spawns: on the well's wire, opposite shoulders, both outside the
-/// raider design floor (700u) of the player spawn.
-const PICKET_A_SPAWN: Vec3 = Vec3::new(300.0, 0.0, 100.0);
-const PICKET_B_SPAWN: Vec3 = Vec3::new(-280.0, 40.0, -120.0);
+/// raider design floor (7 km) of the player spawn.
+const PICKET_A_SPAWN: Meters3 = Meters3::new(3_000.0, 0.0, 1_000.0);
+const PICKET_B_SPAWN: Meters3 = Meters3::new(-2_800.0, 400.0, -1_200.0);
 /// The cast-off berth: the flagship and its escort emerge from BEHIND the
-/// anchorage bow (triggered spawns, kept outside the flagship's own 1000u
-/// torpedo envelope of the player SPAWN - 952u tripped the balance WARN at
-/// z=210, so the berth sits deeper; the audit stays clean with zero acks).
-const FLAGSHIP_SPAWN: Vec3 = Vec3::new(150.0, -10.0, 90.0);
-const ESCORT_SPAWN: Vec3 = Vec3::new(60.0, 30.0, 280.0);
+/// anchorage bow (triggered spawns, kept outside the flagship's own 10 km
+/// torpedo envelope of the player SPAWN - 9.52 km tripped the balance WARN at
+/// z=2100, so the berth sits deeper; the audit stays clean with zero acks).
+const FLAGSHIP_SPAWN: Meters3 = Meters3::new(1_500.0, -100.0, 900.0);
+const ESCORT_SPAWN: Meters3 = Meters3::new(600.0, 300.0, 2_800.0);
 /// The long-range survey signature on the anchorage bow: lockable from the
-/// coast-in (default beacon signature 20 reads ~600u; the bow reads ~1350u).
-const WRECK_SURVEY_SIGNATURE: f32 = 45.0;
+/// coast-in (default beacon signature 200 reads ~6 km; the bow reads ~13.5 km).
+const WRECK_SURVEY_SIGNATURE: Meters = Meters(450.0);
 
 fn facing_the_approach() -> Quat {
     Quat::from_rotation_y(std::f32::consts::PI)
@@ -192,9 +193,9 @@ fn claim_anchor(asteroid_texture: &AssetRef<Image>) -> ScenarioObjectConfig {
 fn anchorage_wreck(
     id: &str,
     name: &str,
-    position: Vec3,
-    radius: f32,
-    lock_signature: Option<f32>,
+    position: Meters3,
+    radius: Meters,
+    lock_signature: Option<Meters>,
     asteroid_texture: &AssetRef<Image>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -221,7 +222,7 @@ fn anchorage_wreck(
 /// the claim - a guard on rails (combat pulls it off the orbit, calm
 /// returns it; ai.rs orbit_directive_tests). Graced like every telegraphed
 /// hostile; leashed to the well so the fight stays in the pull.
-fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
+fn picket(id: &str, spawn_pos: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -232,7 +233,7 @@ fn picket(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
                 orbit: Some(ID_ANCHOR.to_string()),
-                leash: Some(600.0),
+                leash: Some(Meters(6_000.0)),
                 engage_delay: Some(8.0),
                 ..Default::default()
             }),
@@ -280,8 +281,11 @@ fn escort() -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
-                patrol: vec![ESCORT_SPAWN, FLAGSHIP_SPAWN + Vec3::new(0.0, 40.0, 80.0)],
-                leash: Some(700.0),
+                patrol: vec![
+                    ESCORT_SPAWN,
+                    FLAGSHIP_SPAWN + Meters3::new(0.0, 400.0, 800.0),
+                ],
+                leash: Some(Meters(7_000.0)),
                 engage_delay: Some(4.0),
                 ..Default::default()
             }),
@@ -300,23 +304,23 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
         count: 16,
         seed: SCATTER_SEED,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 260.0,
-            outer: 420.0,
-            y_min: -70.0,
-            y_max: -10.0,
+            center: Meters3::ZERO,
+            inner: Meters(2_600.0),
+            outer: Meters(4_200.0),
+            y_min: Meters(-700.0),
+            y_max: Meters(-100.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "belt_rock_".to_string(),
                 name: "Claim Belt Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture.clone(),
                 mass: None,
                 invulnerable: false,
@@ -324,7 +328,7 @@ fn claim_belt(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.5, 3.5)),
+        asteroid_radius: Some((Meters(15.0), Meters(35.0))),
         min_separation: None,
     })
 }
@@ -412,7 +416,7 @@ pub(crate) fn final_tally(
             ID_WRECK_BOW,
             "Anchorage Bow",
             WRECK_BOW_POS,
-            8.0,
+            Meters(80.0),
             Some(WRECK_SURVEY_SIGNATURE),
             &asteroid_texture,
         )),
@@ -420,7 +424,7 @@ pub(crate) fn final_tally(
             ID_WRECK_STERN,
             "Anchorage Stern",
             WRECK_STERN_POS,
-            6.5,
+            Meters(65.0),
             None,
             &asteroid_texture,
         )),
@@ -460,7 +464,7 @@ pub(crate) fn final_tally(
         attach_objective_marker(ID_WRECK_BOW, "ANCHORAGE"),
     ];
     // Scale 20, not the usual 10: the claim's planetoid reaches ANCHOR_RADIUS *
-    // ASTEROID_GEOMETRIC_FACTOR_MAX (~113u) on its worst seed, and a scale-10
+    // ASTEROID_GEOMETRIC_FACTOR_MAX (~1130 m) on its worst seed, and a scale-10
     // key light would sit inside that body. Cosmetic for a directional light -
     // only its direction is read - but `final_tally_claim` asserts that nothing
     // spawns inside the planetoid, and a sun inside the planet is a lie anyway.

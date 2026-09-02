@@ -8,6 +8,7 @@
 //! Touch this module when adding a section kind or retuning section stats.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 
@@ -482,9 +483,9 @@ fn pdc_turret_prototype(
             // PDC lands exactly the authored per-hit below. Muzzle speed is
             // therefore NOT a range knob - moving it rebalances every weapon's
             // damage. Reach is bought with lifetime alone.
-            muzzle_speed: 100.0,
-            // 100 u/s x 2.0 s = 200 u (2.0 km) of reach, the top of the
-            // intended 1-2 km PDC band. Lifetime is the ONLY reach knob a
+            muzzle_speed: MetersPerSecond(1_000.0),
+            // 1,000 m/s x 2.0 s = 2.0 km of reach, the top of the intended
+            // 1-2 km PDC band. Lifetime is the ONLY reach knob a
             // turret has, and it is read back by the AI fire gate and by the
             // balance audit's threat envelope: see AI_FIRE_RANGE_FACTOR
             // (nova_ship/src/input/ai/guns.rs) for the constants that move
@@ -925,7 +926,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // break the line; short enough that a pilot who has already
                 // set up the shot is not flying a straight line forever.
                 charge_seconds: 1.5,
-                slug_speed: 1500.0,
+                slug_speed: MetersPerSecond(15_000.0),
                 // Dealt in FULL to every layer crossed. It clears every hull,
                 // controller, turret and bay in the catalog outright - the
                 // toughest of those is a reinforced hull block at 200 - so an
@@ -961,11 +962,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // which is a hole you can see and not a ship you delete.
                 //
                 // Wider is NOT more: against dense material the power budget
-                // binds either way, so a 4.0 rake removes the same total and
+                // binds either way, so a 40 m rake removes the same total and
                 // spends it sideways on the entry face instead of forward
                 // through the hull. See `system_railgun_lance` invariant 9.
-                rake_radius: Some(1.0),
-                // 1800 u of reach. A spinal gun outranges every mount on the
+                rake_radius: Some(Meters(10.0)),
+                // 18 km of reach. A spinal gun outranges every mount on the
                 // ship carrying it, which is what makes lining up worth doing.
                 slug_lifetime: 1.2,
                 // Raw per-shot impulse, in the same register as a thruster's
@@ -1023,12 +1024,12 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
                 spawn_recess: BAY_CELLS.z * 0.5,
                 fire_rate: 1.0,
-                spawner_speed: 8.0,
+                spawner_speed: MetersPerSecond(80.0),
                 // Long enough to cross a backdrop arena, short enough that a
                 // torpedo whose target died mid-flight cleans itself up.
                 projectile_lifetime: 60.0,
                 arm_time: 0.5,
-                arm_distance: 5.0,
+                arm_distance: Meters(50.0),
                 // Dropped, then lit: the bay ejects it on a cold charge and the
                 // motor catches once it is clear. See `ignition_delay`.
                 ignition_delay: 0.6,
@@ -1037,7 +1038,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // Siege pressure: the same 65% transmission rule as every
                 // Explosive blast, but 2000 at the centre stays lethal through
                 // more structural layers than the standard 750-point warhead.
-                blast_radius: 45.0,
+                blast_radius: Meters(450.0),
                 blast_damage: 2000.0,
                 blast_effect: None,
                 launch_effect: None,
@@ -1181,21 +1182,21 @@ fn torpedo_bay_prototype(
             // the one face `link_points` leaves unlinkable so it can be
             // a muzzle. Without it the tube ejected through its own roof.
             spawn_rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
-            // Born at the tube's centre: the 2 u torpedo exactly fills the
-            // 2 u tube - nose on the door plane, tail at the back wall - and
+            // Born at the tube's centre: the 20 m torpedo exactly fills the
+            // 20 m tube - nose on the door plane, tail at the back wall - and
             // slides its whole length out through the open iris.
             spawn_recess: BAY_CELLS.z * 0.5,
             fire_rate: 1.0,
-            spawner_speed: 8.0,
+            spawner_speed: MetersPerSecond(80.0),
             projectile_lifetime: 100.0,
             arm_time: 0.5,
-            arm_distance: 5.0,
+            arm_distance: Meters(50.0),
             // Dropped, then lit: the bay ejects it on a cold charge and the
             // motor catches once it is clear. See `ignition_delay`.
             ignition_delay: 0.6,
             nav_constant: 3.0,
             linear_damping: 0.8,
-            blast_radius: 30.0,
+            blast_radius: Meters(300.0),
             // Expanse-style nuclear pressure: a direct hit can decide a
             // small-craft fight, while structural depth stops it from deleting
             // a capital. Each destroyed section transmits 65% of the remaining

@@ -1,6 +1,7 @@
 //! The freight-waystation main-menu backdrop.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -17,31 +18,31 @@ pub(crate) fn menu_waystation(
         backdrop_orbiter(
             "waystation_hauler_a",
             "Hauler Biscuit",
-            Vec3::new(140.0, 0.0, 0.0),
+            Meters3::new(1_400.0, 0.0, 0.0),
             true,
         ),
         backdrop_orbiter(
             "waystation_hauler_b",
             "Hauler Kettle",
-            Vec3::new(-140.0, 0.0, 0.0),
+            Meters3::new(-1_400.0, 0.0, 0.0),
             true,
         ),
         backdrop_beacon(
             "waystation_dock_a",
             "DOCK-A",
-            Vec3::new(170.0, -25.0, 60.0),
+            Meters3::new(1_700.0, -250.0, 600.0),
             Color::srgb(1.0, 0.7, 0.2),
         ),
         backdrop_beacon(
             "waystation_dock_b",
             "DOCK-B",
-            Vec3::new(150.0, -30.0, -90.0),
+            Meters3::new(1_500.0, -300.0, -900.0),
             Color::srgb(1.0, 0.7, 0.2),
         ),
         backdrop_beacon(
             "waystation_traffic",
             "TRAFFIC",
-            Vec3::new(-180.0, -20.0, 40.0),
+            Meters3::new(-1_800.0, -200.0, 400.0),
             Color::srgb(0.3, 0.9, 1.0),
         ),
     ];
@@ -55,23 +56,23 @@ pub(crate) fn menu_waystation(
         count: 18,
         seed: SCATTER_SEED ^ 0x1,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 180.0,
-            outer: 230.0,
-            y_min: -60.0,
-            y_max: -25.0,
+            center: Meters3::ZERO,
+            inner: Meters(1_800.0),
+            outer: Meters(2_300.0),
+            y_min: Meters(-600.0),
+            y_max: Meters(-250.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "waystation_cargo_".to_string(),
                 name: "Cargo Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
                 invulnerable: false,
@@ -79,7 +80,7 @@ pub(crate) fn menu_waystation(
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.0, 2.5)),
+        asteroid_radius: Some((Meters(10.0), Meters(25.0))),
         min_separation: None,
     });
 
@@ -94,14 +95,14 @@ pub(crate) fn menu_waystation(
                 .map(EventActionConfig::SpawnScenarioObject)
                 // The scene poses its own camera: a fixed mid-range shot on
                 // the planetoid (the old well-derived pose averaged ~here;
-                // the noise mesh runs to ~120 u, safely inside the frame).
+                // the noise mesh runs to ~1.2 km, safely inside the frame).
                 .chain([
-                    // HELD at 335: the planetoid at the origin IS the shot,
-                    // and the traffic works its flanks at +-140..180 - so the
-                    // near arc is already inside the rolloff and the far arc
-                    // cannot be brought in without putting the camera through
-                    // the rock. Distance is doing the right thing here.
-                    backdrop_camera(Vec3::new(0.0, 100.0, 335.0)),
+                    // HELD at 3,350 m: the planetoid at the origin IS the
+                    // shot, and the traffic works its flanks at +-1.4..1.8 km
+                    // - so the near arc is already inside the rolloff and the
+                    // far arc cannot be brought in without putting the camera
+                    // through the rock. Distance is doing the right thing here.
+                    backdrop_camera(Meters3::new(0.0, 1_000.0, 3_350.0)),
                     lane_scatter,
                     // The carousel's rotation limit: the waystation's day
                     // never ends on its own, so after a couple of freight

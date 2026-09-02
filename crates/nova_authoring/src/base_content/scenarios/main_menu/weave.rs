@@ -2,6 +2,7 @@
 //! band on patrol waypoints, steering around whatever the scatter placed.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -10,27 +11,27 @@ use crate::base_content::{scenarios::SCATTER_SEED, ships};
 
 /// The circuit's center, nudged left of the frame center: the menu panel
 /// owns the right half of the shot, so the loop leans into the open side.
-const LOOP_CENTER: Vec3 = Vec3::new(-40.0, 0.0, 0.0);
+const LOOP_CENTER: Meters3 = Meters3::new(-400.0, 0.0, 0.0);
 
-/// The patrol circuit: TEN waypoints on a 140 u ring around [`LOOP_CENTER`],
-/// through the middle of the rock band (radius band 100-190, y -60..-28).
-/// Short ~87 u legs mean the autopilot spends its time decelerating, turning
-/// and detouring instead of cruising - a slow, deliberate thread. The
+/// The patrol circuit: TEN waypoints on a 1.4 km ring around [`LOOP_CENTER`],
+/// through the middle of the rock band (radius band 1,000-1,900 m, y -600..-280
+/// m). Short ~870 m legs mean the autopilot spends its time decelerating,
+/// turning and detouring instead of cruising - a slow, deliberate thread. The
 /// waypoints are authored mid-band on purpose: the route is NOT threaded
 /// through measured gaps; the field is deterministic (seeded scatter, seeded
 /// silhouettes) but the pilot, not the author, does the dodging. The whole
-/// loop (plus worst-case detours, ~45 u) stays inside the ~230 u half-frame.
-const WEAVE_LOOP: [Vec3; 10] = [
-    Vec3::new(100.0, -38.0, 0.0),
-    Vec3::new(73.3, -50.0, 82.3),
-    Vec3::new(3.3, -42.0, 133.1),
-    Vec3::new(-83.3, -55.0, 133.1),
-    Vec3::new(-153.3, -35.0, 82.3),
-    Vec3::new(-180.0, -48.0, 0.0),
-    Vec3::new(-153.3, -40.0, -82.3),
-    Vec3::new(-83.3, -52.0, -133.1),
-    Vec3::new(3.3, -36.0, -133.1),
-    Vec3::new(73.3, -46.0, -82.3),
+/// loop (plus worst-case detours, ~450 m) stays inside the ~2.3 km half-frame.
+const WEAVE_LOOP: [Meters3; 10] = [
+    Meters3::new(1_000.0, -380.0, 0.0),
+    Meters3::new(733.0, -500.0, 823.0),
+    Meters3::new(33.0, -420.0, 1_331.0),
+    Meters3::new(-833.0, -550.0, 1_331.0),
+    Meters3::new(-1_533.0, -350.0, 823.0),
+    Meters3::new(-1_800.0, -480.0, 0.0),
+    Meters3::new(-1_533.0, -400.0, -823.0),
+    Meters3::new(-833.0, -520.0, -1_331.0),
+    Meters3::new(33.0, -360.0, -1_331.0),
+    Meters3::new(733.0, -460.0, -823.0),
 ];
 
 /// A navigation drill behind the menu: a racer flies a ten-waypoint loop
@@ -73,13 +74,13 @@ pub(crate) fn menu_weave(
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
-                // Press in close to each mark: the DEFAULTS turn 75 u out
-                // (50 u autopilot standoff + 25 u slack) - most of an 87 u
-                // leg. Standoff 10 parks the computer nearly on the beacon
-                // and slack 5 turns at ~15 u, so the runner visibly REACHES
-                // each mark before rolling onto the next.
-                waypoint_slack: Some(5.0),
-                arrival_standoff: Some(10.0),
+                // Press in close to each mark: the DEFAULTS turn 750 m out
+                // (500 m autopilot standoff + 250 m slack) - most of an 870 m
+                // leg. Standoff 100 m parks the computer nearly on the beacon
+                // and slack 50 m turns at ~150 m, so the runner visibly
+                // REACHES each mark before rolling onto the next.
+                waypoint_slack: Some(Meters(50.0)),
+                arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()
             }),
             hull: ships::hull(ships::RACER_SHIP_ID),
@@ -91,29 +92,29 @@ pub(crate) fn menu_weave(
     // slab as the patrol loop - the route runs through it, not above it.
     // min_separation keeps spawned dynamic bodies from being
     // penetration-shoved into each other (worst-case geometric extent is
-    // radius * 6, so 3 u nominal rocks need ~36 u plus ship room).
+    // radius * 6, so 30 m nominal rocks need ~360 m plus ship room).
     let band = EventActionConfig::ScatterObjects(ScatterObjectsConfig {
         id_prefix: "weave_rock_".to_string(),
         count: 40,
         seed: SCATTER_SEED ^ 0x4,
         region: ScatterRegion::Ring {
             center: LOOP_CENTER,
-            inner: 100.0,
-            outer: 190.0,
-            y_min: -60.0,
-            y_max: -28.0,
+            inner: Meters(1_000.0),
+            outer: Meters(1_900.0),
+            y_min: Meters(-600.0),
+            y_max: Meters(-280.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "weave_rock_".to_string(),
                 name: "Weave Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
                 invulnerable: false,
@@ -121,8 +122,8 @@ pub(crate) fn menu_weave(
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.0, 3.0)),
-        min_separation: Some(45.0),
+        asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+        min_separation: Some(Meters(450.0)),
     });
 
     let events = vec![
@@ -136,10 +137,10 @@ pub(crate) fn menu_weave(
                 .map(EventActionConfig::SpawnScenarioObject)
                 // Pulled further back than the reference shot: the loop's
                 // far rim plus its avoidance detours kept escaping the
-                // default frame. From (0, 127, 425) a 4:3 window sees
-                // ~+-245 u at origin depth; the loop's worst case is ~225.
+                // default frame. From (0, 1,270, 4,250) m a 4:3 window sees
+                // ~+-2.45 km at origin depth; the loop's worst case is ~2.25 km.
                 .chain([
-                    backdrop_camera(Vec3::new(0.0, 101.0, 338.0)),
+                    backdrop_camera(Meters3::new(0.0, 1_010.0, 3_380.0)),
                     band,
                     // The carousel's rotation limit: the weave has no natural
                     // ending, so after a couple of laps the menu turns to

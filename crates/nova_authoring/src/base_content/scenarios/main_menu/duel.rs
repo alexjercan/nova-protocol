@@ -2,6 +2,7 @@
 //! erased by a siege torpedo, and after a beat two fresh ships fly in.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
@@ -11,16 +12,16 @@ use crate::{
     scenario_helpers::{entity, number},
 };
 
-/// The finisher battery's park: far outside the ~+-230 u camera frame AND
-/// beyond the winner's leash + turret reach (250 + 200) of the arena center,
-/// so a victor lunging off a blast hit can never bring its guns onto the
-/// battery before the leash walks it home. With the launch SCRIPTED there is
-/// no AI envelope to stay inside of.
-const BATTERY_POS: Vec3 = Vec3::new(-950.0, 0.0, 0.0);
+/// The finisher battery's park: far outside the ~+-2.3 km camera frame AND
+/// beyond the winner's leash + turret reach (2.5 km + 2 km) of the arena
+/// center, so a victor lunging off a blast hit can never bring its guns onto
+/// the battery before the leash walks it home. With the launch SCRIPTED there
+/// is no AI envelope to stay inside of.
+const BATTERY_POS: Meters3 = Meters3::new(-9_500.0, 0.0, 0.0);
 /// Off-screen entrances, one per side, with a little vertical split so the
 /// approach lines cross instead of meeting head-on.
-const VICTOR_SPAWN: Vec3 = Vec3::new(-420.0, 25.0, 100.0);
-const RIVAL_SPAWN: Vec3 = Vec3::new(420.0, -15.0, -100.0);
+const VICTOR_SPAWN: Meters3 = Meters3::new(-4_200.0, 250.0, 1_000.0);
+const RIVAL_SPAWN: Meters3 = Meters3::new(4_200.0, -150.0, -1_000.0);
 
 /// One duelist: a corvette that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace holds the entrance (ships spawn in
@@ -33,8 +34,8 @@ const RIVAL_SPAWN: Vec3 = Vec3::new(420.0, -15.0, -100.0);
 fn duelist(
     id: &str,
     name: &str,
-    spawn: Vec3,
-    patrol: [Vec3; 3],
+    spawn: Meters3,
+    patrol: [Meters3; 3],
     ship: &str,
     allegiance: Option<Allegiance>,
 ) -> ScenarioObjectConfig {
@@ -53,7 +54,7 @@ fn duelist(
                 // the fight gravitates to the middle of the frame. Wide
                 // enough for real chases, tight enough that the act plays
                 // over the same ground every wave.
-                leash: Some(250.0),
+                leash: Some(Meters(2_500.0)),
                 engage_delay: Some(6.0),
                 ..Default::default()
             }),
@@ -134,23 +135,23 @@ pub(crate) fn menu_duel(
         count: 12,
         seed: SCATTER_SEED ^ 0x5,
         region: ScatterRegion::Ring {
-            center: Vec3::ZERO,
-            inner: 150.0,
-            outer: 220.0,
-            y_min: -70.0,
-            y_max: -35.0,
+            center: Meters3::ZERO,
+            inner: Meters(1_500.0),
+            outer: Meters(2_200.0),
+            y_min: Meters(-700.0),
+            y_max: Meters(-350.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "duel_rock_".to_string(),
                 name: "Duel Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture,
                 mass: None,
                 invulnerable: false,
@@ -158,7 +159,7 @@ pub(crate) fn menu_duel(
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.0, 3.0)),
+        asteroid_radius: Some((Meters(10.0), Meters(30.0))),
         min_separation: None,
     });
 
@@ -172,9 +173,9 @@ pub(crate) fn menu_duel(
         "Duel Victor",
         VICTOR_SPAWN,
         [
-            Vec3::new(-70.0, 10.0, 50.0),
-            Vec3::new(70.0, 15.0, -50.0),
-            Vec3::new(0.0, 5.0, 70.0),
+            Meters3::new(-700.0, 100.0, 500.0),
+            Meters3::new(700.0, 150.0, -500.0),
+            Meters3::new(0.0, 50.0, 700.0),
         ],
         ships::CARGOA_SHIP_ID,
         // The relation model only makes Player<->Enemy hostile: one duelist
@@ -190,9 +191,9 @@ pub(crate) fn menu_duel(
         "Duel Rival",
         RIVAL_SPAWN,
         [
-            Vec3::new(70.0, -5.0, -50.0),
-            Vec3::new(-70.0, -10.0, 50.0),
-            Vec3::new(0.0, -15.0, -70.0),
+            Meters3::new(700.0, -50.0, -500.0),
+            Meters3::new(-700.0, -100.0, 500.0),
+            Meters3::new(0.0, -150.0, -700.0),
         ],
         ships::CARGOA_RAIDER_SHIP_ID,
         None,
@@ -217,7 +218,7 @@ pub(crate) fn menu_duel(
                 // The scene poses its own camera: the reference backdrop
                 // shot, dead on the arena center the duel fights over.
                 .chain([
-                    backdrop_camera(Vec3::new(0.0, 57.0, 192.0)),
+                    backdrop_camera(Meters3::new(0.0, 570.0, 1_920.0)),
                     rock_scatter,
                     timer("duel_respawn", 0.5),
                     // Stall watchdog: a duelist can end up crippled without

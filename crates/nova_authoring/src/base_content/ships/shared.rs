@@ -4,6 +4,7 @@
 //! authored link-point mates shared by the catalog prototypes and ship builders.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -337,16 +338,16 @@ fn torpedo_kind(
         // recessed birth - they launch at their muzzle as before.
         spawn_recess: 0.0,
         fire_rate: 1.0,
-        spawner_speed: 8.0,
+        spawner_speed: MetersPerSecond(80.0),
         projectile_lifetime: 100.0,
         arm_time: 0.5,
-        arm_distance: 5.0,
+        arm_distance: Meters(50.0),
         // Dropped, then lit: the bay ejects it on a cold charge and the
         // motor catches once it is clear. See `ignition_delay`.
         ignition_delay: 0.6,
         nav_constant: 3.0,
         linear_damping: 0.8,
-        blast_radius: 30.0,
+        blast_radius: Meters(300.0),
         // The standard torpedo's damage (see `sections::standard`): a hit can
         // decide a small-craft fight, while structural depth attenuates it on a
         // capital. The cargob's tubes hit like the catalog's.

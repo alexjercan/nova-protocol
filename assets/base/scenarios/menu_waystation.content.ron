@@ -27,7 +27,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 20.0,
+                            radius: 200.0,
                             texture: "self://textures/asteroid.png",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             mass: Some(30000.0),
@@ -39,7 +39,7 @@
                             id: "waystation_hauler_a",
                             name: "Hauler Biscuit",
                             position: (
-                                140.0,
+                                1400.0,
                                 0.0,
                                 0.0,
                             ),
@@ -62,7 +62,7 @@
                             id: "waystation_hauler_b",
                             name: "Hauler Kettle",
                             position: (
-                                -140.0,
+                                -1400.0,
                                 0.0,
                                 0.0,
                             ),
@@ -85,9 +85,9 @@
                             id: "waystation_dock_a",
                             name: "DOCK-A",
                             position: (
-                                170.0,
-                                -25.0,
-                                60.0,
+                                1700.0,
+                                -250.0,
+                                600.0,
                             ),
                             rotation: (
                                 0.0,
@@ -98,7 +98,7 @@
                         ),
                         kind: Beacon((
                             label: "DOCK-A",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.7,
@@ -112,9 +112,9 @@
                             id: "waystation_dock_b",
                             name: "DOCK-B",
                             position: (
-                                150.0,
-                                -30.0,
-                                -90.0,
+                                1500.0,
+                                -300.0,
+                                -900.0,
                             ),
                             rotation: (
                                 0.0,
@@ -125,7 +125,7 @@
                         ),
                         kind: Beacon((
                             label: "DOCK-B",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.7,
@@ -139,9 +139,9 @@
                             id: "waystation_traffic",
                             name: "TRAFFIC",
                             position: (
-                                -180.0,
-                                -20.0,
-                                40.0,
+                                -1800.0,
+                                -200.0,
+                                400.0,
                             ),
                             rotation: (
                                 0.0,
@@ -152,7 +152,7 @@
                         ),
                         kind: Beacon((
                             label: "TRAFFIC",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 0.3,
                                 green: 0.9,
@@ -166,9 +166,9 @@
                             id: "waystation_key",
                             name: "Key Light",
                             position: (
-                                -120.0,
-                                100.0,
-                                120.0,
+                                -1200.0,
+                                1000.0,
+                                1200.0,
                             ),
                             rotation: (
                                 -0.24307884,
@@ -193,9 +193,9 @@
                             id: "waystation_rim",
                             name: "Rim Light",
                             position: (
-                                60.0,
-                                80.0,
-                                -160.0,
+                                600.0,
+                                800.0,
+                                -1600.0,
                             ),
                             rotation: (
                                 -0.03875094,
@@ -220,9 +220,9 @@
                             id: "waystation_fill",
                             name: "Fill Light",
                             position: (
-                                140.0,
-                                -40.0,
-                                80.0,
+                                1400.0,
+                                -400.0,
+                                800.0,
                             ),
                             rotation: (
                                 0.104897276,
@@ -245,8 +245,8 @@
                     SetCamera((
                         position: (
                             0.0,
-                            100.0,
-                            335.0,
+                            1000.0,
+                            3350.0,
                         ),
                         look_at: (
                             0.0,
@@ -264,10 +264,10 @@
                                 0.0,
                                 0.0,
                             ),
-                            inner: 180.0,
-                            outer: 230.0,
-                            y_min: -60.0,
-                            y_max: -25.0,
+                            inner: 1800.0,
+                            outer: 2300.0,
+                            y_min: -600.0,
+                            y_max: -250.0,
                         ),
                         template: (
                             base: (
@@ -286,15 +286,15 @@
                                 ),
                             ),
                             kind: Asteroid((
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "self://textures/asteroid.png",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
-                            1.0,
-                            2.5,
+                            10.0,
+                            25.0,
                         )),
                     )),
                     TimerStart((

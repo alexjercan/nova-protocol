@@ -18,6 +18,7 @@
 //! does not depend on it.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -32,104 +33,105 @@ use crate::scenario_helpers::prelude::*;
 /// The scenario id, shared with nova_menu's New Game entry.
 pub const SHAKEDOWN_SCENARIO_ID: &str = "shakedown_run";
 
-// Layout. Distances are deliberately short (a few hundred units between
+// Layout. Distances are deliberately short (a few kilometres between
 // objectives): "close enough to see" is the cheapest objective marker. The
 // planetoid numbers are authored against the RUNTIME geometry, not the nominal
-// radius (the authored-vs-derived lesson): a nominal-20u asteroid's noise mesh
-// reaches ASTEROID_GEOMETRIC_FACTOR_MIN..MAX times its nominal radius (3.5-6.0,
-// pinned by nova_scenario's seed sweep; observed [3.70, 5.64] over 256 seeds),
-// so the geometric body radius runs 70-120u, the SOI (8x) 560-960u, and the
-// ORBIT ring (1.5 * (body_radius + 1)) 106-182u. The config-shape tests below
-// pin the layout against the WHOLE range - caught the first cut assuming a
-// single observed seed band (4.0-4.55), under which a high-factor seed parked
-// the orbit ring OUTSIDE the old 160u gate and soft-locked beat 4.
-const PLAYER_SPAWN: Vec3 = Vec3::ZERO;
+// radius (the authored-vs-derived lesson): a nominal-200 m asteroid's noise
+// mesh reaches ASTEROID_GEOMETRIC_FACTOR_MIN..MAX times its nominal radius
+// (3.5-6.0, pinned by nova_scenario's seed sweep; observed [3.70, 5.64] over
+// 256 seeds), so the geometric body radius runs 700-1 200 m, the SOI (8x)
+// 5.6-9.6 km, and the ORBIT ring (1.5 * (body_radius + 10 m)) 1.06-1.82 km.
+// The config-shape tests below pin the layout against the WHOLE range - caught
+// the first cut assuming a single observed seed band (4.0-4.55), under which a
+// high-factor seed parked the orbit ring OUTSIDE the old 1.6 km gate and
+// soft-locked beat 4.
+const PLAYER_SPAWN: Meters3 = Meters3::ZERO;
 /// Beat 1: dead ahead of the spawn heading (-Z).
-const BEACON_1_POS: Vec3 = Vec3::new(0.0, 0.0, -350.0);
+const BEACON_1_POS: Meters3 = Meters3::new(0.0, 0.0, -3_500.0);
 /// Beat 2: ~120 degrees off the beacon-1 boresight, so freelook (or a
 /// deliberate turn) is genuinely how you find it.
-const BEACON_2_POS: Vec3 = Vec3::new(260.0, 20.0, -200.0);
+const BEACON_2_POS: Meters3 = Meters3::new(2_600.0, 200.0, -2_000.0);
 /// Beat 3: a loose debris cluster past beacon 2 - pushed out so no crate
 /// sensor overlaps the (now standoff-sized) beacon trigger.
-const DEBRIS_CENTER: Vec3 = Vec3::new(350.0, 20.0, -160.0);
+const DEBRIS_CENTER: Meters3 = Meters3::new(3_500.0, 200.0, -1_600.0);
 /// The three salvage crates, strung ALONG the cluster rather than bunched. The
-/// old scatter sat ~29-37u apart, so with the 8u pickup radius (16u sensor
-/// diameter) a fast pass could sweep two sensors almost at once and they read
-/// as a single pickup. These are spread to at least 53u center-to-center (a
-/// ~37u gap between sensor surfaces), so each pickup registers as its own
+/// old scatter sat ~290-370 m apart, so with the 80 m pickup radius (160 m
+/// sensor diameter) a fast pass could sweep two sensors almost at once and they
+/// read as a single pickup. These are spread to at least 530 m center-to-center
+/// (a ~370 m gap between sensor surfaces), so each pickup registers as its own
 /// moment - reinforced by the per-crate pickup cue. The spread is pinned by
 /// `crates_are_spaced_for_distinct_pickups` and stays clear of beacon 2's
 /// trigger and the planetoid SOI (the geometry tests below).
-const CRATE_POSITIONS: [Vec3; 3] = [
-    Vec3::new(345.0, 30.0, -190.0),
-    Vec3::new(360.0, 5.0, -145.0),
-    Vec3::new(395.0, 35.0, -110.0),
+const CRATE_POSITIONS: [Meters3; 3] = [
+    Meters3::new(3_450.0, 300.0, -1_900.0),
+    Meters3::new(3_600.0, 50.0, -1_450.0),
+    Meters3::new(3_950.0, 350.0, -1_100.0),
 ];
 /// The stage dressing and late-run destination: a planetoid with a real
-/// gravity well. Pulled in to ~760u of the spawn so it is a LANDMARK the early
-/// beats fly against and the belt below can bend around it, instead of a speck
-/// on the horizon. Playtest round 2 finding 1 (the player fighting gravity
-/// while weaving crates) is now held by the MASS, not by distance: the mass
-/// below buys a 329u SOI, which still falls short of the debris cluster. The
-/// SOI edge is crossed on the waypoint leg.
-const PLANETOID_POS: Vec3 = Vec3::new(500.0, -40.0, -560.0);
-const PLANETOID_NOMINAL_RADIUS: f32 = 20.0;
+/// gravity well. Pulled in to ~7.6 km of the spawn so it is a LANDMARK the
+/// early beats fly against and the belt below can bend around it, instead of a
+/// speck on the horizon. Playtest round 2 finding 1 (the player fighting
+/// gravity while weaving crates) is now held by the MASS, not by distance: the
+/// mass below buys a 3.29 km SOI, which still falls short of the debris
+/// cluster. The SOI edge is crossed on the waypoint leg.
+const PLANETOID_POS: Meters3 = Meters3::new(5_000.0, -400.0, -5_600.0);
+const PLANETOID_NOMINAL_RADIUS: Meters = Meters(200.0);
 /// The planetoid's mass parameter (mu, u^3/s^2) - the only authored gravity
 /// number, setting both the pull and the reach. Tune it by the SOI the layout
 /// wants: `mu = soi_cutoff_accel * soi^2`. At the engine default this is a
-/// 329u SOI on every mesh seed, which is what beat 4 below is authored
-/// against; the pull at the geometric surface (70-120u) runs 1.9-5.5 u/s^2,
+/// 3.29 km SOI on every mesh seed, which is what beat 4 below is authored
+/// against; the pull at the geometric surface (700-1 200 m) runs 19-55 m/s^2,
 /// under the escapability cap on every seed. Sized DOWN with the move above:
 /// the well must still stop short of the crate beat now that the body itself
 /// is close.
 const PLANETOID_MASS: f32 = 27_000.0;
 /// The FIRST radar-lock target (beat sheet v2): a comfortable GOTO leg from the
 /// debris cluster, OUTSIDE the planetoid SOI so the hands-off ride is
-/// gravity-free, and inside the default beacon lock range (600u) from the
+/// gravity-free, and inside the default beacon lock range (6 km) from the
 /// cluster.
-const BEACON_3_POS: Vec3 = Vec3::new(600.0, 90.0, 120.0);
-/// The waypoint-run target: 240u out from the planetoid - inside the SOI (so
+const BEACON_3_POS: Meters3 = Meters3::new(6_000.0, 900.0, 1_200.0);
+/// The waypoint-run target: 2.4 km out from the planetoid - inside the SOI (so
 /// the ORBIT hint lights on arrival) with its trigger clear of both the widest
 /// orbit ring and the coast ring (the already-inside-when-armed trap; pinned
-/// below). The beacon-3 -> beacon-4 leg (~540u) is beyond the DEFAULT beacon
+/// below). The beacon-3 -> beacon-4 leg (~5.4 km) is beyond the DEFAULT beacon
 /// lock range, so beacon 4 authors the signature its leg needs (pinned below).
-const BEACON_4_POS: Vec3 = Vec3::new(680.0, 10.0, -410.0);
-const BEACON_4_LOCK_SIGNATURE: f32 = 30.0;
+const BEACON_4_POS: Meters3 = Meters3::new(6_800.0, 100.0, -4_100.0);
+const BEACON_4_LOCK_SIGNATURE: Meters = Meters(300.0);
 /// The gravity-coast ring: a planetoid-centered invisible trigger sphere.
 /// Entering it (drifting in from the beacon-4 park) is the coast beat; LEAVING
 /// it after the held orbit is the break-away beat. Outside the widest orbit
 /// ring, inside the SOI, and just inside the nominal beacon-4 park so
-/// the coast is SHORT (playtest 2026-07-13: the 210u ring made the drift read
+/// the coast is SHORT (playtest 2026-07-13: the 2.1 km ring made the drift read
 /// as dead air) - all pinned below. A player somehow already inside when the
 /// ring spawns still advances: a spawned area fires OnEnter for bodies it lands
 /// on (pinned in nova_scenario's area tests).
-const COAST_RING_RADIUS: f32 = 240.0;
+const COAST_RING_RADIUS: Meters = Meters(2_400.0);
 /// The live-fire rehearsal target: an inert three-section hulk drifting near
 /// the old salvage field, outside the SOI so it stays where the lesson put it.
-const DERELICT_POS: Vec3 = Vec3::new(300.0, -40.0, 40.0);
+const DERELICT_POS: Meters3 = Meters3::new(3_000.0, -400.0, 400.0);
 /// The pirate spawns back at the debris cluster once the rehearsal is
 /// done, and patrols it.
-const PIRATE_SPAWN: Vec3 = Vec3::new(380.0, 40.0, -100.0);
-const PIRATE_PATROL: [Vec3; 3] = [
-    Vec3::new(300.0, 20.0, -170.0),
-    Vec3::new(360.0, 25.0, -110.0),
-    Vec3::new(330.0, 60.0, -140.0),
+const PIRATE_SPAWN: Meters3 = Meters3::new(3_800.0, 400.0, -1_000.0);
+const PIRATE_PATROL: [Meters3; 3] = [
+    Meters3::new(3_000.0, 200.0, -1_700.0),
+    Meters3::new(3_600.0, 250.0, -1_100.0),
+    Meters3::new(3_300.0, 600.0, -1_400.0),
 ];
 /// Beacon trigger radius. MUST contain the GOTO park point: the autopilot
-/// stops arrival_standoff (50u, FlightSettings) from an unsized target,
-/// and a trigger smaller than that leaves the ship parked 10u OUTSIDE its
+/// stops arrival_standoff (500 m, FlightSettings) from an unsized target,
+/// and a trigger smaller than that leaves the ship parked 100 m OUTSIDE its
 /// own objective (playtest 2026-07-12 finding 2). Pinned by a config test
 /// against FlightSettings::default().
-const BEACON_AREA_RADIUS: f32 = 70.0;
+const BEACON_AREA_RADIUS: Meters = Meters(700.0);
 /// Crate pickup radius: tight enough to require flying AT the crate.
-const CRATE_AREA_RADIUS: f32 = 8.0;
+const CRATE_AREA_RADIUS: Meters = Meters(80.0);
 
 /// One knot of the slalom belt: a world-space box of seeded rocks.
 struct BeltKnot {
     id_prefix: &'static str,
-    center: Vec3,
+    center: Meters3,
     /// Half-extents of the box, per axis.
-    half_extent: Vec3,
+    half_extent: Meters3,
     seed: u64,
     count: u32,
 }
@@ -140,7 +142,7 @@ struct BeltKnot {
 /// 9 rocks in it; these give the early legs something to fly THROUGH.
 ///
 /// Every knot obeys the pocket rule - its BOX SURFACE, plus a rock's own
-/// collider, plus 20u, clears the player spawn, every beacon trigger, the
+/// collider, plus 200 m, clears the player spawn, every beacon trigger, the
 /// debris cluster, the derelict and the planetoid's widest orbit ring - so no
 /// beat loses the air it needs. The same rule holds against every AUTOPILOT leg
 /// (the GOTO to beacon 3, the waypoint run to beacon 4, the run in to the
@@ -161,55 +163,55 @@ struct BeltKnot {
 const BELT_KNOTS: [BeltKnot; 5] = [
     BeltKnot {
         id_prefix: "belt_k1_",
-        center: Vec3::new(55.0, -20.0, -170.0),
-        half_extent: Vec3::new(70.0, 35.0, 70.0),
+        center: Meters3::new(550.0, -200.0, -1_700.0),
+        half_extent: Meters3::new(700.0, 350.0, 700.0),
         seed: 20260805_001,
         count: 12,
     },
     BeltKnot {
         id_prefix: "belt_k2_",
-        center: Vec3::new(170.0, 35.0, -460.0),
-        half_extent: Vec3::new(70.0, 35.0, 70.0),
+        center: Meters3::new(1_700.0, 350.0, -4_600.0),
+        half_extent: Meters3::new(700.0, 350.0, 700.0),
         seed: 20260805_002,
         count: 12,
     },
     BeltKnot {
         id_prefix: "belt_k3_",
-        center: Vec3::new(245.0, 45.0, -380.0),
-        half_extent: Vec3::new(70.0, 35.0, 70.0),
+        center: Meters3::new(2_450.0, 450.0, -3_800.0),
+        half_extent: Meters3::new(700.0, 350.0, 700.0),
         seed: 20260805_003,
         count: 12,
     },
-    // 170 on x, not the sketched 200: at 200 this knot's box runs into
+    // 1 700 on x, not the sketched 2 000: at 2 000 this knot's box runs into
     // the planetoid's widest orbit ring.
     BeltKnot {
         id_prefix: "belt_k4_",
-        center: Vec3::new(170.0, 20.0, -560.0),
-        half_extent: Vec3::new(85.0, 40.0, 85.0),
+        center: Meters3::new(1_700.0, 200.0, -5_600.0),
+        half_extent: Meters3::new(850.0, 400.0, 850.0),
         seed: 20260805_004,
         count: 12,
     },
     BeltKnot {
         id_prefix: "belt_k5_",
-        center: Vec3::new(20.0, 15.0, -545.0),
-        half_extent: Vec3::new(85.0, 40.0, 85.0),
+        center: Meters3::new(200.0, 150.0, -5_450.0),
+        half_extent: Meters3::new(850.0, 400.0, 850.0),
         seed: 20260805_005,
         count: 12,
     },
 ];
 /// Near-knot NOMINAL rock radius range. Read it against the noise mesh, not as
 /// a size: the collider reaches `radius * ASTEROID_GEOMETRIC_FACTOR_MAX`, so
-/// 2.0 nominal is a 12u body. Round 1 authored 3.4 (a 20u body) and the knots
-/// spawned inside each other.
-const BELT_ROCK_RADIUS: (f32, f32) = (0.8, 2.0);
-/// Two widest near rocks side by side (2 * 2.0 * 6.0) plus a gap. Below this
+/// 20 m nominal is a 120 m body. Round 1 authored 34 m (a 200 m body) and the
+/// knots spawned inside each other.
+const BELT_ROCK_RADIUS: (Meters, Meters) = (Meters(8.0), Meters(20.0));
+/// Two widest near rocks side by side (2 * 20 m * 6.0) plus a gap. Below this
 /// the scatter places rocks that intersect on spawn, and dynamic bodies born
 /// overlapping shove each other apart hard enough to destroy each other.
-const BELT_ROCK_SEPARATION: f32 = 32.0;
+const BELT_ROCK_SEPARATION: Meters = Meters(320.0);
 /// The far parallax layer: one planetoid-centred ring of bigger rocks, giving
 /// the belt depth behind the near knots (the reference screenshot's two-scale
 /// split). Its hole CONTAINS the whole playable volume (the farthest beat point
-/// is the spawn, ~752u from the planetoid) - a seeded ring cannot be aimed
+/// is the spawn, ~7.52 km from the planetoid) - a seeded ring cannot be aimed
 /// rock-by-rock, so the only way to keep it out of a beat is to keep it out of
 /// every beat. Pinned.
 const BELT_FAR_PREFIX: &str = "belt_far_";
@@ -219,26 +221,26 @@ const BELT_FAR_COUNT: u32 = 18;
     reason = "seeds are date_index, not magnitudes"
 )]
 const BELT_FAR_SEED: u64 = 20260805_100;
-const BELT_FAR_RING: (f32, f32) = (1050.0, 1450.0);
-const BELT_FAR_Y_SPREAD: f32 = 200.0;
-/// DO NOT raise past `GravitySettings::min_well_radius` (5.0). At or above it
-/// every far rock would get the default well (mu 4 000, ~126u SOI each) and
+const BELT_FAR_RING: (Meters, Meters) = (Meters(10_500.0), Meters(14_500.0));
+const BELT_FAR_Y_SPREAD: Meters = Meters(2_000.0);
+/// DO NOT raise past `GravitySettings::min_well_radius` (50 m). At or above it
+/// every far rock would get the default well (mu 4 000, ~1.26 km SOI each) and
 /// spray gravity across the legs authored to be gravity-free. Pinned.
-const BELT_FAR_RADIUS: (f32, f32) = (4.0, 4.9);
-/// Two widest far rocks side by side (2 * 4.9 * 6.0) plus a gap.
-const BELT_FAR_SEPARATION: f32 = 80.0;
+const BELT_FAR_RADIUS: (Meters, Meters) = (Meters(40.0), Meters(49.0));
+/// Two widest far rocks side by side (2 * 49 m * 6.0) plus a gap.
+const BELT_FAR_SEPARATION: Meters = Meters(800.0);
 
 const BEACON_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
 
-/// The scavenger's territorial tether (world units around its patrol
-/// centroid): combat breaks off beyond it, keeping the beat-5 fight at
-/// the debris field (playtest round 3 finding 3).
-const PIRATE_LEASH_RADIUS: f32 = 150.0;
+/// The scavenger's territorial tether around its patrol centroid: combat
+/// breaks off beyond it, keeping the beat-5 fight at the debris field
+/// (playtest round 3 finding 3).
+const PIRATE_LEASH_RADIUS: Meters = Meters(1_500.0);
 
-/// Soft manual-speed cap (u/s) on the starter ship: at 25 u/s a 350u leg
+/// Soft manual-speed cap on the starter ship: at 250 m/s a 3.5 km leg
 /// still takes a quarter minute and a missed brake does not send a new
 /// pilot sailing out of the play area (playtest 2026-07-12 finding 1).
-const PLAYER_SPEED_CAP: f32 = 25.0;
+const PLAYER_SPEED_CAP: MetersPerSecond = MetersPerSecond(250.0);
 
 // Scenario entity ids (strings are the script's wiring; the config-shape
 // test cross-checks every reference against the spawn set).
@@ -297,7 +299,7 @@ const SEQ_OPENING: &str = "opening";
 /// ask whether the beat is current.
 const TIMER_SCAV_GATE: &str = "scav_gate";
 
-// The opening conversation runs on the scenario clock (seconds). The 25 u/s
+// The opening conversation runs on the scenario clock (seconds). The 250 m/s
 // speed cap makes the ~40s drift diegetic: the ship idles out of the dock while
 // Capt. Halloran talks, and objective 1 posts only when she sends you off.
 /// The opening conversation's first line, and the gap between the four that
@@ -348,7 +350,7 @@ fn beat_setup(beat: f64, delay: f64, actions: Vec<EventActionConfig>) -> EventAc
     pacing::beat_later(&format!("beat_{beat}"), delay, all)
 }
 
-fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
+fn beacon(id: &str, label: &str, position: Meters3) -> ScenarioObjectConfig {
     beacon_with_signature(id, label, position, None)
 }
 
@@ -358,8 +360,8 @@ fn beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
 fn beacon_with_signature(
     id: &str,
     label: &str,
-    position: Vec3,
-    lock_signature: Option<f32>,
+    position: Meters3,
+    lock_signature: Option<Meters>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -370,7 +372,7 @@ fn beacon_with_signature(
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: label.to_string(),
-            radius: 2.0,
+            radius: Meters(20.0),
             color: BEACON_COLOR,
             area_radius: Some(BEACON_AREA_RADIUS),
             lock_signature,
@@ -420,7 +422,7 @@ fn coast_ring() -> EventActionConfig {
     })
 }
 
-fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
+fn crate_object(index: usize, position: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: format!("crate_{}", index),
@@ -429,7 +431,7 @@ fn crate_object(index: usize, position: Vec3) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-            size: 1.5,
+            size: Meters(15.0),
             area_radius: CRATE_AREA_RADIUS,
             pickup_sound: Some(AssetRef::from("self://sounds/salvage_pickup.wav")),
         }),
@@ -534,14 +536,14 @@ fn pirate_ship() -> ScenarioObjectConfig {
 /// no well of its own.
 fn belt_rock(
     id_prefix: &str,
-    radius: f32,
+    radius: Meters,
     asteroid_texture: AssetRef<Image>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id_prefix.to_string(),
             name: "Rock".to_string(),
-            position: Vec3::ZERO,
+            position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
@@ -621,18 +623,28 @@ pub(crate) fn shakedown_run(
 ) -> ScenarioConfig {
     // The debris cluster: fixed offsets, not rng - the layout is content,
     // and determinism keeps the config-shape tests honest.
-    const ROCK_OFFSETS: [Vec3; 9] = [
-        Vec3::new(-35.0, 5.0, 20.0),
-        Vec3::new(-15.0, -10.0, -25.0),
-        Vec3::new(10.0, 25.0, 15.0),
-        Vec3::new(30.0, -5.0, -20.0),
-        Vec3::new(45.0, 15.0, 10.0),
-        Vec3::new(-25.0, 30.0, -10.0),
-        Vec3::new(5.0, -20.0, 30.0),
-        Vec3::new(25.0, 40.0, -35.0),
-        Vec3::new(-45.0, -15.0, -5.0),
+    const ROCK_OFFSETS: [Meters3; 9] = [
+        Meters3::new(-350.0, 50.0, 200.0),
+        Meters3::new(-150.0, -100.0, -250.0),
+        Meters3::new(100.0, 250.0, 150.0),
+        Meters3::new(300.0, -50.0, -200.0),
+        Meters3::new(450.0, 150.0, 100.0),
+        Meters3::new(-250.0, 300.0, -100.0),
+        Meters3::new(50.0, -200.0, 300.0),
+        Meters3::new(250.0, 400.0, -350.0),
+        Meters3::new(-450.0, -150.0, -50.0),
     ];
-    const ROCK_RADII: [f32; 9] = [2.5, 1.5, 3.0, 2.0, 1.0, 2.5, 1.5, 2.0, 3.0];
+    const ROCK_RADII: [Meters; 9] = [
+        Meters(25.0),
+        Meters(15.0),
+        Meters(30.0),
+        Meters(20.0),
+        Meters(10.0),
+        Meters(25.0),
+        Meters(15.0),
+        Meters(20.0),
+        Meters(30.0),
+    ];
 
     let mut start_spawns: Vec<ScenarioObjectConfig> = Vec::new();
     start_spawns.push(player_ship());
@@ -681,7 +693,7 @@ pub(crate) fn shakedown_run(
         start_spawns.push(crate_object(i + 1, *position));
     }
     // The run lights itself: there is no engine light.
-    start_spawns.extend(ThreePointRig::around("shakedown", Vec3::ZERO, 10.0).objects());
+    start_spawns.extend(ThreePointRig::around("shakedown", Meters3::ZERO, 10.0).objects());
 
     let events = vec![
         // Beat 1 setup: the world and the variables. The opening conversation

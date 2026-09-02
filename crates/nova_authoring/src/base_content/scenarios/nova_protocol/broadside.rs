@@ -27,13 +27,14 @@
 //! shot), while the seeded 24-rock scatter stays destructible chaff.
 //!
 //! Distances are authored against the measured AI constants
-//! (crates/nova_ship/src/input/ai): engage range 800u, torpedo envelope [3
-//! x blast_radius, 1000u] with a 10s per-bay cadence and the first launch
-//! immediate, standoff orbit ~250u. The gunship spawns ~720u from the yacht
-//! fight so it engages on arrival and its tubes are open through the whole
-//! approach.
+//! (crates/nova_ship/src/input/ai): engage range 8 km, torpedo envelope [3
+//! x blast_radius, 10 km] with a 10s per-bay cadence and the first launch
+//! immediate, standoff orbit ~2.5 km. The gunship spawns ~7.2 km from the
+//! yacht fight so it engages on arrival and its tubes are open through the
+//! whole approach.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -105,16 +106,16 @@ const SEQ_DEFEND: &str = "defend";
 const SEQ_GUN_OBJECTIVE: &str = "gun_objective";
 
 /// The yacht drifts here; the fight happens around it.
-const HAULER_POS: Vec3 = Vec3::new(0.0, 10.0, -450.0);
+const HAULER_POS: Meters3 = Meters3::new(0.0, 100.0, -4_500.0);
 /// Player spawn, looking down the lane toward the yacht.
-const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
+const PLAYER_SPAWN: Meters3 = Meters3::new(0.0, 0.0, 400.0);
 /// Corvettes jump the player from the yacht's flanks.
-const CORVETTE_A_SPAWN: Vec3 = Vec3::new(140.0, 30.0, -560.0);
-const CORVETTE_B_SPAWN: Vec3 = Vec3::new(-150.0, -20.0, -540.0);
-/// The gunship burns in from deep field: ~720u past the yacht, inside its
-/// own engage range (800u) of the fight the moment it spawns, torpedo
-/// envelope (<= 1000u) open through the whole approach.
-const GUNSHIP_SPAWN: Vec3 = Vec3::new(80.0, 60.0, -1170.0);
+const CORVETTE_A_SPAWN: Meters3 = Meters3::new(1_400.0, 300.0, -5_600.0);
+const CORVETTE_B_SPAWN: Meters3 = Meters3::new(-1_500.0, -200.0, -5_400.0);
+/// The gunship burns in from deep field: ~7.2 km past the yacht, inside its
+/// own engage range (8 km) of the fight the moment it spawns, torpedo
+/// envelope (<= 10 km) open through the whole approach.
+const GUNSHIP_SPAWN: Meters3 = Meters3::new(800.0, 600.0, -11_700.0);
 
 /// The player's chapter-two ship: shakedown's trainer plus a second hull and
 /// the better turret. NO torpedo bay - torpedoes are the ENEMY's weapon this
@@ -187,7 +188,7 @@ fn yacht_ship() -> ScenarioObjectConfig {
 
 /// A scavenger corvette: shakedown's pirate silhouette, flown in a pair.
 /// Leashed to the yacht fight so the duel stays in the derelict field.
-fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
+fn corvette(id: &str, spawn_pos: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -197,8 +198,8 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
-                patrol: vec![spawn_pos, HAULER_POS + Vec3::new(0.0, 40.0, 60.0)],
-                leash: Some(420.0),
+                patrol: vec![spawn_pos, HAULER_POS + Meters3::new(0.0, 400.0, 600.0)],
+                leash: Some(Meters(4_200.0)),
                 // Arrival grace (beat-sheet pass): "drop off the rocks" is
                 // readable before the tracers.
                 engage_delay: Some(5.0),
@@ -220,10 +221,10 @@ fn corvette(id: &str, spawn_pos: Vec3) -> ScenarioObjectConfig {
 /// the first torpedo the campaign throws at the player (shakedown and part one
 /// field none), and the player meets it with two hand-aimed PDCs and no
 /// autonomous point defense at all. Measured against one PERFECT defender
-/// across the shipped 150 u point-defense envelope, a Serpent costs ~370 rounds
-/// to stop and is only killed ~40 u out - barely outside its own 30 u blast
+/// across the shipped 1.5 km point-defense envelope, a Serpent costs ~370 rounds
+/// to stop and is only killed ~400 m out - barely outside its own 300 m blast
 /// radius, with nothing left over for a human's aim - while a Lance costs ~120
-/// and dies ~115 u out. The gunship opens with twelve of them, so screening is
+/// and dies ~1150 m out. The gunship opens with twelve of them, so screening is
 /// the fight - one whose answer exists. The Serpent is what `final_tally`
 /// escalates to.
 fn gunship() -> ScenarioObjectConfig {
@@ -248,8 +249,8 @@ fn gunship() -> ScenarioObjectConfig {
 
 /// The destructible chaff field along the approach lane. A Box region (the
 /// Ring variant is origin-centred; sample() REPLACES the template position,
-/// it does not offset it) with margins that keep the player spawn (z=40)
-/// and the yacht (z=-450) themselves clear. Shared by both parts, same
+/// it does not offset it) with margins that keep the player spawn (z=400)
+/// and the yacht (z=-4500) themselves clear. Shared by both parts, same
 /// seed, so the chapter's arena reads as one place.
 fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
     EventActionConfig::ScatterObjects(ScatterObjectsConfig {
@@ -257,20 +258,20 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
         count: 24,
         seed: SCATTER_SEED,
         region: ScatterRegion::Box {
-            min: Vec3::new(-200.0, -45.0, -430.0),
-            max: Vec3::new(200.0, 45.0, -80.0),
+            min: Meters3::new(-2_000.0, -450.0, -4_300.0),
+            max: Meters3::new(2_000.0, 450.0, -800.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "cover_rock_".to_string(),
                 name: "Derelict Field Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture.clone(),
                 mass: None,
                 invulnerable: false,
@@ -278,7 +279,7 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.5, 4.0)),
+        asteroid_radius: Some((Meters(15.0), Meters(40.0))),
         min_separation: None,
     })
 }
@@ -287,13 +288,13 @@ fn cover_scatter(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
 /// they survive better-turret fire and the AI line-of-fire gate treats
 /// them as real occluders - the pressure-relief tier above the chaff.
 /// Nominal radii are small on purpose: asteroid bodies run 3.5x-6x nominal
-/// (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so nominal 3.5-5 is a 12-30u
+/// (ASTEROID_GEOMETRIC_FACTOR_MIN/MAX), so nominal 35-50 m is a 120-300 m
 /// boulder. Three anchor the corvette fight north of the yacht
-/// (z -520..-575), two sit on the gunship's approach lane (z -700..-750);
-/// all are outside the scatter box (z >= -430) and clear of every spawn at
-/// the 6x worst case (pinned by broadside_assault.rs).
+/// (z -5200..-5750), two sit on the gunship's approach lane
+/// (z -7000..-7500); all are outside the scatter box (z >= -4300) and clear
+/// of every spawn at the 6x worst case (pinned by broadside_assault.rs).
 fn hard_cover(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
-    let boulder = |id: &str, position: Vec3, radius: f32| ScenarioObjectConfig {
+    let boulder = |id: &str, position: Meters3, radius: Meters| ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: "Derelict Boulder".to_string(),
@@ -312,11 +313,31 @@ fn hard_cover(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
         }),
     };
     vec![
-        boulder("cover_boulder_1", Vec3::new(90.0, 20.0, -520.0), 4.0),
-        boulder("cover_boulder_2", Vec3::new(-110.0, 0.0, -530.0), 4.0),
-        boulder("cover_boulder_3", Vec3::new(20.0, -15.0, -575.0), 5.0),
-        boulder("cover_boulder_4", Vec3::new(130.0, 40.0, -700.0), 3.5),
-        boulder("cover_boulder_5", Vec3::new(-70.0, 30.0, -750.0), 3.5),
+        boulder(
+            "cover_boulder_1",
+            Meters3::new(900.0, 200.0, -5_200.0),
+            Meters(40.0),
+        ),
+        boulder(
+            "cover_boulder_2",
+            Meters3::new(-1_100.0, 0.0, -5_300.0),
+            Meters(40.0),
+        ),
+        boulder(
+            "cover_boulder_3",
+            Meters3::new(200.0, -150.0, -5_750.0),
+            Meters(50.0),
+        ),
+        boulder(
+            "cover_boulder_4",
+            Meters3::new(1_300.0, 400.0, -7_000.0),
+            Meters(35.0),
+        ),
+        boulder(
+            "cover_boulder_5",
+            Meters3::new(-700.0, 300.0, -7_500.0),
+            Meters(35.0),
+        ),
     ]
 }
 
@@ -362,7 +383,7 @@ pub(crate) fn broadside(
             name: "Yacht Approach".to_string(),
             position: HAULER_POS,
             rotation: Quat::IDENTITY,
-            radius: 130.0,
+            radius: Meters(1_300.0),
         }),
         // The voice pass: the distress call the shakedown banner promised is
         // now HEARD - the announce beat's one comms line; the objective shrinks
@@ -385,7 +406,7 @@ pub(crate) fn broadside(
         ),
         attach_objective_marker(ID_HAULER, "CERES QUEEN"),
     ]);
-    opening.extend(ThreePointRig::around("broadside", Vec3::ZERO, 10.0).actions());
+    opening.extend(ThreePointRig::around("broadside", Meters3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {
@@ -634,7 +655,7 @@ pub(crate) fn broadside(
 
 /// Part two: the capital fight, entered only through part one's checkpoint
 /// (hidden from the Scenarios picker). The gunship spawns at OnStart - its
-/// ~720u burn toward the yacht IS the act's pacing, torpedo tubes open
+/// ~7.2 km burn toward the yacht IS the act's pacing, torpedo tubes open
 /// through the whole approach - and dying here retries HERE.
 /// Part two's outro: all four win variants (destroyed / neutralized x the
 /// yacht's fate) said their own line already - one shared chain carries the
@@ -694,7 +715,7 @@ pub(crate) fn broadside_gunship(
         attach_objective_marker(ID_GUNSHIP, "GUNSHIP"),
         show_hint_emphasis("RADAR"),
     ]);
-    opening.extend(ThreePointRig::around("gunship", Vec3::ZERO, 10.0).actions());
+    opening.extend(ThreePointRig::around("gunship", Meters3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

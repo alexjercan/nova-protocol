@@ -29,6 +29,9 @@ nova_hud = { path = "../nova_hud" }
 nova_mod_format = { path = "../nova_mod_format" }
 nova_modding = { path = "../nova_modding" }
 nova_scenario = { path = "../nova_scenario" }
+# The quantity types the builders author in: base content is written in meters
+# and the audit reports reach in meters.
+nova_events = { path = "../nova_events" }
 
 [dev-dependencies]
 # The two scenario walk-through tests drive real content through the scenario
@@ -38,7 +41,6 @@ avian3d = { version = "0.7" }
 bevy_rand = { version = "0.15.0", default-features = false, features = [
     "wyrand",
 ] }
-nova_events = { path = "../nova_events" }
 # The beat walks fire events by hand, so they need `test_support` to run the rig
 # up to a LIVE world: the dispatcher holds every handler while the scenario's
 # objects are still landing.

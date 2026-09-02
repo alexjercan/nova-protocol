@@ -40,13 +40,13 @@
 //! and not `projectile_lifetime`.
 
 use bevy::prelude::Color;
+use nova_events::prelude::*;
 use nova_ship::prelude::TorpedoTypeConfig;
 
-/// Cruise cap of the straight-running type, in units per second, and the
-/// reference every other torpedo speed in this module is quoted against. It is
-/// the pre-types number, so the Lance flies exactly as the one shipped torpedo
-/// always did.
-const LANCE_MAX_SPEED: f32 = 35.0;
+/// Cruise cap of the straight-running type, and the reference every other
+/// torpedo speed in this module is quoted against. It is the pre-types number,
+/// so the Lance flies exactly as the one shipped torpedo always did.
+const LANCE_MAX_SPEED: MetersPerSecond = MetersPerSecond(350.0);
 
 /// **Lance** - the straight-running bombardment torpedo: no weave at all, so
 /// it flies the bare proportional-navigation intercept.
@@ -101,7 +101,7 @@ pub(crate) fn breaker() -> TorpedoTypeConfig {
         // envelope is what makes a siege round hard to stop. Unchanged by the
         // per-type move - it was already the bay's own number, and nothing
         // about the capital round's balance was being asked about.
-        max_speed: 70.0,
+        max_speed: MetersPerSecond(700.0),
         weave_angle: 0.22,
         weave_rate: 1.4,
     }

@@ -35,7 +35,7 @@
 
 use std::collections::HashMap;
 
-use bevy::math::Vec3;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::Allegiance;
 use nova_mod_format::BASE_MOD_ID;
 use nova_scenario::prelude::*;
@@ -58,10 +58,11 @@ pub mod prelude {
 /// the AI actually fires on.
 pub const EFFECTIVE_RANGE_MARGIN: f32 = nova_ship::prelude::AI_FIRE_RANGE_FACTOR;
 
-/// Mirrors AI_TORPEDO_MAX_RANGE (nova_ship/src/input/ai/torpedo.rs): the
+/// Mirrors AI_TORPEDO_MAX_RANGE (nova_ship/src/input/ai/torpedo.rs, 1,000
+/// world units): the
 /// outer edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED
 /// - a tube inside this range is a live opening threat.
-pub const TORPEDO_ENVELOPE: f32 = 1000.0;
+pub const TORPEDO_ENVELOPE: Meters = Meters(10_000.0);
 
 /// The section-prototype view a scenario's ships resolve against: the
 /// last-wins overlay of base -> declared dependencies (in declared order)
@@ -130,7 +131,7 @@ pub struct ShipStats {
     pub dps: f32,
     /// The longest effective range among the ship's turrets
     /// ([`EFFECTIVE_RANGE_MARGIN`] x muzzle_speed x projectile_lifetime).
-    pub max_effective_range: f32,
+    pub max_effective_range: Meters,
     /// Torpedo tubes are counted, not folded into dps: a tube's threat is
     /// blast area + guidance, not sustained fire.
     pub torpedo_tubes: usize,
@@ -140,11 +141,11 @@ impl ShipStats {
     /// How far this ship threatens the moment it exists: its longest turret
     /// reach, or the AI torpedo launch envelope if it carries tubes (the
     /// bay's first-launch cooldown starts elapsed). Zero = unarmed.
-    pub fn threat_envelope(&self) -> f32 {
+    pub fn threat_envelope(&self) -> Meters {
         let tube_reach = if self.torpedo_tubes > 0 {
             TORPEDO_ENVELOPE
         } else {
-            0.0
+            Meters::ZERO
         };
         self.max_effective_range.max(tube_reach)
     }
@@ -173,7 +174,7 @@ pub fn ship_stats(
     let mut stats = ShipStats {
         hp: 0.0,
         dps: 0.0,
-        max_effective_range: 0.0,
+        max_effective_range: Meters::ZERO,
         torpedo_tubes: 0,
     };
     let hull = match &ship.hull {
@@ -211,9 +212,9 @@ pub fn ship_stats(
                 // (the twin splits the gatling's total across two barrels), so
                 // the recursion is what keeps their totals comparable.
                 stats.dps += turret_total_fire_rate(&turret.root) * turret.bullet_damage;
-                stats.max_effective_range = stats
-                    .max_effective_range
-                    .max(EFFECTIVE_RANGE_MARGIN * turret.muzzle_speed * turret.projectile_lifetime);
+                stats.max_effective_range = stats.max_effective_range.max(
+                    turret.muzzle_speed.over(turret.projectile_lifetime) * EFFECTIVE_RANGE_MARGIN,
+                );
             }
             SectionKind::Torpedo(_) => stats.torpedo_tubes += 1,
             SectionKind::Railgun(railgun) => {
@@ -232,7 +233,7 @@ pub fn ship_stats(
                 }
                 stats.max_effective_range = stats
                     .max_effective_range
-                    .max(EFFECTIVE_RANGE_MARGIN * railgun.slug_speed * railgun.slug_lifetime);
+                    .max(railgun.slug_speed.over(railgun.slug_lifetime) * EFFECTIVE_RANGE_MARGIN);
             }
             _ => {}
         }
@@ -246,7 +247,7 @@ pub struct HostileAudit {
     /// The hostile's scenario object id (what a balance ack names).
     pub id: String,
     /// Distance from the player spawn to this hostile's spawn.
-    pub distance: f32,
+    pub distance: Meters,
     /// The hostile's derived combat numbers.
     pub stats: ShipStats,
 }
@@ -438,7 +439,7 @@ impl ScenarioAudit {
         for group in &self.groups {
             for hostile in &group.hostiles {
                 let envelope = hostile.stats.threat_envelope();
-                if envelope <= 0.0 {
+                if envelope <= Meters::ZERO {
                     // Unarmed: no turrets, no tubes.
                     continue;
                 }
@@ -452,10 +453,12 @@ impl ScenarioAudit {
                         scenario: self.scenario.clone(),
                         hostile: hostile.id.clone(),
                         message: format!(
-                            "spawned-dead: '{}' opens the scenario {:.0}u from the player \
-                             spawn, inside its own {:.0}u threat envelope - the player is \
+                            "spawned-dead: '{}' opens the scenario {:.0} m from the player \
+                             spawn, inside its own {:.0} m threat envelope - the player is \
                              under fire before their first input",
-                            hostile.id, hostile.distance, envelope
+                            hostile.id,
+                            hostile.distance.get(),
+                            envelope.get()
                         ),
                     });
                 } else {
@@ -465,10 +468,13 @@ impl ScenarioAudit {
                         scenario: self.scenario.clone(),
                         hostile: hostile.id.clone(),
                         message: format!(
-                            "close-spawn: '{}' ({}) spawns {:.0}u from the player spawn, \
-                             inside its own {:.0}u threat envelope - a mid-fight \
+                            "close-spawn: '{}' ({}) spawns {:.0} m from the player spawn, \
+                             inside its own {:.0} m threat envelope - a mid-fight \
                              reinforcement arriving on top of the fight",
-                            hostile.id, group.trigger, hostile.distance, envelope
+                            hostile.id,
+                            group.trigger,
+                            hostile.distance.get(),
+                            envelope.get()
                         ),
                     });
                 }
@@ -493,7 +499,7 @@ impl ScenarioAudit {
             let closest = group
                 .hostiles
                 .iter()
-                .map(|h| h.distance)
+                .map(|h| h.distance.get())
                 .fold(f32::INFINITY, f32::min);
             let tubes: usize = group.hostiles.iter().map(|h| h.stats.torpedo_tubes).sum();
             let ttk = match self.ttk_against(group) {
@@ -501,7 +507,7 @@ impl ScenarioAudit {
                 None => "-".to_string(),
             };
             out.push_str(&format!(
-                "  {}: {} hostile(s), {:.0} dps, {} tube(s), closest {:.0}u, TTK vs player {}\n",
+                "  {}: {} hostile(s), {:.0} dps, {} tube(s), closest {:.0} m, TTK vs player {}\n",
                 group.trigger,
                 group.hostiles.len(),
                 group.combined_dps(),
@@ -534,7 +540,7 @@ pub fn audit_scenario(
     catalog: &SectionCatalog,
     ships: &ShipCatalog,
 ) -> Option<ScenarioAudit> {
-    let mut player: Option<(Vec3, ShipStats)> = None;
+    let mut player: Option<(Meters3, ShipStats)> = None;
     for event in &scenario.events {
         for action in &event.actions {
             if let EventActionConfig::SpawnScenarioObject(config) = action {
@@ -668,6 +674,7 @@ pub fn audit_bundles_to_audits(
 
 #[cfg(test)]
 mod tests {
+    use bevy::math::Vec3;
     use nova_ship::prelude::{BaseSectionConfig, TurretSectionConfig};
 
     use super::*;
@@ -683,7 +690,13 @@ mod tests {
         }
     }
 
-    fn turret(id: &str, health: f32, fire_rate: f32, damage: f32, speed: f32) -> SectionConfig {
+    fn turret(
+        id: &str,
+        health: f32,
+        fire_rate: f32,
+        damage: f32,
+        speed: MetersPerSecond,
+    ) -> SectionConfig {
         use nova_ship::prelude::{MuzzleConfig, TurretJoint};
 
         // A minimal one-muzzle tree carrying this test's fire rate; every other
@@ -740,7 +753,7 @@ mod tests {
         }
     }
 
-    fn spawn_at(id: &str, position: Vec3, ship: SpaceshipConfig) -> EventActionConfig {
+    fn spawn_at(id: &str, position: Meters3, ship: SpaceshipConfig) -> EventActionConfig {
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: id.to_string(),
@@ -799,8 +812,10 @@ mod tests {
     /// dps / range / hp / tube sums against hand-computed numbers.
     #[test]
     fn ship_stats_sum_the_resolved_sections() {
-        let catalog =
-            SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 25.0, 4.0, 60.0)]]);
+        let catalog = SectionCatalog::resolve(&[&[
+            hull("h", 100.0),
+            turret("t", 60.0, 25.0, 4.0, MetersPerSecond(600.0)),
+        ]]);
         let stats = ship_stats(
             &ship(ai_controller(), &["h", "t"]),
             &catalog,
@@ -808,7 +823,7 @@ mod tests {
         );
         assert_eq!(stats.hp, 160.0);
         assert_eq!(stats.dps, 100.0);
-        assert_eq!(stats.max_effective_range, 0.9 * 60.0 * 5.0);
+        assert_eq!(stats.max_effective_range, Meters(0.9 * 600.0 * 5.0));
         assert_eq!(stats.torpedo_tubes, 0);
     }
 
@@ -817,33 +832,35 @@ mod tests {
     /// pushing it outside its range clears the finding (the delivery guard).
     #[test]
     fn an_armed_onstart_hostile_inside_its_range_is_spawned_dead() {
-        let catalog =
-            SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 100.0, 4.0, 100.0)]]);
+        let catalog = SectionCatalog::resolve(&[&[
+            hull("h", 100.0),
+            turret("t", 60.0, 100.0, 4.0, MetersPerSecond(1_000.0)),
+        ]]);
         let build = |hostile_z: f32| {
             scenario_of(vec![on_start(vec![
                 spawn_at(
                     "player_spaceship",
-                    Vec3::ZERO,
+                    Meters3::ZERO,
                     ship(player_controller(), &["h"]),
                 ),
                 spawn_at(
                     "gunner",
-                    Vec3::new(0.0, 0.0, hostile_z),
+                    Meters3::new(0.0, 0.0, hostile_z),
                     ship(ai_controller(), &["h", "t"]),
                 ),
             ])])
         };
 
-        // 175u inside a 450u effective range: the pre-rework shape.
-        let audit = audit_scenario(&build(-175.0), &catalog, &ShipCatalog::resolve(&[]))
+        // 1,750 m inside a 4,500 m effective range: the pre-rework shape.
+        let audit = audit_scenario(&build(-1_750.0), &catalog, &ShipCatalog::resolve(&[]))
             .expect("player present");
         let findings = audit.findings();
         assert_eq!(findings.len(), 1, "{findings:?}");
         assert_eq!(findings[0].severity, BalanceSeverity::Error);
         assert!(findings[0].message.contains("spawned-dead"));
 
-        // The same hostile at 600u grades clean.
-        let audit = audit_scenario(&build(-600.0), &catalog, &ShipCatalog::resolve(&[]))
+        // The same hostile at 6 km grades clean.
+        let audit = audit_scenario(&build(-6_000.0), &catalog, &ShipCatalog::resolve(&[]))
             .expect("player present");
         assert!(audit.findings().is_empty(), "{:?}", audit.findings());
     }
@@ -866,12 +883,12 @@ mod tests {
         let scenario = scenario_of(vec![on_start(vec![
             spawn_at(
                 "player_spaceship",
-                Vec3::ZERO,
+                Meters3::ZERO,
                 ship(player_controller(), &["h"]),
             ),
             spawn_at(
                 "bomber",
-                Vec3::new(0.0, 0.0, -300.0),
+                Meters3::new(0.0, 0.0, -3_000.0),
                 ship(ai_controller(), &["h", "tube"]),
             ),
         ])]);
@@ -887,8 +904,10 @@ mod tests {
     /// an unarmed close spawn is no finding at all.
     #[test]
     fn triggered_close_spawns_warn_and_unarmed_ships_pass() {
-        let catalog =
-            SectionCatalog::resolve(&[&[hull("h", 100.0), turret("t", 60.0, 100.0, 4.0, 100.0)]]);
+        let catalog = SectionCatalog::resolve(&[&[
+            hull("h", 100.0),
+            turret("t", 60.0, 100.0, 4.0, MetersPerSecond(1_000.0)),
+        ]]);
         let triggered = ScenarioEventConfig {
             label: None,
             name: EventConfig::OnUpdate,
@@ -897,12 +916,12 @@ mod tests {
             actions: vec![
                 spawn_at(
                     "reinforcement",
-                    Vec3::new(0.0, 0.0, -130.0),
+                    Meters3::new(0.0, 0.0, -1_300.0),
                     ship(ai_controller(), &["h", "t"]),
                 ),
                 spawn_at(
                     "unarmed_drone",
-                    Vec3::new(0.0, 0.0, -50.0),
+                    Meters3::new(0.0, 0.0, -500.0),
                     ship(ai_controller(), &["h"]),
                 ),
             ],
@@ -910,7 +929,7 @@ mod tests {
         let scenario = scenario_of(vec![
             on_start(vec![spawn_at(
                 "player_spaceship",
-                Vec3::ZERO,
+                Meters3::ZERO,
                 ship(player_controller(), &["h"]),
             )]),
             triggered,
@@ -930,13 +949,13 @@ mod tests {
     fn a_triggered_mook_outside_its_own_reach_is_clean() {
         let catalog = SectionCatalog::resolve(&[&[
             hull("h", 100.0),
-            // Light-turret numbers: 270u effective reach.
-            turret("t", 60.0, 25.0, 3.825, 60.0),
+            // Light-turret numbers: 2,700 m effective reach.
+            turret("t", 60.0, 25.0, 3.825, MetersPerSecond(600.0)),
         ]]);
         let scenario = scenario_of(vec![
             on_start(vec![spawn_at(
                 "player_spaceship",
-                Vec3::ZERO,
+                Meters3::ZERO,
                 ship(player_controller(), &["h"]),
             )]),
             ScenarioEventConfig {
@@ -946,7 +965,7 @@ mod tests {
                 filters: vec![],
                 actions: vec![spawn_at(
                     "approacher",
-                    Vec3::new(0.0, 0.0, -395.0),
+                    Meters3::new(0.0, 0.0, -3_950.0),
                     ship(ai_controller(), &["h", "t"]),
                 )],
             },
@@ -955,7 +974,7 @@ mod tests {
             .expect("player present");
         assert!(
             audit.findings().is_empty(),
-            "395u vs a 270u reach must grade clean: {:?}",
+            "3,950 m vs a 2,700 m reach must grade clean: {:?}",
             audit.findings()
         );
     }
@@ -1031,7 +1050,7 @@ mod tests {
         let catalog = SectionCatalog::resolve(&[&[hull("h", 100.0)]]);
         let scenario = scenario_of(vec![on_start(vec![spawn_at(
             "orbiter",
-            Vec3::ZERO,
+            Meters3::ZERO,
             ship(ai_controller(), &["h"]),
         )])]);
         assert!(audit_scenario(&scenario, &catalog, &ShipCatalog::resolve(&[])).is_none());

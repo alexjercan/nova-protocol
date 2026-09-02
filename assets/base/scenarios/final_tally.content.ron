@@ -40,8 +40,8 @@
                             name: "Player Spaceship",
                             position: (
                                 0.0,
-                                20.0,
-                                1150.0,
+                                200.0,
+                                11500.0,
                             ),
                             rotation: (
                                 0.0,
@@ -80,7 +80,7 @@
                             name: "The Claim",
                             position: (
                                 0.0,
-                                -20.0,
+                                -200.0,
                                 0.0,
                             ),
                             rotation: (
@@ -91,7 +91,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 20.0,
+                            radius: 200.0,
                             texture: "self://textures/asteroid.png",
                             mass: Some(45000.0),
                             invulnerable: true,
@@ -102,9 +102,9 @@
                             id: "anchorage_bow",
                             name: "Anchorage Bow",
                             position: (
+                                2000.0,
                                 200.0,
-                                20.0,
-                                140.0,
+                                1400.0,
                             ),
                             rotation: (
                                 0.0,
@@ -114,10 +114,10 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 8.0,
+                            radius: 80.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
-                            lock_signature: Some(45.0),
+                            lock_signature: Some(450.0),
                         )),
                     )),
                     SpawnScenarioObject((
@@ -125,9 +125,9 @@
                             id: "anchorage_stern",
                             name: "Anchorage Stern",
                             position: (
-                                -90.0,
-                                -40.0,
-                                230.0,
+                                -900.0,
+                                -400.0,
+                                2300.0,
                             ),
                             rotation: (
                                 0.0,
@@ -137,7 +137,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 6.5,
+                            radius: 65.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -147,9 +147,9 @@
                             id: "picket_a",
                             name: "Tally Picket",
                             position: (
-                                300.0,
+                                3000.0,
                                 0.0,
-                                100.0,
+                                1000.0,
                             ),
                             rotation: (
                                 0.0,
@@ -162,7 +162,7 @@
                             hull: Prototype("cargoa_raider"),
                             controller: AI((
                                 orbit: Some("claim_anchor"),
-                                leash: Some(600.0),
+                                leash: Some(6000.0),
                                 engage_delay: Some(8.0),
                             )),
                         )),
@@ -172,9 +172,9 @@
                             id: "picket_b",
                             name: "Tally Picket",
                             position: (
-                                -280.0,
-                                40.0,
-                                -120.0,
+                                -2800.0,
+                                400.0,
+                                -1200.0,
                             ),
                             rotation: (
                                 0.0,
@@ -187,7 +187,7 @@
                             hull: Prototype("cargoa_raider"),
                             controller: AI((
                                 orbit: Some("claim_anchor"),
-                                leash: Some(600.0),
+                                leash: Some(6000.0),
                                 engage_delay: Some(8.0),
                             )),
                         )),
@@ -202,10 +202,10 @@
                                 0.0,
                                 0.0,
                             ),
-                            inner: 260.0,
-                            outer: 420.0,
-                            y_min: -70.0,
-                            y_max: -10.0,
+                            inner: 2600.0,
+                            outer: 4200.0,
+                            y_min: -700.0,
+                            y_max: -100.0,
                         ),
                         template: (
                             base: (
@@ -224,15 +224,15 @@
                                 ),
                             ),
                             kind: Asteroid((
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "self://textures/asteroid.png",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
-                            1.5,
-                            3.5,
+                            15.0,
+                            35.0,
                         )),
                     )),
                     StoryMessage((
@@ -271,9 +271,9 @@
                             id: "anchorage_key",
                             name: "Key Light",
                             position: (
-                                -120.0,
-                                80.0,
-                                120.0,
+                                -1200.0,
+                                800.0,
+                                1200.0,
                             ),
                             rotation: (
                                 -0.24307884,
@@ -298,9 +298,9 @@
                             id: "anchorage_rim",
                             name: "Rim Light",
                             position: (
-                                60.0,
-                                60.0,
-                                -160.0,
+                                600.0,
+                                600.0,
+                                -1600.0,
                             ),
                             rotation: (
                                 -0.03875094,
@@ -325,9 +325,9 @@
                             id: "anchorage_fill",
                             name: "Fill Light",
                             position: (
-                                140.0,
-                                -60.0,
-                                80.0,
+                                1400.0,
+                                -600.0,
+                                800.0,
                             ),
                             rotation: (
                                 0.104897276,
@@ -558,9 +558,9 @@
                                             id: "flagship",
                                             name: "Flagship Final Tally",
                                             position: (
-                                                150.0,
-                                                -10.0,
-                                                90.0,
+                                                1500.0,
+                                                -100.0,
+                                                900.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -579,9 +579,9 @@
                                             id: "escort",
                                             name: "Tally Escort",
                                             position: (
-                                                60.0,
-                                                30.0,
-                                                280.0,
+                                                600.0,
+                                                300.0,
+                                                2800.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -595,17 +595,17 @@
                                             controller: AI((
                                                 patrol: [
                                                     (
-                                                        60.0,
-                                                        30.0,
-                                                        280.0,
+                                                        600.0,
+                                                        300.0,
+                                                        2800.0,
                                                     ),
                                                     (
-                                                        150.0,
-                                                        30.0,
-                                                        170.0,
+                                                        1500.0,
+                                                        300.0,
+                                                        1700.0,
                                                     ),
                                                 ],
-                                                leash: Some(700.0),
+                                                leash: Some(7000.0),
                                                 engage_delay: Some(4.0),
                                             )),
                                         )),

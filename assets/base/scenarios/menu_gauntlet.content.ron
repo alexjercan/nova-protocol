@@ -15,9 +15,9 @@
                             id: "gauntlet_key",
                             name: "Key Light",
                             position: (
-                                -120.0,
-                                100.0,
-                                120.0,
+                                -1200.0,
+                                1000.0,
+                                1200.0,
                             ),
                             rotation: (
                                 -0.24307884,
@@ -42,9 +42,9 @@
                             id: "gauntlet_rim",
                             name: "Rim Light",
                             position: (
-                                60.0,
-                                80.0,
-                                -160.0,
+                                600.0,
+                                800.0,
+                                -1600.0,
                             ),
                             rotation: (
                                 -0.03875094,
@@ -69,9 +69,9 @@
                             id: "gauntlet_fill",
                             name: "Fill Light",
                             position: (
-                                140.0,
-                                -40.0,
-                                80.0,
+                                1400.0,
+                                -400.0,
+                                800.0,
                             ),
                             rotation: (
                                 0.104897276,
@@ -96,9 +96,9 @@
                             id: "gauntlet_lamp",
                             name: "Planetoid Glow",
                             position: (
-                                -60.0,
-                                20.0,
-                                90.0,
+                                -600.0,
+                                200.0,
+                                900.0,
                             ),
                             rotation: (
                                 0.0,
@@ -109,8 +109,8 @@
                         ),
                         kind: Light(Point(
                             intensity: 2500000.0,
-                            range: 400.0,
-                            radius: 12.0,
+                            range: 4000.0,
+                            radius: 120.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.82,
@@ -125,9 +125,9 @@
                             id: "gauntlet_nav_a",
                             name: "KP-7",
                             position: (
-                                -150.0,
-                                -10.0,
-                                20.0,
+                                -1500.0,
+                                -100.0,
+                                200.0,
                             ),
                             rotation: (
                                 0.0,
@@ -138,7 +138,7 @@
                         ),
                         kind: Beacon((
                             label: "KP-7",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.75,
@@ -152,9 +152,9 @@
                             id: "gauntlet_nav_b",
                             name: "KP-12",
                             position: (
-                                -30.0,
-                                -18.0,
-                                -110.0,
+                                -300.0,
+                                -180.0,
+                                -1100.0,
                             ),
                             rotation: (
                                 0.0,
@@ -165,7 +165,7 @@
                         ),
                         kind: Beacon((
                             label: "KP-12",
-                            radius: 2.0,
+                            radius: 20.0,
                             color: Srgba((
                                 red: 1.0,
                                 green: 0.75,
@@ -179,9 +179,9 @@
                             id: "gauntlet_battery_w1",
                             name: "Gauntlet Battery",
                             position: (
-                                -800.0,
-                                20.0,
-                                150.0,
+                                -8000.0,
+                                200.0,
+                                1500.0,
                             ),
                             rotation: (
                                 0.0,
@@ -219,9 +219,9 @@
                             id: "gauntlet_battery_w2",
                             name: "Gauntlet Battery",
                             position: (
-                                -780.0,
-                                -30.0,
-                                -170.0,
+                                -7800.0,
+                                -300.0,
+                                -1700.0,
                             ),
                             rotation: (
                                 0.0,
@@ -259,9 +259,9 @@
                             id: "gauntlet_battery_e1",
                             name: "Gauntlet Battery",
                             position: (
-                                660.0,
-                                25.0,
-                                140.0,
+                                6600.0,
+                                250.0,
+                                1400.0,
                             ),
                             rotation: (
                                 0.0,
@@ -299,9 +299,9 @@
                             id: "gauntlet_battery_e2",
                             name: "Gauntlet Battery",
                             position: (
-                                640.0,
-                                -20.0,
-                                -160.0,
+                                6400.0,
+                                -200.0,
+                                -1600.0,
                             ),
                             rotation: (
                                 0.0,
@@ -337,8 +337,8 @@
                     SetCamera((
                         position: (
                             0.0,
-                            80.0,
-                            260.0,
+                            800.0,
+                            2600.0,
                         ),
                         look_at: (
                             0.0,
@@ -356,10 +356,10 @@
                                 0.0,
                                 0.0,
                             ),
-                            inner: 140.0,
-                            outer: 230.0,
-                            y_min: -75.0,
-                            y_max: -30.0,
+                            inner: 1400.0,
+                            outer: 2300.0,
+                            y_min: -750.0,
+                            y_max: -300.0,
                         ),
                         template: (
                             base: (
@@ -378,15 +378,15 @@
                                 ),
                             ),
                             kind: Asteroid((
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "self://textures/asteroid.png",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
-                            1.0,
-                            3.0,
+                            10.0,
+                            30.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -394,8 +394,8 @@
                             id: "gauntlet_ship",
                             name: "Gauntlet Corvette",
                             position: (
-                                -5.0,
-                                25.0,
+                                -50.0,
+                                250.0,
                                 0.0,
                             ),
                             rotation: (
@@ -410,40 +410,40 @@
                             controller: AI((
                                 patrol: [
                                     (
-                                        -5.0,
-                                        25.0,
+                                        -50.0,
+                                        250.0,
                                         0.0,
                                     ),
                                     (
-                                        -32.5,
-                                        33.0,
-                                        48.0,
+                                        -325.0,
+                                        330.0,
+                                        480.0,
                                     ),
                                     (
-                                        -87.5,
-                                        20.0,
-                                        48.0,
+                                        -875.0,
+                                        200.0,
+                                        480.0,
                                     ),
                                     (
-                                        -115.0,
-                                        25.0,
+                                        -1150.0,
+                                        250.0,
                                         0.0,
                                     ),
                                     (
-                                        -87.5,
-                                        35.0,
-                                        -48.0,
+                                        -875.0,
+                                        350.0,
+                                        -480.0,
                                     ),
                                     (
-                                        -32.5,
-                                        18.0,
-                                        -48.0,
+                                        -325.0,
+                                        180.0,
+                                        -480.0,
                                     ),
                                 ],
-                                leash: Some(250.0),
+                                leash: Some(2500.0),
                                 engage_delay: Some(2.0),
-                                engage_range: Some(300.0),
-                                pd_range: Some(130.0),
+                                engage_range: Some(3000.0),
+                                pd_range: Some(1300.0),
                             )),
                             allegiance: Some(Player),
                             modifications: [

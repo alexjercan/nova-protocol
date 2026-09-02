@@ -35,6 +35,7 @@ pub(crate) fn section_catalog(assets: &BaseContentAssets) -> Vec<SectionConfig> 
 
 #[cfg(test)]
 mod range_tests {
+    use nova_events::prelude::*;
     use nova_ship::prelude::{SectionKind, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE};
 
     use super::*;
@@ -45,28 +46,32 @@ mod range_tests {
     /// `muzzle_speed * projectile_lifetime` (a turret has no range field),
     /// and the AI fires inside `AI_FIRE_RANGE_FACTOR` of it, so this is the
     /// standing constraint on any lifetime edit - including the shorter
-    /// lifetime the 100 u/s guns carry and the longer one the 60 u/s
+    /// lifetime the 1,000 m/s guns carry and the longer one the 600 m/s
     /// scavenger guns need to compensate.
     #[test]
     fn every_authored_turret_reaches_past_the_standoff_band() {
         let assets = BaseContentAssets::from_paths();
-        let turrets: Vec<(String, f32)> = section_catalog(&assets)
+        let turrets: Vec<(String, Meters)> = section_catalog(&assets)
             .into_iter()
             .filter_map(|section| match section.kind {
                 SectionKind::Turret(turret) => Some((
                     section.base.id,
-                    turret.muzzle_speed * turret.projectile_lifetime * AI_FIRE_RANGE_FACTOR,
+                    turret.muzzle_speed.over(turret.projectile_lifetime) * AI_FIRE_RANGE_FACTOR,
                 )),
                 _ => None,
             })
             .collect();
         assert!(!turrets.is_empty(), "the catalog carries turrets");
         for (id, gate) in turrets {
+            // The standoff band is engine-side AI tuning, so the authored
+            // reach crosses to meet it.
             assert!(
-                gate > AI_STANDOFF_OUTER_EDGE,
-                "'{id}' fires out to {gate:.0}u but the standoff band reaches \
-                 {AI_STANDOFF_OUTER_EDGE:.0}u - a ship carrying it would orbit \
-                 outside its own reach and never fire"
+                gate.to_engine() > AI_STANDOFF_OUTER_EDGE,
+                "'{id}' fires out to {:.0} m but the standoff band reaches \
+                 {:.0} m - a ship carrying it would orbit outside its own \
+                 reach and never fire",
+                gate.get(),
+                Meters::from_engine(AI_STANDOFF_OUTER_EDGE).get()
             );
         }
     }

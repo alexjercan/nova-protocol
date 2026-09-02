@@ -30,6 +30,7 @@
 //! raiders' burn to the claim, and `final_tally` waits behind Continue.
 
 use bevy::prelude::*;
+use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
@@ -100,46 +101,46 @@ const W3_AT: f64 = 165.0;
 const HELLO_AT: f64 = 9.0;
 
 /// Player spawn, looking down the lane toward the stalled convoy.
-const PLAYER_SPAWN: Vec3 = Vec3::new(0.0, 0.0, 40.0);
+const PLAYER_SPAWN: Meters3 = Meters3::new(0.0, 0.0, 400.0);
 /// The convoy's holding stations, mid-lane at the transfer stop. The convoy
 /// ships LOITER around these: unarmed non-combatant AI ships flying a slow loop
 /// through the belt so they read as alive and hold their ground under fire
 /// instead of drifting off when a raider shoves them. They never shoot or chase
 /// (unarmed => AINonCombatant), but stay Player-aligned so the raiders still
 /// hunt them and the player must screen them.
-const QUEEN_POS: Vec3 = Vec3::new(0.0, 5.0, -420.0);
-const MERIDIAN_POS: Vec3 = Vec3::new(70.0, -12.0, -520.0);
-/// Loiter loops: legs > the ~75u patrol arrival radius (arrival_standoff 50 +
-/// waypoint slack 25) so the convoy ships actually FLY the loop instead of parking
-/// at the cluster, and centred on the holding stations so they stay in the belt
-/// near where the player expects to defend them.
-const QUEEN_LOITER: [Vec3; 3] = [
-    Vec3::new(60.0, 20.0, -370.0),
-    Vec3::new(-70.0, 0.0, -410.0),
-    Vec3::new(10.0, -10.0, -480.0),
+const QUEEN_POS: Meters3 = Meters3::new(0.0, 50.0, -4_200.0);
+const MERIDIAN_POS: Meters3 = Meters3::new(700.0, -120.0, -5_200.0);
+/// Loiter loops: legs > the ~750 m patrol arrival radius (arrival_standoff 500
+/// + waypoint slack 250) so the convoy ships actually FLY the loop instead of
+/// parking at the cluster, and centred on the holding stations so they stay in
+/// the belt near where the player expects to defend them.
+const QUEEN_LOITER: [Meters3; 3] = [
+    Meters3::new(600.0, 200.0, -3_700.0),
+    Meters3::new(-700.0, 0.0, -4_100.0),
+    Meters3::new(100.0, -100.0, -4_800.0),
 ];
-const MERIDIAN_LOITER: [Vec3; 3] = [
-    Vec3::new(100.0, 0.0, -480.0),
-    Vec3::new(30.0, -25.0, -540.0),
-    Vec3::new(90.0, -5.0, -590.0),
+const MERIDIAN_LOITER: [Meters3; 3] = [
+    Meters3::new(1_000.0, 0.0, -4_800.0),
+    Meters3::new(300.0, -250.0, -5_400.0),
+    Meters3::new(900.0, -50.0, -5_900.0),
 ];
-/// Raider spawn points: deep field past the convoy, all >= 700u from the
+/// Raider spawn points: deep field past the convoy, all >= 7 km from the
 /// player spawn AND both convoy ships - outside the light turret's threat
 /// envelope of every friendly anchor, so the balance audit stays clean by
 /// construction (the corvette envelope is the larger one; W3 spawns
 /// deepest). Pinned by `lifeline_convoy.rs`.
-const W1_SPAWNS: [Vec3; 2] = [
-    Vec3::new(150.0, 25.0, -1250.0),
-    Vec3::new(90.0, -15.0, -1310.0),
+const W1_SPAWNS: [Meters3; 2] = [
+    Meters3::new(1_500.0, 250.0, -12_500.0),
+    Meters3::new(900.0, -150.0, -13_100.0),
 ];
-const W2_SPAWNS: [Vec3; 3] = [
-    Vec3::new(-210.0, 30.0, -1300.0),
-    Vec3::new(-270.0, -25.0, -1360.0),
-    Vec3::new(250.0, 45.0, -1340.0),
+const W2_SPAWNS: [Meters3; 3] = [
+    Meters3::new(-2_100.0, 300.0, -13_000.0),
+    Meters3::new(-2_700.0, -250.0, -13_600.0),
+    Meters3::new(2_500.0, 450.0, -13_400.0),
 ];
-const W3_SPAWNS: [Vec3; 2] = [
-    Vec3::new(0.0, 35.0, -1400.0),
-    Vec3::new(80.0, -20.0, -1450.0),
+const W3_SPAWNS: [Meters3; 2] = [
+    Meters3::new(0.0, 350.0, -14_000.0),
+    Meters3::new(800.0, -200.0, -14_500.0),
 ];
 
 /// Ships spawn -Z forward; raiders come from deep -Z toward the convoy, so
@@ -193,9 +194,9 @@ fn player_ship() -> ScenarioObjectConfig {
 fn convoy_ship(
     id: &str,
     name: &str,
-    position: Vec3,
+    position: Meters3,
     yaw: f32,
-    patrol: Vec<Vec3>,
+    patrol: Vec<Meters3>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -220,7 +221,7 @@ fn convoy_ship(
 /// an arrival grace. `ship` picks the grade: W3's corvette is the FULL
 /// player-grade hull - the "real guns" the Tallyman promises - where the
 /// earlier waves fly the scavenger-grade raider.
-fn raider(id: &str, spawn_pos: Vec3, ship: &str, engage_delay: f32) -> ScenarioObjectConfig {
+fn raider(id: &str, spawn_pos: Meters3, ship: &str, engage_delay: f32) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -234,8 +235,8 @@ fn raider(id: &str, spawn_pos: Vec3, ship: &str, engage_delay: f32) -> ScenarioO
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::AI(AIControllerConfig {
                 // The run-in: patrol from the spawn to the convoy's lane.
-                patrol: vec![spawn_pos, QUEEN_POS + Vec3::new(0.0, 30.0, 80.0)],
-                leash: Some(520.0),
+                patrol: vec![spawn_pos, QUEEN_POS + Meters3::new(0.0, 300.0, 800.0)],
+                leash: Some(Meters(5_200.0)),
                 engage_delay: Some(engage_delay),
                 ..Default::default()
             }),
@@ -285,7 +286,7 @@ fn defeat_flag(id: &str, flag: &str) -> ScenarioEventConfig {
 /// stretch - cover exists near the fight but does not enclose it (a lane,
 /// not the Broadside bowl). Same two-tier scheme as Broadside.
 fn lane_boulders(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
-    let boulder = |id: &str, position: Vec3, radius: f32| ScenarioObjectConfig {
+    let boulder = |id: &str, position: Meters3, radius: Meters| ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
             name: "Lane Boulder".to_string(),
@@ -304,10 +305,26 @@ fn lane_boulders(asteroid_texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig
         }),
     };
     vec![
-        boulder("lane_boulder_1", Vec3::new(90.0, 18.0, -360.0), 4.0),
-        boulder("lane_boulder_2", Vec3::new(-95.0, -12.0, -470.0), 4.5),
-        boulder("lane_boulder_3", Vec3::new(35.0, 28.0, -580.0), 5.0),
-        boulder("lane_boulder_4", Vec3::new(-70.0, 22.0, -300.0), 3.5),
+        boulder(
+            "lane_boulder_1",
+            Meters3::new(900.0, 180.0, -3_600.0),
+            Meters(40.0),
+        ),
+        boulder(
+            "lane_boulder_2",
+            Meters3::new(-950.0, -120.0, -4_700.0),
+            Meters(45.0),
+        ),
+        boulder(
+            "lane_boulder_3",
+            Meters3::new(350.0, 280.0, -5_800.0),
+            Meters(50.0),
+        ),
+        boulder(
+            "lane_boulder_4",
+            Meters3::new(-700.0, 220.0, -3_000.0),
+            Meters(35.0),
+        ),
     ]
 }
 
@@ -319,20 +336,20 @@ fn lane_chaff(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
         count: 14,
         seed: SCATTER_SEED,
         region: ScatterRegion::Box {
-            min: Vec3::new(-190.0, -40.0, -560.0),
-            max: Vec3::new(190.0, 40.0, -160.0),
+            min: Meters3::new(-1_900.0, -400.0, -5_600.0),
+            max: Meters3::new(1_900.0, 400.0, -1_600.0),
         },
         template: ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
                 id: "lane_rock_".to_string(),
                 name: "Lane Rock".to_string(),
-                position: Vec3::ZERO,
+                position: Meters3::ZERO,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 material: None,
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-                radius: 1.0,
+                radius: Meters(10.0),
                 texture: asteroid_texture.clone(),
                 mass: None,
                 invulnerable: false,
@@ -340,13 +357,13 @@ fn lane_chaff(asteroid_texture: &AssetRef<Image>) -> EventActionConfig {
                 lock_signature: None,
             }),
         },
-        asteroid_radius: Some((1.5, 3.5)),
+        asteroid_radius: Some((Meters(15.0), Meters(35.0))),
         min_separation: None,
     })
 }
 
 /// A transfer-stop beacon framing the lane.
-fn lane_beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
+fn lane_beacon(id: &str, label: &str, position: Meters3) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -356,7 +373,7 @@ fn lane_beacon(id: &str, label: &str, position: Vec3) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: label.to_string(),
-            radius: 2.0,
+            radius: Meters(20.0),
             color: Color::srgb(1.0, 0.75, 0.3),
             area_radius: None,
             lock_signature: None,
@@ -474,12 +491,12 @@ pub(crate) fn lifeline(
         spawn_object(lane_beacon(
             "beacon_transfer",
             "TRANSFER STOP",
-            Vec3::new(35.0, -2.0, -470.0),
+            Meters3::new(350.0, -20.0, -4_700.0),
         )),
         spawn_object(lane_beacon(
             "beacon_lane",
             "LANE MARKER",
-            Vec3::new(-10.0, 12.0, -140.0),
+            Meters3::new(-100.0, 120.0, -1_400.0),
         )),
         lane_chaff(&asteroid_texture),
     ];
@@ -528,7 +545,7 @@ pub(crate) fn lifeline(
             visible: true,
         }),
     ]);
-    opening.extend(ThreePointRig::around("lifeline", Vec3::ZERO, 10.0).actions());
+    opening.extend(ThreePointRig::around("lifeline", Meters3::ZERO, 10.0).actions());
 
     let events = vec![
         ScenarioEventConfig {

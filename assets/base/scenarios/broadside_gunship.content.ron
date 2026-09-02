@@ -33,7 +33,7 @@
                             position: (
                                 0.0,
                                 0.0,
-                                40.0,
+                                400.0,
                             ),
                             rotation: (
                                 0.0,
@@ -72,8 +72,8 @@
                             name: "Yacht Ceres Queen",
                             position: (
                                 0.0,
-                                10.0,
-                                -450.0,
+                                100.0,
+                                -4500.0,
                             ),
                             rotation: (
                                 0.0,
@@ -94,14 +94,14 @@
                         seed: 433757350076153856,
                         region: Box(
                             min: (
-                                -200.0,
-                                -45.0,
-                                -430.0,
+                                -2000.0,
+                                -450.0,
+                                -4300.0,
                             ),
                             max: (
-                                200.0,
-                                45.0,
-                                -80.0,
+                                2000.0,
+                                450.0,
+                                -800.0,
                             ),
                         ),
                         template: (
@@ -121,15 +121,15 @@
                                 ),
                             ),
                             kind: Asteroid((
-                                radius: 1.0,
+                                radius: 10.0,
                                 texture: "self://textures/asteroid.png",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
                         ),
                         asteroid_radius: Some((
-                            1.5,
-                            4.0,
+                            15.0,
+                            40.0,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -137,9 +137,9 @@
                             id: "cover_boulder_1",
                             name: "Derelict Boulder",
                             position: (
-                                90.0,
-                                20.0,
-                                -520.0,
+                                900.0,
+                                200.0,
+                                -5200.0,
                             ),
                             rotation: (
                                 0.0,
@@ -149,7 +149,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 4.0,
+                            radius: 40.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -159,9 +159,9 @@
                             id: "cover_boulder_2",
                             name: "Derelict Boulder",
                             position: (
-                                -110.0,
+                                -1100.0,
                                 0.0,
-                                -530.0,
+                                -5300.0,
                             ),
                             rotation: (
                                 0.0,
@@ -171,7 +171,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 4.0,
+                            radius: 40.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -181,9 +181,9 @@
                             id: "cover_boulder_3",
                             name: "Derelict Boulder",
                             position: (
-                                20.0,
-                                -15.0,
-                                -575.0,
+                                200.0,
+                                -150.0,
+                                -5750.0,
                             ),
                             rotation: (
                                 0.0,
@@ -193,7 +193,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 5.0,
+                            radius: 50.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -203,9 +203,9 @@
                             id: "cover_boulder_4",
                             name: "Derelict Boulder",
                             position: (
-                                130.0,
-                                40.0,
-                                -700.0,
+                                1300.0,
+                                400.0,
+                                -7000.0,
                             ),
                             rotation: (
                                 0.0,
@@ -215,7 +215,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 3.5,
+                            radius: 35.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -225,9 +225,9 @@
                             id: "cover_boulder_5",
                             name: "Derelict Boulder",
                             position: (
-                                -70.0,
-                                30.0,
-                                -750.0,
+                                -700.0,
+                                300.0,
+                                -7500.0,
                             ),
                             rotation: (
                                 0.0,
@@ -237,7 +237,7 @@
                             ),
                         ),
                         kind: Asteroid((
-                            radius: 3.5,
+                            radius: 35.0,
                             texture: "self://textures/asteroid.png",
                             invulnerable: true,
                         )),
@@ -247,9 +247,9 @@
                             id: "gunship",
                             name: "Gunship Rust Tally",
                             position: (
-                                80.0,
-                                60.0,
-                                -1170.0,
+                                800.0,
+                                600.0,
+                                -11700.0,
                             ),
                             rotation: (
                                 0.0,
@@ -297,9 +297,9 @@
                             id: "gunship_key",
                             name: "Key Light",
                             position: (
-                                -60.0,
-                                50.0,
-                                60.0,
+                                -600.0,
+                                500.0,
+                                600.0,
                             ),
                             rotation: (
                                 -0.24307884,
@@ -324,9 +324,9 @@
                             id: "gunship_rim",
                             name: "Rim Light",
                             position: (
-                                30.0,
-                                40.0,
-                                -80.0,
+                                300.0,
+                                400.0,
+                                -800.0,
                             ),
                             rotation: (
                                 -0.03875094,
@@ -351,9 +351,9 @@
                             id: "gunship_fill",
                             name: "Fill Light",
                             position: (
-                                70.0,
-                                -20.0,
-                                40.0,
+                                700.0,
+                                -200.0,
+                                400.0,
                             ),
                             rotation: (
                                 0.104897276,

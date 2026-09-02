@@ -17,8 +17,8 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
-    CommandsGameEventExt, EntityId, GameEventsPlugin, OnDefeatedEvent, OnDefeatedEventInfo,
-    OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
+    CommandsGameEventExt, EntityId, GameEventsPlugin, Meters, Meters3, OnDefeatedEvent,
+    OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnUpdateEvent, OnUpdateEventInfo,
 };
 use nova_gameplay::prelude::{Allegiance, GameObjectives};
 use nova_modding::prelude::Content;
@@ -797,7 +797,7 @@ fn the_gunship_part_is_hidden_and_stages_itself() {
 }
 
 /// The hard-cover tier (spike F4): five invulnerable boulders shared by
-/// both parts, at least two inside each threat corridor (within 120u of the
+/// both parts, at least two inside each threat corridor (within 1.2 km of the
 /// hauler-to-threat axis), every worst-case 6x body clear of the stations,
 /// the fixed spawns, and each other - computed from the shipped data, not
 /// eyeballed (authored-vs-derived-values).
@@ -805,16 +805,16 @@ fn the_gunship_part_is_hidden_and_stages_itself() {
 fn hard_cover_anchors_both_threat_lanes() {
     // Distance from `p` to segment `a`->`b` plus the clamped progress of
     // the closest point.
-    fn point_to_segment(p: Vec3, a: Vec3, b: Vec3) -> (f32, f32) {
-        let ab = b - a;
+    fn point_to_segment(p: Meters3, a: Meters3, b: Meters3) -> (Meters, f32) {
+        let ab = b.get() - a.get();
         let len2 = ab.length_squared();
         if len2 <= f32::EPSILON {
             return (p.distance(a), 0.0);
         }
-        let t = ((p - a).dot(ab) / len2).clamp(0.0, 1.0);
-        (p.distance(a + ab * t), t)
+        let t = ((p.get() - a.get()).dot(ab) / len2).clamp(0.0, 1.0);
+        (p.distance(a + Meters3(ab * t)), t)
     }
-    fn spawn_pos(scenario: &ScenarioConfig, id: &str) -> Vec3 {
+    fn spawn_pos(scenario: &ScenarioConfig, id: &str) -> Meters3 {
         scenario
             .events
             .iter()
@@ -827,7 +827,7 @@ fn hard_cover_anchors_both_threat_lanes() {
             })
             .unwrap_or_else(|| panic!("spawns '{id}'"))
     }
-    fn boulders(scenario: &ScenarioConfig) -> Vec<(String, Vec3, f32)> {
+    fn boulders(scenario: &ScenarioConfig) -> Vec<(String, Meters3, Meters)> {
         scenario
             .events
             .iter()
@@ -848,7 +848,7 @@ fn hard_cover_anchors_both_threat_lanes() {
     let part_two = scenario_from(BROADSIDE_GUNSHIP_RON);
     let hauler = spawn_pos(&part_one, "hauler");
     let corvette_mid =
-        (spawn_pos(&part_one, "corvette_a") + spawn_pos(&part_one, "corvette_b")) / 2.0;
+        (spawn_pos(&part_one, "corvette_a") + spawn_pos(&part_one, "corvette_b")) * 0.5;
     let gunship = spawn_pos(&part_two, "gunship");
 
     for (part, scenario, threat) in [
@@ -866,7 +866,7 @@ fn hard_cover_anchors_both_threat_lanes() {
             .iter()
             .filter(|(_, pos, _)| {
                 let (dist, t) = point_to_segment(*pos, hauler, threat);
-                dist <= 120.0 && t > 0.05 && t < 0.95
+                dist <= Meters(1_200.0) && t > 0.05 && t < 0.95
             })
             .count();
         assert!(
@@ -882,20 +882,22 @@ fn hard_cover_anchors_both_threat_lanes() {
             ("player spawn", spawn_pos(scenario, "player_spaceship")),
         ];
         for (id, pos, radius) in &field {
-            let body = radius * ASTEROID_GEOMETRIC_FACTOR_MAX;
+            let body = *radius * ASTEROID_GEOMETRIC_FACTOR_MAX;
             for (station, spot) in stations {
                 let clearance = pos.distance(spot) - body;
                 assert!(
-                    clearance >= 20.0,
-                    "{part}: boulder '{id}' worst-case body ({body:.0}u) leaves \
-                     {clearance:.0}u at the {station}"
+                    clearance >= Meters(200.0),
+                    "{part}: boulder '{id}' worst-case body ({:.0} m) leaves \
+                     {:.0} m at the {station}",
+                    body.get(),
+                    clearance.get()
                 );
             }
-            // Outside the destructible scatter box (z in [-430, -80]): the
-            // seeded chaff can then never merge with an anchor at the 6x
+            // Outside the destructible scatter box (z in [-4300, -800] m):
+            // the seeded chaff can then never merge with an anchor at the 6x
             // worst case.
             assert!(
-                pos.z < -430.0,
+                pos.z() < Meters(-4_300.0),
                 "{part}: boulder '{id}' sits inside the chaff scatter box"
             );
         }
@@ -903,9 +905,9 @@ fn hard_cover_anchors_both_threat_lanes() {
             for j in (i + 1)..field.len() {
                 let (id_a, pos_a, r_a) = &field[i];
                 let (id_b, pos_b, r_b) = &field[j];
-                let gap = pos_a.distance(*pos_b) - (r_a + r_b) * ASTEROID_GEOMETRIC_FACTOR_MAX;
+                let gap = pos_a.distance(*pos_b) - (*r_a + *r_b) * ASTEROID_GEOMETRIC_FACTOR_MAX;
                 assert!(
-                    gap > 0.0,
+                    gap > Meters::ZERO,
                     "{part}: boulders '{id_a}' and '{id_b}' can merge at the 6x factor"
                 );
             }
@@ -922,8 +924,9 @@ fn hard_cover_anchors_both_threat_lanes() {
         for (rock_id, pos, radius) in boulders(&part_one) {
             let clearance = pos.distance(spawn) - radius * ASTEROID_GEOMETRIC_FACTOR_MAX;
             assert!(
-                clearance >= 20.0,
-                "'{id}' spawns {clearance:.0}u clear of boulder '{rock_id}' (< 20u)"
+                clearance >= Meters(200.0),
+                "'{id}' spawns {:.0} m clear of boulder '{rock_id}' (< 200 m)",
+                clearance.get()
             );
         }
     }
