@@ -20,7 +20,7 @@ use nova_ship::prelude::{camera_bindings, flight_bindings};
 
 use crate::{
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
-    settings_store::SettingsStorePlugin,
+    settings_store::{SettingsStoreAccess, SettingsStorePlugin},
     NovaMenuPlugin,
 };
 
@@ -68,7 +68,7 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // developer's real store AND off the process env, so `NOVA_CAPTURE=1
     // cargo test` runs the same store these tests assert on.
     app.add_plugins(SettingsStorePlugin {
-        live: true,
+        access: SettingsStoreAccess::ReadWrite,
         root: Some(root.into()),
     });
     app.add_plugins(StatesPlugin);

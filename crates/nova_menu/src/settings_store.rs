@@ -212,14 +212,72 @@ impl SettingsStoreRoot {
     }
 }
 
-/// Whether this app's store reads the file at startup and writes it back.
+/// How far this app's store reaches into the player's settings file.
+///
+/// Reading and writing are separate powers, because the apps that want them
+/// are different apps. EVERY app reads, so an example that supplies its own
+/// game plugins still flies on the player's own sensitivity, keybinds and
+/// quality preset. Only an app that carries a settings PANEL writes, because a
+/// panel is the only place a player asks for a change to be kept - a bench
+/// that pokes `GraphicsQuality` on a keypress is not.
+///
+/// One enum and not two flags: "writes but does not read" is the combination
+/// that must not exist, because it saves the defaults the run started on over
+/// whatever the player had.
 ///
 /// Inserted either way, so a scripted run can ASSERT that its store is inert
 /// rather than trust that it is: a run whose store went live would start from
 /// the developer's own keybinds and end by overwriting them, and both halves of
 /// that are silent.
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SettingsStoreLive(pub bool);
+#[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SettingsStoreAccess {
+    /// Neither direction: every setting holds its default for the whole run
+    /// and no file is touched. What a scripted run gets, and the default here
+    /// because a store nobody configured must not write.
+    #[default]
+    Inert,
+    /// Read at startup, never written. What an app with no settings panel
+    /// gets.
+    Read,
+    /// Read at startup and written back as the player edits.
+    ReadWrite,
+}
+
+impl SettingsStoreAccess {
+    /// Whether the store is read into the live resources at startup.
+    pub fn reads(self) -> bool {
+        !matches!(self, Self::Inert)
+    }
+
+    /// Whether an edit reaches the file.
+    pub fn writes(self) -> bool {
+        matches!(self, Self::ReadWrite)
+    }
+}
+
+/// Run condition on both write systems, so the write direction can be granted
+/// after the plugin is built - which is what [`allow_settings_saves`] does.
+fn the_store_writes(access: Res<SettingsStoreAccess>) -> bool {
+    access.writes()
+}
+
+/// Grant this app the write direction.
+///
+/// Called by [`NovaMenuPlugin`](crate::NovaMenuPlugin): a settings panel is
+/// what makes a setting worth keeping, so it is what turns a reading store
+/// into a writing one. An INERT store stays inert - a scripted run must not
+/// start saving because it happened to build a menu.
+///
+/// # Panics
+///
+/// If no [`SettingsStorePlugin`] has been added. Every caller adds it first,
+/// under its own guard; a silent no-op here would be a menu that cannot save.
+pub fn allow_settings_saves(app: &mut App) {
+    let mut access = app.world_mut().resource_mut::<SettingsStoreAccess>();
+    if *access == SettingsStoreAccess::Read {
+        *access = SettingsStoreAccess::ReadWrite;
+    }
+}
 
 /// The saved settings, or `None` if nothing has been saved yet (or the store is
 /// unreadable/corrupt). `None` means "use the defaults".
@@ -236,32 +294,39 @@ pub fn save_settings(root: &SettingsStoreRoot, settings: &PersistedSettings) {
     persist::save_to(&store, KEY, settings);
 }
 
-/// Reads the store into the live settings resources at startup and writes it
-/// back as they change.
+/// Reads the store into the live settings resources at startup and, where the
+/// app may, writes it back as they change.
 ///
 /// Separate from [`NovaMenuPlugin`](crate::NovaMenuPlugin) because a settings
 /// PANEL is not what makes a setting apply. `AppBuilder` adds this to every
 /// app, so an example that supplies its own game plugins and never builds a
 /// menu still flies on the player's own mouse sensitivity, keybinds, volumes
-/// and quality preset instead of silently on the defaults.
+/// and quality preset instead of silently on the defaults - while staying
+/// unable to write any of them back, because it has nowhere for a player to
+/// ask for that ([`SettingsStoreAccess`]).
 ///
-/// Owns the settings-backed resources as well as the two directions, so the
+/// Owns the settings-backed resources as well as both directions, so the
 /// plugin stands alone: an app with this and nothing else has a complete,
 /// loaded settings state.
 pub struct SettingsStorePlugin {
-    /// Whether the store is read at startup and written back on a change.
+    /// How far this app's store reaches; see [`SettingsStoreAccess`].
     ///
-    /// `false` pins every setting at its default for the whole run and touches
-    /// no file in either direction.
-    pub live: bool,
+    /// The write direction can also be granted afterwards, by
+    /// [`allow_settings_saves`], which is how the menu upgrades the store
+    /// `AppBuilder` already gave the app.
+    pub access: SettingsStoreAccess,
     /// Where the file lands; see [`SettingsStoreRoot`]. `None` is the player's
     /// own store, which is what every shipped app wants.
     pub root: Option<std::path::PathBuf>,
 }
 
 impl SettingsStorePlugin {
-    /// A store that is live for a human at the keyboard and INERT under a
+    /// A store that READS for a human at the keyboard and is INERT under a
     /// scripted run ([`harness_env_active`]).
+    ///
+    /// Reading only, because this is what every app gets: an app earns the
+    /// write direction by carrying a settings panel, and says so with
+    /// [`allow_settings_saves`].
     ///
     /// A capture or a probe sweep must produce the same frames and the same
     /// numbers on any machine, and the developer's own graphics preset, skin
@@ -271,11 +336,15 @@ impl SettingsStorePlugin {
     /// pass once overwrote a keybind table (see `tests::support`).
     ///
     /// NATIVE only: a wasm build has no process environment, so `var_os` is
-    /// always `None` and this is always live. A web app that must be inert -
+    /// always `None` and this always reads. A web app that must be inert -
     /// `nova_perf_web` - says so with the field instead.
     pub fn from_env() -> Self {
         Self {
-            live: !harness_env_active(),
+            access: if harness_env_active() {
+                SettingsStoreAccess::Inert
+            } else {
+                SettingsStoreAccess::Read
+            },
             root: None,
         }
     }
@@ -304,15 +373,17 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<InputBindings>();
 
         app.insert_resource(SettingsStoreRoot(self.root.clone()));
-        app.insert_resource(SettingsStoreLive(self.live));
+        app.insert_resource(self.access);
 
-        if !self.live {
+        if !self.access.reads() {
             return;
         }
         app.add_systems(Startup, load_persisted_settings);
         app.init_resource::<PendingSettingsSave>();
-        app.add_systems(Update, persist_settings_on_change);
-        app.add_systems(Last, flush_settings_on_exit);
+        // Registered for any READING store and gated on the write direction,
+        // because the menu grants that while it builds - which is after this.
+        app.add_systems(Update, persist_settings_on_change.run_if(the_store_writes));
+        app.add_systems(Last, flush_settings_on_exit.run_if(the_store_writes));
         // Behind the same switch as the load: the mode only ever arrives from
         // the store, so an inert run has no mode to apply and must leave the
         // harness's window alone.

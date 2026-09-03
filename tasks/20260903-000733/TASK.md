@@ -118,3 +118,18 @@ Red team and feel skipped on the owner's instruction.
   on a camera whose pose was removed, so no script could aim it again
   (`screenshot_editor` stalled); and `system_field_controls` compared a
   meters-declared row step against the probe's world-unit pose.
+- 2026-09-03 11:30 Did R1.32, the last open decision: the settings store's two
+  directions are now separate powers. `SettingsStoreLive(bool)` became
+  `SettingsStoreAccess { Inert, Read, ReadWrite }` - one enum and not two
+  flags, so "writes but does not read" cannot be spelled. `AppBuilder` gives
+  every app `Read`, so an example with its own game plugins still flies on the
+  player's sensitivities, keybinds and preset while unable to save over them;
+  `NovaMenuPlugin` calls `allow_settings_saves` as it builds the settings
+  panel, which raises `Read` to `ReadWrite` and leaves `Inert` where it is, so
+  a scripted run that happens to build a menu still writes nothing. The two
+  save systems are registered for any reading store and gated on
+  `the_store_writes`, which is what lets the grant land after the plugin has
+  built. Three new store tests pin the split, the grant and the inert floor;
+  `railgun_wake_bench` and `perf_web` say `Inert` in the field. Verified live:
+  system_headless_rebind, railgun_wake_bench, system_headless_drag,
+  system_menu_boot.

@@ -61,7 +61,14 @@ save on change, no window mode applied. So a scripted run flies on the DEFAULTS
 whatever the launching player has saved - which is what makes a capture the
 same picture on every machine - and cannot write that player's `settings.ron`.
 A wasm build has no environment to read, so an app that must be inert there
-(`nova_perf_web`) adds the plugin itself with `live: false`.
+(`nova_perf_web`) adds the plugin itself with `access: SettingsStoreAccess::Inert`.
+
+Inert is the far end of a three-way access, not a flag. A normal app gets
+`Read`: it boots on the player's saved settings and cannot write them back.
+`NovaMenuPlugin` raises that to `ReadWrite` when it builds the settings panel,
+which is the only surface that asks for a value to be kept. An inert store is
+never raised, so a scripted run that happens to build a menu still writes
+nothing.
 
 ## Measurement: what a run records about itself
 

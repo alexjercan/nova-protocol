@@ -163,11 +163,13 @@ fn main_drive_is_bound_to(
 /// the developer's `settings.ron`, so a broken gate would read as a pass.
 #[cfg(feature = "debug")]
 fn assert_the_store_is_inert(world: &mut World) {
-    let live = world.resource::<SettingsStoreLive>().0;
-    assert!(
-        !live,
-        "a scripted run must carry an inert settings store - a live one starts \
-         from the developer's own keybinds and ends by overwriting them"
+    let access = *world.resource::<SettingsStoreAccess>();
+    assert_eq!(
+        access,
+        SettingsStoreAccess::Inert,
+        "a scripted run must carry an inert settings store - a reading one \
+         starts from the developer's own keybinds, and a writing one ends by \
+         overwriting them"
     );
     assert!(
         world.resource::<InputBindings>().overrides().is_empty(),
@@ -176,7 +178,7 @@ fn assert_the_store_is_inert(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: the rebind run's settings store is inert",
-        serde_json::json!({ "live": live }),
+        serde_json::json!({ "access": format!("{access:?}") }),
     );
 }
 

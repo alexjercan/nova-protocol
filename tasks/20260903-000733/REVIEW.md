@@ -328,14 +328,25 @@ Findings:
   the bench keeps its own tier resource. Decision: split load from save so
   saving exists only where a settings panel does.
 
-  TAKEN, the easy road, and not the one written above: the bench adds
-  `SettingsStorePlugin { live: false }` itself, which `AppBuilder`'s guard
-  then honours. A tier resource of the bench's own would have left the
-  reading dependent on the developer's saved preset, which a measurement
-  tool must not be; inert closes both directions in one line. The
-  load/save split stays OPEN - it is the only thing that would let a
-  `with_game_plugins` app read the player's settings without being able to
-  write them, and nothing here needed that yet.
+  TAKEN, both roads, in that order. First the easy one: the bench adds
+  `SettingsStorePlugin { access: Inert }` itself, which `AppBuilder`'s
+  guard then honours. A tier resource of the bench's own would have left
+  the reading dependent on the developer's saved preset, which a
+  measurement tool must not be; inert closes both directions in one line.
+
+  Then the split, on the owner's call. `SettingsStoreLive(bool)` became
+  `SettingsStoreAccess { Inert, Read, ReadWrite }` - one enum, not two
+  flags, because "writes but does not read" is the combination that would
+  save the run's defaults over the player's file. `AppBuilder` gives every
+  app `Read`; `NovaMenuPlugin` calls `allow_settings_saves` while it builds
+  the settings panel, which raises `Read` to `ReadWrite` and leaves `Inert`
+  alone - so a scripted run that happens to build a menu still writes
+  nothing. The two save systems are registered for any reading store and
+  gated on `the_store_writes`, which is what lets the grant land after the
+  plugin has built. Proof: `a_reading_store_never_writes_what_the_app_changes`
+  (edit, run past the debounce, exit - the file is untouched),
+  `a_settings_panel_grants_the_write_direction` (the same fixture, granted,
+  keeps the edit) and `a_scripted_run_that_builds_a_menu_stays_inert`.
 - [x] R1.33 (MAJOR, easy) `web/src/wiki/settings.md:69-78`, `web/src/wiki/keybinds.md:3` -
   the Controls page does not know the MOUSE group exists, and the
   mouse-look default change (v0.12.0 Scale 0.001, now two thirds of that at
@@ -791,9 +802,9 @@ These need a call first:
    own id.
 3. R1.23 - warm the wake graphs at scene load.
 4. R1.26 - two instances per shot are fine for now.
-5. R1.32 - undecided. Taken as the review's own easy option, stated under
-   the finding: the bench declares its store inert. The load/save split is
-   still the owner's to make.
+5. R1.32 - do the load/save split. Taken on top of the easy option (the
+   bench declares its store inert): every app now READS the player's
+   settings and only a settings panel earns the write direction.
 6. R1.39 - fine for now; leave a NOTE where the fsync lands.
 7. R1.49 - derive only if changed. Taken as a `#[require]`d engine-figures
    component per weapon kind, refreshed on `Changed` of its config helper,

@@ -377,11 +377,14 @@ impl AppBuilder {
 
         // The settings store is NOT the menu's, and every app gets it; see
         // `SettingsStorePlugin` for why, and `from_env` for what makes it inert.
+        // READING only: the menu below is what grants the write direction, so
+        // an example with its own game plugins flies on the player's settings
+        // without being able to save over them.
         //
         // Guarded because `with_game_plugins` runs before this: an app that
         // brought the store in itself - through `NovaMenuPlugin`'s own guard
-        // (system_outcomes), or to pin `live` (railgun_wake_bench, perf_web) -
-        // keeps the one it chose.
+        // (system_outcomes), or to pin its access (railgun_wake_bench,
+        // perf_web) - keeps the one it chose.
         if !self.app.is_plugin_added::<SettingsStorePlugin>() {
             self.app.add_plugins(SettingsStorePlugin::from_env());
         }

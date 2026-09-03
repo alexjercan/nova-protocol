@@ -131,13 +131,12 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn bench_plugin(app: &mut App) {
-    // A measurement tool owns its own tier. G cycles `GraphicsQuality`, and a
-    // live store would debounce that into the launching player's
-    // `settings.ron` - so the bench would end a session having set the game to
-    // whichever preset it happened to stop on. Inert in both directions, which
-    // also means a reading does not depend on the preset the developer plays at.
+    // A measurement tool owns its own tier. G cycles `GraphicsQuality` from
+    // whatever the store loaded, so a reading taken here would otherwise depend
+    // on the preset the developer happens to play at. Inert, not merely
+    // read-only: the bench has to start from the DEFAULT tier every run.
     app.add_plugins(SettingsStorePlugin {
-        live: false,
+        access: SettingsStoreAccess::Inert,
         root: None,
     });
     app.init_resource::<Bench>();

@@ -35,7 +35,7 @@ pub mod prelude {
     pub use super::{
         ambience::MENU_BACKDROP_ENV,
         settings::WindowModeSetting,
-        settings_store::{SettingsStoreLive, SettingsStorePlugin, SettingsStoreRoot},
+        settings_store::{SettingsStoreAccess, SettingsStorePlugin, SettingsStoreRoot},
         widgets::MenuCueSystems,
         NewGameScenario, NovaMenuPlugin,
     };
@@ -121,13 +121,17 @@ impl Plugin for NovaMenuPlugin {
             app.add_plugins(nova_ui::NovaUiPlugin);
         }
 
-        // The store owns the settings resources and both persistence
-        // directions. `AppBuilder` adds it to every app, menu or not, so it is
-        // normally already here; adding it under a guard is what keeps the menu
-        // standing alone in slim and headless-test rigs.
+        // The store owns the settings resources and the load that fills them.
+        // `AppBuilder` adds it to every app, menu or not, so it is normally
+        // already here; adding it under a guard is what keeps the menu standing
+        // alone in slim and headless-test rigs.
         if !app.is_plugin_added::<SettingsStorePlugin>() {
             app.add_plugins(SettingsStorePlugin::from_env());
         }
+        // The panel below is what earns the store its write direction: this is
+        // where a player asks for a setting to be KEPT. An app without one
+        // reads the file and leaves it alone.
+        settings_store::allow_settings_saves(app);
         app.init_resource::<SettingsActiveTab>();
         app.init_resource::<SettingsControlsGroup>();
         app.init_resource::<PendingRebind>();

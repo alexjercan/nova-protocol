@@ -151,9 +151,9 @@ does NOT get an entry - and it is the only place they are written down.
 ### Internals & Tooling
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
   fields a new matchup; `--seed` replays one and a scripted run stays pinned.
-- Every example flies on your saved settings rather than the defaults: mouse
-  sensitivity, keybinds, volumes, quality and skin. A scripted capture or probe
-  run reads and writes none of them.
+- Every example flies on your saved settings - mouse sensitivity, keybinds,
+  volumes, quality, skin - and only the settings panel can write them back. A
+  scripted run reads and writes none of them.
 - The `wfc_arena` bench bolts a spinal railgun to every generated bow, answering
   its stern drive stamp, carves whatever the collapse hung in front of the bore,
   and binds it to `R` for a player slot.

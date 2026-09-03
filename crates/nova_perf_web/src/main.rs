@@ -36,7 +36,7 @@ fn main() {
             // localStorage by an earlier run would then load over the
             // `?quality=` this capture was asked for.
             app.add_plugins(SettingsStorePlugin {
-                live: false,
+                access: SettingsStoreAccess::Inert,
                 root: None,
             });
             let id = loader_id.clone();
