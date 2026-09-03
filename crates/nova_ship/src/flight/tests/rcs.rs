@@ -3,6 +3,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::{MetersPerSecond, MetersPerSecondSquared};
 use nova_gameplay::test_support::settle;
 
 use super::support::*;
@@ -24,6 +25,19 @@ fn accumulate_rcs_axis_integrates_and_clamps_to_the_unit_range() {
     assert_eq!(accumulate_rcs_axis(-0.9, -0.5), -1.0);
     // Pulling back from a rail walks toward the other one.
     assert!((accumulate_rcs_axis(1.0, -0.4) - 0.6).abs() < 1e-6);
+}
+
+#[test]
+fn rcs_defaults_to_one_hundred_meters_per_second_and_five_g() {
+    let settings = FlightSettings::default();
+    assert_eq!(
+        MetersPerSecond::from_engine(settings.rcs_speed_cap),
+        MetersPerSecond(100.0)
+    );
+    assert_eq!(
+        MetersPerSecondSquared::from_engine(settings.rcs_accel),
+        MetersPerSecondSquared(5.0 * 9.81)
+    );
 }
 
 /// The player's `RcsIntent` is delta-driven: with `RcsActive` and no fresh
@@ -91,6 +105,32 @@ fn rcs_builds_to_the_cap_then_levels_off_without_torque() {
     assert!(
         angular_speed_of(&app, ship) < 1e-3,
         "an impulse at the COM must not spin the hull"
+    );
+}
+
+/// Full diagonal input shares one acceleration budget with straight input.
+/// Without the vector clamp, three saturated axes accelerate `sqrt(3)` times
+/// harder than one axis.
+#[test]
+fn rcs_clamps_total_acceleration_magnitude_in_every_direction() {
+    fn speed_after_burn(intent: Vec3) -> f32 {
+        let mut app = flight_app();
+        app.world_mut().resource_mut::<FlightSettings>().rcs_accel = 3.0;
+        let (ship, _) = spawn_rcs_ship(&mut app, 100.0);
+        set_rcs(&mut app, ship, intent);
+        run(&mut app, 10);
+        velocity_of(&app, ship).length()
+    }
+
+    let straight = speed_after_burn(Vec3::X);
+    let diagonal = speed_after_burn(Vec3::ONE);
+    assert!(
+        straight > 0.1,
+        "the test burn must produce measurable speed"
+    );
+    assert!(
+        (diagonal - straight).abs() < 1e-3,
+        "diagonal and straight burns must share one acceleration magnitude: {diagonal} vs {straight}"
     );
 }
 
@@ -214,6 +254,7 @@ fn rcs_relative_cap_trims_a_fast_moving_reference() {
     app.world_mut().entity_mut(ship).insert((
         LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
         RcsReference(Vec3::new(5.0, 0.0, 0.0)),
+        RcsSpeedCap(2.0),
         RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
     ));
     run(&mut app, 300);
@@ -233,6 +274,7 @@ fn rcs_relative_cap_trims_a_fast_moving_reference() {
     settle(&mut app);
     app.world_mut().entity_mut(ship).insert((
         LinearVelocity(Vec3::new(5.0, 0.0, 0.0)),
+        RcsSpeedCap(2.0),
         RcsIntent(Vec3::new(0.5, 0.0, 0.0)),
     ));
     run(&mut app, 300);

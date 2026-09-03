@@ -9,6 +9,7 @@
 //! that field in meters, because meters is what a creator reads in the file.
 
 use bevy::prelude::*;
+use nova_events::prelude::{MetersPerSecond, MetersPerSecondSquared};
 
 /// The geometric radius of a scenario object, world units: the surface the GOTO
 /// arrival standoff measures from and the orbit band's clearance floor clears
@@ -347,10 +348,9 @@ pub struct FlightSettings {
     /// orbits are only trusted in the unfaded core, and the safety margin keeps
     /// station-keeping off the fade band's edge.
     pub orbit_band_safety: f32,
-    /// Default RCS fine-adjust speed cap (u/s): the terminal speed a held RCS
-    /// nudge builds to on each ship-local axis before `rcs_burn_system`
-    /// tapers the push to zero. Small by design - the last tens of meters of a
-    /// docking approach. Overridable per hull with [`RcsSpeedCap`].
+    /// Default RCS speed cap (u/s): the terminal speed a held RCS nudge builds
+    /// to on each ship-local axis before `rcs_burn_system` tapers the push to
+    /// zero. Overridable per hull with [`RcsSpeedCap`].
     pub rcs_speed_cap: f32,
     /// RCS thrust as an acceleration (u/s^2): how hard a full-deflection RCS
     /// command pushes. Sized so the cap is reached in a second or two of held
@@ -391,12 +391,9 @@ impl Default for FlightSettings {
             orbit_hold_exit: 1.2,
             orbit_clearance_factor: 1.5,
             orbit_band_safety: 0.9,
-            // A 2 u/s ceiling: brisk enough to close a docking gap, slow
-            // enough that a held nudge never becomes free propulsion.
-            rcs_speed_cap: 2.0,
-            // ~1.5 u/s^2 reaches the 2 u/s cap in a bit over a second of held
-            // input - a gentle station-keeping push, not a main burn.
-            rcs_accel: 1.5,
+            // Convert player-facing SI values at the flight-physics boundary.
+            rcs_speed_cap: MetersPerSecond(100.0).to_engine(),
+            rcs_accel: MetersPerSecondSquared(5.0 * 9.81).to_engine(),
         }
     }
 }

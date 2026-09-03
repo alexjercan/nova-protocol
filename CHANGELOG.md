@@ -15,6 +15,10 @@ does NOT get an entry - and it is the only place they are written down.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+- RCS reaches 100 m/s and accelerates at a mass-independent 5 G; diagonal input
+  shares the same total acceleration limit as a straight burn.
+
 ### Combat & Weapons
 - A PDC out of combat sinks into a housed pit and two lids slide shut over it;
   it deploys on weapons hot, a tracked target or a point-defense assignment,
