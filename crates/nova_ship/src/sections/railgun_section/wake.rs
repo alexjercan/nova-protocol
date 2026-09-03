@@ -12,8 +12,10 @@
 //! The slug is despawned at impact. A particle effect parented to it would
 //! take its live particles with it, and the whole point of the wake is to
 //! outlive the thing that left it. So each layer is its own entity riding the
-//! slug's transform ([`follow_railgun_wakes`]), and when the slug goes the
-//! emitter stops spawning and lingers for one lifetime before it despawns.
+//! slug's transform ([`follow_railgun_wakes`]). When the slug goes,
+//! [`close_railgun_wakes`] hands the emitter the segment it died on - the last
+//! one, and the one nearest the hole - and the emitter then stops spawning and
+//! lingers for one particle lifetime before it despawns.
 //!
 //! # Units
 //!
@@ -50,7 +52,6 @@ use bevy_hanabi::{
     EffectProperties, EffectSpawner, ExprWriter, OrientMode, OrientModifier, ParticleEffect,
     ScalarType, SetAttributeModifier, SpawnerSettings,
 };
-use nova_gameplay::transient_light::prelude::{CappedLight, TransientLight};
 
 use super::*;
 
@@ -121,6 +122,21 @@ const FILAMENT_THICKNESS: f32 = 0.2;
 /// How long a retired emitter lingers past its longest particle, seconds.
 const LINGER_MARGIN: f32 = 0.05;
 
+/// The longest a particle of one layer can live, as a multiple of the `life`
+/// property its graph is handed. The two graphs jitter the lifetime
+/// differently, so a retiring emitter that used one number outlived one layer
+/// and cut the other short. Read it from the graph that draws the layer:
+/// [`build_haze_effect`] and [`build_filament_effect`] are the two places this
+/// has to agree with.
+fn longest_life(layer: RailgunWakeLayer) -> f32 {
+    match layer {
+        // `life * (0.7 + j * 0.6)`
+        RailgunWakeLayer::Haze => 1.3,
+        // `life * (0.5 + rand * 0.5)`
+        RailgunWakeLayer::Filaments => 1.0,
+    }
+}
+
 /// Brightness of the light riding the slug, in lumens.
 pub const RAILGUN_SLUG_LIGHT_LUMENS: f32 = 300_000.0;
 
@@ -154,11 +170,13 @@ pub struct RailgunWakeEmitter {
     retiring: bool,
 }
 
-/// The shared wake graphs, built on the first slug that needs them.
+/// The shared wake graphs.
 ///
-/// Lazy rather than [`FromWorld`], so an app that never fires a lance - and
-/// one on a graphics tier with particles off - builds nothing. One graph per
-/// layer for every slug: what differs per shot arrives through properties.
+/// Built at scene load by [`warm_railgun_wake_art`], and on demand for anything
+/// that spawns a wake without one (the bench). Not [`FromWorld`]: an app that
+/// never reaches a scene - and any tier with particles off - builds nothing.
+/// One graph per layer for every slug: what differs per shot arrives through
+/// properties.
 #[derive(Resource, Default, Debug)]
 pub struct RailgunWakeArt {
     haze: Option<Handle<EffectAsset>>,
@@ -181,6 +199,32 @@ impl RailgunWakeArt {
                 .get_or_insert_with(|| effects.add(build_filament_effect()))
                 .clone(),
         }
+    }
+}
+
+/// Build both wake graphs when a scene comes up, rather than on the first slug
+/// of the session.
+///
+/// Two `EffectAsset` graphs, two WGSL generations and six pipeline compiles is
+/// a bad thing to pay for on the frame a lance fires: synchronous on web and
+/// macOS, and late enough on native to lose the head of a 1.2 s slug's wake. A
+/// scene load already has a loading screen over it, so it is the cheapest
+/// place to pay it - and a tier with particles off still builds nothing, which
+/// is what the lazy build was really protecting.
+pub(super) fn warm_railgun_wake_art(
+    budget: Option<Res<GraphicsBudget>>,
+    mut art: ResMut<RailgunWakeArt>,
+    mut effects: ResMut<Assets<EffectAsset>>,
+) {
+    let particles = budget.map_or_else(
+        || GraphicsBudget::default().particles,
+        |budget| budget.particles,
+    );
+    if !particles {
+        return;
+    }
+    for layer in [RailgunWakeLayer::Haze, RailgunWakeLayer::Filaments] {
+        art.handle(layer, &mut effects);
     }
 }
 
@@ -270,7 +314,7 @@ fn owed_particles(covered: f32, per_unit: f32, remainder: f32) -> (u32, f32) {
 }
 
 /// Ride each emitter on its slug and hand it the frame's properties; retire
-/// the ones whose slug has gone.
+/// the ones whose slug has gone without one.
 pub(super) fn follow_railgun_wakes(
     mut commands: Commands,
     time: Res<Time>,
@@ -288,42 +332,103 @@ pub(super) fn follow_railgun_wakes(
 ) {
     for (entity, mut emitter, mut transform, mut properties, spawner) in &mut q_emitter {
         let Ok(slug) = q_slug.get(emitter.slug) else {
+            // A slug that ended its flight was closed by `close_railgun_wakes`
+            // on the way out, with its last segment. Reaching here unclosed
+            // means the emitter outlived its slug some other way, and the last
+            // pose anyone saw is the one it is standing at.
             if !emitter.retiring {
                 emitter.retiring = true;
                 if let Some(mut spawner) = spawner {
                     spawner.active = false;
                 }
-                let linger = layer_lifetime(&emitter.tuning, emitter.layer) * 1.3 + LINGER_MARGIN;
-                commands.entity(entity).insert(TempEntity(linger));
+                retire_after_the_last_particle(&mut commands, entity, &emitter);
             }
             continue;
         };
 
         *transform = *slug;
         emitter.anchor_age += time.delta_secs();
-        // World vectors, because that is the frame the particles are born in
-        // (see the module docs). Zero puts every spawn at the emitter, which
-        // is the clustering the spread exists to remove.
-        let back = if emitter.tuning.spread {
-            emitter.anchor - slug.translation
-        } else {
-            Vec3::ZERO
-        };
-        // +Z in the slug's frame is behind it: the direction the wake runs.
-        let axis = slug.rotation * Vec3::Z;
-        properties.set("back", back.into());
-        properties.set("axis", axis.into());
-        properties.set("frame_dt", emitter.anchor_age.into());
-        properties.set(
-            "life",
-            layer_lifetime(&emitter.tuning, emitter.layer).into(),
-        );
-        properties.set("width", emitter.tuning.width.into());
-        properties.set(
-            "intensity",
-            layer_intensity(&emitter.tuning, emitter.layer).into(),
-        );
+        paint_wake(&emitter, *slug, &mut properties);
     }
+}
+
+/// Hand the emitters the segment their slug died on, and retire them there.
+///
+/// `advance_rounds` writes the hit and despawns the slug in one flush, so by
+/// the time [`follow_railgun_wakes`] runs there is no slug left to read and the
+/// emitter would retire at the anchor it had a frame ago - leaving the last
+/// render frame of flight (about 250 m at 60 fps, more when a frame spans
+/// several fixed steps) with no haze over it, on exactly the shot that ends in
+/// a hull. A removal is the last moment the final pose is still readable.
+///
+/// The spawner is left ACTIVE: [`count_railgun_wake_spawns`] charges this
+/// closing segment and switches it off itself, so the ground the slug covered
+/// is paid for before the emitter stops spawning.
+pub(super) fn close_railgun_wakes(
+    remove: On<Remove, RailgunSlugProjectileMarker>,
+    mut commands: Commands,
+    q_slug: Query<&Transform, With<RailgunSlugProjectileMarker>>,
+    mut q_emitter: Query<
+        (
+            Entity,
+            &mut RailgunWakeEmitter,
+            &mut Transform,
+            &mut EffectProperties,
+        ),
+        Without<RailgunSlugProjectileMarker>,
+    >,
+) {
+    let slug = remove.entity;
+    let Ok(&final_pose) = q_slug.get(slug) else {
+        return;
+    };
+    for (entity, mut emitter, mut transform, mut properties) in &mut q_emitter {
+        if emitter.slug != slug || emitter.retiring {
+            continue;
+        }
+        *transform = final_pose;
+        emitter.retiring = true;
+        paint_wake(&emitter, final_pose, &mut properties);
+        retire_after_the_last_particle(&mut commands, entity, &emitter);
+    }
+}
+
+/// Give the emitter long enough to outlive the particles it has already born,
+/// then let [`TempEntity`] take it.
+fn retire_after_the_last_particle(
+    commands: &mut Commands,
+    entity: Entity,
+    emitter: &RailgunWakeEmitter,
+) {
+    let linger = layer_lifetime(&emitter.tuning, emitter.layer) * longest_life(emitter.layer)
+        + LINGER_MARGIN;
+    commands.entity(entity).insert(TempEntity(linger));
+}
+
+/// Hand one emitter the values this frame's particles are born with.
+fn paint_wake(emitter: &RailgunWakeEmitter, pose: Transform, properties: &mut EffectProperties) {
+    // World vectors, because that is the frame the particles are born in
+    // (see the module docs). Zero puts every spawn at the emitter, which
+    // is the clustering the spread exists to remove.
+    let back = if emitter.tuning.spread {
+        emitter.anchor - pose.translation
+    } else {
+        Vec3::ZERO
+    };
+    // +Z in the slug's frame is behind it: the direction the wake runs.
+    let axis = pose.rotation * Vec3::Z;
+    properties.set("back", back.into());
+    properties.set("axis", axis.into());
+    properties.set("frame_dt", emitter.anchor_age.into());
+    properties.set(
+        "life",
+        layer_lifetime(&emitter.tuning, emitter.layer).into(),
+    );
+    properties.set("width", emitter.tuning.width.into());
+    properties.set(
+        "intensity",
+        layer_intensity(&emitter.tuning, emitter.layer).into(),
+    );
 }
 
 /// Say how many particles each emitter spawns this frame: the density times
@@ -343,7 +448,7 @@ pub(super) fn count_railgun_wake_spawns(
     )>,
 ) {
     for (mut emitter, transform, compiled, mut spawner) in &mut q_emitter {
-        if emitter.retiring || !spawner.active || !compiled.is_ready() {
+        if !spawner.active || !compiled.is_ready() {
             spawner.spawn_count = 0;
             continue;
         }
@@ -354,6 +459,11 @@ pub(super) fn count_railgun_wake_spawns(
         spawner.spawn_count = count;
         emitter.anchor = transform.translation;
         emitter.anchor_age = 0.0;
+        // A retiring emitter is charged for its closing segment - the one the
+        // slug died on - and only then stops spawning.
+        if emitter.retiring {
+            spawner.active = false;
+        }
     }
 }
 
@@ -366,14 +476,8 @@ pub(super) fn count_railgun_wake_spawns(
 /// against the real world, so the second slug sees the first one's light.
 pub(super) fn light_railgun_slug(commands: &mut Commands, slug: Entity) {
     commands.queue(move |world: &mut World| {
-        let cap = world.get_resource::<GraphicsBudget>().map_or_else(
-            || GraphicsBudget::default().transient_lights,
-            |budget| budget.transient_lights,
-        );
-        let lit = world
-            .query_filtered::<(), Or<(With<TransientLight>, With<CappedLight>)>>()
-            .iter(world)
-            .count();
+        let cap = light_cap(world);
+        let lit = lit_slots(world);
         if lit >= cap {
             trace!("light_railgun_slug: {lit} already lit, cap {cap} - unlit slug");
             return;
@@ -651,5 +755,96 @@ mod tests {
         let filaments = build_filament_effect();
         assert_eq!(haze.capacity(), HAZE_CAPACITY);
         assert_eq!(filaments.capacity(), FILAMENT_CAPACITY);
+    }
+
+    /// A shot that ends in a hull despawns its slug in the same flush that
+    /// wrote the hit, so the last segment of flight is only readable while the
+    /// marker is coming off. Without the closing pass the emitter retires at
+    /// the anchor it had a frame ago and the shot's final stretch - the part
+    /// nearest the hole - carries no wake at all.
+    #[test]
+    fn a_slug_that_ends_its_flight_hands_the_wake_the_segment_it_died_on() {
+        let mut app = App::new();
+        app.add_observer(close_railgun_wakes);
+
+        let struck = Transform::from_xyz(0.0, 0.0, -40.0);
+        let slug = app
+            .world_mut()
+            .spawn((RailgunSlugProjectileMarker, struck))
+            .id();
+        let emitter = app
+            .world_mut()
+            .spawn((
+                RailgunWakeEmitter {
+                    slug,
+                    layer: RailgunWakeLayer::Haze,
+                    tuning: RailgunWakeTuning::default(),
+                    anchor: Vec3::ZERO,
+                    anchor_age: 0.0,
+                    remainder: 0.0,
+                    retiring: false,
+                },
+                Transform::default(),
+                EffectProperties::default(),
+            ))
+            .id();
+
+        app.world_mut().entity_mut(slug).despawn();
+
+        assert_eq!(
+            app.world().get::<Transform>(emitter).unwrap().translation,
+            struck.translation,
+            "the emitter must stand where the slug stopped"
+        );
+        assert!(
+            app.world()
+                .get::<RailgunWakeEmitter>(emitter)
+                .unwrap()
+                .retiring,
+            "the emitter must be retiring once its slug is gone"
+        );
+        assert!(
+            app.world().get::<TempEntity>(emitter).is_some(),
+            "a retired emitter must be given a lifetime of its own"
+        );
+    }
+
+    /// The graphs are built when the scene comes up, so the first lance of a
+    /// session does not pay six pipeline compiles on the frame it fires - and
+    /// a tier that draws no particles still builds nothing.
+    #[test]
+    fn a_scene_builds_the_wake_graphs_before_the_first_shot() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<EffectAsset>();
+        app.init_resource::<RailgunWakeArt>();
+        app.insert_resource(GraphicsBudget {
+            particles: false,
+            ..GraphicsBudget::default()
+        });
+        app.add_systems(Update, warm_railgun_wake_art);
+
+        app.update();
+        let art = app.world().resource::<RailgunWakeArt>();
+        assert!(
+            art.haze.is_none() && art.filaments.is_none(),
+            "a tier with particles off must build nothing"
+        );
+
+        app.world_mut().resource_mut::<GraphicsBudget>().particles = true;
+        app.update();
+        let art = app.world().resource::<RailgunWakeArt>();
+        assert!(
+            art.haze.is_some() && art.filaments.is_some(),
+            "both layers must be ready before a slug asks for them"
+        );
+    }
+
+    /// The two graphs jitter a particle's life by different factors, so the
+    /// linger that outlives one would cut the other short.
+    #[test]
+    fn each_layer_lingers_as_long_as_its_own_graph_can_live() {
+        assert!(longest_life(RailgunWakeLayer::Haze) > 1.0, "0.7 + 0.6");
+        assert_eq!(longest_life(RailgunWakeLayer::Filaments), 1.0, "0.5 + 0.5");
     }
 }

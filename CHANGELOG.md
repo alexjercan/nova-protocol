@@ -89,9 +89,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** A section's and an asteroid's `impact_sound` is gone. Each
   names a `material`, and `Impact` rows pair a damage type with a material, so
   a mod can voice one round against one surface.
-- A railgun authors an optional `rake_radius`: a sphere that trails the slug's
-  tip and widens the hole out of the same power. Omitted, the slug stays a
-  needle.
+- A `Railgun` section kind: charge seconds, slug damage, power, speed and
+  lifetime, muzzle recoil, and an optional `rake_radius` trailing a widening
+  sphere behind the slug's tip. Omit it for a needle.
 - Two actions reach a live ship's magazines: `SetInfiniteAmmo` suspends them
   and gives back the authored capacity, full; `RefillAmmo` tops up one section
   or every weapon.

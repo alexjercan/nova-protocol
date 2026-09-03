@@ -186,7 +186,7 @@ Findings:
 
 ### railgun (afa27e08, 65d9d0e7, e1e5bc73, 532c1ef8, f9c8aa56)
 
-- [ ] R1.20 (MAJOR, easy) `crates/nova_gameplay/src/rounds.rs:764-766,887-913` -
+- [x] R1.20 (MAJOR, easy) `crates/nova_gameplay/src/rounds.rs:764-766,887-913` -
   a body's arming point is forgotten at the fixed-step boundary. A body
   armed in an earlier step re-enters `collect_rake_contacts` with
   `armed_at` 0.0, and the rear cap admits a collider down to
@@ -206,7 +206,7 @@ Findings:
   `a_section_the_sphere_passed_before_the_hit_is_not_raked_on_the_next_step`.
   Not a BLOCKER: the extra bite lands on a hull the shot did hit, and it
   needs a section standing forward of the bore column inside the radius.
-- [ ] R1.21 (MINOR, easy) `crates/nova_ship/src/sections/railgun_section/wake.rs:290-297,346-350`,
+- [x] R1.21 (MINOR, easy) `crates/nova_ship/src/sections/railgun_section/wake.rs:290-297,346-350`,
   `crates/nova_gameplay/src/rounds.rs:683,824` - the wake never receives
   the slug's last segment. `advance_rounds` writes the hit and despawns the
   slug in one flush; `follow_railgun_wakes` then finds no slug and retires
@@ -218,21 +218,21 @@ Findings:
   could not see it. Change: an `On<Remove, RailgunSlugProjectileMarker>`
   observer that copies the final `Transform` onto the emitters and marks
   them retiring; charge `covered` once more before returning 0.
-- [ ] R1.22 (MINOR, easy) `crates/nova_gameplay/src/transient_light.rs:270-275` -
+- [x] R1.22 (MINOR, easy) `crates/nova_gameplay/src/transient_light.rs:270-275` -
   `a_light_holding_a_slot_counts_against_the_next_flash` cannot fail:
   `World::trigger` queues the observer's command and never flushes, and
   `lit_count` reads through `query_filtered` before the flush, so the count
   is 0 either way. Delete the `CappedLight` arm of the filter at `:137` and
   the test still passes. Change: `app.update()` before the assertion, as
   its siblings do.
-- [ ] R1.23 (MINOR, decision) `wake.rs:157-185,227` - the two wake graphs
+- [x] R1.23 (MINOR, decision) `wake.rs:157-185,227` - the two wake graphs
   are built on the first slug of a session (two `EffectAsset` graphs, two
   WGSL generations, six pipeline compiles on the shot frame; synchronous on
   web and macOS, late or absent on native for a 1.2 s slug). Documented as
   deliberate ("an app that never fires a lance builds nothing") and the
   same lazy shape as the torpedo blast. Decision: warm the pair at scene
   load when `budget.particles` is on, or accept the first-shot hitch.
-- [ ] R1.24 (MINOR, easy) `crates/nova_gameplay/src/rounds.rs:532-545,609,764-779,892-927` -
+- [x] R1.24 (MINOR, easy) `crates/nova_gameplay/src/rounds.rs:532-545,609,764-779,892-927` -
   per-step work in the sweep: `Collider::sphere(ROUND_RADIUS)` is rebuilt
   per round per step (once per system run before afa27e08);
   `rake.armed.clone()` per step; `TipWalk::found` pushes onto a heap Vec on
@@ -240,7 +240,12 @@ Findings:
   full for the rest of the slug's life. Change: build the sphere once in
   `advance_rounds` and lend it; iterate `armed` by reference; a fixed array
   like `rejected`; a per-body bound at arming.
-- [ ] R1.25 (MINOR, easy) rules spelled out more than once: the "lit set"
+  The first three landed as written. The fourth landed as a RETIREMENT rather
+  than a bound: a body whose every collider is already charged can never
+  contribute another contact - both halves of the sweep skip a charged
+  collider - so it is dropped from `armed`. A bound taken at arming would have
+  had to survive a body that accelerates, which this does not.
+- [x] R1.25 (MINOR, easy) rules spelled out more than once: the "lit set"
   filter (`transient_light.rs:131-137`, `wake.rs:369-376`,
   `examples/playable/railgun_wake_bench.rs:879`); the haze's longest
   lifetime as a bare 1.3 (`wake.rs:296,473`) while the filament graph
@@ -251,11 +256,13 @@ Findings:
   `wake.rs:53` imports past the prelude already in scope. Change: one
   `pub fn` per rule (`RailgunSectionConfig::rake() -> Option<Meters>`,
   a lit-slot query in `transient_light`), delete the import, rename the lint.
-- [ ] R1.26 (MINOR, decision) `wake.rs:207-233,290-298` - every shot
+- [x] R1.26 (MINOR, decision) `wake.rs:207-233,290-298` - every shot
   spawns two fresh hanabi instances with their own GPU slabs (about 0.6 MB),
   freed about 1.9 s after impact. Rare at the shipped cadence. Keep unless
   a GPU-host set shows a spike; otherwise one emitter pair per lance.
-- [ ] R1.27 (MINOR, easy) creator and player docs behind the rake and the
+  KEPT: the owner's call (2026-09-03). No code change; revisit only if a
+  GPU-host set shows the spike.
+- [x] R1.27 (MINOR, easy) creator and player docs behind the rake and the
   wake: `web/src/create/base-content.md:58` lists every authored railgun
   number except `rake_radius: Some(10.0)`, and a creator who authors from
   that table ships a needle (59 dps against 178 in the task's own bank);
@@ -266,19 +273,19 @@ Findings:
   `transient_lights` (`wake.rs:367-372`). Change: the rake in the catalog
   row; one sentence for the wake and the light; "railgun wake" in the Low
   list.
-- [ ] R1.28 (MINOR, easy) `CHANGELOG.md:92-94` - the `rake_radius` Modding
+- [x] R1.28 (MINOR, easy) `CHANGELOG.md:92-94` - the `rake_radius` Modding
   entry revises a `Railgun` kind the `[Unreleased]` Modding block never
   introduces (v0.12.0 has no railgun section), against the collapse rule.
   Change: one Modding entry that introduces the kind with its fields, and
   fold the rake into it.
-- [ ] R1.29 (MINOR, easy) `web/src/wiki/sections/railgun.md:50,56` asks for
+- [x] R1.29 (MINOR, easy) `web/src/wiki/sections/railgun.md:50,56` asks for
   `assets/loops/loop-section-railgun.webm` and `scripts/capture-web-media.sh:46-66`
   has no row that can produce it, nor a pending slot the way
   `gen-web-screenshots.py:148-151` has for the four railgun stills; a full
   media pass fills every section page but this one and never reports the
   gap. Change: a `loop_vfx_range|loop-section-railgun||` row (the range
   fires the lance every pass) or a pending row.
-- [ ] R1.30 (MINOR, easy) `docs/environment-variables.md:143-145` - the
+- [x] R1.30 (MINOR, easy) `docs/environment-variables.md:143-145` - the
   example-local knob list omits `NOVA_VFX_RANGE_BARE_SLUG`
   (`examples/screenshots/loop_vfx_range.rs:104,215`, named in
   `CHANGELOG.md:161`); the page's own audit recipe then finds an

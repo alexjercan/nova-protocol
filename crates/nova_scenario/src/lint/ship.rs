@@ -155,7 +155,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
                 source,
                 &mut issues,
             );
-            check_railgun_charge(config.base.id.as_str(), railgun, source, &mut issues);
+            check_railgun_numbers(config.base.id.as_str(), railgun, source, &mut issues);
         }
         _ => {}
     }
@@ -219,7 +219,7 @@ fn check_reload_config(
 /// choice rather than a mistake. A non-finite or negative `rake_radius` is a
 /// sphere with no size to sweep; zero is legal there too and means the narrow
 /// gun, which is also what omitting the field means.
-fn check_railgun_charge(
+fn check_railgun_numbers(
     section_id: &str,
     config: &RailgunSectionConfig,
     source: &str,

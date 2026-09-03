@@ -113,8 +113,16 @@ impl RoundBitten {
 pub struct RoundRake {
     /// The trailing sphere's radius, in units.
     radius: f32,
-    /// Bodies the narrow tip has struck, and which may therefore be raked.
-    armed: Vec<Entity>,
+    /// Seconds of flight already behind this round when the current step
+    /// begins. An arming instant only means something against a clock that
+    /// outlives the step it happened in: the sphere reaches two radii BACK,
+    /// so a step routinely sweeps ground the round crossed in the previous
+    /// one, and a mark measured from the step start would say that ground
+    /// came after an arming hit that in fact came after it.
+    clock: f32,
+    /// Bodies the narrow tip has struck, each with the flight time at which
+    /// it struck them.
+    armed: Vec<(Entity, f32)>,
     /// Colliders this round has already charged, by either half of the sweep.
     charged: Vec<Entity>,
 }
@@ -124,6 +132,7 @@ impl RoundRake {
     pub fn new(radius: f32) -> Self {
         Self {
             radius,
+            clock: 0.0,
             armed: Vec::new(),
             charged: Vec::new(),
         }
@@ -135,12 +144,23 @@ impl RoundRake {
     }
 
     fn is_armed(&self, body: Entity) -> bool {
-        self.armed.contains(&body)
+        self.armed_at(body).is_some()
     }
 
-    fn arm(&mut self, body: Entity) {
+    /// The flight time at which the tip struck `body`, if it has.
+    fn armed_at(&self, body: Entity) -> Option<f32> {
+        self.armed
+            .iter()
+            .find(|&&(armed, _)| armed == body)
+            .map(|&(_, at)| at)
+    }
+
+    /// Record that the tip struck `body` at `at` seconds of flight. The
+    /// EARLIEST such instant is what the rake is entitled to, so a second
+    /// hit on an already-armed body never moves the mark forward.
+    fn arm(&mut self, body: Entity, at: f32) {
         if !self.is_armed(body) {
-            self.armed.push(body);
+            self.armed.push((body, at));
         }
     }
 
@@ -309,6 +329,9 @@ fn advance_rounds(
         .iter()
         .fold(0.0f32, |widest, velocity| widest.max(velocity.length()));
     let reach = fastest * dt;
+    // One shape for every round in the world: it is the same sphere each time,
+    // and building a parry shape per round per step was pure allocation.
+    let shape = Collider::sphere(ROUND_RADIUS);
 
     for (entity, mut transform, mut velocity, mut bitten, damage, owner, rake) in &mut q_rounds {
         let start = transform.translation;
@@ -336,17 +359,24 @@ fn advance_rounds(
         };
 
         match rake {
-            Some(mut rake) => sweep_raking(
-                &mut commands,
-                &world,
-                entity,
-                &mut transform,
-                &mut bitten,
-                &mut damage,
-                owner,
-                &mut rake,
-                sweep,
-            ),
+            Some(mut rake) => {
+                sweep_raking(
+                    &mut commands,
+                    &world,
+                    entity,
+                    &mut transform,
+                    &mut bitten,
+                    &mut damage,
+                    owner,
+                    &mut rake,
+                    sweep,
+                    &shape,
+                );
+                // The step is behind the round now, whether or not it survived
+                // it: the arming marks the next step compares against are
+                // measured from launch, not from a step start.
+                rake.clock += sweep.dt;
+            }
             None => sweep_narrow(
                 &mut commands,
                 &world,
@@ -356,6 +386,7 @@ fn advance_rounds(
                 &mut damage,
                 owner,
                 sweep,
+                &shape,
             ),
         }
     }
@@ -512,9 +543,10 @@ struct TipHit {
 
 /// The tip's walk along one step: where it has got to, what is left of the
 /// step, and the near misses it has already looked past.
-struct TipWalk {
+struct TipWalk<'a> {
     /// The cast shape, matching the collider a body-backed round carried.
-    shape: Collider,
+    /// Lent by [`advance_rounds`]: one sphere serves every round in the world.
+    shape: &'a Collider,
     origin: Vec3,
     /// TIME crossed and time left, not distance: the exact test works in a
     /// target's rest frame, where the round covers a different distance.
@@ -529,20 +561,24 @@ struct TipWalk {
     /// this for a walk that charges as it goes; a walk that defers the charge
     /// (see [`sweep_raking`]) has nothing else to stop the next cast finding
     /// the same collider at distance zero.
-    found: Vec<Entity>,
+    ///
+    /// On the stack like `rejected`, and for the same reason: the walk is
+    /// bounded by [`MAX_BITES_PER_STEP`] already, so nothing here can outgrow
+    /// the array and the narrow path stops allocating on its first hit.
+    found: [Entity; MAX_BITES_PER_STEP],
 }
 
-impl TipWalk {
-    fn new(sweep: Sweep) -> Self {
+impl<'a> TipWalk<'a> {
+    fn new(sweep: Sweep, shape: &'a Collider) -> Self {
         Self {
-            shape: Collider::sphere(ROUND_RADIUS),
+            shape,
             origin: sweep.start,
             elapsed: 0.0,
             remaining: sweep.dt,
             rejected: [Entity::PLACEHOLDER; REJECT_BUDGET],
             rejects: 0,
             bites: 0,
-            found: Vec::new(),
+            found: [Entity::PLACEHOLDER; MAX_BITES_PER_STEP],
         }
     }
 
@@ -564,9 +600,9 @@ impl TipWalk {
             // `bitten` still has to be written after it returns.
             let already = *bitten;
             let near = &self.rejected[..self.rejects];
-            let found = &self.found;
+            let found = &self.found[..self.bites];
             let candidate = world.spatial.cast_shape_predicate(
-                &self.shape,
+                self.shape,
                 self.origin,
                 Quat::IDENTITY,
                 sweep.direction,
@@ -590,7 +626,7 @@ impl TipWalk {
             let target_velocity = world.body_velocity_of(candidate.entity);
             let Some(impact) = rest_frame_impact(
                 &world.spatial,
-                &self.shape,
+                self.shape,
                 candidate.entity,
                 self.origin,
                 sweep.velocity,
@@ -605,8 +641,8 @@ impl TipWalk {
                 continue;
             };
 
+            self.found[self.bites] = candidate.entity;
             self.bites += 1;
-            self.found.push(candidate.entity);
             return Some(TipHit {
                 collider: candidate.entity,
                 elapsed: self.elapsed + impact,
@@ -649,8 +685,9 @@ fn sweep_narrow(
     damage: &mut ProjectileDamage,
     owner: Option<&ProjectileOwner>,
     sweep: Sweep,
+    shape: &Collider,
 ) {
-    let mut walk = TipWalk::new(sweep);
+    let mut walk = TipWalk::new(sweep, shape);
     while let Some(hit) = walk.next(world, sweep, owner, bitten, &[]) {
         // A collider with no Health is a wall to either round type.
         let health = world.health.get(hit.collider).ok();
@@ -721,6 +758,7 @@ fn sweep_raking(
     owner: Option<&ProjectileOwner>,
     rake: &mut RoundRake,
     sweep: Sweep,
+    shape: &Collider,
 ) {
     let mut contacts: Vec<Contact> = Vec::new();
     let mut armed_now: Vec<(Entity, f32)> = Vec::new();
@@ -729,12 +767,12 @@ fn sweep_raking(
     // a body the narrow round only passed near is never armed, so a widened
     // near miss stays a miss and one ship cannot be opened by a shot lined up
     // on the ship beside it.
-    let mut walk = TipWalk::new(sweep);
+    let mut walk = TipWalk::new(sweep, shape);
     let mut provisional = *damage;
     while let Some(hit) = walk.next(world, sweep, owner, bitten, &rake.charged) {
         let body = world.body_of(hit.collider);
         if !rake.is_armed(body) && !armed_now.iter().any(|&(known, _)| known == body) {
-            armed_now.push((body, hit.elapsed));
+            armed_now.push((body, rake.clock + hit.elapsed));
         }
         contacts.push(Contact {
             collider: hit.collider,
@@ -761,11 +799,7 @@ fn sweep_raking(
     // raked from the instant the tip reached it: everything before that is a
     // sphere passing a target the round had not hit yet.
     let direct: Vec<Entity> = contacts.iter().map(|contact| contact.collider).collect();
-    let armed_before = rake.armed.clone();
-    for body in armed_before {
-        collect_rake_contacts(world, rake, body, 0.0, owner, sweep, &direct, &mut contacts);
-    }
-    for &(body, armed_at) in &armed_now {
+    for &(body, armed_at) in rake.armed.iter().chain(armed_now.iter()) {
         collect_rake_contacts(
             world,
             rake,
@@ -777,6 +811,19 @@ fn sweep_raking(
             &mut contacts,
         );
     }
+
+    // A body every one of whose colliders is already charged can never
+    // contribute another contact - the tip skips them and so does the sphere -
+    // so it is dropped rather than walked in full for the rest of the flight,
+    // which is the one cost here that grows with what the slug has left to fly.
+    let mut armed = std::mem::take(&mut rake.armed);
+    armed.retain(|&(body, _)| {
+        world
+            .body_colliders
+            .get(body)
+            .is_ok_and(|colliders| colliders.iter().any(|held| !rake.has_charged(held)))
+    });
+    rake.armed = armed;
 
     // PASS THREE: charge, in the order the round reached them. Nearer wins;
     // at the same depth the axis is paid before the edge, so a budget that runs
@@ -813,7 +860,7 @@ fn sweep_raking(
                 bitten.remember(contact.collider);
                 rake.charge(contact.collider);
                 if contact.direct {
-                    rake.arm(contact.body);
+                    rake.arm(contact.body, rake.clock + contact.elapsed);
                 }
             }
             None => {
@@ -909,10 +956,16 @@ fn collect_rake_contacts(
         if corridor.offset.hypot(lead) > rake.radius {
             continue;
         }
-        let elapsed = (corridor.depth / pace).clamp(0.0, sweep.dt);
-        if elapsed < armed_at {
+        // Against the arming mark, UNCLAMPED and from launch: the rear cap
+        // reaches behind the step start, and clamping there would read that
+        // ground as the instant the step began and admit a section the sphere
+        // passed before the tip struck the body.
+        if rake.clock + corridor.depth / pace < armed_at {
             continue;
         }
+        // Clamped for the ORDER and for where an expended round stops, both of
+        // which are positions within this step.
+        let elapsed = (corridor.depth / pace).clamp(0.0, sweep.dt);
         out.push(Contact {
             collider,
             body,
@@ -2153,6 +2206,39 @@ mod tests {
                 "neighbour {index} was cut by a slug carrying no rake"
             );
         }
+    }
+
+    /// The sphere reaches two radii BACK, so a step routinely sweeps ground the
+    /// round crossed in the step before it. What it must never sweep is ground
+    /// it crossed before the tip armed the hull: arming is an instant in the
+    /// round's flight, not in the current step, and a mark reset at every step
+    /// boundary made the same shot bite one more cell or not depending on the
+    /// range it was fired from.
+    ///
+    /// The pod stands one cell off the bore and FORWARD of the cell that arms
+    /// the hull, so the sphere passes it before the tip has earned anything.
+    #[test]
+    fn a_section_the_sphere_passed_before_the_hit_is_not_raked_on_the_next_step() {
+        let mut app = round_app();
+        let (_, cells) = spawn_hull(
+            &mut app,
+            &[Vec3::ZERO, Vec3::new(1.0, 0.0, 1.5)],
+            RAKE_CELL_HP,
+        );
+        settle(&mut app);
+
+        spawn_lance_slug(&mut app, 5_000.0, Some(RAKE_TEST_RADIUS));
+        fly(&mut app);
+
+        assert!(
+            hurt(&app, cells[0], RAKE_CELL_HP),
+            "the bore's own cell was not cut"
+        );
+        assert!(
+            !hurt(&app, cells[1], RAKE_CELL_HP),
+            "the sphere charged a section it had already passed when the tip \
+             struck the hull"
+        );
     }
 
     /// The rake proper: the tip's own cell arms the body, and the sphere

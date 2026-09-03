@@ -177,6 +177,19 @@ pub struct RailgunSectionConfig {
     pub reload: Option<SectionReloadConfig>,
 }
 
+impl RailgunSectionConfig {
+    /// The rake this lance actually fires with, in meters.
+    ///
+    /// Authored-or-narrow: an omitted `rake_radius` and an authored zero are
+    /// the same gun. A slug spawned with a rake of width nothing is not the
+    /// same thing as a slug with no rake - it takes the widened sweep and pays
+    /// for it - so the two spellings collapse HERE, once, and every reader of
+    /// the field goes through this.
+    pub fn rake(&self) -> Option<Meters> {
+        self.rake_radius.filter(|radius| *radius > Meters::ZERO)
+    }
+}
+
 impl Default for RailgunSectionConfig {
     /// A bare test-rig lance: unlimited shells, an instant charge and no
     /// recoil, so a headless rig that only wants "does it fire" gets one shot
@@ -327,6 +340,8 @@ impl Plugin for RailgunSectionPlugin {
             app.add_observer(on_railgun_fired_kick);
             app.register_type::<RailgunChargeGlowMarker>();
             app.register_type::<RailgunSlugLight>();
+            app.add_observer(close_railgun_wakes);
+            app.add_systems(OnEnter(GameStates::Playing), warm_railgun_wake_art);
             app.add_systems(Update, (drive_railgun_charge_glow, follow_railgun_wakes));
             // After hanabi's own tick, which is what lets the wake say how
             // many particles this frame spawns instead of the asset's rate.

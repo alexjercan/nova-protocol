@@ -141,8 +141,8 @@ settings store root, and its name is already right.
 ## Not on the roster
 
 - **Example-local knobs.** `NOVA_STRESS_PD_*`, `NOVA_EDITOR_FRAMELOG`,
-  `NOVA_SOAK_SCENARIO`, `NOVA_SOAK_SECS` belong to one example each and stay
-  literals beside the range that reads them.
+  `NOVA_SOAK_SCENARIO`, `NOVA_SOAK_SECS`, `NOVA_VFX_RANGE_BARE_SLUG` belong to
+  one example each and stay literals beside the range that reads them.
 - **`NOVA_OS_*`.** Around 180 of these exist and NONE is an environment
   variable: they are `const Color`, layout and volume values in `nova_os_ui`,
   `nova_os` and `nova_gameplay::audio`. A grep for `NOVA_[A-Z_]*` is dominated

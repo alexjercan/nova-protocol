@@ -71,3 +71,9 @@ Red team and feel skipped on the owner's instruction.
   entry point NAMED the shell it wanted - and both are now driven by the new
   `system_command_shell` range (R1.16). Owner's answers to the decisions are
   recorded at the end of `REVIEW.md`; R1.32 is still open.
+- 2026-09-03 09:30 Fixed the railgun group (R1.20-R1.30). The rake's arming
+  mark now lives in the round's own flight clock, which is what the step
+  boundary was losing; the wake is handed the segment its slug died on; the
+  first lance of a session no longer builds its graphs on the frame it fires.
+  R1.26 stands as the owner decided: two instances per shot, revisit only on a
+  measured spike.

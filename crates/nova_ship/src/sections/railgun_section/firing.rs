@@ -209,10 +209,10 @@ pub(super) fn charge_and_fire_railgun(
             TempEntity(config.slug_lifetime),
             Visibility::Visible,
         ));
-        // Authored-or-narrow: a lance with no `rake_radius` spawns a slug with
-        // no rake component at all, so it takes the sweep's untouched
-        // bore-width path rather than a widened one that happens to be zero.
-        if let Some(radius) = config.rake_radius.filter(|radius| *radius > Meters::ZERO) {
+        // A lance with no rake spawns a slug with no rake component at all, so
+        // it takes the sweep's untouched bore-width path (see
+        // `RailgunSectionConfig::rake`).
+        if let Some(radius) = config.rake() {
             // Engine boundary: the corridor is authored in meters and the
             // sweep casts it in world units.
             slug.insert(RoundRake::new(radius.to_engine()));

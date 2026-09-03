@@ -72,6 +72,8 @@ The charge is loud and visible, to you and to anyone watching. A bolt walks the 
 
 That tell is the balance of the weapon. A slug in flight is unanswerable - it crosses 18 km in just over a second - so the window in which it can be answered is the charge, by breaking the line before it ends.
 
+The shot is readable after it leaves, too. The slug carries its own light with it and drags an **ionized wake** down the line it flew: a haze with filaments running through it, thinning from the muzzle end first, which stays visible for about half a second after the slug is gone. It is the one trace of a railgun anyone gets to read, and it points both ways - at what was fired at, and back at whoever fired. On the **Low** graphics preset neither is drawn: the wake is a particle effect and the slug's light is a transient light, and Low takes neither.
+
 </details>
 
 ## The bore sight

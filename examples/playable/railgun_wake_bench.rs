@@ -876,7 +876,7 @@ fn update_readout(
     bench: Res<Bench>,
     quality: Res<GraphicsQuality>,
     budget: Res<GraphicsBudget>,
-    q_lit: Query<(), Or<(With<TransientLight>, With<CappedLight>)>>,
+    q_lit: Query<(), LitSlots>,
     mut q_readout: Query<&mut Text, With<Readout>>,
 ) {
     let Ok(mut text) = q_readout.single_mut() else {

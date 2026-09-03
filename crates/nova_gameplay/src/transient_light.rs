@@ -45,7 +45,32 @@ use crate::prelude::{GraphicsBudget, TempEntity};
 
 /// `LightFlash`, `TransientLight` and `TransientLightPlugin`.
 pub mod prelude {
-    pub use super::{CappedLight, LightFlash, TransientLight, TransientLightPlugin};
+    pub use super::{
+        light_cap, lit_slots, CappedLight, LightFlash, LitSlots, TransientLight,
+        TransientLightPlugin,
+    };
+}
+
+/// The lights that hold a slot against
+/// [`GraphicsBudget::transient_lights`](crate::settings::GraphicsBudget::transient_lights).
+///
+/// One filter with three readers - the flash observer, the railgun slug's own
+/// light and the wake bench's readout - and a light spawned against one
+/// spelling of it and counted against another is the drift this exists to stop.
+pub type LitSlots = Or<(With<TransientLight>, With<CappedLight>)>;
+
+/// How many light slots are held right now.
+pub fn lit_slots(world: &mut World) -> usize {
+    world.query_filtered::<(), LitSlots>().iter(world).count()
+}
+
+/// How many may be held at once. The default budget's, for a world that
+/// carries no [`GraphicsBudget`](crate::settings::GraphicsBudget) of its own.
+pub fn light_cap(world: &World) -> usize {
+    world.get_resource::<GraphicsBudget>().map_or_else(
+        || GraphicsBudget::default().transient_lights,
+        |budget| budget.transient_lights,
+    )
 }
 
 /// Asks for a brief light at a world position.
@@ -128,15 +153,8 @@ impl Plugin for TransientLightPlugin {
 fn light_the_flash(flash: On<LightFlash>, mut commands: Commands) {
     let request = *flash;
     commands.queue(move |world: &mut World| {
-        let cap = world.get_resource::<GraphicsBudget>().map_or_else(
-            || GraphicsBudget::default().transient_lights,
-            |budget| budget.transient_lights,
-        );
-        let lit = {
-            let mut query =
-                world.query_filtered::<(), Or<(With<TransientLight>, With<CappedLight>)>>();
-            query.iter(world).count()
-        };
+        let cap = light_cap(world);
+        let lit = lit_slots(world);
         if lit >= cap {
             trace!("light_the_flash: {lit} already lit, cap {cap} - dropped");
             return;
@@ -271,7 +289,14 @@ mod tests {
         let mut app = light_app(1);
         app.world_mut().spawn((CappedLight, PointLight::default()));
         ask_for_a_flash(&mut app);
-        assert_eq!(lit_count(&mut app), 0);
+        // The observer's spawn is a queued command; without the update it has
+        // not run, and the count reads 0 whether the cap held or not.
+        app.update();
+        assert_eq!(
+            lit_count(&mut app),
+            0,
+            "the standing light held the only slot"
+        );
     }
 
     #[test]

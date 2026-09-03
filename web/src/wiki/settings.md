@@ -45,8 +45,10 @@ it drops the heavier effects for weak machines.
 <details class="explain">
 <summary>Show explanation</summary>
 
-Low is **spawn-less**: torpedo and muzzle particle bursts are not created at
-all, rather than created and hidden. It also renders the world at a **reduced
+Low is **spawn-less**: torpedo and muzzle particle bursts and the railgun wake
+are not created at all, rather than created and hidden. Low also takes no
+transient lights, so the light a railgun slug carries with it is one of the
+things it does not draw. It also renders the world at a **reduced
 internal resolution** and upscales it to fill the window - a lever aimed at
 fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
 fully clickable; only the 3D world softens. On a strong discrete GPU the speed

@@ -992,13 +992,9 @@ fn slug_spec(world: &World, lance: Entity) -> SlugSpec {
         power: config.slug_power,
         speed: config.slug_speed.to_engine(),
         lifetime: config.slug_lifetime,
-        // FILTERED, exactly as `charge_and_fire_railgun` filters it: an
-        // authored zero spawns no rake component at all, so the bank must read
-        // it as no rake rather than as a rake of width nothing.
-        rake: config
-            .rake_radius
-            .filter(|radius| *radius > Meters::ZERO)
-            .map(Meters::to_engine),
+        // Through the config's own rule, so the bank reads an authored zero as
+        // no rake exactly as `charge_and_fire_railgun` does.
+        rake: config.rake().map(Meters::to_engine),
         cycle: config.charge_seconds + config.reload.map_or(0.0, |reload| reload.delay),
     }
 }

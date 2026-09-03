@@ -55,7 +55,7 @@ Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, `Torpedo`, and
 | `pdc_twin_pierce_turret_section` | Turret | Twin PDC Turret (Pierce) | 130 | penetrators from the two-barrel mount - half per-hit damage through every layer, split across two offset streams |
 | `torpedo_section` | Torpedo | Torpedo Bay (Serpent) | 100 | blast 750 dmg over a radius of 300 m, ordnance 10 hp, ammo 6 restoring +1 after 10 s idle; loads the WEAVING Serpent - cruise 320 m/s, ~390 PDC rounds an intercept, killed ~400 m out |
 | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out |
-| `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, recoil 45 at the muzzle, one round reloading over 12 s |
+| `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
 | `heavy_torpedo_section` | Torpedo | Siege Torpedo Bay Section | 100 | blast 2000 dmg over a radius of 450 m, armored ordnance (5000 hp), unlimited ammo; loads the crimson siege Breaker (cruise 700 m/s, with a shallow weave); scene dressing, hidden in the editor |
 
 Every shipped prototype authors its [damage

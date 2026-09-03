@@ -102,6 +102,16 @@ for alias in "${ALIASES[@]}"; do
     }
 done
 
+# Loops a page asks for that NO producer can record yet, and why. Listed rather
+# than left out, so a full pass NAMES the gap instead of leaving a page's
+# placeholder unexplained - the same rule the pending stills follow in
+# scripts/gen-web-screenshots.py. A pending row is captured by nothing and
+# packaged into nothing; it only reports.
+#   loop|why
+PENDING=(
+    "loop-section-railgun|no capture example flies a hull carrying a lance, so nothing can record the bore, the shot and the corridor in one pass"
+)
+
 # Per-file budget, bytes. The encode targets 2-3 MB (LOOP_CRF in
 # nova_autopilot::loops); a loop over budget FAILS the run - re-cut it or
 # raise the CRF, do not ship it heavy.
@@ -221,5 +231,12 @@ for alias in "${ALIASES[@]}"; do
     package_loop "$loop" "$example"
 done
 
+for slot in "${PENDING[@]}"; do
+    IFS='|' read -r loop why <<<"$slot"
+    printf '%s\t%s\t%s\t%s\t%s\n' "${loop}.webm" "-" "0.0" "0" "pending" >>"$MANIFEST"
+    echo ">> ${loop}.webm: PENDING - ${why}"
+done
+
 count=$((${#LOOPS[@]} + ${#ALIASES[@]}))
 echo ">> ${count} loop(s) in ${OUT} (manifest.txt lists them)"
+[[ "${#PENDING[@]}" -eq 0 ]] || echo ">> ${#PENDING[@]} loop(s) still pending a producer"
