@@ -40,6 +40,7 @@ use crate::prelude::*;
 mod autopilot;
 mod guidance;
 mod manual;
+mod scripted;
 mod state;
 mod thrusters;
 
@@ -49,19 +50,23 @@ mod tests;
 // Only the input layer's turn-rate tests derive the rate independently.
 #[cfg(test)]
 pub(crate) use self::guidance::hull_turn_rate;
-pub use self::state::{
-    Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent,
-    FlightSettings, FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive, RcsIntent,
-    RcsReference, RcsSpeedCap,
-};
 use self::{
     autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
     manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
+    scripted::drive_scripted_align,
     state::remove_maneuver_telemetry,
 };
 pub(crate) use self::{
     guidance::{ship_turn_rate, slew_rotation},
     manual::accumulate_rcs_axis,
+};
+pub use self::{
+    scripted::{ScriptedAlign, ScriptedAlignSettled, ScriptedHelmOrder, SuspendedArrivalStandoff},
+    state::{
+        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
+        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive,
+        RcsIntent, RcsReference, RcsSpeedCap,
+    },
 };
 
 /// The flight intent, settings and speed caps, the autopilot and orbit plan, RCS state, maneuver
@@ -70,7 +75,8 @@ pub mod prelude {
     pub use super::{
         Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
         FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin,
-        NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap,
+        NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
+        ScriptedAlignSettled, ScriptedHelmOrder, SuspendedArrivalStandoff,
     };
 }
 
@@ -109,7 +115,11 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<RcsIntent>()
             .register_type::<RcsSpeedCap>()
             .register_type::<RcsReference>()
-            .register_type::<RcsActive>();
+            .register_type::<RcsActive>()
+            .register_type::<ScriptedHelmOrder>()
+            .register_type::<ScriptedAlign>()
+            .register_type::<ScriptedAlignSettled>()
+            .register_type::<SuspendedArrivalStandoff>();
 
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
@@ -134,6 +144,11 @@ impl Plugin for NovaFlightPlugin {
             FixedUpdate,
             (
                 autopilot_system,
+                // A rotation-authority writer like the autopilot, and after
+                // it: the two never coexist (one mutually exclusive helm
+                // family), and ordering them says which would win if they
+                // ever did.
+                drive_scripted_align,
                 manual_burn_system,
                 rcs_burn_system,
                 decay_player_rcs_intent,

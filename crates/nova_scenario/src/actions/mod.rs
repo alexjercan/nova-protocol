@@ -32,20 +32,21 @@ pub mod prelude {
     pub use super::{
         advance_scenario_sequences, apply_infinite_ammo, apply_pending_skybox_swaps,
         base_scenario_object, live_ship_sections, refill_section, sequence_gate_handlers,
-        ActionEffect, BaseScenarioObjectConfig, CurrentOutcome, DebugMessageActionConfig,
-        DespawnScenarioObjectActionConfig, EventActionConfig, ForceTorpedoLaunchActionConfig,
+        ActionEffect, BaseScenarioObjectConfig, ClearShipOrderActionConfig, CurrentOutcome,
+        DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
+        ForceAlignActionConfig, ForceRailgunFireActionConfig, ForceTorpedoFireActionConfig,
         HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
-        HudReadoutFormatConfig, NextScenarioActionConfig, ObjectiveActionConfig,
-        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        HudReadoutFormatConfig, MoveShipToActionConfig, NextScenarioActionConfig,
+        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
         RefillAmmoActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
         ScenarioObjectConfig, ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig,
         SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SetAllegianceActionConfig,
         SetCameraActionConfig, SetControllerVerbActionConfig, SetInfiniteAmmoActionConfig,
-        SetSkyboxActionConfig, SetSpeedCapActionConfig, StoryMessageActionConfig,
-        TimerCancelActionConfig, TimerStartActionConfig, VariableSetActionConfig, CAPTURE_DIR_ENV,
-        MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS,
-        OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        SetSkyboxActionConfig, SetSpeedCapActionConfig, StopShipActionConfig,
+        StoryMessageActionConfig, TimerCancelActionConfig, TimerStartActionConfig,
+        VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS,
+        NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -90,9 +91,18 @@ pub enum EventActionConfig {
     SetControllerVerb(SetControllerVerbActionConfig),
     /// Overwrite a scoped ship's `Allegiance` at runtime (neutral-until-provoked).
     SetAllegiance(SetAllegianceActionConfig),
-    /// Order a scoped ship's torpedo bays to launch at a named target
-    /// (scripted emplacements; no controller involved).
-    ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig),
+    /// Fly a scripted ship to an authored mark with the real autopilot.
+    MoveShipTo(MoveShipToActionConfig),
+    /// Turn a scripted ship's hull onto an authored bearing and hold it.
+    ForceAlign(ForceAlignActionConfig),
+    /// Bring a scripted ship to rest with the real STOP maneuver.
+    StopShip(StopShipActionConfig),
+    /// Release a scripted ship's helm and let it drift.
+    ClearShipOrder(ClearShipOrderActionConfig),
+    /// Fire one named railgun section of a scripted ship.
+    ForceRailgunFire(ForceRailgunFireActionConfig),
+    /// Launch one named torpedo bay of a scripted ship at one named target.
+    ForceTorpedoFire(ForceTorpedoFireActionConfig),
     /// Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`.
     CreateScenarioArea(ScenarioAreaConfig),
     /// Queue a switch to another scenario by id.
@@ -171,7 +181,22 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
             EventActionConfig::SetAllegiance(config) => {
                 config.action(world, info);
             }
-            EventActionConfig::ForceTorpedoLaunch(config) => {
+            EventActionConfig::MoveShipTo(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ForceAlign(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::StopShip(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ClearShipOrder(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ForceRailgunFire(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ForceTorpedoFire(config) => {
                 config.action(world, info);
             }
             EventActionConfig::CreateScenarioArea(config) => {
@@ -343,7 +368,12 @@ impl EventActionConfig {
             EventActionConfig::RefillAmmo(_) => Some("RefillAmmo"),
             EventActionConfig::SetControllerVerb(_) => Some("SetControllerVerb"),
             EventActionConfig::SetAllegiance(_) => Some("SetAllegiance"),
-            EventActionConfig::ForceTorpedoLaunch(_) => Some("ForceTorpedoLaunch"),
+            EventActionConfig::MoveShipTo(_) => Some("MoveShipTo"),
+            EventActionConfig::ForceAlign(_) => Some("ForceAlign"),
+            EventActionConfig::StopShip(_) => Some("StopShip"),
+            EventActionConfig::ClearShipOrder(_) => Some("ClearShipOrder"),
+            EventActionConfig::ForceRailgunFire(_) => Some("ForceRailgunFire"),
+            EventActionConfig::ForceTorpedoFire(_) => Some("ForceTorpedoFire"),
             EventActionConfig::CreateScenarioArea(_) => Some("CreateScenarioArea"),
 
             // A sequence is only a schedule. What it is worth is whatever its

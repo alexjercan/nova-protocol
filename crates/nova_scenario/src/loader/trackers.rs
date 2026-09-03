@@ -1,4 +1,5 @@
-//! Orbit-lifecycle and weapon-lock events derived from live ship state.
+//! Orbit-lifecycle, weapon-lock and scripted-helm-order events derived from
+//! live ship state.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -214,10 +215,234 @@ pub(super) fn track_player_locks(
     }
 }
 
+/// Report every scripted HELM order that has finished, once each.
+///
+/// Completion is read from the flight layer's own state rather than from a
+/// clock, which is the whole point of the event: a move is complete when the
+/// autopilot has released the ship, and an alignment when the hull has
+/// actually settled on its bearing. Both take exactly as long as the hull's
+/// thrust and rotation authority say they take, and no authored delay can
+/// guess that.
+///
+/// Cancellation, replacement, destruction and neutralization all REMOVE the
+/// order, so this system simply never sees one - which is how "a retired order
+/// reports nothing" falls out rather than being enforced. `reported` is flipped
+/// here because an alignment keeps its order installed while it holds the
+/// facing, so the order's presence cannot be the thing that says "not yet
+/// told".
+pub(super) fn track_ship_order_completions(
+    mut q_ships: Query<
+        (
+            &mut ScriptedHelmOrder,
+            &EntityId,
+            &EntityTypeName,
+            Has<Autopilot>,
+            Has<ScriptedAlignSettled>,
+        ),
+        With<SpaceshipRootMarker>,
+    >,
+    mut commands: Commands,
+) {
+    for (mut order, ship_id, ship_type_name, flying, settled) in &mut q_ships {
+        if order.reported {
+            continue;
+        }
+        let complete = match order.kind {
+            // The autopilot removes itself when the maneuver is done, so the
+            // absence of one IS the arrival or the stop.
+            ShipOrderKind::Move | ShipOrderKind::Stop => !flying,
+            ShipOrderKind::Align => settled,
+        };
+        if !complete {
+            continue;
+        }
+        debug!(
+            "track_ship_order_completions: ship '{}' completed {:?} order '{}'",
+            ship_id.0, order.kind, order.key
+        );
+        order.reported = true;
+        commands.fire::<OnShipOrderCompleteEvent>(OnShipOrderCompleteEventInfo {
+            order: order.key.clone(),
+            id: ship_id.0.clone(),
+            type_name: ship_type_name.0.clone(),
+            kind: order.kind,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::prelude::*;
+
+    /// A helm order reports its completion ONCE, under its own key, and only
+    /// when the flight layer actually says it is done. A `ShipOrder` filter is
+    /// what a waiting beat matches it with, so the test gates on one.
+    #[test]
+    fn a_helm_order_reports_its_completion_once_under_its_key() {
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
+        use nova_ship::prelude::{Autopilot, AutopilotAction, ScriptedHelmOrder};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_ship_order_completions);
+
+        // One counter per order key, each behind the filter that key's
+        // waiting beat would use.
+        for key in ["approach", "elsewhere"] {
+            let mut handler =
+                EventHandler::<NovaEventWorld>::from(EventConfig::OnShipOrderComplete);
+            handler.add_filter(EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                order: Some(key.to_string()),
+                ..default()
+            }));
+            handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key)),
+                    VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                        VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                    )),
+                ),
+            }));
+            app.world_mut().spawn(handler);
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
+        }
+        let count =
+            |app: &App, key: &str| match app.world().resource::<NovaEventWorld>().get_variable(key)
+            {
+                Some(VariableLiteral::Number(value)) => *value,
+                other => panic!("{key} count missing: {other:?}"),
+            };
+        let settle = |app: &mut App| {
+            app.update();
+            app.update();
+        };
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("warship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                ScriptedHelmOrder::new("approach".to_string(), ShipOrderKind::Move),
+                Autopilot::engage(AutopilotAction::GotoPos {
+                    position: Vec3::new(0.0, 0.0, -100.0),
+                }),
+            ))
+            .id();
+
+        settle(&mut app);
+        assert_eq!(
+            count(&app, "approach"),
+            0.0,
+            "a move still under its autopilot has not arrived"
+        );
+
+        // The autopilot removes itself when the maneuver is done; that IS the
+        // arrival, and the only thing this tracker reads.
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        settle(&mut app);
+        assert_eq!(count(&app, "approach"), 1.0, "the arrival is reported");
+        assert_eq!(
+            count(&app, "elsewhere"),
+            0.0,
+            "and only the beat waiting on THIS key hears it"
+        );
+
+        settle(&mut app);
+        assert_eq!(
+            count(&app, "approach"),
+            1.0,
+            "an order still installed - an alignment holds its facing - reports once"
+        );
+
+        // Given the same order again, it completes again: a patrol leg is
+        // reusable, and a fresh component is a fresh order.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ScriptedHelmOrder::new(
+                "approach".to_string(),
+                ShipOrderKind::Stop,
+            ));
+        settle(&mut app);
+        assert_eq!(
+            count(&app, "approach"),
+            2.0,
+            "the same key can be issued and completed twice"
+        );
+    }
+
+    /// An alignment completes on its own settle marker, never on the absence
+    /// of an autopilot - it never had one.
+    #[test]
+    fn an_alignment_reports_only_once_the_aim_has_settled() {
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
+        use nova_ship::prelude::{ScriptedAlignSettled, ScriptedHelmOrder};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_ship_order_completions);
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnShipOrderComplete);
+        handler.add_filter(EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+            kind: Some(ShipOrderKind::Align),
+            ..default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "aimed".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("aimed".to_string(), VariableLiteral::Number(0.0));
+        let aimed = |app: &App| match app
+            .world()
+            .resource::<NovaEventWorld>()
+            .get_variable("aimed")
+        {
+            Some(VariableLiteral::Number(value)) => *value,
+            other => panic!("aimed missing: {other:?}"),
+        };
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("warship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                ScriptedHelmOrder::new("bore_on_target".to_string(), ShipOrderKind::Align),
+            ))
+            .id();
+
+        app.update();
+        app.update();
+        assert_eq!(
+            aimed(&app),
+            0.0,
+            "no autopilot is not an arrival for an alignment - it never had one"
+        );
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ScriptedAlignSettled);
+        app.update();
+        app.update();
+        assert_eq!(aimed(&app), 1.0, "the settled aim is the completion");
+    }
 
     /// ORBIT events report each state edge once, including ordered well switches.
     #[test]

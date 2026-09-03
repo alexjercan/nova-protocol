@@ -160,6 +160,26 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub waypoint_slack: Option<Meters>,
+    /// Whether this armed ship flies itself but never fights: it patrols,
+    /// orbits, avoids and station-keeps exactly as any AI ship does, and never
+    /// acquires a target or pulls a trigger. See `AINonCombatant`.
+    ///
+    /// An UNARMED AI ship gets this behavior automatically - a hauler with no
+    /// mount cannot fight, so there is nothing to switch off. This field is for
+    /// the armed hull that should not: a military escort holding formation
+    /// through a scene it takes no part in.
+    ///
+    /// Not something to emulate with a long `engage_delay` or a tiny
+    /// `engage_range`. Both are timers and distances that eventually expire or
+    /// are crossed, so the ship opens fire in the middle of a beat that assumed
+    /// it would not; this is a standing statement about the hull.
+    ///
+    /// For a ship the SCENARIO drives shot by shot, use
+    /// `SpaceshipController::None` and the scripted helm and weapon actions
+    /// instead. The two cover the whole space between them: this one flies
+    /// itself and never shoots, that one does exactly and only what it is told.
+    #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
+    pub non_combatant: bool,
     /// Translation-arrival standoff override: how far from a GOTO goal this
     /// ship's computer comes to rest, instead of the engine's 500 m default.
     /// Author it small (with a small `waypoint_slack`) on a ship that must
@@ -170,6 +190,13 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub arrival_standoff: Option<Meters>,
+}
+
+/// `skip_serializing_if` predicate for a `bool` that defaults to false, so an
+/// ordinary combatant keeps the field out of its RON entirely.
+#[cfg(feature = "serde")]
+fn is_false(flag: &bool) -> bool {
+    !*flag
 }
 
 /// A ship section's scenario-local id, used to key input bindings and address
@@ -542,7 +569,12 @@ fn insert_spaceship_sections(
             // convoy hauler or civilian escort. It stays targetable by
             // hostiles, so a Player-aligned convoy is still hunted and must be
             // defended.
-            if !has_weapon {
+            //
+            // `non_combatant` is the same standing-down, ASKED FOR: an armed
+            // hull that flies itself and takes no part in the fight. One
+            // component either way, so nothing downstream has to know which of
+            // the two reasons applied.
+            if !has_weapon || config.non_combatant {
                 commands.entity(entity).insert(AINonCombatant);
             }
             if !config.patrol.is_empty() {
@@ -692,6 +724,7 @@ mod tests {
                 engage_range: None,
                 pd_range: None,
                 waypoint_slack: None,
+                non_combatant: false,
                 arrival_standoff: None,
             },
         );
@@ -803,6 +836,24 @@ mod tests {
             vec![],
         );
         assert!(!world.entity(player).contains::<AINonCombatant>());
+
+        // The asked-for case: armed, and told to stand down anyway.
+        let escort = spawn(
+            &mut world,
+            SpaceshipController::AI(AIControllerConfig {
+                non_combatant: true,
+                ..default()
+            }),
+            vec![turret_section()],
+        );
+        assert!(
+            world.entity(escort).contains::<AINonCombatant>(),
+            "an armed AI ship authored non_combatant must stand down"
+        );
+        assert!(
+            world.entity(escort).contains::<AISpaceshipMarker>(),
+            "and it is still an AI ship: it flies its own routine"
+        );
     }
 
     /// The arrival grace wires from config to component only for positive

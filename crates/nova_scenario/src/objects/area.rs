@@ -23,18 +23,34 @@ pub mod prelude {
 #[require(Collider, Sensor)]
 pub struct ScenarioAreaMarker;
 
-/// Per-(area, body) count of overlapping collider pairs, so a compound body
-/// entering an area fires exactly one `OnEnter` and one `OnExit`.
+/// Per-(area, body) SET of the colliders currently overlapping, so a compound
+/// body entering an area fires exactly one `OnEnter` and one `OnExit`.
 ///
 /// A spaceship is ONE rigid body wearing many section colliders, so avian fires
 /// a separate `CollisionStart`/`CollisionEnd` per section collider that touches
-/// an area sensor (empirically 3+ for the old trainer, 18 for a racer). Without
-/// this, an `OnEnter` handler that is not idempotent - the salvage crate's
-/// `despawn + crates_recovered += 1` - runs once PER section collider, despawning
-/// a crate several times and over-counting the tally. Counting contacts collapses
-/// the burst: `OnEnter` fires on the 0 -> 1 transition, `OnExit` on 1 -> 0.
+/// an area sensor (empirically 3+ for the old trainer, 18 for a racer, 90+ for a
+/// skinned block ship). Without this, an `OnEnter` handler that is not
+/// idempotent - the salvage crate's `despawn + crates_recovered += 1` - runs
+/// once PER section collider, despawning a crate several times and over-counting
+/// the tally. Collapsing the burst: `OnEnter` fires when the set fills, `OnExit`
+/// when it empties.
+///
+/// A SET, not a count. A ship loses colliders while it is inside an area - a
+/// destroyed section despawns, and so does every skin plate riding it - and
+/// avian fires no `CollisionEnd` for a collider that no longer exists. A counter
+/// therefore only ever climbed: measured over one menu duel, a block gunship
+/// took 270 starts against 149 ends, so its tally stood at 121 and the area
+/// could never report it leaving. Membership is repairable where a count is not:
+/// [`forget_collider_occupancy`] drops a dead collider from every set it is in,
+/// and the surviving sections still drive the set to empty when the ship
+/// finally leaves.
 #[derive(Resource, Default)]
-struct AreaOccupancy(bevy::platform::collections::HashMap<(Entity, Entity), u32>);
+struct AreaOccupancy(
+    bevy::platform::collections::HashMap<
+        (Entity, Entity),
+        bevy::platform::collections::HashSet<Entity>,
+    >,
+);
 
 /// Turns [`ScenarioAreaMarker`] sensor overlaps into scenario `OnEnter`/`OnExit`
 /// events, deduping a compound body's many section colliders to one enter/exit.
@@ -49,6 +65,7 @@ impl Plugin for ScenarioAreaPlugin {
         app.init_resource::<AreaOccupancy>();
         app.add_observer(wire_area_collisions);
         app.add_observer(forget_body_occupancy);
+        app.add_observer(forget_collider_occupancy);
     }
 }
 
@@ -77,6 +94,34 @@ fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<A
     occupancy
         .0
         .retain(|(area, other), _| *area != despawn.entity && *other != despawn.entity);
+}
+
+/// Drop a dead COLLIDER from every occupancy set it is in - the sub-body twin of
+/// [`forget_body_occupancy`], and what keeps a damaged ship able to leave an
+/// area at all.
+///
+/// A ship sheds colliders while it flies: a destroyed section despawns, and its
+/// skin plates go with it. avian fires no `CollisionEnd` for a collider that no
+/// longer exists, so without this the set keeps entries that nothing can ever
+/// remove and the body never reads as having left. The menu duel is the case
+/// that found it - two ships trading fire inside a trigger volume, neither able
+/// to trip its own exit.
+///
+/// PRUNE ONLY, like its sibling: an emptied set is dropped silently rather than
+/// reported as an `OnExit`, because a body that lost its last collider inside an
+/// area did not leave it.
+///
+/// Global, but it declines on an empty table first: a scenario with no areas
+/// pays one resource read per collider despawn.
+fn forget_collider_occupancy(despawn: On<Despawn, Collider>, mut occupancy: ResMut<AreaOccupancy>) {
+    if occupancy.0.is_empty() {
+        return;
+    }
+
+    occupancy.0.retain(|_, colliders| {
+        colliders.remove(&despawn.entity);
+        !colliders.is_empty()
+    });
 }
 
 /// Arm a fresh area for collision reporting and bind its two handlers TO THAT
@@ -131,10 +176,9 @@ fn on_collision_start_event(
 
     // One rigid body can present many colliders (a ship's sections), so avian
     // fires a CollisionStart per collider pair. Only the FIRST contact for this
-    // (area, body) pair is a real entry - count the rest without re-firing.
-    let count = occupancy.0.entry((area, other)).or_insert(0);
-    *count += 1;
-    if *count > 1 {
+    // (area, body) pair is a real entry - record the rest without re-firing.
+    let colliders = occupancy.0.entry((area, other)).or_default();
+    if !colliders.insert(collision.collider2) || colliders.len() > 1 {
         return;
     }
 
@@ -170,13 +214,13 @@ fn on_collision_end_event(
         return;
     };
 
-    // Mirror the start counter: only the LAST collider pair leaving is a real
-    // exit. If we have no record (a start we never saw), stay silent.
-    let Some(count) = occupancy.0.get_mut(&(area, other)) else {
+    // Mirror the start handler: only the LAST collider leaving is a real exit.
+    // If we have no record (a start we never saw, or a collider already pruned
+    // by its despawn), stay silent.
+    let Some(colliders) = occupancy.0.get_mut(&(area, other)) else {
         return;
     };
-    *count = count.saturating_sub(1);
-    if *count > 0 {
+    if !colliders.remove(&collision.collider2) || !colliders.is_empty() {
         return;
     }
     occupancy.0.remove(&(area, other));
@@ -192,7 +236,7 @@ fn on_collision_end_event(
 mod tests {
     use core::time::Duration;
 
-    use avian3d::prelude::{ColliderDensity, Gravity, PhysicsPlugins};
+    use avian3d::prelude::{ColliderDensity, Gravity, LinearVelocity, PhysicsPlugins};
     use bevy::time::TimeUpdateStrategy;
     use nova_events::prelude::{EventHandler, GameEventsPlugin};
     use nova_gameplay::prelude::GameObjectives;
@@ -343,6 +387,114 @@ mod tests {
         assert!(
             app.world().resource::<AreaOccupancy>().0.is_empty(),
             "the despawned body's row must not outlive it"
+        );
+    }
+
+    /// A compound body that LOSES a collider inside an area must still be able
+    /// to leave it. A ship sheds colliders as it is shot apart - destroyed
+    /// sections despawn, and their skin plates go with them - and avian fires no
+    /// `CollisionEnd` for a collider that no longer exists. The counter this
+    /// replaced could only climb: a block gunship fighting inside a menu-duel
+    /// trigger volume took 270 starts against 149 ends, so the area never
+    /// reported it leaving and an out-of-bounds rule built on `OnExit` never
+    /// fired.
+    #[test]
+    fn a_compound_body_that_loses_a_collider_can_still_leave() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            TransformPlugin,
+            AssetPlugin::default(),
+            bevy::mesh::MeshPlugin,
+            PhysicsPlugins::default(),
+        ));
+        app.insert_resource(Gravity(Vec3::ZERO));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.02,
+        )));
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_plugins(ScenarioAreaPlugin);
+        app.finish();
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(crate::events::EventConfig::OnExit);
+        handler.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("ring".to_string()),
+            other_id: Some("ship".to_string()),
+            ..Default::default()
+        }));
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "left".to_string(),
+            expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                VariableFactorNode::new_literal(VariableLiteral::Boolean(true)),
+            )),
+        }));
+        app.world_mut().spawn(handler);
+        let left = |app: &App| -> bool {
+            matches!(
+                app.world()
+                    .resource::<NovaEventWorld>()
+                    .get_variable("left"),
+                Some(VariableLiteral::Boolean(true))
+            )
+        };
+
+        let ship = app
+            .world_mut()
+            .spawn((
+                EntityId::new("ship".to_string()),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                RigidBody::Dynamic,
+                Transform::IDENTITY,
+            ))
+            .id();
+        let sections: Vec<Entity> = [-0.4_f32, 0.0, 0.4]
+            .into_iter()
+            .map(|dx| {
+                app.world_mut()
+                    .spawn((
+                        Collider::sphere(0.5),
+                        ColliderDensity(1.0),
+                        Transform::from_xyz(dx, 0.0, 0.0),
+                        ChildOf(ship),
+                    ))
+                    .id()
+            })
+            .collect();
+        app.world_mut().spawn((
+            ScenarioAreaMarker,
+            EntityId::new("ring".to_string()),
+            RigidBody::Static,
+            Collider::sphere(50.0),
+            Sensor,
+            Transform::IDENTITY,
+        ));
+        for _ in 0..25 {
+            app.update();
+        }
+        assert!(
+            !app.world().resource::<AreaOccupancy>().0.is_empty(),
+            "delivery guard: the whole body must be counted as inside first"
+        );
+
+        // One section is shot off INSIDE the area: its collider despawns and
+        // avian will never report an end for it.
+        app.world_mut().entity_mut(sections[0]).despawn();
+        app.update();
+        assert!(!left(&app), "losing a section is not leaving");
+
+        // The rest of the ship flies out.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(LinearVelocity(Vec3::new(200.0, 0.0, 0.0)));
+        for _ in 0..60 {
+            app.update();
+        }
+
+        assert!(
+            left(&app),
+            "a body that lost a collider inside the area must still fire OnExit"
         );
     }
 

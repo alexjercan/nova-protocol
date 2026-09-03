@@ -283,3 +283,102 @@ its rendered warship and cutter smokes each loaded 51 fixed objects, posted the
 role-specific objectives, attached all ten explanatory markers, clad all three
 ships, transferred the camera to the selected player ship, and remained live
 until the bounded timeout.
+
+### 2026-09-03: scripted ship control
+
+Implemented the Phase 1 prerequisites recorded above. `nova_events` gained
+`ShipOrderKind` and `OnShipOrderComplete`; `nova_ship` gained
+`flight::scripted` (the `ScriptedHelmOrder` family, the alignment drive and
+`SuspendedArrivalStandoff`) and `railgun_section::scripted`; `nova_scenario`
+gained `MoveShipTo`, `ForceAlign`, `StopShip`, `ClearShipOrder`,
+`ForceRailgunFire` and `ForceTorpedoFire`, a `ShipOrder` filter, the completion
+tracker, and `non_combatant` on `AIControllerConfig`. `ForceTorpedoLaunch` is
+gone. Content lint now refuses a scripted action on a driven ship, an empty
+order key, a `ShipOrder` filter no action can satisfy, and a section that is
+missing or of the wrong class. The two shipped backdrops that launched
+torpedoes and the creator docs were migrated.
+
+Proof: `cargo fmt --all` and `cargo check --workspace --all-targets` clean;
+`content -- lint` reports 0 errors, 0 warnings, 0 findings; the new tests pass
+(2 in `nova_events`, 5 in `nova_ship`, 27 in `nova_scenario` actions/objects/
+trackers, 35 in `lint::scenario`).
+
+### 2026-09-03: block fleet and menu backdrops
+
+Added `base_content::ships::block`: four hand-authored cube ships on the same
+cell grid the `first_shift` bench uses - `block_cutter` (industrial, unarmed,
+the accepted 26-cell workboat), `block_hauler` (industrial, unarmed, cargo
+shoulders on a 3x3 transom drive), `block_gunship` (armoured, six PDC mounts
+covering both hemispheres, one vector drive) and `block_raider` (salvage,
+asymmetric outrigger and scrap boom, four bell drives, two bolted-on guns).
+They are 70-95 m against the Kenney fleet's 41-48 m and about a third of the
+bench warship, which is the "cutter-sized, with guns" scale the owner asked
+for. Each wears a derived skin, so `block_ship` is the first catalog builder
+to set `skin` and `style`.
+
+All four base menu backdrops now fly them: the waystation's two freighters and
+the weave's runner through `backdrop_orbiter`, the gauntlet's stand, and both
+duellists (armoured gunship against salvage raider - the fleet's look argument
+in one shot). No base backdrop names a Kenney hull, turret or section id any
+more. The campaign scenarios still do; that is Phase 2's remaining half.
+
+The gauntlet's magazine had to be re-derived, not carried over. It is per
+TURRET, not per ship: splitting the old 800 rounds six ways was tried first and
+every bearing mount ran dry three seconds before impact, so the first torpedo
+through killed the ship in half a minute with nothing shot down. At 600 the
+stand swats four torpedoes, runs dry, and falls to the fifth at ~46 s.
+
+Proof: `cargo check -p nova_authoring --all-targets` clean; the new
+`base_content::ships::block` tests and the existing
+`every_shipped_ship_has_one_connected_mate_graph` pass (all four derive one
+connected mate graph); `content -- gen` regenerated and `content -- lint`
+reports 0 errors, 0 warnings, 0 findings. Live under Xvfb with
+`NOVA_MENU_BACKDROP` pinned per backdrop: every block ship spawns, clads (54-93
+plates in its own style) and FLIES - the weave cutter tracked its loop across
+three frames and the waystation's two haulers across four, the gauntlet gunship
+held station and its point defense killed four inbound torpedoes, and the duel
+ran to the rival's defeat, the finisher's allegiance flip and its siege launch.
+
+### 2026-09-03: the duel arena, and the trigger volume that could not report an exit
+
+The duel backdrop had a framing defect the block recast made obvious: the
+winner does not stop when the loser runs. The AI leash is not the answer -
+`beyond_leash` is overridden while a ship is `recently_damaged`, which is
+exactly the state a running fight holds both hulls in - so the survivor chases
+its target off the edge of the shot and stands there trading fire with nothing
+the player can see. Observed at 42 s of a live cycle: the gunship pinned to the
+left frame edge, tracers going off-camera.
+
+So the duel now fights inside a bounded arena. `duel_arena` is an 1,800 m
+`CreateScenarioArea` shell on the frame's center - past the widest frame
+half-width at the fight's depth (~1,410 m at 16:9, ~1,060 m at 4:3), inside the
+dressing ring's 2,200 m outer edge, twice the patrol triangle's ~870 m reach. A
+duelist that crosses it FORFEITS: it is set Neutral, which is invisible to
+`update_ai_target` (it re-picks every frame and keeps only hostile candidates),
+so the hull still in frame drops its lock, stops taking fire, and the leash
+finally walks it home. The rival's forfeit arms the same finisher beat its
+defeat would have; the victor's skips act two and runs straight to the hand-off.
+A `duel_decided` latch guards both paths and the defeat path, because otherwise
+a neutralized wreck coasting out of the arena would re-arm the finisher clock
+mid-flight and put a second siege torpedo in the air.
+
+The first cut did nothing at all, and the reason was an engine defect, not the
+authoring. `ScenarioAreaPlugin` refcounted overlapping collider pairs per (area,
+body), and a ship SHEDS colliders while it fights - a destroyed section
+despawns, and its skin plates go with it - for which avian fires no
+`CollisionEnd`. The counter could therefore only climb. Measured over one menu
+duel: 270 starts against 149 ends for the gunship, a tally stuck at 121, and no
+`OnExit` for either duellist in 100 s. Occupancy is now the SET of overlapping
+colliders, and `forget_collider_occupancy` drops a dead collider from every set
+it is in, so the surviving sections still drive the set to empty. Every trigger
+volume in the game gains this: the shakedown coast ring had the same hole.
+
+Proof: `a_compound_body_that_loses_a_collider_can_still_leave` is a genuine
+regression - it fails with the new observer unregistered and passes with it -
+and the three older area tests still pass. `content -- gen` regenerated,
+`content -- lint` reports 0 errors, 0 warnings, 0 findings. Live under Xvfb at
+the shipped 1,800 m: the forfeit fires at 33 s (`SetAllegiance: 'duel_rival' ->
+Neutral`), `duel_decided` is written exactly once, the finisher launches 4 s
+later, and the siege torpedo's kill lands just right of frame center at +23 s -
+where the old cycle had the survivor pinned to the edge. A 2,500 m probe was
+tried and rejected: it forfeits 5 s later for 700 m more off-frame chase.

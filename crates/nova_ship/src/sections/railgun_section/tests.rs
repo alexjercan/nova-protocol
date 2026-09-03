@@ -5,6 +5,7 @@
 use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
 use super::*;
+use crate::sections::ammo::tick_section_reload;
 
 /// A physics app running only the lance's cycle. Real avian, because the
 /// recoil is applied through `Forces` and a hand-built rig cannot stand in
@@ -579,4 +580,117 @@ fn an_authored_rake_survives_a_content_round_trip() {
     let written = ron::ser::to_string(&config).expect("a raking lance serializes");
     let read: RailgunSectionConfig = ron::from_str(&written).expect("and parses back");
     assert_eq!(read.rake_radius, Some(Meters(10.0)));
+}
+
+/// A scripted order holds the trigger through the gun's own gates, and the
+/// shot consumes it: exactly one shell leaves and the trigger comes back up.
+///
+/// The retire matters more than the fire. A held railgun trigger is a gun
+/// cycling at its own cadence, so an order left installed would keep shooting
+/// until the magazine ran out - which is the difference between "the warship
+/// fires a deliberate shot past the cutter" and "the warship empties itself".
+#[test]
+fn a_scripted_railgun_order_fires_one_shell_and_retires() {
+    let mut app = railgun_app();
+    app.add_systems(Update, hold_scripted_railgun_trigger);
+    app.add_observer(on_railgun_fired_retire_scripted_order);
+    // 1/60 s per step, so this is six steps of charge - long enough that the
+    // hold has to survive several frames to produce the shot.
+    let charge_seconds = 0.1;
+    let (_ship, lance) = spawn_lance_ship(
+        &mut app,
+        RailgunSectionConfig {
+            charge_seconds,
+            // One shell, so a gun that kept cycling would visibly run dry
+            // instead of silently firing forever.
+            ammo_capacity: Some(1),
+            ..default()
+        },
+        Vec3::NEG_Z * 2.0,
+    );
+
+    app.world_mut()
+        .entity_mut(lance)
+        .insert(ScriptedRailgunOrder);
+    for _ in 0..10 {
+        app.update();
+    }
+
+    assert_eq!(
+        slugs(&mut app).len(),
+        1,
+        "the order held the trigger through the charge and exactly one shell left"
+    );
+    assert!(
+        app.world().get::<ScriptedRailgunOrder>(lance).is_none(),
+        "the shot consumed the order"
+    );
+    assert!(
+        !**app
+            .world()
+            .get::<RailgunSectionInput>(lance)
+            .expect("the lance carries its trigger"),
+        "and released the trigger with it, so the gun does not cycle again"
+    );
+}
+
+/// The order does not skip a gate: an EMPTY gun holds its order instead of
+/// firing, and spends it on the shot the reload allows. A scripted shot that
+/// bypassed the magazine would be a second mechanic.
+#[test]
+fn a_scripted_railgun_order_waits_for_an_empty_gun_to_reload() {
+    let mut app = railgun_app();
+    app.add_systems(Update, hold_scripted_railgun_trigger);
+    app.add_observer(on_railgun_fired_retire_scripted_order);
+    // The reload is the subject here, so this app needs the system that runs
+    // it - after the fire cycle, the order the real schedule uses.
+    app.add_systems(
+        FixedUpdate,
+        tick_section_reload.after(charge_and_fire_railgun),
+    );
+    let (_ship, lance) = spawn_lance_ship(
+        &mut app,
+        RailgunSectionConfig {
+            ammo_capacity: Some(1),
+            reload: Some(SectionReloadConfig {
+                delay: 0.2,
+                amount: 1,
+            }),
+            ..default()
+        },
+        Vec3::NEG_Z * 2.0,
+    );
+
+    // Empty the magazine before the order lands.
+    app.world_mut()
+        .get_mut::<SectionAmmo>(lance)
+        .expect("a lance with a capacity carries a magazine")
+        .rounds = 0;
+    app.world_mut()
+        .entity_mut(lance)
+        .insert(ScriptedRailgunOrder);
+
+    app.update();
+    assert!(
+        slugs(&mut app).is_empty(),
+        "an empty gun refuses the commit, order or no order"
+    );
+    assert!(
+        app.world().get::<ScriptedRailgunOrder>(lance).is_some(),
+        "and keeps the order rather than losing the shot"
+    );
+
+    // 0.2 s of reload at 1/60 s per step, plus the instant charge.
+    for _ in 0..16 {
+        app.update();
+    }
+    assert_eq!(
+        slugs(&mut app).len(),
+        1,
+        "the reload delivered the shell and the waiting order spent it"
+    );
+    assert!(
+        app.world().get::<ScriptedRailgunOrder>(lance).is_none(),
+        "one shot, one order"
+    );
 }

@@ -89,6 +89,8 @@ pub(crate) enum FilterKind {
     Expression,
     /// Match a timer event by key.
     Timer(TimerFilterConfig),
+    /// Match a scripted ship order's completion by key, ship or kind.
+    ShipOrder(ShipOrderFilterConfig),
     /// Invert the one filter inside it.
     Not,
     /// Pass when both filters inside it pass.
@@ -266,6 +268,7 @@ pub(crate) fn event_label(name: EventConfig) -> &'static str {
         EventConfig::OnTravelLockEnd => "On Travel Unlock",
         EventConfig::OnCombatLockStart => "On Combat Lock",
         EventConfig::OnCombatLockEnd => "On Combat Unlock",
+        EventConfig::OnShipOrderComplete => "On Ship Order Complete",
     }
 }
 
@@ -278,6 +281,8 @@ pub(crate) enum FilterChoice {
     Expression,
     /// Match a timer by key.
     Timer,
+    /// Match a scripted ship order's completion.
+    ShipOrder,
     /// Invert one filter.
     Not,
     /// Both.
@@ -288,10 +293,11 @@ pub(crate) enum FilterChoice {
 
 impl FilterChoice {
     /// Every filter a handler can be given.
-    pub(crate) const ALL: [FilterChoice; 6] = [
+    pub(crate) const ALL: [FilterChoice; 7] = [
         FilterChoice::Entity,
         FilterChoice::Expression,
         FilterChoice::Timer,
+        FilterChoice::ShipOrder,
         FilterChoice::Not,
         FilterChoice::And,
         FilterChoice::Or,
@@ -303,6 +309,7 @@ impl FilterChoice {
             FilterChoice::Entity => "Entity",
             FilterChoice::Expression => "Expression",
             FilterChoice::Timer => "Timer",
+            FilterChoice::ShipOrder => "Ship Order",
             FilterChoice::Not => "Not",
             FilterChoice::And => "And",
             FilterChoice::Or => "Or",
@@ -315,6 +322,7 @@ impl FilterChoice {
             FilterChoice::Entity => "entity",
             FilterChoice::Expression => "expression",
             FilterChoice::Timer => "timer",
+            FilterChoice::ShipOrder => "order",
             FilterChoice::Not => "not",
             FilterChoice::And => "and",
             FilterChoice::Or => "or",
@@ -324,7 +332,10 @@ impl FilterChoice {
     /// How many child filters this kind takes. Zero for a leaf.
     pub(crate) fn operands(self) -> usize {
         match self {
-            FilterChoice::Entity | FilterChoice::Expression | FilterChoice::Timer => 0,
+            FilterChoice::Entity
+            | FilterChoice::Expression
+            | FilterChoice::Timer
+            | FilterChoice::ShipOrder => 0,
             FilterChoice::Not => 1,
             FilterChoice::And | FilterChoice::Or => 2,
         }
@@ -338,6 +349,7 @@ impl FilterChoice {
             FilterChoice::Entity => FilterKind::Entity(EntityFilterConfig::default()),
             FilterChoice::Expression => FilterKind::Expression,
             FilterChoice::Timer => FilterKind::Timer(TimerFilterConfig { key: String::new() }),
+            FilterChoice::ShipOrder => FilterKind::ShipOrder(ShipOrderFilterConfig::default()),
             FilterChoice::Not => FilterKind::Not,
             FilterChoice::And => FilterKind::And,
             FilterChoice::Or => FilterKind::Or,
@@ -483,6 +495,7 @@ pub(crate) fn filter_choice(kind: &FilterKind) -> FilterChoice {
         FilterKind::Entity(_) => FilterChoice::Entity,
         FilterKind::Expression => FilterChoice::Expression,
         FilterKind::Timer(_) => FilterChoice::Timer,
+        FilterKind::ShipOrder(_) => FilterChoice::ShipOrder,
         FilterKind::Not => FilterChoice::Not,
         FilterKind::And => FilterChoice::And,
         FilterKind::Or => FilterChoice::Or,
@@ -495,6 +508,7 @@ pub(crate) fn filter_config(kind: &FilterKind) -> Option<&dyn PartialReflect> {
     match kind {
         FilterKind::Entity(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
+        FilterKind::ShipOrder(config) => Some(config),
         FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
@@ -504,6 +518,7 @@ pub(crate) fn filter_config_mut(kind: &mut FilterKind) -> Option<&mut dyn Partia
     match kind {
         FilterKind::Entity(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
+        FilterKind::ShipOrder(config) => Some(config),
         FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
@@ -548,7 +563,12 @@ fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
         EventActionConfig::SetSpeedCap(config) => Some(config),
         EventActionConfig::SetControllerVerb(config) => Some(config),
         EventActionConfig::SetAllegiance(config) => Some(config),
-        EventActionConfig::ForceTorpedoLaunch(config) => Some(config),
+        EventActionConfig::MoveShipTo(config) => Some(config),
+        EventActionConfig::ForceAlign(config) => Some(config),
+        EventActionConfig::StopShip(config) => Some(config),
+        EventActionConfig::ClearShipOrder(config) => Some(config),
+        EventActionConfig::ForceRailgunFire(config) => Some(config),
+        EventActionConfig::ForceTorpedoFire(config) => Some(config),
         EventActionConfig::SetInfiniteAmmo(config) => Some(config),
         EventActionConfig::RefillAmmo(config) => Some(config),
         EventActionConfig::CreateScenarioArea(config) => Some(config),
@@ -582,7 +602,12 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
         EventActionConfig::SetSpeedCap(config) => Some(config),
         EventActionConfig::SetControllerVerb(config) => Some(config),
         EventActionConfig::SetAllegiance(config) => Some(config),
-        EventActionConfig::ForceTorpedoLaunch(config) => Some(config),
+        EventActionConfig::MoveShipTo(config) => Some(config),
+        EventActionConfig::ForceAlign(config) => Some(config),
+        EventActionConfig::StopShip(config) => Some(config),
+        EventActionConfig::ClearShipOrder(config) => Some(config),
+        EventActionConfig::ForceRailgunFire(config) => Some(config),
+        EventActionConfig::ForceTorpedoFire(config) => Some(config),
         EventActionConfig::SetInfiniteAmmo(config) => Some(config),
         EventActionConfig::RefillAmmo(config) => Some(config),
         EventActionConfig::CreateScenarioArea(config) => Some(config),
@@ -643,8 +668,18 @@ pub(crate) enum ActionChoice {
     SetControllerVerb,
     /// Change which side a ship is on.
     SetAllegiance,
-    /// Order a ship's torpedo bays to launch.
-    ForceTorpedoLaunch,
+    /// Fly a scripted ship to a point and report when it arrives.
+    MoveShipTo,
+    /// Turn a scripted ship's nose onto a point and hold it there.
+    ForceAlign,
+    /// Bring a scripted ship to rest.
+    StopShip,
+    /// Cancel whatever helm order a scripted ship is under.
+    ClearShipOrder,
+    /// Fire one named railgun.
+    ForceRailgunFire,
+    /// Fire one named torpedo bay at a target.
+    ForceTorpedoFire,
     /// Take a ship's magazines away, or give them back.
     SetInfiniteAmmo,
     /// Refill a ship's magazines, or one section's.
@@ -667,7 +702,7 @@ pub(crate) enum ActionChoice {
 
 impl ActionChoice {
     /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 28] = [
+    pub(crate) const ALL: [ActionChoice; 33] = [
         ActionChoice::Objective,
         ActionChoice::ObjectiveComplete,
         ActionChoice::ObjectiveMarkerAttach,
@@ -686,7 +721,12 @@ impl ActionChoice {
         ActionChoice::SetSpeedCap,
         ActionChoice::SetControllerVerb,
         ActionChoice::SetAllegiance,
-        ActionChoice::ForceTorpedoLaunch,
+        ActionChoice::MoveShipTo,
+        ActionChoice::ForceAlign,
+        ActionChoice::StopShip,
+        ActionChoice::ClearShipOrder,
+        ActionChoice::ForceRailgunFire,
+        ActionChoice::ForceTorpedoFire,
         ActionChoice::SetInfiniteAmmo,
         ActionChoice::RefillAmmo,
         ActionChoice::Outcome,
@@ -719,7 +759,12 @@ impl ActionChoice {
             ActionChoice::SetSpeedCap => "Set Speed Cap",
             ActionChoice::SetControllerVerb => "Set Flight Verb",
             ActionChoice::SetAllegiance => "Set Allegiance",
-            ActionChoice::ForceTorpedoLaunch => "Torpedo Launch",
+            ActionChoice::MoveShipTo => "Move Ship To",
+            ActionChoice::ForceAlign => "Force Align",
+            ActionChoice::StopShip => "Stop Ship",
+            ActionChoice::ClearShipOrder => "Clear Ship Order",
+            ActionChoice::ForceRailgunFire => "Railgun Fire",
+            ActionChoice::ForceTorpedoFire => "Torpedo Fire",
             ActionChoice::SetInfiniteAmmo => "Set Infinite Ammo",
             ActionChoice::RefillAmmo => "Refill Ammo",
             ActionChoice::Outcome => "Outcome",
@@ -753,7 +798,12 @@ impl ActionChoice {
             ActionChoice::SetSpeedCap => "cap",
             ActionChoice::SetControllerVerb => "verb",
             ActionChoice::SetAllegiance => "allegiance",
-            ActionChoice::ForceTorpedoLaunch => "launch",
+            ActionChoice::MoveShipTo => "move",
+            ActionChoice::ForceAlign => "align",
+            ActionChoice::StopShip => "stop",
+            ActionChoice::ClearShipOrder => "unorder",
+            ActionChoice::ForceRailgunFire => "railgun",
+            ActionChoice::ForceTorpedoFire => "torpedo",
             ActionChoice::SetInfiniteAmmo => "unlimited",
             ActionChoice::RefillAmmo => "refill",
             ActionChoice::Outcome => "outcome",
@@ -876,9 +926,37 @@ impl ActionChoice {
                     allegiance: Allegiance::Enemy,
                 })
             }
-            ActionChoice::ForceTorpedoLaunch => {
-                EventActionConfig::ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig {
-                    id: String::new(),
+            ActionChoice::MoveShipTo => EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+                order: String::new(),
+                ship: String::new(),
+                position: Meters3::ZERO,
+                arrival_standoff: None,
+            }),
+            ActionChoice::ForceAlign => EventActionConfig::ForceAlign(ForceAlignActionConfig {
+                order: String::new(),
+                ship: String::new(),
+                look_at: Meters3::ZERO,
+                tolerance_degrees: 2.0,
+            }),
+            ActionChoice::StopShip => EventActionConfig::StopShip(StopShipActionConfig {
+                order: String::new(),
+                ship: String::new(),
+            }),
+            ActionChoice::ClearShipOrder => {
+                EventActionConfig::ClearShipOrder(ClearShipOrderActionConfig {
+                    ship: String::new(),
+                })
+            }
+            ActionChoice::ForceRailgunFire => {
+                EventActionConfig::ForceRailgunFire(ForceRailgunFireActionConfig {
+                    ship: String::new(),
+                    section: String::new(),
+                })
+            }
+            ActionChoice::ForceTorpedoFire => {
+                EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
+                    ship: String::new(),
+                    section: String::new(),
                     target: String::new(),
                 })
             }
@@ -971,7 +1049,12 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
             EventActionConfig::SetSpeedCap(_) => ActionChoice::SetSpeedCap,
             EventActionConfig::SetControllerVerb(_) => ActionChoice::SetControllerVerb,
             EventActionConfig::SetAllegiance(_) => ActionChoice::SetAllegiance,
-            EventActionConfig::ForceTorpedoLaunch(_) => ActionChoice::ForceTorpedoLaunch,
+            EventActionConfig::MoveShipTo(_) => ActionChoice::MoveShipTo,
+            EventActionConfig::ForceAlign(_) => ActionChoice::ForceAlign,
+            EventActionConfig::StopShip(_) => ActionChoice::StopShip,
+            EventActionConfig::ClearShipOrder(_) => ActionChoice::ClearShipOrder,
+            EventActionConfig::ForceRailgunFire(_) => ActionChoice::ForceRailgunFire,
+            EventActionConfig::ForceTorpedoFire(_) => ActionChoice::ForceTorpedoFire,
             EventActionConfig::SetInfiniteAmmo(_) => ActionChoice::SetInfiniteAmmo,
             EventActionConfig::RefillAmmo(_) => ActionChoice::RefillAmmo,
             EventActionConfig::CreateScenarioArea(_) => ActionChoice::CreateScenarioArea,
@@ -1090,6 +1173,7 @@ fn lift_filter(
             (FilterKind::Expression, Vec::new(), Some(condition))
         }
         EventFilterConfig::Timer(config) => (FilterKind::Timer(config), Vec::new(), None),
+        EventFilterConfig::ShipOrder(config) => (FilterKind::ShipOrder(config), Vec::new(), None),
         EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
             (FilterKind::Not, vec![*inner], None)
         }
@@ -1570,6 +1654,7 @@ impl ScriptNodes<'_, '_> {
                 self.lower_condition(self.operands_of(node).into_iter().next()?)?,
             )),
             FilterKind::Timer(config) => EventFilterConfig::Timer(config.clone()),
+            FilterKind::ShipOrder(config) => EventFilterConfig::ShipOrder(config.clone()),
             // A combinator with an operand missing is DROPPED rather than
             // guessed at: `Not` of nothing is not `Not` of anything, and a
             // half-built one that lowered to its own inner filter would invert
@@ -1835,6 +1920,7 @@ fn walk_filter_names(filter: &EventFilterConfig, ids: &mut NamedIds) {
     match filter {
         EventFilterConfig::Entity(config) => collect(config, ids),
         EventFilterConfig::Timer(config) => collect(config, ids),
+        EventFilterConfig::ShipOrder(config) => collect(config, ids),
         EventFilterConfig::Expression(_) => {}
         EventFilterConfig::Conditional(conditional) => match conditional {
             ConditionalFilterConfig::Not(inner) => walk_filter_names(inner, ids),
@@ -1860,6 +1946,11 @@ fn collect(config: &dyn PartialReflect, ids: &mut NamedIds) {
             Names::Timer => ids.timers.push(text.to_string()),
             Names::Objective => ids.objectives.push(text.to_string()),
             Names::Scenario => ids.scenarios.push(text.to_string()),
+            // An order key and a section id are not document-wide names: the
+            // key is minted by the helm action that installs the order, and
+            // the section id only means anything inside the ship named beside
+            // it. Neither belongs in a list the whole document offers.
+            Names::Order | Names::Section => {}
         }
     });
 }

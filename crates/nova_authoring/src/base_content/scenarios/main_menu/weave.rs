@@ -34,7 +34,7 @@ const WEAVE_LOOP: [Meters3; 10] = [
     Meters3::new(733.0, -460.0, -823.0),
 ];
 
-/// A navigation drill behind the menu: a racer flies a ten-waypoint loop
+/// A navigation drill behind the menu: a cutter flies a ten-waypoint loop
 /// straight through the backdrop's rock band. There is nothing hostile
 /// anywhere; the scene is the passive pilot itself - GOTO legs, waypoint
 /// turns, and the avoidance detours around every rock the seeded scatter
@@ -60,9 +60,11 @@ pub(crate) fn menu_weave(
         ));
     }
 
-    // The ship: a racer on the patrol loop. No hostiles exist here, so it
-    // never leaves Patrol; the avoidance layer (AIAvoidanceDetour) rounds
-    // whatever rock blocks the current leg.
+    // The ship: an unarmed block cutter on the patrol loop. No hostiles exist
+    // here, so it never leaves Patrol; the avoidance layer (AIAvoidanceDetour)
+    // rounds whatever rock blocks the current leg. The cutter's two bell
+    // drives make it the slowest hull in the fleet, which is the point - the
+    // thread reads as deliberate rather than as a fly-through.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "weave_runner".to_string(),
@@ -83,7 +85,7 @@ pub(crate) fn menu_weave(
                 arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()
             }),
-            hull: ships::hull(ships::RACER_SHIP_ID),
+            hull: ships::hull(ships::BLOCK_CUTTER_SHIP_ID),
             ..Default::default()
         }),
     });

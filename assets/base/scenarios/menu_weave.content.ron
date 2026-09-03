@@ -272,7 +272,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("racer"),
+                            hull: Prototype("block_cutter"),
                             controller: AI((
                                 patrol: [
                                     (

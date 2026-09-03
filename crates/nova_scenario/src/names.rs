@@ -36,6 +36,11 @@ pub mod prelude {
 /// The split between [`Names::Object`] and [`Names::NewObject`] is the one
 /// that matters to a reader: a reference must already exist and is offered as
 /// a choice, while a declaration mints an id and must not collide.
+///
+/// [`Names::Order`] and [`Names::Section`] are both references, but neither
+/// resolves against the scenario's spawns: an order key is minted by the helm
+/// action that installs it, and a section id is only meaningful inside the one
+/// ship the same config names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Reflect)]
 pub enum Names {
     /// A scenario object something ELSE spawned: a ship, a rock, a beacon, an
@@ -53,4 +58,11 @@ pub enum Names {
     Scenario,
     /// A HUD objective, by the id it was posted under.
     Objective,
+    /// A scripted ship order, by the key its completion is reported under.
+    /// Declared by the helm action that installs the order and referenced by
+    /// the `ShipOrder` filter that waits for it.
+    Order,
+    /// One section of a ship, by its authored section id. Scoped to the ship
+    /// the same config names, unlike every other variant here.
+    Section,
 }

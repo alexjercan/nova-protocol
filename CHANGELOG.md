@@ -44,6 +44,12 @@ does NOT get an entry - and it is the only place they are written down.
 ### Scenarios & Objectives
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
+- Every main-menu backdrop flies the block fleet now: the waystation's
+  freighters, the weave's runner, the gauntlet's stand and both duellists. No
+  backdrop needs a modelled ship.
+- A menu duellist that leaves the arena forfeits: it goes neutral, and the
+  survivor drops the chase and comes back to the middle of the shot instead of
+  trading fire past the frame edge.
 
 ### Interface & HUD
 - A railgun carries the same ammo gauge as a turret or a bay, drawn in the
@@ -81,6 +87,9 @@ does NOT get an entry - and it is the only place they are written down.
   flank can say what the ship carries.
 - Generated hulls carry bays: the WFC solver collapses a multi-cell part as a
   chain of segment tiles instead of skipping everything larger than one cell.
+- Four block ships join the catalog - a utility cutter, a bulk hauler, an
+  armoured patrol gunship and a salvage raider - each hand-built from shipped
+  cube sections and wearing a derived skin.
 
 ### Modding & Mod Portal
 - **(breaking)** Content is authored in meters: a 300 m blast is
@@ -98,6 +107,21 @@ does NOT get an entry - and it is the only place they are written down.
 - Two actions reach a live ship's magazines: `SetInfiniteAmmo` suspends them
   and gives back the authored capacity, full; `RefillAmmo` tops up one section
   or every weapon.
+- **(breaking)** `ForceTorpedoLaunch` is now `ForceTorpedoFire` and names ONE
+  bay by section id instead of firing every bay. Rename it, rename `id:` to
+  `ship:`, and add `section:`.
+- Five actions script a `None`-controller ship: `MoveShipTo`, `ForceAlign`,
+  `StopShip`, `ClearShipOrder` and `ForceRailgunFire`. Move, align and stop are
+  one order at a time, each under a named key.
+- `OnShipOrderComplete` and a `ShipOrder` filter report a scripted order
+  landing, by key, ship and kind, so a `Sequence` gate holds a set piece to the
+  ship's own flight instead of a guessed delay.
+- A scripted action refuses a player- or AI-driven ship - taking the helm from
+  either loses. `content lint` says so, and checks order keys and a weapon's
+  section id and class.
+- An armed AI ship can stand down: `non_combatant: true` flies its routine and
+  never acquires or fires. An `engage_delay` or a narrow `engage_range` only
+  postpones it.
 - **(breaking)** A player controller's `infinite_ammo` is gone. Delete the
   field: a gun that should never run dry omits its `ammo_capacity`, and
   content grants the rest with `SetInfiniteAmmo`.
@@ -150,6 +174,11 @@ does NOT get an entry - and it is the only place they are written down.
   sound for losing.
 - Four volume sliders - master, interface, world and music - saved with the
   rest of the settings. Music is reserved: nothing routes to it yet.
+
+### Fixes
+- A trigger volume reports a ship LEAVING again. A damaged ship despawns
+  section colliders inside the volume, and the occupancy count that never saw
+  those colliders end held it inside forever.
 
 ### Internals & Tooling
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch

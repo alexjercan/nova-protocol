@@ -37,7 +37,9 @@ use lifecycle::{
     scenario_bindings, unload_scenario, ScenarioInputMarker,
 };
 use preload::register_scenario_preload;
-use trackers::{track_orbit_transitions, track_player_locks, LockEcho, OrbitEcho};
+use trackers::{
+    track_orbit_transitions, track_player_locks, track_ship_order_completions, LockEcho, OrbitEcho,
+};
 pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
 /// Glob-import surface: `use nova_scenario::loader::prelude::*` brings the
@@ -569,6 +571,18 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_systems(
             FixedUpdate,
             track_orbit_transitions
+                .after(NovaFlightSystems)
+                .run_if(scenario_is_live),
+        );
+
+        // Scripted helm-order completions. After the flight layer, like the
+        // orbit tracker and for the same reason: the autopilot's release and
+        // the alignment's settle both land this tick, and reading them a tick
+        // late would put every scripted beat one tick behind the physics it is
+        // sequenced against.
+        app.add_systems(
+            FixedUpdate,
+            track_ship_order_completions
                 .after(NovaFlightSystems)
                 .run_if(scenario_is_live),
         );

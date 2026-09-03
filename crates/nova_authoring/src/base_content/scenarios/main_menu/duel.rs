@@ -1,5 +1,12 @@
-//! The duel-cycle main-menu backdrop: two corvettes fight, the winner is
-//! erased by a siege torpedo, and after a beat two fresh ships fly in.
+//! The duel-cycle main-menu backdrop: an armoured gunship and a salvage
+//! raider fight inside a bounded arena, the winner is erased by a siege
+//! torpedo, and after a beat two fresh ships fly in.
+//!
+//! The two hulls are the fleet's LOOK argument: same cube vocabulary, opposite
+//! read. The gunship is squared off, symmetric and armoured, with six mounts;
+//! the raider is the same tonnage worn down to an outrigger, a scrap boom and
+//! two guns bolted where they fitted. A menu visitor should be able to call
+//! the fight before a shot lands.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -9,7 +16,7 @@ use nova_scenario::prelude::*;
 use super::shared::{backdrop_camera, backdrop_rig, planetoid_glow};
 use crate::{
     base_content::{scenarios::SCATTER_SEED, ships},
-    scenario_helpers::{entity, number},
+    scenario_helpers::{entity, entity_pair, number, number_equals, set_number},
 };
 
 /// The finisher battery's park: far outside the ~+-2.3 km camera frame AND
@@ -23,14 +30,37 @@ const BATTERY_POS: Meters3 = Meters3::new(-9_500.0, 0.0, 0.0);
 const VICTOR_SPAWN: Meters3 = Meters3::new(-4_200.0, 250.0, 1_000.0);
 const RIVAL_SPAWN: Meters3 = Meters3::new(4_200.0, -150.0, -1_000.0);
 
-/// One duelist: a corvette that flies in from off-screen onto an in-frame
+/// The out-of-bounds shell, centered on the fight. A backdrop is a SHOT
+/// before it is a fight, and the AI leash cannot keep it in one: `beyond_leash`
+/// is overridden while a ship is `recently_damaged`
+/// (crates/nova_ship/src/input/ai/behavior.rs), which is exactly the state a
+/// running duel holds both hulls in. So the arena, not the leash, is what keeps
+/// the act on camera - observed live, a winner sat at the left frame edge
+/// firing tracers at a rival that had already left the shot.
+///
+/// 1,800 m is past the widest frame half-width at the fight's depth (~1,410 m
+/// at 16:9, ~1,060 m at 4:3), so a ship reaching the wall is already out of
+/// frame; inside the dressing ring's 2,200 m outer edge, so the boundary has
+/// something drawn on it; and twice the patrol triangle's ~870 m reach, so an
+/// ordinary merge and overshoot never touches it.
+const ARENA_ID: &str = "duel_arena";
+const ARENA_RADIUS: Meters = Meters(1_800.0);
+/// The act is decided ONCE - by a defeat or by a forfeit, whichever lands
+/// first. Without the latch a neutralized wreck coasting out of the arena
+/// would re-arm the finisher clock mid-flight and put a second siege torpedo
+/// in the air, the doubling the 20 s re-arm exists to prevent.
+const VAR_DECIDED: &str = "duel_decided";
+
+/// One duelist: a block warship that flies in from off-screen onto an in-frame
 /// patrol triangle. The arrival grace holds the entrance (ships spawn in
 /// the Engage state and hold on ANY acquired target, so an ungraced spawn
 /// would turn and burn from the spawn point instead of flying in); the
-/// leash, anchored on the patrol centroid at the frame's center, keeps the
-/// fight from drifting out of shot. With no rock and no gravity anywhere in
-/// the scene, every chase line through the center is clear - the fight
-/// happens IN the middle of the frame, not pinned against a planetoid.
+/// leash, anchored on the patrol centroid at the frame's center, pulls a
+/// wandering hull back. The leash is the SOFT bound only - a ship under fire
+/// ignores it - so the arena shell behind it is what actually keeps the act in
+/// shot. With no rock and no gravity anywhere in the scene, every chase line
+/// through the center is clear - the fight happens IN the middle of the frame,
+/// not pinned against a planetoid.
 fn duelist(
     id: &str,
     name: &str,
@@ -58,27 +88,32 @@ fn duelist(
                 engage_delay: Some(6.0),
                 ..Default::default()
             }),
-            // Hardened flight computers on BOTH duelists: the tight rings
-            // make the merge a nose-to-nose joust, and a stock controller
-            // dies to the opening burst - which under the brain-death
-            // defeat rule would end the act seconds after it starts. The
-            // 500 keeps the DOGFIGHT on screen; however the loser finally
-            // cripples (guns, computer, or full destruction), the defeat
-            // chain fires and the finale plays.
+            // Hardened bridges on BOTH duelists: the tight rings make the
+            // merge a nose-to-nose joust, and a stock controller dies to the
+            // opening burst - which under the brain-death defeat rule would
+            // end the act seconds after it starts. The 500 keeps the DOGFIGHT
+            // on screen; however the loser finally cripples (guns, computer,
+            // or full destruction), the defeat chain fires and the finale
+            // plays. The block hulls bury their computers under plate, so
+            // this is now belt-and-braces rather than the only thing holding
+            // the act up - and the exposed guns are what actually decide it.
             hull: ships::hull(ship),
             modifications: vec![ships::on_section(
-                ships::FUSELAGE_SECTION_ID,
+                ships::BLOCK_BRIDGE_SECTION_ID,
                 vec![SectionModification::SetHealth(500.0)],
             )],
         }),
     }
 }
 
-/// A repeating three-act battle behind the menu. Act one: a player-grade
-/// corvette (Player allegiance) and an enemy-grade corvette fly in from opposite
-/// sides and dogfight through the open center of the frame; the gun gap
-/// makes the outcome all but certain. Act two: the rival's defeat starts a
-/// short beat, then the off-screen siege battery is SCRIPTED to launch an
+/// A repeating three-act battle behind the menu. Act one: an armoured patrol
+/// gunship (Player allegiance) and a salvage raider fly in from opposite sides
+/// and dogfight through the open center of the frame; the gun gap - six mounts
+/// against two - makes the outcome all but certain. A duelist that leaves the
+/// arena shell FORFEITS and the act resolves without it, so the survivor holds
+/// the middle of the frame instead of chasing a runner off the edge of the
+/// shot. Act two: the rival's defeat (or forfeit) starts a short beat, then the
+/// off-screen siege battery is SCRIPTED to launch an
 /// armored ship-killing torpedo at the winner - point defense hammers the
 /// ordnance and loses - re-firing on a slow clock until one connects. Act
 /// three: the aftermath drifts for a beat, then the carousel turns to the
@@ -177,7 +212,7 @@ pub(crate) fn menu_duel(
             Meters3::new(700.0, 150.0, -500.0),
             Meters3::new(0.0, 50.0, 700.0),
         ],
-        ships::CARGOA_SHIP_ID,
+        ships::BLOCK_GUNSHIP_SHIP_ID,
         // The relation model only makes Player<->Enemy hostile: one duelist
         // must fly the player's colors for AI-vs-AI combat to exist. It also
         // makes the Enemy finisher's ordnance hostile to the winner.
@@ -195,7 +230,7 @@ pub(crate) fn menu_duel(
             Meters3::new(-700.0, -100.0, 500.0),
             Meters3::new(0.0, -150.0, -700.0),
         ],
-        ships::CARGOA_RAIDER_SHIP_ID,
+        ships::BLOCK_RAIDER_SHIP_ID,
         None,
     ));
 
@@ -203,6 +238,12 @@ pub(crate) fn menu_duel(
         EventActionConfig::TimerStart(TimerStartActionConfig {
             key: key.to_string(),
             seconds: number(seconds),
+        })
+    };
+    let forfeit = |id: &str| {
+        EventActionConfig::SetAllegiance(SetAllegianceActionConfig {
+            id: id.to_string(),
+            allegiance: Allegiance::Neutral,
         })
     };
 
@@ -220,6 +261,14 @@ pub(crate) fn menu_duel(
                 .chain([
                     backdrop_camera(Meters3::new(0.0, 570.0, 1_920.0)),
                     rock_scatter,
+                    EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+                        id: ARENA_ID.to_string(),
+                        name: "Duel Arena".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        radius: ARENA_RADIUS,
+                    }),
+                    set_number(VAR_DECIDED, 0.0),
                     timer("duel_respawn", 0.5),
                     // Stall watchdog: a duelist can end up crippled without
                     // ever counting as DEFEATED (observed live: a rival lost
@@ -249,8 +298,58 @@ pub(crate) fn menu_duel(
             label: None,
             name: EventConfig::OnDefeated,
             once: false,
-            filters: vec![entity("duel_rival")],
-            actions: vec![timer("duel_finisher_beat", 4.0)],
+            filters: vec![entity("duel_rival"), number_equals(VAR_DECIDED, 0.0)],
+            actions: vec![
+                set_number(VAR_DECIDED, 1.0),
+                timer("duel_finisher_beat", 4.0),
+            ],
+        },
+        // The forfeit rule, both ways: a duelist that crosses the arena wall
+        // is out, and the act resolves as if it had lost. The leaver goes
+        // NEUTRAL rather than being despawned - `update_ai_target` re-picks
+        // every frame and keeps only HOSTILE candidates, so the hull still in
+        // frame drops its lock the moment the other crosses, its damage memory
+        // lapses, and the leash finally walks it home to the patrol centroid
+        // at the frame's center. Neutral also stops the leaver shooting back,
+        // which is what was overriding the leash. The disqualified ship keeps
+        // flying its own routine and drifts back into shot as a bystander; a
+        // despawn would pop a ship out of the sky in full view.
+        //
+        // Both duelists SPAWN outside the arena and fly in, so the entry is
+        // always an OnEnter first - a ship that never reaches the frame never
+        // forfeits, and the defeat chain covers it.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnExit,
+            once: false,
+            filters: vec![
+                entity_pair(ARENA_ID, "duel_rival"),
+                number_equals(VAR_DECIDED, 0.0),
+            ],
+            actions: vec![
+                set_number(VAR_DECIDED, 1.0),
+                forfeit("duel_rival"),
+                // The rival is out, so the gunship has won: the same beat its
+                // defeat would have armed, and the finale plays unchanged.
+                timer("duel_finisher_beat", 4.0),
+            ],
+        },
+        // The mirror branch. There is no victor left in frame for the siege
+        // torpedo to erase, so act two is skipped and the aftermath runs
+        // straight into the hand-off on the usual eight-second drift.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnExit,
+            once: false,
+            filters: vec![
+                entity_pair(ARENA_ID, "duel_victor"),
+                number_equals(VAR_DECIDED, 0.0),
+            ],
+            actions: vec![
+                set_number(VAR_DECIDED, 1.0),
+                forfeit("duel_victor"),
+                timer("duel_reset", 8.0),
+            ],
         },
         // The finisher clock: launch at the winner and re-arm itself, so a
         // miss (or a launch skipped because the victor just died to a wreck
@@ -273,8 +372,9 @@ pub(crate) fn menu_duel(
                     id: "duel_finisher".to_string(),
                     allegiance: Allegiance::Enemy,
                 }),
-                EventActionConfig::ForceTorpedoLaunch(ForceTorpedoLaunchActionConfig {
-                    id: "duel_finisher".to_string(),
+                EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
+                    ship: "duel_finisher".to_string(),
+                    section: "siege_bay".to_string(),
                     target: "duel_victor".to_string(),
                 }),
                 timer("duel_finisher_beat", 20.0),
@@ -329,7 +429,8 @@ pub(crate) fn menu_duel(
     ];
 
     ScenarioConfig {
-        description: "Two corvettes duel; a siege torpedo erases the winner; repeat.".to_string(),
+        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat."
+            .to_string(),
         hidden: true,
         menu_backdrop: true,
         events,

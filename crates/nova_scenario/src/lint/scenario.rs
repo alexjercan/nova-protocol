@@ -1,6 +1,8 @@
 //! Reference and pacing checks over one scenario or campaign config.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use nova_gameplay::prelude::SectionClass;
 
 use super::{ship::check_object_prototypes, KnownSections, KnownShips, LintIssue};
 use crate::prelude::*;
@@ -14,8 +16,20 @@ struct Declared {
     scatter_prefixes: Vec<String>,
     set_vars: HashSet<String>,
     timer_keys: HashSet<String>,
+    order_keys: HashSet<String>,
     objective_ids: HashSet<String>,
     completed_objectives: HashSet<String>,
+    /// The ships this scenario spawns BY NAME, so a check can ask what one of
+    /// them is built from and who drives it. Scattered ships are absent on
+    /// purpose: their ids are `<prefix><n>`, minted at runtime, so nothing
+    /// static can resolve one.
+    spawned_ships: HashMap<String, SpawnedShip>,
+}
+
+/// What the lint knows about one ship a spawn declares.
+struct SpawnedShip {
+    hull: ShipSource,
+    controller: SpaceshipController,
 }
 
 /// Lint one campaign against the scenario ids the caller knows about
@@ -224,7 +238,7 @@ pub fn lint_scenario(
                 filter,
                 id,
                 &satisfiable,
-                &declared.timer_keys,
+                &declared,
                 &mut used_vars,
                 &mut issues,
             );
@@ -235,7 +249,7 @@ pub fn lint_scenario(
                     filter,
                     id,
                     &satisfiable,
-                    &declared.timer_keys,
+                    &declared,
                     &mut used_vars,
                     &mut issues,
                 );
@@ -248,7 +262,7 @@ pub fn lint_scenario(
                     ships,
                     known_scenarios,
                     &satisfiable,
-                    &declared.timer_keys,
+                    &declared,
                     &mut used_vars,
                     &mut issues,
                 );
@@ -493,6 +507,15 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
             declared.spawn_ids.push(config.base.id.clone());
+            if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
+                declared.spawned_ships.insert(
+                    config.base.id.clone(),
+                    SpawnedShip {
+                        hull: ship.hull.clone(),
+                        controller: ship.controller.clone(),
+                    },
+                );
+            }
         }
         EventActionConfig::ScatterObjects(config) => {
             declared.scatter_prefixes.push(config.id_prefix.clone());
@@ -505,6 +528,15 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         }
         EventActionConfig::TimerStart(config) => {
             declared.timer_keys.insert(config.key.clone());
+        }
+        EventActionConfig::MoveShipTo(config) => {
+            declared.order_keys.insert(config.order.clone());
+        }
+        EventActionConfig::ForceAlign(config) => {
+            declared.order_keys.insert(config.order.clone());
+        }
+        EventActionConfig::StopShip(config) => {
+            declared.order_keys.insert(config.order.clone());
         }
         EventActionConfig::Objective(config) => {
             declared.objective_ids.insert(config.id.clone());
@@ -527,7 +559,7 @@ fn check_action(
     ships: &KnownShips,
     known_scenarios: &HashSet<String>,
     satisfiable: &dyn Fn(&str) -> bool,
-    timer_keys: &HashSet<String>,
+    declared: &Declared,
     used_vars: &mut HashSet<String>,
     issues: &mut Vec<LintIssue>,
 ) {
@@ -597,7 +629,7 @@ fn check_action(
                     scenario,
                     "TimerCancel has an empty key".to_string(),
                 ));
-            } else if !timer_keys.contains(&config.key) {
+            } else if !declared.timer_keys.contains(&config.key) {
                 issues.push(LintIssue::warn(
                     scenario,
                     format!(
@@ -692,19 +724,120 @@ fn check_action(
         EventActionConfig::SetAllegiance(config) => {
             check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
         }
-        EventActionConfig::ForceTorpedoLaunch(config) => {
-            check_target(
-                &config.id,
-                "ForceTorpedoLaunch",
+        EventActionConfig::MoveShipTo(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "MoveShipTo",
                 scenario,
                 satisfiable,
+                declared,
+                issues,
+            );
+            check_order_key(&config.order, "MoveShipTo", scenario, issues);
+            if let Some(standoff) = config.arrival_standoff {
+                if !standoff.0.is_finite() || standoff.0 < 0.0 {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "MoveShipTo '{}' arrival_standoff must be a non-negative finite \
+                             number of meters, got {}",
+                            config.order, standoff.0
+                        ),
+                    ));
+                }
+            }
+        }
+        EventActionConfig::ForceAlign(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "ForceAlign",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_order_key(&config.order, "ForceAlign", scenario, issues);
+            // A negative or non-finite tolerance can never be met, so the
+            // order never completes and every beat chained off it stalls
+            // until its deadline. Zero is legal but asks for a perfect aim.
+            if !config.tolerance_degrees.is_finite() || config.tolerance_degrees < 0.0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "ForceAlign '{}' tolerance_degrees must be a non-negative finite \
+                         number, got {}; the order could never complete",
+                        config.order, config.tolerance_degrees
+                    ),
+                ));
+            }
+        }
+        EventActionConfig::StopShip(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "StopShip",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_order_key(&config.order, "StopShip", scenario, issues);
+        }
+        EventActionConfig::ClearShipOrder(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "ClearShipOrder",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+        }
+        EventActionConfig::ForceRailgunFire(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "ForceRailgunFire",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_ship_section(
+                &config.ship,
+                &config.section,
+                SectionClass::Railgun,
+                "ForceRailgunFire",
+                scenario,
+                sections,
+                ships,
+                declared,
+                issues,
+            );
+        }
+        EventActionConfig::ForceTorpedoFire(config) => {
+            check_scripted_ship(
+                &config.ship,
+                "ForceTorpedoFire",
+                scenario,
+                satisfiable,
+                declared,
                 issues,
             );
             check_target(
                 &config.target,
-                "ForceTorpedoLaunch",
+                "ForceTorpedoFire",
                 scenario,
                 satisfiable,
+                issues,
+            );
+            check_ship_section(
+                &config.ship,
+                &config.section,
+                SectionClass::Torpedo,
+                "ForceTorpedoFire",
+                scenario,
+                sections,
+                ships,
+                declared,
                 issues,
             );
         }
@@ -766,11 +899,125 @@ fn check_target(
     }
 }
 
+/// A scripted action's actor: the id must resolve, and nothing else may be
+/// driving it.
+///
+/// The controller half is catchable at AUTHOR time and so is checked here
+/// rather than left to a runtime error: the id is already proven to be spawned
+/// by this scenario, which means its `SpaceshipController` is sitting in the
+/// same file. A ship this scenario does not spawn by name (a scattered one)
+/// gets the id check only - there is nothing static to read.
+fn check_scripted_ship(
+    ship: &str,
+    what: &str,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    check_target(ship, what, scenario, satisfiable, issues);
+    let Some(spawned) = declared.spawned_ships.get(ship) else {
+        return;
+    };
+    let driver = match &spawned.controller {
+        SpaceshipController::None => return,
+        SpaceshipController::Player(_) => "player-driven",
+        SpaceshipController::AI(_) => "AI-driven",
+    };
+    issues.push(LintIssue::error(
+        scenario,
+        format!(
+            "{what} targets ship '{ship}', which is {driver}; a scripted action only \
+             drives a `SpaceshipController::None` ship (use `non_combatant` for an \
+             armed ship that flies itself and never shoots)"
+        ),
+    ));
+}
+
+/// A helm order's key must be a real key: it is what a `ShipOrder` filter
+/// matches on, and an empty one cannot be told apart from an unset field.
+fn check_order_key(order: &str, what: &str, scenario: &str, issues: &mut Vec<LintIssue>) {
+    if order.trim().is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{what} has an empty order key (nothing could wait for its completion)"),
+        ));
+    }
+}
+
+/// A section-addressed weapon action must name a section the ship carries, of
+/// the class the action fires.
+///
+/// The class check is the point. Naming a hull block where a railgun was meant
+/// is an ordinary authoring slip, and at runtime it either fires nothing or -
+/// worse, before this - fired some other mount. Both are the kind of failure a
+/// set piece hides until someone watches it play.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one section reference, checked against every catalog that can resolve it"
+)]
+fn check_ship_section(
+    ship: &str,
+    section: &str,
+    wanted: SectionClass,
+    what: &str,
+    scenario: &str,
+    sections: &KnownSections,
+    ships: &KnownShips,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    if section.trim().is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{what} on ship '{ship}' has an empty section id"),
+        ));
+        return;
+    }
+    // A ship this scenario does not spawn by name, or a catalog hull the
+    // caller cannot see, leaves nothing to resolve the section against.
+    let Some(spawned) = declared.spawned_ships.get(ship) else {
+        return;
+    };
+    let hull = match &spawned.hull {
+        ShipSource::Inline(hull) => hull,
+        ShipSource::Prototype(id) => match ships.get(id) {
+            Some(hull) => hull,
+            None => return,
+        },
+    };
+    let Some(placed) = hull.sections.iter().find(|placed| placed.id == section) else {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{what} names section '{section}', which ship '{ship}' does not carry"),
+        ));
+        return;
+    };
+    // An unresolvable prototype is already an error where the hull is linted;
+    // saying so twice from here would only add noise.
+    let class = match &placed.source {
+        SectionSource::Inline(config) => config.kind.class(),
+        SectionSource::Prototype(proto) => match sections.get(proto) {
+            Some(known) => known.class,
+            None => return,
+        },
+    };
+    if class != wanted {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "{what} names section '{section}' of ship '{ship}', which is a \
+                 {class:?} and not a {wanted:?}"
+            ),
+        ));
+    }
+}
+
 fn check_filter(
     filter: &EventFilterConfig,
     scenario: &str,
     satisfiable: &dyn Fn(&str) -> bool,
-    timer_keys: &HashSet<String>,
+    declared: &Declared,
     used_vars: &mut HashSet<String>,
     issues: &mut Vec<LintIssue>,
 ) {
@@ -797,7 +1044,7 @@ fn check_filter(
                     scenario,
                     "Timer filter has an empty key".to_string(),
                 ));
-            } else if !timer_keys.contains(&config.key) {
+            } else if !declared.timer_keys.contains(&config.key) {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
@@ -807,14 +1054,40 @@ fn check_filter(
                 ));
             }
         }
+        EventFilterConfig::ShipOrder(config) => {
+            // An unset field matches any completion, which is a legitimate
+            // authoring choice - so only a SET key is checked, and only for
+            // being a key at all and for naming an order some helm action
+            // installs. A filter waiting on an order nothing ever issues can
+            // never open, which for a sequence gate is a soft-lock.
+            if let Some(order) = &config.order {
+                if order.trim().is_empty() {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        "ShipOrder filter has an empty order key".to_string(),
+                    ));
+                } else if !declared.order_keys.contains(order) {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "ShipOrder filter waits for order '{order}', which no helm \
+                             action in this scenario issues"
+                        ),
+                    ));
+                }
+            }
+            if let Some(ship) = &config.ship {
+                check_target(ship, "ShipOrder filter", scenario, satisfiable, issues);
+            }
+        }
         EventFilterConfig::Conditional(config) => match config {
             ConditionalFilterConfig::Not(inner) => {
-                check_filter(inner, scenario, satisfiable, timer_keys, used_vars, issues);
+                check_filter(inner, scenario, satisfiable, declared, used_vars, issues);
             }
             ConditionalFilterConfig::Or(left, right)
             | ConditionalFilterConfig::And(left, right) => {
-                check_filter(left, scenario, satisfiable, timer_keys, used_vars, issues);
-                check_filter(right, scenario, satisfiable, timer_keys, used_vars, issues);
+                check_filter(left, scenario, satisfiable, declared, used_vars, issues);
+                check_filter(right, scenario, satisfiable, declared, used_vars, issues);
             }
         },
     }
@@ -1172,14 +1445,199 @@ mod tests {
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
-    /// ForceTorpedoLaunch references TWO ships by id (launcher and target);
+    /// A scripted action's whole job is to drive a ship nobody else drives, so
+    /// addressing a player- or AI-driven ship is an authoring error - the
+    /// controller is sitting in the same file the action is.
+    #[test]
+    fn a_scripted_action_on_a_driven_ship_is_an_error() {
+        for controller in [
+            SpaceshipController::Player(PlayerControllerConfig::default()),
+            SpaceshipController::AI(AIControllerConfig::default()),
+        ] {
+            let s = scenario(
+                vec![
+                    spawn_armed_ship("warship", controller),
+                    EventActionConfig::StopShip(StopShipActionConfig {
+                        order: "halt".to_string(),
+                        ship: "warship".to_string(),
+                    }),
+                ],
+                vec![],
+            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+            let refusals: Vec<_> = errors(&issues)
+                .into_iter()
+                .filter(|issue| issue.message.contains("StopShip"))
+                .collect();
+            assert_eq!(refusals.len(), 1, "{issues:?}");
+            assert!(refusals[0].message.contains("warship"));
+        }
+    }
+
+    /// The same action on a `None`-controller ship is clean - that is the ship
+    /// the scripted vocabulary is for.
+    #[test]
+    fn a_scripted_action_on_a_none_controller_ship_is_clean() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship("warship", SpaceshipController::None),
+                EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+                    order: "approach".to_string(),
+                    ship: "warship".to_string(),
+                    position: Meters3::new(0.0, 0.0, -1_200.0),
+                    arrival_standoff: Some(Meters(60.0)),
+                }),
+                EventActionConfig::ForceRailgunFire(ForceRailgunFireActionConfig {
+                    ship: "warship".to_string(),
+                    section: "spinal".to_string(),
+                }),
+                EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
+                    ship: "warship".to_string(),
+                    section: "bay".to_string(),
+                    target: "warship".to_string(),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+    }
+
+    /// A section id the hull does not carry, and a section of the WRONG class,
+    /// are both errors: at runtime the first fires nothing and the second
+    /// would have fired some other mount.
+    #[test]
+    fn a_missing_or_wrong_class_section_is_an_error() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship("warship", SpaceshipController::None),
+                EventActionConfig::ForceRailgunFire(ForceRailgunFireActionConfig {
+                    ship: "warship".to_string(),
+                    section: "dorsal".to_string(),
+                }),
+                EventActionConfig::ForceRailgunFire(ForceRailgunFireActionConfig {
+                    ship: "warship".to_string(),
+                    section: "nose".to_string(),
+                }),
+                EventActionConfig::ForceTorpedoFire(ForceTorpedoFireActionConfig {
+                    ship: "warship".to_string(),
+                    section: "spinal".to_string(),
+                    target: "warship".to_string(),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 3, "{issues:?}");
+        assert!(
+            errs[0].message.contains("does not carry"),
+            "{:?}",
+            errs[0].message
+        );
+        assert!(
+            errs[1].message.contains("Hull") && errs[1].message.contains("Railgun"),
+            "{:?}",
+            errs[1].message
+        );
+        assert!(
+            errs[2].message.contains("Railgun") && errs[2].message.contains("Torpedo"),
+            "{:?}",
+            errs[2].message
+        );
+    }
+
+    /// An order key is what a waiting beat matches on, so an empty one is an
+    /// error at both ends - the action that could never be waited for, and the
+    /// filter that could never match.
+    #[test]
+    fn an_empty_order_key_is_an_error_at_both_ends() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship("warship", SpaceshipController::None),
+                EventActionConfig::ForceAlign(ForceAlignActionConfig {
+                    order: String::new(),
+                    ship: "warship".to_string(),
+                    look_at: Meters3::ZERO,
+                    tolerance_degrees: 2.0,
+                }),
+            ],
+            vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                order: Some(String::new()),
+                ..default()
+            })],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 2, "{issues:?}");
+        assert!(errs.iter().any(|e| e.message.contains("ForceAlign")));
+        assert!(errs.iter().any(|e| e.message.contains("ShipOrder filter")));
+    }
+
+    /// A filter waiting on a key nothing ever issues is a handler that can
+    /// never run, which is worth an error rather than a silent dead beat. A
+    /// key some helm action DOES issue is clean, and so is a filter that
+    /// constrains nothing.
+    #[test]
+    fn a_ship_order_filter_must_name_a_key_some_action_issues() {
+        let issue_order = || {
+            EventActionConfig::StopShip(StopShipActionConfig {
+                order: "halt".to_string(),
+                ship: "warship".to_string(),
+            })
+        };
+        let waits_for = |key: Option<&str>| {
+            scenario(
+                vec![
+                    spawn_armed_ship("warship", SpaceshipController::None),
+                    issue_order(),
+                ],
+                vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+                    order: key.map(str::to_string),
+                    ..default()
+                })],
+            )
+        };
+
+        let issues = lint_scenario(
+            &waits_for(Some("halt")),
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+
+        let issues = lint_scenario(
+            &waits_for(None),
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
+        assert!(
+            issues.is_empty(),
+            "an unconstrained filter is a choice, not a finding: {issues:?}"
+        );
+
+        let issues = lint_scenario(
+            &waits_for(Some("never_issued")),
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(errs[0].message.contains("never_issued"));
+    }
+
+    /// ForceTorpedoFire references TWO ships by id (launcher and target);
     /// both must lint as dangling targets on a typo, not no-op at runtime.
     #[test]
-    fn dangling_force_torpedo_launch_ids_are_errors() {
+    fn dangling_force_torpedo_fire_ids_are_errors() {
         let s = scenario(
-            vec![EventActionConfig::ForceTorpedoLaunch(
-                ForceTorpedoLaunchActionConfig {
-                    id: "ghost_battery".to_string(),
+            vec![EventActionConfig::ForceTorpedoFire(
+                ForceTorpedoFireActionConfig {
+                    ship: "ghost_battery".to_string(),
+                    section: "bay_port".to_string(),
                     target: "ghost_prey".to_string(),
                 },
             )],
@@ -1190,7 +1648,7 @@ mod tests {
         assert_eq!(errs.len(), 2, "{issues:?}");
         assert!(errs[0].message.contains("ghost_battery"));
         assert!(errs[1].message.contains("ghost_prey"));
-        assert!(errs[0].message.contains("ForceTorpedoLaunch"));
+        assert!(errs[0].message.contains("ForceTorpedoFire"));
     }
 
     #[test]

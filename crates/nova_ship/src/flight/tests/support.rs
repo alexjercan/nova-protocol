@@ -12,6 +12,7 @@ use crate::{
     flight::{
         autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
         manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
+        scripted::drive_scripted_align,
         state::remove_maneuver_telemetry,
         NovaFlightSystems,
     },
@@ -63,6 +64,10 @@ fn unfinished_flight_app() -> App {
             // rig that skipped it would fly on a ceiling nobody derived.
             update_controller_stack_tuning,
             autopilot_system,
+            // Production order: the two never coexist on one ship, but the
+            // rig chains them the same way so a test cannot depend on an
+            // ordering the game does not have.
+            drive_scripted_align,
             manual_burn_system,
             rcs_burn_system,
             decay_player_rcs_intent,

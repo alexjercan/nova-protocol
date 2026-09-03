@@ -817,8 +817,9 @@ cases:
 - a torpedo launched with NO lock never fuzes at all. It flies its
   `projectile_lifetime`, deals a contact ding and is deleted, and the bay still
   spends the round. That is what
-  [`ForceTorpedoLaunch`](../actions/#forcetorpedolaunch) produces on a battery
-  with no controller.
+  [`ForceTorpedoFire`](../actions/#forcetorpedofire) produces when its target
+  dies between the order and the launch, and what an unlocked player launch
+  produces.
 
 ## Railgun
 
@@ -923,6 +924,11 @@ mod's own gun and hull can be approximated - a 60 hp cell is light plating,
 <div class="widget" data-widget="lance-corridor">
 <p>Against a wall of 200 hp cells five across, five tall and four deep - a cell is 10 m on a side - the shipped 10 m radius takes nine cells a layer: the bore column, its four face neighbours and its four diagonals, through all four layers and one cell out the back. That is 28 cells for 1867 of 1800 power, the last crossing landing because the budget was still above zero when it began. A radius of 40 m takes the same 28 as the whole entry face and three of the next layer, and stops there. A radius of 0 is the needle: four cells in a line.</p>
 </div>
+
+A scenario fires a railgun with
+[`ForceRailgunFire`](../actions/#forcerailgunfire), naming the section id. It
+does not aim: pair it with [`ForceAlign`](../actions/#forcealign) to put the
+hull's nose on the target and hold it there while the charge runs.
 
 Author a [`Charge` animation track](#animation-tracks) to give the gun a tell.
 The shipped railgun walks a `charge_bolt` node the length of the bore, so how far

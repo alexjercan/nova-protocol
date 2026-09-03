@@ -19,7 +19,10 @@ use bevy::prelude::*;
 use nova_gameplay::{
     asset_ref::AssetRef,
     markers::prelude::*,
-    prelude::{destructible_body, ConnectedTo, ExplodableEntity, SurfaceMaterial, MATERIAL_HULL},
+    prelude::{
+        destructible_body, ConnectedTo, ExplodableEntity, SectionClass, SurfaceMaterial,
+        MATERIAL_HULL,
+    },
 };
 
 use super::prelude::*;
@@ -369,6 +372,26 @@ pub enum SectionKind {
     Torpedo(TorpedoSectionConfig),
     /// Spinal kinetic lance the HULL aims; see [`RailgunSectionConfig`].
     Railgun(RailgunSectionConfig),
+}
+
+impl SectionKind {
+    /// Which class of section this config describes.
+    ///
+    /// The bridge from the AUTHORED kind (which carries a whole per-kind
+    /// config) to the discriminant every reader actually wants. The `*_section`
+    /// bundles already insert the matching [`SectionClass`] on the spawned
+    /// entity; this is the same answer for content that has not been spawned,
+    /// which is what the content lint has to work with.
+    pub fn class(&self) -> SectionClass {
+        match self {
+            SectionKind::Hull(_) => SectionClass::Hull,
+            SectionKind::Thruster(_) => SectionClass::Thruster,
+            SectionKind::Controller(_) => SectionClass::Controller,
+            SectionKind::Turret(_) => SectionClass::Turret,
+            SectionKind::Torpedo(_) => SectionClass::Torpedo,
+            SectionKind::Railgun(_) => SectionClass::Railgun,
+        }
+    }
 }
 
 /// A complete authorable section: the shared [`BaseSectionConfig`] plus its

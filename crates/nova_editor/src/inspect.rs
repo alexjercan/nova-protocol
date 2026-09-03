@@ -2447,6 +2447,10 @@ impl DocumentNames {
             Names::Timer => self.timers.clone(),
             Names::Objective => self.objectives.clone(),
             Names::Scenario => self.scenarios.clone(),
+            // Nothing to offer: an order key is minted where the order is
+            // installed, and a section id lives inside the hull the config
+            // names beside it, which this document-wide list cannot see.
+            Names::Order | Names::Section => Vec::new(),
         };
         offered.sort_unstable();
         offered.dedup();

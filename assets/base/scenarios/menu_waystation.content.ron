@@ -51,7 +51,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            hull: Prototype("block_hauler"),
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),
@@ -74,7 +74,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            hull: Prototype("block_hauler"),
                             controller: AI((
                                 orbit: Some("menu_planetoid"),
                             )),

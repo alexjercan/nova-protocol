@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_duel",
         name: "Duel Cycle",
-        description: "Two corvettes duel; a siege torpedo erases the winner; repeat.",
+        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat.",
         cubemap: "self://textures/cubemap.png",
         hidden: true,
         menu_backdrop: true,
@@ -215,6 +215,26 @@
                             30.0,
                         )),
                     )),
+                    CreateScenarioArea((
+                        id: "duel_arena",
+                        name: "Duel Arena",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 1800.0,
+                    )),
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
                     TimerStart((
                         key: "duel_respawn",
                         seconds: Term(Factor(Literal(Number(0.5)))),
@@ -250,7 +270,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            hull: Prototype("block_gunship"),
                             controller: AI((
                                 patrol: [
                                     (
@@ -275,7 +295,7 @@
                             allegiance: Some(Player),
                             modifications: [
                                 (
-                                    section: "fuselage",
+                                    section: "bridge",
                                     modifications: [
                                         SetHealth(500.0),
                                     ],
@@ -300,7 +320,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa_raider"),
+                            hull: Prototype("block_raider"),
                             controller: AI((
                                 patrol: [
                                     (
@@ -324,7 +344,7 @@
                             )),
                             modifications: [
                                 (
-                                    section: "fuselage",
+                                    section: "bridge",
                                     modifications: [
                                         SetHealth(500.0),
                                     ],
@@ -340,11 +360,73 @@
                     Entity((
                         id: Some("duel_rival"),
                     )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
                     TimerStart((
                         key: "duel_finisher_beat",
                         seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("duel_arena"),
+                        other_id: Some("duel_rival"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "duel_rival",
+                        allegiance: Neutral,
+                    )),
+                    TimerStart((
+                        key: "duel_finisher_beat",
+                        seconds: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                ],
+            ),
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("duel_arena"),
+                        other_id: Some("duel_victor"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("duel_decided"))),
+                        Term(Factor(Literal(Number(0.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "duel_decided",
+                        expression: Term(Factor(Literal(Number(1.0)))),
+                    )),
+                    SetAllegiance((
+                        id: "duel_victor",
+                        allegiance: Neutral,
+                    )),
+                    TimerStart((
+                        key: "duel_reset",
+                        seconds: Term(Factor(Literal(Number(8.0)))),
                     )),
                 ],
             ),
@@ -360,8 +442,9 @@
                         id: "duel_finisher",
                         allegiance: Enemy,
                     )),
-                    ForceTorpedoLaunch((
-                        id: "duel_finisher",
+                    ForceTorpedoFire((
+                        ship: "duel_finisher",
+                        section: "siege_bay",
                         target: "duel_victor",
                     )),
                     TimerStart((

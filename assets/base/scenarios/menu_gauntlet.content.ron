@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_gauntlet",
         name: "Torpedo Gauntlet",
-        description: "A corvette\'s doomed point-defense stand against batteries on both flanks.",
+        description: "A gunship\'s doomed point-defense stand against batteries on both flanks.",
         cubemap: "self://textures/cubemap.png",
         hidden: true,
         menu_backdrop: true,
@@ -392,7 +392,7 @@
                     SpawnScenarioObject((
                         base: (
                             id: "gauntlet_ship",
-                            name: "Gauntlet Corvette",
+                            name: "Gauntlet Gunship",
                             position: (
                                 -50.0,
                                 250.0,
@@ -406,7 +406,7 @@
                             ),
                         ),
                         kind: Spaceship((
-                            hull: Prototype("cargoa"),
+                            hull: Prototype("block_gunship"),
                             controller: AI((
                                 patrol: [
                                     (
@@ -448,15 +448,39 @@
                             allegiance: Some(Player),
                             modifications: [
                                 (
-                                    section: "turret_port",
+                                    section: "pdc_forward_port",
                                     modifications: [
-                                        SetAmmo(400),
+                                        SetAmmo(600),
                                     ],
                                 ),
                                 (
-                                    section: "turret_starboard",
+                                    section: "pdc_forward_starboard",
                                     modifications: [
-                                        SetAmmo(400),
+                                        SetAmmo(600),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc_aft_port",
+                                    modifications: [
+                                        SetAmmo(600),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc_aft_starboard",
+                                    modifications: [
+                                        SetAmmo(600),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc_ventral_port",
+                                    modifications: [
+                                        SetAmmo(600),
+                                    ],
+                                ),
+                                (
+                                    section: "pdc_ventral_starboard",
+                                    modifications: [
+                                        SetAmmo(600),
                                     ],
                                 ),
                             ],
@@ -536,8 +560,9 @@
                     )),
                 ],
                 actions: [
-                    ForceTorpedoLaunch((
-                        id: "gauntlet_battery_w1",
+                    ForceTorpedoFire((
+                        ship: "gauntlet_battery_w1",
+                        section: "bay",
                         target: "gauntlet_ship",
                     )),
                     TimerStart((
@@ -554,8 +579,9 @@
                     )),
                 ],
                 actions: [
-                    ForceTorpedoLaunch((
-                        id: "gauntlet_battery_w2",
+                    ForceTorpedoFire((
+                        ship: "gauntlet_battery_w2",
+                        section: "bay",
                         target: "gauntlet_ship",
                     )),
                     TimerStart((
@@ -572,8 +598,9 @@
                     )),
                 ],
                 actions: [
-                    ForceTorpedoLaunch((
-                        id: "gauntlet_battery_e1",
+                    ForceTorpedoFire((
+                        ship: "gauntlet_battery_e1",
+                        section: "bay",
                         target: "gauntlet_ship",
                     )),
                     TimerStart((
@@ -590,8 +617,9 @@
                     )),
                 ],
                 actions: [
-                    ForceTorpedoLaunch((
-                        id: "gauntlet_battery_e2",
+                    ForceTorpedoFire((
+                        ship: "gauntlet_battery_e2",
+                        section: "bay",
                         target: "gauntlet_ship",
                     )),
                     TimerStart((

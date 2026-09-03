@@ -13,6 +13,7 @@
 
 use std::collections::HashMap;
 
+use nova_gameplay::prelude::SectionClass;
 use nova_ship::prelude::{LinkPoint, SectionCollider, SectionConfig};
 
 use crate::prelude::*;
@@ -35,12 +36,20 @@ pub mod prelude {
 }
 
 /// Resolved lint-relevant data for one visible section prototype.
-#[derive(Clone, Debug, Default)]
+///
+/// No `Default`: there is no such thing as a default section CLASS, and a
+/// stand-in one would quietly answer "hull" to every question about a section
+/// nobody filled in.
+#[derive(Clone, Debug)]
 pub struct KnownSection {
     /// Authored collider used by overlap lint. Unset means the default unit cube.
     pub collider: SectionCollider,
     /// Structural sockets copied from the resolved prototype.
     pub link_points: Vec<LinkPoint>,
+    /// Which class of section this prototype is, so a check that cares what a
+    /// section IS - a scripted action naming one mount - does not have to
+    /// carry a copy of its whole config to find out.
+    pub class: SectionClass,
 }
 
 /// Last-wins section-prototype view used by scenario lint.
@@ -59,6 +68,7 @@ impl KnownSections {
                 KnownSection {
                     collider: config.base.collider.unwrap_or_default(),
                     link_points: config.base.link_points.clone(),
+                    class: config.kind.class(),
                 },
             );
         }

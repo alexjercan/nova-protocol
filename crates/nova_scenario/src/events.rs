@@ -55,6 +55,11 @@ pub enum EventConfig {
     OnCombatLockStart,
     /// The player's COMBAT lock left a scenario object.
     OnCombatLockEnd,
+    /// A scripted ship finished a keyed HELM order - it arrived, settled on a
+    /// bearing, or came to rest. Cancellation, replacement, destruction and
+    /// neutralization retire an order WITHOUT this event, so a beat chained
+    /// off a completion never runs for an order that did not finish.
+    OnShipOrderComplete,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -76,6 +81,7 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnTravelLockEnd => EventHandler::new::<OnTravelLockEndEvent>(),
             EventConfig::OnCombatLockStart => EventHandler::new::<OnCombatLockStartEvent>(),
             EventConfig::OnCombatLockEnd => EventHandler::new::<OnCombatLockEndEvent>(),
+            EventConfig::OnShipOrderComplete => EventHandler::new::<OnShipOrderCompleteEvent>(),
         }
     }
 }

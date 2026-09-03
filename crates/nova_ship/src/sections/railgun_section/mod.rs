@@ -46,6 +46,8 @@ mod firing;
 /// Render/audio for the lance: the slug's body and the muzzle flash. Gated by
 /// the plugin's `render` flag.
 mod render;
+/// Scripted shots: an authored order on one gun, with no controller involved.
+mod scripted;
 /// The wake the slug leaves and the light that rides it. Gated the same way.
 mod wake;
 
@@ -55,6 +57,8 @@ pub(crate) use firing::{
     RailgunSectionChargeSound, RailgunSectionFireSound, RailgunSectionReloadSound,
 };
 use render::*;
+pub use scripted::ScriptedRailgunOrder;
+use scripted::{hold_scripted_railgun_trigger, on_railgun_fired_retire_scripted_order};
 use wake::*;
 
 /// The `railgun_section` spawners, its config, marker, input, charge state,
@@ -68,7 +72,7 @@ pub mod prelude {
         },
         RailgunCharge, RailgunEngineFigures, RailgunFired, RailgunSectionConfig,
         RailgunSectionConfigHelper, RailgunSectionInput, RailgunSectionPlugin,
-        RailgunSectionSystems,
+        RailgunSectionSystems, ScriptedRailgunOrder,
     };
 }
 
@@ -376,12 +380,20 @@ impl Plugin for RailgunSectionPlugin {
 
         app.register_type::<RailgunSectionInput>();
         app.register_type::<RailgunCharge>();
+        app.register_type::<ScriptedRailgunOrder>();
         app.add_observer(insert_railgun_section);
+        app.add_observer(on_railgun_fired_retire_scripted_order);
         app.add_systems(
             FixedUpdate,
             charge_and_fire_railgun
                 .in_set(RailgunSectionSystems)
                 .in_set(SpaceshipSectionSystems),
+        );
+        // The trigger hold feeds the FixedUpdate cycle above, exactly as the
+        // bay's scripted hold feeds its spawn.
+        app.add_systems(
+            Update,
+            hold_scripted_railgun_trigger.in_set(SpaceshipSectionSystems),
         );
         app.add_systems(
             Update,

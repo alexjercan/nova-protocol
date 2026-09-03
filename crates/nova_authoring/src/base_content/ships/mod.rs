@@ -20,11 +20,13 @@ use nova_ship::prelude::SectionConfig;
 
 use super::assets::BaseContentAssets;
 
+mod block;
 mod cargo_a;
 mod cargo_b;
 mod racer;
 mod shared;
 
+pub(crate) use block::{BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS};
 pub(crate) use cargo_a::CARGOA_TURRET_IDS;
 use shared::{Ordnance, ShipGrade};
 
@@ -44,6 +46,19 @@ pub(crate) const CARGOB_SHIP_ID: &str = "cargob";
 pub(crate) const CARGOB_LANCE_SHIP_ID: &str = "cargob_lance";
 /// The id the unarmed Racer yacht is spawned by.
 pub(crate) const RACER_SHIP_ID: &str = "racer";
+
+/// The id the block-built utility cutter is spawned by: the small unarmed
+/// workboat, and the base game's plainest craft.
+pub(crate) const BLOCK_CUTTER_SHIP_ID: &str = "block_cutter";
+/// The id the block-built bulk hauler is spawned by: unarmed freight on one
+/// vectoring drive.
+pub(crate) const BLOCK_HAULER_SHIP_ID: &str = "block_hauler";
+/// The id the block-built patrol gunship is spawned by: armoured, six point
+/// defense mounts, the fleet's warship.
+pub(crate) const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
+/// The id the block-built salvage raider is spawned by: the same tonnage worn
+/// down to two guns and a scrap boom, in the scavenger look.
+pub(crate) const BLOCK_RAIDER_SHIP_ID: &str = "block_raider";
 
 /// The section id every shipped craft's flight computer carries - what a
 /// scenario aims a spawn-time controller modification at.
@@ -84,6 +99,30 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
             CARGOA_RAIDER_SHIP_ID,
             "CargoA Raider Corvette",
             cargo_a::sections(ShipGrade::Enemy),
+        ),
+        block_ship(
+            assets,
+            BLOCK_CUTTER_SHIP_ID,
+            "Utility Cutter",
+            block::utility_cutter(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_HAULER_SHIP_ID,
+            "Bulk Hauler",
+            block::bulk_hauler(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_GUNSHIP_SHIP_ID,
+            "Patrol Gunship",
+            block::patrol_gunship(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_RAIDER_SHIP_ID,
+            "Salvage Raider",
+            block::salvage_raider(),
         ),
     ]
 }
@@ -132,6 +171,22 @@ fn ship(
             ..Default::default()
         },
     }
+}
+
+/// One catalog entry over a BLOCK hull. The same entry as above plus the two
+/// fields the modelled fleet cannot have: a derived skin, which reads a hull as
+/// unit cells, and the style it wears.
+fn block_ship(
+    assets: &BaseContentAssets,
+    id: &str,
+    name: &str,
+    design: block::BlockShip,
+) -> ShipConfig {
+    let style = design.style.to_string();
+    let mut config = ship(assets, id, name, design.sections());
+    config.hull.skin = true;
+    config.hull.style = Some(style);
+    config
 }
 
 #[cfg(test)]

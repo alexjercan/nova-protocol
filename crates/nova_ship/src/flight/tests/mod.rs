@@ -15,6 +15,7 @@ mod goto;
 mod manual;
 mod orbit;
 mod rcs;
+mod scripted;
 mod stacking;
 mod stop;
 mod support;

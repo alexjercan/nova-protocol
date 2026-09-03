@@ -104,6 +104,63 @@ pub(crate) fn spawn_ship(id: &str, proto: &str) -> EventActionConfig {
     })
 }
 
+/// A spawn action for one armed ship, with a section of every class a
+/// section-addressed weapon action can name: `spinal` a railgun, `bay` a
+/// torpedo bay, `nose` a plain hull block.
+///
+/// The controller is the caller's, because half of what the scripted actions
+/// lint for is WHO drives the ship they address.
+pub(crate) fn spawn_armed_ship(id: &str, controller: SpaceshipController) -> EventActionConfig {
+    let section = |section_id: &str, kind: nova_ship::prelude::SectionKind, cell: f32| {
+        SpaceshipSectionConfig {
+            id: section_id.to_string(),
+            position: Vec3::new(0.0, 0.0, cell),
+            rotation: Quat::IDENTITY,
+            source: SectionSource::Inline(SectionConfig {
+                base: nova_ship::prelude::BaseSectionConfig {
+                    id: section_id.to_string(),
+                    link_points: nova_ship::prelude::unit_cube_link_points(),
+                    ..default()
+                },
+                kind,
+            }),
+            modifications: vec![],
+        }
+    };
+    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            position: Meters3::ZERO,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller,
+            hull: ShipSource::Inline(ShipHull {
+                sections: vec![
+                    section(
+                        "nose",
+                        nova_ship::prelude::SectionKind::Hull(default()),
+                        0.0,
+                    ),
+                    section(
+                        "spinal",
+                        nova_ship::prelude::SectionKind::Railgun(default()),
+                        1.0,
+                    ),
+                    section(
+                        "bay",
+                        nova_ship::prelude::SectionKind::Torpedo(default()),
+                        -1.0,
+                    ),
+                ],
+                ..default()
+            }),
+            ..default()
+        }),
+    })
+}
+
 pub(crate) fn scenario(
     actions: Vec<EventActionConfig>,
     filters: Vec<EventFilterConfig>,

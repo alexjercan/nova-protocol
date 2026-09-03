@@ -16,7 +16,7 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         ConditionalFilterConfig, EntityFilterConfig, EventFilterConfig, ExpressionFilterConfig,
-        TimerFilterConfig,
+        ShipOrderFilterConfig, TimerFilterConfig,
     };
 }
 
@@ -33,6 +33,8 @@ pub enum EventFilterConfig {
     Expression(ExpressionFilterConfig),
     /// Match a timer event by its scenario-local key.
     Timer(TimerFilterConfig),
+    /// Match a completed scripted ship order by its key, ship, and kind.
+    ShipOrder(ShipOrderFilterConfig),
 }
 
 impl EventFilter<NovaEventWorld> for EventFilterConfig {
@@ -42,6 +44,7 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
             EventFilterConfig::Conditional(config) => config.filter(world, info),
             EventFilterConfig::Expression(config) => config.filter(world, info),
             EventFilterConfig::Timer(config) => config.filter(world, info),
+            EventFilterConfig::ShipOrder(config) => config.filter(world, info),
         }
     }
 }
@@ -161,6 +164,67 @@ impl EventFilter<NovaEventWorld> for TimerFilterConfig {
             .and_then(|data| data.get(TIMER_KEY_FIELD_NAME))
             .and_then(|value| value.as_str())
             .is_some_and(|key| key == self.key)
+    }
+}
+
+/// Match a completed scripted ship order by its authored key, the ship that
+/// completed it, and which helm order it was; every set field must match,
+/// unset fields match any.
+///
+/// The order's identity is read from its OWN payload fields, never from the
+/// entity id or the timer key. Those name other things, and a cinematic that
+/// gives one ship several orders is exactly where confusing them would fire
+/// the wrong beat.
+///
+/// All three fields unset matches every completion in the scenario. That is a
+/// choice an author can want - one handler logging the whole sequence - so it
+/// is neither an error nor a warning.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ShipOrderFilterConfig {
+    /// Match the completed order's authored key; unset matches any.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    #[reflect(@Names::Order)]
+    pub order: Option<String>,
+    /// Match the `EntityId` of the ship that completed it; unset matches any.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    #[reflect(@Names::Object)]
+    pub ship: Option<String>,
+    /// Match which helm order completed; unset matches any.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub kind: Option<ShipOrderKind>,
+}
+
+impl EventFilter<NovaEventWorld> for ShipOrderFilterConfig {
+    fn filter(&self, _: &NovaEventWorld, info: &GameEventInfo) -> bool {
+        let Some(data) = &info.data else {
+            return false;
+        };
+        let field = |name: &str| data.get(name).and_then(|value| value.as_str());
+
+        // A set field with nothing to read is a MISMATCH, not a pass: the same
+        // fails-closed rule the entity filter uses, so a handler waiting on a
+        // named order is never woken by a payload that does not carry one.
+        let matches = |wanted: Option<&str>, name: &str| match wanted {
+            Some(wanted) => field(name) == Some(wanted),
+            None => true,
+        };
+
+        matches(self.order.as_deref(), SHIP_ORDER_FIELD_NAME)
+            && matches(self.ship.as_deref(), ENTITY_ID_COMPONENT_NAME)
+            && matches(
+                self.kind.map(ShipOrderKind::as_str),
+                SHIP_ORDER_KIND_FIELD_NAME,
+            )
     }
 }
 

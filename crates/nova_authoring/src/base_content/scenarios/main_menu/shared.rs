@@ -56,21 +56,23 @@ pub(super) fn backdrop_camera(position: Meters3) -> EventActionConfig {
 
 /// A small AI ship on the orbit directive around the backdrop planetoid -
 /// the proven menu actor (the ORBIT autopilot plans its ring from the
-/// well's runtime geometry). `extra_hull` adds a mid hull segment for a
-/// longer, hauler-ish silhouette. Never `SpaceshipController::Player`: the
+/// well's runtime geometry). Never `SpaceshipController::Player`: the
 /// spaceship input sets are LIVE in MainMenu (see menu_ambience's warning).
 pub(super) fn backdrop_orbiter(
     id: &str,
     name: &str,
     position: Meters3,
-    // The hauler silhouette knob: `true` flies the wide cargoa corvette (the
-    // waystation freighters), `false` the unarmed racer (the scrapyard tug).
+    // The silhouette knob: `true` flies the wide block hauler (the waystation
+    // freighters), `false` the small block cutter (the scrapyard tug). Both
+    // are hand-built cube ships in the industrial look - a backdrop asks the
+    // player to read TONNAGE at two kilometres, and width reads at that
+    // range where detail does not.
     cargo: bool,
 ) -> ScenarioObjectConfig {
     let hull = if cargo {
-        ships::CARGOA_SHIP_ID
+        ships::BLOCK_HAULER_SHIP_ID
     } else {
-        ships::RACER_SHIP_ID
+        ships::BLOCK_CUTTER_SHIP_ID
     };
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {

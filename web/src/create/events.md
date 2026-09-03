@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the SIXTEEN event kinds below, written bare (they are unit variants):
+the SEVENTEEN event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -34,12 +34,16 @@ The whole vocabulary at a glance:
 | [`OnTravelLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock leaves |
 | [`OnCombatLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock lands |
 | [`OnCombatLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock leaves |
+| [`OnShipOrderComplete`](#onshipordercomplete) | `order`, `kind`, `id`, `type_name` | a scripted ship order finishes |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
-party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter. Which
-entity is which is per-event and listed below. A filter field the event does
-not fill NEVER matches - `other_id` on an `OnDestroyed` handler can never pass.
+party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter, and
+`OnShipOrderComplete` carries `order` / `kind` for a
+[`ShipOrder`](../filters/#shiporder) filter beside the ship's own `id` /
+`type_name`. Which entity is which is per-event and listed below. A filter
+field the event does not fill NEVER matches - `other_id` on an `OnDestroyed`
+handler can never pass.
 
 ## OnStart
 
@@ -137,6 +141,49 @@ Timer-end events queue before that frame's `OnUpdate` pulse.
 Start or restart the delay with [`TimerStart`](../actions/#timerstart). Cancel
 it with [`TimerCancel`](../actions/#timercancel). Timers use live, unpaused
 scenario time and clear on retry or teardown.
+
+</details>
+
+## OnShipOrderComplete
+
+Fires exactly once when a scripted ship finishes the helm order it was given.
+Payload: `order` is the key the action named the order, `kind` is which of the
+three it was (`Move` / `Align` / `Stop`), and `id` / `type_name` are the ship
+- so an `Entity` filter still works on it. Match it with a
+[`ShipOrder`](../filters/#shiporder) filter.
+
+```ron
+(
+    name: OnShipOrderComplete,
+    filters: [ShipOrder((order: Some("close_the_gap")))],
+    actions: [ForceRailgunFire((ship: "warship", section: "spinal"))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The three helm actions -
+[`MoveShipTo`](../actions/#moveshipto),
+[`ForceAlign`](../actions/#forcealign) and
+[`StopShip`](../actions/#stopship) - each install ONE order under a key you
+choose, and this is how the next beat learns it landed. A move or a stop
+completes when the ship's autopilot lets go; an alignment completes when the
+aim is inside its authored tolerance and steady there.
+
+Three things never fire it:
+
+- A **replaced** order. Installing a second helm order takes the first one
+  off, and an order that was taken off did not finish.
+- A **cleared** order -
+  [`ClearShipOrder`](../actions/#clearshiporder) is a cancellation.
+- A **destroyed or neutralized** ship. A hull that lost its flight computer
+  is not going to arrive; a beat waiting on it should be waiting on
+  [`OnDefeated`](#ondefeated) too.
+
+It fires again for the same key if the same order is given again, which is
+what makes a patrol leg reusable. Weapon actions have no completion event -
+what a shot produces is the weapon's own event chain.
 
 </details>
 

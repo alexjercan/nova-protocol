@@ -215,11 +215,24 @@ crashing, so a missing dependency is visible instead of fatal.
 | `arrival_standoff` | `Option` number | `None` | how far, in meters, from a GOTO goal this ship's computer comes to rest, instead of the engine's default 500 m. Pair a small standoff with a small `waypoint_slack` so a nav ship visibly REACHES its marks (the patrol turns at `standoff + slack`) |
 | `leash` | `Option` number | `None` | territorial tether radius in meters; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
+| `non_combatant` | bool | `false` | this ARMED ship flies itself but never fights: it patrols, orbits, avoids and station-keeps as any AI ship does, and never acquires a target or pulls a trigger |
 
 An UNARMED AI ship (no turret or torpedo section) is automatically a
 NON-COMBATANT: it flies its routine and never acquires, chases or shoots -
 no field to set. Keep its `allegiance` on the side you want hunted and it
 becomes something to defend (the Lifeline convoy).
+
+`non_combatant: true` asks for the same standing-down on an ARMED hull - a
+military escort holding formation through a scene it takes no part in. Do not
+try to fake it with a long `engage_delay` or a tiny `engage_range`: both are
+timers and distances that eventually expire or are crossed, so the ship opens
+fire in the middle of a beat that assumed it would not. This is a standing
+statement about the hull.
+
+For a ship the SCENARIO drives shot by shot, author `None` and use the
+[scripted-ship actions](../actions/#scripted-ships) instead. The two cover the
+whole space between them: a non-combatant flies itself and never shoots, a
+`None` ship does exactly and only what it is told.
 
 Allegiance values: `Player` / `Enemy` / `Neutral`. Player and Enemy are
 mutually hostile; Neutral relates neutrally to everyone (stray blast damage

@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 28 at a glance:
+never panics a scenario). All 33 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -25,7 +25,12 @@ never panics a scenario). All 28 at a glance:
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
 | [`SetControllerVerb`](#setcontrollerverb) | [ship state](#ship-state) | grant or withhold one flight verb on a ship's controller |
 | [`SetAllegiance`](#setallegiance) | [ship state](#ship-state) | overwrite a ship's side at runtime |
-| [`ForceTorpedoLaunch`](#forcetorpedolaunch) | [ship state](#ship-state) | order a ship's torpedo bays to launch at a named target |
+| [`MoveShipTo`](#moveshipto) | [ship state](#ship-state) | fly a scripted ship to a mark and report when it arrives |
+| [`ForceAlign`](#forcealign) | [ship state](#ship-state) | turn a scripted ship's nose onto a point and hold it there |
+| [`StopShip`](#stopship) | [ship state](#ship-state) | bring a scripted ship to rest with the real STOP burn |
+| [`ClearShipOrder`](#clearshiporder) | [ship state](#ship-state) | cancel whatever helm order a scripted ship is under |
+| [`ForceRailgunFire`](#forcerailgunfire) | [ship state](#ship-state) | fire one named railgun section |
+| [`ForceTorpedoFire`](#forcetorpedofire) | [ship state](#ship-state) | launch one named torpedo bay at a named target |
 | [`SetInfiniteAmmo`](#setinfiniteammo) | [ship state](#ship-state) | suspend or restore the finite magazine on every weapon of a ship |
 | [`RefillAmmo`](#refillammo) | [ship state](#ship-state) | top a ship's magazines back up, or just one section's |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
@@ -578,14 +583,42 @@ SetAllegiance((id: "magpie", allegiance: Enemy)),
 
 </details>
 
-### ForceTorpedoLaunch
+### Scripted ships
 
-Order a scoped ship's torpedo bays to launch at a named target - the
-scripted counterpart of the AI's launch decision, for controller-less
-emplacements fired by timers ("the battery shoots every N seconds").
+The six actions below drive a ship the scenario owns outright: one authored
+with `controller: None` (see [Spaceship](../objects/#spaceship)). They refuse
+a player-driven or AI-driven ship - a lint Error, and a runtime error if one
+somehow reaches the engine - because taking the helm from either would lose. A
+player's flight input drops any autopilot on the next frame, and the AI
+rewrites the same seams every frame it runs.
+
+The ship still needs to be a real ship: the helm orders fly it with its own
+flight computer and thrusters, so a hull with no live controller section
+cannot turn, and a battery with no drives can still shoot but never move.
+
+`Move`, `Align` and `Stop` are ONE mutually exclusive family. A ship holds at
+most one helm order; installing a second retires the first. Each is keyed, and
+[`OnShipOrderComplete`](../events/#onshipordercomplete) with a
+[`ShipOrder`](../filters/#shiporder) filter is how the next beat waits for it
+- which is what lets a
+[`Sequence`](#sequence) `until` gate hold a set piece together.
+
+The two weapon actions are independent of the helm and of each other: a ship
+can be aligned, firing its spinal gun and launching a bay in the same frame.
+
+### MoveShipTo
+
+Fly a scripted ship to a mark and report when it gets there. The ship's own
+GOTO maneuver, so it accelerates, coasts and arrives on its authored thrust -
+this is the cinematic approach, not a teleport.
 
 ```ron
-ForceTorpedoLaunch((id: "battery_west", target: "patrol_ship")),
+MoveShipTo((
+    order: "close_the_gap",
+    ship: "warship",
+    position: (0.0, 0.0, -1200.0),
+    arrival_standoff: Some(60.0),
+)),
 ```
 
 <details class="explain">
@@ -593,19 +626,162 @@ ForceTorpedoLaunch((id: "battery_west", target: "patrol_ship")),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | scoped ship root whose bays launch; a dangling id is a lint Error |
+| `order` | string | required | the key this order's completion is reported under; an empty key is a lint Error |
+| `ship` | string | required | scoped `None`-controller ship root; a dangling or driven id is a lint Error |
+| `position` | meters `(x, y, z)` | required | the mark to fly to, in world coordinates |
+| `arrival_standoff` | `Option` meters | `None` | how far short of the mark to come to rest |
+
+Completes when the ship's autopilot lets go - it is inside the standoff and
+settled - and fires
+[`OnShipOrderComplete`](../events/#onshipordercomplete) with `kind: Move`.
+
+`arrival_standoff` exists because the default 500 m is far too coarse to
+stage a shot with. It is installed for the life of the order and taken back
+off when the order retires, so a cinematic's tight staging does not silently
+retune every later GOTO the hull flies. `None` uses the ship's own standoff.
+
+</details>
+
+### ForceAlign
+
+Turn a scripted ship's whole hull onto a point and HOLD it there. Rotation
+only - no autopilot, so no drive ever burns for translation and the ship keeps
+whatever velocity it had.
+
+```ron
+ForceAlign((
+    order: "bore_on_target",
+    ship: "warship",
+    look_at: (0.0, 0.0, 0.0),
+    tolerance_degrees: 1.5,
+)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `order` | string | required | the key this order's completion is reported under |
+| `ship` | string | required | scoped `None`-controller ship root |
+| `look_at` | meters `(x, y, z)` | required | the world position to put under the bore |
+| `tolerance_degrees` | number | required | how close the aim must come before the order completes; must be finite and not negative, or the order is refused |
+
+The hold is the point. A [railgun](../sections/#railgun) does not traverse, so
+the shot leaves down whatever line the hull is holding: align, wait for the
+completion, then fire, and the slug goes where you aimed. The facing is held
+until another helm order replaces it, which is what lets several guns run
+their charges on one bearing.
+
+The tolerance is also what "settled" is measured against - a tight tolerance
+asks for a genuinely steady hull, a coarse one accepts a drift - so an
+alignment order on a tumbling wreck may take a while, and one with an
+impossible tolerance is refused outright rather than left never completing.
+
+</details>
+
+### StopShip
+
+Bring a scripted ship to rest with the real STOP maneuver - the same
+flip-retrograde-and-burn the player's X key runs, so it costs fuel and time,
+visibly.
+
+```ron
+StopShip((order: "hold_here", ship: "warship")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `order` | string | required | the key this order's completion is reported under |
+| `ship` | string | required | scoped `None`-controller ship root |
+
+Completes when the ship is at rest, with `kind: Stop`. A ship that already is
+at rest completes almost immediately, which is the cheap way to make a beat
+wait for "it definitely is not drifting any more".
+
+</details>
+
+### ClearShipOrder
+
+Release a scripted ship's helm and let it drift. The counterpart to the three
+orders above: whatever the ship was told, it is no longer being told it.
+
+```ron
+ClearShipOrder((ship: "warship")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped ship root to release |
+
+The hull KEEPS its velocity - this is space, and letting a ship coast out of
+frame is usually the point. Emits NO completion event: a cancelled order did
+not finish, so a beat gated on it correctly never runs. It also puts back the
+ship's own arrival standoff if a
+[`MoveShipTo`](#moveshipto) had displaced it.
+
+</details>
+
+### ForceRailgunFire
+
+Fire one named [railgun](../sections/#railgun) section of a scripted ship.
+
+```ron
+ForceRailgunFire((ship: "warship", section: "spinal")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped `None`-controller ship root that fires |
+| `section` | string | required | the authored section id of the railgun; a section the hull does not carry, or one that is not a railgun, is a lint Error |
+
+No target and no steering: a railgun does not traverse, so the shot leaves
+down whatever line the hull holds when the charge completes. Putting that line
+on something is [`ForceAlign`](#forcealign)'s job. Everything else is the
+gun's own behavior - the authored charge time, the magazine, the reload, the
+recoil through the hull, the slug, the sound and the flash.
+
+The order is ONE SHOT: it holds the trigger until the gun actually fires
+(through a reload, if the magazine was empty) and then retires itself. Fire a
+second shell with a second action.
+
+</details>
+
+### ForceTorpedoFire
+
+Launch one named [torpedo bay](../sections/#torpedo) of a scripted ship at one
+named target.
+
+```ron
+ForceTorpedoFire((ship: "battery_west", section: "bay", target: "patrol_ship")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped `None`-controller ship root that launches |
+| `section` | string | required | the authored section id of the bay; a missing id or a non-bay is a lint Error |
 | `target` | string | required | scoped ship root the ordnance homes on; a dangling id is a lint Error |
 
-Every torpedo bay on the ship gets a one-shot order; each bay's own cooldown
-and ammo still time the actual launch, and the ordnance is committed to the
-target like an AI launch (so hostile point defense can engage it). The AI's
-launch gates (range envelope, hull-forward cone, line of sight, the 10 s AI
-cadence) do NOT apply - the script is the decision.
+ONE bay, addressed by its section id. The bay's own cooldown and ammo still
+time the launch, and the ordnance is committed to the target the same way an
+AI or player launch is - which is also what makes the torpedo visible to
+hostile point defense. The AI's launch gates (range envelope, hull-forward
+cone, line of sight, the AI cadence) do NOT apply: the script is the decision.
 
-A missing target skips the launch entirely (no dumb-fire duds while the
-target is mid-respawn). On an AI-controlled ship the AI rewrites the bay
-trigger every frame and wins; give scripted batteries
-`controller: None`.
+A missing target skips the launch entirely, so no dud goes out while a target
+is mid-respawn. The order is one shot, like the railgun's.
 
 </details>
 

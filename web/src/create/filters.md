@@ -2,14 +2,16 @@
 
 A filter gates a handler: when its event fires, EVERY entry in the handler's
 `filters` list must pass (logical AND) before the actions run. An empty (or
-omitted) list always passes. There are exactly four filter kinds - `Entity` matches
-entity payloads, `Timer` matches a timer key, `Expression` tests scenario
-variables, and `Conditional` combines other filters with boolean logic.
+omitted) list always passes. There are exactly five filter kinds - `Entity` matches
+entity payloads, `Timer` matches a timer key, `ShipOrder` matches a scripted
+order's completion, `Expression` tests scenario variables, and `Conditional`
+combines other filters with boolean logic.
 
 | filter | tests | typical use |
 |---|---|---|
 | [`Entity`](#entity) | who the event is about | "this beacon, entered by the player" |
 | [`Timer`](#timer) | a timer event key | "the orbit hold timer ended" |
+| [`ShipOrder`](#shiporder) | a scripted order's completion | "the warship reached its firing position" |
 | [`Expression`](#expression) | a variable condition | "the counter is past 4 and the flag is unset" |
 | [`Conditional`](#conditional) | other filters, combined | "NOT the player", "picket A down OR picket B down" |
 
@@ -79,6 +81,46 @@ Timer((key: "orbit_hold"))
 
 Timer keys are scenario-local strings. This filter observes the event that
 already ended; it does not test whether a timer is currently running.
+
+</details>
+
+## ShipOrder
+
+Match the completion of one scripted helm order, carried by
+[`OnShipOrderComplete`](../events/#onshipordercomplete). Every field is
+optional; every SET field must match exactly. It fails closed on every other
+event, which carries no order.
+
+```ron
+// the order this beat is waiting for
+ShipOrder((order: Some("close_the_gap")))
+
+// any order the warship finishes
+ShipOrder((ship: Some("warship")))
+
+// any alignment, by any scripted ship
+ShipOrder((kind: Some(Align)))
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | matches |
+|---|---|---|---|
+| `order` | `Option` string | `None` | the key the helm action named the order |
+| `ship` | `Option` string | `None` | the scripted ship's id |
+| `kind` | `Option` kind | `None` | `Move` / `Align` / `Stop` (bare enum, no quotes) |
+
+`ShipOrder(())`, with nothing set, matches EVERY completion - a legitimate
+way to hang one handler off the whole scripted sequence, and neither an error
+nor a warning.
+
+Order keys are minted by the action that installs the order, so the lint
+checks them against the [`MoveShipTo`](../actions/#moveshipto),
+[`ForceAlign`](../actions/#forcealign) and
+[`StopShip`](../actions/#stopship) actions the scenario authors: a filter
+waiting on a key nothing ever issues is an Error, because that handler could
+never run.
 
 </details>
 

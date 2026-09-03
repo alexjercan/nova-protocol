@@ -1,8 +1,8 @@
 //! `nova_events` is the event vocabulary shared between gameplay and the
 //! scenario engine. It defines the game-event kinds a scenario reacts to -
 //! `OnStartEvent`, `OnUpdateEvent`, `OnDefeatedEvent`, `OnDestroyedEvent`,
-//! `OnNeutralizedEvent`,
-//! area, orbit-lifecycle, lock, and timer events - and identity components that
+//! `OnNeutralizedEvent`, area, orbit-lifecycle, lock, ship-order-completion,
+//! and timer events - and identity components that
 //! tag scenario objects so filters can find them (`EntityId`, `EntityTypeName`). It is
 //! engine-light glue: `nova_gameplay` emits these events and `nova_scenario`
 //! filters and dispatches on them. It also owns the [`engine`] that queues and
@@ -43,13 +43,15 @@ pub mod prelude {
         EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
         OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
-        OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnStartEvent,
-        OnStartEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ANCHOR_TYPE_NAME,
+        OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
+        OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnStartEvent, OnStartEventInfo,
+        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME,
         ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
         ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
-        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -76,6 +78,10 @@ pub const ENTITY_OTHER_ID_COMPONENT_NAME: &str = "other_id";
 pub const ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME: &str = "other_type_name";
 /// Field name for a timer event's scenario-local key.
 pub const TIMER_KEY_FIELD_NAME: &str = "key";
+/// Field name for a completed ship order's authored key.
+pub const SHIP_ORDER_FIELD_NAME: &str = "order";
+/// Field name for a completed ship order's [`ShipOrderKind`].
+pub const SHIP_ORDER_KIND_FIELD_NAME: &str = "kind";
 
 /// Component tagging a scenario object with its type name, so event filters can
 /// match on kind. Inserted alongside [`EntityId`] when spawning scenario objects.
@@ -325,3 +331,145 @@ pub struct OnUpdateEvent;
 /// Payload for [`OnUpdateEvent`] - empty (the tick event carries no operands).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnUpdateEventInfo;
+
+/// Which HELM order a scripted ship completed.
+///
+/// The three scripted helm actions are one mutually exclusive family, so the
+/// kind is part of a completion's identity: a handler that waits for "the
+/// warship finished turning" must not be woken by the move that preceded it.
+/// Authored in a `ShipOrder` filter and carried in
+/// [`OnShipOrderCompleteEventInfo`], so it lives here beside the payload
+/// rather than in either crate that reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Reflect)]
+pub enum ShipOrderKind {
+    /// A `MoveShipTo` order: the ship flew to its mark and came to rest.
+    Move,
+    /// A `ForceAlign` order: the ship turned onto its bearing and settled.
+    Align,
+    /// A `StopShip` order: the ship killed its velocity.
+    Stop,
+}
+
+impl ShipOrderKind {
+    /// The name this kind carries in a serialized event payload.
+    ///
+    /// A filter reads the payload as JSON, so it needs the variant's SERIALIZED
+    /// name, and deriving it by hand at the read site is how the two drift
+    /// apart. One function, and a test that holds it to what serde emits.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ShipOrderKind::Move => "Move",
+            ShipOrderKind::Align => "Align",
+            ShipOrderKind::Stop => "Stop",
+        }
+    }
+}
+
+/// Event kind fired once when a scripted ship completes a keyed HELM order
+/// (`onshipordercomplete`) - arrival, alignment, or stop.
+///
+/// The completion a scenario SEQUENCES on. A cinematic that fires a railgun
+/// once the bore is on its target cannot use a guessed delay: the turn takes
+/// as long as the hull's rotation authority says it takes. Cancellation,
+/// replacement, destruction and neutralization all retire an order WITHOUT
+/// this event, so a handler waiting on a completion never runs for an order
+/// that did not finish.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onshipordercomplete")]
+#[event_info(OnShipOrderCompleteEventInfo)]
+pub struct OnShipOrderCompleteEvent;
+
+/// Payload for [`OnShipOrderCompleteEvent`]: the completed order's authored
+/// key (`order`) and kind (`kind`), plus the ship that completed it.
+///
+/// The ship keeps the well-known `id` / `type_name` names, so the ordinary
+/// entity filter still matches on it. The order's own identity gets its own
+/// two fields instead of riding on the entity id or the timer key: those name
+/// other things, and a handler that confused them would fire on the wrong beat.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct OnShipOrderCompleteEventInfo {
+    /// Authored key of the completed order.
+    #[serde(rename = "order")]
+    pub order: String,
+    /// Scenario id of the ship that completed it.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Which helm order completed.
+    #[serde(rename = "kind")]
+    pub kind: ShipOrderKind,
+}
+
+impl Default for OnShipOrderCompleteEventInfo {
+    fn default() -> Self {
+        Self {
+            order: String::new(),
+            id: String::new(),
+            type_name: String::new(),
+            kind: ShipOrderKind::Move,
+        }
+    }
+}
+
+#[cfg(test)]
+mod ship_order_tests {
+    use super::*;
+
+    /// [`ShipOrderKind::as_str`] is what a scenario filter compares against a
+    /// serialized payload, so it must be exactly what serde writes there. A
+    /// silent divergence would make every `kind`-filtered handler stop
+    /// matching, with nothing logged.
+    #[test]
+    fn the_order_kind_name_is_the_one_serde_writes() {
+        for kind in [
+            ShipOrderKind::Move,
+            ShipOrderKind::Align,
+            ShipOrderKind::Stop,
+        ] {
+            let serialized = serde_json::to_value(kind).expect("a unit variant serializes");
+            assert_eq!(
+                serialized.as_str(),
+                Some(kind.as_str()),
+                "as_str must match the serialized form of {kind:?}"
+            );
+        }
+    }
+
+    /// The completion payload names the ship with the WELL-KNOWN entity keys
+    /// and the order with its own two, so the ordinary entity filter still
+    /// matches the ship while order identity never rides on an entity id.
+    #[test]
+    fn the_completion_payload_keeps_order_identity_off_the_entity_keys() {
+        let info = OnShipOrderCompleteEventInfo {
+            order: "warship_bore".to_string(),
+            id: "warship".to_string(),
+            type_name: SPACESHIP_TYPE_NAME.to_string(),
+            kind: ShipOrderKind::Align,
+        };
+        let value = serde_json::to_value(&info).expect("the payload serializes");
+
+        assert_eq!(
+            value.get(ENTITY_ID_COMPONENT_NAME).and_then(|v| v.as_str()),
+            Some("warship"),
+            "the ship is reachable through the ordinary entity filter"
+        );
+        assert_eq!(
+            value.get(SHIP_ORDER_FIELD_NAME).and_then(|v| v.as_str()),
+            Some("warship_bore"),
+            "the order key has its own field"
+        );
+        assert_eq!(
+            value
+                .get(SHIP_ORDER_KIND_FIELD_NAME)
+                .and_then(|v| v.as_str()),
+            Some("Align"),
+            "and so does the kind"
+        );
+        assert!(
+            value.get(TIMER_KEY_FIELD_NAME).is_none(),
+            "the order key does not masquerade as a timer key"
+        );
+    }
+}

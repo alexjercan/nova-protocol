@@ -172,9 +172,11 @@ fn collect_filter(
             let right = collect_filter(right, clock, sampled, vars, times);
             left && right
         }
-        // Entity and Timer filters read the fired event, not the world. Neither
-        // says anything about when the answer could change.
-        EventFilterConfig::Entity(_) | EventFilterConfig::Timer(_) => false,
+        // Entity, Timer and ShipOrder filters read the fired event, not the
+        // world. None of them says anything about when the answer could change.
+        EventFilterConfig::Entity(_)
+        | EventFilterConfig::Timer(_)
+        | EventFilterConfig::ShipOrder(_) => false,
     }
 }
 
