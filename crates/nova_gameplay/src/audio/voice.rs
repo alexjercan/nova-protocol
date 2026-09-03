@@ -254,6 +254,11 @@ pub(super) fn on_add_listener(add: On<Add, SfxListenerMarker>, mut commands: Com
 /// A ONE-SHOT that is already inaudible is despawned instead: opening a sink
 /// for a cue nobody can hear is the churn the audible threshold exists to
 /// avoid. A silent LOOP is kept - it is waiting to be raised.
+///
+/// The writes are the try_ variants because the engine is not the only owner
+/// of a voice: a one-shot is scenario-scoped, so the teardown behind a Retry
+/// can despawn it in the same command flush this pass is opening its player
+/// in. A voice that died before its sink opened wanted no sink.
 pub(super) fn start_sfx_voices(
     mut commands: Commands,
     mixer: Mixer,
@@ -271,12 +276,12 @@ pub(super) fn start_sfx_voices(
             continue;
         }
         let mut voice_entity = commands.entity(entity);
-        voice_entity.insert((
+        voice_entity.try_insert((
             voice_player(voice, placement.gain),
             GlobalTransform::from_translation(placement.emitter.unwrap_or_default()),
         ));
         if !voice.looping {
-            voice_entity.insert(AwaitingSink(time.elapsed()));
+            voice_entity.try_insert(AwaitingSink(time.elapsed()));
         }
     }
 }
@@ -757,6 +762,50 @@ mod tests {
         assert!(
             app.world().get_entity(voice).is_err(),
             "a cue that can never play must not outlive the session"
+        );
+    }
+
+    /// The scenario teardown owns the same entities the engine does: an audio
+    /// one-shot carries `ScenarioScopedMarker`, so a Retry despawns it wherever
+    /// it happens to be in its life. That despawn and the pass that opens the
+    /// voice's player land in the SAME command flush, the teardown first, so
+    /// the pass writes onto an entity that is already gone.
+    ///
+    /// Seen live as a crash on Retry in `system_outcomes`: "Entity despawned"
+    /// on the `AudioPlayer` insert, then a panic applying the buffers.
+    #[test]
+    fn a_voice_torn_down_in_the_same_flush_does_not_take_the_pass_with_it() {
+        fn tear_down_every_voice(mut commands: Commands, q_voices: Query<Entity, With<SfxVoice>>) {
+            for entity in &q_voices {
+                commands.entity(entity).despawn();
+            }
+        }
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        // The race, pinned rather than hoped for: ordering the teardown first
+        // with the schedule's automatic sync points OFF leaves its despawn
+        // pending while the pass reads the voice, so both buffers apply in one
+        // flush, despawn first. Left to the scheduler this is whichever way
+        // the sort happens to fall.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_build_settings(bevy::ecs::schedule::ScheduleBuildSettings {
+                auto_insert_apply_deferred: false,
+                ..default()
+            });
+        });
+        app.add_systems(Update, (tear_down_every_voice, start_sfx_voices).chain());
+        let voice = app
+            .world_mut()
+            .spawn(SfxVoice::one_shot(Handle::default(), AudioRoute::Interface))
+            .id();
+
+        app.update();
+
+        assert!(
+            app.world().get_entity(voice).is_err(),
+            "the teardown is the owner that wins: the voice is gone"
         );
     }
 

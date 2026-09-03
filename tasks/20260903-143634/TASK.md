@@ -92,4 +92,6 @@ The proof must fail against the old directional behavior and pass with the fix. 
   Found on the way, NOT this task's: `system_outcomes` panics in
   `nova_gameplay::audio::voice::start_sfx_voices`, inserting an `AudioPlayer`
   on an entity despawned the same frame. Confirmed on the baseline with this
-  task's changes stashed.
+  task's changes stashed. Fixed separately on master: the pass writes
+  through the try_ variants, because the scenario teardown owns a one-shot too
+  and can despawn it in the same command flush.
