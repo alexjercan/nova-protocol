@@ -105,6 +105,19 @@ path = "examples/playable/shape_bench.rs"
 name = "block_bench"
 path = "examples/playable/block_bench.rs"
 
+# The three fixed candidate ships for Nova Protocol's replacement opening:
+# maintenance cutter, industrial carrier, and stolen military warship, posed
+# side by side for free-fly visual review before promotion into base content.
+[[example]]
+name = "first_shift_ships"
+path = "examples/playable/first_shift_ships.rs"
+
+# The spatial bench for the same opening: accepted ships at their story marks,
+# fixed tutorial route, salvage cluster, two planetoids, and labeled beats.
+[[example]]
+name = "first_shift_map"
+path = "examples/playable/first_shift_map.rs"
+
 # The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
 # 15 km/s) under three lifetime policies, with dark hull plates for the moving
 # light and every knob live. Task 20260902-143732's tuning bench: it fires the
