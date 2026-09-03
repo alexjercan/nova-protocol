@@ -246,12 +246,9 @@ fn trace_bore(
     muzzle: Vec3,
     bore: Dir3,
     config: &RailgunSectionConfigHelper,
+    figures: &RailgunEngineFigures,
 ) -> BoreTrace {
-    let reach = config
-        .slug_speed
-        .over(config.slug_lifetime)
-        .to_engine()
-        .max(0.0);
+    let reach = figures.reach.max(0.0);
     let mut damage = ProjectileDamage {
         amount: config.slug_damage,
         power: config.slug_power,
@@ -259,7 +256,7 @@ fn trace_bore(
         layers: u32::MAX,
         kind: DamageType::Pierce,
     };
-    let closing = config.slug_speed.to_engine();
+    let closing = figures.slug_speed;
     let bite = hit_bite(damage, closing);
 
     let mut kills: Vec<(Entity, Vec3)> = Vec::new();
@@ -351,6 +348,7 @@ fn sync_bore_sight(
             &ChildOf,
             &GlobalTransform,
             &RailgunSectionConfigHelper,
+            &RailgunEngineFigures,
             &RailgunCharge,
             Option<&SectionAmmo>,
         ),
@@ -396,7 +394,7 @@ fn sync_bore_sight(
 
     let mut drawn: Vec<Drawn> = Vec::new();
     if let Some(ship) = hot_player {
-        for (lance, &ChildOf(parent), global, config, charge, ammo) in &q_lance {
+        for (lance, &ChildOf(parent), global, config, figures, charge, ammo) in &q_lance {
             if parent != ship {
                 continue;
             }
@@ -424,6 +422,7 @@ fn sync_bore_sight(
                 muzzle,
                 bore,
                 config,
+                figures,
             );
 
             // Thickness, not brightness: the line is already faint enough to

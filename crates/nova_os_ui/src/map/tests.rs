@@ -16,8 +16,8 @@ use crate::pointer_rig::{
     settle, NovaOsPointerRig,
 };
 
-/// The map readout and INFO cell render range through the shared
-/// player-facing distance policy (1 world unit = 10 m), not raw `u`.
+/// The map readout and INFO cell cross the stored world-unit range to meters
+/// and render it through the shared distance policy, not raw `u`.
 #[test]
 fn map_range_renders_in_meters_and_kilometers() {
     let entity = Entity::PLACEHOLDER;

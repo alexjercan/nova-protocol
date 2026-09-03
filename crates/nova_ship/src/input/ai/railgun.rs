@@ -103,7 +103,7 @@ pub(super) fn update_railgun_section_input(
         (
             &mut RailgunSectionInput,
             &mut AIRailgun,
-            &RailgunSectionConfigHelper,
+            &RailgunEngineFigures,
             &RailgunCharge,
             Option<&SectionAmmo>,
             &GlobalTransform,
@@ -138,13 +138,13 @@ pub(super) fn update_railgun_section_input(
     }
 
     let dt = time.delta_secs();
-    for (mut input, mut gun, config, charge, ammo, section_pose, &ChildOf(spaceship)) in
+    for (mut input, mut gun, figures, charge, ammo, section_pose, &ChildOf(spaceship)) in
         &mut q_section
     {
         gun.cooldown.tick(dt);
         let commit = commit_is_open(
             &gun,
-            config,
+            figures,
             charge,
             ammo,
             section_pose,
@@ -174,7 +174,7 @@ pub(super) fn update_railgun_section_input(
 )]
 fn commit_is_open(
     gun: &AIRailgun,
-    config: &RailgunSectionConfigHelper,
+    figures: &RailgunEngineFigures,
     charge: &RailgunCharge,
     ammo: Option<&SectionAmmo>,
     section_pose: &GlobalTransform,
@@ -226,8 +226,7 @@ fn commit_is_open(
     // builder's problem and not something the AI corrects for.
     let bore = section_pose.rotation() * Vec3::NEG_Z;
     let own_anchor = live_structure_anchor(transform, com);
-    let reach = config.slug_speed.over(config.slug_lifetime).to_engine();
-    if !ai_railgun_envelope(target_anchor - own_anchor, bore, reach) {
+    if !ai_railgun_envelope(target_anchor - own_anchor, bore, figures.reach) {
         return false;
     }
     !ai_line_of_fire_blocked(

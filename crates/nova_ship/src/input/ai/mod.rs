@@ -51,7 +51,7 @@ pub use self::{
     passive::{AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
     threat::{AIEvade, AIThreat},
-    torpedo::AITorpedoBay,
+    torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
 };
 
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
@@ -61,6 +61,7 @@ pub mod prelude {
         AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
         AIPointDefenseTarget, AIRailgun, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
         AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
+        AI_TORPEDO_MAX_RANGE,
     };
 }
 

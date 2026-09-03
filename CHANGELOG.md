@@ -29,7 +29,7 @@ does NOT get an entry - and it is the only place they are written down.
   Tapping the trigger commits, the bolt walks the bore, and the shot leaves
   whether or not the nose is still on the target.
 - A railgun slug rakes a corridor about three cells wide through everything in
-  the line, gutting hull sections and crippling the big drives. Power, not a
+  line, gutting hull sections and crippling the big drives. Power, not a
   layer count or the bore, bounds what one shot takes.
 - Firing a railgun shoves the ship that fired. The impulse lands at the muzzle,
   so a railgun mounted off the ship's axis yaws it as well as pushing it back.
@@ -81,8 +81,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Modding & Mod Portal
 - **(breaking)** Content is authored in meters: a 300 m blast is
-  `blast_radius: 300`, not `30`. Every distance and speed in a mod or scenario
-  is ten times its old number.
+  `blast_radius: 300`. Every world distance and speed is x10. Build-grid
+  geometry - colliders, links, mounts, part poses - stays in cells.
 - A section declares animation tracks on its base config: a cue, nodes by name
   prefix, a motion and travel times. Kind systems steer cues; tracks move art
   only, never colliders.
@@ -101,6 +101,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `content lint` reports each scenario's creative map - the world-injecting
   actions it runs. It is context on the report, never a finding, and never
   changes the exit code.
+- The Ledger (1.27.0) and Gauntlet Run (1.11.0) are republished in meters.
+  Update both: a portal mod installed on 0.12.0 carries the old numbers, and
+  this build reads them as meters.
 
 ### Web & Platform
 - The wiki gets a Railgun page - the commit and its one way out, what a slug

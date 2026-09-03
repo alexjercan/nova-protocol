@@ -174,14 +174,20 @@ pub(super) fn insert_turret_section(
     }
 }
 
-/// Push live edits of a turret's [`TurretSectionConfigHelper`] onto the child entities that
-/// snapshot it when the turret is built, so retuning takes effect immediately (the turret range
-/// example's sliders, or the editor). `muzzle_speed` is read live by the aim/shoot systems and
-/// needs no propagation; only the snapshotted knobs (rotator speeds, pitch limits, fire rate) are
-/// pushed here. Gated on `Changed` so it costs nothing when nothing is being tuned.
+/// Push live edits of a turret's [`TurretSectionConfigHelper`] onto everything
+/// that snapshots it when the turret is built, so retuning takes effect
+/// immediately (the turret range example's sliders, or the editor): the child
+/// entities' rotator speeds, pitch limits and fire rate, and the turret's own
+/// [`TurretEngineFigures`]. Gated on `Changed` so it costs nothing when nothing
+/// is being tuned - which is what keeps the SI-to-engine conversion out of the
+/// aim and fire loops that read the figures every tick.
 pub(super) fn apply_turret_config_to_children(
-    q_turret: Query<
-        (&TurretSectionConfigHelper, &Children),
+    mut q_turret: Query<
+        (
+            &TurretSectionConfigHelper,
+            &mut TurretEngineFigures,
+            &Children,
+        ),
         (
             With<TurretSectionMarker>,
             Changed<TurretSectionConfigHelper>,
@@ -229,7 +235,11 @@ pub(super) fn apply_turret_config_to_children(
         }
     }
 
-    for (config, children) in &q_turret {
+    for (config, mut figures, children) in &mut q_turret {
+        let derived = TurretEngineFigures::of(config);
+        if *figures != derived {
+            *figures = derived;
+        }
         // The turret section entity has exactly one joint child: the tree root
         // (render children are added to the joint entities, not the section).
         if let Some(&root) = children.iter().collect::<Vec<_>>().first() {
@@ -240,6 +250,8 @@ pub(super) fn apply_turret_config_to_children(
 
 #[cfg(test)]
 mod tests {
+    use nova_events::prelude::MetersPerSecond;
+
     use super::{super::test_support::*, *};
 
     /// The mutable config joint whose hinge axis is roughly `axis` (DFS order).
@@ -340,6 +352,56 @@ mod tests {
             .0
             .duration();
         assert!((duration.as_secs_f32() - 1.0 / 25.0).abs() < 1e-6);
+    }
+
+    /// The gun's engine-side figures follow a retune, and cost nothing between
+    /// retunes.
+    ///
+    /// The aim solve and the fire gate read [`TurretEngineFigures`] every tick;
+    /// the conversion out of the authored meters happens here, on the frames
+    /// the config actually changed. A turret spawned from a non-default config
+    /// gets them on its first refresh - which is why the component's own
+    /// default is the stock gun's figures and not zero.
+    #[test]
+    fn a_retuned_turret_carries_the_new_reach_in_world_units() {
+        let mut app = App::new();
+        app.add_observer(insert_turret_section);
+        app.add_systems(Update, apply_turret_config_to_children);
+
+        let turret = spawn_real_turret(&mut app, TurretSectionConfig::default());
+        app.update();
+        let stock = *app.world().get::<TurretEngineFigures>(turret).unwrap();
+        assert_eq!(
+            stock,
+            TurretEngineFigures::of(&TurretSectionConfig::default())
+        );
+
+        // 500 m/s over 4 s is 2 km of reach: 50 u/s and 200 u.
+        {
+            let mut helper = app
+                .world_mut()
+                .get_mut::<TurretSectionConfigHelper>(turret)
+                .unwrap();
+            helper.muzzle_speed = MetersPerSecond(500.0);
+            helper.projectile_lifetime = 4.0;
+        }
+        app.update();
+
+        let figures = *app.world().get::<TurretEngineFigures>(turret).unwrap();
+        assert!((figures.muzzle_speed - 50.0).abs() < 1e-3, "{figures:?}");
+        assert!((figures.reach - 200.0).abs() < 1e-3, "{figures:?}");
+
+        // Nothing changed this frame, so nothing was re-derived: the component
+        // is untouched, which is what keeps the readers' change detection quiet.
+        app.update();
+        assert!(
+            !app.world()
+                .entity(turret)
+                .get_ref::<TurretEngineFigures>()
+                .unwrap()
+                .is_changed(),
+            "a steady turret must not dirty its figures every frame"
+        );
     }
 
     #[test]

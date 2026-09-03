@@ -230,6 +230,11 @@ pub struct TurretSectionConfig {
     pub reload: Option<SectionReloadConfig>,
 }
 
+/// The stock muzzle speed [`REFERENCE_CLOSING_SPEED`](nova_gameplay::prelude::REFERENCE_CLOSING_SPEED)
+/// is anchored at, and therefore the speed the default turret's representative
+/// damage is computed from - one constant, so the two cannot disagree.
+const DEFAULT_MUZZLE_SPEED: MetersPerSecond = MetersPerSecond(1_000.0);
+
 impl Default for TurretSectionConfig {
     fn default() -> Self {
         Self {
@@ -297,12 +302,13 @@ impl Default for TurretSectionConfig {
                     }],
                 }],
             },
-            muzzle_speed: MetersPerSecond(1_000.0),
+            muzzle_speed: DEFAULT_MUZZLE_SPEED,
             // 2 km of reach, matching the shipped PDCs so a bare
             // example turret behaves like a catalog one.
             projectile_lifetime: 2.0,
-            // Matches the old emergent kinetic (mass 0.1 @ muzzle 1,000 m/s).
-            bullet_damage: representative_kinetic_damage(0.1, 100.0),
+            // Matches the old emergent kinetic (mass 0.1 at the muzzle).
+            // Engine boundary: the damage model works in world units.
+            bullet_damage: representative_kinetic_damage(0.1, DEFAULT_MUZZLE_SPEED.to_engine()),
             bullet_kind: DamageType::Kinetic,
             projectile_render_mesh: None,
             fire_sound: None,

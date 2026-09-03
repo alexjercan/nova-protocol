@@ -58,11 +58,11 @@ pub mod prelude {
 /// the AI actually fires on.
 pub const EFFECTIVE_RANGE_MARGIN: f32 = nova_ship::prelude::AI_FIRE_RANGE_FACTOR;
 
-/// Mirrors AI_TORPEDO_MAX_RANGE (nova_ship/src/input/ai/torpedo.rs, 1,000
-/// world units): the
-/// outer edge of the AI launch envelope, whose per-bay cooldown starts ELAPSED
-/// - a tube inside this range is a live opening threat.
-pub const TORPEDO_ENVELOPE: Meters = Meters(10_000.0);
+/// The outer edge of the AI launch envelope, whose per-bay cooldown starts
+/// ELAPSED - a tube inside this range is a live opening threat. Aliased to the
+/// engine constant rather than copied, for the same reason as
+/// [`EFFECTIVE_RANGE_MARGIN`].
+pub const TORPEDO_ENVELOPE: Meters = nova_ship::prelude::AI_TORPEDO_MAX_RANGE;
 
 /// The section-prototype view a scenario's ships resolve against: the
 /// last-wins overlay of base -> declared dependencies (in declared order)

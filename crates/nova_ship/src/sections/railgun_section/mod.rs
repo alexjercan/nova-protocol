@@ -66,8 +66,9 @@ pub mod prelude {
             RailgunSlugLight, RailgunWakeEmitter, RailgunWakeLayer, RailgunWakeTuning,
             RAILGUN_SLUG_LIGHT_LUMENS, RAILGUN_SLUG_LIGHT_RANGE,
         },
-        RailgunCharge, RailgunFired, RailgunSectionConfig, RailgunSectionConfigHelper,
-        RailgunSectionInput, RailgunSectionPlugin, RailgunSectionSystems,
+        RailgunCharge, RailgunEngineFigures, RailgunFired, RailgunSectionConfig,
+        RailgunSectionConfigHelper, RailgunSectionInput, RailgunSectionPlugin,
+        RailgunSectionSystems,
     };
 }
 
@@ -219,7 +220,61 @@ impl Default for RailgunSectionConfig {
 /// so the AI's commit rule derives its envelope from the same numbers the gun
 /// actually fires with, exactly as it does for the turret and the bay.
 #[derive(Component, Clone, Debug, Deref, Reflect)]
+#[require(RailgunEngineFigures)]
 pub struct RailgunSectionConfigHelper(RailgunSectionConfig);
+
+/// The lance's engine-side figures, derived from
+/// [`RailgunSectionConfigHelper`] and refreshed only when it changes.
+///
+/// The config is SI, and both readers are physics: the AI's commit envelope
+/// compares the reach against an anchor-to-anchor distance, and the HUD's bore
+/// trace casts a ray that long and prices its bite at the slug's closing speed.
+/// Both run per lance per tick, so the conversion belongs on the change and not
+/// in the loop.
+///
+/// Required by the config helper, and defaulting to the STOCK lance's figures
+/// rather than to zero, for the same reason as [`TurretEngineFigures`].
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct RailgunEngineFigures {
+    /// Slug speed, world units per second.
+    pub slug_speed: f32,
+    /// `slug_speed * slug_lifetime`, world units: how far the slug gets before
+    /// it expires, and so the lance's reach.
+    pub reach: f32,
+}
+
+impl RailgunEngineFigures {
+    /// The figures `config` implies.
+    pub fn of(config: &RailgunSectionConfig) -> Self {
+        Self {
+            slug_speed: config.slug_speed.to_engine(),
+            reach: config.slug_speed.over(config.slug_lifetime).to_engine(),
+        }
+    }
+}
+
+impl Default for RailgunEngineFigures {
+    fn default() -> Self {
+        Self::of(&RailgunSectionConfig::default())
+    }
+}
+
+/// Refresh a retuned lance's [`RailgunEngineFigures`]. Gated on `Changed`, so
+/// it costs nothing on the frames nothing is being tuned - which is what keeps
+/// the SI-to-engine conversion out of the commit and trace loops.
+fn refresh_railgun_engine_figures(
+    mut q_railgun: Query<
+        (&RailgunSectionConfigHelper, &mut RailgunEngineFigures),
+        Changed<RailgunSectionConfigHelper>,
+    >,
+) {
+    for (config, mut figures) in &mut q_railgun {
+        let derived = RailgunEngineFigures::of(config);
+        if *figures != derived {
+            *figures = derived;
+        }
+    }
+}
 
 /// Input to commit a shot. A rise starts the charge; the charge then runs to
 /// completion whatever the trigger does after it, because the commit is the
@@ -327,6 +382,10 @@ impl Plugin for RailgunSectionPlugin {
             charge_and_fire_railgun
                 .in_set(RailgunSectionSystems)
                 .in_set(SpaceshipSectionSystems),
+        );
+        app.add_systems(
+            Update,
+            refresh_railgun_engine_figures.in_set(SpaceshipSectionSystems),
         );
 
         if self.render {

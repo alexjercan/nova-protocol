@@ -11,7 +11,10 @@ use nova_os::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::FlightSpeedCap;
 
-use crate::lookup::{self, Resolved};
+use crate::{
+    lookup::{self, Resolved},
+    units::cap_label,
+};
 
 const CLASS: CommandClass = CommandClass::Cheat;
 
@@ -135,17 +138,16 @@ pub fn ammo_refill_section(world: &mut World, ship_id: &str, section_id: &str) -
 
 /// `speed-cap <ship-id> <number|off>`.
 pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> Resolved {
-    // Engine boundary: the player says metres per second, because every figure
-    // the game shows is in metres, and `FlightSpeedCap` is compared against an
-    // avian velocity every tick. The cap crosses here, once, in each direction.
+    // Engine boundary in: the player says meters per second. The way back out
+    // is `cap_label`.
     let cap = if value.eq_ignore_ascii_case("off") {
         None
     } else {
         match value.parse::<f32>() {
             // `inf` parses and is greater than zero, and a cap that can never
             // be reached is not a cap; `nan` fails the comparison already.
-            Ok(metres) if metres > 0.0 && metres.is_finite() => {
-                Some(MetersPerSecond(metres).to_engine())
+            Ok(meters) if meters > 0.0 && meters.is_finite() => {
+                Some(MetersPerSecond(meters).to_engine())
             }
             Ok(_) => {
                 return Err(CommandResult::error(
@@ -174,10 +176,7 @@ pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> Resolved {
         }
     }
     let detail = match cap {
-        Some(cap) => format!(
-            "{ship_id}: cap {:.0} m/s",
-            MetersPerSecond::from_engine(cap).get()
-        ),
+        Some(cap) => format!("{ship_id}: cap {}", cap_label(cap)),
         None => format!("{ship_id}: cap removed"),
     };
     Ok(CommandResult::ok("speed-cap", CLASS, detail.clone())

@@ -87,3 +87,17 @@ Red team and feel skipped on the owner's instruction.
   `system_headless_drag` grew a MOUSE beat that reads the slider, the resource
   and the rig's live `Scale`. R1.32's load/save split stays open; R1.39 is
   accepted with a NOTE, as the owner asked.
+- 2026-09-03 10:55 Fixed the meters group (R1.40-R1.49). The blocker first:
+  The Ledger 1.27.0, Gauntlet Run 1.11.0 and the example mod 1.2.0 republish
+  the x10 content under versions the portal's string compare will offer as an
+  Update, each with its own changelog entry (the-ledger's missing 1.26.0 line
+  included). Hand-mirrored numbers now derive from the constants they were
+  copies of - `BEACON_LOCK_SIGNATURE` and `AI_TORPEDO_MAX_RANGE` are public
+  and typed, the shakedown pins read `GravitySettings` and `TargetingSettings`
+  - and the console's two speed-cap readouts share one `cap_label`. The
+  inspector no longer labels an unknown wrapper "m". Per the owner's answer to
+  R1.49, weapon reach, muzzle speed and blast radius are derived into a
+  `#[require]`d engine-figures component per weapon kind, refreshed only when
+  the config changes, and the scripted camera pose keeps its every-frame write
+  while losing its every-frame derive. R1.44's two example constants are left
+  in world units on the finding's own rule: they are stage geometry.

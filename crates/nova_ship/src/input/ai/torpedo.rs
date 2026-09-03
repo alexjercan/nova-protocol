@@ -3,6 +3,7 @@
 
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::Meters;
 use nova_gameplay::prelude::*;
 
 use super::{guns::ai_line_of_fire_blocked, maneuver::ai_target_anchor};
@@ -15,11 +16,14 @@ use crate::prelude::*;
 /// shots instead of holding the trigger and dumping one every
 /// 1/fire_rate seconds. Playtest knob.
 const AI_TORPEDO_COOLDOWN_SECS: f32 = 10.0;
-/// Outer edge (world units, 10 km) of the launch envelope. Beyond detection range
+/// Outer edge of the launch envelope. Beyond detection range
 /// (AI_ENGAGE_RANGE) but well inside acquisition range
 /// (AI_TARGET_MAX_RANGE), so a launch can open the approach on a fight the
 /// ship is already committing to. Playtest knob.
-const AI_TORPEDO_MAX_RANGE: f32 = 1000.0;
+///
+/// Public because the balance audit's threat envelope IS this number: a copy
+/// there would drift from the range the AI actually launches at.
+pub const AI_TORPEDO_MAX_RANGE: Meters = Meters(10_000.0);
 /// Inner edge of the envelope, as a multiple of the bay's configured blast
 /// radius: a point-blank launch detonates inside the shooter's own blast
 /// (blast damage deliberately affects the). The factor keeps the detonation
@@ -65,7 +69,7 @@ fn ai_torpedo_envelope(to_target: Vec3, forward: Vec3, blast_radius: f32) -> boo
     let distance = to_target.length();
     if distance <= f32::EPSILON
         || distance < blast_radius * AI_TORPEDO_MIN_RANGE_BLAST_FACTOR
-        || distance > AI_TORPEDO_MAX_RANGE
+        || distance > AI_TORPEDO_MAX_RANGE.to_engine()
     {
         return false;
     }
@@ -93,7 +97,7 @@ pub(super) fn update_torpedo_section_input(
         (
             &mut TorpedoSectionInput,
             &mut AITorpedoBay,
-            &TorpedoSectionConfigHelper,
+            &TorpedoEngineFigures,
             &ChildOf,
         ),
         With<TorpedoSectionMarker>,
@@ -152,7 +156,7 @@ pub(super) fn update_torpedo_section_input(
             })
         };
 
-        for (mut input, mut bay, config, _) in q_section
+        for (mut input, mut bay, figures, _) in q_section
             .iter_mut()
             .filter(|(_, _, _, ChildOf(parent))| *parent == entity)
         {
@@ -166,7 +170,7 @@ pub(super) fn update_torpedo_section_input(
                     ai_torpedo_envelope(
                         anchor - own_anchor,
                         *transform.forward(),
-                        config.blast_radius.to_engine(),
+                        figures.blast_radius,
                     )
                 })
                 && line_clear(own_anchor);
@@ -258,7 +262,7 @@ mod torpedo_tests {
         );
         assert!(
             !ai_torpedo_envelope(
-                Vec3::NEG_Z * (AI_TORPEDO_MAX_RANGE + 1.0),
+                Vec3::NEG_Z * (AI_TORPEDO_MAX_RANGE.to_engine() + 1.0),
                 forward,
                 blast_radius
             ),

@@ -260,7 +260,7 @@ pub(super) fn on_projectile_input(
         (
             &TurretSectionMuzzleEntity,
             &TurretSectionAimPoint,
-            &TurretSectionConfigHelper,
+            &TurretEngineFigures,
             &mut TurretSectionInput,
             Option<&TurretDefenseTarget>,
             &ChildOf,
@@ -286,7 +286,7 @@ pub(super) fn on_projectile_input(
     // the burst cadence and the line-of-fire gate apply at all, is a per-MOUNT
     // answer. One turret on a hull can be defending while its neighbour keeps
     // working the primary target.
-    for (muzzle, aim_point, config, mut input, turret_defense, ChildOf(ship)) in &mut q_turret {
+    for (muzzle, aim_point, figures, mut input, turret_defense, ChildOf(ship)) in &mut q_turret {
         let Ok((state, target, ship_defense, cadence)) = q_spaceship.get(*ship) else {
             continue;
         };
@@ -329,7 +329,7 @@ pub(super) fn on_projectile_input(
         // of `TurretSectionInput`.
         let muzzle_position = muzzle_transform.translation();
         let aim = aim_point.unwrap_or(target_anchor);
-        if !mount_may_shoot(muzzle_transform, config, target_anchor, aim) {
+        if !mount_may_shoot(muzzle_transform, figures, target_anchor, aim) {
             **input = false;
             continue;
         }

@@ -255,14 +255,17 @@ pub(crate) fn app_with_outcome() -> App {
 
 /// Simulate the backdrop's own `SetCamera` landing: pin the scripted pose
 /// on the scenario camera, exactly what the action inserts (the reference
-/// backdrop pose (0, 900, 3000) m looking at the origin).
+/// backdrop pose (0, 900, 3000) m looking at the origin), plus the transform
+/// the scenario loader derives from it - this rig has the menu plugin and not
+/// the loader, so nothing here would derive it.
 pub(crate) fn script_backdrop_pose(app: &mut App, camera: Entity) {
+    let pose = ScriptedCameraPose {
+        position: Meters3::new(0.0, 900.0, 3000.0),
+        look_at: Meters3::ZERO,
+    };
     app.world_mut()
         .entity_mut(camera)
-        .insert(ScriptedCameraPose {
-            position: Meters3::new(0.0, 900.0, 3000.0),
-            look_at: Meters3::ZERO,
-        });
+        .insert((pose, ScriptedCameraTransform::of(&pose)));
 }
 
 /// A menu app with a two-mod catalog (locked base + toggleable demo, both

@@ -352,9 +352,10 @@ impl Tune {
             Tune::FixedDistance | Tune::MaxLength | Tune::HazeWidth | Tune::LightRange => {
                 meters(value)
             }
-            // Particles per engine world unit, read out per meter: the shared
-            // scale is the only sane way to invert a length.
-            Tune::Density => format!("{:.2} per m", value / METERS_PER_UNIT),
+            // Particles per engine world unit, read out per meter. One meter is
+            // `Meters(1.0).to_engine()` units, so that is the factor - the seam
+            // rather than the bare scale behind it.
+            Tune::Density => format!("{:.2} per m", value * Meters(1.0).to_engine()),
             Tune::HazeIntensity | Tune::FilamentIntensity => format!("{value:.2}x"),
             Tune::LightLumens => format!("{:.0}k lm", value / 1000.0),
         }

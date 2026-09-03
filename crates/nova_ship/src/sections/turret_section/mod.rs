@@ -50,13 +50,13 @@ use crate::prelude::*;
 pub mod prelude {
     pub use super::{
         muzzle_aim_error, muzzle_on_target, preview_turret_section, turret_section, LoadedBullet,
-        MuzzleConfig, TurretJoint, TurretSectionAimPoint, TurretSectionAimSystems,
-        TurretSectionArc, TurretSectionBarrelMuzzleMarker, TurretSectionConfig,
-        TurretSectionConfigHelper, TurretSectionInput, TurretSectionMuzzleEntity,
-        TurretSectionPlugin, TurretSectionSystems, TurretSectionTargetEntity,
-        TurretSectionTargetInput, TurretSectionTargetTrack, TurretSectionTargetVelocity,
-        TurretStow, TurretStowDoorsMoved, TurretStowPhase, CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS,
-        TURRET_ON_TARGET_RAD,
+        MuzzleConfig, TurretEngineFigures, TurretJoint, TurretSectionAimPoint,
+        TurretSectionAimSystems, TurretSectionArc, TurretSectionBarrelMuzzleMarker,
+        TurretSectionConfig, TurretSectionConfigHelper, TurretSectionInput,
+        TurretSectionMuzzleEntity, TurretSectionPlugin, TurretSectionSystems,
+        TurretSectionTargetEntity, TurretSectionTargetInput, TurretSectionTargetTrack,
+        TurretSectionTargetVelocity, TurretStow, TurretStowDoorsMoved, TurretStowPhase,
+        CLOSE_ENGAGEMENT_RANGE, HULL_HIT_RADIUS, TURRET_ON_TARGET_RAD,
     };
 }
 
@@ -209,14 +209,58 @@ struct TurretJointRenderMesh(#[reflect(ignore)] Option<AssetRef<WorldAsset>>);
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 struct TurretJointRenderMeshTransform(Option<RenderMeshTransform>);
 
-/// The live tuning config carried by a turret section entity. The aim/shoot systems read
-/// `muzzle_speed` from it directly every frame; the rotator speeds, pitch limits and fire rate
-/// are snapshotted onto child entities when the turret is built, so edits to those are pushed to
-/// the children by `apply_turret_config_to_children`. Editing this component (it derefs to
-/// [`TurretSectionConfig`]) is the supported way to retune a turret live - see the turret range
-/// example's sliders.
+/// The live tuning config carried by a turret section entity. The rotator
+/// speeds, pitch limits and fire rate are snapshotted onto child entities when
+/// the turret is built, and the muzzle speed and reach onto
+/// [`TurretEngineFigures`]; edits to any of them are pushed by
+/// `apply_turret_config_to_children`. Editing this component (it derefs to
+/// [`TurretSectionConfig`]) is the supported way to retune a turret live - see
+/// the turret range example's sliders.
 #[derive(Component, Clone, Debug, Deref, DerefMut, Reflect)]
+#[require(TurretEngineFigures)]
 pub struct TurretSectionConfigHelper(pub TurretSectionConfig);
+
+/// The turret's engine-side figures, derived from
+/// [`TurretSectionConfigHelper`] and refreshed only when it changes.
+///
+/// The config is SI, and both readers are physics comparisons against a live
+/// transform: the lead solve flies its intercept at the muzzle speed, and the
+/// fire gate measures the reach against a distance read off a `GlobalTransform`.
+/// Converting inside those loops put the seam where every reader had to
+/// remember it and ran the multiply once per turret per tick;
+/// `apply_turret_config_to_children` derives it instead, on the frames a turret
+/// is actually being retuned.
+///
+/// Required by the config helper, and defaulting to the STOCK gun's figures
+/// rather than to zero: a turret that has not been through a refresh yet reads
+/// as a stock gun, not as a gun with no reach.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct TurretEngineFigures {
+    /// Muzzle speed, world units per second.
+    pub muzzle_speed: f32,
+    /// `muzzle_speed * projectile_lifetime`, world units: how far a round gets
+    /// before it expires, and so the gun's reach.
+    pub reach: f32,
+}
+
+impl TurretEngineFigures {
+    /// The figures `config` implies.
+    pub fn of(config: &TurretSectionConfig) -> Self {
+        Self {
+            muzzle_speed: config.muzzle_speed.to_engine(),
+            reach: config
+                .muzzle_speed
+                .over(config.projectile_lifetime)
+                .to_engine(),
+        }
+    }
+}
+
+impl Default for TurretEngineFigures {
+    fn default() -> Self {
+        Self::of(&TurretSectionConfig::default())
+    }
+}
 
 /// Per-barrel-muzzle fire cooldown timer, snapshotted from the turret's fire
 /// rate when the turret is built. The muzzle system ticks it down and resets

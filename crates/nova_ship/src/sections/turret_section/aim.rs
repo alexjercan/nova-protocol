@@ -273,7 +273,7 @@ pub fn update_turret_aim_point(
             &TurretSectionTargetInput,
             &TurretSectionTargetVelocity,
             &TurretSectionTargetTrack,
-            &TurretSectionConfigHelper,
+            &TurretEngineFigures,
             &TurretSectionMuzzleEntity,
             &ChildOf,
             &mut TurretSectionAimPoint,
@@ -310,7 +310,7 @@ pub fn update_turret_aim_point(
         target_input,
         target_sample,
         track,
-        config,
+        figures,
         TurretSectionMuzzleEntity(muzzle),
         ChildOf(spaceship),
         mut aim_point,
@@ -354,7 +354,7 @@ pub fn update_turret_aim_point(
             muzzle_pos,
             target_pos + target_velocity * launch_delay,
             target_velocity,
-            config.muzzle_speed.to_engine(),
+            figures.muzzle_speed,
         ));
     }
 }

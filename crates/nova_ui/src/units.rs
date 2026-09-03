@@ -20,7 +20,7 @@ pub const KM_THRESHOLD_M: Meters = Meters(1000.0);
 ///
 /// ```
 /// # use nova_ui::units::distance;
-/// # use nova_events::units::Meters;
+/// # use nova_events::prelude::Meters;
 /// assert_eq!(distance(Meters(840.0)), "840 m");
 /// assert_eq!(distance(Meters(1500.0)), "1.50 km");
 /// ```
@@ -40,7 +40,7 @@ pub fn distance(meters: Meters) -> String {
 ///
 /// ```
 /// # use nova_ui::units::speed;
-/// # use nova_events::units::MetersPerSecond;
+/// # use nova_events::prelude::MetersPerSecond;
 /// assert_eq!(speed(MetersPerSecond(50.0)), "50.0 m/s");
 /// ```
 pub fn speed(speed: MetersPerSecond) -> String {
@@ -55,7 +55,7 @@ pub fn speed(speed: MetersPerSecond) -> String {
 ///
 /// ```
 /// # use nova_ui::units::speed_rated;
-/// # use nova_events::units::MetersPerSecond;
+/// # use nova_events::prelude::MetersPerSecond;
 /// assert_eq!(
 ///     speed_rated(MetersPerSecond(50.0), MetersPerSecond(80.0)),
 ///     "50.0 / 80.0 m/s"
@@ -70,7 +70,7 @@ pub fn speed_rated(flown: MetersPerSecond, rated: MetersPerSecond) -> String {
 ///
 /// ```
 /// # use nova_ui::units::closing_speed;
-/// # use nova_events::units::MetersPerSecond;
+/// # use nova_events::prelude::MetersPerSecond;
 /// assert_eq!(closing_speed(MetersPerSecond(200.0)), "+200.0 m/s");
 /// assert_eq!(closing_speed(MetersPerSecond(-32.1)), "-32.1 m/s");
 /// ```

@@ -39,7 +39,7 @@ pub const METERS_PER_UNIT: f32 = 10.0;
 /// [`to_engine`](Self::to_engine).
 ///
 /// ```
-/// # use nova_events::units::Meters;
+/// # use nova_events::prelude::Meters;
 /// // A 300 m blast is authored as 300 and reaches avian as 30 world units.
 /// assert_eq!(Meters(300.0).to_engine(), 30.0);
 /// assert_eq!(Meters::from_engine(30.0), Meters(300.0));
@@ -51,7 +51,7 @@ pub struct Meters(pub f32);
 /// A speed in meters per second.
 ///
 /// ```
-/// # use nova_events::units::MetersPerSecond;
+/// # use nova_events::prelude::MetersPerSecond;
 /// assert_eq!(MetersPerSecond(2000.0).to_engine(), 200.0);
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Reflect, Serialize, Deserialize)]
@@ -61,7 +61,7 @@ pub struct MetersPerSecond(pub f32);
 /// An acceleration in meters per second squared.
 ///
 /// ```
-/// # use nova_events::units::MetersPerSecondSquared;
+/// # use nova_events::prelude::MetersPerSecondSquared;
 /// assert_eq!(MetersPerSecondSquared(90.0).to_engine(), 9.0);
 /// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd, Reflect, Serialize, Deserialize)]
@@ -75,7 +75,7 @@ pub struct MetersPerSecondSquared(pub f32);
 /// `Meters3` never reaches a `Transform` without [`to_engine`](Self::to_engine).
 ///
 /// ```
-/// # use nova_events::units::Meters3;
+/// # use nova_events::prelude::Meters3;
 /// # use bevy::prelude::Vec3;
 /// assert_eq!(Meters3(Vec3::new(0.0, 0.0, 400.0)).to_engine(), Vec3::new(0.0, 0.0, 40.0));
 /// ```
@@ -85,7 +85,9 @@ pub struct Meters3(pub Vec3);
 
 /// Glob-import surface for the quantity types and the scale they cross at.
 pub mod prelude {
-    pub use super::{Meters, Meters3, MetersPerSecond, MetersPerSecondSquared, METERS_PER_UNIT};
+    // `METERS_PER_UNIT` is deliberately NOT here: the quantity types already
+    // carry it, and code that names it is code doing a conversion by hand.
+    pub use super::{Meters, Meters3, MetersPerSecond, MetersPerSecondSquared};
 }
 
 /// Generate the shared scalar surface of a one-component quantity: the

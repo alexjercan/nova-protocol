@@ -453,10 +453,9 @@ fn ships_are_corvettes_and_the_pirate_is_scavenger_grade() {
 #[test]
 fn beat4_geometry_holds_against_the_planetoid_soi() {
     const ORBIT_CLEARANCE: f32 = 1.5;
-    // `GravitySettings::surface_margin`, the engine's one world unit.
-    const SURFACE_MARGIN: Meters = Meters(10.0);
 
     let gravity = nova_gameplay::prelude::GravitySettings::default();
+    let surface_margin = Meters::from_engine(gravity.surface_margin);
     // Mirrors GravityWell::from_mass. `mu` and the surface-gravity cap stay on
     // the engine side (u^3/s^2 and u/s^2), so the geometric radius crosses back
     // for this one comparison: the mass is under the escapability cap on the
@@ -471,13 +470,13 @@ fn beat4_geometry_holds_against_the_planetoid_soi() {
     );
     let soi = Meters::from_engine((PLANETOID_MASS / gravity.soi_cutoff_accel).sqrt());
     let widest_body = PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
-    let widest_ring = (widest_body + SURFACE_MARGIN) * ORBIT_CLEARANCE;
+    let widest_ring = (widest_body + surface_margin) * ORBIT_CLEARANCE;
 
     // Beacon 3 (the FIRST lock target, beat sheet v2): its GOTO leg is
     // the gravity-free rehearsal, so it must clear the SOI - and stay
     // within the DEFAULT beacon lock range of the
-    // debris cluster, where the lesson is taught (BEACON_LOCK_SIGNATURE
-    // 200 m * signature_range_per_unit 30 = 6 km; both cited constants).
+    // debris cluster, where the lesson is taught (both constants read from
+    // the engine below, so a retune of either moves this pin with it).
     let beacon_3_planetoid = BEACON_3_POS.distance(PLANETOID_POS);
     assert!(
         beacon_3_planetoid > soi + Meters(400.0),
@@ -486,7 +485,8 @@ fn beat4_geometry_holds_against_the_planetoid_soi() {
         beacon_3_planetoid.get(),
         soi.get()
     );
-    let default_lock_range = Meters(200.0) * 30.0;
+    let default_lock_range = nova_scenario::prelude::BEACON_LOCK_SIGNATURE
+        * nova_ship::prelude::TargetingSettings::default().signature_range_per_unit;
     let cluster_to_beacon_3 = DEBRIS_CENTER.distance(BEACON_3_POS);
     assert!(
         cluster_to_beacon_3 < default_lock_range - Meters(1_000.0),
@@ -699,12 +699,12 @@ fn segment_distance_to_box(
 #[test]
 fn belt_knots_keep_every_beat_pocket_clear() {
     const ORBIT_CLEARANCE: f32 = 1.5;
-    // `GravitySettings::surface_margin`, the engine's one world unit.
-    const SURFACE_MARGIN: Meters = Meters(10.0);
     const POCKET_MARGIN: Meters = Meters(200.0);
 
+    let gravity = nova_gameplay::prelude::GravitySettings::default();
+    let surface_margin = Meters::from_engine(gravity.surface_margin);
     let widest_body = PLANETOID_NOMINAL_RADIUS * ASTEROID_GEOMETRIC_FACTOR_MAX;
-    let widest_ring = (widest_body + SURFACE_MARGIN) * ORBIT_CLEARANCE;
+    let widest_ring = (widest_body + surface_margin) * ORBIT_CLEARANCE;
     let pockets: [(&str, Meters3, Meters); 9] = [
         ("the player spawn", PLAYER_SPAWN, Meters(600.0)),
         ("beacon 1", BEACON_1_POS, BEACON_AREA_RADIUS),
@@ -777,7 +777,6 @@ fn belt_knots_keep_every_beat_pocket_clear() {
         farthest_beat.get()
     );
 
-    let gravity = nova_gameplay::prelude::GravitySettings::default();
     let min_well_radius = Meters::from_engine(gravity.min_well_radius);
     assert!(
         BELT_FAR_RADIUS.1 < min_well_radius,

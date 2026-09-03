@@ -437,8 +437,9 @@ fn closing_speed(
     Some(-(target_vel - ship_vel).dot(los_dir))
 }
 
-/// The `DST` line, using the shared player-facing distance policy (meters
-/// below 1 km, kilometers above; 1 world unit = 10 m).
+/// The `DST` line. The distance arrives in world units off a Bevy transform
+/// and crosses here, once; the shared policy formats the meters it is handed
+/// (meters below 1 km, kilometers above) and converts nothing.
 fn distance_line(distance: f32) -> String {
     format!(
         "DST {}",
@@ -446,9 +447,9 @@ fn distance_line(distance: f32) -> String {
     )
 }
 
-/// The `CLS` line, using the shared closing-speed policy (signed m/s, 1 world
-/// unit/s = 10 m/s), with an explicit sign: positive closing, negative
-/// opening. `None` (no velocity data on either body) renders a placeholder.
+/// The `CLS` line: the same crossing, then the shared closing-speed policy,
+/// which prints an explicit sign - positive closing, negative opening. `None`
+/// (no velocity data on either body) renders a placeholder.
 fn closing_line(closing: Option<f32>) -> String {
     match closing {
         Some(closing) => format!(

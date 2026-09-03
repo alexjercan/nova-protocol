@@ -54,11 +54,11 @@ pub mod prelude {
     pub use super::{
         preview_torpedo_section, scripted::ScriptedTorpedoOrder, torpedo_section, BlastMomentum,
         TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch,
-        TorpedoControllerMarker, TorpedoGuidance, TorpedoIgnited, TorpedoSectionConfig,
-        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
-        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
-        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
-        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        TorpedoControllerMarker, TorpedoEngineFigures, TorpedoGuidance, TorpedoIgnited,
+        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
+        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
+        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
+        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -547,7 +547,58 @@ pub struct BlastMomentum(pub Vec3);
 /// same numbers the bay actually fires with (blast radius), like it reads
 /// the turret's config helper for the fire-range gate.
 #[derive(Component, Clone, Debug, Deref, Reflect)]
+#[require(TorpedoEngineFigures)]
 pub struct TorpedoSectionConfigHelper(TorpedoSectionConfig);
+
+/// The bay's engine-side figures, derived from
+/// [`TorpedoSectionConfigHelper`] and refreshed only when it changes.
+///
+/// One number so far, and it is the one the AI's launch envelope measures a
+/// live anchor-to-anchor distance against, once per bay per tick. The config is
+/// SI; converting inside that loop put the seam where the reader had to
+/// remember it.
+///
+/// Required by the config helper, and defaulting to the STOCK bay's figures
+/// rather than to zero, for the same reason as
+/// [`TurretEngineFigures`](crate::prelude::TurretEngineFigures).
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct TorpedoEngineFigures {
+    /// Proximity-fuze and damage radius, world units. The AI's inner launch
+    /// edge is a multiple of it: a launch inside detonates on the shooter.
+    pub blast_radius: f32,
+}
+
+impl TorpedoEngineFigures {
+    /// The figures `config` implies.
+    pub fn of(config: &TorpedoSectionConfig) -> Self {
+        Self {
+            blast_radius: config.blast_radius.to_engine(),
+        }
+    }
+}
+
+impl Default for TorpedoEngineFigures {
+    fn default() -> Self {
+        Self::of(&TorpedoSectionConfig::default())
+    }
+}
+
+/// Refresh a retuned bay's [`TorpedoEngineFigures`]. Gated on `Changed`, so it
+/// costs nothing on the frames nothing is being tuned - which is what keeps the
+/// SI-to-engine conversion out of the launch envelope.
+fn refresh_torpedo_engine_figures(
+    mut q_bay: Query<
+        (&TorpedoSectionConfigHelper, &mut TorpedoEngineFigures),
+        Changed<TorpedoSectionConfigHelper>,
+    >,
+) {
+    for (config, mut figures) in &mut q_bay {
+        let derived = TorpedoEngineFigures::of(config);
+        if *figures != derived {
+            *figures = derived;
+        }
+    }
+}
 
 /// The bay's launch cooldown, carried on the spawner and seeded from the config
 /// fire rate (`1/fire_rate` seconds). The fire system ticks it and triggers it
@@ -900,6 +951,10 @@ impl Plugin for TorpedoSectionPlugin {
             torpedo_detonate_system
                 .after(PhysicsSystems::Last)
                 .in_set(super::SpaceshipSectionSystems),
+        );
+        app.add_systems(
+            Update,
+            refresh_torpedo_engine_figures.in_set(super::SpaceshipSectionSystems),
         );
         // Scripted launches: the trigger hold feeds the FixedUpdate spawn
         // above; the commit runs before target tracking so a scripted

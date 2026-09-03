@@ -116,11 +116,11 @@ pub fn aimed_light_base(
 /// depth. Rim is a cold hard edge from behind, separating a dark hull from a
 /// dark skybox. Fill is cool and dim from the shadow side, so the unlit half
 /// keeps detail without flattening the key.
-const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
+const THREE_POINT_LIGHTS: [(&str, &str, Meters3, f32, Srgba, bool); 3] = [
     (
         "key",
         "Key Light",
-        Vec3::new(-60.0, 50.0, 60.0),
+        Meters3(Vec3::new(-60.0, 50.0, 60.0)),
         11000.0,
         Srgba::new(1.0, 0.96, 0.90, 1.0),
         true,
@@ -128,7 +128,7 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
     (
         "rim",
         "Rim Light",
-        Vec3::new(30.0, 40.0, -80.0),
+        Meters3(Vec3::new(30.0, 40.0, -80.0)),
         16000.0,
         Srgba::new(0.72, 0.86, 1.0, 1.0),
         false,
@@ -136,7 +136,7 @@ const THREE_POINT_LIGHTS: [(&str, &str, Vec3, f32, Srgba, bool); 3] = [
     (
         "fill",
         "Fill Light",
-        Vec3::new(70.0, -20.0, 40.0),
+        Meters3(Vec3::new(70.0, -20.0, 40.0)),
         2600.0,
         Srgba::new(0.62, 0.72, 0.95, 1.0),
         false,
@@ -181,7 +181,7 @@ impl ThreePointRig {
                     base: aimed_light_base(
                         &format!("{}_{}", self.prefix, role),
                         name,
-                        self.target + Meters3(*offset * self.scale),
+                        self.target + *offset * self.scale,
                         self.target,
                     ),
                     kind: ScenarioObjectKind::Light(LightConfig::Directional {

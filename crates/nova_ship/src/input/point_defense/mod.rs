@@ -71,18 +71,18 @@ pub struct SpaceshipPointDefenseSystems;
 /// barrel actually steers to. The range is judged on the anchor and the bearing
 /// on the lead, because a mount correctly leading a crossing target never bears
 /// on the anchor itself and would otherwise hold fire forever.
+///
+/// The reach arrives already in world units, off [`TurretEngineFigures`]: this
+/// is a comparison against a distance read off a `GlobalTransform`, and it runs
+/// per mount per tick.
 pub(crate) fn mount_may_shoot(
     muzzle: &GlobalTransform,
-    config: &TurretSectionConfig,
+    figures: &TurretEngineFigures,
     anchor: Vec3,
     aim: Vec3,
 ) -> bool {
     let muzzle_position = muzzle.translation();
-    let effective_range = config
-        .muzzle_speed
-        .over(config.projectile_lifetime)
-        .to_engine()
-        * AI_FIRE_RANGE_FACTOR;
+    let effective_range = figures.reach * AI_FIRE_RANGE_FACTOR;
     anchor.distance(muzzle_position) <= effective_range
         && muzzle_on_target(muzzle.forward().into(), muzzle_position, aim)
 }

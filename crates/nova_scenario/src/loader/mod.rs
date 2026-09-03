@@ -48,7 +48,7 @@ pub mod prelude {
         CampaignId, ContentIssues, CurrentScenario, GameCampaigns, GameScenarios, LoadScenario,
         NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId,
         ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
-        ScenarioStartFailureReport, ScriptedCameraPose, UnloadScenario,
+        ScenarioStartFailureReport, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
     };
 }
 
@@ -611,7 +611,10 @@ impl Plugin for ScenarioLoaderPlugin {
         }
         app.add_systems(
             PostUpdate,
-            enforce_scripted_camera_pose.in_set(CameraAuthoritySystems::Override),
+            (
+                derive_scripted_camera_transform.before(CameraAuthoritySystems::Override),
+                enforce_scripted_camera_pose.in_set(CameraAuthoritySystems::Override),
+            ),
         );
     }
 }
@@ -622,6 +625,7 @@ impl Plugin for ScenarioLoaderPlugin {
 /// present it pins the [`ScenarioCameraMarker`] camera at `position` looking at
 /// `look_at`.
 #[derive(Component, Debug, Clone, Copy)]
+#[require(ScriptedCameraTransform)]
 pub struct ScriptedCameraPose {
     /// World-space camera position.
     pub position: Meters3,
@@ -629,15 +633,49 @@ pub struct ScriptedCameraPose {
     pub look_at: Meters3,
 }
 
+/// The Bevy transform a [`ScriptedCameraPose`] means, derived by
+/// `derive_scripted_camera_transform` only when the pose changes.
+///
+/// The pose has to be RE-APPLIED every frame, because the whole point of the
+/// override is to win the frame's last write; it does not have to be
+/// RE-DERIVED every frame. The identity default is never read: the derive runs
+/// in `PostUpdate` before the override, and `Changed` fires on the insert, so
+/// the transform exists by the first frame the pose does.
+#[derive(Component, Debug, Clone, Copy, Default, Deref)]
+pub struct ScriptedCameraTransform(pub Transform);
+
+impl ScriptedCameraTransform {
+    /// The transform `pose` means.
+    ///
+    /// Engine boundary: the one place a scripted pose becomes a Bevy transform,
+    /// so every poser upstream of it stays in meters.
+    pub fn of(pose: &ScriptedCameraPose) -> Self {
+        Self(
+            Transform::from_translation(pose.position.to_engine())
+                .looking_at(pose.look_at.to_engine(), Vec3::Y),
+        )
+    }
+}
+
+/// Derive each changed [`ScriptedCameraPose`] into the transform the override
+/// then writes.
+fn derive_scripted_camera_transform(
+    mut cameras: Query<
+        (&mut ScriptedCameraTransform, &ScriptedCameraPose),
+        Changed<ScriptedCameraPose>,
+    >,
+) {
+    for (mut derived, pose) in &mut cameras {
+        *derived = ScriptedCameraTransform::of(pose);
+    }
+}
+
 /// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
 /// [`CameraAuthoritySystems::Override`] so it wins the frame's last write to the
 /// camera Transform, shake offset included.
-fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraPose)>) {
-    for (mut transform, pose) in &mut cameras {
-        // Engine boundary: the one place a scripted pose becomes a Bevy
-        // transform, so every poser upstream of it stays in meters.
-        *transform = Transform::from_translation(pose.position.to_engine())
-            .looking_at(pose.look_at.to_engine(), Vec3::Y);
+fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraTransform)>) {
+    for (mut transform, derived) in &mut cameras {
+        *transform = **derived;
     }
 }
 

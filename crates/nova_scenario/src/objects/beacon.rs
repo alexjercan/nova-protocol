@@ -15,14 +15,17 @@ use crate::prelude::*;
 
 /// The beacon scenario object, `BeaconConfig` and `BeaconPlugin`.
 pub mod prelude {
-    pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin};
+    pub use super::{beacon_scenario_object, BeaconConfig, BeaconPlugin, BEACON_LOCK_SIGNATURE};
 }
 
 /// The lock scanner sees a beacon like a well-sized rock: a nav point is
 /// exactly the thing the player locks to GOTO, so it must be acquirable
 /// from a full tutorial leg away (signature * range-per-unit, 200 * 30 = 6 km
 /// at the default settings), not at debris range.
-const BEACON_LOCK_SIGNATURE: Meters = Meters(200.0);
+///
+/// Public because a scenario's GOTO legs are pinned against this range: the
+/// pin that proves a leg is lockable must read the signature, not a copy.
+pub const BEACON_LOCK_SIGNATURE: Meters = Meters(200.0);
 
 /// Blink period (seconds) of the emissive pulse.
 const BEACON_BLINK_PERIOD_SECS: f32 = 1.2;

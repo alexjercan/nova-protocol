@@ -3,6 +3,14 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.11.0
+
+- The course is authored in METERS. Every gate, slalom, gravity well and start
+  offset is ten times the number it was. Required: the base game now reads a
+  mod's distances and speeds as meters, so 1.10.0's course would lay itself out
+  at a tenth of its size - gates two meters wide and a well you cannot escape.
+  The course flies exactly as it did; only the numbers in the file changed.
+
 ## 1.10.0
 
 - Drops the leftover `infinite_ammo` grant from the course racer. The racer was

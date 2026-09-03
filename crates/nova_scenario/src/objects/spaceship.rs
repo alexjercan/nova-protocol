@@ -130,10 +130,10 @@ pub struct AIControllerConfig {
     )]
     pub engage_delay: Option<f32>,
     /// Hostile-detection range override: a passive ship leaves its routine
-    /// for a hostile inside this range instead of the engine's 4 km default. Author it wide on a long-watch emplacement that must
-    /// wake for targets parked outside everyone else's detection; short on a
-    /// ship meant to ignore a nearby brawl. None = the default. See
-    /// `AIEngageRange`.
+    /// for a hostile inside this range instead of the engine's 4 km default.
+    /// Author it wide on a long-watch emplacement that must wake for targets
+    /// parked outside everyone else's detection; short on a ship meant to
+    /// ignore a nearby brawl. None = the default. See `AIEngageRange`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -161,8 +161,9 @@ pub struct AIControllerConfig {
     )]
     pub waypoint_slack: Option<Meters>,
     /// Translation-arrival standoff override: how far from a GOTO goal this
-    /// ship's computer comes to rest, instead of the engine's 500 m default. Author it small (with a small `waypoint_slack`) on a
-    /// ship that must visibly REACH its waypoints. None = the default. See
+    /// ship's computer comes to rest, instead of the engine's 500 m default.
+    /// Author it small (with a small `waypoint_slack`) on a ship that must
+    /// visibly REACH its waypoints. None = the default. See
     /// `FlightArrivalStandoff`.
     #[cfg_attr(
         feature = "serde",

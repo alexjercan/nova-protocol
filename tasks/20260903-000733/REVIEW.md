@@ -409,7 +409,7 @@ Findings:
 
 ### units to meters (fe92322a..540f5834, f3952cf8, 40c068d2)
 
-- [ ] R1.40 (BLOCKER, easy) `webmods/the-ledger/the-ledger.bundle.ron:38`,
+- [x] R1.40 (BLOCKER, easy) `webmods/the-ledger/the-ledger.bundle.ron:38`,
   `webmods/gauntlet/gauntlet.bundle.ron:16` - both portal mods carry x10
   content under version strings that already shipped: the-ledger 1.26.0
   was bumped in a3c8ea71 inside tag v0.12.0, gauntlet 1.10.0 in 96c361f9
@@ -426,27 +426,34 @@ Findings:
   changelog entries (the-ledger's CHANGELOG tops out at 1.25.0 and has no
   1.26.0 entry); `assets/mods/example` ships in-tree and needs a bump for
   consistency only.
-- [ ] R1.41 (MAJOR, easy) `CHANGELOG.md:83-85` - the breaking entry says
+- [x] R1.41 (MAJOR, easy) `CHANGELOG.md:83-85` - the breaking entry says
   "Every distance and speed in a mod or scenario is ten times its old
   number", which is false for build-grid geometry: colliders, link points,
   joint and mount offsets, exhaust cones and `sections[].position` stay in
   cells. A section author who follows it and x10s a collider gets an
   unusable part. Change: "... Build-grid geometry - colliders, link points,
   mount offsets, part poses - stays in cells." (191 chars).
-- [ ] R1.42 (MINOR, easy) `crates/nova_ship/src/input/ai/acquisition.rs:87-88` -
+- [x] R1.42 (MINOR, easy) `crates/nova_ship/src/input/ai/acquisition.rs:87-88` -
   the rustdoc says the AI range is "Shorter than the player's
   TARGETING_MAX_RANGE (20 km)"; that constant is 20 000 engine units, 200
   km (`crates/nova_ship/src/input/targeting/contacts.rs:17`). Change: "(200 km)".
-- [ ] R1.43 (MINOR, easy) `CHANGELOG.md:31-33` - the railgun rake entry is
+- [x] R1.43 (MINOR, easy) `CHANGELOG.md:31-33` - the railgun rake entry is
   204 chars once joined (cap 200); raised by two lanes. Change: trim
   ("through everything in the line" to "through everything in line").
-- [ ] R1.44 (MINOR, easy) authored layouts still written in world units and
+- [x] R1.44 (MINOR, easy) authored layouts still written in world units and
   wrapped per field with `from_engine`: `crates/nova_editor/src/scenario.rs`
   (28 sites, e.g. `:229,:773,:857`), `examples/playable/carve_asteroids.rs`
   (18 sites, e.g. `:212,216,811,815`), `examples/screenshots/screenshot_damage_levels.rs:122,585`.
   Change: literal-only sites as `Meters(4000.0)` and the like; keep
   `from_engine` only for values derived from stage geometry.
-- [ ] R1.45 (MINOR, easy) `METERS_PER_UNIT` is exported through the
+  TAKEN in the editor: the picket leash, the beacon orb radius and
+  `BEACON_LOCK_SIGNATURE` are authored in meters and the const is typed
+  `Meters`; the module doc says a figure the stage does not check is
+  simply authored in meters. LEFT in both examples, under this finding's
+  own rule: `ROCK_RADIUS` is the rock's MESH SCALE (`mark.radius *
+  ROCK_RADIUS`), and both `COLUMN_PITCH`es lay out cell-relative aim
+  points and the camera framing. Each already says so in its own doc.
+- [x] R1.45 (MINOR, easy) `METERS_PER_UNIT` is exported through the
   preludes (`crates/nova_events/src/units.rs:88`) against its own doc
   ("Nothing outside an engine boundary should name it");
   `crates/nova_authoring/src/base_content/sections/mod.rs:125-131`
@@ -454,7 +461,7 @@ Findings:
   divides a density by the constant; `crates/nova_scenario/src/objects/light.rs:119-139,184`
   holds meters in a bare `Vec3` and wraps at use. Change: drop the
   constant from the preludes; delete the loop; type the tuple `Meters3`.
-- [ ] R1.46 (MINOR, easy) hand-mirrored constants: `SURFACE_MARGIN` twice
+- [x] R1.46 (MINOR, easy) hand-mirrored constants: `SURFACE_MARGIN` twice
   in `crates/nova_authoring/src/shakedown/tests/pins.rs:456-457,702-703`
   while `gravity.surface_margin` is in scope, and `Meters(200) * 30` at
   `:489` mirrors the private `BEACON_LOCK_SIGNATURE`; `TORPEDO_ENVELOPE`
@@ -464,12 +471,23 @@ Findings:
   the cap readout format is duplicated (`crates/nova_console/src/cheats.rs:197-200`,
   `inspect.rs:383`) and "metres" survives at `cheats.rs:160,166`,
   `inspect.rs:381`. Change: export and derive; one `cap_label` fn.
-- [ ] R1.47 (MINOR, easy) `crates/nova_editor/src/inspect.rs:936-941` vs
+  TAKEN: `BEACON_LOCK_SIGNATURE` and `AI_TORPEDO_MAX_RANGE` are public and
+  typed `Meters` (the latter converts at its one comparison), the pins read
+  `gravity.surface_margin` and `TargetingSettings::signature_range_per_unit`,
+  `TORPEDO_ENVELOPE` aliases the engine constant like `EFFECTIVE_RANGE_MARGIN`
+  already did, `DEFAULT_MUZZLE_SPEED` feeds both the config field and the
+  representative-damage call, and `crates/nova_console/src/units.rs` holds
+  the one `cap_label`.
+- [x] R1.47 (MINOR, easy) `crates/nova_editor/src/inspect.rs:936-941` vs
   `:983-988` - `quantity_inner` treats any one-scalar tuple struct as a
   quantity "whatever it is called" and `quantity_unit` labels every unknown
   wrapper "m". Change: `Option<&'static str>` from `quantity_unit`, or
   enumerate the types and fix the doc.
-- [ ] R1.48 (MINOR, easy) stale comments and doc paths: the x10 attributed
+  TAKEN: both. `quantity_unit` enumerates the four `nova_events` quantities
+  and returns `None` for anything else, `declare_by_type` then leaves the
+  row alone (no unit, no meter-sized nudge), and the shape check's doc now
+  says it decides the CONTROL and not the dimension.
+- [x] R1.48 (MINOR, easy) stale comments and doc paths: the x10 attributed
   to "the shared player-facing distance policy" at
   `crates/nova_hud/src/torpedo_target.rs:440-441,449-450`,
   `crates/nova_os_ui/src/map/contacts.rs:116-117`, `map/tests.rs:20`,
@@ -477,7 +495,7 @@ Findings:
   lines) while `crates/nova_ui/src/units.rs:7` now says nothing converts;
   `crates/nova_editor/Cargo.toml:27`; doctests in `nova_ui/src/units.rs`
   and `nova_events/src/units.rs` import `Meters` past the prelude.
-- [ ] R1.49 (MINOR, decision) weapon reach and muzzle speed are re-derived
+- [x] R1.49 (MINOR, decision) weapon reach and muzzle speed are re-derived
   from SI config every tick (`crates/nova_ship/src/input/point_defense/mod.rs:81-85`,
   `turret_section/aim.rs:357`, `input/ai/railgun.rs:229`,
   `input/ai/torpedo.rs:169`, `crates/nova_hud/src/bore_sight.rs:250-262`)
@@ -487,6 +505,16 @@ Findings:
   `crates/nova_menu/src/ambience.rs:195-201`). Sub-10 us at 500 mounts;
   consistency debt, not cost. Options: cache engine-side at spawn, or
   record the rule as "cache where the hot loop is a physics step".
+  TAKEN (owner: derive only if changed): `TurretEngineFigures`,
+  `RailgunEngineFigures` and `TorpedoEngineFigures` are `#[require]`d by
+  their config helpers and refreshed by a `Changed<Helper>` system - the
+  turret's inside `apply_turret_config_to_children`, which already existed
+  for the same reason. Each defaults to its own STOCK config's figures, so
+  a section reads as a stock gun and never as a gun with no reach. The
+  camera pose keeps its every-frame WRITE (that is the override) and loses
+  its every-frame DERIVE: `ScriptedCameraTransform` is derived on
+  `Changed<ScriptedCameraPose>` in `PostUpdate` before the override, and
+  the menu's reload memory reads it instead of converting again.
 
 ### polish (b6aa4289, 9c6fa3d7, 5287cdf5, 718ebfd2, 2f5a8c75, 8882ec39)
 
@@ -730,4 +758,6 @@ These need a call first:
    the finding: the bench declares its store inert. The load/save split is
    still the owner's to make.
 6. R1.39 - fine for now; leave a NOTE where the fsync lands.
-7. R1.49 - derive only if changed.
+7. R1.49 - derive only if changed. Taken as a `#[require]`d engine-figures
+   component per weapon kind, refreshed on `Changed` of its config helper,
+   and a `ScriptedCameraTransform` derived on `Changed` of the pose.

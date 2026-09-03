@@ -290,13 +290,13 @@ pub(super) fn update_point_defense_trigger(
         &TurretDefenseTarget,
         &TurretSectionMuzzleEntity,
         &TurretSectionAimPoint,
-        &TurretSectionConfigHelper,
+        &TurretEngineFigures,
         &mut TurretSectionInput,
     )>,
     q_muzzle: Query<&GlobalTransform, With<TurretSectionBarrelMuzzleMarker>>,
     q_torpedo: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
-    for (mut mount, assignment, muzzle, aim_point, config, mut input) in &mut q_turret {
+    for (mut mount, assignment, muzzle, aim_point, figures, mut input) in &mut q_turret {
         // Not ours: release only what WE are holding down. Stomping the input
         // unconditionally would fight the player's own trigger every frame.
         if !flight_computer_works(Some(&mount), Some(assignment)) {
@@ -317,7 +317,7 @@ pub(super) fn update_point_defense_trigger(
             // correctly leading a crosser never bears on the anchor itself.
             (Some(anchor), Some(muzzle_transform)) => mount_may_shoot(
                 muzzle_transform,
-                config,
+                figures,
                 anchor,
                 aim_point.unwrap_or(anchor),
             ),

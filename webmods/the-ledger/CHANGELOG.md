@@ -3,6 +3,22 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.27.0
+
+- The campaign is authored in METERS. Every distance and speed in the five
+  chapters is ten times the number it was: the chapter-three channel's speed
+  limit reads 80 m/s, the picket watch zones are 240 m across, the Auditor's
+  torpedoes burst at 300 m. Required: the base game now reads a mod's distances
+  and speeds as meters, so 1.26.0's numbers would fly this campaign at a tenth
+  of its size - zones you cannot miss, torpedoes that burst in your face, a
+  speed trip at walking pace. Nothing about how the campaign PLAYS changes; the
+  same course, told in the units the game now prints.
+
+## 1.26.0
+
+- Chapter three rewritten onto `once` and `Sequence`: 27 handlers down to 20,
+  and five latch variables gone. The chapter reads and plays as it did.
+
 ## 1.25.0
 
 - Every gun in the campaign is now the base game's shared PDC turret. The base

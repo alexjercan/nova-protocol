@@ -24,8 +24,9 @@ nova_modding = { path = "../nova_modding" }
 nova_ship = { path = "../nova_ship" }
 nova_scenario = { path = "../nova_scenario" }
 nova_ui = { path = "../nova_ui" }
-# The world scale the inspector converts through, and the engine half of the
-# objective-set proof: real handlers, driven with the same events the game fires.
+# The quantity types: what the inspector labels a row's unit from, and what the
+# range lowers its layout into. Also the engine half of the objective-set proof:
+# real handlers, driven with the same events the game fires.
 nova_events = { path = "../nova_events" }
 
 [lints]

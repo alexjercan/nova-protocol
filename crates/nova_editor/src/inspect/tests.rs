@@ -1809,6 +1809,40 @@ fn a_row_that_names_a_file_says_what_kind_of_file() {
     );
 }
 
+/// Only a quantity the units module owns names a unit.
+///
+/// The shape check admits any one-scalar tuple struct, because that is what
+/// decides the CONTROL. The unit is a second question with a narrower answer:
+/// labelling an unknown wrapper `m` would state a dimension nobody declared.
+#[test]
+fn a_wrapper_that_is_not_a_quantity_is_labelled_with_no_unit() {
+    assert_eq!(quantity_unit("nova_events::units::Meters"), Some("m"));
+    assert_eq!(quantity_unit("nova_events::units::Meters3"), Some("m"));
+    assert_eq!(
+        quantity_unit("nova_events::units::MetersPerSecond"),
+        Some("m/s")
+    );
+    assert_eq!(
+        quantity_unit("nova_events::units::MetersPerSecondSquared"),
+        Some("m/s2")
+    );
+    assert_eq!(
+        quantity_unit("nova_gameplay::health::Health"),
+        None,
+        "a one-scalar wrapper nobody declared a dimension for"
+    );
+
+    let mut rows = vec![walked_number(
+        FieldRoot::Config,
+        Vec::new(),
+        false,
+        "1".to_string(),
+        false,
+    )];
+    declare_by_type("nova_gameplay::health::Health", &mut rows);
+    assert_eq!(rows[0].unit, "", "and its row is left as the walk made it");
+}
+
 /// A whole field scrubs by whole numbers whether or not anything declares it.
 ///
 /// `count` has no declaration, and the drag lands through `snapped`, which

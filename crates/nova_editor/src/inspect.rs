@@ -874,14 +874,20 @@ fn field_spec(path: &[PathStep]) -> Option<FieldSpec> {
 /// what every other authored quantity gets for free - a scatter box's corners,
 /// a spawn's position - and it is what a build-grid CELL never gets, because a
 /// cell is a bare `Vec3` and says nothing about meters.
+///
+/// A wrapper the units module does not own gets nothing: its number keeps the
+/// plain control, with no unit and no meter-sized drag.
 fn declare_by_type(type_path: &str, rows: &mut [InspectorRow]) {
+    let Some(unit) = quantity_unit(type_path) else {
+        return;
+    };
     for row in rows {
         if !matches!(row.value, RowValue::Number(_) | RowValue::Axes(_))
             || field_spec(&row.path).is_some()
         {
             continue;
         }
-        row.unit = quantity_unit(type_path);
+        row.unit = unit;
         row.nudge = POSE_STEP;
     }
 }
@@ -928,11 +934,12 @@ fn quantity_leaf(type_path: &str) -> bool {
 /// The value inside a quantity newtype - the `f32` a [`Meters`] holds, the
 /// `Vec3` a [`Meters3`] holds - or `None` when `value` is not one.
 ///
-/// Read off the SHAPE rather than off a list of types: a tuple struct wrapping
-/// exactly one scalar or vector is a quantity whatever it is called, so a
-/// dimension the units module grows tomorrow needs no entry here. The row a
-/// builder edits is that number; the wrapper is what says which unit it is in,
-/// and the panel says that with a label.
+/// Read off the SHAPE rather than off a list of types, because this decides the
+/// CONTROL: a tuple struct wrapping exactly one scalar or vector is edited as
+/// that number whatever it is called, so a wrapper this module has never heard
+/// of is still authorable. Which UNIT the number is in is a separate question,
+/// asked of the name by [`quantity_unit`], and answered only for the types
+/// `nova_events` actually owns.
 fn quantity_inner(value: &dyn PartialReflect) -> Option<&dyn PartialReflect> {
     let ReflectRef::TupleStruct(fields) = value.reflect_ref() else {
         return None;
@@ -973,18 +980,24 @@ fn quantity_field(info: &TypeInfo) -> Option<&'static TypeInfo> {
     quantity_leaf(inner.type_path()).then_some(inner)
 }
 
-/// The unit a quantity is read in, off its own type name.
+/// The unit a quantity is read in, off its own type name, or `None` for a
+/// wrapper that is not one of `nova_events`' quantities.
 ///
 /// The fallback for a field NOBODY has declared. It is read off the type
 /// because the type is what now carries the dimension: `position` is a
 /// displacement on a spawn action and a build-grid CELL on a ship's section,
 /// and the two are told apart by being a [`Meters3`] and a bare `Vec3`. A
 /// declaration in the table above still wins where there is one.
-fn quantity_unit(type_path: &str) -> &'static str {
+///
+/// Enumerated rather than defaulted to meters: labelling an unknown wrapper
+/// `m` states a dimension nobody declared, and a builder reading `m` off a
+/// number that is not a length has been told something false.
+fn quantity_unit(type_path: &str) -> Option<&'static str> {
     match type_path.rsplit("::").next().unwrap_or_default() {
-        "MetersPerSecond" => "m/s",
-        "MetersPerSecondSquared" => "m/s2",
-        _ => "m",
+        "Meters" | "Meters3" => Some("m"),
+        "MetersPerSecond" => Some("m/s"),
+        "MetersPerSecondSquared" => Some("m/s2"),
+        _ => None,
     }
 }
 

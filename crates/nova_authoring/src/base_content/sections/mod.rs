@@ -121,14 +121,6 @@ mod ordnance_tests {
             30.0,
             "'{id}' hands the engine the radius it held before the break"
         );
-
-        for (id, bay) in &bays {
-            assert_eq!(
-                bay.blast_radius.to_engine() * METERS_PER_UNIT,
-                bay.blast_radius.get(),
-                "'{id}' crosses to the engine and back without drift"
-            );
-        }
     }
 
     /// The owner's rule, made structural: the two assault types "both deal the

@@ -10,7 +10,9 @@
 //! stage's own geometry and against avian-derived figures (an SOI radius, a
 //! noise-displaced body radius). They cross into the authored register once,
 //! where the scenario config is built, through `Meters::from_engine` /
-//! `Meters3::from_engine`; nothing here does the arithmetic by hand.
+//! `Meters3::from_engine`; nothing here does the arithmetic by hand. A figure
+//! that is NOT checked against the stage is simply authored in meters, with no
+//! crossing at all.
 //!
 //! What is out there: two seeded rock belts, a corridor of inert target hulks
 //! to shoot, three DORMANT pickets that only fight once you paint or crowd
@@ -224,9 +226,9 @@ const SKY_BEACONS: [SkyBeacon; 2] = [
 ];
 
 /// Lock range a beacon needs to be designatable from the spawn: the radar
-/// gives a signed body `signature_range_per_unit` (30) x this. 30 buys 900u,
-/// which covers the deepest beacon.
-const BEACON_LOCK_SIGNATURE: f32 = 30.0;
+/// gives a signed body `signature_range_per_unit` (30) x this. 300 m buys
+/// 9 km, which covers the deepest beacon.
+const BEACON_LOCK_SIGNATURE: Meters = Meters(300.0);
 
 pub(crate) fn setup_scenario(
     mut commands: Commands,
@@ -770,7 +772,7 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
                 // Territorial: a woken picket fights over its own patch and
                 // gives up if the player runs. Otherwise waking one drags a
                 // pursuer across the whole range.
-                leash: Some(Meters::from_engine(400.0)),
+                leash: Some(Meters(4000.0)),
                 // It wakes hot - the wake IS the warning, and the trip sphere
                 // gives the player a beat before the guns bear.
                 ..default()
@@ -854,10 +856,10 @@ fn sky_beacon(beacon: &SkyBeacon) -> ScenarioObjectConfig {
         },
         kind: ScenarioObjectKind::Beacon(BeaconConfig {
             label: beacon.label.to_string(),
-            radius: Meters::from_engine(3.0),
+            radius: Meters(30.0),
             color: beacon.color,
             area_radius: Some(Meters::from_engine(beacon.trip_radius)),
-            lock_signature: Some(Meters::from_engine(BEACON_LOCK_SIGNATURE)),
+            lock_signature: Some(BEACON_LOCK_SIGNATURE),
         }),
     }
 }
@@ -1517,7 +1519,7 @@ mod tests {
         let SpaceshipController::AI(pilot) = &picket.controller else {
             panic!("a picket has a live AI pilot");
         };
-        assert_eq!(pilot.leash, Some(Meters::from_engine(400.0)));
+        assert_eq!(pilot.leash, Some(Meters(4000.0)));
 
         let ScenarioObjectKind::Spaceship(hulk) = &find(&lowered, "hulk_0").kind else {
             panic!("'hulk_0' should be a spaceship");
@@ -2092,7 +2094,7 @@ mod tests {
                     driver: ShipDriver::Ai,
                     allegiance: Some(Allegiance::Neutral),
                     pilot: AIControllerConfig {
-                        leash: Some(Meters::from_engine(400.0)),
+                        leash: Some(Meters(4000.0)),
                         ..default()
                     },
                     sections: vec![section.clone()],
@@ -2133,7 +2135,7 @@ mod tests {
         };
         assert_eq!(
             pilot.leash,
-            Some(Meters::from_engine(400.0)),
+            Some(Meters(4000.0)),
             "and the pilot's standing orders survive the trip through the document"
         );
 

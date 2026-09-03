@@ -113,8 +113,9 @@ pub(crate) struct MapContact {
     pub(crate) code: String,
     pub(crate) name: String,
     pub(crate) world_pos: Vec3,
-    /// Range from the player ship in world units. Rendered through the shared
-    /// player-facing distance policy (1 u = 10 m; meters/kilometers).
+    /// Range from the player ship in world units - it is measured off live
+    /// transforms. It crosses to meters where it is rendered, and the shared
+    /// distance policy formats it from there.
     pub(crate) range: f32,
     /// Bearing in the player's local frame: 0 dead ahead, +90 to starboard.
     pub(crate) bearing_deg: f32,

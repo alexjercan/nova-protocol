@@ -179,7 +179,11 @@ pub(crate) fn stage_menu_camera(
     mut commands: Commands,
     mut controlled: Query<(Entity, &mut Camera), (With<Camera3d>, With<WASDCameraController>)>,
     mut staged: Query<
-        (&mut Transform, &mut Camera, Option<&ScriptedCameraPose>),
+        (
+            &mut Transform,
+            &mut Camera,
+            Option<&ScriptedCameraTransform>,
+        ),
         (With<Camera3d>, Without<WASDCameraController>),
     >,
     mut memory: ResMut<MenuCameraMemory>,
@@ -194,14 +198,10 @@ pub(crate) fn stage_menu_camera(
     for (mut transform, mut camera, scripted) in &mut staged {
         if let Some(pose) = scripted {
             // The backdrop owns the pose (the loader's PostUpdate authority
-            // override enforces it); remember it for the next reload gap.
-            // Engine boundary: the remembered pose is a Bevy transform, so
-            // the scripted meters cross here exactly as the loader's own
-            // enforcer crosses them.
-            memory.0 = Some(
-                Transform::from_translation(pose.position.to_engine())
-                    .looking_at(pose.look_at.to_engine(), Vec3::Y),
-            );
+            // override enforces it); remember it for the next reload gap. The
+            // scripted meters crossed to a transform where the loader derived
+            // them, so this reads that one number rather than crossing again.
+            memory.0 = Some(**pose);
             camera.is_active = true;
         } else if let Some(pose) = memory.0 {
             // Reload gap: the fresh camera exists but the reloading
