@@ -10,8 +10,6 @@ use nova_ship::prelude::SectionConfig;
 use super::shared::*;
 use crate::base_content::assets::BaseContentAssets;
 
-pub(crate) const CARGOA_TURRET_IDS: [&str; 2] = ["turret_port", "turret_starboard"];
-
 pub(super) const CARGOA_PARTS: [PartSpec; 9] = [
     part(
         "engine_starboard",

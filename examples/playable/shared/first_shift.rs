@@ -171,6 +171,10 @@ fn salvage_hull(cells: Vec<IVec3>, specials: &[Special]) -> ShipHull {
 
 /// Disconnected industrial assemblies from the destroyed carrier. Each entry
 /// is internally connected so it behaves as one floating wreck fragment.
+#[allow(
+    dead_code,
+    reason = "shared module: only the second-shift bench dresses the wreck"
+)]
 pub fn carrier_wreck_fragments() -> Vec<ShipHull> {
     let fragments = vec![
         union(vec![

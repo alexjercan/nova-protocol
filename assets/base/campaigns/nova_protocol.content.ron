@@ -3,11 +3,8 @@
         id: "nova_protocol",
         name: "Nova Protocol",
         scenarios: [
-            "shakedown_run",
-            "broadside",
-            "broadside_gunship",
-            "lifeline",
-            "final_tally",
+            "first_shift",
+            "second_shift",
         ],
     )),
 ]

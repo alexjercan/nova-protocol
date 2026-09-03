@@ -235,7 +235,7 @@ fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
     {
         let scenarios = app.world().resource::<GameScenarios>();
         assert!(
-            scenarios.contains_key("shakedown_run"),
+            scenarios.contains_key("first_shift"),
             "the base merge ran (its scenario registered)"
         );
         assert!(
@@ -286,7 +286,7 @@ fn installed_fixture_merges_when_enabled_and_unmerges_on_uninstall() {
         "uninstalling must re-merge the downloaded scenario away"
     );
     assert!(
-        scenarios.contains_key("shakedown_run"),
+        scenarios.contains_key("first_shift"),
         "shipped content is untouched by the uninstall"
     );
 }

@@ -75,11 +75,11 @@ const WELL_SWITCH_HYSTERESIS = 1.1; // gravity.rs:214
 // ORBIT's trusted band (crates/nova_ship/src/flight/state.rs).
 const ORBIT_CLEARANCE_FACTOR = 1.5; // state.rs:392
 const ORBIT_BAND_SAFETY = 0.9; // state.rs:393
-// Shipped fixture: the Shakedown Run planetoid (crates/nova_authoring/src/
-// base_content/scenarios/nova_protocol/shakedown/mod.rs). A scenario's `mass`
+// Shipped fixtures: the two campaign planetoids (crates/nova_authoring/src/
+// base_content/scenarios/nova_protocol/stage.rs). A scenario's `mass`
 // is still an `Option<f32>` in u^3/s^2 (nova_scenario/src/objects/asteroid.rs:92).
-const SHAKEDOWN_PLANETOID_MU = 27000; // shakedown/mod.rs:87 (u^3/s^2)
-const ANCHOR_ROCK_MU = 45000; // scenarios/nova_protocol/final_tally.rs:183
+const INSPECTION_PLANETOID_MU = 27000; // stage.rs:29 (u^3/s^2)
+const CONCEALMENT_PLANETOID_MU = 20000; // stage.rs:39 (u^3/s^2)
 
 // Radar locking (crates/nova_ship/src/input/targeting/). The dwell curve's
 // reference range is still an engine `f32` in world units (state.rs:54-57), so
@@ -281,7 +281,7 @@ const LANCE_TORPEDO_CRUISE = 350; // ordnance.rs:49 (MetersPerSecond)
 const ROUNDS_PER_LANCE_TORPEDO = 116;
 const ROUNDS_PER_SERPENT = 390;
 // The starter ship's soft manual-speed cap: what a torpedo has to catch when
-// the target is running (shakedown/mod.rs:243, `MetersPerSecond`).
+// the target is running (first_shift.rs:93, `MetersPerSecond`).
 const PLAYER_SPEED_CAP = 250;
 
 // ---- pure models (mirror the Rust rules) ----------------------------------
@@ -3656,7 +3656,7 @@ function initGravityWell(host: HTMLElement): void {
     const orbitStat = stat(stats, "orbit speed here");
     const readout = el("p", "widget__readout");
 
-    let mu = SHAKEDOWN_PLANETOID_MU;
+    let mu = INSPECTION_PLANETOID_MU;
     let bodyR = 90;
     let soi = soiRadius(mu, bodyR);
     let xMax = 600;
@@ -3890,7 +3890,7 @@ function initGravityWell(host: HTMLElement): void {
         4000,
         48000,
         1000,
-        SHAKEDOWN_PLANETOID_MU,
+        INSPECTION_PLANETOID_MU,
         (v) => String(v),
         onParam
     );
@@ -3931,9 +3931,9 @@ function initGravityWell(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Defaults are the Shakedown Run planetoid (mass 27000, drawn rock " +
-            "~900 m): a 3.29 km sphere of influence. The Final Tally anchorage " +
-            "rock authors 45000. The drawn rock is bigger than the body's " +
+        "Defaults are the campaign inspection planetoid (mass 27000, drawn rock " +
+            "~900 m): a 3.29 km sphere of influence. The concealment planetoid " +
+            "authors 20000. The drawn rock is bigger than the body's " +
             "authored nominal radius; the surface clamp bites at the drawn " +
             "surface."
     );
@@ -3986,8 +3986,8 @@ function initDominantWell(host: HTMLElement): void {
     const ownerStat = stat(stats, "dominant well");
     const readout = el("p", "widget__readout");
 
-    const muA = SHAKEDOWN_PLANETOID_MU;
-    const muB = ANCHOR_ROCK_MU;
+    const muA = INSPECTION_PLANETOID_MU;
+    const muB = CONCEALMENT_PLANETOID_MU;
     let owner: number | null = null;
     let cursor: SVGLineElement;
     let dotA: SVGCircleElement;
@@ -4183,8 +4183,8 @@ function initDominantWell(host: HTMLElement): void {
     const note = el(
         "p",
         "widget__note",
-        "Well A is the Shakedown planetoid (mass 27000), well B the Final " +
-            "Tally anchorage rock (mass 45000); both drawn at 600 m here so " +
+        "Well A is the campaign inspection planetoid (mass 27000), well B " +
+            "the concealment planetoid (mass 20000); both drawn at 600 m here so " +
             "the curves stay legible. The pick and the 1.10x margin are the " +
             "game's own dominant_well rule."
     );

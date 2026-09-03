@@ -142,19 +142,19 @@ on the face it stands on. A scavenger-grade craft flies the SAME gun with a
 `SetHealth(60.0)` modification on the mount - that is all that is left of the
 old `_light` variants.
 
-The shipped assemblies cast the hulls by role: the cargoa is the campaign's
-armed corvette (turrets on the pod shoulders), the cargob its torpedo-and-PDC
-gunship, and the racer an unarmed civilian (the yacht the story protects).
-The racer keeps its two mount POINTS, so a mod can bolt the shared PDC onto
-its wings, but no shipped racer mounts a gun.
+The shipped assemblies cast the hulls by role: the cargoa is the armed corvette
+(turrets on the pod shoulders), the cargob its torpedo-and-PDC gunship, and the
+racer an unarmed civilian yacht. The racer keeps its two mount POINTS, so a mod
+can bolt the shared PDC onto its wings, but no shipped racer mounts a gun.
+The base campaign flies BLOCK hulls; this cast is the catalog a mod draws on
+(it is what The Ledger flies), and it ships in base so any mod can.
 
 The cargob's pods come in two: the base id loads the weaving Serpent, and the
 `_lance` twin loads the straight-running Lance. Nothing else about the pod
 changes. A ship does not
 mix them - the two loads are two catalog SHIPS, `cargob` and `cargob_lance`
-(see [Ships](../ships/)) - and the campaign flies both: the chapter-two gunship
-takes Lances so a player's first torpedo fight is one point defense can answer,
-and the Final Tally flagship takes Serpents.
+(see [Ships](../ships/)). Lances run straight, so they are the load to pick for
+a player's first torpedo fight, one point defense can answer; Serpents weave.
 
 ## Impact rows
 
@@ -174,24 +174,20 @@ launchable by id.
 
 | id | display name | hidden | what it is |
 |---|---|---|---|
-| `shakedown_run` | Shakedown Run | no | the New Game tutorial (chapter 1) |
-| `broadside` | Broadside | no | chapter 2 part 1: the corvette ambush |
-| `broadside_gunship` | Broadside: Rust Tally | yes | chapter 2 part 2: the gunship boss |
-| `lifeline` | Lifeline | no | chapter 3 part 1: convoy defense |
-| `final_tally` | Final Tally | yes | chapter 3 finale: the anchorage |
+| `first_shift` | First Shift | no | the New Game opening: a salvage shift, and what ends it |
+| `second_shift` | Second Shift | no | chapter 2: search the wreck, leave before the cleanup group finds you |
 | `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
 | `menu_duel` | Duel Cycle | yes | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
 
 One campaign ships: `nova_protocol` ("Nova Protocol"), members
-`shakedown_run`, `broadside`, `broadside_gunship`, `lifeline`, `final_tally`
-in play order. There are no other content kinds - a content file holds
+`first_shift`, `second_shift` in play order. There are no other content kinds - a content file holds
 `Section`, `Scenario`, `Campaign`, `Ship`, and `Style` items only; factions
 are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
 
-New Game is base-owned: `new_game_scenario: Some("shakedown_run")` in
+New Game is base-owned: `new_game_scenario: Some("first_shift")` in
 `assets/base/base.bundle.ron` is honored only from the base bundle; a mod
 declaring it is warned and ignored.
 
@@ -274,13 +270,12 @@ All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)
 
-### Images (9)
+### Images (6)
 
 - `textures/cubemap.png` - the stock skybox (chapter 1)
-- `textures/cubemap_alt.png` - the alternate skybox (chapters 2-3)
+- `textures/cubemap_alt.png` - the alternate skybox (chapter 2)
 - `textures/asteroid.png` - the asteroid surface texture
-- `thumbnails/shakedown_run.png`, `thumbnails/broadside.png`, `thumbnails/broadside_gunship.png`,
-  `thumbnails/lifeline.png`, `thumbnails/final_tally.png` - the picker plates
+- `thumbnails/first_shift.png`, `thumbnails/second_shift.png` - the picker plates
 - `banner.png` - the base mod's banner
 
 Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their

@@ -25,7 +25,7 @@ use nova_core::prelude::*;
 use nova_probe::prelude::*;
 
 fn main() {
-    let scenario_id = probe_param("scenario").unwrap_or_else(|| "broadside".to_string());
+    let scenario_id = probe_param("scenario").unwrap_or_else(|| "first_shift".to_string());
 
     let loader_id = scenario_id.clone();
     let mut app = AppBuilder::new()

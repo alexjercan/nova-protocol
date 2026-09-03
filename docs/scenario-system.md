@@ -78,7 +78,7 @@ lifetime to run out, is what closes that.
 
 A section's glTF is resolved by the render observer that builds its mesh child,
 so the FIRST ship wearing a hull paid for that hull's art. A hull no `OnStart`
-event spawns is therefore cold when its beat arrives: `final_tally`'s flagship
+event spawns is therefore cold when its beat arrives: `first_shift`'s warship
 and both of `menu_duel`'s corvettes appeared in placeholder art and dressed
 themselves a moment later.
 
@@ -420,12 +420,8 @@ Measured on a headless run, as the share of frames that queue the event:
 
 | scenario | pulses / frames | why |
 | --- | --- | --- |
-| `final_tally` | 308 / 18300 | value-gated milestones |
-| `broadside` | 355 / 13500 | value-gated milestones |
-| `shakedown_run` | 425 / 16800 | value-gated milestones |
 | `ledger_ch1` | 350 / 22500 | milestones plus four scheduled lines |
 | `ledger_ch3` | every frame | a `player_speed` ladder, correctly polling |
-| `lifeline` | every frame | recomputes a HUD countdown per frame |
 
 ## Scenario patterns
 
@@ -496,7 +492,7 @@ early - or back through gate 1 again - matches no live handler and is inert. The
 this on a synthetic course: an out-of-order entry does not advance `gate`.
 
 Use it whenever stages must be visited in sequence (a gate run, a guided tour, a
-tutorial's step chain). The base `shakedown_run` starter uses the same idiom
+tutorial's step chain). The base `first_shift` starter uses the same idiom
 with a `beat` counter; see [Built-in scenarios](#built-in-scenarios).
 
 ### The act-gating pattern
@@ -615,7 +611,7 @@ Three engine facts the object configs do not show:
   `a = mu / r^2` and the sphere of influence, the distance where that decays to
   `GravitySettings::soi_cutoff_accel` (0.25 u/s^2, which is 2.5 m/s^2), so a
   well is authored by the SOI it should have: `mu = soi_cutoff_accel * soi^2`,
-  both terms engine-side. The shakedown planetoid's 27 000 buys a 328.6 u
+  both terms engine-side. The inspection planetoid's 27 000 buys a 328.6 u
   sphere of influence, and 328.6 u is the 3.29 km the HUD reads. An `Anchor`
   publishes the same `GravityWell` from an AUTHORED radius instead of a
   mesh-derived one, which is what makes it deterministic where a carved rock is
@@ -715,7 +711,8 @@ body with a new origin, and it reads the grain from a different place.
 The builders live under
 `crates/nova_authoring/src/base_content/scenarios/`. `main_menu/` gives each
 menu backdrop its own file, and `nova_protocol/` owns the campaign chapters plus
-shared cast and pacing vocabulary. Its `shakedown/` module builds the New Game starter - the
+the stage, cast and pacing vocabulary they share. Its `first_shift.rs` builds the
+New Game starter - the
 beat-chain reference: one `beat` counter gates every handler, and count
 milestones run on `OnUpdate` handlers keyed on the counter (handler order
 within one event is not load-bearing). The builders are an OFFLINE inventory,

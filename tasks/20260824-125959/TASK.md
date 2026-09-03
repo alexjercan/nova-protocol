@@ -516,3 +516,83 @@ under its own key, a player ship refusing every ship action, an AI ship taking
 a helm order but not a forced shot, the empty-patrol lint error, and
 `order_interruption` mapping to its component at spawn.
 `cargo check --workspace --all-targets` clean.
+
+### 2026-09-03: the mainline is First Shift and Second Shift
+
+The old campaign is gone, not deprecated: `shakedown_run`, `broadside`,
+`broadside_gunship`, `lifeline` and `final_tally`, their builders, their
+thumbnails, their generated RON and the three integration tests that only
+covered them. `nova_protocol` now has two members, both picker-visible, and
+`base.bundle.ron` starts New Game on `first_shift`.
+
+Both chapters share one `stage` module: the two planetoids, the 40-rock plate,
+the 20 ambient rocks and the beacon/rock/planetoid helpers, lifted metre for
+metre from the accepted `first_shift_map` bench. A chapter adds only its own
+marks to it, so chapter two IS chapter one's belt rather than a copy of it that
+can drift.
+
+First Shift follows the approved spine. Four verbs are withheld at spawn as
+`DisableVerb` modifications on the cutter's bridge and handed back one per
+beat: RCS at the work mark, radar with the survey order, GOTO on the first
+lock, ORBIT at the ring. The attack is a real set piece flown by name. Each
+step hangs off the PREVIOUS one's completion event - `MoveShipTo` reports, then
+`ForceAlign` on the carrier to two degrees reports, then the salvo sequence
+runs - so it stages identically at any frame rate. The six siege bays fire 1.2 s
+apart, which puts the whole rack in the air at +6 s against a ~9.5 s crossing:
+the last one launches before the first one lands.
+
+Second Shift is a search and a run. Each of the five searchers flies its own
+`PatrolShip` lane under its own order key, with a matching `OnShipOrderComplete`
+handler that sends it round again, because one patrol is one loop. Detection is
+`order_interruption: OnHostileContact` plus a deliberately short 900 m
+`engage_range`: a searcher that acquires the cutter breaks its own lane, which
+fires `OnShipOrderInterrupted` filtered on `Patrol`, and the escalation widens
+the three ARMED hulls to 6 km with `SetAIEngageRange` and releases their lanes
+with `ClearShipOrder`. The two unarmed hulls keep sweeping - an unarmed AI ship
+never acquires, so it can neither see the cutter nor raise the interruption.
+Being seen re-posts the escape objective and changes the closing line; it never
+declares an outcome. This is NOT the accumulating-perception `AIProfileSource`
+model in the design above, which stays future work; it is the same stealth read
+built out of shipped parts.
+
+Four content bugs the pins and the live runs found, all fixed:
+
+- `cleanup_picket`'s second sweep mark was a copy of a rock's own centre. A
+  sweep lane is flown by the real autopilot with no avoidance, so the hull would
+  have ground against that rock for the rest of the chapter. Every sweep mark is
+  now pinned clear of both planetoids AND every plate rock, worst-case mesh
+  radius plus a hull pad.
+- The engineering evidence sat 76 m inside a rock's worst-case surface, where
+  its pickup volume could never be entered.
+- The player spawned 673 m from the approach mark, inside its 700 m trigger
+  volume: the arrival handler fired on frame one, completed an objective that
+  had not posted yet, and left the real post orphaned. The mark moved out to
+  2.4 km, and `no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes`
+  now walks every OnStart-spawned beacon area, crate area and `CreateScenarioArea`
+  in every mainline chapter. It was verified to FAIL on the old position.
+- The salvage objective told the player `[X]` for thrusters. `X` is STOP; RCS
+  is Shift plus mouse.
+
+Documentation is on the new campaign: the wiki's first flight walks First Shift
+beat by beat and no longer teaches a live-fire beat the unarmed cutter cannot
+fly, the scenario list carries both chapters, and the glossary, gravity-well
+figures, the two-well widget and the create/dev references name the shipped
+bodies instead of the deleted ones. The Kenney cast is documented as the catalog
+The Ledger flies rather than as the campaign's own ships.
+
+Proof: `cargo test -p nova_authoring --lib` - 93 pass, including 7 first-shift
+pins (beat chaining, the salvo firing every gun exactly once, the rack away
+before the first arrival, both warship marks clear of the large planetoid, the
+approach ring containing every park point and orbit, crates clear of rocks,
+every withheld verb granted back), 6 second-shift pins (every sweep relapped,
+detection arming only the armed hulls without declaring an outcome, the leader
+entering outside its own 10 km launch envelope, no sweep mark inside anything
+solid, evidence in open space, 28 distinct fragments) and the 5 cross-chapter
+pacing pins. `cargo test -p nova_assets --test example_scenario --test
+mod_cache_install --test neutralized_ships` and `-p nova_authoring --test
+campaign_membership` pass. `content lint`: 0 errors, 0 warnings, 0 findings.
+`cargo check --workspace --all-targets` clean. `npm run format:check`, `lint`
+and `test` clean in `web/`. Live under Xvfb: both chapters boot, the opening
+conversation runs and the first objective posts after it, and a throwaway
+scenario spawning all 11 promoted block hulls at once clads every one of them
+with no panic.

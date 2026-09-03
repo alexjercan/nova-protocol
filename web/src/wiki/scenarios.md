@@ -18,7 +18,7 @@ created by an action rather than spawned as objects.
 
 ## Objectives: events, filters, actions
 
-Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary the [Shakedown Run](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [First Shift](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 
 What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
 
@@ -26,10 +26,8 @@ The full construct catalog - every event, filter and action by name, with its fi
 
 ## The shipped scenarios
 
-- **Shakedown Run** - the New Game starter: a guided tutorial that teaches one gesture per beat (burn, freelook, salvage, GOTO, ORBIT, radar lock, a live-fire rehearsal, and a scavenger fight). Winning it offers to continue straight into Broadside.
-- **Broadside** - chapter two: the scavengers come back in force. Answer a stranded yacht's distress call across an asteroid cover field and break a two-corvette ambush; that win is a checkpoint, and the fight continues into the gang's gunship - screen its torpedoes with your PDC and take it apart section by section. Dying to the gunship retries the gunship, not the ambush, and hard boulders in the field now genuinely block incoming fire - use them.
-- **Lifeline** - chapter three, part one: the gang hits back where it hurts. Screen a stalled two-ship convoy against three telegraphed raider waves until the relief wing arrives - a live countdown on the HUD, a protect objective instead of kill-all, and the convoy genuinely draws fire (the convoy ships fly the player's flag). Winning the Broadside chapter continues here, and winning here continues to the finale.
-- **Final Tally** - chapter three's finale, reached from Lifeline's victory: the trace ends at the gang's claim - a cracked megahauler anchorage deep in a planetoid's gravity well, ringed by a belt. Survey the anchorage with a travel lock, break the orbital picket riding the well, and finish the gang's flagship when it casts off with its escort. The campaign closes properly here.
+- **First Shift** - the New Game opening: an engineer takes a maintenance cutter out of the carrier Meridian for a routine round, and it teaches one gesture per beat (burn, fine thrusters, salvage, radar lock, GOTO, ORBIT). Then a warship comes out from behind a planetoid and destroys the carrier while you watch from abeam, unarmed. Winning continues straight into Second Shift.
+- **Second Shift** - chapter two: the same belt an hour later, and the Meridian is a debris field. Recover three recorders out of the wreck while a five-ship cleanup group sweeps it for the same evidence. They fly real patrol lanes with short eyes, so rock between you and a lane is cover; being seen does not end the run, it costs you the quiet way home.
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (two corvettes dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
 ## Browsing and replaying scenarios
@@ -54,10 +52,9 @@ The full construct catalog - every event, filter and action by name, with its fi
 
 The **Scenarios** tab groups a campaign under a collapsible header - click the
 `[-]`/`[+]` header to expand or fold its chapters. A campaign lists its chapters
-in play order, including mid-story chapters that the story reaches automatically
-(the Broadside gunship phase, the Final Tally finale): they show under the
-campaign header so you can launch any chapter directly for a replay without
-flying the whole arc again. Scenarios that belong to no campaign (standalone
+in play order, so you can launch any chapter directly for a replay without
+flying the whole arc again. A campaign may also carry mid-story chapters that
+the story reaches on its own; they are listed under the same header. Scenarios that belong to no campaign (standalone
 mod scenarios) list on their own below the campaigns.
 
 You can author your own scenarios and mods in RON - see the [Create docs](../../create/).

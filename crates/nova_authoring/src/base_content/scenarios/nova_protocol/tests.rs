@@ -11,14 +11,14 @@ use super::*;
 fn mainline_scenarios() -> Vec<(&'static str, ScenarioConfig)> {
     let tex = || AssetRef::<Image>::default();
     vec![
-        ("shakedown_run", shakedown::shakedown_run(tex(), tex())),
-        ("broadside", broadside::broadside(tex(), tex())),
         (
-            "broadside_gunship",
-            broadside::broadside_gunship(tex(), tex()),
+            first_shift::FIRST_SHIFT_SCENARIO_ID,
+            first_shift::first_shift(tex(), tex()),
         ),
-        ("lifeline", lifeline::lifeline(tex(), tex())),
-        ("final_tally", final_tally::final_tally(tex(), tex())),
+        (
+            second_shift::SECOND_SHIFT_SCENARIO_ID,
+            second_shift::second_shift(tex(), tex()),
+        ),
     ]
 }
 
@@ -110,11 +110,8 @@ fn opening_objectives_are_deferred_past_frame_one() {
     // its dispatch/conversation. Kept explicit so the test pins the exact
     // beat the owner playtest flagged, not whatever else posts objectives.
     let opening_objectives: &[(&str, &[&str])] = &[
-        ("shakedown_run", &["b1_burn"]),
-        ("broadside", &["contact"]),
-        ("broadside_gunship", &["screen", "break"]),
-        ("lifeline", &["screen_convoy"]),
-        ("final_tally", &["survey"]),
+        (first_shift::FIRST_SHIFT_SCENARIO_ID, &["burn"]),
+        (second_shift::SECOND_SHIFT_SCENARIO_ID, &["approach"]),
     ];
     for (name, config) in mainline_scenarios() {
         let ids = opening_objectives
@@ -191,6 +188,69 @@ fn no_onstart_handler_reads_the_scenario_clock() {
                         set.key,
                     );
                 }
+            }
+        }
+    }
+}
+
+/// A trigger volume that already contains the player on frame one fires
+/// straight away, so the beat it gates runs BEFORE the opening that posts it -
+/// the objective is completed, and then posted, and can never be completed
+/// again. Every volume a scenario spawns in its own OnStart frame must
+/// therefore be somewhere the player has to fly to.
+#[test]
+fn no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes() {
+    for (name, config) in mainline_scenarios() {
+        for event in config
+            .events
+            .iter()
+            .filter(|event| matches!(event.name, EventConfig::OnStart))
+        {
+            let spawns: Vec<&ScenarioObjectConfig> = event
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    EventActionConfig::SpawnScenarioObject(object) => Some(object),
+                    _ => None,
+                })
+                .collect();
+            let start = spawns
+                .iter()
+                .find(|object| {
+                    matches!(&object.kind, ScenarioObjectKind::Spaceship(ship)
+                        if matches!(ship.controller, SpaceshipController::Player(_)))
+                })
+                .map(|object| object.base.position)
+                .unwrap_or_else(|| panic!("{name}: OnStart spawns no player ship"));
+
+            let volumes = spawns
+                .iter()
+                .filter_map(|object| match &object.kind {
+                    ScenarioObjectKind::Beacon(beacon) => beacon
+                        .area_radius
+                        .map(|radius| (&object.base.id, object.base.position, radius)),
+                    ScenarioObjectKind::SalvageCrate(crate_config) => Some((
+                        &object.base.id,
+                        object.base.position,
+                        crate_config.area_radius,
+                    )),
+                    _ => None,
+                })
+                .chain(event.actions.iter().filter_map(|action| match action {
+                    EventActionConfig::CreateScenarioArea(area) => {
+                        Some((&area.id, area.position, area.radius))
+                    }
+                    _ => None,
+                }));
+
+            for (id, position, radius) in volumes {
+                let range = (position - start).length().0;
+                assert!(
+                    range > radius.0,
+                    "{name}: the player starts {range:.0} m from '{id}', inside its \
+                     {:.0} m trigger volume - whatever it gates fires on frame one",
+                    radius.0
+                );
             }
         }
     }

@@ -164,7 +164,7 @@ positionally: `Not(<filter>)`, `Or(<filter>, <filter>)`,
 // not the player
 Conditional(Not(Entity((id: Some("player_spaceship")))))
 
-// either picket still standing (shipped, Final Tally)
+// either picket still standing
 Conditional(Or(
     Expression((Equal(
         Term(Factor(Name("picket_a_down"))),

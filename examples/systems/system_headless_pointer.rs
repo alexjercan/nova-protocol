@@ -1,6 +1,6 @@
 //! system_headless_pointer: spike 1 for `nova_channel` - the virtual window.
 //!
-//! Boots the EXACT app `--norender --scenario shakedown_run` runs - backendless
+//! Boots the EXACT app `--norender --scenario first_shift` runs - backendless
 //! wgpu, no winit, no display server - then spawns the one thing that run lacks:
 //! an ordinary `Window` + `PrimaryWindow` ENTITY. Nothing renders it; it is a
 //! size record. The claim under test (task 20260820-174148, nova-channel.html)
@@ -41,10 +41,7 @@ fn main() {
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
-    let mut app = editor_app(
-        false,
-        Some(StartupScenario::Id("shakedown_run".to_string())),
-    );
+    let mut app = editor_app(false, Some(StartupScenario::Id("first_shift".to_string())));
 
     // The virtual window: the size record every headless-blocked reader needs.
     // Spawned as a plain entity because that is all `bevy_render`'s camera

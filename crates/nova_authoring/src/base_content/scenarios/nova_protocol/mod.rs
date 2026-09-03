@@ -1,20 +1,15 @@
 //! The Nova Protocol campaign chapters and their shared story vocabulary.
 
-mod broadside;
 mod cast;
-mod final_tally;
-mod lifeline;
+mod first_shift;
 mod pacing;
-mod shakedown;
+mod second_shift;
+mod stage;
 
-pub(crate) use broadside::{
-    broadside, broadside_gunship, BROADSIDE_GUNSHIP_SCENARIO_ID, BROADSIDE_SCENARIO_ID,
-};
-pub(crate) use final_tally::{final_tally, FINAL_TALLY_SCENARIO_ID};
-pub(crate) use lifeline::{lifeline, LIFELINE_SCENARIO_ID};
-pub(crate) use shakedown::{shakedown_run as shakedown, SHAKEDOWN_SCENARIO_ID};
+pub(crate) use first_shift::{first_shift, FIRST_SHIFT_SCENARIO_ID};
+pub(crate) use second_shift::{second_shift, SECOND_SHIFT_SCENARIO_ID};
 
-pub(crate) use super::{SCATTER_SEED, SCENARIO_ELAPSED_VAR};
+pub(crate) use super::SCENARIO_ELAPSED_VAR;
 pub(crate) use crate::base_content::ships;
 
 #[cfg(test)]

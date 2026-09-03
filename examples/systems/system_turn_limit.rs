@@ -33,7 +33,9 @@ use std::f32::consts::FRAC_PI_2;
 #[cfg(feature = "debug")]
 use std::sync::Arc;
 
-use avian3d::prelude::{AngularVelocity, ComputedCenterOfMass, Rotation};
+use avian3d::prelude::Rotation;
+#[cfg(feature = "debug")]
+use avian3d::prelude::{AngularVelocity, ComputedCenterOfMass};
 use bevy::prelude::*;
 use clap::Parser;
 use nova_protocol::prelude::*;
@@ -54,6 +56,7 @@ const INTACT_ID: &str = "intact_hull";
 const SHORTENED_ID: &str = "shortened_hull";
 
 /// The two nose cells the damage beat destroys, by section id.
+#[cfg(feature = "debug")]
 const NOSE: [&str; 2] = ["hull_-4", "hull_-3"];
 
 /// The demand both hulls hold, forever: 90 degrees to starboard of wherever

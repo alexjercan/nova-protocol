@@ -49,7 +49,7 @@ NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
 REGISTRY ..... 27 commands / ready
-WORLD ........ shakedown_run / paused
+WORLD ........ first_shift / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
 ```

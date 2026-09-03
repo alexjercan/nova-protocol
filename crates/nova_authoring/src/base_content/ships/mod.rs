@@ -26,8 +26,10 @@ mod cargo_b;
 mod racer;
 mod shared;
 
-pub(crate) use block::{BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS};
-pub(crate) use cargo_a::CARGOA_TURRET_IDS;
+pub(crate) use block::{
+    BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_WARSHIP_BAY_IDS,
+    BLOCK_WARSHIP_RAILGUN_IDS,
+};
 use shared::{Ordnance, ShipGrade};
 
 /// The id the player-grade CargoA corvette is spawned by.
@@ -60,9 +62,32 @@ pub(crate) const BLOCK_GUNSHIP_SHIP_ID: &str = "block_gunship";
 /// down to two guns and a scrap boom, in the scavenger look.
 pub(crate) const BLOCK_RAIDER_SHIP_ID: &str = "block_raider";
 
-/// The section id every shipped craft's flight computer carries - what a
-/// scenario aims a spawn-time controller modification at.
-pub(crate) const FUSELAGE_SECTION_ID: &str = "fuselage";
+/// The id the industrial carrier is spawned by: the campaign's home, and the
+/// largest hull the base game ships.
+pub(crate) const BLOCK_CARRIER_SHIP_ID: &str = "block_carrier";
+/// The id the stolen Earth warship is spawned by: two spinal lances, six siege
+/// bays, ten point-defense mounts. The opening's antagonist.
+pub(crate) const BLOCK_WARSHIP_SHIP_ID: &str = "block_warship";
+
+/// The unarmed needle of the cleanup group.
+pub(crate) const BLOCK_SKIFF_SHIP_ID: &str = "block_skiff";
+/// The unarmed fork tug of the cleanup group.
+pub(crate) const BLOCK_TUG_SHIP_ID: &str = "block_tug";
+/// The cleanup group's balanced armed picket: one nose gun.
+pub(crate) const BLOCK_PICKET_SHIP_ID: &str = "block_picket";
+/// The cleanup group's asymmetric armed claw: one gun on the grapple arm.
+pub(crate) const BLOCK_CLAW_SHIP_ID: &str = "block_claw";
+/// The cleanup group's leader: one gun and the group's only torpedo bay.
+pub(crate) const BLOCK_CLEANUP_LEADER_SHIP_ID: &str = "block_cleanup_leader";
+
+/// The carrier's severed bridge tower.
+pub(crate) const BLOCK_WRECK_BRIDGE_SHIP_ID: &str = "block_wreck_bridge";
+/// A length of the carrier's refinery spine.
+pub(crate) const BLOCK_WRECK_SPINE_SHIP_ID: &str = "block_wreck_spine";
+/// A torn-off carrier cargo shoulder.
+pub(crate) const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
+/// Loose carrier plating - the small pieces a debris field is mostly made of.
+pub(crate) const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
 /// Semantic Racer, CargoB, and CargoA part prototypes in generated-content order.
 pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {
@@ -123,6 +148,72 @@ pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
             BLOCK_RAIDER_SHIP_ID,
             "Salvage Raider",
             block::salvage_raider(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_CARRIER_SHIP_ID,
+            "Industrial Carrier",
+            block::industrial_carrier(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WARSHIP_SHIP_ID,
+            "Stolen Warship",
+            block::stolen_warship(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_SKIFF_SHIP_ID,
+            "Salvage Skiff",
+            block::salvage_skiff(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_TUG_SHIP_ID,
+            "Salvage Tug",
+            block::salvage_tug(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_PICKET_SHIP_ID,
+            "Salvage Picket",
+            block::salvage_picket(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_CLAW_SHIP_ID,
+            "Salvage Claw",
+            block::salvage_claw(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_CLEANUP_LEADER_SHIP_ID,
+            "Cleanup Leader",
+            block::salvage_leader(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WRECK_BRIDGE_SHIP_ID,
+            "Carrier Wreck: Bridge",
+            block::carrier_wreck_bridge(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WRECK_SPINE_SHIP_ID,
+            "Carrier Wreck: Spine",
+            block::carrier_wreck_spine(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WRECK_SHOULDER_SHIP_ID,
+            "Carrier Wreck: Shoulder",
+            block::carrier_wreck_shoulder(),
+        ),
+        block_ship(
+            assets,
+            BLOCK_WRECK_PLATE_SHIP_ID,
+            "Carrier Wreck: Plating",
+            block::carrier_wreck_plate(),
         ),
     ]
 }

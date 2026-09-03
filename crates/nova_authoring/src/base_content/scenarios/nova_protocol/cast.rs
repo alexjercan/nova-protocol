@@ -1,26 +1,31 @@
-//! The base campaign's recurring comms voices.
+//! The base campaign's comms voices.
 //!
-//! One constant per speaker, so a rename is a one-line change. Names are
-//! working placeholders from the arc spike (Open questions) pending the
-//! owner's nod at the flow Finish gate.
+//! One constant per speaker, so a rename is a one-line change. These are
+//! working placeholders pending the owner's final dialogue pass: the campaign
+//! is about an engineer who loses a ship, so the voices are the people that
+//! ship is made of - a supervisor, a duty channel, and afterwards, nobody.
 
-/// Captain of the hauler Ceres Queen - the distress call the story hangs
-/// on, and the friendly voice of chapters two and three.
-pub(crate) const CAPTAIN_HALLORAN: &str = "Capt. Halloran";
+/// The carrier's own name, used in objective and banner text. The ship is a
+/// character in chapter one and a grave in chapter two, so it is named in one
+/// place.
+pub(crate) const CARRIER_NAME: &str = "Meridian";
 
-/// The gang gunship Rust Tally's channel - chapter two's capital taunts.
-pub(crate) const RUST_TALLY: &str = "Rust Tally";
+/// The player's supervisor on the maintenance deck: the whole of chapter one's
+/// coaching, and the last voice off the ship.
+pub(crate) const DECK_CHIEF: &str = "Deck Chief";
 
-/// Belt traffic control - dispatch connective tissue between the fights.
-pub(crate) const BELT_RELAY: &str = "Belt Relay";
+/// The carrier's duty channel - traffic, work orders, the sound of a working
+/// hull. Its silence is chapter one's ending.
+pub(crate) const CONTROL: &str = "Meridian Control";
 
-/// The player's own comms label (owner decision): a plain "You", not a
-/// callsign - neutral and reusable, so the campaign's first player voice (the
-/// Shakedown opening) commits to no name. One constant so a future callsign is
-/// a one-line change.
+/// The player's own comms label: a plain "You", not a callsign - neutral and
+/// reusable, so the campaign's player voice commits to no name.
 pub(crate) const PLAYER: &str = "You";
 
-/// The gang's boss - chapter three's antagonist voice. Named by Halloran
-/// first (the breathe line after Lifeline's first wave), speaks in person
-/// from the second wave on.
-pub(crate) const TALLYMAN: &str = "The Tallyman";
+/// The wreck's automatic beacon, the only thing still transmitting at the end
+/// of chapter one and the reason chapter two happens.
+pub(crate) const BEACON: &str = "Automated Beacon";
+
+/// The cleanup group's leader in chapter two. It is never named and never
+/// explains itself - the campaign's antagonists are, for now, a channel.
+pub(crate) const CLEANUP_LEADER: &str = "Unknown Channel";

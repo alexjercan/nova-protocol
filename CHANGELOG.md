@@ -16,8 +16,8 @@ does NOT get an entry - and it is the only place they are written down.
 ## [Unreleased]
 
 ### Gameplay & Flight
-- RCS reaches 100 m/s and accelerates at a mass-independent 5 G; diagonal input
-  shares the same total acceleration limit as a straight burn.
+- RCS reaches 100 m/s at a mass-independent 5 G with one acceleration budget;
+  STOP below that speed brakes on RCS without turning the ship.
 
 ### Combat & Weapons
 - A PDC out of combat sinks into a housed pit and two lids slide shut over it;
@@ -46,6 +46,15 @@ does NOT get an entry - and it is the only place they are written down.
   lights the hulls it passes; Low draws neither.
 
 ### Scenarios & Objectives
+- **(breaking)** The campaign is two new chapters, First Shift and Second
+  Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
+  `final_tally` are gone. Retarget a mod that named one.
+- First Shift opens New Game: a salvage round that teaches the helm one verb at
+  a time, and ends with a warship killing your carrier while your unarmed
+  cutter can only watch from abeam.
+- Second Shift returns to the same belt an hour later. Recover three recorders
+  out of the wreck while a five-ship cleanup group sweeps it; being seen costs
+  you the quiet route home, not the run.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's
@@ -91,9 +100,9 @@ does NOT get an entry - and it is the only place they are written down.
   flank can say what the ship carries.
 - Generated hulls carry bays: the WFC solver collapses a multi-cell part as a
   chain of segment tiles instead of skipping everything larger than one cell.
-- Four block ships join the catalog - a utility cutter, a bulk hauler, an
-  armoured patrol gunship and a salvage raider - each hand-built from shipped
-  cube sections and wearing a derived skin.
+- Eleven block ships join the catalog - a cutter, a hauler, a gunship, a
+  raider, an industrial carrier, a stolen warship and five cleanup craft - plus
+  four wreck fragments of the carrier.
 
 ### Modding & Mod Portal
 - **(breaking)** Content is authored in meters: a 300 m blast is
@@ -158,6 +167,8 @@ does NOT get an entry - and it is the only place they are written down.
 - Every wiki figure reads in meters, scopes and catalogs included.
 - The seven authored sound fields reach the modding docs: a bay's iris, a
   turret's stow lids, the three cockpit warnings and the hull's own collapse.
+- The wiki's first flight walks First Shift beat by beat, and the scenario
+  list, glossary and gravity figures read off the two new chapters.
 - The wiki gets a Commands page: the `:` shell, what its introduction reports,
   and the whole catalog by class - utility, read-only, settings, and the
   cheats that mark a run.

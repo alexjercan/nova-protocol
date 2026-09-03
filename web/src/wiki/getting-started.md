@@ -1,15 +1,15 @@
 # Your first flight
 
-Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, the Shakedown Run beat by beat, and where to go next.
+Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, First Shift beat by beat, and where to go next.
 
 ## Launch and start
 
-The game boots into a main menu. **New Game** drops you into the **Shakedown Run** - a guided tutorial scenario with a ready-made ship, so there is nothing to build first. The other doors can wait.
+The game boots into a main menu. **New Game** drops you into **First Shift** - the campaign opening, flown in a ready-made maintenance cutter, so there is nothing to build first. The other doors can wait.
 
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - drops you into the **Shakedown Run**, a guided tutorial scenario with a ready-made ship, so there is nothing to build first.
+- **New Game** - drops you into **First Shift**, the campaign opening, flown in a ready-made ship, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Scenarios** - opens the complete scenario picker.
 - **Mods** - opens the installed-mod and online-catalog browser.
@@ -25,12 +25,12 @@ The game boots into a main menu. **New Game** drops you into the **Shakedown Run
         <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
         <span class="figure__placeholder-note">The main menu with its live ambient backdrop (an AI ship flying a thruster orbit) and the New Game / Sandbox / Scenarios / Mods / Settings / Exit options.</span>
     </div>
-    <figcaption class="figure__caption">The game boots into a main menu; New Game starts the Shakedown Run.</figcaption>
+    <figcaption class="figure__caption">The game boots into a main menu; New Game starts First Shift.</figcaption>
 </figure>
 
 In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.
 
-Pick **New Game**. The Shakedown Run teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.
+Pick **New Game**. First Shift teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.
 
 ## The first two minutes
 
@@ -41,17 +41,16 @@ Distances read in meters and kilometers and speeds in meters per second (`m/s`);
 - **GOTO.** With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. Any manual input hands the ship straight back to you.
 - **Raise weapons and fire.** Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now "hot". Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.
 
-That is the whole core loop: burn, lock, GOTO, shoot. The Shakedown Run walks you through each beat in order.
+That is the whole core loop: burn, lock, GOTO, shoot. First Shift walks you through the flying half of it - the cutter it hands you carries no gun, so the last gesture waits for a ship that does (the [sandbox](#the-sandbox) range, or a scenario that arms you).
 
-## The Shakedown Run, beat by beat
+## First Shift, beat by beat
 
-You open drifting off the dock while Capt. Halloran briefs you through the comms stack - the run's first conversation, and the campaign's first look at your own voice. Her lines carry the story; each objective arrives as a short amber notification, while gold markers keep the current target in view. She keeps talking you through the run, with each line followed by breathing room before the next objective.
+You open on the flank of the industrial carrier **Meridian**, undocked and drifting, while the Deck Chief talks you through a routine inspection round - the run's first conversation, and the campaign's first look at your own voice. The chief's lines carry the story; each objective arrives as a short amber notification a beat later, while gold markers keep the current target in view.
 
-### Part 1 - Burn and look
+### Part 1 - Burn and thruster
 
-1. **Burn to Beacon 1.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. There is a gentle speed cap here that lifts once you arrive.
-2. **Find Beacon 2.** It is off your beam. Hold <kbd>Alt</kbd> to free-look around and spot it, then burn over.
-3. **Recover 3 supply crates** from the debris cluster - fly through each one to collect it.
+1. **Burn to the work mark.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. A gentle 250 m/s cap holds you in while the chief is still talking, and lifts when you arrive.
+2. **Recover 3 maintenance crates.** They sit deep in a rock plate nothing bigger than the cutter fits into. Your fine thrusters unlock here: hold <kbd>Shift</kbd> and move the mouse to translate sideways a metre at a time, and fly through each crate to collect it.
 
 ### Part 2 - Lock and let the computer fly
 
@@ -60,14 +59,13 @@ You open drifting off the dock while Capt. Halloran briefs you through the comms
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/tutorial-radar-lock.png</span>
-        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto a beacon.</span>
+        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto the inspection planetoid.</span>
     </div>
     <figcaption class="figure__caption">Radar locking is deliberate: hold CTRL and the radar locks whatever you look at.</figcaption>
 </figure>
 
-4. **Lock Beacon 3.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the beacon until the white NAV lock sticks. Radar locking is deliberate now: holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
-5. **Press GOTO.** With the beacon locked, press <kbd>G</kbd> and let the computer fly you there.
-6. **On to Beacon 4.** A new waypoint appears - lock it and press <kbd>G</kbd> again.
+3. **Lock the inspection planetoid.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the small body out west until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
+4. **Press GOTO.** With the body locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the surface.
 
 ### Part 3 - Gravity and orbit
 
@@ -81,27 +79,15 @@ You open drifting off the dock while Capt. Halloran briefs you through the comms
     <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
 </figure>
 
-7. **Coast.** You drift into the planetoid's pull - cut the burn and let gravity carry you.
-8. **Press ORBIT.** Press <kbd>O</kbd> and the ship parks itself into a clean orbit around the well.
-9. **Break away.** Press <kbd>Z</kbd> to cancel the autopilot and burn clear.
+5. **Press ORBIT and hold it.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Hold it steady for five seconds and the survey is signed off.
+6. **Return to the Meridian.** Break away with <kbd>Z</kbd> and fly home. The shift is over.
 
-### Part 4 - First blood
+### Part 4 - What you cannot stop
 
-<figure class="figure">
-    <!-- Capture: assets/tutorial-combat-lock.png -->
-    <div class="figure__placeholder">
-        <span class="figure__placeholder-tag">Screenshot needed</span>
-        <span class="figure__placeholder-name">assets/tutorial-combat-lock.png</span>
-        <span class="figure__placeholder-note">Weapons raised (RMB): the red combat reticle locked on the derelict hulk, with the corner target viewfinder inset showing the magnified target.</span>
-    </div>
-    <figcaption class="figure__caption">Raise your weapons with RMB and the radar commits to a red combat lock; the viewfinder shows it live.</figcaption>
-</figure>
+7. **A warship comes out from behind the large planetoid.** It turns its whole hull onto your carrier, puts two railgun slugs into it, and walks six siege torpedoes across it. The cutter is unarmed and you are told to keep your distance - there is nothing here to win, and the game means it.
+8. **Hold position and keep the channel open.** Nobody answers. What finally does is an automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
 
-10. **Paint the derelict hulk.** Hold the right mouse button to raise your weapons, keep <kbd>Ctrl</kbd> on the hulk, and watch the corner viewfinder. Raised weapons make the radar commit to a _red_ combat lock instead of the white nav one.
-11. **Open fire.** Locked on, fire the turrets with the left mouse button.
-12. **Drive off the scavenger.** Destroying the hulk draws a scavenger picking through your debris field - put it down.
-
-Finish that and the Shakedown is complete: the victory screen offers to continue straight into **Broadside**, chapter two - a hauler's distress call, an ambush, and the gang's torpedo gunship. (Tap <kbd>Ctrl</kbd> to clear the combat lock; tap it again to clear the nav lock.)
+(Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)
 
 ## The sandbox
 

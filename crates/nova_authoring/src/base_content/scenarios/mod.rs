@@ -22,10 +22,7 @@ pub(crate) fn catalog(assets: &BaseContentAssets) -> Vec<ScenarioConfig> {
         main_menu::gauntlet(cubemap(), texture()),
         main_menu::weave(cubemap(), texture()),
         main_menu::duel(cubemap(), texture()),
-        nova_protocol::shakedown(cubemap(), texture()),
-        nova_protocol::broadside(assets.cubemap_alt.clone(), texture()),
-        nova_protocol::broadside_gunship(assets.cubemap_alt.clone(), texture()),
-        nova_protocol::lifeline(assets.cubemap_alt.clone(), texture()),
-        nova_protocol::final_tally(assets.cubemap_alt.clone(), texture()),
+        nova_protocol::first_shift(cubemap(), texture()),
+        nova_protocol::second_shift(assets.cubemap_alt.clone(), texture()),
     ]
 }

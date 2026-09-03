@@ -25,7 +25,7 @@ Large asteroids and planetoids carry gravity wells that pull ships, torpedoes an
 A well accelerates you toward its center by an inverse-square law, `a = mu / r^2`. The mass parameter `mu` is the body's one authored gravity number - never your ship's mass: gravity is acceleration, so a stripped fighter and a laden hauler fall the same.
 
 <div class="widget" data-widget="gravity-well">
-<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The Shakedown planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
+<p>The pull runs a = mu / r^2: held at its surface value below the rock (no slingshots), a clean inverse square through the core, then smoothstepped to exactly zero across the outer 15% of the sphere of influence. The campaign inspection planetoid authors mass 27000 for a 3.29 km sphere of influence and a few tens of m/s^2 at its drawn surface; ORBIT trusts the ring band between 1.5x the surface and 90% of the fade start.</p>
 </div>
 
 <details class="explain">
@@ -42,7 +42,7 @@ Who feels it: piloted ships (player and AI alike), torpedoes and turret rounds -
 
 ## Sphere of influence
 
-A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The Shakedown planetoid reaches 3.29 km; the heavier Final Tally anchorage rock reaches 4.24 km. Outside it, the well does not exist as far as your ship is concerned.
+A well's reach follows from its mass alone: the sphere of influence is the distance at which the raw pull has decayed to a fixed cutoff of 2.5 m/s^2 - the body's drawn size never sets it, and because the pull is inverse-square, four times the mass buys only twice the reach. The campaign's inspection planetoid reaches 3.29 km; the lighter concealment planetoid it hides a warship behind reaches 2.83 km. Outside it, the well does not exist as far as your ship is concerned.
 
 ## The dominant well
 

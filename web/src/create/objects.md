@@ -201,7 +201,7 @@ crashing, so a missing dependency is visible instead of fatal.
 | field | type | default | meaning |
 |---|---|---|---|
 | `input_mapping` | map | `{}` | per-SECTION bindings, keyed by section id: `{ "turret_port": [ Mouse(Left) ] }`. Values are `Keyboard(<KeyCode>)` / `Mouse(<MouseButton>)` / `Gamepad(<GamepadButton>)` - modifier-free buttons only |
-| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (the Shakedown starts at `Some(250.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
+| `speed_cap` | `Option` number | `None` | soft manual-speed cap in m/s (First Shift starts at `Some(250.0)`); `None` = unbounded. Runtime mirror: [`SetSpeedCap`](../actions/#setspeedcap) |
 
 `AI((..))` fields:
 
@@ -221,7 +221,7 @@ crashing, so a missing dependency is visible instead of fatal.
 An UNARMED AI ship (no turret or torpedo section) is automatically a
 NON-COMBATANT: it flies its routine and never acquires, chases or shoots -
 no field to set. Keep its `allegiance` on the side you want hunted and it
-becomes something to defend (the Lifeline convoy).
+becomes something to defend (a convoy you have to keep alive).
 
 `non_combatant: true` asks for the same standing-down on an ARMED hull - a
 military escort holding formation through a scene it takes no part in. Do not

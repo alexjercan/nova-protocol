@@ -7,15 +7,12 @@ use nova_authoring::generation;
 use nova_modding::prelude::Content;
 
 /// Merge the built-in scenarios and the built-in campaign, then resolve the
-/// "nova_protocol" campaign's membership. It must list its five chapters in
-/// play order - including the two `hidden` chained members (broadside_gunship,
-/// the phase-two wave; final_tally, the epilogue) - and every member must
-/// resolve to a merged scenario, hidden ones included. This is the "real
-/// mapping, not display-name parsing" contract: the order comes from the
-/// campaign's own list, and a hidden member is reachable despite being filtered
-/// from the flat picker.
+/// "nova_protocol" campaign's membership. It must list its chapters in play
+/// order, and every member must resolve to a merged scenario. This is the
+/// "real mapping, not display-name parsing" contract: the order comes from the
+/// campaign's own list, not from anything a title happens to say.
 #[test]
-fn merged_campaign_resolves_members_in_order_including_hidden() {
+fn merged_campaign_resolves_members_in_play_order() {
     let mut items: Vec<Content> = Vec::new();
     for (_, content) in generation::build_scenario_contents() {
         items.extend(content);
@@ -37,29 +34,26 @@ fn merged_campaign_resolves_members_in_order_including_hidden() {
         .expect("the base Nova Protocol campaign registers");
     assert_eq!(
         campaign.scenarios,
-        vec![
-            "shakedown_run",
-            "broadside",
-            "broadside_gunship",
-            "lifeline",
-            "final_tally",
-        ],
+        vec!["first_shift", "second_shift"],
         "members resolve in the campaign's declared play order"
     );
 
     // Every member resolves to a merged scenario - the mapping never lists a
-    // ghost - and the two chained chapters are genuinely `hidden` (so they are
-    // reachable ONLY via this mapping, not the flat picker).
+    // ghost.
     for member in &campaign.scenarios {
         assert!(
             outcome.scenarios.contains_key(member),
             "campaign member '{member}' resolves to a real scenario"
         );
     }
-    for hidden_member in ["broadside_gunship", "final_tally"] {
+
+    // Chapter one is the New Game entry and chapter two is chained from it, so
+    // BOTH are visible in the flat picker: nothing in this campaign is
+    // reachable only through the campaign mapping.
+    for member in &campaign.scenarios {
         assert!(
-            outcome.scenarios[hidden_member].hidden,
-            "'{hidden_member}' is hidden from the flat picker yet listed for replay"
+            !outcome.scenarios[member].hidden,
+            "'{member}' is a listed chapter, not a hidden chained wave"
         );
     }
 }

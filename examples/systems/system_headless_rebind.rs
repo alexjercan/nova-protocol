@@ -49,10 +49,7 @@ fn main() {
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
-    let mut app = editor_app(
-        false,
-        Some(StartupScenario::Id("shakedown_run".to_string())),
-    );
+    let mut app = editor_app(false, Some(StartupScenario::Id("first_shift".to_string())));
 
     app.world_mut().spawn((
         Window {

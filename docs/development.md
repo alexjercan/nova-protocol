@@ -17,7 +17,7 @@
 
 ```sh
 cargo run                         # the game (boots into the main menu)
-cargo run -- --scenario broadside # the game, straight into one scenario
+cargo run -- --scenario first_shift # the game, straight into one scenario
 cargo run --features dev          # + debug tooling (inspector, wireframe)
 cargo run --example system_scenario_grammar   # run an example
 cargo build --release             # release profile: opt=s, lto, stripped
@@ -423,7 +423,7 @@ the main menu - for anyone who would rather not click through the picker, and
 for a mod author testing one scenario id in one command:
 
 ```sh
-cargo run -- --scenario broadside          # a base scenario
+cargo run -- --scenario first_shift        # a base scenario
 cargo run -- --scenario my_mod_intro       # anything an ENABLED mod registers
 cargo run -- --scenario nope               # refuses, and lists every id
 ```
@@ -726,8 +726,8 @@ cargo run --features debug probe run system_player_path --repeat 5  # gated repe
 cargo run --features debug probe run system_player_path,system_scenario_grammar   # comma list -> aggregate index
 cargo run --features debug probe run systems            # a whole category
 cargo run --features debug probe run --all               # the whole fleet
-cargo run --features debug probe scenario broadside      # a SCENARIO by id, no example involved
-cargo run --features debug probe scenario assets/base/scenarios/broadside.content.ron  # ... or by file
+cargo run --features debug probe scenario first_shift    # a SCENARIO by id, no example involved
+cargo run --features debug probe scenario assets/base/scenarios/first_shift.content.ron  # ... or by file
 ```
 
 It runs the example headless (throwaway Xvfb; `--display :0` to reuse yours -

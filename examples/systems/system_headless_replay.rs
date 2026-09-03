@@ -8,7 +8,7 @@
 //! own `TimeUpdateStrategy::ManualDuration`, the step clock - and prints a
 //! digest that two runs can be diffed on:
 //!
-//!   - boot `--norender --scenario shakedown_run` with a pinned 1/64 s frame;
+//!   - boot `--norender --scenario first_shift` with a pinned 1/64 s frame;
 //!   - play until the SCENARIO's own clock reaches [`REPLAY_FRAMES`] ticks
 //!     (8 simulated seconds - anchored on the world's clock, because when an
 //!     outside observer first notices Playing races the scenario start by a
@@ -51,10 +51,7 @@ fn main() -> bevy::app::AppExit {
         None => warn!("headless replay: NOVA_SEED unset - two runs will not agree"),
     }
 
-    let mut app = editor_app(
-        false,
-        Some(StartupScenario::Id("shakedown_run".to_string())),
-    );
+    let mut app = editor_app(false, Some(StartupScenario::Id("first_shift".to_string())));
 
     // The step clock: every frame advances the world by exactly one fixed
     // step's worth of time, however long the wall took. This is the channel's

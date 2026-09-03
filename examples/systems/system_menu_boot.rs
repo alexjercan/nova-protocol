@@ -7,7 +7,7 @@
 //!
 //! ONE SUBJECT: the boot flow. The run asserts that clicking New Game tears the
 //! menu down and reaches gameplay state, and NOTHING about what
-//! `shakedown_run` then contains - that is story, and story is covered by the
+//! `first_shift` then contains - that is story, and story is covered by the
 //! `story/` examples. An assertion here that grew into scenario content would
 //! mean this run had drifted (task 20260804-094021).
 //!
@@ -98,7 +98,7 @@ fn the_menu_tore_down() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pr
 }
 
 /// Seconds the run gives the New Game click to reach gameplay state. Sized to
-/// outlast `shakedown_run`'s load on a software-rendered CI GPU, and kept UNDER
+/// outlast `first_shift`'s load on a software-rendered CI GPU, and kept UNDER
 /// the harness completion deadline (`NOVA_AUTOPILOT_DEADLINE`, default 120 s)
 /// so a stall is an error naming THIS beat rather than a generic deadline.
 #[cfg(feature = "debug")]

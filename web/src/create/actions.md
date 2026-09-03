@@ -467,8 +467,8 @@ an optional message, and buttons - and it freezes the simulation behind it
 exactly like the pause menu until it clears.
 
 ```ron
-Outcome((outcome: Defeat, message: Some("The convoy is lost."))),
-NextScenario((scenario_id: "lifeline", linger: true)),
+Outcome((outcome: Defeat, message: Some("The cutter is lost."))),
+NextScenario((scenario_id: "second_shift", linger: true)),
 ```
 
 <details class="explain">
@@ -495,7 +495,7 @@ Queue a switch to another scenario by id - a hard cut, a delayed cut, or a
 modal hold behind the outcome overlay.
 
 ```ron
-NextScenario((scenario_id: "broadside_gunship", linger: true)),
+NextScenario((scenario_id: "second_shift", linger: true)),
 ```
 
 <details class="explain">
@@ -546,8 +546,8 @@ SetSpeedCap((id: "player_spaceship"))              // release the governor
 ### SetControllerVerb
 
 Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (the Shakedown Run starts with `Goto`
-withheld and grants it at the beacon).
+tutorial-progression primitive (First Shift starts with `Goto` withheld
+and grants it when the player first locks the planetoid).
 
 ```ron
 SetControllerVerb((id: "player_spaceship", verb: Goto, enabled: true)),

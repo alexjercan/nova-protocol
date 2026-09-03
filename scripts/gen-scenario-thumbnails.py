@@ -52,9 +52,8 @@ WIDTH = 320
 HEIGHT = 180
 
 # Every picker-visible scenario: the flat `!hidden` set plus the `hidden`
-# campaign members the picker lists indented under their campaign header (base:
-# broadside_gunship + final_tally under "Nova Protocol"; The Ledger: chapters 2
-# to 5 under "The Ledger"). Each entry is
+# campaign members the picker lists indented under their campaign header (The
+# Ledger: chapters 2 to 5 under "The Ledger"). Each entry is
 # (scenario id, picker title, output path relative to the repo root).
 #
 # The path is inside the OWNING mod's asset tree, because a thumbnail is that
@@ -64,12 +63,8 @@ HEIGHT = 180
 # bundle's `resources`). No scenario points at another mod's art any more.
 SCENARIOS = [
     # --- base (the built-in scenarios; builders in nova_assets) ---
-    ("shakedown_run", "Shakedown Run", "assets/base/thumbnails/shakedown_run.png"),
-    ("broadside", "Broadside", "assets/base/thumbnails/broadside.png"),
-    ("broadside_gunship", "Broadside: Rust Tally",
-     "assets/base/thumbnails/broadside_gunship.png"),
-    ("lifeline", "Lifeline", "assets/base/thumbnails/lifeline.png"),
-    ("final_tally", "Final Tally", "assets/base/thumbnails/final_tally.png"),
+    ("first_shift", "First Shift", "assets/base/thumbnails/first_shift.png"),
+    ("second_shift", "Second Shift", "assets/base/thumbnails/second_shift.png"),
     # --- webmods/gauntlet ---
     ("gauntlet_run", "Gauntlet Run", "webmods/gauntlet/thumbnails/gauntlet_run.png"),
     # --- webmods/the-ledger (chapter 1 visible, 2-5 under the campaign header) ---

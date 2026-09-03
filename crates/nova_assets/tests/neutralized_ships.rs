@@ -1,17 +1,17 @@
-//! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal.
-//! A ship that was armed and has lost all working weapons OR its flight computer fires
-//! `OnNeutralizedEvent` instead of being destroyed; the shipped scenarios carry
-//! `OnNeutralized` sibling handlers so a beaten ship counts as beaten without
-//! its hull being ground to zero. This loads the ACTUAL shipped RON, registers
-//! its real handlers the way the loader does, and drives the act machine by
-//! firing `OnNeutralizedEvent` - the same info the gameplay neutralize system
-//! emits.
+//! Production-faithful scenario tests for the NEUTRALIZED (combat-dead) signal
+//! over the shipped mainline.
 //!
-//! The physical predicate (weapons gone OR flight computer gone => the event) is pinned in
-//! `nova_gameplay::integrity::neutralize`; what this file owns is the SCENARIO
-//! DATA's consumption of the event: an enemy kill-objective completes on
-//! neutralize, the player's neutralize is an immediate terminal Defeat, and the
-//! act guards give once-semantics so a later real destruction cannot double-fire.
+//! A ship that was armed and has lost all working weapons OR its flight
+//! computer fires `OnNeutralizedEvent` instead of being destroyed. The physical
+//! predicate is pinned in `nova_gameplay::integrity::neutralize`; what this
+//! file owns is the SCENARIO DATA's consumption of it.
+//!
+//! The mainline has no kill objectives to complete - the campaign's cutter
+//! carries no gun in either chapter - so the whole contract here is the
+//! PLAYER's side of it: losing the helm is a Defeat, it queues the retry, and
+//! it is gated below the epilogue so a hull coming apart during an earned win
+//! cannot overwrite it. That last guard is the one worth a test: it is
+//! invisible in the script and catastrophic when it is missing.
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{
@@ -21,12 +21,17 @@ use nova_events::prelude::{
 use nova_gameplay::prelude::GameObjectives;
 use nova_scenario::prelude::*;
 
-const BROADSIDE_RON: &str = include_str!("../../../assets/base/scenarios/broadside.content.ron");
-const BROADSIDE_GUNSHIP_RON: &str =
-    include_str!("../../../assets/base/scenarios/broadside_gunship.content.ron");
-const SHAKEDOWN_RON: &str =
-    include_str!("../../../assets/base/scenarios/shakedown_run.content.ron");
-const LIFELINE_RON: &str = include_str!("../../../assets/base/scenarios/lifeline.content.ron");
+const FIRST_SHIFT_RON: &str =
+    include_str!("../../../assets/base/scenarios/first_shift.content.ron");
+const SECOND_SHIFT_RON: &str =
+    include_str!("../../../assets/base/scenarios/second_shift.content.ron");
+
+/// The beat each chapter's defeat gate sits below: `BEAT_OUTRO` in the
+/// authored script. Spelled out here rather than imported, because the point
+/// of the test is that the RON carries the gate - importing the constant would
+/// let a script that dropped the guard still pass.
+const FIRST_SHIFT_OUTRO: f64 = 10.0;
+const SECOND_SHIFT_OUTRO: f64 = 5.0;
 
 fn scenario_from(ron: &str) -> ScenarioConfig {
     let items: Vec<nova_modding::prelude::Content> =
@@ -59,6 +64,9 @@ fn seed_var(app: &mut App, key: &str, value: f64) {
         .insert_variable(key.to_string(), VariableLiteral::Number(value));
 }
 
+/// Register everything but `OnStart`: the rig seeds the variables that handler
+/// would have written, and spawning a whole scenario's objects is not what is
+/// under test.
 fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     for event in scenario
         .events
@@ -72,7 +80,7 @@ fn register_non_start_handlers(app: &mut App, scenario: &ScenarioConfig) {
     }
 }
 
-/// Fire the scenario outcome pair for a neutralized ship in production order:
+/// Fire the outcome pair for a neutralized ship in production order: the
 /// unified defeat first, then the specific neutralization edge.
 fn neutralize(app: &mut App, id: &str) {
     let defeated = OnDefeatedEventInfo {
@@ -92,43 +100,6 @@ fn neutralize(app: &mut App, id: &str) {
     app.update();
 }
 
-/// The destroy counterpart, for the once-semantics cross-check.
-/// Longer than any single outro beat's delay. A win opens a `Sequence` and the
-/// ENGINE holds its cursor and delays, so this rig - which runs no clock -
-/// advances the scenario clock past one beat at a time.
-const OUTRO_BEAT_JUMP: f64 = 30.0;
-
-/// Walk the outro: the tease beat, then the banner beat that declares the win.
-/// One advance delivers one beat, exactly as the live pulse does.
-fn walk_outro(app: &mut App) {
-    for _ in 0..2 {
-        nova_scenario::test_support::advance_scenario_clock(app, OUTRO_BEAT_JUMP);
-        app.update();
-        app.update();
-    }
-}
-
-fn destroy(app: &mut App, id: &str) {
-    let info = nova_events::prelude::OnDestroyedEventInfo {
-        id: id.to_string(),
-        type_name: "spaceship".to_string(),
-    };
-    app.world_mut()
-        .run_system_once(move |mut commands: Commands| {
-            commands.fire::<nova_events::prelude::OnDestroyedEvent>(info.clone());
-        })
-        .expect("fire OnDestroyed");
-    app.update();
-    app.update();
-}
-
-fn number_var(app: &App, key: &str) -> Option<f64> {
-    match app.world().resource::<NovaEventWorld>().get_variable(key) {
-        Some(VariableLiteral::Number(n)) => Some(*n),
-        _ => None,
-    }
-}
-
 fn outcome_kind(app: &App) -> Option<ScenarioOutcomeKind> {
     app.world()
         .resource::<CurrentOutcome>()
@@ -137,195 +108,82 @@ fn outcome_kind(app: &App) -> Option<ScenarioOutcomeKind> {
         .map(|outcome| outcome.outcome)
 }
 
-/// The immediate annoyance fixed at scenario level: neutralizing an enemy
-/// kill-objective completes it exactly like destroying it, so a ship whose guns
-/// and engines are gone counts as down without grinding its hull to zero. Both
-/// corvettes neutralized wins part one and chains onward.
-#[test]
-fn neutralizing_both_corvettes_wins_part_one() {
-    let scenario = scenario_from(BROADSIDE_RON);
-    let mut app = slice_app();
-    register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
-    seed_var(&mut app, "corvette_a_down", 0.0);
-    seed_var(&mut app, "corvette_b_down", 0.0);
-    seed_var(&mut app, "hauler_lost", 0.0);
-
-    // Delivery guard: nothing advances on its own.
-    app.update();
-    assert_eq!(number_var(&app, "act"), Some(1.0));
-
-    neutralize(&mut app, "corvette_a");
-    assert_eq!(
-        number_var(&app, "corvette_a_down"),
-        Some(1.0),
-        "neutralizing a corvette marks it down (delivery guard for the act assert)"
-    );
-    assert_eq!(
-        number_var(&app, "act"),
-        Some(1.0),
-        "one corvette is not enough"
-    );
-
-    neutralize(&mut app, "corvette_b");
-    assert_eq!(
-        number_var(&app, "act"),
-        Some(4.0),
-        "both corvettes neutralized opens the outro, the win locked"
-    );
-    walk_outro(&mut app);
-    assert_eq!(
-        number_var(&app, "act"),
-        Some(2.0),
-        "both corvettes neutralized wins part one"
-    );
-    assert_eq!(
-        outcome_kind(&app),
-        Some(ScenarioOutcomeKind::Victory),
-        "the broken ambush is a Victory beat"
-    );
-}
-
-/// The gunship boss: neutralizing it declares Victory and chains into Lifeline,
-/// the same terminal beat destroying it would - and the act guard gives
-/// once-semantics, so a later real destruction of the drifting wreck cannot
-/// re-open the win gate.
-#[test]
-fn neutralizing_the_gunship_wins_and_does_not_double_fire() {
-    let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
-    let mut app = slice_app();
-    register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
-    seed_var(&mut app, "hauler_lost", 0.0);
-
-    app.update();
-    assert_eq!(outcome_kind(&app), None, "no outcome before the neutralize");
-
-    neutralize(&mut app, "gunship");
-    walk_outro(&mut app);
-    assert_eq!(
-        outcome_kind(&app),
-        Some(ScenarioOutcomeKind::Victory),
-        "the gunship neutralize wins the slice"
-    );
-    assert_eq!(
-        number_var(&app, "act"),
-        Some(2.0),
-        "the win advanced the act"
-    );
-    let next = app
-        .world()
+fn queued_scenario(app: &App) -> Option<String> {
+    app.world()
         .resource::<NovaEventWorld>()
         .next_scenario
         .as_ref()
-        .expect("chapter three is queued")
-        .scenario_id
-        .clone();
-    assert_eq!(next, "lifeline", "the chain enters Lifeline");
-
-    // Once-semantics: the wreck is later blown up for real. The gunship's
-    // OnDestroyed win gate is act == 1; the neutralize already advanced to 2,
-    // so the destruction declares nothing new.
-    destroy(&mut app, "gunship");
-    assert_eq!(
-        outcome_kind(&app),
-        Some(ScenarioOutcomeKind::Victory),
-        "a later real destruction does not re-declare / overwrite the win"
-    );
-    assert_eq!(number_var(&app, "act"), Some(2.0), "the act does not skip");
+        .map(|next| next.scenario_id.clone())
 }
 
-/// The player consequence: being neutralized is an IMMEDIATE Defeat that closes the act, mirroring the
-/// player-death path so the last-write-wins outcome cannot be overwritten.
-#[test]
-fn neutralizing_the_player_is_a_terminal_defeat() {
-    // The guarded part: broadside_gunship's player handler sets terminal act 3.
-    let scenario = scenario_from(BROADSIDE_GUNSHIP_RON);
+/// A live beat, the epilogue beat, and what a neutralize means in each.
+fn player_neutralize_case(ron: &str, id: &str, live_beat: f64, outro_beat: f64) {
+    let scenario = scenario_from(ron);
+
+    // On a live beat: an immediate Defeat with the chapter queued for retry.
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
+    seed_var(&mut app, "beat", live_beat);
+    app.update();
+    assert_eq!(
+        outcome_kind(&app),
+        None,
+        "{id}: nothing declares on its own"
+    );
 
     neutralize(&mut app, "player_spaceship");
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Defeat),
-        "losing all weapons + thrusters is a player Defeat"
+        "{id}: losing the helm is a player Defeat"
     );
     assert_eq!(
-        number_var(&app, "act"),
-        Some(3.0),
-        "the player's neutralize is terminal (closes the win gate)"
+        queued_scenario(&app).as_deref(),
+        Some(id),
+        "{id}: the retry is the chapter itself, offered rather than forced"
     );
-    let next = app
-        .world()
-        .resource::<NovaEventWorld>()
-        .next_scenario
-        .as_ref()
-        .expect("a retry is queued")
-        .scenario_id
-        .clone();
-    assert_eq!(next, "broadside_gunship", "the retry is the current part");
 
-    // Shakedown's player neutralize is a Defeat too. Its gate is the BEAT
-    // (below the outro), so the rig seeds the live value OnStart would - that
-    // guard is what stops a death during the outro overwriting an earned win.
-    let shakedown = scenario_from(SHAKEDOWN_RON);
+    // On the epilogue beat: the win is already locked, and the same event
+    // declares nothing. Without the gate this would overwrite an earned
+    // Victory with a Defeat while the banner was on screen.
     let mut app = slice_app();
-    register_non_start_handlers(&mut app, &shakedown);
-    seed_var(&mut app, "beat", 12.0);
+    register_non_start_handlers(&mut app, &scenario);
+    seed_var(&mut app, "beat", outro_beat);
     neutralize(&mut app, "player_spaceship");
     assert_eq!(
         outcome_kind(&app),
-        Some(ScenarioOutcomeKind::Defeat),
-        "shakedown's player neutralize is also a Defeat"
+        None,
+        "{id}: a neutralize during the epilogue must not overwrite the win"
     );
 }
 
-/// Lifeline is the biggest scenario and carries the most siblings (7 raiders +
-/// the act-1-guarded player Defeat). Its raider handlers are unguarded flag
-/// sets: neutralizing a raider marks it down exactly like destroying it, and a
-/// player neutralize on the live act is a terminal Defeat that retries the lane.
 #[test]
-fn lifeline_raiders_and_player_neutralize_as_expected() {
-    let scenario = scenario_from(LIFELINE_RON);
+fn a_first_shift_player_neutralize_is_a_gated_terminal_defeat() {
+    player_neutralize_case(FIRST_SHIFT_RON, "first_shift", 2.0, FIRST_SHIFT_OUTRO);
+}
 
-    // A first-wave raider: neutralize marks its kill flag down.
+#[test]
+fn a_second_shift_player_neutralize_is_a_gated_terminal_defeat() {
+    player_neutralize_case(SECOND_SHIFT_RON, "second_shift", 2.0, SECOND_SHIFT_OUTRO);
+}
+
+/// The wreck field is 28 dead hulls and a cleanup group flies through it. None
+/// of that may declare anything: only the player's id is wired to an outcome,
+/// so a fragment being shot apart or a searcher being neutralized is scenery.
+#[test]
+fn nothing_but_the_player_can_end_the_second_shift() {
+    let scenario = scenario_from(SECOND_SHIFT_RON);
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
-    seed_var(&mut app, "r1a_down", 0.0);
-    app.update();
-    assert_eq!(
-        number_var(&app, "r1a_down"),
-        Some(0.0),
-        "nothing on its own"
-    );
+    seed_var(&mut app, "beat", 3.0);
+    seed_var(&mut app, "seen", 0.0);
 
-    neutralize(&mut app, "raider_1a");
-    assert_eq!(
-        number_var(&app, "r1a_down"),
-        Some(1.0),
-        "neutralizing a raider marks it down like a kill"
-    );
-
-    // The player neutralize on the live (act 1) part: terminal Defeat, retry.
-    let mut app = slice_app();
-    register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "act", 1.0);
-    neutralize(&mut app, "player_spaceship");
-    assert_eq!(outcome_kind(&app), Some(ScenarioOutcomeKind::Defeat));
-    assert_eq!(
-        number_var(&app, "act"),
-        Some(3.0),
-        "the player's neutralize closes the act (last-write-wins guard)"
-    );
-    let next = app
-        .world()
-        .resource::<NovaEventWorld>()
-        .next_scenario
-        .as_ref()
-        .expect("a retry is queued")
-        .scenario_id
-        .clone();
-    assert_eq!(next, "lifeline", "the retry is the lane itself");
+    for bystander in ["wreck_0", "wreck_13", "cleanup_picket", "cleanup_leader"] {
+        neutralize(&mut app, bystander);
+        assert_eq!(
+            outcome_kind(&app),
+            None,
+            "'{bystander}' going quiet must not declare an outcome"
+        );
+    }
 }

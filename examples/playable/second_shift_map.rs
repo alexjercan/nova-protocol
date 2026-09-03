@@ -214,6 +214,7 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
+#[cfg(feature = "debug")]
 fn camera_pilot(pilot: Res<Pilot>) -> bool {
     *pilot == Pilot::Camera
 }

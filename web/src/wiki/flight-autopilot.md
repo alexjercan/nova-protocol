@@ -21,7 +21,7 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 ## Manual flight
 
-You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like the Shakedown's 250 m/s starter governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
+You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like First Shift's 250 m/s starter governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
 
 ## The hull decides the handling
 
@@ -77,7 +77,7 @@ RCS is controlled translation rather than a main-engine burn: each ship-local ax
 <details class="explain">
 <summary>Show explanation</summary>
 
-The cap is per ship-local axis, relative to whatever the maneuver is holding as its reference: push an axis you are already coasting at the cap and nothing happens, while the opposite direction still slows you. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** and **STOP** settle their arrival on RCS, braking with the fine jets in the last stretch so a ship eases to a stop instead of pulsing on the spot.
+The cap is per ship-local axis, relative to whatever the maneuver is holding as its reference: push an axis you are already coasting at the cap and nothing happens, while the opposite direction still slows you. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.
 
 </details>
 

@@ -240,7 +240,7 @@ fn mod_catalog_lists_installed_mods_metadata() {
         "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, and a menu backdrop - a little of everything.",
         "example's description comes from its bundle meta (the catalog has none)"
     );
-    assert_eq!(mods[1].meta.version, "1.1.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.version, "1.2.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
@@ -403,20 +403,15 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "with example disabled, the base section is un-overridden"
     );
 
-    // The four carousel backdrops - not the retired menu_ambience /
-    // menu_scrapyard pair the pre-carousel cut shipped - plus the five
-    // nova_protocol chapters. Mirrors `base_content::scenarios::catalog`; the
-    // Asteroid Field sandbox and its relay were dropped.
+    // The four carousel backdrops plus the two nova_protocol chapters.
+    // Mirrors `base_content::scenarios::catalog`.
     for built_in in [
-        "broadside",
-        "broadside_gunship",
-        "final_tally",
-        "lifeline",
+        "first_shift",
         "menu_duel",
         "menu_gauntlet",
         "menu_waystation",
         "menu_weave",
-        "shakedown_run",
+        "second_shift",
     ] {
         assert!(
             scenarios.contains_key(built_in),
@@ -452,7 +447,7 @@ fn enabling_example_overrides_a_section_and_adds_a_scenario() {
         "the enabled example mod's scenario must be registered"
     );
     assert!(
-        scenarios.contains_key("shakedown_run"),
+        scenarios.contains_key("first_shift"),
         "base scenarios remain after the overlay"
     );
 }
@@ -593,7 +588,7 @@ fn merge_bundles_overlays_example_over_base() {
         "the mod's new scenario is added"
     );
     assert!(
-        outcome.scenarios.contains_key("shakedown_run"),
+        outcome.scenarios.contains_key("first_shift"),
         "a base scenario remains after overlay"
     );
 }
@@ -622,7 +617,7 @@ fn base_bundle_declares_the_new_game_start() {
 
     assert_eq!(
         app.world().resource::<NewGameStart>(),
-        &NewGameStart(Some("shakedown_run".to_string())),
+        &NewGameStart(Some("first_shift".to_string())),
         "the merge writes the base bundle's declared start"
     );
 }
