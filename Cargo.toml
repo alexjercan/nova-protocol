@@ -118,6 +118,12 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
+# The sequel layout bench: the returning cutter approaches a long carrier
+# wreck field while five cleanup searchers wait behind the large planetoid.
+[[example]]
+name = "second_shift_map"
+path = "examples/playable/second_shift_map.rs"
+
 # The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
 # 15 km/s) under three lifetime policies, with dark hull plates for the moving
 # light and every knob live. Task 20260902-143732's tuning bench: it fires the

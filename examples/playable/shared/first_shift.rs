@@ -11,9 +11,13 @@ const THRUSTER: &str = "basic_thruster_section";
 const VECTOR_THRUSTER: &str = "vector_thruster_section";
 const CAPITAL_THRUSTER: &str = "capital_thruster_section";
 const TORPEDO: &str = "heavy_torpedo_section";
+const SALVAGE_TORPEDO: &str = "torpedo_section";
+const PDC: &str = "pdc_kinetic_turret_section";
 const RAILGUN: &str = "railgun_lance_section";
+const LIGHT_HULL: &str = "light_hull_section";
 
 const INDUSTRIAL: &str = "industrial";
+const SALVAGE: &str = "salvage";
 const ARMOURED: &str = "armoured";
 
 #[derive(Clone, Copy)]
@@ -44,6 +48,202 @@ fn maintenance_cutter_cells() -> Vec<IVec3> {
         block(IVec3::new(2, 0, 0), IVec3::new(1, 1, 3)),
         vec![IVec3::new(0, 0, -4), IVec3::new(0, 1, -1)],
     ])
+}
+
+/// An unarmed needle skiff whose narrow sensor prow searches ahead of two
+/// exposed machinery shoulders.
+pub fn salvage_skiff() -> ShipHull {
+    let cells = union(vec![
+        block(IVec3::new(0, 0, -4), IVec3::new(1, 1, 8)),
+        block(IVec3::new(-1, 0, -1), IVec3::new(3, 1, 4)),
+        vec![IVec3::new(-2, 0, 1), IVec3::new(2, 0, 1)],
+    ]);
+    salvage_hull(
+        cells,
+        &[
+            special("controller", CONTROLLER, IVec3::new(0, 1, -1)),
+            special("drive_port", THRUSTER, IVec3::new(-1, 0, 3)),
+            special("drive_starboard", THRUSTER, IVec3::new(1, 0, 3)),
+        ],
+    )
+}
+
+/// An unarmed fork tug with twin recovery booms and a broad drive crossbar.
+pub fn salvage_tug() -> ShipHull {
+    let cells = union(vec![
+        block(IVec3::new(-2, 0, 1), IVec3::new(5, 1, 3)),
+        block(IVec3::new(-2, 0, -4), IVec3::new(2, 1, 5)),
+        block(IVec3::new(1, 0, -4), IVec3::new(2, 1, 5)),
+        block(IVec3::new(-1, 1, 1), IVec3::new(3, 1, 2)),
+    ]);
+    salvage_hull(
+        cells,
+        &[
+            special("controller", CONTROLLER, IVec3::new(0, 1, 1)),
+            special("drive_port", THRUSTER, IVec3::new(-2, 0, 3)),
+            special("drive_starboard", THRUSTER, IVec3::new(2, 0, 3)),
+        ],
+    )
+}
+
+/// A low, balanced armed picket with one PDC pushed onto the nose where the
+/// hull cannot mask its forward firing arc.
+pub fn salvage_picket() -> ShipHull {
+    let cells = union(vec![
+        block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
+        block(IVec3::new(-2, 0, 0), IVec3::new(5, 1, 3)),
+        vec![IVec3::new(0, 0, -4)],
+    ]);
+    salvage_hull(
+        cells,
+        &[
+            special("controller", CONTROLLER, IVec3::new(0, 0, -1)),
+            special("drive_port", THRUSTER, IVec3::new(-1, 0, 3)),
+            special("drive_starboard", THRUSTER, IVec3::new(1, 0, 3)),
+            Special {
+                id: "pdc",
+                prototype: PDC,
+                // Rotate the mount's -Y base to face +Z against the nose's
+                // -Z socket. The 0.5-cell mount centers outside that face.
+                position: Vec3::new(0.0, 0.0, -4.75),
+                rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+            },
+        ],
+    )
+}
+
+/// An asymmetric armed search craft built around a port machinery pod and a
+/// long starboard grapple arm.
+pub fn salvage_claw() -> ShipHull {
+    let cells = union(vec![
+        block(IVec3::new(0, 0, -4), IVec3::new(1, 1, 9)),
+        block(IVec3::new(-2, 0, -1), IVec3::new(2, 1, 5)),
+        block(IVec3::new(1, 0, -2), IVec3::new(3, 1, 1)),
+        vec![IVec3::new(3, 0, -3), IVec3::new(-1, 1, 1)],
+    ]);
+    salvage_hull(
+        cells,
+        &[
+            special("controller", CONTROLLER, IVec3::new(-1, 1, 1)),
+            special("drive_spine", THRUSTER, IVec3::new(0, 0, 4)),
+            special("drive_pod", THRUSTER, IVec3::new(-2, 0, 4)),
+            special("drive_grapple", THRUSTER, IVec3::new(3, 0, -1)),
+            pdc("pdc", IVec3::new(3, 1, -2), Vec3::NEG_Y * 0.25),
+        ],
+    )
+}
+
+/// The cleanup leader: a heavier salvage hull with one dorsal PDC and one
+/// flank-mounted standard Serpent torpedo bay.
+pub fn salvage_leader() -> ShipHull {
+    let mut cells = union(vec![
+        block(IVec3::new(-2, 0, -3), IVec3::new(5, 1, 8)),
+        block(IVec3::new(-1, 0, -5), IVec3::new(3, 1, 2)),
+        block(IVec3::new(-1, -1, 2), IVec3::new(3, 3, 3)),
+        block(IVec3::new(-1, 1, -1), IVec3::new(3, 1, 3)),
+    ]);
+    cells.retain(|cell| !(cell.y == 0 && cell.z == 0 && matches!(cell.x, -2 | -1)));
+    salvage_hull(
+        cells,
+        &[
+            special("controller_fore", CONTROLLER, IVec3::new(0, 1, -1)),
+            special("controller_aft", CONTROLLER, IVec3::new(0, 1, 2)),
+            Special {
+                id: "vector_drive",
+                prototype: VECTOR_THRUSTER,
+                position: Vec3::new(0.0, 0.0, 5.5),
+                rotation: Quat::IDENTITY,
+            },
+            pdc("pdc", IVec3::new(0, 2, 1), Vec3::NEG_Y * 0.25),
+            Special {
+                id: "torpedo_bay",
+                prototype: SALVAGE_TORPEDO,
+                position: Vec3::new(-1.5, 0.0, 0.0),
+                rotation: Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+            },
+        ],
+    )
+}
+
+fn salvage_hull(cells: Vec<IVec3>, specials: &[Special]) -> ShipHull {
+    grid_hull_from(cells, specials, SALVAGE, LIGHT_HULL)
+}
+
+/// Disconnected industrial assemblies from the destroyed carrier. Each entry
+/// is internally connected so it behaves as one floating wreck fragment.
+pub fn carrier_wreck_fragments() -> Vec<ShipHull> {
+    let fragments = vec![
+        union(vec![
+            block(IVec3::new(-2, -1, -3), IVec3::new(5, 3, 7)),
+            block(IVec3::new(-1, 2, -1), IVec3::new(3, 2, 4)),
+            block(IVec3::new(0, 4, 0), IVec3::new(1, 2, 2)),
+        ]),
+        block(IVec3::new(-2, -2, -3), IVec3::new(4, 5, 7)),
+        block(IVec3::new(-1, -2, -3), IVec3::new(3, 5, 6)),
+        union(vec![
+            block(IVec3::new(-3, -1, -2), IVec3::new(7, 2, 5)),
+            block(IVec3::new(-1, 1, -1), IVec3::new(3, 2, 3)),
+        ]),
+        union(vec![
+            block(IVec3::new(-1, -1, -4), IVec3::new(3, 3, 7)),
+            block(IVec3::new(-3, 0, 1), IVec3::new(7, 1, 3)),
+        ]),
+        block(IVec3::new(-1, -1, -2), IVec3::new(3, 2, 5)),
+        block(IVec3::new(0, -1, -3), IVec3::new(2, 3, 6)),
+        union(vec![
+            block(IVec3::new(-2, 0, -2), IVec3::new(5, 1, 3)),
+            block(IVec3::new(-2, 0, 1), IVec3::new(2, 2, 3)),
+        ]),
+        union(vec![
+            block(IVec3::new(-1, -1, -2), IVec3::new(2, 3, 4)),
+            block(IVec3::new(1, 0, 0), IVec3::new(3, 1, 2)),
+        ]),
+        block(IVec3::new(-2, 0, -1), IVec3::new(5, 1, 3)),
+        block(IVec3::new(-1, -1, -2), IVec3::new(2, 2, 5)),
+        union(vec![
+            block(IVec3::new(-2, 0, 0), IVec3::new(5, 1, 2)),
+            block(IVec3::new(1, -1, -2), IVec3::new(2, 2, 3)),
+        ]),
+        block(IVec3::new(0, 0, -1), IVec3::new(1, 1, 3)),
+        block(IVec3::new(-1, 0, 0), IVec3::new(3, 1, 1)),
+        block(IVec3::new(0, -1, -1), IVec3::new(1, 2, 3)),
+        block(IVec3::new(-1, 0, -1), IVec3::new(2, 1, 3)),
+        union(vec![
+            block(IVec3::new(-1, 0, -1), IVec3::new(3, 1, 2)),
+            vec![IVec3::new(1, 1, 0)],
+        ]),
+        union(vec![
+            block(IVec3::new(0, -1, -2), IVec3::new(1, 3, 4)),
+            vec![IVec3::new(1, 0, 1)],
+        ]),
+        block(IVec3::new(-1, -1, 0), IVec3::new(3, 2, 1)),
+        union(vec![
+            block(IVec3::new(-1, 0, -2), IVec3::new(2, 1, 4)),
+            vec![IVec3::new(1, 0, -2)],
+        ]),
+        block(IVec3::new(0, 0, -2), IVec3::new(1, 2, 5)),
+        block(IVec3::new(-2, 0, 0), IVec3::new(5, 1, 1)),
+        union(vec![
+            block(IVec3::new(-1, -1, -1), IVec3::new(2, 2, 3)),
+            vec![IVec3::new(1, 0, 1)],
+        ]),
+        block(IVec3::new(-1, 0, -2), IVec3::new(3, 1, 5)),
+        union(vec![
+            block(IVec3::new(-2, 0, 0), IVec3::new(4, 1, 2)),
+            block(IVec3::new(1, -1, 1), IVec3::new(1, 3, 2)),
+        ]),
+        block(IVec3::new(-1, -1, -1), IVec3::new(3, 3, 2)),
+        union(vec![
+            block(IVec3::new(0, -1, -2), IVec3::new(1, 2, 5)),
+            block(IVec3::new(-2, 0, 1), IVec3::new(3, 1, 2)),
+        ]),
+        block(IVec3::new(-2, 0, -1), IVec3::new(4, 2, 3)),
+    ];
+
+    fragments
+        .into_iter()
+        .map(|cells| grid_hull(cells, &[], INDUSTRIAL))
+        .collect()
 }
 
 pub fn industrial_carrier() -> ShipHull {
@@ -262,7 +462,7 @@ fn side_bay(id: &'static str, x: f32, z: f32, yaw: f32) -> Special {
 fn pdc(id: &'static str, cell: IVec3, seat: Vec3) -> Special {
     Special {
         id,
-        prototype: "pdc_kinetic_turret_section",
+        prototype: PDC,
         position: cell.as_vec3() + seat,
         rotation: Quat::IDENTITY,
     }
@@ -271,7 +471,7 @@ fn pdc(id: &'static str, cell: IVec3, seat: Vec3) -> Special {
 fn underside_pdc(id: &'static str, cell: IVec3, seat: Vec3) -> Special {
     Special {
         id,
-        prototype: "pdc_kinetic_turret_section",
+        prototype: PDC,
         position: cell.as_vec3() + seat,
         rotation: Quat::from_rotation_z(std::f32::consts::PI),
     }
@@ -287,6 +487,15 @@ fn special(id: &'static str, prototype: &'static str, cell: IVec3) -> Special {
 }
 
 fn grid_hull(cells: Vec<IVec3>, specials: &[Special], style: &str) -> ShipHull {
+    grid_hull_from(cells, specials, style, HULL)
+}
+
+fn grid_hull_from(
+    cells: Vec<IVec3>,
+    specials: &[Special],
+    style: &str,
+    hull_prototype: &str,
+) -> ShipHull {
     let replaced: HashMap<IVec3, &Special> = specials
         .iter()
         .filter_map(|part| {
@@ -308,7 +517,7 @@ fn grid_hull(cells: Vec<IVec3>, specials: &[Special], style: &str) -> ShipHull {
                 id: format!("hull_{index}"),
                 position: cell.as_vec3(),
                 rotation: Quat::IDENTITY,
-                source: SectionSource::Prototype(HULL.to_string()),
+                source: SectionSource::Prototype(hull_prototype.to_string()),
                 modifications: vec![],
             })
         })

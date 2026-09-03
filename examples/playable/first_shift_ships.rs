@@ -1,12 +1,12 @@
-//! first_shift_ships: the three fixed ship candidates for Nova Protocol's
-//! replacement opening, posed side by side for a free-fly visual review.
+//! first_shift_ships: the fixed ship candidates for the first two replacement
+//! Nova Protocol scenarios, posed for a free-fly visual review.
 //!
-//! From left to right: the engineer's small industrial maintenance cutter just
-//! clear of its empty port berth, the much larger unarmed industrial carrier
-//! with a second cutter built vertically into its starboard side, and the stolen
-//! armoured warship that destroys the carrier. These are candidate structures,
-//! not promoted base-content ships. Iterate here before the campaign depends on
-//! their silhouettes.
+//! The front row holds the engineer's maintenance cutter, the industrial
+//! carrier, and the stolen military warship. The rear row holds five cleanup
+//! searchers for the wreck-field sequel: two unarmed salvage hulls, two
+//! PDC-armed escorts, and a PDC escort carrying one Serpent torpedo bay. These
+//! are candidate structures, not promoted base-content ships. Iterate here
+//! before the campaign depends on their silhouettes.
 //!
 //! The ships are hand-authored and reproducible. Their cladding is still
 //! derived by the game from the structure: industrial on the cutter and
@@ -28,6 +28,11 @@ use nova_protocol::prelude::*;
 const CUTTER_POSITION: Meters3 = Meters3::new(-100.0, 0.0, 0.0);
 const CARRIER_POSITION: Meters3 = Meters3::ZERO;
 const WARSHIP_POSITION: Meters3 = Meters3::new(200.0, 0.0, 0.0);
+const SEARCHER_SKIFF_POSITION: Meters3 = Meters3::new(-200.0, 0.0, 350.0);
+const SEARCHER_TUG_POSITION: Meters3 = Meters3::new(-100.0, 0.0, 350.0);
+const SEARCHER_PICKET_POSITION: Meters3 = Meters3::new(0.0, 0.0, 350.0);
+const SEARCHER_CLAW_POSITION: Meters3 = Meters3::new(100.0, 0.0, 350.0);
+const SEARCHER_LEADER_POSITION: Meters3 = Meters3::new(220.0, 0.0, 350.0);
 
 fn main() -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(showcase_plugin).build();
@@ -73,10 +78,40 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             WARSHIP_POSITION,
             first_shift::stolen_warship(),
         ),
+        ship_object(
+            "searcher_skiff",
+            "Searcher 1 - Unarmed Skiff",
+            SEARCHER_SKIFF_POSITION,
+            first_shift::salvage_skiff(),
+        ),
+        ship_object(
+            "searcher_tug",
+            "Searcher 2 - Unarmed Tug",
+            SEARCHER_TUG_POSITION,
+            first_shift::salvage_tug(),
+        ),
+        ship_object(
+            "searcher_picket",
+            "Searcher 3 - PDC Picket",
+            SEARCHER_PICKET_POSITION,
+            first_shift::salvage_picket(),
+        ),
+        ship_object(
+            "searcher_claw",
+            "Searcher 4 - PDC Claw",
+            SEARCHER_CLAW_POSITION,
+            first_shift::salvage_claw(),
+        ),
+        ship_object(
+            "searcher_leader",
+            "Searcher 5 - PDC and Torpedo Leader",
+            SEARCHER_LEADER_POSITION,
+            first_shift::salvage_leader(),
+        ),
     ];
 
     ScenarioConfig {
-        description: "Three candidate ships for the first Nova Protocol scenario".to_string(),
+        description: "Eight candidate ships for the first two Nova Protocol scenarios".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -85,7 +120,10 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
             actions: ships
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain(ThreePointRig::around("showcase", Meters3::ZERO, 18.0).actions())
+                .chain(
+                    ThreePointRig::around("showcase", Meters3::new(0.0, 0.0, 150.0), 32.0)
+                        .actions(),
+                )
                 .collect(),
         }],
         ..ScenarioConfig::new(
@@ -132,8 +170,8 @@ fn refuse_broken(scenario: &ScenarioConfig, sections: &GameSections) {
     );
 }
 
-const CAMERA_TARGET: Vec3 = Vec3::new(0.0, 0.0, 1.0);
-const CAMERA_POSITION: Vec3 = Vec3::new(0.0, 28.0, -50.0);
+const CAMERA_TARGET: Vec3 = Vec3::new(0.0, 0.0, 15.0);
+const CAMERA_POSITION: Vec3 = Vec3::new(0.0, 55.0, -70.0);
 
 fn frame_new_camera(
     mut cameras: Query<&mut Transform, (With<ScenarioCameraMarker>, Added<ScenarioCameraMarker>)>,

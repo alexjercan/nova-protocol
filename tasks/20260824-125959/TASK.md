@@ -95,6 +95,33 @@ its exact geometry authored and reproducible. The large carrier may be built as
 several scenario set-piece assemblies if one enormous physical ship is too
 costly or fragile, but it must read as one industrial vessel and break visibly.
 
+### Scenario 2: wreck search and escape
+
+Reuse the first-shift map shortly after the attack. Replace the intact carrier
+with reproducible derelict hull assemblies, lit debris, and collectible evidence.
+The cutter searches several carrier fragments for survivors and evidence before
+a five-ship cleanup group enters from behind the large planetoid. Two searchers
+are unarmed salvage craft, two carry one simple PDC each, and the leader carries
+one PDC plus one standard Serpent torpedo bay. They are accomplices of the stolen
+warship rather than unrelated opportunists.
+
+The unarmed cutter must escape through the asteroid field to an extraction or
+communications point. Detection should change the escape into a pursuit rather
+than immediately fail the scenario. The intended stealth model uses authored AI
+profiles composed into runtime components: perception accumulates and forgets
+contacts, thrust and weapon emissions affect visibility, large solid bodies can
+occlude sensors, and searchers can investigate, search last-known positions, and
+share contacts. Default AI configuration is inert; explicit constructors and
+named profiles provide fighter and cleanup-searcher behavior.
+
+AI controllers eventually contain only an `AIProfileSource`. Map assignments
+use the shared ship-order actions also accepted by `None` ships; AI-specific
+constraints such as leashes remain independent components with paired set/clear
+actions. Shared orders reject Player ships, preserve a durable directive across
+allowed AI interruption, and distinguish completion, interruption, resumption,
+cancellation, and failure. Patrol orders execute one loop; scenarios reissue
+them when they need a continuous patrol.
+
 ### Scripted ship-control prerequisites
 
 Keep autonomous AI and scenario direction separate:
@@ -256,10 +283,14 @@ base content.
 Added `examples/playable/first_shift_map.rs` as a separate spatial bench. It
 places the accepted cutter, carrier, and warship designs at their story marks.
 The cutter starts directly off the carrier's port side. A nearby first beacon
-leads forward to a salvage field between the two planetoids, then to the small
-inspection body; the large body hides the warship on the opposite side. Three
-crates are pinned clear of every salvage rock's worst-case generated surface,
-and 20 additional fixed rocks dress the wider stage. Detailed objective
+leads into a broad plate-shaped slalom of 40 small asteroids between the carrier
+and both planetoids. The former banana's narrow tail is removed and its bowl is
+filled to provide several cutter routes. The carrier and cutter move farther
+from the field; the large planetoid and hidden warship remain to the right,
+leaving a higher attack approach to the carrier clear. The cutter can collect
+three crates near the large body through
+the tight field that the carrier cannot safely enter. The 20 wider-stage rocks
+and both planetoids retain their positions. Detailed objective
 markers explain each landmark. `--pilot warship` (the default) and `--pilot
 cutter` make either design the real player ship; `--pilot camera` restores the
 accelerated free camera and keys 1-5. The warship has ten distributed controller sections for a faster manual turn,
@@ -274,6 +305,32 @@ The carrier has ten distributed controller sections for later scripted helm
 work. Each mode posts its own simple
 playtest objectives. This text is review scaffolding, not final campaign
 wording or dialogue.
+
+The same fleet bench now includes five light-hulled, salvage-clad searcher
+candidates in a second row. The unarmed needle skiff and fork tug have distinct
+recovery silhouettes. The armed picket is a low, balanced hull with its kinetic
+PDC mounted directly on the forward nose face. The asymmetric claw puts its PDC
+on top of the hanging grapple arm and adds one basic drive directly behind that
+arm to balance the two small drives on the opposite structure. The heavier
+cleanup leader carries one dorsal kinetic PDC, one flank-mounted standard
+Serpent bay, and a centered 3x3 vector drive on a matching transom. All five use fixed block layouts
+and real section prototypes; they are visual candidates for scenario 2.
+
+Added `examples/playable/second_shift_map.rs` as the chapter-two spatial bench.
+The player cutter starts outside the planetoid-side edge of the shared slalom and points
+into twenty-eight fixed carrier-wreck assemblies distributed beside 27 of its
+rocks and at the carrier's exact former position. Both planetoids,
+all 40 plate rocks, and all twenty ambient rocks are shared directly with the
+scenario-one map. Three evidence
+beacons label candidate search sites. The five accepted cleanup ships stand at
+their intended entry formation behind the large planetoid, while quiet-route
+and extraction beacons show possible escape geometry. Marker text describes
+these candidate beats, but the example deliberately adds no HUD objectives,
+events, AI, or mission progression yet. Camera mode has five fixed review views.
+`cargo check --example second_shift_map --features debug` passes inside
+`nix develop`. Both map examples compile after the shared plate-layout change.
+A rendered scenario-one camera smoke passed runtime content lint, loaded all 77
+objects, and remained live until the bounded timeout.
 
 Proof: `cargo check --example first_shift_ships --features debug` passes inside
 `nix develop`; a 30-second rendered smoke reached `Playing`, passed the example's
