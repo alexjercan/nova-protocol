@@ -180,7 +180,15 @@ pub(super) fn update_passive_flight(
             Option<&AIWaypointSlack>,
             Option<&FlightArrivalStandoff>,
         ),
-        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+        // A ship under a scenario helm order does not fly its own routine:
+        // the order owns the helm until it is interrupted or reaches a
+        // terminal outcome, and two writers on one hull's autopilot would
+        // churn the maneuver between them every frame.
+        (
+            With<SpaceshipRootMarker>,
+            With<AISpaceshipMarker>,
+            Without<ShipOrderHelmAuthority>,
+        ),
     >,
     q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
     q_obstacles: Query<(&Transform, &BodyRadius), Without<AISpaceshipMarker>>,

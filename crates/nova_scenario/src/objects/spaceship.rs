@@ -180,6 +180,24 @@ pub struct AIControllerConfig {
     /// itself and never shoots, that one does exactly and only what it is told.
     #[cfg_attr(feature = "serde", serde(default, skip_serializing_if = "is_false"))]
     pub non_combatant: bool,
+    /// Whether this ship's own judgement may INTERRUPT a scenario helm order,
+    /// and on what signal.
+    ///
+    /// None - the default - means never: an order given to this ship owns its
+    /// helm until the order completes, fails, or is cleared, and the ship is a
+    /// reliable actor in a set piece. `OnHostileContact` or `OnDamage` make it
+    /// a ship on a job that will defend itself: it drops the mission's helm
+    /// while the signal holds, fights, then picks the same directive back up
+    /// from where it left off.
+    ///
+    /// The policy lives on the SHIP, not on each order, so the same
+    /// `MoveShipTo` means the same thing everywhere and the hull decides
+    /// whether it is interruptible. See `AIOrderInterruption`.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub order_interruption: Option<AIOrderInterruption>,
     /// Translation-arrival standoff override: how far from a GOTO goal this
     /// ship's computer comes to rest, instead of the engine's 500 m default.
     /// Author it small (with a small `waypoint_slack`) on a ship that must
@@ -612,6 +630,11 @@ fn insert_spaceship_sections(
                     radius: radius.to_engine(),
                 });
             }
+            // Absent means never, so an uninterruptible ship carries no
+            // policy component at all and the mission systems skip it.
+            if let Some(interruption) = config.order_interruption {
+                commands.entity(entity).insert(interruption);
+            }
             // Non-positive delays are "no grace" (documented on the field):
             // a zero timer would be born finished anyway, so the guard just
             // keeps the component off ships that never asked for one.
@@ -725,6 +748,7 @@ mod tests {
                 pd_range: None,
                 waypoint_slack: None,
                 non_combatant: false,
+                order_interruption: None,
                 arrival_standoff: None,
             },
         );
@@ -740,6 +764,7 @@ mod tests {
                 pd_range: Some(Meters(1_500.0)),
                 waypoint_slack: Some(Meters(50.0)),
                 arrival_standoff: Some(Meters(100.0)),
+                order_interruption: Some(AIOrderInterruption::OnDamage),
                 ..default()
             },
         );
@@ -766,9 +791,17 @@ mod tests {
                 .map(|s| **s),
             Some(10.0)
         );
+        assert_eq!(
+            world.entity(watcher).get::<AIOrderInterruption>(),
+            Some(&AIOrderInterruption::OnDamage)
+        );
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
+        assert!(
+            world.entity(orbiter).get::<AIOrderInterruption>().is_none(),
+            "an unauthored policy is Never, which carries no component"
+        );
     }
 
     #[test]

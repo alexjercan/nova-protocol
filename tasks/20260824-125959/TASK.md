@@ -439,3 +439,80 @@ Neutral`), `duel_decided` is written exactly once, the finisher launches 4 s
 later, and the siege torpedo's kill lands just right of frame center at +23 s -
 where the old cycle had the survivor pinned to the edge. A 2,500 m probe was
 tried and rejected: it forfeits 5 s later for 700 m more off-frame chase.
+
+### 2026-09-03: one helm-order family, shared by the scenario and the AI
+
+The scripted helm actions landed as a `None`-only feature, which forced every
+directed ship to be an inert hull. Chapter one wants the other thing: an
+ordinary patrol craft that thinks for itself, is told where to be for one beat,
+and goes back to thinking. So the family is now SHARED. `MoveShipTo`,
+`ForceAlign`, `StopShip`, the new `PatrolShip` and `OrbitShip`, and
+`ClearShipOrder` accept a `None`- or an AI-controller ship and refuse only the
+player's - a player's stick drops any autopilot on the next frame, so that one
+still cannot work. Forced fire stays `None`-only: a bot picks its own targets
+and rewrites the same weapon seams every frame. No duplicate `MoveAITo` family.
+
+Two writers on one helm is the whole problem, and the answer is a marker, not
+an ordering rule. `ShipOrderHelmAuthority` sits on the ship while an order
+runs, and all three AI flight writers (`update_passive_flight`,
+`update_maneuver_flight`, `update_avoidance`) carry `Without<...>` for it.
+Perception and weapons are untouched, so an ordered ship still looks around and
+still shoots. "Missions outrank constraints" then falls out for free: a leash
+crossing changes the behavior state, and the state has nowhere to write.
+
+The order is a durable directive, not an installed maneuver.
+`ShipHelmOrder { key, directive }` holds `Move`, `Align`, `Stop`,
+`Patrol { waypoints, leg }` or `Orbit { well }` - the orbit by AUTHORED ID,
+re-resolved every tick, because an interrupted order can outlive the entity
+lookup that started it. `ShipOrderEngaged` marks the execution installed, so a
+resume re-engages from the leg it was on instead of from the top, and the
+driver cannot re-engage a maneuver it just watched finish.
+
+Completion had one genuine ambiguity: the autopilot self-removes both when it
+ARRIVES and when it loses the capability to continue (no live controller, no
+live thrusters, no stable band). Same signal, opposite meanings. The driver
+resolves it by checking the capability at the moment the autopilot lets go -
+still able to turn and burn means arrival, otherwise the order failed. That is
+what `OnShipOrderFailed` is for, and it is what keeps a `Sequence` gate from
+waiting forever on a wreck.
+
+`ShipOrderReports` is the layering seam. `nova_ship` decides WHAT happened and
+queues it; `nova_scenario`'s tracker drains the queue and names it in the
+authored vocabulary as one of five events. `nova_ship` never learns the event
+types, and two outcomes landing in one tick keep their order.
+
+Patrol is ONE loop, ending where it started: `n` waypoints is `n + 1` legs, one
+point is out-and-home, and an empty route is a lint error rather than an order
+that completes instantly. A standing patrol is still the AI's own `patrol`
+field. Orbit completes on `AutopilotPhase::Hold` - the established-ring signal
+the ORBIT telemetry already had - and then keeps holding, the way `ForceAlign`
+holds its bearing. Move, stop and patrol release the helm as they report;
+align and orbit keep it. That is `holds_after_completion`, and it is what lets
+an AI ship go straight back to its routine after an errand.
+
+Interruption is a ship property, not an order property, so one authored
+`MoveShipTo` means the same thing everywhere.
+`AIControllerConfig::order_interruption` inserts `AIOrderInterruption`
+(`OnHostileContact` / `OnDamage`); absent means never, and a never-interrupted
+ship carries no component at all.
+
+Two deliberate deviations from the handoff. The AI constraints ship as three
+actions with an optional payload (`SetAILeash`, `SetAIEngageRange`,
+`SetAIPointDefenseRange`, omitted payload clears) rather than six paired
+Set/Clear actions - `SetSpeedCap { cap: Option<..> }` already set that
+convention here, and six actions would have been the only pairs in the
+vocabulary. And there is no destruction-triggered `OnShipOrderFailed`: scenario
+teardown despawns every scoped entity, so a `Despawn` observer would fire a
+burst of spurious failures at the end of every run, and `OnDestroyed` /
+`OnDefeated` already cover the hull. Capability loss on a LIVING ship is
+covered, which is the case a gate can actually be stuck on.
+
+Proof: `cargo test -p nova_ship --lib flight::order` - 10 pass, including the
+patrol loop-closing count, the holds-the-helm split, an interrupted order
+resuming from its own directive, a move that loses its engines failing instead
+of reporting an arrival, and an orbit around a missing well failing.
+`cargo test -p nova_scenario --lib` - 272 pass, including one event per outcome
+under its own key, a player ship refusing every ship action, an AI ship taking
+a helm order but not a forced shot, the empty-patrol lint error, and
+`order_interruption` mapping to its component at spawn.
+`cargo check --workspace --all-targets` clean.

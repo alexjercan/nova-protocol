@@ -538,6 +538,12 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         EventActionConfig::StopShip(config) => {
             declared.order_keys.insert(config.order.clone());
         }
+        EventActionConfig::PatrolShip(config) => {
+            declared.order_keys.insert(config.order.clone());
+        }
+        EventActionConfig::OrbitShip(config) => {
+            declared.order_keys.insert(config.order.clone());
+        }
         EventActionConfig::Objective(config) => {
             declared.objective_ids.insert(config.id.clone());
         }
@@ -725,7 +731,7 @@ fn check_action(
             check_target(&config.id, "SetAllegiance", scenario, satisfiable, issues);
         }
         EventActionConfig::MoveShipTo(config) => {
-            check_scripted_ship(
+            check_orderable_ship(
                 &config.ship,
                 "MoveShipTo",
                 scenario,
@@ -748,7 +754,7 @@ fn check_action(
             }
         }
         EventActionConfig::ForceAlign(config) => {
-            check_scripted_ship(
+            check_orderable_ship(
                 &config.ship,
                 "ForceAlign",
                 scenario,
@@ -772,7 +778,7 @@ fn check_action(
             }
         }
         EventActionConfig::StopShip(config) => {
-            check_scripted_ship(
+            check_orderable_ship(
                 &config.ship,
                 "StopShip",
                 scenario,
@@ -782,13 +788,103 @@ fn check_action(
             );
             check_order_key(&config.order, "StopShip", scenario, issues);
         }
+        EventActionConfig::PatrolShip(config) => {
+            check_orderable_ship(
+                &config.ship,
+                "PatrolShip",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_order_key(&config.order, "PatrolShip", scenario, issues);
+            // No waypoints is no loop, so the order is refused at runtime and
+            // every beat chained off its completion stalls. Catchable here.
+            if config.waypoints.is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "PatrolShip '{}' has no waypoints; there is no loop to fly and \
+                         nothing could wait for it",
+                        config.order
+                    ),
+                ));
+            }
+        }
+        EventActionConfig::OrbitShip(config) => {
+            check_orderable_ship(
+                &config.ship,
+                "OrbitShip",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_order_key(&config.order, "OrbitShip", scenario, issues);
+            check_target(&config.well, "OrbitShip", scenario, satisfiable, issues);
+        }
         EventActionConfig::ClearShipOrder(config) => {
-            check_scripted_ship(
+            check_orderable_ship(
                 &config.ship,
                 "ClearShipOrder",
                 scenario,
                 satisfiable,
                 declared,
+                issues,
+            );
+        }
+        EventActionConfig::SetAILeash(config) => {
+            check_ai_ship(
+                &config.ship,
+                "SetAILeash",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            if let Some(leash) = &config.leash {
+                if !leash.radius.0.is_finite() || leash.radius.0 <= 0.0 {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "SetAILeash on '{}' needs a positive finite radius in meters, got {}",
+                            config.ship, leash.radius.0
+                        ),
+                    ));
+                }
+            }
+        }
+        EventActionConfig::SetAIEngageRange(config) => {
+            check_ai_ship(
+                &config.ship,
+                "SetAIEngageRange",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_ai_range(
+                config.range,
+                "SetAIEngageRange",
+                &config.ship,
+                scenario,
+                issues,
+            );
+        }
+        EventActionConfig::SetAIPointDefenseRange(config) => {
+            check_ai_ship(
+                &config.ship,
+                "SetAIPointDefenseRange",
+                scenario,
+                satisfiable,
+                declared,
+                issues,
+            );
+            check_ai_range(
+                config.range,
+                "SetAIPointDefenseRange",
+                &config.ship,
+                scenario,
                 issues,
             );
         }
@@ -932,6 +1028,95 @@ fn check_scripted_ship(
              armed ship that flies itself and never shoots)"
         ),
     ));
+}
+
+/// A helm order's actor: the id must resolve, and the player must not be
+/// flying it.
+///
+/// Only the player is refused. An order works the same on a
+/// `SpaceshipController::None` actor and on an AI ship - that is the whole
+/// point of the shared mission layer - so the AI case that used to be an error
+/// here is now ordinary authoring. The player case stays catchable at AUTHOR
+/// time because the id is already proven to be spawned by this scenario, which
+/// means its `SpaceshipController` is sitting in the same file.
+fn check_orderable_ship(
+    ship: &str,
+    what: &str,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    check_target(ship, what, scenario, satisfiable, issues);
+    let Some(spawned) = declared.spawned_ships.get(ship) else {
+        return;
+    };
+    if !matches!(spawned.controller, SpaceshipController::Player(_)) {
+        return;
+    }
+    issues.push(LintIssue::error(
+        scenario,
+        format!(
+            "{what} targets ship '{ship}', which is player-driven; a helm order cannot \
+             share a helm with live input (give the ship `SpaceshipController::None` if \
+             the scenario is meant to fly it)"
+        ),
+    ));
+}
+
+/// An AI constraint's actor: the id must resolve, and the ship must actually
+/// have judgement to constrain.
+///
+/// The mirror of [`check_orderable_ship`]. A leash on a `None`-controller
+/// actor installs a component nothing reads, which is silent at runtime and
+/// exactly the kind of thing an author reads back as "the leash is broken".
+fn check_ai_ship(
+    ship: &str,
+    what: &str,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    check_target(ship, what, scenario, satisfiable, issues);
+    let Some(spawned) = declared.spawned_ships.get(ship) else {
+        return;
+    };
+    let driver = match &spawned.controller {
+        SpaceshipController::AI(_) => return,
+        SpaceshipController::None => "driven by nothing",
+        SpaceshipController::Player(_) => "player-driven",
+    };
+    issues.push(LintIssue::error(
+        scenario,
+        format!(
+            "{what} targets ship '{ship}', which is {driver}; an AI constraint only means \
+             something on a ship that flies itself"
+        ),
+    ));
+}
+
+/// An AI range override must be a real distance: a negative or non-finite one
+/// would either never trigger or trigger always, both silently.
+fn check_ai_range(
+    range: Option<nova_events::prelude::Meters>,
+    what: &str,
+    ship: &str,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let Some(range) = range else {
+        return;
+    };
+    if !range.0.is_finite() || range.0 < 0.0 {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "{what} on '{ship}' needs a non-negative finite range in meters, got {}",
+                range.0
+            ),
+        ));
+    }
 }
 
 /// A helm order's key must be a real key: it is what a `ShipOrder` filter
@@ -1445,15 +1630,13 @@ mod tests {
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
 
-    /// A scripted action's whole job is to drive a ship nobody else drives, so
-    /// addressing a player- or AI-driven ship is an authoring error - the
-    /// controller is sitting in the same file the action is.
+    /// A helm order on a PLAYER's ship is an authoring error - the controller
+    /// is sitting in the same file the action is, and the input layer would
+    /// win the fight silently. An AI ship is not: taking an AI hull's helm for
+    /// a mission is the point of the shared order family.
     #[test]
-    fn a_scripted_action_on_a_driven_ship_is_an_error() {
-        for controller in [
-            SpaceshipController::Player(PlayerControllerConfig::default()),
-            SpaceshipController::AI(AIControllerConfig::default()),
-        ] {
+    fn a_helm_order_refuses_the_players_ship_and_accepts_an_ai_one() {
+        let refusals = |controller| {
             let s = scenario(
                 vec![
                     spawn_armed_ship("warship", controller),
@@ -1465,13 +1648,106 @@ mod tests {
                 vec![],
             );
             let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
-            let refusals: Vec<_> = errors(&issues)
+            errors(&issues)
                 .into_iter()
                 .filter(|issue| issue.message.contains("StopShip"))
+                .map(|issue| issue.message.clone())
+                .collect::<Vec<_>>()
+        };
+
+        let player = refusals(SpaceshipController::Player(
+            PlayerControllerConfig::default(),
+        ));
+        assert_eq!(player.len(), 1, "{player:?}");
+        assert!(player[0].contains("warship"));
+
+        assert!(
+            refusals(SpaceshipController::AI(AIControllerConfig::default())).is_empty(),
+            "an AI ship takes a mission"
+        );
+    }
+
+    /// A forced SHOT is stricter than a helm order and keeps refusing an AI
+    /// ship: the shot leaves down whatever line the hull holds, and an AI hull
+    /// rewrites its own aim every frame.
+    #[test]
+    fn a_forced_shot_still_refuses_a_driven_ship() {
+        for controller in [
+            SpaceshipController::Player(PlayerControllerConfig::default()),
+            SpaceshipController::AI(AIControllerConfig::default()),
+        ] {
+            let s = scenario(
+                vec![
+                    spawn_armed_ship("warship", controller),
+                    EventActionConfig::ForceRailgunFire(ForceRailgunFireActionConfig {
+                        ship: "warship".to_string(),
+                        section: "spinal".to_string(),
+                    }),
+                ],
+                vec![],
+            );
+            let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+            let refusals: Vec<_> = errors(&issues)
+                .into_iter()
+                .filter(|issue| {
+                    issue.message.contains("is player-driven")
+                        || issue.message.contains("is AI-driven")
+                })
                 .collect();
             assert_eq!(refusals.len(), 1, "{issues:?}");
             assert!(refusals[0].message.contains("warship"));
         }
+    }
+
+    /// An AI constraint is the mirror: it only means something on a ship that
+    /// flies itself, so a `None`-controller actor is refused.
+    #[test]
+    fn an_ai_constraint_refuses_a_ship_with_no_judgement() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship("hulk", SpaceshipController::None),
+                EventActionConfig::SetAIEngageRange(SetAIEngageRangeActionConfig {
+                    ship: "hulk".to_string(),
+                    range: Some(Meters(1_200.0)),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let refusals: Vec<_> = errors(&issues)
+            .into_iter()
+            .filter(|issue| issue.message.contains("SetAIEngageRange"))
+            .collect();
+        assert_eq!(refusals.len(), 1, "{issues:?}");
+    }
+
+    /// A patrol with no waypoints has no loop to fly, so nothing could ever
+    /// wait for its completion. Caught at author time rather than as a
+    /// runtime refusal nobody sees.
+    #[test]
+    fn an_empty_patrol_route_is_an_error() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship(
+                    "picket",
+                    SpaceshipController::AI(AIControllerConfig::default()),
+                ),
+                EventActionConfig::PatrolShip(PatrolShipActionConfig {
+                    order: "sweep".to_string(),
+                    ship: "picket".to_string(),
+                    waypoints: Vec::new(),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("PatrolShip")
+                    && issue.message.contains("waypoints")),
+            "{issues:?}"
+        );
     }
 
     /// The same action on a `None`-controller ship is clean - that is the ship

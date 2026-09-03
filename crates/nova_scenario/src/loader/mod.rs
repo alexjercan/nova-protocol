@@ -38,7 +38,7 @@ use lifecycle::{
 };
 use preload::register_scenario_preload;
 use trackers::{
-    track_orbit_transitions, track_player_locks, track_ship_order_completions, LockEcho, OrbitEcho,
+    track_orbit_transitions, track_player_locks, track_ship_order_reports, LockEcho, OrbitEcho,
 };
 pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
@@ -575,14 +575,13 @@ impl Plugin for ScenarioLoaderPlugin {
                 .run_if(scenario_is_live),
         );
 
-        // Scripted helm-order completions. After the flight layer, like the
-        // orbit tracker and for the same reason: the autopilot's release and
-        // the alignment's settle both land this tick, and reading them a tick
-        // late would put every scripted beat one tick behind the physics it is
-        // sequenced against.
+        // Ship helm-order lifecycle. After the flight layer, like the orbit
+        // tracker and for the same reason: the driver queues an outcome the
+        // same tick the physics produced it, and draining a tick late would
+        // put every beat sequenced off an order one tick behind.
         app.add_systems(
             FixedUpdate,
-            track_ship_order_completions
+            track_ship_order_reports
                 .after(NovaFlightSystems)
                 .run_if(scenario_is_live),
         );

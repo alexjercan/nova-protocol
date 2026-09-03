@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 33 at a glance:
+never panics a scenario). All 38 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -25,14 +25,19 @@ never panics a scenario). All 33 at a glance:
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
 | [`SetControllerVerb`](#setcontrollerverb) | [ship state](#ship-state) | grant or withhold one flight verb on a ship's controller |
 | [`SetAllegiance`](#setallegiance) | [ship state](#ship-state) | overwrite a ship's side at runtime |
-| [`MoveShipTo`](#moveshipto) | [ship state](#ship-state) | fly a scripted ship to a mark and report when it arrives |
-| [`ForceAlign`](#forcealign) | [ship state](#ship-state) | turn a scripted ship's nose onto a point and hold it there |
-| [`StopShip`](#stopship) | [ship state](#ship-state) | bring a scripted ship to rest with the real STOP burn |
-| [`ClearShipOrder`](#clearshiporder) | [ship state](#ship-state) | cancel whatever helm order a scripted ship is under |
+| [`MoveShipTo`](#moveshipto) | [ship state](#ship-state) | fly an ordered ship to a mark and report when it arrives |
+| [`ForceAlign`](#forcealign) | [ship state](#ship-state) | turn an ordered ship's nose onto a point and hold it there |
+| [`StopShip`](#stopship) | [ship state](#ship-state) | bring an ordered ship to rest with the real STOP burn |
+| [`PatrolShip`](#patrolship) | [ship state](#ship-state) | fly one loop of an authored waypoint route, back to where it started |
+| [`OrbitShip`](#orbitship) | [ship state](#ship-state) | put a ship in a stable ring around a gravity well and hold it |
+| [`ClearShipOrder`](#clearshiporder) | [ship state](#ship-state) | cancel whatever helm order a ship is under |
 | [`ForceRailgunFire`](#forcerailgunfire) | [ship state](#ship-state) | fire one named railgun section |
 | [`ForceTorpedoFire`](#forcetorpedofire) | [ship state](#ship-state) | launch one named torpedo bay at a named target |
 | [`SetInfiniteAmmo`](#setinfiniteammo) | [ship state](#ship-state) | suspend or restore the finite magazine on every weapon of a ship |
 | [`RefillAmmo`](#refillammo) | [ship state](#ship-state) | top a ship's magazines back up, or just one section's |
+| [`SetAILeash`](#setaileash) | [ship state](#ship-state) | tether an AI ship's combat to a centre and radius, or release it |
+| [`SetAIEngageRange`](#setaiengagerange) | [ship state](#ship-state) | change how far an AI ship looks for hostiles, or restore the default |
+| [`SetAIPointDefenseRange`](#setaipointdefenserange) | [ship state](#ship-state) | change how close an inbound torpedo gets before the guns answer |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -583,32 +588,40 @@ SetAllegiance((id: "magpie", allegiance: Enemy)),
 
 </details>
 
-### Scripted ships
+### Helm orders
 
-The six actions below drive a ship the scenario owns outright: one authored
-with `controller: None` (see [Spaceship](../objects/#spaceship)). They refuse
-a player-driven or AI-driven ship - a lint Error, and a runtime error if one
-somehow reaches the engine - because taking the helm from either would lose. A
-player's flight input drops any autopilot on the next frame, and the AI
-rewrites the same seams every frame it runs.
+The six actions below take the helm of a ship the scenario owns: one authored
+with `controller: None` OR one authored with `controller: AI` (see
+[Spaceship](../objects/#spaceship)). They refuse the PLAYER's ship - a lint
+Error, and a runtime error if one somehow reaches the engine - because a
+player's flight input drops any autopilot on the next frame, so the order
+would fight the stick and lose.
+
+An order on an AI ship OUTRANKS the bot. While the order runs, the AI stops
+writing to the helm; it keeps looking around and keeps shooting. This is the
+seam that lets a mission tell an ordinary patrol craft to go somewhere
+specific and then hand it back, instead of authoring a second inert hull.
 
 The ship still needs to be a real ship: the helm orders fly it with its own
 flight computer and thrusters, so a hull with no live controller section
 cannot turn, and a battery with no drives can still shoot but never move.
 
-`Move`, `Align` and `Stop` are ONE mutually exclusive family. A ship holds at
-most one helm order; installing a second retires the first. Each is keyed, and
-[`OnShipOrderComplete`](../events/#onshipordercomplete) with a
-[`ShipOrder`](../filters/#shiporder) filter is how the next beat waits for it
+`Move`, `Align`, `Stop`, `Patrol` and `Orbit` are ONE mutually exclusive
+family. A ship holds at most one helm order; installing a second cancels the
+first. Each is keyed, and the
+[order events](../events/#onshipordercomplete) with a
+[`ShipOrder`](../filters/#shiporder) filter are how the next beat waits for it
 - which is what lets a
 [`Sequence`](#sequence) `until` gate hold a set piece together.
 
-The two weapon actions are independent of the helm and of each other: a ship
-can be aligned, firing its spinal gun and launching a bay in the same frame.
+Some orders end and let go; others end and KEEP HOLDING. `Move`, `Stop` and
+`Patrol` release the helm when they report, so an AI ship goes straight back
+to its own routine. `Align` and `Orbit` report the condition and then hold it
+until something else takes the helm - the hold is the point of both.
 
 ### MoveShipTo
 
-Fly a scripted ship to a mark and report when it gets there. The ship's own
+Fly an ordered ship to a mark and report when it gets there. The ship's own
 GOTO maneuver, so it accelerates, coasts and arrives on its authored thrust -
 this is the cinematic approach, not a teleport.
 
@@ -627,7 +640,7 @@ MoveShipTo((
 | field | type | default | meaning |
 |---|---|---|---|
 | `order` | string | required | the key this order's completion is reported under; an empty key is a lint Error |
-| `ship` | string | required | scoped `None`-controller ship root; a dangling or driven id is a lint Error |
+| `ship` | string | required | scoped `None`- or AI-controller ship root; a dangling or player-driven id is a lint Error |
 | `position` | meters `(x, y, z)` | required | the mark to fly to, in world coordinates |
 | `arrival_standoff` | `Option` meters | `None` | how far short of the mark to come to rest |
 
@@ -644,7 +657,7 @@ retune every later GOTO the hull flies. `None` uses the ship's own standoff.
 
 ### ForceAlign
 
-Turn a scripted ship's whole hull onto a point and HOLD it there. Rotation
+Turn an ordered ship's whole hull onto a point and HOLD it there. Rotation
 only - no autopilot, so no drive ever burns for translation and the ship keeps
 whatever velocity it had.
 
@@ -663,7 +676,7 @@ ForceAlign((
 | field | type | default | meaning |
 |---|---|---|---|
 | `order` | string | required | the key this order's completion is reported under |
-| `ship` | string | required | scoped `None`-controller ship root |
+| `ship` | string | required | scoped `None`- or AI-controller ship root |
 | `look_at` | meters `(x, y, z)` | required | the world position to put under the bore |
 | `tolerance_degrees` | number | required | how close the aim must come before the order completes; must be finite and not negative, or the order is refused |
 
@@ -682,7 +695,7 @@ impossible tolerance is refused outright rather than left never completing.
 
 ### StopShip
 
-Bring a scripted ship to rest with the real STOP maneuver - the same
+Bring an ordered ship to rest with the real STOP maneuver - the same
 flip-retrograde-and-burn the player's X key runs, so it costs fuel and time,
 visibly.
 
@@ -696,7 +709,7 @@ StopShip((order: "hold_here", ship: "warship")),
 | field | type | default | meaning |
 |---|---|---|---|
 | `order` | string | required | the key this order's completion is reported under |
-| `ship` | string | required | scoped `None`-controller ship root |
+| `ship` | string | required | scoped `None`- or AI-controller ship root |
 
 Completes when the ship is at rest, with `kind: Stop`. A ship that already is
 at rest completes almost immediately, which is the cheap way to make a beat
@@ -704,10 +717,78 @@ wait for "it definitely is not drifting any more".
 
 </details>
 
+### PatrolShip
+
+Fly ONE loop of an authored waypoint route: the ship visits each mark in
+order, returns to the first one, and reports. This is the sweep-and-come-back
+beat - not a standing assignment.
+
+```ron
+PatrolShip((
+    order: "sweep_the_belt",
+    ship: "picket",
+    waypoints: [
+        (0.0, 0.0, -800.0),
+        (900.0, 0.0, -800.0),
+        (900.0, 0.0, 0.0),
+    ],
+)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `order` | string | required | the key this order's completion is reported under |
+| `ship` | string | required | scoped `None`- or AI-controller ship root |
+| `waypoints` | list of meters `(x, y, z)` | required | the marks to visit, in order; an EMPTY list is a lint Error |
+
+ONE loop, then `kind: Patrol` and the helm goes back. A route of one point is
+one leg out and one leg home; a route with the same point twice in a row still
+flies both legs, and the second lands immediately. Repeat the action to run
+another loop, or hand the ship a
+[`ClearShipOrder`](#clearshiporder) mid-route to abandon it.
+
+For a STANDING patrol that never ends, author the route on the ship instead -
+an AI ship's own `patrol` field (see [Spaceship](../objects/#spaceship)) is
+the routine it returns to when nothing is happening.
+
+</details>
+
+### OrbitShip
+
+Put a ship in a stable ring around a gravity well and hold it there. The
+ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.
+
+```ron
+OrbitShip((order: "take_the_ring", ship: "surveyor", well: "planetoid")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `order` | string | required | the key this order's completion is reported under |
+| `ship` | string | required | scoped `None`- or AI-controller ship root |
+| `well` | string | required | scoped id of the gravity-well object to orbit; a dangling id is a lint Error |
+
+Completes with `kind: Orbit` the moment the ring is ESTABLISHED - the ship is
+in the band and holding - and then keeps holding it, the same way
+[`ForceAlign`](#forcealign) keeps its bearing. A completion here means "it is
+in orbit now", not "it has stopped orbiting".
+
+A well too small, too far, or with no stable band for this hull fails the
+order rather than leaving the beat waiting: see
+[`OnShipOrderFailed`](../events/#onshiporderfailed).
+
+</details>
+
 ### ClearShipOrder
 
-Release a scripted ship's helm and let it drift. The counterpart to the three
-orders above: whatever the ship was told, it is no longer being told it.
+Release a ship's helm. The counterpart to the five orders above: whatever the
+ship was told, it is no longer being told it.
 
 ```ron
 ClearShipOrder((ship: "warship")),
@@ -720,13 +801,28 @@ ClearShipOrder((ship: "warship")),
 |---|---|---|---|
 | `ship` | string | required | scoped ship root to release |
 
-The hull KEEPS its velocity - this is space, and letting a ship coast out of
-frame is usually the point. Emits NO completion event: a cancelled order did
-not finish, so a beat gated on it correctly never runs. It also puts back the
-ship's own arrival standoff if a
-[`MoveShipTo`](#moveshipto) had displaced it.
+A `None`-controller hull KEEPS its velocity and coasts - this is space, and
+letting a ship drift out of frame is usually the point. An AI ship goes back
+to its own routine on the next frame.
+
+Emits [`OnShipOrderCanceled`](../events/#onshipordercanceled), NOT a
+completion: an order that was called off did not finish, so a beat gated on
+the completion correctly never runs. It also puts back the ship's own arrival
+standoff if a [`MoveShipTo`](#moveshipto) had displaced it. Clearing a ship
+that is under no order does nothing and says nothing.
 
 </details>
+
+### Forced fire
+
+The two weapon actions below are independent of the helm and of each other: a
+ship can be aligned, firing its spinal gun and launching a bay in the same
+frame.
+
+Unlike the helm orders, these still refuse an AI-driven ship as well as the
+player's. A bot picks its own targets and times its own shots, and a scripted
+trigger pull cutting across that would fight the same weapon seams every
+frame.
 
 ### ForceRailgunFire
 
@@ -836,6 +932,97 @@ RefillAmmo((id: "player_spaceship", section: Some("turret_dorsal"))), // just on
 Each magazine returns to its authored capacity and any reload in flight is
 cleared. Weapons with no finite magazine - and any whose magazine is
 currently suspended by [`SetInfiniteAmmo`](#setinfiniteammo) - are skipped.
+
+</details>
+
+### AI constraints
+
+The three actions below retune an AI ship's JUDGEMENT at runtime: how far it
+will chase, how far it looks, how close it lets a torpedo come. They accept
+ONLY an AI-controller ship - a hull nobody is thinking for has nothing to
+retune, so a `None` or player id is a lint Error.
+
+They are independent of each other and of the helm. Each takes ONE optional
+payload: set it to install or update the constraint, omit it to put the ship
+back on the engine default. They are also outranked by a helm order - while
+one runs, the AI is not flying, so a constraint change has no visible effect
+until the order lets go.
+
+The spawn-time twins are the AI controller's own `leash`, `engage_range` and
+`pd_range` fields (see [Spaceship](../objects/#spaceship)); these are their
+runtime mirrors.
+
+### SetAILeash
+
+Tether an AI ship's combat to a centre and a radius, or release it. Past the
+radius the ship breaks off and comes home.
+
+```ron
+SetAILeash((ship: "picket", leash: Some((center: (0.0, 0.0, -800.0), radius: 2000.0)))),
+SetAILeash((ship: "picket")),   // let it chase freely
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped AI-controller ship root |
+| `leash` | `Option` leash | `None` | `Some((center: ..., radius: ...))` installs or updates the tether; omitted RELEASES it |
+| `leash.center` | meters `(x, y, z)` | required | the anchor the radius is measured from, in world coordinates |
+| `leash.radius` | meters | required | how far from the anchor combat may go; must be positive |
+
+Widening a leash mid-scenario is how a garrison is let off its post; releasing
+it entirely turns a picket into a pursuer. The anchor is an authored point,
+not the ship - moving the ship does not move the tether.
+
+</details>
+
+### SetAIEngageRange
+
+Change how far an AI ship looks for hostiles, or restore the engine's 4 km
+default.
+
+```ron
+SetAIEngageRange((ship: "watchtower", range: Some(16000.0))),
+SetAIEngageRange((ship: "watchtower")),   // back to the default
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped AI-controller ship root |
+| `range` | `Option` meters | `None` | `Some(16000.0)` installs or updates the range; omitted RESTORES the default; must be positive |
+
+Wide is a long-watch emplacement that wakes for targets parked outside
+everyone else's detection. Short is a ship that ignores a brawl next door.
+Narrowing it mid-fight does NOT drop a target it has already acquired.
+
+</details>
+
+### SetAIPointDefenseRange
+
+Change how close an inbound torpedo gets before an AI ship's guns answer it,
+or restore the engine's 1.5 km default.
+
+```ron
+SetAIPointDefenseRange((ship: "escort", range: Some(600.0))),
+SetAIPointDefenseRange((ship: "escort")),   // back to the default
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped AI-controller ship root |
+| `range` | `Option` meters | `None` | `Some(600.0)` installs or updates the range; omitted RESTORES the default; must be positive |
+
+Short stages the intercept close in, where the player can see it. Past the
+turret's own ~1.8 km reach it only wastes the opening shots, so authoring
+wider than the guns can shoot buys nothing.
 
 </details>
 

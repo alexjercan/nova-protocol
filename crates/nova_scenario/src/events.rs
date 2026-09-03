@@ -55,11 +55,28 @@ pub enum EventConfig {
     OnCombatLockStart,
     /// The player's COMBAT lock left a scenario object.
     OnCombatLockEnd,
-    /// A scripted ship finished a keyed HELM order - it arrived, settled on a
-    /// bearing, or came to rest. Cancellation, replacement, destruction and
-    /// neutralization retire an order WITHOUT this event, so a beat chained
-    /// off a completion never runs for an order that did not finish.
+    /// A ship reached a keyed HELM order's condition - it arrived, settled on
+    /// a bearing, came to rest, closed its patrol loop, or established its
+    /// orbit. Cancellation, interruption and failure each have their own
+    /// event, so a beat chained off a completion never runs for an order that
+    /// did not finish.
     OnShipOrderComplete,
+    /// Autonomous AI took the helm back from an installed order. TRANSIENT -
+    /// the order stays installed and resumes, so a beat here must not retire
+    /// what it is waiting for.
+    OnShipOrderInterrupted,
+    /// An interrupted order got its helm back and picked its directive up
+    /// where it left off.
+    OnShipOrderResumed,
+    /// A ship order was retired on purpose and for good - `ClearShipOrder`, or
+    /// a replacement order taking the helm. Terminal; an order that had
+    /// already completed or failed does not also cancel.
+    OnShipOrderCanceled,
+    /// An accepted ship order became impossible to continue: the well an orbit
+    /// needed went away, or the hull lost the computer or engines the maneuver
+    /// runs on. Terminal. An order REFUSED at issue time never reaches this -
+    /// that is a lint error, not a scenario event.
+    OnShipOrderFailed,
 }
 
 impl From<EventConfig> for EventHandler<NovaEventWorld> {
@@ -82,6 +99,12 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnCombatLockStart => EventHandler::new::<OnCombatLockStartEvent>(),
             EventConfig::OnCombatLockEnd => EventHandler::new::<OnCombatLockEndEvent>(),
             EventConfig::OnShipOrderComplete => EventHandler::new::<OnShipOrderCompleteEvent>(),
+            EventConfig::OnShipOrderInterrupted => {
+                EventHandler::new::<OnShipOrderInterruptedEvent>()
+            }
+            EventConfig::OnShipOrderResumed => EventHandler::new::<OnShipOrderResumedEvent>(),
+            EventConfig::OnShipOrderCanceled => EventHandler::new::<OnShipOrderCanceledEvent>(),
+            EventConfig::OnShipOrderFailed => EventHandler::new::<OnShipOrderFailedEvent>(),
         }
     }
 }

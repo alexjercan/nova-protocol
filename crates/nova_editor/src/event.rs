@@ -269,6 +269,10 @@ pub(crate) fn event_label(name: EventConfig) -> &'static str {
         EventConfig::OnCombatLockStart => "On Combat Lock",
         EventConfig::OnCombatLockEnd => "On Combat Unlock",
         EventConfig::OnShipOrderComplete => "On Ship Order Complete",
+        EventConfig::OnShipOrderInterrupted => "On Ship Order Interrupted",
+        EventConfig::OnShipOrderResumed => "On Ship Order Resumed",
+        EventConfig::OnShipOrderCanceled => "On Ship Order Canceled",
+        EventConfig::OnShipOrderFailed => "On Ship Order Failed",
     }
 }
 
@@ -566,7 +570,12 @@ fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
         EventActionConfig::MoveShipTo(config) => Some(config),
         EventActionConfig::ForceAlign(config) => Some(config),
         EventActionConfig::StopShip(config) => Some(config),
+        EventActionConfig::PatrolShip(config) => Some(config),
+        EventActionConfig::OrbitShip(config) => Some(config),
         EventActionConfig::ClearShipOrder(config) => Some(config),
+        EventActionConfig::SetAILeash(config) => Some(config),
+        EventActionConfig::SetAIEngageRange(config) => Some(config),
+        EventActionConfig::SetAIPointDefenseRange(config) => Some(config),
         EventActionConfig::ForceRailgunFire(config) => Some(config),
         EventActionConfig::ForceTorpedoFire(config) => Some(config),
         EventActionConfig::SetInfiniteAmmo(config) => Some(config),
@@ -605,7 +614,12 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
         EventActionConfig::MoveShipTo(config) => Some(config),
         EventActionConfig::ForceAlign(config) => Some(config),
         EventActionConfig::StopShip(config) => Some(config),
+        EventActionConfig::PatrolShip(config) => Some(config),
+        EventActionConfig::OrbitShip(config) => Some(config),
         EventActionConfig::ClearShipOrder(config) => Some(config),
+        EventActionConfig::SetAILeash(config) => Some(config),
+        EventActionConfig::SetAIEngageRange(config) => Some(config),
+        EventActionConfig::SetAIPointDefenseRange(config) => Some(config),
         EventActionConfig::ForceRailgunFire(config) => Some(config),
         EventActionConfig::ForceTorpedoFire(config) => Some(config),
         EventActionConfig::SetInfiniteAmmo(config) => Some(config),
@@ -674,8 +688,18 @@ pub(crate) enum ActionChoice {
     ForceAlign,
     /// Bring a scripted ship to rest.
     StopShip,
+    /// Send a ship once round an authored route.
+    PatrolShip,
+    /// Put a ship into a station-keeping orbit.
+    OrbitShip,
     /// Cancel whatever helm order a scripted ship is under.
     ClearShipOrder,
+    /// Tether an AI ship to a patch of space, or untether it.
+    SetAILeash,
+    /// Retune how far an AI ship leaves its routine to fight.
+    SetAIEngageRange,
+    /// Retune how close a torpedo comes before an AI ship shoots it down.
+    SetAIPointDefenseRange,
     /// Fire one named railgun.
     ForceRailgunFire,
     /// Fire one named torpedo bay at a target.
@@ -702,7 +726,7 @@ pub(crate) enum ActionChoice {
 
 impl ActionChoice {
     /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 33] = [
+    pub(crate) const ALL: [ActionChoice; 38] = [
         ActionChoice::Objective,
         ActionChoice::ObjectiveComplete,
         ActionChoice::ObjectiveMarkerAttach,
@@ -724,7 +748,12 @@ impl ActionChoice {
         ActionChoice::MoveShipTo,
         ActionChoice::ForceAlign,
         ActionChoice::StopShip,
+        ActionChoice::PatrolShip,
+        ActionChoice::OrbitShip,
         ActionChoice::ClearShipOrder,
+        ActionChoice::SetAILeash,
+        ActionChoice::SetAIEngageRange,
+        ActionChoice::SetAIPointDefenseRange,
         ActionChoice::ForceRailgunFire,
         ActionChoice::ForceTorpedoFire,
         ActionChoice::SetInfiniteAmmo,
@@ -762,7 +791,12 @@ impl ActionChoice {
             ActionChoice::MoveShipTo => "Move Ship To",
             ActionChoice::ForceAlign => "Force Align",
             ActionChoice::StopShip => "Stop Ship",
+            ActionChoice::PatrolShip => "Patrol Ship",
+            ActionChoice::OrbitShip => "Orbit Ship",
             ActionChoice::ClearShipOrder => "Clear Ship Order",
+            ActionChoice::SetAILeash => "Set AI Leash",
+            ActionChoice::SetAIEngageRange => "Set AI Engage Range",
+            ActionChoice::SetAIPointDefenseRange => "Set AI PD Range",
             ActionChoice::ForceRailgunFire => "Railgun Fire",
             ActionChoice::ForceTorpedoFire => "Torpedo Fire",
             ActionChoice::SetInfiniteAmmo => "Set Infinite Ammo",
@@ -801,7 +835,12 @@ impl ActionChoice {
             ActionChoice::MoveShipTo => "move",
             ActionChoice::ForceAlign => "align",
             ActionChoice::StopShip => "stop",
+            ActionChoice::PatrolShip => "patrol",
+            ActionChoice::OrbitShip => "orbit",
             ActionChoice::ClearShipOrder => "unorder",
+            ActionChoice::SetAILeash => "leash",
+            ActionChoice::SetAIEngageRange => "engage",
+            ActionChoice::SetAIPointDefenseRange => "pd",
             ActionChoice::ForceRailgunFire => "railgun",
             ActionChoice::ForceTorpedoFire => "torpedo",
             ActionChoice::SetInfiniteAmmo => "unlimited",
@@ -942,9 +981,35 @@ impl ActionChoice {
                 order: String::new(),
                 ship: String::new(),
             }),
+            ActionChoice::PatrolShip => EventActionConfig::PatrolShip(PatrolShipActionConfig {
+                order: String::new(),
+                ship: String::new(),
+                waypoints: Vec::new(),
+            }),
+            ActionChoice::OrbitShip => EventActionConfig::OrbitShip(OrbitShipActionConfig {
+                order: String::new(),
+                ship: String::new(),
+                well: String::new(),
+            }),
             ActionChoice::ClearShipOrder => {
                 EventActionConfig::ClearShipOrder(ClearShipOrderActionConfig {
                     ship: String::new(),
+                })
+            }
+            ActionChoice::SetAILeash => EventActionConfig::SetAILeash(SetAILeashActionConfig {
+                ship: String::new(),
+                leash: None,
+            }),
+            ActionChoice::SetAIEngageRange => {
+                EventActionConfig::SetAIEngageRange(SetAIEngageRangeActionConfig {
+                    ship: String::new(),
+                    range: None,
+                })
+            }
+            ActionChoice::SetAIPointDefenseRange => {
+                EventActionConfig::SetAIPointDefenseRange(SetAIPointDefenseRangeActionConfig {
+                    ship: String::new(),
+                    range: None,
                 })
             }
             ActionChoice::ForceRailgunFire => {
@@ -1052,7 +1117,12 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
             EventActionConfig::MoveShipTo(_) => ActionChoice::MoveShipTo,
             EventActionConfig::ForceAlign(_) => ActionChoice::ForceAlign,
             EventActionConfig::StopShip(_) => ActionChoice::StopShip,
+            EventActionConfig::PatrolShip(_) => ActionChoice::PatrolShip,
+            EventActionConfig::OrbitShip(_) => ActionChoice::OrbitShip,
             EventActionConfig::ClearShipOrder(_) => ActionChoice::ClearShipOrder,
+            EventActionConfig::SetAILeash(_) => ActionChoice::SetAILeash,
+            EventActionConfig::SetAIEngageRange(_) => ActionChoice::SetAIEngageRange,
+            EventActionConfig::SetAIPointDefenseRange(_) => ActionChoice::SetAIPointDefenseRange,
             EventActionConfig::ForceRailgunFire(_) => ActionChoice::ForceRailgunFire,
             EventActionConfig::ForceTorpedoFire(_) => ActionChoice::ForceTorpedoFire,
             EventActionConfig::SetInfiniteAmmo(_) => ActionChoice::SetInfiniteAmmo,

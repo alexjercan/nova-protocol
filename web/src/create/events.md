@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the SEVENTEEN event kinds below, written bare (they are unit variants):
+the TWENTY-ONE event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -34,14 +34,19 @@ The whole vocabulary at a glance:
 | [`OnTravelLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock leaves |
 | [`OnCombatLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock lands |
 | [`OnCombatLockEnd`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's combat lock leaves |
-| [`OnShipOrderComplete`](#onshipordercomplete) | `order`, `kind`, `id`, `type_name` | a scripted ship order finishes |
+| [`OnShipOrderComplete`](#onshipordercomplete) | `order`, `kind`, `id`, `type_name` | a helm order reaches what it was told to reach |
+| [`OnShipOrderInterrupted`](#onshiporderinterrupted) | `order`, `kind`, `id`, `type_name` | an AI ship breaks off its order to fight |
+| [`OnShipOrderResumed`](#onshiporderresumed) | `order`, `kind`, `id`, `type_name` | that ship picks the same order back up |
+| [`OnShipOrderCanceled`](#onshipordercanceled) | `order`, `kind`, `id`, `type_name` | an unfinished order is cleared or replaced |
+| [`OnShipOrderFailed`](#onshiporderfailed) | `order`, `kind`, `id`, `type_name` | an order can no longer be flown |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
-party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter, and
-`OnShipOrderComplete` carries `order` / `kind` for a
+party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter, and the five
+ship-order events carry `order` / `kind` for a
 [`ShipOrder`](../filters/#shiporder) filter beside the ship's own `id` /
-`type_name`. Which entity is which is per-event and listed below. A filter
+`type_name` - the same four fields on all five, so one filter matches
+whichever of them you hang it on. Which entity is which is per-event and listed below. A filter
 field the event does not fill NEVER matches - `other_id` on an `OnDestroyed`
 handler can never pass.
 
@@ -144,13 +149,15 @@ scenario time and clear on retry or teardown.
 
 </details>
 
-## OnShipOrderComplete
+## Ship order lifecycle
 
-Fires exactly once when a scripted ship finishes the helm order it was given.
-Payload: `order` is the key the action named the order, `kind` is which of the
-three it was (`Move` / `Align` / `Stop`), and `id` / `type_name` are the ship
-- so an `Entity` filter still works on it. Match it with a
-[`ShipOrder`](../filters/#shiporder) filter.
+The five events below report what became of a
+[helm order](../actions/#helm-orders). They carry the SAME four fields -
+`order` is the key the action named the order, `kind` is which of the five it
+was (`Move` / `Align` / `Stop` / `Patrol` / `Orbit`), and `id` / `type_name`
+are the ship - so one [`ShipOrder`](../filters/#shiporder) filter matches
+whichever of them a handler listens for, and an `Entity` filter still works on
+all of them.
 
 ```ron
 (
@@ -163,27 +170,122 @@ three it was (`Move` / `Align` / `Stop`), and `id` / `type_name` are the ship
 <details class="explain">
 <summary>Show explanation</summary>
 
-The three helm actions -
-[`MoveShipTo`](../actions/#moveshipto),
-[`ForceAlign`](../actions/#forcealign) and
-[`StopShip`](../actions/#stopship) - each install ONE order under a key you
-choose, and this is how the next beat learns it landed. A move or a stop
-completes when the ship's autopilot lets go; an alignment completes when the
-aim is inside its authored tolerance and steady there.
+An order that is REFUSED when it is issued - a dangling ship id, a player's
+ship, an empty patrol route, an impossible tolerance - fires nothing at all.
+It was never installed, so there is nothing to report on. The lint catches
+each of those before the scenario runs.
 
-Three things never fire it:
+A key is reusable: give the same order again and the lifecycle runs again.
 
-- A **replaced** order. Installing a second helm order takes the first one
-  off, and an order that was taken off did not finish.
-- A **cleared** order -
-  [`ClearShipOrder`](../actions/#clearshiporder) is a cancellation.
-- A **destroyed or neutralized** ship. A hull that lost its flight computer
-  is not going to arrive; a beat waiting on it should be waiting on
-  [`OnDefeated`](#ondefeated) too.
+</details>
 
-It fires again for the same key if the same order is given again, which is
-what makes a patrol leg reusable. Weapon actions have no completion event -
-what a shot produces is the weapon's own event chain.
+## OnShipOrderComplete
+
+Fires exactly once when an order reaches what it was told to reach.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+What "reached" means is per order:
+
+- [`MoveShipTo`](../actions/#moveshipto) and
+  [`StopShip`](../actions/#stopship) complete when the ship's autopilot lets
+  go - inside the standoff, or at rest.
+- [`ForceAlign`](../actions/#forcealign) completes when the aim is inside its
+  authored tolerance and steady there.
+- [`PatrolShip`](../actions/#patrolship) completes at the END of its one
+  loop, back where it started - not at each waypoint.
+- [`OrbitShip`](../actions/#orbitship) completes when the ring is
+  ESTABLISHED, and then keeps holding it.
+
+Completion says the CONDITION was met, not that the behavior stopped. `Move`,
+`Stop` and `Patrol` release the helm as they report; `Align` and `Orbit` keep
+holding until something else takes it.
+
+</details>
+
+## OnShipOrderInterrupted
+
+Fires when an AI ship breaks off its order to fight. Only an AI ship can, and
+only one whose `order_interruption` policy says so (see
+[Spaceship](../objects/#spaceship)); the default policy is never, and a
+`None`-controller ship has no bot to break off in the first place.
+
+```ron
+(
+    name: OnShipOrderInterrupted,
+    filters: [ShipOrder((ship: Some("picket")))],
+    actions: [StoryMessage((speaker: "Picket", text: "Contact. Breaking off."))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The order is NOT lost. It is parked: the ship keeps the key, the kind and its
+place in the route, the AI takes the helm back and fights, and when the signal
+clears the same order picks up from where it stopped - see
+[`OnShipOrderResumed`](#onshiporderresumed).
+
+A beat gated on the COMPLETION still waits, correctly: an interrupted patrol
+has not swept the belt yet.
+
+</details>
+
+## OnShipOrderResumed
+
+Fires when an interrupted order is picked back up - the hostile is gone, or
+the damage has stopped, depending on the ship's policy.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Pairs one-for-one with
+[`OnShipOrderInterrupted`](#onshiporderinterrupted), and can pair with it
+several times over one order's life. The resumed order flies its OWN
+directive, from the leg it was on - not a fresh copy from the top.
+
+</details>
+
+## OnShipOrderCanceled
+
+Fires when an unfinished order is called off: either
+[`ClearShipOrder`](../actions/#clearshiporder), or a second helm order
+replacing it.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Cancellation is not completion, and a beat gated on the completion correctly
+never runs. This is the event for the OTHER side of that: cleaning up a
+readout, or telling the player the approach was called off.
+
+An order that had already reported a terminal outcome says nothing more, so
+clearing a ship that is holding a finished
+[`ForceAlign`](../actions/#forcealign) is silent - the align already
+completed.
+
+</details>
+
+## OnShipOrderFailed
+
+Fires when an order can no longer be flown. The hull lost the flight computer
+or the drives the order runs on, or the gravity well an
+[`OrbitShip`](../actions/#orbitship) named is gone or will not hold a ring.
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+This is the event that keeps a `Sequence` gate from waiting forever on a beat
+that can never land. A wreck does not arrive.
+
+It reports the ORDER, not the ship: a hull that is destroyed outright is
+[`OnDestroyed`](#ondestroyed) and [`OnDefeated`](#ondefeated), which is what a
+kill objective should be waiting on. Failure is for the ship that is still
+there and can no longer do the job.
+
+Weapon actions have no lifecycle at all - what a shot produces is the weapon's
+own event chain.
 
 </details>
 

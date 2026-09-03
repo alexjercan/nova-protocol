@@ -25,6 +25,7 @@ mod acquisition;
 mod behavior;
 mod guns;
 pub mod maneuver;
+mod mission;
 pub mod passive;
 mod railgun;
 mod threat;
@@ -34,6 +35,7 @@ use acquisition::{mirror_ai_combat_state, update_ai_target, update_point_defense
 use behavior::update_behavior_state;
 use guns::{on_projectile_input, update_fire_cadence, update_turret_target_input};
 use maneuver::{on_thruster_input, update_controller_target_rotation_torque};
+use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
 use threat::on_damage_track_threat;
@@ -48,6 +50,7 @@ pub use self::{
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
     guns::{AIFireCadence, AI_FIRE_RANGE_FACTOR},
     maneuver::AI_STANDOFF_OUTER_EDGE,
+    mission::AIOrderInterruption,
     passive::{AIAvoidanceDetour, AIWaypointSlack},
     railgun::AIRailgun,
     threat::{AIEvade, AIThreat},
@@ -58,10 +61,10 @@ pub use self::{
 pub mod prelude {
     pub use super::{
         AIAvoidanceDetour, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade, AIFireCadence,
-        AILeash, AINonCombatant, AIOrbitDirective, AIPatrolRoute, AIPointDefenseRange,
-        AIPointDefenseTarget, AIRailgun, AISpaceshipMarker, AITarget, AIThreat, AITorpedoBay,
-        AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR, AI_STANDOFF_OUTER_EDGE,
-        AI_TORPEDO_MAX_RANGE,
+        AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
+        AIPointDefenseRange, AIPointDefenseTarget, AIRailgun, AISpaceshipMarker, AITarget,
+        AIThreat, AITorpedoBay, AIWaypointSlack, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
+        AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
     };
 }
 
@@ -123,6 +126,7 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
         app.register_type::<AIWaypointSlack>();
+        app.register_type::<AIOrderInterruption>();
 
         // Threat sensing is an observer, not a system: HealthApplyDamage is
         // an entity event that propagates to the ship root, and reacting at
@@ -160,6 +164,11 @@ impl Plugin for SpaceshipAIInputPlugin {
                 update_ai_target,
                 update_point_defense_target,
                 update_behavior_state,
+                // Between perception and the flight writers: the helm
+                // authority it hands back and forth is exactly what those
+                // writers gate on, so deciding it first means a ship that
+                // breaks off this frame flies this frame.
+                interrupt_ai_ship_orders,
                 update_passive_flight,
                 update_controller_target_rotation_torque,
                 on_thruster_input,

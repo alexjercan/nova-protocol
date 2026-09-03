@@ -1,5 +1,6 @@
-//! Actions that retune a live scenario ship: speed cap, allegiance, and
-//! per-verb controller flags.
+//! Actions that drive or retune a live scenario ship: the helm-order family,
+//! the two force-fire verbs, the AI constraints, and the older speed cap,
+//! allegiance and per-verb controller flags.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -185,7 +186,7 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
     }
 }
 
-/// Fly a scripted ship to an authored mark with the real autopilot.
+/// Fly an ordered ship to an authored mark with the real autopilot.
 ///
 /// The whole point is that it FLIES: `GotoPos` plans the leg, the drives burn,
 /// the hull swings, and the arrival is the same brake-and-settle every GOTO
@@ -201,10 +202,11 @@ impl EventAction<NovaEventWorld> for SetControllerVerbActionConfig {
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MoveShipToActionConfig {
-    /// The key this order's completion is reported under.
+    /// The key this order's lifecycle is reported under.
     #[reflect(@Names::Order)]
     pub order: String,
-    /// The `EntityId` of the scoped `None`-controller ship to fly.
+    /// The `EntityId` of the scoped ship to fly. Any ship the player is not
+    /// flying: a `None`-controller actor or an AI ship on a mission.
     #[reflect(@Names::Object)]
     pub ship: String,
     /// The mark to fly to, world coordinates in meters.
@@ -228,33 +230,24 @@ impl EventAction<NovaEventWorld> for MoveShipToActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let Some(ship) = scripted_ship(world, &id, "MoveShipTo") else {
-                    return;
-                };
-                clear_helm_order(world, ship);
-
-                let mut entity = world.entity_mut(ship);
-                if let Some(standoff) = standoff {
-                    // Engine boundary: the arrival rule measures against an
-                    // avian position, so the authored meters cross here.
-                    let previous = entity.get::<FlightArrivalStandoff>().map(|s| **s);
-                    entity.insert((
-                        SuspendedArrivalStandoff(previous),
-                        FlightArrivalStandoff(standoff.to_engine()),
-                    ));
-                }
-                entity.insert((
-                    ScriptedHelmOrder::new(order, ShipOrderKind::Move),
-                    Autopilot::engage(AutopilotAction::GotoPos {
+                install_ship_order(
+                    world,
+                    &id,
+                    order,
+                    // Engine boundary: the leg and the arrival rule are both
+                    // measured against an avian position every tick.
+                    ShipOrderDirective::Move {
                         position: position.to_engine(),
-                    }),
-                ));
+                        arrival_standoff: standoff.map(|standoff| standoff.to_engine()),
+                    },
+                    "MoveShipTo",
+                );
             });
         });
     }
 }
 
-/// Turn a scripted ship's whole hull onto an authored bearing, without moving
+/// Turn an ordered ship's whole hull onto an authored bearing, without moving
 /// it.
 ///
 /// Rotation only - no autopilot, so no drive ever burns for translation. The
@@ -266,10 +259,10 @@ impl EventAction<NovaEventWorld> for MoveShipToActionConfig {
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ForceAlignActionConfig {
-    /// The key this order's completion is reported under.
+    /// The key this order's lifecycle is reported under.
     #[reflect(@Names::Order)]
     pub order: String,
-    /// The `EntityId` of the scoped `None`-controller ship to turn.
+    /// The `EntityId` of the scoped ship to turn.
     #[reflect(@Names::Object)]
     pub ship: String,
     /// The world position to put under the bore, in meters.
@@ -301,35 +294,34 @@ impl EventAction<NovaEventWorld> for ForceAlignActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let Some(ship) = scripted_ship(world, &id, "ForceAlign") else {
-                    return;
-                };
-                clear_helm_order(world, ship);
-                world.entity_mut(ship).insert((
-                    ScriptedHelmOrder::new(order, ShipOrderKind::Align),
-                    ScriptedAlign {
+                install_ship_order(
+                    world,
+                    &id,
+                    order,
+                    ShipOrderDirective::Align {
                         // Engine boundary: the bearing is compared against an
                         // avian position every tick.
                         look_at: look_at.to_engine(),
                         tolerance: tolerance_degrees.to_radians(),
                     },
-                ));
+                    "ForceAlign",
+                );
             });
         });
     }
 }
 
-/// Bring a scripted ship to rest with the real STOP maneuver.
+/// Bring an ordered ship to rest with the real STOP maneuver.
 ///
 /// The same flip-retrograde-and-burn the player's X key runs, so a ship that
 /// arrives somewhere and stops does it by spending fuel and time, visibly.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StopShipActionConfig {
-    /// The key this order's completion is reported under.
+    /// The key this order's lifecycle is reported under.
     #[reflect(@Names::Order)]
     pub order: String,
-    /// The `EntityId` of the scoped `None`-controller ship to stop.
+    /// The `EntityId` of the scoped ship to stop.
     #[reflect(@Names::Object)]
     pub ship: String,
 }
@@ -342,26 +334,129 @@ impl EventAction<NovaEventWorld> for StopShipActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let Some(ship) = scripted_ship(world, &id, "StopShip") else {
-                    return;
-                };
-                clear_helm_order(world, ship);
-                world.entity_mut(ship).insert((
-                    ScriptedHelmOrder::new(order, ShipOrderKind::Stop),
-                    Autopilot::engage(AutopilotAction::Stop),
-                ));
+                install_ship_order(world, &id, order, ShipOrderDirective::Stop, "StopShip");
             });
         });
     }
 }
 
-/// Release a scripted ship's helm and let it drift.
+/// Fly an ordered ship ONE loop of an authored route.
 ///
-/// The counterpart to the three orders above: whatever the ship was told, it is
+/// One loop, always: the ship visits every waypoint in order and then returns
+/// to the first, and that arrival is the completion. A standing patrol is a
+/// scenario that answers its own `OnShipOrderComplete` by issuing the same
+/// action again - which is what gives the author a beat at every lap instead
+/// of a route that can never be counted.
+///
+/// This is not the passive `AIControllerConfig::patrol` routine. That one is
+/// a ship's own idle behavior and loops forever; this is a MISSION, and while
+/// it runs the ship flies it instead of whatever it would do on its own.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct PatrolShipActionConfig {
+    /// The key this order's lifecycle is reported under.
+    #[reflect(@Names::Order)]
+    pub order: String,
+    /// The `EntityId` of the scoped ship to send round.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The route's marks, world coordinates in meters, in the order they are
+    /// flown. One mark is a legal route: the ship flies to it and the loop is
+    /// done. An empty one is refused.
+    pub waypoints: Vec<Meters3>,
+}
+
+impl EventAction<NovaEventWorld> for PatrolShipActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let order = self.order.clone();
+        let id = self.ship.clone();
+        let waypoints = self.waypoints.clone();
+        debug!(
+            "PatrolShip: '{}' order '{}' over {} waypoints",
+            id,
+            order,
+            waypoints.len()
+        );
+        if waypoints.is_empty() {
+            error!(
+                "PatrolShip: order '{}' has no waypoints; there is no loop to fly",
+                order
+            );
+            return;
+        }
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                install_ship_order(
+                    world,
+                    &id,
+                    order,
+                    ShipOrderDirective::Patrol {
+                        // Engine boundary: the legs are flown against avian
+                        // positions.
+                        waypoints: waypoints.iter().map(|point| point.to_engine()).collect(),
+                        leg: 0,
+                    },
+                    "PatrolShip",
+                );
+            });
+        });
+    }
+}
+
+/// Put an ordered ship into a station-keeping orbit around a gravity well.
+///
+/// The real ORBIT verb: the computer circularizes into the stable band and
+/// then holds the ring with micro-burns. Completion reports that the orbit
+/// was ESTABLISHED, not that it ended - the ship keeps station afterwards,
+/// the same way an alignment keeps its bearing, until a scenario says
+/// otherwise.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct OrbitShipActionConfig {
+    /// The key this order's lifecycle is reported under.
+    #[reflect(@Names::Order)]
+    pub order: String,
+    /// The `EntityId` of the scoped ship to put in orbit.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The `EntityId` of the gravity well to orbit - a planetoid, not a rock.
+    #[reflect(@Names::Object)]
+    pub well: String,
+}
+
+impl EventAction<NovaEventWorld> for OrbitShipActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let order = self.order.clone();
+        let id = self.ship.clone();
+        let well = self.well.clone();
+        debug!("OrbitShip: '{}' order '{}' around '{}'", id, order, well);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                install_ship_order(
+                    world,
+                    &id,
+                    order,
+                    ShipOrderDirective::Orbit { well },
+                    "OrbitShip",
+                );
+            });
+        });
+    }
+}
+
+/// Release an ordered ship's helm.
+///
+/// The counterpart to the five orders above: whatever the ship was told, it is
 /// no longer being told it. The hull keeps its velocity - this is space, and
 /// the point of clearing an order is usually to let a ship coast out of frame.
-/// Emits NO completion event: a cleared order did not finish, and a beat
-/// waiting on it must not run.
+/// An AI ship goes back to flying itself.
+///
+/// Reports `OnShipOrderCanceled`, never `OnShipOrderComplete`: a cleared order
+/// did not finish, and a beat waiting on its completion must not run. An order
+/// that had ALREADY completed or failed reports nothing here - it is already
+/// terminal, and one order fires one terminal event.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ClearShipOrderActionConfig {
@@ -377,10 +472,169 @@ impl EventAction<NovaEventWorld> for ClearShipOrderActionConfig {
 
         world.push_command(move |commands| {
             commands.queue(move |world: &mut World| {
-                let Some(ship) = scripted_ship(world, &id, "ClearShipOrder") else {
+                let Some(ship) = orderable_ship(world, &id, "ClearShipOrder") else {
                     return;
                 };
-                clear_helm_order(world, ship);
+                cancel_ship_order(world, ship);
+            });
+        });
+    }
+}
+
+/// A territorial tether for one AI ship, or its removal.
+///
+/// A CONSTRAINT, not a mission: it says where the ship may fight, and it
+/// coexists with whatever helm order the ship is under. A mission outranks it
+/// - a scenario that orders an AI ship across the map gets the move it asked
+/// for, and the tether applies again once the order is interrupted or done.
+///
+/// `Some` installs or replaces the tether; `None` removes it and lets the
+/// ship chase freely, the same `Option` shape `SetSpeedCap` uses.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetAILeashActionConfig {
+    /// The `EntityId` of the scoped AI ship to tether.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The tether itself; `None` removes it.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub leash: Option<AILeashConfig>,
+}
+
+/// Where an AI ship's territory is and how big it is.
+#[derive(Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct AILeashConfig {
+    /// The territory's anchor, world coordinates in meters. Unlike the spawn
+    /// config's leash - which anchors on the patrol centroid - this is stated
+    /// outright, because a scenario moving a ship's ground has a new one in
+    /// mind.
+    pub center: Meters3,
+    /// Distance from `center` beyond which combat breaks off, in meters.
+    pub radius: Meters,
+}
+
+impl EventAction<NovaEventWorld> for SetAILeashActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.ship.clone();
+        let leash = self.leash;
+        debug!("SetAILeash: '{}' -> {:?}", id, leash);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = ai_ship(world, &id, "SetAILeash") else {
+                    return;
+                };
+                let mut entity = world.entity_mut(ship);
+                match leash {
+                    // Engine boundary: the tether is measured against an avian
+                    // position every tick.
+                    Some(leash) => {
+                        entity.insert(AILeash {
+                            center: leash.center.to_engine(),
+                            radius: leash.radius.to_engine(),
+                        });
+                    }
+                    None => {
+                        entity.remove::<AILeash>();
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// How far one AI ship will leave its routine to fight, or the removal of the
+/// override.
+///
+/// A constraint like the leash, and independent of it: clearing one leaves the
+/// other standing. `None` restores the engine's own detection range.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetAIEngageRangeActionConfig {
+    /// The `EntityId` of the scoped AI ship to retune.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The hostile-detection range in meters; `None` restores the default.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub range: Option<Meters>,
+}
+
+impl EventAction<NovaEventWorld> for SetAIEngageRangeActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.ship.clone();
+        let range = self.range;
+        debug!("SetAIEngageRange: '{}' -> {:?}", id, range);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = ai_ship(world, &id, "SetAIEngageRange") else {
+                    return;
+                };
+                let mut entity = world.entity_mut(ship);
+                match range {
+                    // Engine boundary: the range is compared against an avian
+                    // distance every tick.
+                    Some(range) => {
+                        entity.insert(AIEngageRange(range.to_engine()));
+                    }
+                    None => {
+                        entity.remove::<AIEngageRange>();
+                    }
+                }
+            });
+        });
+    }
+}
+
+/// How close an inbound torpedo must come before one AI ship's guns answer
+/// it, or the removal of the override.
+///
+/// The third independent constraint. Point defense runs regardless of what
+/// the ship's behavior state or helm order is doing, so this keeps working
+/// through a mission.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetAIPointDefenseRangeActionConfig {
+    /// The `EntityId` of the scoped AI ship to retune.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The point-defense range in meters; `None` restores the default.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub range: Option<Meters>,
+}
+
+impl EventAction<NovaEventWorld> for SetAIPointDefenseRangeActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.ship.clone();
+        let range = self.range;
+        debug!("SetAIPointDefenseRange: '{}' -> {:?}", id, range);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = ai_ship(world, &id, "SetAIPointDefenseRange") else {
+                    return;
+                };
+                let mut entity = world.entity_mut(ship);
+                match range {
+                    // Engine boundary: the envelope is compared against an
+                    // avian distance every tick.
+                    Some(range) => {
+                        entity.insert(AIPointDefenseRange(range.to_engine()));
+                    }
+                    None => {
+                        entity.remove::<AIPointDefenseRange>();
+                    }
+                }
             });
         });
     }
@@ -497,14 +751,15 @@ impl EventAction<NovaEventWorld> for ForceTorpedoFireActionConfig {
     }
 }
 
-/// The scoped ship a SCRIPTED action may drive, or `None` with a logged refusal.
+/// The scoped ship a scripted WEAPON action may fire, or `None` with a logged
+/// refusal.
 ///
-/// A scripted action owns its actor outright, so it accepts only a ship nobody
-/// else drives. Stealing the helm from a player would fight the input layer,
-/// which drops the autopilot on any flight input; stealing it from the AI would
-/// lose, because the AI rewrites the seams every frame. Both used to happen
-/// silently - the old all-bays torpedo action documented the race rather than
-/// refusing it - so this is an ERROR, loud enough to find in a log.
+/// Stricter than [`orderable_ship`], and deliberately: a forced shot leaves
+/// down whatever line the hull is holding, so the action is only meaningful on
+/// a ship whose facing the scenario also owns. An AI ship rewrites its own aim
+/// every frame, and a player's ship is not the scenario's to fire. Both used
+/// to happen silently - the old all-bays torpedo action documented the race
+/// rather than refusing it - so this is an ERROR, loud enough to find in a log.
 ///
 /// The test is the DRIVER, never the allegiance: the chapter-one warship reads
 /// Enemy and is still entirely scripted. It is also not the presence of
@@ -572,34 +827,86 @@ fn ship_section<M: Component>(
     Some(section)
 }
 
-/// Retire whatever scripted helm order a ship is holding, leaving it adrift.
+/// Install one helm order on a scoped ship, retiring whatever it was under.
 ///
-/// Move, align and stop are one mutually exclusive family, so every install
-/// runs this first. It reports nothing: a replaced or cleared order did not
-/// complete, and the scenario layer's completion tracker only ever sees orders
-/// that are still installed.
-///
-/// Also puts back the arrival standoff a scripted move displaced, so the
-/// cinematic's tight staging tolerance does not outlive the cinematic.
-fn clear_helm_order(world: &mut World, ship: Entity) {
+/// The five helm actions differ only in their directive, so they share this
+/// whole path: resolve the actor, refuse a player's ship, cancel the previous
+/// order (which is what reports the cancellation), then install the durable
+/// order and hand it the helm. The transient maneuver is NOT built here - the
+/// flight layer's driver builds it from the directive, which is the same code
+/// that rebuilds it after an AI interruption.
+fn install_ship_order(
+    world: &mut World,
+    id: &str,
+    key: String,
+    directive: ShipOrderDirective,
+    what: &str,
+) {
+    let Some(ship) = orderable_ship(world, id, what) else {
+        return;
+    };
+    cancel_ship_order(world, ship);
+
     let mut entity = world.entity_mut(ship);
-    if let Some(SuspendedArrivalStandoff(previous)) =
-        entity.get::<SuspendedArrivalStandoff>().copied()
-    {
-        match previous {
-            Some(standoff) => {
-                entity.insert(FlightArrivalStandoff(standoff));
-            }
-            None => {
-                entity.remove::<FlightArrivalStandoff>();
-            }
-        }
-        entity.remove::<SuspendedArrivalStandoff>();
+    // Insert-if-absent, never overwrite: the cancellation above may have just
+    // queued a report into it, and a fresh queue would swallow the event that
+    // tells a waiting beat its old order is gone.
+    if !entity.contains::<ShipOrderReports>() {
+        entity.insert(ShipOrderReports::default());
     }
-    entity.remove::<ScriptedHelmOrder>();
-    entity.remove::<ScriptedAlign>();
-    entity.remove::<ScriptedAlignSettled>();
-    entity.remove::<Autopilot>();
+    entity.insert((ShipHelmOrder::new(key, directive), ShipOrderHelmAuthority));
+}
+
+/// The scoped ship a HELM order may be given, or `None` with a logged refusal.
+///
+/// Player ships only. Everything else is fair game: a `SpaceshipController::None`
+/// actor has nobody else driving it, and an AI ship simply stops flying itself
+/// while the order holds the helm (see `ShipOrderHelmAuthority`) and picks its
+/// routine back up when the order ends.
+///
+/// A player's helm is the one that cannot be shared. The input layer drops the
+/// autopilot on any flight input, so an order there would be a tug of war the
+/// scenario loses silently every time the player nudges the stick. A scenario
+/// that genuinely must fly the player's ship has to take the Player controller
+/// off it first, which is a decision worth having to make out loud.
+///
+/// The test is the DRIVER, never the allegiance: the chapter-one warship reads
+/// Enemy and is still entirely scripted.
+fn orderable_ship(world: &mut World, id: &str, what: &str) -> Option<Entity> {
+    let ship = scoped_ship(world, id).or_else(|| {
+        warn!("{what}: no scoped ship with id '{id}'");
+        None
+    })?;
+    if world.entity(ship).contains::<PlayerSpaceshipMarker>() {
+        error!(
+            "{what}: ship '{id}' is player-driven; a helm order cannot share a helm with \
+             live input (replace the Player controller with `None` first)"
+        );
+        return None;
+    }
+    Some(ship)
+}
+
+/// The scoped AI ship an AI-only constraint may retune, or `None` with a
+/// logged refusal.
+///
+/// The mirror of [`orderable_ship`]: a leash, an engage range and a
+/// point-defense envelope are all statements about how a ship's own judgement
+/// behaves, and a hull with no judgement has nothing to constrain. Setting one
+/// on a `None`-controller actor would install a component nothing reads.
+fn ai_ship(world: &mut World, id: &str, what: &str) -> Option<Entity> {
+    let ship = scoped_ship(world, id).or_else(|| {
+        warn!("{what}: no scoped ship with id '{id}'");
+        None
+    })?;
+    if !world.entity(ship).contains::<AISpaceshipMarker>() {
+        error!(
+            "{what}: ship '{id}' is not AI-driven; an AI constraint only means something \
+             on a ship that flies itself"
+        );
+        return None;
+    }
+    Some(ship)
 }
 
 #[cfg(test)]
@@ -1001,79 +1308,148 @@ mod tests {
         );
     }
 
-    /// Every scripted action refuses a ship somebody else drives, whether the
-    /// driver is the player or the AI. Taking the helm would either fight the
-    /// input layer or lose to a controller that rewrites its seams every
-    /// frame, so the action does nothing and says so.
+    /// A PLAYER's ship refuses every one of these actions. Taking the helm
+    /// would fight the input layer, which drops the autopilot on any flight
+    /// input, and a forced shot is not the scenario's to fire; both used to
+    /// happen silently. A scenario that must fly the player's hull has to take
+    /// the Player controller off it first.
     #[test]
-    fn a_driven_ship_refuses_every_scripted_action() {
-        for driven in [0, 1] {
-            let ScriptedFixture {
-                mut world,
-                warship,
-                railgun,
-                bay,
-                ..
-            } = a_scripted_ship_and_a_bystander();
-            if driven == 0 {
-                world.entity_mut(warship).insert(PlayerSpaceshipMarker);
-            } else {
-                world.entity_mut(warship).insert(AISpaceshipMarker);
-            }
+    fn a_player_ship_refuses_every_ship_action() {
+        let ScriptedFixture {
+            mut world,
+            warship,
+            railgun,
+            bay,
+            ..
+        } = a_scripted_ship_and_a_bystander();
+        world.entity_mut(warship).insert(PlayerSpaceshipMarker);
 
-            run(
-                &mut world,
-                &MoveShipToActionConfig {
-                    order: "approach".to_string(),
-                    ship: "warship".to_string(),
-                    position: Meters3::new(0.0, 0.0, 1000.0),
-                    arrival_standoff: None,
-                },
-            );
-            run(
-                &mut world,
-                &ForceAlignActionConfig {
-                    order: "aim".to_string(),
-                    ship: "warship".to_string(),
-                    look_at: Meters3::ZERO,
-                    tolerance_degrees: 2.0,
-                },
-            );
-            run(
-                &mut world,
-                &StopShipActionConfig {
-                    order: "halt".to_string(),
-                    ship: "warship".to_string(),
-                },
-            );
-            run(
-                &mut world,
-                &ForceRailgunFireActionConfig {
-                    ship: "warship".to_string(),
-                    section: "spinal".to_string(),
-                },
-            );
-            run(
-                &mut world,
-                &ForceTorpedoFireActionConfig {
-                    ship: "warship".to_string(),
-                    section: "bay_port".to_string(),
-                    target: "prey".to_string(),
-                },
-            );
+        run(
+            &mut world,
+            &MoveShipToActionConfig {
+                order: "approach".to_string(),
+                ship: "warship".to_string(),
+                position: Meters3::new(0.0, 0.0, 1000.0),
+                arrival_standoff: None,
+            },
+        );
+        run(
+            &mut world,
+            &ForceAlignActionConfig {
+                order: "aim".to_string(),
+                ship: "warship".to_string(),
+                look_at: Meters3::ZERO,
+                tolerance_degrees: 2.0,
+            },
+        );
+        run(
+            &mut world,
+            &StopShipActionConfig {
+                order: "halt".to_string(),
+                ship: "warship".to_string(),
+            },
+        );
+        run(
+            &mut world,
+            &PatrolShipActionConfig {
+                order: "sweep".to_string(),
+                ship: "warship".to_string(),
+                waypoints: vec![Meters3::new(0.0, 0.0, 500.0)],
+            },
+        );
+        run(
+            &mut world,
+            &OrbitShipActionConfig {
+                order: "hold".to_string(),
+                ship: "warship".to_string(),
+                well: "planetoid".to_string(),
+            },
+        );
+        run(
+            &mut world,
+            &ForceRailgunFireActionConfig {
+                ship: "warship".to_string(),
+                section: "spinal".to_string(),
+            },
+        );
+        run(
+            &mut world,
+            &ForceTorpedoFireActionConfig {
+                ship: "warship".to_string(),
+                section: "bay_port".to_string(),
+                target: "prey".to_string(),
+            },
+        );
 
-            let entity = world.entity(warship);
-            assert!(!entity.contains::<ScriptedHelmOrder>(), "no helm order");
-            assert!(!entity.contains::<Autopilot>(), "no autopilot");
-            assert!(!entity.contains::<ScriptedAlign>(), "no held alignment");
-            assert!(world.get::<ScriptedRailgunOrder>(railgun).is_none());
-            assert!(world.get::<ScriptedTorpedoOrder>(bay).is_none());
-        }
+        let entity = world.entity(warship);
+        assert!(!entity.contains::<ShipHelmOrder>(), "no helm order");
+        assert!(
+            !entity.contains::<ShipOrderHelmAuthority>(),
+            "and no helm authority to fight the stick with"
+        );
+        assert!(world.get::<ScriptedRailgunOrder>(railgun).is_none());
+        assert!(world.get::<ScriptedTorpedoOrder>(bay).is_none());
     }
 
-    /// The three helm orders are one mutually exclusive family: installing one
-    /// takes the last one off, component and autopilot together, so a ship
-    /// under a new order carries no trace of the order before it.
+    /// An AI ship TAKES a helm order - that is the whole point of the shared
+    /// mission layer - but still refuses a forced shot. A forced shot leaves
+    /// down whatever line the hull holds, and an AI hull rewrites its own aim
+    /// every frame, so the two are not the same question.
+    #[test]
+    fn an_ai_ship_takes_a_helm_order_but_not_a_forced_shot() {
+        let ScriptedFixture {
+            mut world,
+            warship,
+            railgun,
+            bay,
+            ..
+        } = a_scripted_ship_and_a_bystander();
+        world.entity_mut(warship).insert(AISpaceshipMarker);
+
+        run(
+            &mut world,
+            &MoveShipToActionConfig {
+                order: "approach".to_string(),
+                ship: "warship".to_string(),
+                position: Meters3::new(0.0, 0.0, 1000.0),
+                arrival_standoff: None,
+            },
+        );
+        run(
+            &mut world,
+            &ForceRailgunFireActionConfig {
+                ship: "warship".to_string(),
+                section: "spinal".to_string(),
+            },
+        );
+        run(
+            &mut world,
+            &ForceTorpedoFireActionConfig {
+                ship: "warship".to_string(),
+                section: "bay_port".to_string(),
+                target: "prey".to_string(),
+            },
+        );
+
+        let entity = world.entity(warship);
+        assert!(
+            entity.contains::<ShipHelmOrder>(),
+            "the mission is installed on an AI hull"
+        );
+        assert!(
+            entity.contains::<ShipOrderHelmAuthority>(),
+            "and it owns the helm, which is what silences the AI's flight writers"
+        );
+        assert!(
+            world.get::<ScriptedRailgunOrder>(railgun).is_none(),
+            "but its guns are still its own"
+        );
+        assert!(world.get::<ScriptedTorpedoOrder>(bay).is_none());
+    }
+
+    /// The five helm orders are one mutually exclusive family: installing one
+    /// takes the last one off and reports it CANCELED, so a beat waiting for
+    /// the replaced order's completion is told rather than left waiting.
     #[test]
     fn a_new_helm_order_replaces_the_one_before_it() {
         let ScriptedFixture {
@@ -1090,10 +1466,9 @@ mod tests {
             },
         );
         assert!(matches!(
-            world.get::<ScriptedHelmOrder>(warship).map(|o| o.kind),
+            world.get::<ShipHelmOrder>(warship).map(ShipHelmOrder::kind),
             Some(ShipOrderKind::Move)
         ));
-        assert!(world.get::<Autopilot>(warship).is_some());
 
         run(
             &mut world,
@@ -1106,48 +1481,41 @@ mod tests {
         );
 
         let order = world
-            .get::<ScriptedHelmOrder>(warship)
+            .get::<ShipHelmOrder>(warship)
             .expect("the alignment order is installed");
         assert_eq!(order.key, "aim");
-        assert_eq!(order.kind, ShipOrderKind::Align);
-        assert!(
-            world.get::<Autopilot>(warship).is_none(),
-            "the move's autopilot is gone: an alignment does not translate"
-        );
-        assert!(
-            world.get::<FlightArrivalStandoff>(warship).is_none(),
-            "and the move's staging standoff does not outlive the move"
+        assert_eq!(order.kind(), ShipOrderKind::Align);
+        let reports = world
+            .get::<ShipOrderReports>(warship)
+            .expect("the ship carries a report queue");
+        assert_eq!(
+            reports
+                .0
+                .iter()
+                .map(|report| (report.key.as_str(), report.outcome))
+                .collect::<Vec<_>>(),
+            vec![("approach", ShipOrderOutcome::Canceled)],
+            "the replaced move is reported canceled, and the new order is not \
+             reported at all until it happens"
         );
     }
 
-    /// ClearShipOrder takes the helm order off and puts the ship's own
-    /// arrival standoff back, so a cinematic's tight staging tolerance does
-    /// not retune every GOTO the hull flies afterwards.
+    /// ClearShipOrder retires the order and reports a CANCELLATION, never a
+    /// completion: a cleared order did not finish, and a beat chained off its
+    /// completion must not run.
     #[test]
-    fn clearing_an_order_restores_the_ships_own_standoff() {
+    fn clearing_an_order_reports_a_cancellation_not_a_completion() {
         let ScriptedFixture {
             mut world, warship, ..
         } = a_scripted_ship_and_a_bystander();
-        // Engine boundary: the ship's authored override, already converted.
-        world
-            .entity_mut(warship)
-            .insert(FlightArrivalStandoff(Meters(80.0).to_engine()));
 
         run(
             &mut world,
-            &MoveShipToActionConfig {
-                order: "approach".to_string(),
+            &StopShipActionConfig {
+                order: "halt".to_string(),
                 ship: "warship".to_string(),
-                position: Meters3::new(0.0, 0.0, 1000.0),
-                arrival_standoff: Some(Meters(5.0)),
             },
         );
-        assert_eq!(
-            world.get::<FlightArrivalStandoff>(warship).map(|s| **s),
-            Some(Meters(5.0).to_engine()),
-            "the order flies the authored staging standoff"
-        );
-
         run(
             &mut world,
             &ClearShipOrderActionConfig {
@@ -1157,22 +1525,32 @@ mod tests {
 
         let entity = world.entity(warship);
         assert!(
-            !entity.contains::<ScriptedHelmOrder>(),
-            "a cleared order is gone, so nothing reports it complete"
+            !entity.contains::<ShipHelmOrder>(),
+            "a cleared order is gone"
         );
-        assert!(!entity.contains::<Autopilot>(), "and the helm is released");
+        assert!(
+            !entity.contains::<ShipOrderHelmAuthority>(),
+            "and the helm is handed back"
+        );
+        let reports = world
+            .get::<ShipOrderReports>(warship)
+            .expect("the ship carries a report queue");
         assert_eq!(
-            world.get::<FlightArrivalStandoff>(warship).map(|s| **s),
-            Some(Meters(80.0).to_engine()),
-            "the ship's own standoff is back, not the cinematic's"
+            reports
+                .0
+                .iter()
+                .map(|report| report.outcome)
+                .collect::<Vec<_>>(),
+            vec![ShipOrderOutcome::Canceled]
         );
     }
 
     /// A tolerance that cannot be met - negative, or NaN - is refused at the
     /// action rather than installed as an order that never completes and a
-    /// sequence that never advances.
+    /// sequence that never advances. An empty patrol route is refused for the
+    /// same reason: there is no loop to fly and so no completion to wait for.
     #[test]
-    fn an_impossible_alignment_tolerance_installs_no_order() {
+    fn an_unflyable_order_is_refused_rather_than_installed() {
         let ScriptedFixture {
             mut world, warship, ..
         } = a_scripted_ship_and_a_bystander();
@@ -1188,10 +1566,102 @@ mod tests {
                 },
             );
             assert!(
-                !world.entity(warship).contains::<ScriptedHelmOrder>(),
+                !world.entity(warship).contains::<ShipHelmOrder>(),
                 "a {tolerance} degree tolerance installs nothing"
             );
         }
+
+        run(
+            &mut world,
+            &PatrolShipActionConfig {
+                order: "sweep".to_string(),
+                ship: "warship".to_string(),
+                waypoints: Vec::new(),
+            },
+        );
+        assert!(
+            !world.entity(warship).contains::<ShipHelmOrder>(),
+            "an empty route installs nothing"
+        );
+        assert!(
+            world
+                .get::<ShipOrderReports>(warship)
+                .is_none_or(|reports| reports.0.is_empty()),
+            "and a REFUSED order reports nothing at all - it was never accepted"
+        );
+    }
+
+    /// An AI constraint only means something on a ship that flies itself, and
+    /// the three of them are independent: setting one and clearing it leaves
+    /// the others standing.
+    #[test]
+    fn ai_constraints_apply_only_to_ai_ships_and_clear_independently() {
+        let ScriptedFixture {
+            mut world, warship, ..
+        } = a_scripted_ship_and_a_bystander();
+
+        let leash = |center: Meters3, radius: f32| SetAILeashActionConfig {
+            ship: "warship".to_string(),
+            leash: Some(AILeashConfig {
+                center,
+                radius: Meters(radius),
+            }),
+        };
+
+        run(&mut world, &leash(Meters3::ZERO, 3_000.0));
+        assert!(
+            !world.entity(warship).contains::<AILeash>(),
+            "a hull with no judgement has nothing to constrain"
+        );
+
+        world.entity_mut(warship).insert(AISpaceshipMarker);
+        run(&mut world, &leash(Meters3::new(0.0, 0.0, 100.0), 3_000.0));
+        run(
+            &mut world,
+            &SetAIEngageRangeActionConfig {
+                ship: "warship".to_string(),
+                range: Some(Meters(1_200.0)),
+            },
+        );
+        run(
+            &mut world,
+            &SetAIPointDefenseRangeActionConfig {
+                ship: "warship".to_string(),
+                range: Some(Meters(900.0)),
+            },
+        );
+
+        assert_eq!(
+            world.get::<AILeash>(warship).map(|leash| leash.radius),
+            Some(Meters(3_000.0).to_engine())
+        );
+        assert_eq!(
+            world.get::<AIEngageRange>(warship).map(|range| range.0),
+            Some(Meters(1_200.0).to_engine())
+        );
+        assert_eq!(
+            world
+                .get::<AIPointDefenseRange>(warship)
+                .map(|range| range.0),
+            Some(Meters(900.0).to_engine())
+        );
+
+        run(
+            &mut world,
+            &SetAIEngageRangeActionConfig {
+                ship: "warship".to_string(),
+                range: None,
+            },
+        );
+        let entity = world.entity(warship);
+        assert!(
+            !entity.contains::<AIEngageRange>(),
+            "the cleared constraint is gone"
+        );
+        assert!(
+            entity.contains::<AILeash>() && entity.contains::<AIPointDefenseRange>(),
+            "and the other two are untouched"
+        );
     }
 
     /// A ship with two weapon sections and a bystander ship carrying the same

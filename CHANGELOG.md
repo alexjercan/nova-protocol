@@ -110,15 +110,24 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** `ForceTorpedoLaunch` is now `ForceTorpedoFire` and names ONE
   bay by section id instead of firing every bay. Rename it, rename `id:` to
   `ship:`, and add `section:`.
-- Five actions script a `None`-controller ship: `MoveShipTo`, `ForceAlign`,
-  `StopShip`, `ClearShipOrder` and `ForceRailgunFire`. Move, align and stop are
-  one order at a time, each under a named key.
-- `OnShipOrderComplete` and a `ShipOrder` filter report a scripted order
-  landing, by key, ship and kind, so a `Sequence` gate holds a set piece to the
-  ship's own flight instead of a guessed delay.
-- A scripted action refuses a player- or AI-driven ship - taking the helm from
-  either loses. `content lint` says so, and checks order keys and a weapon's
-  section id and class.
+- Six actions take a ship's helm: `MoveShipTo`, `ForceAlign`, `StopShip`,
+  `PatrolShip`, `OrbitShip` and `ClearShipOrder`. One order at a time, under a
+  named key, on a `None`- or an AI-controller ship.
+- An order on an AI ship outranks the bot: the AI stops flying and keeps
+  shooting. `order_interruption` lets it break off for contact or damage, then
+  resume the same order where it left it.
+- `OnShipOrderComplete`, `OnShipOrderInterrupted`, `OnShipOrderResumed`,
+  `OnShipOrderCanceled` and `OnShipOrderFailed` report an order by key, ship
+  and kind through one `ShipOrder` filter.
+- `SetAILeash`, `SetAIEngageRange` and `SetAIPointDefenseRange` retune an AI
+  ship's tether, detection reach and point-defense reach at runtime; omit the
+  payload to restore the engine default.
+- `ForceRailgunFire` fires one named railgun section. It and `ForceTorpedoFire`
+  still refuse a player- or AI-driven ship; a helm order refuses only the
+  player's.
+- `content lint` checks a helm order's ship and key, an empty patrol route, an
+  orbit's well, an AI constraint's ship, and a forced shot's section id and
+  class.
 - An armed AI ship can stand down: `non_combatant: true` flies its routine and
   never acquires or fires. An `engage_delay` or a narrow `engage_range` only
   postpones it.

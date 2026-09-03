@@ -216,6 +216,7 @@ crashing, so a missing dependency is visible instead of fatal.
 | `leash` | `Option` number | `None` | territorial tether radius in meters; combat breaks off beyond it; `None` = chases freely |
 | `engage_delay` | `Option` number | `None` | arrival grace in seconds: flies its passive routine and refuses to engage until it elapses; being SHOT ends the grace instantly and permanently. The telegraphed-arrival tool |
 | `non_combatant` | bool | `false` | this ARMED ship flies itself but never fights: it patrols, orbits, avoids and station-keeps as any AI ship does, and never acquires a target or pulls a trigger |
+| `order_interruption` | `Option` policy | `None` | when a scenario [helm order](../actions/#helm-orders) may be broken off to fight: `Some(OnHostileContact)` while a hostile is acquired, `Some(OnDamage)` while it is being shot. Omitted = never - the order runs to its end |
 
 An UNARMED AI ship (no turret or torpedo section) is automatically a
 NON-COMBATANT: it flies its routine and never acquires, chases or shoots -
@@ -230,9 +231,17 @@ fire in the middle of a beat that assumed it would not. This is a standing
 statement about the hull.
 
 For a ship the SCENARIO drives shot by shot, author `None` and use the
-[scripted-ship actions](../actions/#scripted-ships) instead. The two cover the
-whole space between them: a non-combatant flies itself and never shoots, a
-`None` ship does exactly and only what it is told.
+[helm orders](../actions/#helm-orders) and
+[forced fire](../actions/#forced-fire) actions. The two ends cover the whole
+space between them: a non-combatant flies itself and never shoots, a `None`
+ship does exactly and only what it is told.
+
+The helm orders also work on an AI ship, which is the MIDDLE of that space: a
+bot that thinks for itself until a mission tells it where to be, then thinks
+for itself again. `order_interruption` is how much the fighting is allowed to
+interrupt the errand - and the default is not at all, so an order given to an
+AI ship lands exactly as it would on a `None` hull unless the author says
+otherwise.
 
 Allegiance values: `Player` / `Enemy` / `Neutral`. Player and Enemy are
 mutually hostile; Neutral relates neutrally to everyone (stray blast damage

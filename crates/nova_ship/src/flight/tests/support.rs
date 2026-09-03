@@ -12,7 +12,7 @@ use crate::{
     flight::{
         autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
         manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
-        scripted::drive_scripted_align,
+        order::drive_scripted_align,
         state::remove_maneuver_telemetry,
         NovaFlightSystems,
     },

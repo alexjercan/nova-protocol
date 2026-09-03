@@ -169,7 +169,13 @@ pub(super) fn update_controller_target_rotation_torque(
             &AITarget,
             &AIEvade,
         ),
-        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+        // Silent while a scenario order holds the helm: the order's own
+        // rotation drive is the single writer then (see `ShipOrderHelmAuthority`).
+        (
+            With<SpaceshipRootMarker>,
+            With<AISpaceshipMarker>,
+            Without<ShipOrderHelmAuthority>,
+        ),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {
@@ -252,7 +258,13 @@ pub(super) fn on_thruster_input(
             &AIEvade,
             Has<Autopilot>,
         ),
-        (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
+        // Silent while a scenario order holds the helm, for the same reason
+        // the rotation writer above is.
+        (
+            With<SpaceshipRootMarker>,
+            With<AISpaceshipMarker>,
+            Without<ShipOrderHelmAuthority>,
+        ),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,
 ) {

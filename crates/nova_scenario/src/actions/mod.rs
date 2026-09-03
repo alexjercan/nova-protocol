@@ -32,16 +32,18 @@ pub mod prelude {
     pub use super::{
         advance_scenario_sequences, apply_infinite_ammo, apply_pending_skybox_swaps,
         base_scenario_object, live_ship_sections, refill_section, sequence_gate_handlers,
-        ActionEffect, BaseScenarioObjectConfig, ClearShipOrderActionConfig, CurrentOutcome,
-        DebugMessageActionConfig, DespawnScenarioObjectActionConfig, EventActionConfig,
-        ForceAlignActionConfig, ForceRailgunFireActionConfig, ForceTorpedoFireActionConfig,
-        HintEmphasisClearActionConfig, HintEmphasisSetActionConfig, HudReadoutActionConfig,
-        HudReadoutFormatConfig, MoveShipToActionConfig, NextScenarioActionConfig,
-        ObjectiveActionConfig, ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
-        ObjectiveMarkerDetachActionConfig, OutcomeActionConfig, PendingSkyboxSwap,
+        AILeashConfig, ActionEffect, BaseScenarioObjectConfig, ClearShipOrderActionConfig,
+        CurrentOutcome, DebugMessageActionConfig, DespawnScenarioObjectActionConfig,
+        EventActionConfig, ForceAlignActionConfig, ForceRailgunFireActionConfig,
+        ForceTorpedoFireActionConfig, HintEmphasisClearActionConfig, HintEmphasisSetActionConfig,
+        HudReadoutActionConfig, HudReadoutFormatConfig, MoveShipToActionConfig,
+        NextScenarioActionConfig, ObjectiveActionConfig, ObjectiveCompleteActionConfig,
+        ObjectiveMarkerAttachActionConfig, ObjectiveMarkerDetachActionConfig,
+        OrbitShipActionConfig, OutcomeActionConfig, PatrolShipActionConfig, PendingSkyboxSwap,
         RefillAmmoActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
         ScenarioObjectConfig, ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig,
-        SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SetAllegianceActionConfig,
+        SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SetAIEngageRangeActionConfig,
+        SetAILeashActionConfig, SetAIPointDefenseRangeActionConfig, SetAllegianceActionConfig,
         SetCameraActionConfig, SetControllerVerbActionConfig, SetInfiniteAmmoActionConfig,
         SetSkyboxActionConfig, SetSpeedCapActionConfig, StopShipActionConfig,
         StoryMessageActionConfig, TimerCancelActionConfig, TimerStartActionConfig,
@@ -91,14 +93,24 @@ pub enum EventActionConfig {
     SetControllerVerb(SetControllerVerbActionConfig),
     /// Overwrite a scoped ship's `Allegiance` at runtime (neutral-until-provoked).
     SetAllegiance(SetAllegianceActionConfig),
-    /// Fly a scripted ship to an authored mark with the real autopilot.
+    /// Fly an ordered ship to an authored mark with the real autopilot.
     MoveShipTo(MoveShipToActionConfig),
-    /// Turn a scripted ship's hull onto an authored bearing and hold it.
+    /// Turn an ordered ship's hull onto an authored bearing and hold it.
     ForceAlign(ForceAlignActionConfig),
-    /// Bring a scripted ship to rest with the real STOP maneuver.
+    /// Bring an ordered ship to rest with the real STOP maneuver.
     StopShip(StopShipActionConfig),
-    /// Release a scripted ship's helm and let it drift.
+    /// Fly an ordered ship one loop of an authored route.
+    PatrolShip(PatrolShipActionConfig),
+    /// Put an ordered ship into a station-keeping orbit and hold it.
+    OrbitShip(OrbitShipActionConfig),
+    /// Release an ordered ship's helm and let it drift.
     ClearShipOrder(ClearShipOrderActionConfig),
+    /// Set or clear one AI ship's territorial leash.
+    SetAILeash(SetAILeashActionConfig),
+    /// Set or clear one AI ship's hostile-detection range.
+    SetAIEngageRange(SetAIEngageRangeActionConfig),
+    /// Set or clear one AI ship's point-defense range.
+    SetAIPointDefenseRange(SetAIPointDefenseRangeActionConfig),
     /// Fire one named railgun section of a scripted ship.
     ForceRailgunFire(ForceRailgunFireActionConfig),
     /// Launch one named torpedo bay of a scripted ship at one named target.
@@ -190,7 +202,22 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
             EventActionConfig::StopShip(config) => {
                 config.action(world, info);
             }
+            EventActionConfig::PatrolShip(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::OrbitShip(config) => {
+                config.action(world, info);
+            }
             EventActionConfig::ClearShipOrder(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetAILeash(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetAIEngageRange(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetAIPointDefenseRange(config) => {
                 config.action(world, info);
             }
             EventActionConfig::ForceRailgunFire(config) => {
@@ -371,7 +398,12 @@ impl EventActionConfig {
             EventActionConfig::MoveShipTo(_) => Some("MoveShipTo"),
             EventActionConfig::ForceAlign(_) => Some("ForceAlign"),
             EventActionConfig::StopShip(_) => Some("StopShip"),
+            EventActionConfig::PatrolShip(_) => Some("PatrolShip"),
+            EventActionConfig::OrbitShip(_) => Some("OrbitShip"),
             EventActionConfig::ClearShipOrder(_) => Some("ClearShipOrder"),
+            EventActionConfig::SetAILeash(_) => Some("SetAILeash"),
+            EventActionConfig::SetAIEngageRange(_) => Some("SetAIEngageRange"),
+            EventActionConfig::SetAIPointDefenseRange(_) => Some("SetAIPointDefenseRange"),
             EventActionConfig::ForceRailgunFire(_) => Some("ForceRailgunFire"),
             EventActionConfig::ForceTorpedoFire(_) => Some("ForceTorpedoFire"),
             EventActionConfig::CreateScenarioArea(_) => Some("CreateScenarioArea"),

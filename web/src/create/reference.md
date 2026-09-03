@@ -41,9 +41,9 @@ The five spelling rules behind every snippet in these pages:
 |---|---|
 | Mod structure | [bundle and content files](../mod-files/), [`Campaign`](../campaigns/), [`Impact`](../impacts/), [`Scenario`](../scenarios/), [`Section`](../sections/), [`Ship`](../ships/), [`Style`](../styles/) |
 | Handler fields | [`name`](../events/), [`once`](../scenarios/#once-a-beat-that-happens-one-time), [`filters`](../filters/), [`actions`](../actions/) |
-| Events (17) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle), [`OnShipOrderComplete`](../events/#onshipordercomplete) |
+| Events (21) | [`OnStart`](../events/#onstart), [`OnUpdate`](../events/#onupdate), [`OnTimerEnd`](../events/#ontimerend), [`OnDefeated`](../events/#ondefeated), [`OnDestroyed`](../events/#ondestroyed), [`OnNeutralized`](../events/#onneutralized), [`OnEnter`](../events/#onenter), [`OnExit`](../events/#onexit), [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle), [`OnTravelLockStart`](../events/#lock-lifecycle), [`OnTravelLockEnd`](../events/#lock-lifecycle), [`OnCombatLockStart`](../events/#lock-lifecycle), [`OnCombatLockEnd`](../events/#lock-lifecycle), [`OnShipOrderComplete`](../events/#onshipordercomplete), [`OnShipOrderInterrupted`](../events/#onshiporderinterrupted), [`OnShipOrderResumed`](../events/#onshiporderresumed), [`OnShipOrderCanceled`](../events/#onshipordercanceled), [`OnShipOrderFailed`](../events/#onshiporderfailed) |
 | Filters (5) | [`Entity`](../filters/#entity), [`Timer`](../filters/#timer), [`ShipOrder`](../filters/#shiporder), [`Expression`](../filters/#expression), [`Conditional`](../filters/#conditional) (`Not` / `And` / `Or`) |
-| Actions (33) | spawning: [`SpawnScenarioObject`](../actions/#spawnscenarioobject), [`ScatterObjects`](../actions/#scatterobjects), [`DespawnScenarioObject`](../actions/#despawnscenarioobject), [`CreateScenarioArea`](../actions/#createscenarioarea) - mission: [`Objective`](../actions/#objective), [`ObjectiveComplete`](../actions/#objectivecomplete), [`ObjectiveMarkerAttach`](../actions/#objectivemarkerattach), [`ObjectiveMarkerDetach`](../actions/#objectivemarkerdetach), [`StoryMessage`](../actions/#storymessage), [`HudReadout`](../actions/#hudreadout), [`HintEmphasisSet`](../actions/#hintemphasisset), [`HintEmphasisClear`](../actions/#hintemphasisclear) - pacing: [`Sequence`](../actions/#sequence) - flow: [`Outcome`](../actions/#outcome), [`NextScenario`](../actions/#nextscenario) - ships: [`SetSpeedCap`](../actions/#setspeedcap), [`SetControllerVerb`](../actions/#setcontrollerverb), [`SetAllegiance`](../actions/#setallegiance), [`SetInfiniteAmmo`](../actions/#setinfiniteammo), [`RefillAmmo`](../actions/#refillammo) - scripted ships: [`MoveShipTo`](../actions/#moveshipto), [`ForceAlign`](../actions/#forcealign), [`StopShip`](../actions/#stopship), [`ClearShipOrder`](../actions/#clearshiporder), [`ForceRailgunFire`](../actions/#forcerailgunfire), [`ForceTorpedoFire`](../actions/#forcetorpedofire) - state: [`VariableSet`](../actions/#variableset), [`TimerStart`](../actions/#timerstart), [`TimerCancel`](../actions/#timercancel), [`DebugMessage`](../actions/#debugmessage) - view: [`SetCamera`](../actions/#setcamera), [`Screenshot`](../actions/#screenshot), [`SetSkybox`](../actions/#setskybox) |
+| Actions (38) | spawning: [`SpawnScenarioObject`](../actions/#spawnscenarioobject), [`ScatterObjects`](../actions/#scatterobjects), [`DespawnScenarioObject`](../actions/#despawnscenarioobject), [`CreateScenarioArea`](../actions/#createscenarioarea) - mission: [`Objective`](../actions/#objective), [`ObjectiveComplete`](../actions/#objectivecomplete), [`ObjectiveMarkerAttach`](../actions/#objectivemarkerattach), [`ObjectiveMarkerDetach`](../actions/#objectivemarkerdetach), [`StoryMessage`](../actions/#storymessage), [`HudReadout`](../actions/#hudreadout), [`HintEmphasisSet`](../actions/#hintemphasisset), [`HintEmphasisClear`](../actions/#hintemphasisclear) - pacing: [`Sequence`](../actions/#sequence) - flow: [`Outcome`](../actions/#outcome), [`NextScenario`](../actions/#nextscenario) - ships: [`SetSpeedCap`](../actions/#setspeedcap), [`SetControllerVerb`](../actions/#setcontrollerverb), [`SetAllegiance`](../actions/#setallegiance), [`SetInfiniteAmmo`](../actions/#setinfiniteammo), [`RefillAmmo`](../actions/#refillammo) - helm orders: [`MoveShipTo`](../actions/#moveshipto), [`ForceAlign`](../actions/#forcealign), [`StopShip`](../actions/#stopship), [`PatrolShip`](../actions/#patrolship), [`OrbitShip`](../actions/#orbitship), [`ClearShipOrder`](../actions/#clearshiporder) - forced fire: [`ForceRailgunFire`](../actions/#forcerailgunfire), [`ForceTorpedoFire`](../actions/#forcetorpedofire) - AI constraints: [`SetAILeash`](../actions/#setaileash), [`SetAIEngageRange`](../actions/#setaiengagerange), [`SetAIPointDefenseRange`](../actions/#setaipointdefenserange) - state: [`VariableSet`](../actions/#variableset), [`TimerStart`](../actions/#timerstart), [`TimerCancel`](../actions/#timercancel), [`DebugMessage`](../actions/#debugmessage) - view: [`SetCamera`](../actions/#setcamera), [`Screenshot`](../actions/#screenshot), [`SetSkybox`](../actions/#setskybox) |
 | Objects (6) | [`Anchor`](../objects/#anchor), [`Asteroid`](../objects/#asteroid), [`Spaceship`](../objects/#spaceship), [`Beacon`](../objects/#beacon), [`SalvageCrate`](../objects/#salvagecrate), [`Light`](../objects/#light) (`Directional` / `Point`) |
 | Damage effects (3) | [`Cracks`, `Sparks`, `Plume`](../sections/#damage-effects) - the looks a section wears as it is damaged, authored in `base.damage_effects` |
 | Expression nodes (16) | values: [`Number`, `String`, `Boolean`](../expressions/#values-the-literal-types) - atoms: [`Literal`, `Name`, `Query`, `Parens`](../expressions/#factors-the-atoms) - terms: [`Factor`, `Multiply`, `Divide`](../expressions/#terms-multiply-divide) - expressions: [`Term`, `Add`, `Subtract`](../expressions/#expressions-add-subtract-the-value-root) - conditions: [`LessThan`, `GreaterThan`, `Equal`](../expressions/#conditions-the-boolean-root) |
@@ -121,17 +121,24 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`OnExit`](../events/#onexit),
 [`OnNeutralized`](../events/#onneutralized),
 [`OnOrbitStart`](../events/#orbit-lifecycle), [`OnOrbitStable`](../events/#orbit-lifecycle), [`OnOrbitUnstable`](../events/#orbit-lifecycle), [`OnOrbitEnd`](../events/#orbit-lifecycle),
+[`OnShipOrderCanceled`](../events/#onshipordercanceled),
 [`OnShipOrderComplete`](../events/#onshipordercomplete),
+[`OnShipOrderFailed`](../events/#onshiporderfailed),
+[`OnShipOrderInterrupted`](../events/#onshiporderinterrupted),
+[`OnShipOrderResumed`](../events/#onshiporderresumed),
 [`OnStart`](../events/#onstart),
 [`OnTimerEnd`](../events/#ontimerend),
 [`OnTravelLockStart`](../events/#lock-lifecycle),
 [`OnTravelLockEnd`](../events/#lock-lifecycle),
 [`OnUpdate`](../events/#onupdate) (events),
 [`once`](../scenarios/#once-a-beat-that-happens-one-time) (handler field),
+[`OrbitShip`](../actions/#orbitship) (action),
 [`Or`](../filters/#conditional) (filter combinator),
+[`order_interruption`](../objects/#the-controller) (AI controller field),
 [`Outcome`](../actions/#outcome) (action)
 
 **P** - [`Parens`](../expressions/#factors-the-atoms) (expression node),
+[`PatrolShip`](../actions/#patrolship) (action),
 [`Player`](../objects/#the-controller) (ship controller),
 [`Plume`](../sections/#damage-effects) (damage effect),
 [`Point`](../objects/#light) (light method),
@@ -149,6 +156,9 @@ The wiki search (sidebar) indexes every construct name, so typing
 [`Screenshot`](../actions/#screenshot) (action),
 [`Section`](../sections/) (content item),
 [`Sequence`](../actions/#sequence) (action),
+[`SetAIEngageRange`](../actions/#setaiengagerange),
+[`SetAILeash`](../actions/#setaileash),
+[`SetAIPointDefenseRange`](../actions/#setaipointdefenserange) (actions),
 [`SetAllegiance`](../actions/#setallegiance),
 [`SetCamera`](../actions/#setcamera),
 [`SetControllerVerb`](../actions/#setcontrollerverb) (actions),

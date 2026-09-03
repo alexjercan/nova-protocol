@@ -44,14 +44,16 @@ pub mod prelude {
         OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
         OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
-        OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo, OnStartEvent, OnStartEventInfo,
-        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME,
-        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
-        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
-        TIMER_KEY_FIELD_NAME,
+        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
+        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
+        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent, OnUpdateEvent,
+        OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
+        BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME,
+        SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME,
+        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -332,14 +334,13 @@ pub struct OnUpdateEvent;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnUpdateEventInfo;
 
-/// Which HELM order a scripted ship completed.
+/// Which HELM order a ship was given.
 ///
-/// The three scripted helm actions are one mutually exclusive family, so the
-/// kind is part of a completion's identity: a handler that waits for "the
-/// warship finished turning" must not be woken by the move that preceded it.
-/// Authored in a `ShipOrder` filter and carried in
-/// [`OnShipOrderCompleteEventInfo`], so it lives here beside the payload
-/// rather than in either crate that reads it.
+/// The helm actions are one mutually exclusive family, so the kind is part of
+/// an order's identity: a handler that waits for "the warship finished
+/// turning" must not be woken by the move that preceded it. Authored in a
+/// `ShipOrder` filter and carried in every ship-order payload, so it lives
+/// here beside them rather than in either crate that reads it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Reflect)]
 pub enum ShipOrderKind {
     /// A `MoveShipTo` order: the ship flew to its mark and came to rest.
@@ -348,6 +349,10 @@ pub enum ShipOrderKind {
     Align,
     /// A `StopShip` order: the ship killed its velocity.
     Stop,
+    /// A `PatrolShip` order: the ship flew one loop of its authored route.
+    Patrol,
+    /// An `OrbitShip` order: the ship established a station-keeping orbit.
+    Orbit,
 }
 
 impl ShipOrderKind {
@@ -361,19 +366,25 @@ impl ShipOrderKind {
             ShipOrderKind::Move => "Move",
             ShipOrderKind::Align => "Align",
             ShipOrderKind::Stop => "Stop",
+            ShipOrderKind::Patrol => "Patrol",
+            ShipOrderKind::Orbit => "Orbit",
         }
     }
 }
 
-/// Event kind fired once when a scripted ship completes a keyed HELM order
-/// (`onshipordercomplete`) - arrival, alignment, or stop.
+/// Event kind fired once when a ship completes a keyed HELM order
+/// (`onshipordercomplete`) - arrival, alignment, stop, patrol loop or orbit
+/// insertion.
 ///
 /// The completion a scenario SEQUENCES on. A cinematic that fires a railgun
 /// once the bore is on its target cannot use a guessed delay: the turn takes
-/// as long as the hull's rotation authority says it takes. Cancellation,
-/// replacement, destruction and neutralization all retire an order WITHOUT
-/// this event, so a handler waiting on a completion never runs for an order
-/// that did not finish.
+/// as long as the hull's rotation authority says it takes.
+///
+/// Completion reports that the physical CONDITION was reached, not that the
+/// behavior stopped: an alignment holds its bearing afterwards and an orbit
+/// keeps station-keeping. Cancellation, replacement and failure each have
+/// their own event, so a handler waiting on a completion never runs for an
+/// order that did not finish.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onshipordercomplete")]
 #[event_info(OnShipOrderCompleteEventInfo)]
@@ -413,6 +424,189 @@ impl Default for OnShipOrderCompleteEventInfo {
     }
 }
 
+/// Event kind fired when autonomous AI takes the helm back from an installed
+/// ship order (`onshiporderinterrupted`).
+///
+/// TRANSIENT, and the only ship-order event that is: the durable order stays
+/// installed and its directive is kept whole, so the AI flies its own routine
+/// and the order resumes from where it was. An interruption can happen many
+/// times over one order's life, which is exactly why it is not cancellation -
+/// a beat that retires its objective here would retire it for a fight the
+/// ship is about to come back from.
+///
+/// Only an AI ship can produce this, and only one whose profile authorizes an
+/// interruption. Without that authorization an order owns the helm until a
+/// terminal outcome.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onshiporderinterrupted")]
+#[event_info(OnShipOrderInterruptedEventInfo)]
+pub struct OnShipOrderInterruptedEvent;
+
+/// Payload for [`OnShipOrderInterruptedEvent`]. Same four fields, under the
+/// same names, as every other ship-order payload: one `ShipOrder` filter
+/// matches whichever of them a handler listens for.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct OnShipOrderInterruptedEventInfo {
+    /// Authored key of the interrupted order.
+    #[serde(rename = "order")]
+    pub order: String,
+    /// Scenario id of the ship that was flying it.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Which helm order was interrupted.
+    #[serde(rename = "kind")]
+    pub kind: ShipOrderKind,
+}
+
+impl Default for OnShipOrderInterruptedEventInfo {
+    fn default() -> Self {
+        Self {
+            order: String::new(),
+            id: String::new(),
+            type_name: String::new(),
+            kind: ShipOrderKind::Move,
+        }
+    }
+}
+
+/// Event kind fired when an interrupted ship order gets its helm back
+/// (`onshiporderresumed`).
+///
+/// The other half of [`OnShipOrderInterruptedEvent`], and the reason the
+/// directive is kept durable rather than living only in the autopilot: the
+/// execution is rebuilt from what the order still says, so a half-flown move
+/// carries on to the same mark instead of restarting somewhere else.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onshiporderresumed")]
+#[event_info(OnShipOrderResumedEventInfo)]
+pub struct OnShipOrderResumedEvent;
+
+/// Payload for [`OnShipOrderResumedEvent`]; the same four fields as every
+/// other ship-order payload.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct OnShipOrderResumedEventInfo {
+    /// Authored key of the resumed order.
+    #[serde(rename = "order")]
+    pub order: String,
+    /// Scenario id of the ship flying it again.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Which helm order resumed.
+    #[serde(rename = "kind")]
+    pub kind: ShipOrderKind,
+}
+
+impl Default for OnShipOrderResumedEventInfo {
+    fn default() -> Self {
+        Self {
+            order: String::new(),
+            id: String::new(),
+            type_name: String::new(),
+            kind: ShipOrderKind::Move,
+        }
+    }
+}
+
+/// Event kind fired when a ship order is retired on purpose and for good
+/// (`onshipordercanceled`) - `ClearShipOrder`, or a replacement order taking
+/// the helm.
+///
+/// TERMINAL, and the counterpart to interruption: nothing resumes. A beat
+/// holding an objective open "until the tug finishes docking" retires it
+/// here, because the tug never will.
+///
+/// An order that already reached a terminal outcome does not cancel a second
+/// time - clearing a completed alignment reports nothing, because the
+/// alignment did complete.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onshipordercanceled")]
+#[event_info(OnShipOrderCanceledEventInfo)]
+pub struct OnShipOrderCanceledEvent;
+
+/// Payload for [`OnShipOrderCanceledEvent`]; the same four fields as every
+/// other ship-order payload.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct OnShipOrderCanceledEventInfo {
+    /// Authored key of the canceled order.
+    #[serde(rename = "order")]
+    pub order: String,
+    /// Scenario id of the ship it was installed on.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Which helm order was canceled.
+    #[serde(rename = "kind")]
+    pub kind: ShipOrderKind,
+}
+
+impl Default for OnShipOrderCanceledEventInfo {
+    fn default() -> Self {
+        Self {
+            order: String::new(),
+            id: String::new(),
+            type_name: String::new(),
+            kind: ShipOrderKind::Move,
+        }
+    }
+}
+
+/// Event kind fired when an ACCEPTED ship order becomes impossible to
+/// continue (`onshiporderfailed`).
+///
+/// TERMINAL. The order was installed and being flown, and then the world took
+/// something away it needed: the well an orbit was inserting into stopped
+/// existing, or the hull lost the flight computer or the engines the maneuver
+/// runs on. The difference from cancellation is who decided - a scenario
+/// cancels, the world fails.
+///
+/// An order REFUSED at issue time (no such ship, a player-driven one, an
+/// empty patrol route) was never accepted and reports nothing here; that is a
+/// lint error and a runtime log, not a scenario event. There is deliberately
+/// no reason code yet: the executor logs the detailed cause, and a scenario
+/// that must branch on which failure happened would need reasons this engine
+/// cannot yet enumerate honestly.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onshiporderfailed")]
+#[event_info(OnShipOrderFailedEventInfo)]
+pub struct OnShipOrderFailedEvent;
+
+/// Payload for [`OnShipOrderFailedEvent`]; the same four fields as every
+/// other ship-order payload.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct OnShipOrderFailedEventInfo {
+    /// Authored key of the failed order.
+    #[serde(rename = "order")]
+    pub order: String,
+    /// Scenario id of the ship that could not finish it.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of that ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
+    /// Which helm order failed.
+    #[serde(rename = "kind")]
+    pub kind: ShipOrderKind,
+}
+
+impl Default for OnShipOrderFailedEventInfo {
+    fn default() -> Self {
+        Self {
+            order: String::new(),
+            id: String::new(),
+            type_name: String::new(),
+            kind: ShipOrderKind::Move,
+        }
+    }
+}
+
 #[cfg(test)]
 mod ship_order_tests {
     use super::*;
@@ -427,6 +621,8 @@ mod ship_order_tests {
             ShipOrderKind::Move,
             ShipOrderKind::Align,
             ShipOrderKind::Stop,
+            ShipOrderKind::Patrol,
+            ShipOrderKind::Orbit,
         ] {
             let serialized = serde_json::to_value(kind).expect("a unit variant serializes");
             assert_eq!(

@@ -40,7 +40,7 @@ use crate::prelude::*;
 mod autopilot;
 mod guidance;
 mod manual;
-mod scripted;
+mod order;
 mod state;
 mod thrusters;
 
@@ -53,7 +53,7 @@ pub(crate) use self::guidance::hull_turn_rate;
 use self::{
     autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
     manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
-    scripted::drive_scripted_align,
+    order::{drive_scripted_align, drive_ship_orders},
     state::remove_maneuver_telemetry,
 };
 pub(crate) use self::{
@@ -61,7 +61,12 @@ pub(crate) use self::{
     manual::accumulate_rcs_axis,
 };
 pub use self::{
-    scripted::{ScriptedAlign, ScriptedAlignSettled, ScriptedHelmOrder, SuspendedArrivalStandoff},
+    order::{
+        cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
+        AIOrderInterrupted, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective,
+        ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport,
+        ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
+    },
     state::{
         Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
         FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive,
@@ -73,10 +78,13 @@ pub use self::{
 /// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
-        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin,
-        NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
-        ScriptedAlignSettled, ScriptedHelmOrder, SuspendedArrivalStandoff,
+        cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
+        AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
+        FlightArrivalStandoff, FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry,
+        NovaFlightPlugin, NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap,
+        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
+        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
+        ShipOrderReports, SuspendedArrivalStandoff,
     };
 }
 
@@ -116,7 +124,13 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<RcsSpeedCap>()
             .register_type::<RcsReference>()
             .register_type::<RcsActive>()
-            .register_type::<ScriptedHelmOrder>()
+            .register_type::<ShipHelmOrder>()
+            .register_type::<ShipOrderDirective>()
+            .register_type::<ShipOrderHelmAuthority>()
+            .register_type::<ShipOrderReported>()
+            .register_type::<ShipOrderEngaged>()
+            .register_type::<ShipOrderReports>()
+            .register_type::<AIOrderInterrupted>()
             .register_type::<ScriptedAlign>()
             .register_type::<ScriptedAlignSettled>()
             .register_type::<SuspendedArrivalStandoff>();
@@ -143,6 +157,11 @@ impl Plugin for NovaFlightPlugin {
         app.add_systems(
             FixedUpdate,
             (
+                // Before the autopilot, so a maneuver this tick's order
+                // engages burns this tick rather than next: an order layer
+                // that lagged the physics by a frame would put every beat
+                // sequenced off it a frame behind too.
+                drive_ship_orders,
                 autopilot_system,
                 // A rotation-authority writer like the autopilot, and after
                 // it: the two never coexist (one mutually exclusive helm
