@@ -1,9 +1,8 @@
 # Review the unpushed v0.13.0 work: console, railgun, settings, meters, polish
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 20
-- TAGS: v0.13.0,review
-
+- TAGS: v0.13.0, review
 
 Review the unpushed commits on `master` (`origin/master..HEAD`, 45 commits,
 HEAD `340d54ad`) in five logical groups, one `nova-review` pass per group,
@@ -133,3 +132,11 @@ Red team and feel skipped on the owner's instruction.
   `railgun_wake_bench` and `perf_web` say `Inert` in the field. Verified live:
   system_headless_rebind, railgun_wake_bench, system_headless_drag,
   system_menu_boot.
+- 2026-09-03 11:40 CLOSED. All 56 findings are fixed and ticked in
+  `REVIEW.md`, and all seven decisions are answered there with what was taken
+  for each. Six commits, `e268ccf9..cfad467c`. Two live bugs the owner
+  reported went in with the commands group, and two more the fleet runs
+  turned up (a `ScriptedCameraTransform` outliving its pose, a world-unit
+  pose compared against a meters row step) are recorded under "Found while
+  proving the polish group". Not run, per the standing instruction: the
+  workspace test suite and Clippy.
