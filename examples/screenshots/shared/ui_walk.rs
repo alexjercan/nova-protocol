@@ -277,6 +277,9 @@ pub trait Gestures {
     /// CONTINUES when the name resolves to nothing, so a press fired at a panel
     /// that has not laid out yet is a beat silently lost and the walk fails
     /// somewhere else.
+    ///
+    /// The one-line spelling of `AutopilotPlugin::click_named` on a gesture
+    /// deadline: this trait exists for the name, not for a second behavior.
     fn click(self, label: &str, name: &str) -> Self;
 
     /// Place a section on the ship: aim at the `face` face of the section
@@ -302,7 +305,7 @@ pub trait Gestures {
 
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn click(self, label: &str, name: &str) -> Self {
-        self.click_named(label, name, pointer_released(), STEP_DEADLINE_SECS)
+        self.click_named(label, name, pointer_released(), BEAT_DEADLINE_SECS)
     }
 
     fn place(self, label: &str, on: Vec3, face: Vec3) -> Self {

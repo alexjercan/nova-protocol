@@ -18,6 +18,9 @@ nova_autopilot = { path = "../nova_autopilot" }
 # live in `nova_autopilot` (bevy alone).
 nova_editor = { path = "../nova_editor" }
 nova_events = { path = "../nova_events" }
+# For the NOVA OS predicates in `harness`: the ship-computer ranges wait on the
+# terminal model's own answer, which lives here.
+nova_os_ui = { path = "../nova_os_ui" }
 nova_gameplay = { path = "../nova_gameplay" }
 # `press_action` resolves a beat's action NAME through the bindings registry,
 # so a driven script stops being a second copy of the binding table.

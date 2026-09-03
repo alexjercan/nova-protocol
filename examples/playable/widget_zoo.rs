@@ -659,8 +659,8 @@ struct ZooProbe {
 #[cfg(feature = "debug")]
 fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     use nova_protocol::prelude::{
-        click_named, hover_named, move_cursor, pointer_at_node, pointer_pressed, pointer_released,
-        press_mouse, release_mouse, ui_node_centre, ui_node_diagnosis, ui_node_present,
+        hover_named, move_cursor, pointer_at_node, pointer_pressed, pointer_released, press_mouse,
+        release_mouse, resource_where, ui_node_centre, ui_node_diagnosis, ui_node_present,
         BEAT_DEADLINE_SECS,
     };
 
@@ -731,18 +731,15 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .until(pointer_released())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // Reskin: a full click on the Skin control's Hardware option. `Activate`
-        // fires on RELEASE over the same widget, so a click is two beats.
-        .step("zoo: click Hardware")
-        .on_enter(click_named(SKIN_HARDWARE))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("zoo: release on Hardware")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(pointer_released())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        // Reskin: a full click on the Skin control's Hardware option, waited
+        // out on the SETTING - `Activate` fires on release, and the option is
+        // one of a set, so "the pointer let go" is not yet "the skin took".
+        .click_named(
+            "zoo: click Hardware",
+            SKIN_HARDWARE,
+            resource_where::<UiSkin>(|skin| *skin == UiSkin::Hardware),
+            BEAT_DEADLINE_SECS,
+        )
         .step("zoo: the skin flipped")
         .on_enter(|world: &mut World| {
             assert_eq!(
@@ -756,16 +753,12 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             assert_live_tree(world, "after the reskin");
         })
         .add()
-        .step("zoo: click a HUD-level option")
-        .on_enter(click_named(LEVEL_MINIMAL))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("zoo: release on the HUD-level option")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(pointer_released())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "zoo: click a HUD-level option",
+            LEVEL_MINIMAL,
+            resource_where::<DemoLevel>(|level| *level == DemoLevel::Minimal),
+            BEAT_DEADLINE_SECS,
+        )
         .step("zoo: the HUD level changed")
         .on_enter(|world: &mut World| {
             assert!(
@@ -775,26 +768,21 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             info!("zoo: demo level is Minimal");
         })
         .add()
-        .step("zoo: click a checkbox")
-        .on_enter(click_named(CHECK_FIRST))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("zoo: release on the checkbox")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(pointer_released())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("zoo: click a toggle")
-        .on_enter(click_named(TOGGLE_FIRST))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("zoo: release on the toggle")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(pointer_released())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        // Each flip RESPAWNS the body, so the toggle is clicked by name on the
+        // tree the checkbox's rebuild left behind - which is the whole point of
+        // waiting for the widget instead of aiming at a remembered box.
+        .click_named(
+            "zoo: click a checkbox",
+            CHECK_FIRST,
+            resource_where::<ZooChecks>(|checks| checks.0[0] != ZooChecks::default().0[0]),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "zoo: click a toggle",
+            TOGGLE_FIRST,
+            resource_where::<ZooChecks>(|checks| checks.0[2] != ZooChecks::default().0[2]),
+            BEAT_DEADLINE_SECS,
+        )
         .step("zoo: both flips landed")
         .on_enter(|world: &mut World| {
             let checks = *world.resource::<ZooChecks>();

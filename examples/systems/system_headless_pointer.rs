@@ -86,26 +86,14 @@ fn main() -> bevy::app::AppExit {
             .add()
             // The click spans beats the way a player's does: picking reads the
             // move a frame after it is written, and `Activate` fires on
-            // release-over.
-            .step("headless pointer: hover Resume")
-            .on_enter(hover_named("Resume Button"))
-            .until(pointer_at_node("Resume Button", Vec2::ZERO))
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step("headless pointer: press Resume")
-            .on_enter(press_mouse(MouseButton::Left))
-            .until(pointer_pressed())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step("headless pointer: release Resume")
-            .on_enter(release_mouse(MouseButton::Left))
-            .until(pointer_released())
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
-            .step("headless pointer: the wire click resumed the game")
-            .until(the_game_is(PauseStates::Unpaused))
-            .deadline(BEAT_DEADLINE_SECS)
-            .add()
+            // release-over. Its last beat waits on the GAME, so a click that
+            // the overlay swallowed is a stall named here.
+            .click_named(
+                "headless pointer: the wire click resumes the game",
+                "Resume Button",
+                the_game_is(PauseStates::Unpaused),
+                BEAT_DEADLINE_SECS,
+            )
             .step("headless pointer: record the pass")
             .on_enter(|world: &mut World| {
                 info!("headless pointer: PASS clicked Resume with no renderer");

@@ -3506,7 +3506,8 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     fn click_a_widget(self, label: &str, name: &str) -> Self {
         // Widgets act on `Activate`, which fires on RELEASE over the same node,
         // so the release beat carries the button's effect - and the caller's
-        // next beat is where that effect is waited on.
+        // next beat is where that effect is waited on. The one-line spelling of
+        // `click_named` on a gesture deadline: the trait is for the name.
         self.click_named(label, name, pointer_released(), BEAT_DEADLINE_SECS)
     }
 

@@ -82,6 +82,9 @@ const FLAG_GRIP: &str = "Inspector Grip Invulnerable";
 /// axis letter is the grip, because the panel is 240px wide.
 #[cfg(feature = "debug")]
 const POSE_GRIP: &str = "Inspector Grip Position X";
+/// The step the `Position X` row is declared with, in METERS per pixel - the
+/// editor's own `POSE_STEP`, which every quantity row that names no step of its
+/// own inherits.
 #[cfg(feature = "debug")]
 const POSE_STEP: f32 = 0.5;
 
@@ -157,15 +160,20 @@ fn the_radius_moved() -> std::sync::Arc<nova_protocol::nova_debug::harness::Pred
 }
 
 /// Where the selected node sits, off the same snapshot a drag beat reads.
+///
+/// In METERS. The probe reports the pose off the node's `Transform`, which is
+/// world units because the stage draws it, and the row this range scrubs is
+/// declared in meters - so the crossing belongs on the way out of the probe,
+/// once, rather than in each verdict that compares against a step.
 #[cfg(feature = "debug")]
-fn position_of(world: &World) -> Option<Vec3> {
+fn position_of(world: &World) -> Option<Meters3> {
     let probe = world.get_resource::<EditorProbe>()?;
     let id = probe.selected_node.clone()?;
     probe
         .node_positions
         .iter()
         .find(|(node, _)| *node == id)
-        .map(|(_, at)| *at)
+        .map(|(_, at)| Meters3::from_engine(*at))
 }
 
 /// Advance once the rock has left the place the last stamp took.
@@ -175,21 +183,21 @@ fn the_pose_moved() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predic
         let Some(before) = world.get_resource::<PoseBefore>() else {
             return false;
         };
-        position_of(world).is_some_and(|at| (at.x - before.0.x).abs() > f32::EPSILON)
+        position_of(world).is_some_and(|at| (at.x() - before.0.x()).abs() > Meters(f32::EPSILON))
     })
 }
 
 /// Where the rock sat before the drag that must move it.
 #[cfg(feature = "debug")]
 #[derive(Resource, Debug, Clone, Copy)]
-struct PoseBefore(Vec3);
+struct PoseBefore(Meters3);
 
 /// Stamp the pose the next verdict is read against.
 #[cfg(feature = "debug")]
 fn stamp_the_pose(world: &mut World) {
     let at = position_of(world).expect("the placed rock is selected and has a pose");
     world.insert_resource(PoseBefore(at));
-    info!("fields: the rock sits at {at}");
+    info!("fields: the rock sits at {} m", at.get());
 }
 
 /// What the radius read before the drag that must change it.
@@ -213,48 +221,35 @@ fn field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(state_is(GameStates::MainMenu))
         .deadline(90.0)
         .add()
-        .step("fields: let the menu lay out")
-        .until(ui_node_present("Sandbox Button"))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("fields: click Sandbox")
-        .on_enter(click_named("Sandbox Button"))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("fields: release Sandbox")
-        .on_enter(release_mouse(MouseButton::Left))
+        // The click waits on the RELEASE and the load gets its own beat: a
+        // scenario load is the slow thing here, and a stall inside it should
+        // name the load rather than a gesture that already landed.
+        .click_named(
+            "fields: click Sandbox",
+            "Sandbox Button",
+            pointer_released(),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("fields: the sandbox comes up")
         .until(state_is(GameStates::Playing))
         .deadline(90.0)
         .add()
-        .step("fields: let the editor lay out")
-        .until(ui_node_present(ADD_MENU))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
         // The palette lives in the Add menu, which spawns its rows when it
         // opens, so the menu drops first.
-        .step("fields: drop the Add menu")
-        .on_enter(click_named(ADD_MENU))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("fields: release the Add menu")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(OBJECT_ITEM))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("fields: click Add Asteroid")
-        .on_enter(click_named(OBJECT_ITEM))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "fields: drop the Add menu",
+            ADD_MENU,
+            ui_node_present(OBJECT_ITEM),
+            BEAT_DEADLINE_SECS,
+        )
         // Placed objects are marked on arrival, so the inspector opens on the
         // rock and its rows are there to be read.
-        .step("fields: release Add Asteroid")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(RADIUS_GRIP))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "fields: click Add Asteroid",
+            OBJECT_ITEM,
+            ui_node_present(RADIUS_GRIP),
+            BEAT_DEADLINE_SECS,
+        )
         .step("fields: the rows wear what their declarations give them")
         .on_enter(read_the_rows_match_their_types)
         .add()
@@ -406,23 +401,24 @@ fn read_the_scrub_moved_by_its_step(world: &mut World) {
 
 #[cfg(feature = "debug")]
 fn read_the_axis_scrub_moved_by_its_step(world: &mut World) {
-    let before = world.resource::<PoseBefore>().0;
-    let now = position_of(world).expect("the rock still has a pose");
-    let wanted = before.x + PULL_PX * POSE_STEP;
+    let before = world.resource::<PoseBefore>().0.x().get();
+    let now = position_of(world)
+        .expect("the rock still has a pose")
+        .x()
+        .get();
+    let wanted = before + PULL_PX * POSE_STEP;
     assert!(
-        (now.x - wanted).abs() < POSE_STEP,
-        "a grip on one axis moves by the ROW's step: {PULL_PX} px at {POSE_STEP} is {wanted}, and          the rock sits at {}. A stall here means the step is being resolved a second time from          the axis path, where no declaration matches it",
-        now.x
+        (now - wanted).abs() < POSE_STEP,
+        "a grip on one axis moves by the ROW's step: {PULL_PX} px at {POSE_STEP} m is {wanted} m, \
+         and the rock sits at {now} m. A stall here means the step is being resolved a second \
+         time from the axis path, where no declaration matches it"
     );
     nova_probe::probe_marker(
         world,
         "outcome: a vector axis is scrubbed by its row's step",
-        serde_json::json!({ "before": before.x, "after": now.x, "step": POSE_STEP }),
+        serde_json::json!({ "before_m": before, "after_m": now, "step_m": POSE_STEP }),
     );
-    info!(
-        "fields: X went {} -> {} on a {PULL_PX}px pull",
-        before.x, now.x
-    );
+    info!("fields: X went {before} m -> {now} m on a {PULL_PX}px pull");
 }
 
 #[cfg(feature = "debug")]

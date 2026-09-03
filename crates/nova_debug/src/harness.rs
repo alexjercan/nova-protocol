@@ -108,6 +108,10 @@ use nova_gameplay::{
 };
 use nova_hud::prelude::HudVisibility;
 use nova_input::prelude::{dispatch, InputPhase};
+use nova_os_ui::{
+    nova_os::prelude::{NovaOsTerminal, TerminalMode},
+    prelude::nova_os_openness,
+};
 use nova_scenario::prelude::{
     NovaEventWorld, ScenarioCameraMarker, ScenarioId, ScenarioLoaded, ScriptedCameraPose,
     VariableLiteral,
@@ -142,9 +146,9 @@ pub const SHOT_DEADLINE_SECS: f32 = 20.0;
 /// aborts naming it: an asset load finishing, a state transition landing, a
 /// scene coming up.
 ///
-/// One value for the whole fleet. The thirteen identical per-example copies
-/// this replaced were not thirteen judgements about how long a scene takes -
-/// they were one number pasted twelve times.
+/// One value for the whole fleet: how long a scene takes to come up is not a
+/// per-example judgement, so a range that wants its own number wants a reason
+/// written beside it.
 ///
 /// It is a BACKSTOP, not a settle: a beat that waits on a condition reaches
 /// this only when the condition never came, and then the abort names the beat.
@@ -361,6 +365,35 @@ pub fn editor_inspector_reads(
 pub fn editor_gallery_selected(prototype: impl Into<String>) -> Arc<Predicate> {
     let prototype = prototype.into();
     resource_where::<EditorProbe>(move |editor| editor.selected.as_deref() == Some(&*prototype))
+}
+
+/// Advance once the ship computer's raster has finished blooming open.
+///
+/// Not a dwell: the raster blooms on over real time and the tube shows a
+/// squeezed window onto the image until it settles, so a beat that reads the
+/// screen - or a shot that photographs it - waits for this rather than for a
+/// frame count that only guessed at the slide.
+pub fn nova_os_raster_open() -> Arc<Predicate> {
+    Arc::new(|world: &World| nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON))
+}
+
+/// Advance once the shell says the app called `id` owns the screen.
+///
+/// The terminal model's own answer, not a node count that a half-built app
+/// surface would satisfy.
+pub fn nova_os_app_owns_the_screen(id: &'static str) -> Arc<Predicate> {
+    resource_where::<NovaOsTerminal>(move |terminal| {
+        terminal.active_mode() == TerminalMode::App { id }
+    })
+}
+
+/// Advance once the terminal's command line holds exactly `text`.
+///
+/// The shell's own record of what it took. Typing writes every character in
+/// ONE frame, so a frame count after it was never a typing rate - it was a
+/// guess at how long the shell takes to answer.
+pub fn nova_os_command_line_reads(text: &'static str) -> Arc<Predicate> {
+    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
 }
 
 /// The PNG a [`nova_screenshot`] beat writes. Relative, so it stages under

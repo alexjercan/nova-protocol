@@ -116,6 +116,7 @@ fn menu_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
             .step("menu_boot: reach the main menu")
             .until(state_is(GameStates::MainMenu))
+            .deadline(BOOT_SECS)
             .add()
             .step("menu_boot: let the menu lay out")
             .until(ui_node_present(NEW_GAME_BUTTON))

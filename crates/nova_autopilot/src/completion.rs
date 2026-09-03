@@ -168,8 +168,17 @@ pub fn register(app: &mut App, name: &'static str) {
 
 /// The exit decision, once per frame in `Last`: all done -> `AppExit::
 /// Success`; deadline expired -> `AppExit::error` naming the laggards.
+///
+/// On `Time<Real>` and not the virtual clone the schedule's default `Time`
+/// resolves to. This is a BACKSTOP against a run that is not progressing, and
+/// a paused clock is one of the ways a run stops progressing: the pause overlay
+/// and the ship computer both hold `Time<Virtual>`, so a script that opens
+/// either and then waits on an `until` that never holds would have burned no
+/// deadline at all and hung until a supervisor killed it, naming nothing.
+/// (Inside a loop capture `Time<Real>` is itself pinned to the profile's frame
+/// step, so the backstop counts rendered frames there; see the loops module.)
 fn completion_watch(
-    time: Res<Time>,
+    time: Res<Time<Real>>,
     completion: Option<ResMut<HarnessCompletion>>,
     mut exit: MessageWriter<AppExit>,
 ) {
@@ -285,6 +294,35 @@ mod tests {
         );
     }
 
+    /// The backstop keeps counting while the game clock is held.
+    ///
+    /// A pause overlay and the ship computer both pause `Time<Virtual>`. A
+    /// script that opens one and waits on an `until` that never holds is
+    /// exactly the run this deadline exists to end, so it must not be the run
+    /// the deadline sleeps through.
+    #[test]
+    fn a_paused_game_clock_does_not_stop_the_deadline() {
+        let mut app = app();
+        register(&mut app, AUTOPILOT);
+        app.world_mut().resource_mut::<Time<Virtual>>().pause();
+        app.world_mut()
+            .resource_mut::<HarnessCompletion>()
+            .deadline_secs = f32::MAX;
+        for _ in 0..16 {
+            app.update();
+        }
+
+        assert_eq!(
+            app.world().resource::<Time<Virtual>>().delta_secs(),
+            0.0,
+            "the fixture must actually be holding the game clock"
+        );
+        assert!(
+            app.world().resource::<HarnessCompletion>().elapsed > 0.0,
+            "the backstop burned no time while the game clock was held"
+        );
+    }
+
     #[test]
     fn the_deadline_clock_tracks_wall_time_whatever_the_collector_count() {
         let mut app = app();
@@ -297,7 +335,7 @@ mod tests {
             app.update();
         }
         let counted = app.world().resource::<HarnessCompletion>().elapsed;
-        let wall = app.world().resource::<Time>().elapsed_secs();
+        let wall = app.world().resource::<Time<Real>>().elapsed_secs();
         assert!(
             counted <= wall * 1.01,
             "the deadline clock ran at {}x wall time: one watcher per \

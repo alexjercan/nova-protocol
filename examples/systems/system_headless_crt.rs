@@ -53,9 +53,8 @@ use bevy::{
 use nova_input::prelude::{InputBindings, InputSource};
 #[cfg(feature = "debug")]
 use nova_protocol::nova_os_ui::{
-    map::MapContactCode,
     nova_os::prelude::{NovaOsTerminal, TerminalMode},
-    terminal::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+    prelude::{nova_os_pointer_id, nova_os_window_px_showing, MapContactCode},
 };
 #[cfg(feature = "debug")]
 use nova_protocol::prelude::*;
@@ -101,7 +100,7 @@ fn main() -> bevy::app::AppExit {
             // is: the warp inverse reads the openness, so it answers with a
             // different window px on every frame of the bloom.
             .step("headless crt: the raster finished opening")
-            .until(the_raster_is_open())
+            .until(nova_os_raster_open())
             .deadline(STEP_DEADLINE_SECS)
             .add()
             .step("headless crt: the boot banner drained")
@@ -255,8 +254,7 @@ struct GlassTarget {
 /// The blip the chosen target's code currently labels, freshly resolved.
 #[cfg(feature = "debug")]
 fn resolve_blip(world: &World) -> Option<Entity> {
-    let code = world.get_resource::<GlassTarget>()?.code.clone();
-    blip_labelled(world, &code)
+    blip_labelled(world, &world.get_resource::<GlassTarget>()?.code)
 }
 
 /// The blip button whose label pill holds `code`, if the map has plotted one:
@@ -367,8 +365,15 @@ fn pulse_action(world: &mut World, action: &'static str, frame: u32) {
 }
 
 /// Record the first plotted contact that has a blip as this run's target.
+///
+/// The beat holds until the pick lands, so this runs every frame of it: the
+/// choice is made ONCE and the later frames cost nothing, which also keeps the
+/// target from moving under a run whose map plots a new contact mid-beat.
 #[cfg(feature = "debug")]
 fn pick_the_target(world: &mut World) {
+    if world.get_resource::<GlassTarget>().is_some() {
+        return;
+    }
     let picked = plotted_contacts(world)
         .into_iter()
         .find(|(_, code)| blip_labelled(world, code).is_some());
@@ -392,12 +397,6 @@ fn aim_through_the_glass(world: &mut World, _elapsed: f32, frame: u32) {
         None if frame % 8 == 1 => scroll_lines(-2.0)(world),
         None => {}
     }
-}
-
-/// Advance once the CRT's raster has finished blooming open.
-#[cfg(feature = "debug")]
-fn the_raster_is_open() -> Gate {
-    Arc::new(|world: &World| nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON))
 }
 
 /// Advance once a contact has been chosen and its blip located.

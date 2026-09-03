@@ -165,17 +165,16 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(state_is(GameStates::MainMenu))
         .deadline(90.0)
         .add()
-        .step("modes: let the menu lay out")
-        .until(ui_node_present("Sandbox Button"))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: click Sandbox")
-        .on_enter(click_named("Sandbox Button"))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: release Sandbox")
-        .on_enter(release_mouse(MouseButton::Left))
+        // The click waits on the RELEASE and the load gets its own beat: a
+        // scenario load is the slow thing here, and a stall inside it should
+        // name the load rather than a gesture that already landed.
+        .click_named(
+            "modes: click Sandbox",
+            "Sandbox Button",
+            pointer_released(),
+            BEAT_DEADLINE_SECS,
+        )
+        .step("modes: the sandbox comes up")
         .until(state_is(GameStates::Playing))
         .deadline(90.0)
         .add()
@@ -189,38 +188,26 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .add()
         // INSERT. The palette lives in the Add menu, which spawns its rows when
         // it opens, so the menu drops first.
-        .step("modes: drop the Add menu")
-        .on_enter(click_named(ADD_MENU))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: release the Add menu")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(OBJECT_ITEM))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: click Add Beacon")
-        .on_enter(click_named(OBJECT_ITEM))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "modes: drop the Add menu",
+            ADD_MENU,
+            ui_node_present(OBJECT_ITEM),
+            BEAT_DEADLINE_SECS,
+        )
         // Placed objects are marked on arrival, so the inspector opens on the
         // beacon and the Name field is there to be typed into.
-        .step("modes: release Add Beacon")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(NAME_FIELD))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: click the Name field")
-        .on_enter(click_named(NAME_FIELD))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: the field takes the keyboard")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(and(editor_field_focused(), the_mode_is(InputMode::Insert)))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "modes: click Add Beacon",
+            OBJECT_ITEM,
+            ui_node_present(NAME_FIELD),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "modes: click the Name field",
+            NAME_FIELD,
+            and(editor_field_focused(), the_mode_is(InputMode::Insert)),
+            BEAT_DEADLINE_SECS,
+        )
         .step("modes: count what the document holds")
         .on_enter(stamp_the_count)
         .add()
@@ -281,26 +268,18 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .on_enter(read_normal_took_the_object)
         .add()
         // BROWSE. A ship to be inside, and a gallery over it.
-        .step("modes: drop the Add menu again")
-        .on_enter(click_named(ADD_MENU))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: release the Add menu again")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present("Add Ship Button"))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: click Add Ship")
-        .on_enter(click_named("Add Ship Button"))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: release Add Ship")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(inside_a_ship())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "modes: drop the Add menu again",
+            ADD_MENU,
+            ui_node_present("Add Ship Button"),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "modes: click Add Ship",
+            "Add Ship Button",
+            inside_a_ship(),
+            BEAT_DEADLINE_SECS,
+        )
         .step("modes: open the gallery")
         .on_enter(press_key(KeyCode::Tab))
         .until(and(editor_gallery_open(), the_mode_is(InputMode::Browse)))
@@ -406,28 +385,20 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(ui_node_present(KEY_ROW))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("modes: drop the Ship menu")
-        .on_enter(click_named(SHIP_MENU))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: release the Ship menu")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present(REBIND_ITEM))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("modes: click Rebind Key")
-        .on_enter(click_named(REBIND_ITEM))
-        .until(pointer_pressed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "modes: drop the Ship menu",
+            SHIP_MENU,
+            ui_node_present(REBIND_ITEM),
+            BEAT_DEADLINE_SECS,
+        )
         // Armed by a click, the capture waits for that click to be released
         // before it reads a press - so the arming button is not itself bound.
-        .step("modes: the capture takes the keyboard")
-        .on_enter(release_mouse(MouseButton::Left))
-        .until(the_mode_is(InputMode::Bind))
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
+        .click_named(
+            "modes: click Rebind Key",
+            REBIND_ITEM,
+            the_mode_is(InputMode::Bind),
+            BEAT_DEADLINE_SECS,
+        )
         .step("modes: count the sections on the ship")
         .on_enter(stamp_the_count)
         .add()

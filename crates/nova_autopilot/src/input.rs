@@ -449,6 +449,31 @@ pub fn hover_named(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync
     }
 }
 
+/// Hold the pointer on the UI node called `name`, moving it only when the node
+/// is no longer under it.
+///
+/// The RE-AIM of a held beat, where [`hover_named`] is the opening one. A
+/// reflow that slides the widget out from under the aim is corrected, while a
+/// widget that has not moved costs one lookup a frame instead of a window
+/// write, a re-pin and two pointer messages. It is also silent: a node that
+/// goes missing mid-beat is the stall the beat's own diagnosis names, not a
+/// warning per frame for the length of the deadline.
+pub fn keep_hovering_named(name: impl Into<String>) -> impl Fn(&mut World) + Send + Sync + 'static {
+    let name = name.into();
+    move |world: &mut World| {
+        let Some(centre) = ui_node_centre(world, &name) else {
+            return;
+        };
+        if world
+            .get_resource::<PinnedCursor>()
+            .is_some_and(|pinned| pinned.0 == centre)
+        {
+            return;
+        }
+        set_cursor(world, centre);
+    }
+}
+
 /// The shared warn-and-continue resolve behind [`click_named`] and
 /// [`hover_named`].
 fn resolve(world: &World, name: &str, gesture: &str) -> Option<Vec2> {

@@ -64,7 +64,7 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the computer")
                 .on_enter(press_tab)
-                .until(computer::raster_open())
+                .until(nova_os_raster_open())
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Run `help` then `ship view` so command-output formatting is
@@ -84,7 +84,7 @@ fn main() -> bevy::app::AppExit {
                 // completion ghost.
                 .step("leave an inline-completion prefix")
                 .on_enter(|world| type_word(world, "lo"))
-                .until(computer::command_line_reads("lo"))
+                .until(nova_os_command_line_reads("lo"))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // The ghost completion is PAINTED off that prefix, so the shot

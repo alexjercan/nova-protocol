@@ -54,7 +54,12 @@
 //! capture host's render rate was. Without the pin a software renderer would
 //! stretch one sim-second over a handful of frames and the loop would play
 //! back several times too fast. The pin also makes re-capture deterministic:
-//! the same script produces the same frames. The default is 30 fps rather than
+//! the same script produces the same frames. It pins the REAL clock, not only
+//! the virtual one, so inside a loop a step deadline and the run-level
+//! backstop in [`completion`](crate::completion) both count rendered frames
+//! over [`LoopProfile::fps`] rather than wall seconds: budget a beat inside a
+//! capture in frames, and expect a slow host to take longer in the room than
+//! the deadline says. The default is 30 fps rather than
 //! 60 on purpose - it halves the readback and encode cost, gives the default
 //! frame cap a 20-second runway, and a web docs loop does not need more.
 //!

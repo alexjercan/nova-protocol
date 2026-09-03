@@ -28,10 +28,7 @@ use bevy::input::{
 };
 use bevy::prelude::*;
 #[cfg(feature = "debug")]
-use nova_protocol::nova_os_ui::{
-    nova_os::prelude::{NovaOsTerminal, TerminalMode},
-    terminal::nova_os_openness,
-};
+use nova_protocol::nova_os_ui::nova_os::prelude::{NovaOsTerminal, TerminalMode};
 use nova_protocol::prelude::*;
 
 /// A single named player ship at the origin - enough for the NOVA OS computer to
@@ -187,41 +184,6 @@ pub fn press_enter(world: &mut World) {
         repeat: false,
         window: Entity::PLACEHOLDER,
     });
-}
-
-/// Advance once the CRT's raster has finished blooming open.
-///
-/// Not a dwell: the raster blooms on over real time and the tube shows a
-/// squeezed window onto the image until it settles, so a shot taken mid-slide
-/// is a picture of the transition rather than of the computer.
-#[cfg(feature = "debug")]
-pub fn raster_open() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON)
-    })
-}
-
-/// Advance once the shell says `id` owns the screen - the terminal model's own
-/// answer, not a node count a half-built app surface would satisfy.
-#[cfg(feature = "debug")]
-pub fn app_owns_the_screen(
-    id: &'static str,
-) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| {
-        terminal.active_mode() == TerminalMode::App { id }
-    })
-}
-
-/// Advance once the terminal's command line holds exactly `text`.
-///
-/// [`type_word`] writes every character in ONE frame, so a frame count after it
-/// was never a typing rate - it was a guess at how long the shell takes to
-/// answer. This is the shell's own record of what it took.
-#[cfg(feature = "debug")]
-pub fn command_line_reads(
-    text: &'static str,
-) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
 }
 
 /// What the scrollback read when the last command was submitted, so

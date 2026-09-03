@@ -9,7 +9,7 @@
 //! | `name` | what a log line and a stall message call this beat |
 //! | `enter` | the [`States`] value to set on entry |
 //! | `on_enter` | a world action run once, on entry (an [`input`](crate::input) gesture, a scenario poke) |
-//! | `each` | a world action run every frame, with the IN-STEP elapsed seconds |
+//! | `each` | a world action run every frame, with the IN-STEP elapsed seconds and frame index |
 //! | `until` | the [`Predicate`] that advances the step |
 //! | `deadline` | in-step seconds after which an unsatisfied `until` ABORTS the run, naming the step |
 //!
@@ -145,8 +145,7 @@ fn immediately() -> Arc<Predicate> {
 /// Env-gated plugin that walks a [`States`] machine through a scripted list of
 /// predicate-advanced steps for headless verification.
 ///
-/// Build the script with [`step`](Self::step) (or its
-/// [`hold`](Self::hold) shorthand). When [`AUTOPILOT_ENV`] is set the plugin
+/// Build the script with [`step`](Self::step). When [`AUTOPILOT_ENV`] is set the plugin
 /// enters each step in turn - setting `NextState`, running the entry action -
 /// advances it the frame its predicate holds, logs every transition, and
 /// reports completion to the [`completion`] protocol after the last step (the
@@ -240,7 +239,7 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
         deadline: f32,
     ) -> Self {
         let aim = name.to_string();
-        let re_aim = name.to_string();
+        let re_aim = crate::input::keep_hovering_named(name.to_string());
         self.step(format!("{label}: the widget is up"))
             .until(crate::predicate::ui_node_present(name.to_string()))
             .diagnose(crate::input::ui_node_diagnosis(name.to_string()))
@@ -248,14 +247,12 @@ impl<S: States + FreelyMutableState> AutopilotPlugin<S> {
             .add()
             // Aimed, then WAITED on. A resolvable rect is not a clickable
             // widget: an overlay on its way out takes every pick, and a reflow
-            // moves the widget out from under an aim already sent. Re-aimed
-            // every frame, so the beat recovers from the reflow instead of
+            // moves the widget out from under an aim already sent. Held on the
+            // node every frame, so the beat recovers from the reflow instead of
             // holding a stale coordinate until the deadline.
             .step(format!("{label}: aim"))
             .on_enter(crate::input::hover_named(aim))
-            .each(move |world: &mut World, _, _| {
-                crate::input::hover_named(re_aim.clone())(world);
-            })
+            .each(move |world: &mut World, _, _| re_aim(world))
             .until(crate::predicate::pointer_over_node(name.to_string()))
             .diagnose(crate::predicate::pointer_hover_diagnosis(name.to_string()))
             .deadline(deadline)
@@ -465,7 +462,10 @@ pub(crate) struct AutopilotClock {
 /// Internal driver state; kept out of the prelude per the crate conventions.
 #[derive(Resource)]
 struct AutopilotState<S: States + FreelyMutableState> {
-    steps: Vec<Step<S>>,
+    /// Shared, not owned: the driver holds a handle to the script for the
+    /// frame while it mutates and re-inserts the rest of the state, so a
+    /// driven frame costs a refcount instead of a deep clone of the step.
+    steps: Arc<[Step<S>]>,
     index: usize,
     /// Whether the current step's entry (state set + `on_enter`) has run.
     entered: bool,
@@ -504,7 +504,7 @@ impl<S: States + FreelyMutableState> Plugin for AutopilotPlugin<S> {
 
         // The plugin-wide input closure is the `each` of every step that did
         // not declare one, so `hold(...).input(...)` keeps meaning what it did.
-        let steps = self
+        let steps: Arc<[Step<S>]> = self
             .steps
             .iter()
             .map(|step| Step {
@@ -557,7 +557,8 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
     // Entry gets its own frame, so the state transition has applied (and
     // the entry action's effects are visible) before any predicate is polled.
     if !st.entered {
-        let step = st.steps[st.index].clone();
+        let steps = Arc::clone(&st.steps);
+        let step = &steps[st.index];
         if let Some(state) = &step.enter {
             // Skip the set when already in that state, or the step opens
             // with a spurious OnExit/OnEnter of it.
@@ -594,7 +595,8 @@ fn autopilot_drive<S: States + FreelyMutableState>(world: &mut World) {
         )
     };
 
-    let step = st.steps[st.index].clone();
+    let steps = Arc::clone(&st.steps);
+    let step = &steps[st.index];
     if let Some(each) = &step.each {
         each(world, step_elapsed, step_frames);
     }
@@ -706,8 +708,7 @@ mod tests {
 
     /// The timed beat, spelled once for the tests that need several of them.
     ///
-    /// It used to be public API (`AutopilotPlugin::hold`) and had no caller
-    /// outside this module: the fleet writes `.step(..).enter(..)
+    /// Test-local on purpose: a script writes `.step(..).enter(..)
     /// .until(elapsed(..))` out, because a beat worth naming is worth naming.
     impl AutopilotPlugin<TestState> {
         fn hold(self, state: TestState, seconds: f32) -> Self {

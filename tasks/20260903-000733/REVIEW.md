@@ -518,7 +518,7 @@ Findings:
 
 ### polish (b6aa4289, 9c6fa3d7, 5287cdf5, 718ebfd2, 2f5a8c75, 8882ec39)
 
-- [ ] R1.50 (MAJOR, easy) `examples/playable/wfc_arena.rs:853,1365`,
+- [x] R1.50 (MAJOR, easy) `examples/playable/wfc_arena.rs:853,1365`,
   `examples/playable/wfc_arena/lobby.rs:592,603` - the replay instruction
   logged at every lobby-started match names a head that fields a different
   matchup. The lobby open drafts from head H and logs "`--seed H` fields
@@ -532,7 +532,13 @@ Findings:
   draft walks from it, print the per-slot replay (`--ship team:style:seed`)
   or the original head at a pinned start, and keep the resolved head in its
   own field instead of reusing `roster.seed` as the lobby cursor.
-- [ ] R1.51 (MAJOR, easy) `crates/nova_autopilot/src/completion.rs:170,188`,
+  TAKEN: the head is never overwritten - the lobby's Start leaves
+  `roster.seed` as the value that dressed the arena, and its mint cursor
+  stays the cursor. The closing line prints the whole replay grammar:
+  `--seed <head>` plus one `--ship team:style:seed[:player]` per slot, so a
+  pinned start names every hull it fielded rather than a seed that fields
+  others. Live proof under the log line below.
+- [x] R1.51 (MAJOR, easy) `crates/nova_autopilot/src/completion.rs:170,188`,
   `docs/automation-harness.md:472-481`, `docs/environment-variables.md:48`,
   `CHANGELOG.md:178-180` - the run-level `NOVA_AUTOPILOT_DEADLINE`
   backstop, which this group's contract hands to every step without a
@@ -550,13 +556,19 @@ Findings:
   default it is not. Change: `Time<Real>` in `completion_watch` (the test
   at `completion.rs:289` already claims wall time), and one sentence in
   the Deadlines section on which clock `elapsed` and the watcher read.
-- [ ] R1.52 (MINOR, easy) `examples/systems/system_menu_boot.rs:117` -
+  TAKEN: `completion_watch` reads `Res<Time<Real>>`, with the reason on the
+  system. A new test pauses `Time<Virtual>` and asserts the backstop still
+  burns, so the pause case the changelog claims is now held by a test. The
+  Deadlines section names the clock BOTH timers read, and says the one
+  place they are not wall seconds (R1.56).
+- [x] R1.52 (MINOR, easy) `examples/systems/system_menu_boot.rs:117` -
   "menu_boot: reach the main menu" waits on `state_is(GameStates::MainMenu)`
   with no `.deadline`, the only world-predicate wait in the changed fleet
   without one; a boot that never reaches the menu holds the run until the
   outer `NOVA_AUTOPILOT_DEADLINE` kills it with no step named. Change:
   `.deadline(BOOT_SECS)`.
-- [ ] R1.53 (MINOR, easy) `crates/nova_autopilot/src/autopilot.rs:254-262,597`,
+  TAKEN as written.
+- [x] R1.53 (MINOR, easy) `crates/nova_autopilot/src/autopilot.rs:254-262,597`,
   `examples/systems/system_headless_crt.rs:257-258,371` - `click_named`'s
   aim beat re-issues the whole hover every frame it is current (String
   clone, a fresh `QueryState`, `Window` marked changed, two `CursorMoved`
@@ -567,7 +579,15 @@ Findings:
   per frame. Driven runs only. Change: build the hover once outside the
   closure and re-aim only when the centre disagrees with the pointer;
   `Arc<[Step]>` or a borrow.
-- [ ] R1.54 (MINOR, easy) helpers not used where they exist: the two-beat
+  TAKEN: the aim beat holds the pointer with a new
+  `input::keep_hovering_named`, which re-aims only where the node's centre
+  has left the pointer and is silent when the node goes missing - the
+  beat's own diagnosis names that stall. `AutopilotState::steps` is an
+  `Arc<[Step]>`, so a driven frame costs a refcount. `resolve_blip` stopped
+  cloning the code, and `pick_the_target` returns early once it has picked
+  (which also keeps the target from moving under a map that plots a new
+  contact mid-beat).
+- [x] R1.54 (MINOR, easy) helpers not used where they exist: the two-beat
   click is still hand-spelled in `examples/playable/widget_zoo.rs:736-797`,
   `examples/systems/system_field_controls.rs:220-255`,
   `system_input_modes.rs` and `system_headless_pointer.rs:90-108` where
@@ -578,7 +598,19 @@ Findings:
   wrappers with different deadlines (`ui_walk.rs:304-306`,
   `system_ship_editor.rs:3506-3511`); `REACT_SECS`/`LOAD_SECS` are local
   copies of the harness deadlines (`system_nova_os.rs:88-97`).
-- [ ] R1.55 (MINOR, easy) docs: `crates/nova_autopilot/src/autopilot.rs:149`
+  TAKEN: the four hand-spelled clicks are `click_named`, each waiting on
+  what the click was FOR (the skin, the level, the flipped bit, the mode,
+  the row that appears) instead of on the pointer letting go. The three
+  NOVA OS predicates moved to `nova_debug::harness` as
+  `nova_os_raster_open`, `nova_os_app_owns_the_screen` and
+  `nova_os_command_line_reads` - the crate that already exists for
+  Nova-typed predicates, which gains `nova_os_ui` for it. `REACT_SECS` and
+  `LOAD_SECS` are the fleet's `BEAT_DEADLINE_SECS` and
+  `STEP_DEADLINE_SECS`. The two click wrappers now agree on the gesture
+  deadline and each says it is a name for `click_named`; they stay two
+  because the two vocabularies live in example modules that do not include
+  each other.
+- [x] R1.55 (MINOR, easy) docs: `crates/nova_autopilot/src/autopilot.rs:149`
   links the removed `AutopilotPlugin::hold` (dangling rustdoc link) and the
   module table at `:12` says each predicate takes only elapsed seconds
   (`:91` now also passes a frame index); `examples/playable/wfc_arena.rs:135-137`
@@ -586,7 +618,8 @@ Findings:
   and `system_headless_crt.rs:55-59` import `nova_os_openness` by path;
   comments narrate history at `autopilot.rs:707-711` and
   `crates/nova_debug/src/harness.rs:145-147`.
-- [ ] R1.56 (MINOR, easy) `docs/automation-harness.md:472,480`,
+  TAKEN as written, all five.
+- [x] R1.56 (MINOR, easy) `docs/automation-harness.md:472,480`,
   `crates/nova_autopilot/src/autopilot.rs:454-461`,
   `crates/nova_autopilot/src/loops.rs:49-58,344` - "in-step REAL seconds"
   is rendered frames over the profile fps inside a loop capture:
@@ -595,6 +628,10 @@ Findings:
   rendered frames (about ten wall minutes on llvmpipe at 3 fps) and the
   default run backstop is 3600. Longer waits only, never a wrong verdict.
   Change: one sentence in the Deadlines section and the loops module doc.
+  TAKEN: the Deadlines section and the loops module doc both say a loop
+  capture pins the REAL clock, so a deadline inside one counts rendered
+  frames over the profile fps and a slow host spends longer in the room
+  than the deadline names.
 
 Considered and NOT raised:
 
@@ -761,3 +798,25 @@ These need a call first:
 7. R1.49 - derive only if changed. Taken as a `#[require]`d engine-figures
    component per weapon kind, refreshed on `Changed` of its config helper,
    and a `ScriptedCameraTransform` derived on `Changed` of the pose.
+
+## Found while proving the polish group (2026-09-03)
+
+Two defects the fleet runs turned up, neither of them a finding above.
+Both are fixed in the polish commit.
+
+1. R1.49's own regression. `ScriptedCameraPose` REQUIRES
+   `ScriptedCameraTransform`, and a required component outlives its
+   requirer: `remove::<ScriptedCameraPose>()` - how all three release
+   sites hand the camera back - left the derived transform behind, so the
+   override kept writing the released pose every frame and no script
+   could aim that camera again. `screenshot_editor` stalled on `arm the
+   controller: the gallery parked the camera`. The loader now drops the
+   derived half with the pose in an `On<Remove>` observer, with a test on
+   the release. Fixed before it shipped, so no changelog entry.
+2. `system_field_controls` compared meters to world units. The
+   `Position X` row is declared in meters and drags at the editor's own
+   `POSE_STEP` (0.5 m per pixel), while `EditorProbe::node_positions`
+   reports the node's `Transform` - world units. A 40 px pull moved the
+   rock 20 m and the verdict read 2, so the range panicked. The example
+   crosses once, on the way out of the probe, and prints its figures in
+   meters. Pre-existing at v0.12.0 and never shipped in a release note.

@@ -589,7 +589,9 @@ fn on_lobby_action(
                 })
                 .collect();
             roster.style = model.side_styles[0];
-            roster.seed = model.next_seed;
+            // The head is NOT the lobby's cursor. It stays what it was, because
+            // it is what dresses the arena and what the replay line prints; the
+            // cursor is rebuilt from the drafted seeds at the next open.
             roster.drafted = roster.ships.iter().filter_map(|ship| ship.seed).collect();
             roster
                 .binding_overrides

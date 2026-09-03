@@ -132,7 +132,8 @@ use nova_debug::prelude::capturing;
 // in EVERY build.
 use nova_input::prelude::InputSource;
 use nova_protocol::prelude::*;
-// Only for the derelicts' tumble: everything the fight depends on stays on the
+// The derelict dressing - fragment hulls, where they scatter, how they tumble -
+// and the opening seed of an unpinned run. The FIGHT's hulls come off the
 // generator's own seed stream.
 use rand::{rngs::StdRng, RngExt, SeedableRng};
 
@@ -184,8 +185,9 @@ const DEFAULT_SEED: u64 = 20_260_816;
 ///
 /// The head is logged by [`draft_roster`] - here it would be written before
 /// `AppBuilder` installs the log plugin, so nothing would carry it - and the
-/// lobby shows it in an editable field. Either way a matchup worth keeping is
-/// replayable with `--seed`.
+/// lobby shows it in an editable field. [`draft_roster`] also prints the whole
+/// replay line, head plus one `--ship` per slot, because a pinned slot is not
+/// reproduced by the head alone.
 fn resolve_seed(asked: Option<u64>) -> u64 {
     if let Some(seed) = asked.or_else(seed_from_env) {
         return seed;
@@ -850,7 +852,11 @@ fn draft_roster(
     from: u64,
     sections: &GameSections,
 ) -> Vec<(u64, ShipHull)> {
-    info!("wfc_arena: drafting from seed {from} - `--seed {from}` fields this matchup again");
+    let pinned = ships.iter().filter(|ship| ship.seed.is_some()).count();
+    info!(
+        "wfc_arena: drafting from seed {from} ({pinned} of {} slots pinned)",
+        ships.len()
+    );
     let mut cursor = from;
     let mut drafted = Vec::new();
     for (slot, ship) in ships.iter().enumerate() {
@@ -888,7 +894,35 @@ fn draft_roster(
             ),
         }
     }
+    // The head alone replays a matchup only when it drafted every slot. A
+    // pinned slot came from `--ship`, and the head still dresses the arena
+    // either way, so the line a player copies carries both - and stays right
+    // when the lobby pins every slot before it starts the match.
+    info!(
+        "wfc_arena: `--seed {from} {}` fields this matchup again",
+        replay_ships(ships, looks, &drafted)
+    );
     drafted
+}
+
+/// The `--ship` arguments that pin `drafted`, in slot order.
+fn replay_ships(ships: &[ShipSpec], looks: &[StyleId], drafted: &[(u64, ShipHull)]) -> String {
+    ships
+        .iter()
+        .zip(looks)
+        .zip(drafted)
+        .map(|((ship, style), (seed, _))| {
+            // An empty STYLE field is legal and means "the run's look", which
+            // is what a slot with no style of its own is flying.
+            format!(
+                "--ship {}:{}:{seed}{}",
+                TEAMS[ship.team].callsign.to_ascii_lowercase(),
+                style.unwrap_or_default(),
+                if ship.player { ":player" } else { "" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Where a slot stands in its own team's line, and how long that line is.

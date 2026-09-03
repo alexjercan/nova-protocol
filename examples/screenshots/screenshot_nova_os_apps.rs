@@ -64,17 +64,17 @@ fn main() -> bevy::app::AppExit {
                 .add()
                 .step("open the computer")
                 .on_enter(press_tab)
-                .until(computer::raster_open())
+                .until(nova_os_raster_open())
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("type the map command")
                 .on_enter(|world| type_word(world, "map"))
-                .until(computer::command_line_reads("map"))
+                .until(nova_os_command_line_reads("map"))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("launch the map app")
                 .on_enter(press_enter)
-                .until(computer::app_owns_the_screen("map"))
+                .until(nova_os_app_owns_the_screen("map"))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Owning the screen is not being STILL: the app's offscreen
@@ -94,7 +94,7 @@ fn main() -> bevy::app::AppExit {
                     press_escape(world);
                     type_word(world, "ship");
                 })
-                .until(computer::command_line_reads("ship"))
+                .until(nova_os_command_line_reads("ship"))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 // Launch the ship schematic app and let its RTT scene
@@ -102,7 +102,7 @@ fn main() -> bevy::app::AppExit {
                 // wgsl/render panic would fail the run).
                 .step("launch the ship app")
                 .on_enter(press_enter)
-                .until(computer::app_owns_the_screen("ship"))
+                .until(nova_os_app_owns_the_screen("ship"))
                 .deadline(STEP_DEADLINE_SECS)
                 .add()
                 .step("settle the ship app for the shot")

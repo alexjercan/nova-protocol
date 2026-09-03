@@ -480,7 +480,15 @@ that launches the process, which the crate cannot see.
 Real seconds, not the app's: Nova pauses `Time<Virtual>` behind the pause
 overlay and the ship computer, so a deadline measured on the game clock stops
 counting the moment a walk opens either - and a beat that stalls there holds the
-run open with nothing naming the step.
+run open with nothing naming the step. Both clocks that time a run read
+`Time<Real>` for that reason: the step deadline, and the run-level watcher's own
+`elapsed`.
+
+One exception, and it is by design: a loop capture pins the REAL clock to its
+profile's frame duration, so a deadline inside a loop counts RENDERED FRAMES
+over the profile fps and not wall seconds. Budget a beat between `loop_start`
+and `loop_end` in frames, and expect a slow capture host to spend longer in the
+room than the deadline names.
 
 ### Do not `enter` a state something else owns
 

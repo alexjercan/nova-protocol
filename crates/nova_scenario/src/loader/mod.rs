@@ -616,6 +616,7 @@ impl Plugin for ScenarioLoaderPlugin {
                 enforce_scripted_camera_pose.in_set(CameraAuthoritySystems::Override),
             ),
         );
+        app.add_observer(drop_scripted_camera_transform);
     }
 }
 
@@ -679,6 +680,19 @@ fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCam
     }
 }
 
+/// Release the camera when its pose is taken off it.
+///
+/// A required component outlives the one that required it, so dropping the
+/// pose alone would leave the derived transform behind and the override would
+/// keep winning every frame - a camera nothing could aim again. Releasing is
+/// spelled `remove::<ScriptedCameraPose>()` wherever a script hands the camera
+/// back, so the pair is kept honest here rather than at each of those.
+fn drop_scripted_camera_transform(remove: On<Remove, ScriptedCameraPose>, mut commands: Commands) {
+    commands
+        .entity(remove.entity)
+        .remove::<ScriptedCameraTransform>();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -693,6 +707,66 @@ mod tests {
             "Sky Test".to_string(),
             "sky_test".to_string(),
             AssetRef::from("textures/sky.png".to_string()),
+        );
+    }
+
+    /// A script that hands the camera back gets a camera it can aim again.
+    ///
+    /// [`ScriptedCameraPose`] REQUIRES [`ScriptedCameraTransform`], and a
+    /// required component outlives its requirer: with the derived half left
+    /// behind, the override would keep writing the released pose every frame.
+    #[test]
+    fn releasing_the_scripted_pose_releases_the_camera() {
+        let mut app = App::new();
+        app.add_systems(
+            PostUpdate,
+            (
+                derive_scripted_camera_transform,
+                enforce_scripted_camera_pose,
+            )
+                .chain(),
+        );
+        app.add_observer(drop_scripted_camera_transform);
+
+        let eye = Meters3::new(0.0, 100.0, 0.0);
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                ScriptedCameraPose {
+                    position: eye,
+                    look_at: Meters3::ZERO,
+                },
+            ))
+            .id();
+        app.update();
+        assert_eq!(
+            app.world()
+                .get::<Transform>(camera)
+                .expect("the camera has a transform")
+                .translation,
+            eye.to_engine(),
+            "the pose is enforced while it is on the camera"
+        );
+
+        app.world_mut()
+            .entity_mut(camera)
+            .remove::<ScriptedCameraPose>();
+        let free = Transform::from_xyz(1.0, 2.0, 3.0);
+        app.world_mut().entity_mut(camera).insert(free);
+        app.update();
+
+        assert!(
+            app.world().get::<ScriptedCameraTransform>(camera).is_none(),
+            "the derived transform goes with the pose it came from"
+        );
+        assert_eq!(
+            app.world()
+                .get::<Transform>(camera)
+                .expect("the camera has a transform")
+                .translation,
+            free.translation,
+            "a released camera keeps what its own controller wrote"
         );
     }
 

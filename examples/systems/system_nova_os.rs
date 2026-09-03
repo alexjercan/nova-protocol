@@ -54,7 +54,7 @@ use clap::Parser;
 #[cfg(feature = "debug")]
 use nova_protocol::nova_os_ui::{
     nova_os::prelude::{NovaOsTerminal, TerminalMode},
-    terminal::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
+    prelude::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
 };
 use nova_protocol::prelude::*;
 
@@ -85,17 +85,6 @@ fn custom_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), setup_range);
 }
 
-/// Seconds a beat gives the world to reach a state it was asked for (an app
-/// launch, a close, the slide). Kept well under the harness completion deadline
-/// (`NOVA_AUTOPILOT_DEADLINE`, default 120 s) so a stall is an error naming THIS
-/// beat rather than a generic collector timeout.
-#[cfg(feature = "debug")]
-const REACT_SECS: f32 = 20.0;
-
-/// Seconds the range gives the asset load and the ship spawn.
-#[cfg(feature = "debug")]
-const LOAD_SECS: f32 = 30.0;
-
 /// The `Name` of the widget this range clicks through the glass: the header's
 /// app-close control, which lives behind the image camera and returns the shell
 /// to the prompt when activated.
@@ -122,33 +111,33 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("nova_os: load the range")
         .enter(GameStates::Loading)
         .until(player_ship_present())
-        .deadline(LOAD_SECS)
+        .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("nova_os: press Tab")
         .on_enter(press_key(KeyCode::Tab))
         .until(state_is(PauseStates::NovaOs))
-        .deadline(REACT_SECS)
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // Not a dwell: the raster blooms on over real time and the CRT shows a
         // squeezed window onto the image until it settles, so a click aimed
         // mid-slide lands where the picture no longer is.
         .step("nova_os: let the raster open")
         .on_enter(release_key(KeyCode::Tab))
-        .until(raster_settled())
-        .deadline(REACT_SECS)
+        .until(nova_os_raster_open())
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the computer is open")
         .on_enter(assert_computer_open)
         .add()
         .step("nova_os: type the ship command")
         .on_enter(type_text("ship"))
-        .until(the_command_line_reads("ship"))
-        .deadline(REACT_SECS)
+        .until(nova_os_command_line_reads("ship"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: launch the ship app")
         .on_enter(submit_line)
-        .until(app_owns_the_screen("ship"))
-        .deadline(REACT_SECS)
+        .until(nova_os_app_owns_the_screen("ship"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the ship app owns the screen")
         .on_enter(assert_app_on_screen)
@@ -159,7 +148,7 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("nova_os: aim at the close control through the glass")
         .on_enter(aim_through_the_glass)
         .until(the_pointer_reached_the_glass())
-        .deadline(REACT_SECS)
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the pointer reached the offscreen tree")
         .on_enter(assert_hover_through_the_glass)
@@ -169,7 +158,7 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("nova_os: press the close control")
         .on_enter(press_mouse(MouseButton::Left))
         .until(pointer_pressed())
-        .deadline(REACT_SECS)
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the press landed on the widget")
         .on_enter(assert_press_through_the_glass)
@@ -181,55 +170,24 @@ fn nova_os_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .step("nova_os: release the close control")
         .on_enter(release_mouse(MouseButton::Left))
         .until(shell_is_at_the_prompt())
-        .deadline(REACT_SECS)
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the click through the glass closed the app")
         .on_enter(assert_click_closed_the_app)
         .add()
         .step("nova_os: type the map command")
         .on_enter(type_text("map"))
-        .until(the_command_line_reads("map"))
-        .deadline(REACT_SECS)
+        .until(nova_os_command_line_reads("map"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: launch the map app")
         .on_enter(submit_line)
-        .until(app_owns_the_screen("map"))
-        .deadline(REACT_SECS)
+        .until(nova_os_app_owns_the_screen("map"))
+        .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("nova_os: the app switch left one screen")
         .on_enter(assert_one_screen)
         .add()
-}
-
-/// Advance once the CRT's raster has finished blooming open.
-#[cfg(feature = "debug")]
-fn raster_settled() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        nova_os_openness(world).is_some_and(|open| open >= 1.0 - f32::EPSILON)
-    })
-}
-
-/// Advance once the shell says `id` owns the screen - the terminal model's own
-/// answer, not a node count that a half-built app surface would satisfy.
-#[cfg(feature = "debug")]
-fn app_owns_the_screen(
-    id: &'static str,
-) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| {
-        terminal.active_mode() == TerminalMode::App { id }
-    })
-}
-
-/// Advance once the terminal's command line holds exactly `text`.
-///
-/// The shell's own record of what it took, not a guess at how long a keystroke
-/// takes to reach it: `type_text` writes every character in ONE frame, so a
-/// frame count here was never a typing rate.
-#[cfg(feature = "debug")]
-fn the_command_line_reads(
-    text: &'static str,
-) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    resource_where::<NovaOsTerminal>(move |terminal| terminal.prompt() == text)
 }
 
 /// Advance once the WINDOW pointer stands where [`aim_through_the_glass`] sent

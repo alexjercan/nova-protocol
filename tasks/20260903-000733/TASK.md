@@ -101,3 +101,20 @@ Red team and feel skipped on the owner's instruction.
   the config changes, and the scripted camera pose keeps its every-frame write
   while losing its every-frame derive. R1.44's two example constants are left
   in world units on the finding's own rule: they are stage geometry.
+- 2026-09-03 11:15 Fixed the polish group (R1.50-R1.56), which closes the
+  review's list. The arena's replay line names every hull it fielded: the
+  lobby stopped overwriting the stream head with its mint cursor, and the
+  closing line prints `--seed <head>` plus one `--ship team:style:seed` per
+  slot (verified live - re-running the printed line fields the same 151/204
+  matchup). The run-level deadline counts `Time<Real>`, held by a test that
+  pauses the game clock, and the docs now name the clock both timers read and
+  the one place a loop capture makes them frames. `click_named` holds its aim
+  instead of re-issuing it, the script is an `Arc<[Step]>`, and the four
+  hand-spelled clicks across the fleet are `click_named` beats waiting on what
+  the click was FOR. The three NOVA OS predicates live in `nova_debug::harness`
+  once; `REACT_SECS`/`LOAD_SECS` are the fleet's own deadlines.
+  Two defects the fleet runs turned up on the way, both fixed here and both
+  recorded in REVIEW.md: R1.49's own regression left `ScriptedCameraTransform`
+  on a camera whose pose was removed, so no script could aim it again
+  (`screenshot_editor` stalled); and `system_field_controls` compared a
+  meters-declared row step against the probe's world-unit pose.
