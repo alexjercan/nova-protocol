@@ -390,11 +390,13 @@ the `nova_autopilot` crate and are documented on
 [The automation harness](automation-harness.md). This page only shows the run
 recipes; that page is the contract.
 
-Harness runs are SILENT: any harness env (`NOVA_AUTOPILOT`,
-`NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` - Xvfb hides the
-window but not the speakers, and nobody listens to a scripted run. The
-volume SETTING is untouched (persistence and the settings menu never see
-the mute). `NOVA_MUTE=0` forces sound through a harness run;
+Harness runs are SILENT and fly on the DEFAULTS: any harness env
+(`NOVA_AUTOPILOT`, `NOVA_CAPTURE`) zeroes the audio output via `HarnessMute` -
+Xvfb hides the window but not the speakers, and nobody listens to a scripted run
+- and makes `SettingsStorePlugin` inert, so the run loads no `settings.ron`,
+saves none, and applies no window mode. Both read the same pair through
+`nova_gameplay::harness_env_active`. The volume SETTING is untouched (the mute
+is an output mask; persistence and the settings menu never see it). `NOVA_MUTE=0` forces sound through a harness run;
 `NOVA_MUTE=1` mutes a normal one, and the game binary's `--mute` flag does the
 same - see the outputs-off pair above.
 
@@ -781,7 +783,10 @@ probe-owned profile under its own run dir - `profile/mods`
 (`NOVA_MODDING_CACHE_ROOT`, the downloaded-mod cache and its `installed.mods.ron`),
 `profile/data` (`XDG_DATA_HOME`) and `profile/config` (`XDG_CONFIG_HOME`, where
 `enabled_mods.ron` and `settings.ron` live) - and the tree is wiped at the start
-of each run. Without it, a mod cached in a structure an older commit cannot
+of each run. `settings.ron` is belt and braces there: every probe child run
+carries `NOVA_AUTOPILOT`, which makes the settings store inert, so a run reads
+no `settings.ron` at all and writes none. The sandbox is what isolates the mod
+state. Without it, a mod cached in a structure an older commit cannot
 parse, or a saved enabled-mod set, fails or shifts a run for reasons unrelated
 to the code under measurement. Shipped content is untouched: `assets/` and
 `assets/mods.catalog.ron` load exactly as they do for a player, only YOUR saved

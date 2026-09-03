@@ -16,7 +16,6 @@ use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{KeyGlyphs, NovaHudAssets};
 use nova_input::prelude::*;
-use nova_os_ui::prelude::NovaOsMonitorSettings;
 use nova_ship::prelude::{
     SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
     SpaceshipTurretInputBinding,
@@ -30,8 +29,6 @@ use nova_ui::{
     },
 };
 use serde::{Deserialize, Serialize};
-
-use crate::settings_store::{load_settings, save_settings, PersistedSettings};
 
 /// Marker for the main-menu Settings panel, toggled by the Settings button.
 #[derive(Component)]
@@ -483,7 +480,8 @@ pub(crate) fn refresh_settings_tab(
                     &rebind,
                     group.0,
                     glyphs,
-                    (*sensitivity, *skin),
+                    *sensitivity,
+                    *skin,
                 );
             }
             SettingsTabKind::Interface => build_interface_tab(list, *skin),
@@ -799,7 +797,8 @@ fn build_controls_tab(
     rebind: &PendingRebind,
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
-    mouse: (MouseSensitivity, UiSkin),
+    sensitivity: MouseSensitivity,
+    skin: UiSkin,
 ) {
     let groups = controls_groups(bindings);
     let Some(open) = open_group_of(&groups, open_group) else {
@@ -807,7 +806,6 @@ fn build_controls_tab(
     };
 
     if open == MOUSE_GROUP {
-        let (sensitivity, skin) = mouse;
         for path in MousePath::ALL {
             build_sensitivity_row(list, path, sensitivity.percent(path), skin);
         }
@@ -1242,181 +1240,6 @@ const CHIP_WIDTH: f32 = 132.0;
 /// art, so this is the ONE number that sets the row rhythm.
 const CHIP_GLYPH_PX: f32 = 20.0;
 
-/// Load the persisted settings once at startup and write them into the live
-/// resources. A missing/corrupt store is a no-op (the resources keep their
-/// defaults). Runs before the first `Update`, so nova_gameplay's apply systems
-/// (gated on `resource_changed`) push the loaded values onto the engine on the
-/// first frame.
-pub(crate) fn load_persisted_settings(
-    mut volume: ResMut<MasterVolume>,
-    mut interface_volume: ResMut<InterfaceVolume>,
-    mut world_volume: ResMut<WorldVolume>,
-    mut music_volume: ResMut<MusicVolume>,
-    mut sensitivity: ResMut<MouseSensitivity>,
-    mut quality: ResMut<GraphicsQuality>,
-    mut skin: ResMut<UiSkin>,
-    mut monitor: ResMut<NovaOsMonitorSettings>,
-    mut window_mode: ResMut<WindowModeSetting>,
-    mut bindings: ResMut<InputBindings>,
-) {
-    let Some(saved) = load_settings() else {
-        return;
-    };
-    *volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
-    *interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
-    *world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
-    *music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
-    *sensitivity = saved.mouse_sensitivity();
-    *quality = saved.graphics_quality;
-    *skin = saved.ui_skin;
-    *monitor = saved.nova_os_monitor();
-    *window_mode = saved.window_mode;
-    // Before the first rig is built: the flight rig spawns with the player
-    // ship, which is a scenario away, so a saved keybind is on the table by
-    // the time anything reads it.
-    bindings.apply_overrides(&saved.keybinds);
-}
-
-/// Put the chosen window mode on the primary window. Native only - see
-/// [`WindowModeSetting`].
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn apply_window_mode(
-    setting: Res<WindowModeSetting>,
-    mut windows: Query<&mut Window, With<bevy::window::PrimaryWindow>>,
-) {
-    use bevy::window::{MonitorSelection, WindowMode};
-
-    if !setting.is_changed() {
-        return;
-    }
-    let mode = match *setting {
-        WindowModeSetting::Windowed => WindowMode::Windowed,
-        WindowModeSetting::Borderless => {
-            WindowMode::BorderlessFullscreen(MonitorSelection::Current)
-        }
-    };
-    for mut window in &mut windows {
-        if window.mode != mode {
-            window.mode = mode;
-        }
-    }
-}
-
-/// Idle frames a settings value must hold steady before it is written to disk.
-/// Debounces the volume slider, whose drag mutates `MasterVolume` every frame:
-/// without this, one drag would trigger a full config write per frame. ~0.25s at
-/// 60fps - imperceptible for a settings save, and it collapses a whole drag (or
-/// a track-click, which emits no final `ValueChange`) into a single write.
-pub(crate) const SETTINGS_SAVE_DEBOUNCE_FRAMES: u32 = 15;
-
-/// Persist the settings a short beat after the player stops editing. Any change
-/// (re)arms the debounce; the save fires once the value has held steady for
-/// [`SETTINGS_SAVE_DEBOUNCE_FRAMES`]. The initial add (startup load /
-/// `init_resource`) is skipped via `is_added`, so a launch that changes nothing
-/// never arms the debounce and never rewrites the store. `Local` holds the idle
-/// countdown: `None` = nothing pending, `Some(n)` = `n` idle frames so far.
-pub(crate) fn persist_settings_on_change(
-    settings: LiveSettings,
-    mut pending: ResMut<PendingSettingsSave>,
-) {
-    if settings.edited() {
-        // A fresh edit: (re)start the debounce, coalescing a drag's per-frame
-        // changes into one pending save.
-        pending.idle_frames = Some(0);
-        return;
-    }
-    if let Some(frames) = pending.idle_frames {
-        if frames + 1 >= SETTINGS_SAVE_DEBOUNCE_FRAMES {
-            save_settings(&settings.snapshot());
-            pending.idle_frames = None;
-        } else {
-            pending.idle_frames = Some(frames + 1);
-        }
-    }
-}
-
-/// Every resource the store holds, as one system parameter: the two systems
-/// that write the file both need all of them, and a settings added to one and
-/// not the other is how a value silently stops being saved.
-#[derive(bevy::ecs::system::SystemParam)]
-pub(crate) struct LiveSettings<'w> {
-    volume: Res<'w, MasterVolume>,
-    interface_volume: Res<'w, InterfaceVolume>,
-    world_volume: Res<'w, WorldVolume>,
-    music_volume: Res<'w, MusicVolume>,
-    sensitivity: Res<'w, MouseSensitivity>,
-    quality: Res<'w, GraphicsQuality>,
-    skin: Res<'w, UiSkin>,
-    monitor: Res<'w, NovaOsMonitorSettings>,
-    window_mode: Res<'w, WindowModeSetting>,
-    bindings: Res<'w, InputBindings>,
-}
-
-impl LiveSettings<'_> {
-    /// Whether the player moved something this frame. The initial add (startup
-    /// load / `init_resource`) does not count: a launch that changes nothing
-    /// must not rewrite the store.
-    fn edited(&self) -> bool {
-        let moved = |changed: bool, added: bool| changed && !added;
-        moved(self.volume.is_changed(), self.volume.is_added())
-            || moved(
-                self.interface_volume.is_changed(),
-                self.interface_volume.is_added(),
-            )
-            || moved(self.world_volume.is_changed(), self.world_volume.is_added())
-            || moved(self.music_volume.is_changed(), self.music_volume.is_added())
-            || moved(self.sensitivity.is_changed(), self.sensitivity.is_added())
-            || moved(self.quality.is_changed(), self.quality.is_added())
-            || moved(self.skin.is_changed(), self.skin.is_added())
-            || moved(self.monitor.is_changed(), self.monitor.is_added())
-            || moved(self.window_mode.is_changed(), self.window_mode.is_added())
-            || moved(self.bindings.is_changed(), self.bindings.is_added())
-    }
-
-    /// The persistable form of what is live right now.
-    fn snapshot(&self) -> PersistedSettings {
-        PersistedSettings::from_resources(
-            *self.volume,
-            *self.interface_volume,
-            *self.world_volume,
-            *self.music_volume,
-            *self.sensitivity,
-            *self.quality,
-            *self.skin,
-            *self.monitor,
-            *self.window_mode,
-            &self.bindings,
-        )
-    }
-}
-
-/// The debounce countdown, as a resource rather than a `Local` so
-/// [`flush_settings_on_exit`] can see that a write is owed. `None` = nothing
-/// pending, `Some(n)` = `n` idle frames so far.
-#[derive(Resource, Default)]
-pub(crate) struct PendingSettingsSave {
-    idle_frames: Option<u32>,
-}
-
-/// Write an owed settings save before the process goes away.
-///
-/// The debounce is [`SETTINGS_SAVE_DEBOUNCE_FRAMES`] (~0.25s) and the Exit
-/// button writes [`AppExit`] the same frame it is clicked, so a value edited
-/// just before quitting is otherwise lost. Runs in `Last`, which the app
-/// runner drains `AppExit` after.
-pub(crate) fn flush_settings_on_exit(
-    mut exits: MessageReader<AppExit>,
-    settings: LiveSettings,
-    mut pending: ResMut<PendingSettingsSave>,
-) {
-    if exits.is_empty() || pending.idle_frames.is_none() {
-        return;
-    }
-    exits.clear();
-    save_settings(&settings.snapshot());
-    pending.idle_frames = None;
-}
-
 /// Mirror a volume slider's value onto its track's resource as it is dragged.
 /// bevy's `slider_self_update` (registered alongside this) commits the value
 /// onto the slider's own `SliderValue`; this copies it to the resource, whose
@@ -1530,9 +1353,22 @@ pub(crate) fn sync_volume_slider(
     for (value, slider) in &sliders {
         for (mut text, label) in &mut labels {
             if label.0 == slider.0 {
-                text.0 = volume_label(value.0);
+                set_label(&mut text, volume_label(value.0));
             }
         }
+    }
+}
+
+/// Write `reading` onto a label only when it differs.
+///
+/// Both sync systems run every frame the tab is open, by design: the label is
+/// spawned by the tab body and a `Changed<SliderValue>` gate would leave a
+/// freshly built one blank. So the guard is on the WRITE - an unconditional
+/// assignment marks every readout changed each frame and hands the layout pass
+/// work it has nothing to do with.
+fn set_label(text: &mut Mut<Text>, reading: String) {
+    if text.0 != reading {
+        text.0 = reading;
     }
 }
 
@@ -1545,7 +1381,7 @@ pub(crate) fn sync_sensitivity_slider(
     for (value, slider) in &sliders {
         for (mut text, label) in &mut labels {
             if label.0 == slider.0 {
-                text.0 = percent_label(value.0);
+                set_label(&mut text, percent_label(value.0));
             }
         }
     }

@@ -77,3 +77,13 @@ Red team and feel skipped on the owner's instruction.
   first lance of a session no longer builds its graphs on the frame it fires.
   R1.26 stands as the owner decided: two instances per shot, revisit only on a
   measured spike.
+- 2026-09-03 10:15 Fixed the settings group (R1.31-R1.39). The store now
+  carries its own root (`SettingsStoreRoot`, `None` = the platform store), so
+  no test moves the process-wide `NOVA_CONFIG_ROOT` and the flake it caused is
+  0 of 60 where it was 183 of 300; the store's systems moved out of the panel
+  module into `settings_store.rs`, which had been importing them back. The
+  bench and `perf_web` now declare their stores inert, and the rebind range
+  asserts that gate instead of asserting its vacuous consequence.
+  `system_headless_drag` grew a MOUSE beat that reads the slider, the resource
+  and the rig's live `Scale`. R1.32's load/save split stays open; R1.39 is
+  accepted with a NOTE, as the owner asked.

@@ -60,6 +60,27 @@ pub fn platform() -> Option<PlatformStorage> {
     PlatformStorage::available()
 }
 
+/// [`platform`], rooted at `root` when the caller names one.
+///
+/// The seam a test or a tool writes through so it cannot touch the player's
+/// real config, and the reason it is here rather than at the call site: a root
+/// is a NATIVE idea. The web store is the origin's own localStorage and has
+/// nowhere else to go, so `root` is ignored there.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn platform_at(root: Option<&std::path::Path>) -> Option<PlatformStorage> {
+    match root {
+        Some(root) => Some(NativeStorage::at(root)),
+        None => platform(),
+    }
+}
+
+/// [`platform`]; see the native twin. A web store has one root and it is the
+/// origin's, so the argument is read and dropped.
+#[cfg(target_arch = "wasm32")]
+pub fn platform_at(_root: Option<&std::path::Path>) -> Option<PlatformStorage> {
+    platform()
+}
+
 /// Files under a config root, one RON file per key.
 #[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Clone)]
@@ -222,7 +243,7 @@ pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()>
 pub mod prelude {
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::CONFIG_ROOT_ENV;
-    pub use super::{platform, PlatformStorage, Storage, StorageError};
+    pub use super::{platform, platform_at, PlatformStorage, Storage, StorageError};
 }
 
 // The native backend is exercised directly below. The wasm localStorage

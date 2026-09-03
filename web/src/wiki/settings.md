@@ -90,3 +90,33 @@ They are the way out of every other screen, including this one.
 
 A section's weapon or thruster trigger is not here - that is per ship, assigned
 in the editor or in the ship computer's SHIP app.
+
+### Mouse
+
+**MOUSE** is a group in the same list, and the one page with nothing to rebind
+on it: three sliders, and no **Reset Defaults** - that button is a keybinding
+operation and would not put a sensitivity back.
+
+| Slider | Range | Default | What it scales |
+| --- | --- | --- | --- |
+| Look | 100-300% | 200% | Ship steering, free look and turret aim |
+| RCS | 100-500% | 100% | Mouse-driven translation, the docking fine-adjust |
+| Free Camera | 100-300% | 200% | Mouse look on the free (WASD) camera |
+
+Each `100%` is that slider's OWN baseline, not a shared number - the three gains
+behind them differ by two orders of magnitude, so a single scale would be
+unreadable. Only the mouse is affected; the gamepad sticks and the keyboard have
+their own curves and are untouched.
+
+A slider moved from the PAUSE menu takes effect on the ship you are already
+flying - there is no reload and no ship to respawn.
+
+<details class="explain">
+<summary>Why Look 200% is the new default</summary>
+
+Mouse look shipped before this page existed, on one fixed gain. That gain is
+what `300%` is now, and it was too fast for most pointers - so `100%` is a third
+of it and the default sits at `200%`, about two thirds of what mouse look used
+to feel like. If the old speed was right for you, put Look at `300%`.
+
+</details>

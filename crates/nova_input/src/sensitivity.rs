@@ -183,14 +183,13 @@ impl Default for MouseSensitivity {
 }
 
 impl MouseSensitivity {
-    /// One path's raw gain, clamped - so a value written straight from a store
-    /// can never leave the range the slider offers.
+    /// One path's raw gain, clamped.
+    ///
+    /// The fields are public and a bare struct literal is a legal way to build
+    /// one, so this read is where the range is finally guaranteed. Everything
+    /// that goes through a setter is already inside it.
     pub fn raw(&self, path: MousePath) -> f32 {
-        path.range().clamp_raw(match path {
-            MousePath::Look => self.look,
-            MousePath::Rcs => self.rcs,
-            MousePath::FreeCamera => self.free_camera,
-        })
+        path.range().clamp_raw(self.stored(path))
     }
 
     /// One path's gain as the percentage the settings row shows.
@@ -200,17 +199,34 @@ impl MouseSensitivity {
 
     /// Move one path, in raw engine units.
     pub fn set_raw(&mut self, path: MousePath, raw: f32) {
-        let raw = path.range().clamp_raw(raw);
+        self.put(path, path.range().clamp_raw(raw));
+    }
+
+    /// Move one path from the percentage a slider reports.
+    ///
+    /// [`MouseSensitivityRange::raw`] clamps the percentage on the way in, so
+    /// what it returns is already in range and does not go through
+    /// [`Self::set_raw`]'s clamp a second time.
+    pub fn set_percent(&mut self, path: MousePath, percent: f32) {
+        self.put(path, path.range().raw(percent));
+    }
+
+    /// The field behind `path`, exactly as stored.
+    fn stored(&self, path: MousePath) -> f32 {
+        match path {
+            MousePath::Look => self.look,
+            MousePath::Rcs => self.rcs,
+            MousePath::FreeCamera => self.free_camera,
+        }
+    }
+
+    /// Write `raw` into `path`'s field. The callers own the clamp.
+    fn put(&mut self, path: MousePath, raw: f32) {
         match path {
             MousePath::Look => self.look = raw,
             MousePath::Rcs => self.rcs = raw,
             MousePath::FreeCamera => self.free_camera = raw,
         }
-    }
-
-    /// Move one path from the percentage a slider reports.
-    pub fn set_percent(&mut self, path: MousePath, percent: f32) {
-        self.set_raw(path, path.range().raw(percent));
     }
 }
 
@@ -323,8 +339,8 @@ mod tests {
             "a value that is not a number reads as the default"
         );
 
-        // The READ clamps too, so a resource written past the setters - which is
-        // what a `*resource = ..` from the store load is - still cannot escape.
+        // The READ clamps too: the fields are public, so a bare struct literal
+        // is a legal way to build one and no setter saw those numbers.
         let corrupt = MouseSensitivity {
             look: 99.0,
             rcs: 0.0,

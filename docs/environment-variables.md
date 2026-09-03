@@ -44,15 +44,24 @@ the stall semantics.
 
 | Variable | Gates | For |
 | --- | --- | --- |
-| `NOVA_AUTOPILOT` | arms the scripted state driver; unset, the plugin adds nothing | harness |
+| `NOVA_AUTOPILOT` | arms the scripted state driver; unset, the plugin adds nothing. Also makes the settings store INERT | harness |
 | `NOVA_AUTOPILOT_DEADLINE` | seconds before the completion watcher error-exits naming the laggards | harness |
-| `NOVA_CAPTURE` | puts a script on its CAPTURE path - its shot beats write PNGs, its loops record | harness |
+| `NOVA_CAPTURE` | puts a script on its CAPTURE path - its shot beats write PNGs, its loops record. Also makes the settings store INERT | harness |
 | `NOVA_CAPTURE_DIR` | directory relative capture paths stage under; absolute paths ignore it | harness |
 
 `NOVA_CAPTURE` arms the SHOTS, never a driver, so a capturing run sets
 `NOVA_AUTOPILOT` too and one script owns the window. `NOVA_CAPTURE_DIR` is also
 read by the scenario `Screenshot` action, which is the in-game photo-mode lever
 rather than a harness one.
+
+Either of the two also silences the run and pins its settings. `SettingsStorePlugin::from_env`
+reads the same pair the mute does (`HARNESS_ENVS`, through
+`nova_gameplay::harness_env_active`) and goes INERT: no load at startup, no
+save on change, no window mode applied. So a scripted run flies on the DEFAULTS
+whatever the launching player has saved - which is what makes a capture the
+same picture on every machine - and cannot write that player's `settings.ron`.
+A wasm build has no environment to read, so an app that must be inert there
+(`nova_perf_web`) adds the plugin itself with `live: false`.
 
 ## Measurement: what a run records about itself
 
@@ -131,6 +140,10 @@ Owned by `nova_assets`. See `/create/publish-a-mod/` for the portal.
 
 `NOVA_CONFIG_ROOT` is deliberately NOT in the modding family. It is the
 settings store root, and its name is already right.
+
+It is the store root for a whole PROCESS, so it is a tooling lever, not a test
+one: a test that repoints it repoints every test running beside it. A test
+names its own root on `SettingsStorePlugin` instead.
 
 ## The menu
 

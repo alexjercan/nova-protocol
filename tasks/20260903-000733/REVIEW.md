@@ -294,7 +294,7 @@ Findings:
 
 ### settings (e920c49e, e9c9e3c6)
 
-- [ ] R1.31 (MAJOR, easy) `crates/nova_menu/src/tests/settings_store.rs:53-56,95-98`,
+- [x] R1.31 (MAJOR, easy) `crates/nova_menu/src/tests/settings_store.rs:53-56,95-98`,
   `crates/nova_menu/src/tests/support.rs:69-103` - the two store tests set
   the process-wide `NOVA_CONFIG_ROOT` to a root holding a non-default store
   (look 300 percent, quality Low), and every `app()` fixture reads the env
@@ -309,21 +309,41 @@ Findings:
   `save_settings` (`None` = env) with the store tests passing their own
   root and a Drop guard; or move the store tests to an integration binary
   under `crates/nova_menu/tests/`.
-- [ ] R1.32 (MAJOR, easy or decision) `examples/playable/railgun_wake_bench.rs:706-712`,
+
+  TAKEN: the explicit root, as `SettingsStoreRoot` - a resource the plugin
+  inserts from its own `root: Option<PathBuf>` field, with `None` meaning
+  the platform store. `nova_assets::storage::platform_at` is the seam
+  (native picks the root, wasm has one origin and ignores it). No fixture
+  in `nova_menu` touches `NOVA_CONFIG_ROOT` now, the mutex and the `Once`
+  are gone, and `app()` adds the store itself with `live: true` so the
+  fixture no longer reads the process env either. Verified: the
+  reproduction at `--test-threads=3` is 0 of 60 (was 183 of 300);
+  `NOVA_CAPTURE=1` and `NOVA_AUTOPILOT=1` both run the full
+  `-p nova_menu --lib` green.
+- [x] R1.32 (MAJOR, easy or decision) `examples/playable/railgun_wake_bench.rs:706-712`,
   `crates/nova_menu/src/settings_store.rs:269-275` - a hand-run bench (no
   harness env) carries a live store; pressing G writes `GraphicsQuality`
   and `persist_settings_on_change` saves the bench's tier into the player's
   `settings.ron`. At v0.12.0 a `with_game_plugins` app had no store. Easy:
   the bench keeps its own tier resource. Decision: split load from save so
   saving exists only where a settings panel does.
-- [ ] R1.33 (MAJOR, easy) `web/src/wiki/settings.md:69-78`, `web/src/wiki/keybinds.md:3` -
+
+  TAKEN, the easy road, and not the one written above: the bench adds
+  `SettingsStorePlugin { live: false }` itself, which `AppBuilder`'s guard
+  then honours. A tier resource of the bench's own would have left the
+  reading dependent on the developer's saved preset, which a measurement
+  tool must not be; inert closes both directions in one line. The
+  load/save split stays OPEN - it is the only thing that would let a
+  `with_game_plugins` app read the player's settings without being able to
+  write them, and nothing here needed that yet.
+- [x] R1.33 (MAJOR, easy) `web/src/wiki/settings.md:69-78`, `web/src/wiki/keybinds.md:3` -
   the Controls page does not know the MOUSE group exists, and the
   mouse-look default change (v0.12.0 Scale 0.001, now two thirds of that at
   the 200 percent default) has no player note. Change: a Mouse subsection
   (Look 100-300 percent default 200, RCS 100-500 default 100, Free Camera
   100-300 default 200; mouse only; live from the pause menu; no Reset on
   that page) and MOUSE in the group lists.
-- [ ] R1.34 (MAJOR, easy) `docs/environment-variables.md:47,49`,
+- [x] R1.34 (MAJOR, easy) `docs/environment-variables.md:47,49`,
   `docs/development.md:393-398,783-790`,
   `crates/nova_gameplay/src/settings.rs:132-138` - `NOVA_AUTOPILOT` and
   `NOVA_CAPTURE` gained a second effect (the store is inert: no load, no
@@ -333,18 +353,18 @@ Findings:
   assembly order and says persistence is the menu's. Change: document the
   gate in both env rows, the SILENT paragraph and the `HARNESS_ENVS`
   docstring; qualify the probe profile paragraph; add the plugin row.
-- [ ] R1.35 (MINOR, easy) `crates/nova_menu/src/settings.rs:1541-1551` -
+- [x] R1.35 (MINOR, easy) `crates/nova_menu/src/settings.rs:1541-1551` -
   `sync_sensitivity_slider` rewrites three Text labels every frame the
   MOUSE page is open, copying the volume slider's shape (`:1526-1536`).
   Change: `Changed<SliderValue>` as `crates/nova_ui/src/slider.rs:209-222`
   does, or compare before assigning.
-- [ ] R1.36 (MINOR, easy) `crates/nova_menu/src/settings_store.rs:238-244`,
+- [x] R1.36 (MINOR, easy) `crates/nova_menu/src/settings_store.rs:238-244`,
   `crates/nova_perf_web/src/main.rs:31-49` - `from_env` cannot be inert on
   wasm (`var_os` is always `None`), so `perf_web` carries a live store and
   a stored blob on the same origin overwrites `?quality=` at startup; the
   "inert under a scripted run" rustdoc at `crates/nova_core/src/lib.rs:381-383`
   does not hold there. Change: `perf_web` passes `SettingsStorePlugin { live: false }`.
-- [ ] R1.37 (MINOR, easy) `examples/systems/system_headless_rebind.rs:23-26,165-176`,
+- [x] R1.37 (MINOR, easy) `examples/systems/system_headless_rebind.rs:23-26,165-176`,
   `examples/systems/system_headless_drag.rs:25-27` - the marker
   `outcome: the rebind store starts isolated` is vacuous: under
   `NOVA_AUTOPILOT` the store is inert and load never runs, so the overrides
@@ -352,7 +372,18 @@ Findings:
   Change: drop the marker and the `set_var` with a note, or assert the
   gate; extend `system_headless_drag` with a MOUSE beat, a Scale readback
   and a catalog row.
-- [ ] R1.38 (MINOR, easy) craft: the write path clamps the same value three
+
+  TAKEN: the marker ASSERTS the gate instead of being dropped. A new
+  `SettingsStoreLive` resource records what the plugin decided, the rebind
+  range asserts it is inert (the empty override set is asserted with it,
+  as the consequence it is), and the slug is now
+  `the rebind run's settings store is inert`. Both examples' own
+  `NOVA_CONFIG_ROOT` writes are gone - the gate is what isolates them, and
+  it is now checked rather than hoped for. `system_headless_drag` gained
+  four beats to CONTROLS -> MOUSE and a second drag with three readbacks:
+  the slider percent, `MouseSensitivity`, and the live `Scale` on the
+  flight rig. Run: 200% -> 228.04%, both new markers filed.
+- [x] R1.38 (MINOR, easy) craft: the write path clamps the same value three
   times and the read a fourth (`crates/nova_input/src/sensitivity.rs:188-194,202-214`),
   with a comment at `:326-327` naming a store-load writer that does not
   exist; `settings_store.rs:122-124` and `:155-157` read one value two
@@ -366,11 +397,15 @@ Findings:
   (`crates/nova_core/src/lib.rs:378-389`) and the header of
   `tests/settings_store.rs:4` claims no example builds a menu while
   `system_outcomes.rs:66` does.
-- [ ] R1.39 (MINOR, decision) `crates/nova_menu/src/settings.rs:1318-1334` -
+- [x] R1.39 (MINOR, decision) `crates/nova_menu/src/settings.rs:1318-1334` -
   the 15-frame debounced save can `write_atomic` (fsync) on the main
   thread in the first gameplay frames after Resume. Pre-existing path,
   now with one more resource behind it. Options: `IoTaskPool`, or flush on
   `OnExit(Paused)`.
+
+  ACCEPTED (the owner's call): a NOTE sits where the save fires, naming
+  the two fixes. The system moved to `settings_store.rs` with the rest of
+  the store, so the note is at `persist_settings_on_change` there.
 
 ### units to meters (fe92322a..540f5834, f3952cf8, 40c068d2)
 
@@ -691,6 +726,8 @@ These need a call first:
    own id.
 3. R1.23 - warm the wake graphs at scene load.
 4. R1.26 - two instances per shot are fine for now.
-5. R1.32 - undecided.
+5. R1.32 - undecided. Taken as the review's own easy option, stated under
+   the finding: the bench declares its store inert. The load/save split is
+   still the owner's to make.
 6. R1.39 - fine for now; leave a NOTE where the fsync lands.
 7. R1.49 - derive only if changed.

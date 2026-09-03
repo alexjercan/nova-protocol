@@ -19,7 +19,7 @@ use nova_ui::{
 };
 
 use super::support::{
-    all_texts, entity_by_name, mods_app, settings_store_lock, shared_config_root,
+    all_texts, entity_by_name, mods_app, mods_app_storing_settings_at, scratch_store,
 };
 use crate::settings::{
     ResetBindings, SensitivityLabel, SensitivitySlider, SettingsActiveTab, SettingsControlsGroup,
@@ -395,15 +395,10 @@ fn the_old_coming_soon_button_is_gone() {
 /// `flush_settings_on_exit` and the store stays at the pre-edit value.
 #[test]
 fn a_setting_edited_just_before_quitting_is_still_saved() {
-    let _guard = settings_store_lock();
-    let store = std::env::temp_dir().join(format!("nova_menu_exit_flush_{}", std::process::id()));
+    let store = scratch_store("exit_flush");
     let _ = std::fs::remove_dir_all(&store);
-    // SAFETY-BY-LOCK: `settings_store_lock` is held, so this is the only test
-    // pointing the process-wide config root away from the shared scratch one.
-    let shared_store = shared_config_root();
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &store) };
 
-    let mut app = mods_app();
+    let mut app = mods_app_storing_settings_at(&store);
     app.world_mut().insert_resource(MasterVolume(0.42));
     app.update();
     assert!(
@@ -425,10 +420,6 @@ fn a_setting_edited_just_before_quitting_is_still_saved() {
         saved.master_volume
     );
 
-    // RESTORE, do not remove: `isolate_the_config_store` sets this behind a
-    // `Once`, so a removal here is permanent and every later fixture in this
-    // binary would read the developer's real settings.ron.
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &shared_store) };
     let _ = std::fs::remove_dir_all(&store);
 }
 

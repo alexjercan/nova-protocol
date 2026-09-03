@@ -13,7 +13,7 @@ real code lives under `crates/`.
 |-----------------|----------------|
 | `nova-protocol` (root) | `src/main.rs` = clap CLI + entrypoint. `src/lib.rs` re-exports `nova_core`. Runnable examples in `examples/`. |
 | `nova_core`     | Thin wiring only: `AppBuilder` assembles every plugin (window/log/asset setup, status UI). No gameplay logic. |
-| `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in `nova_input`, one binding group at a time) is shared by both entry points and persisted cross-platform in `settings_store` (RON file / localStorage), keybind overrides included. |
+| `nova_menu`     | Main menu (owns the `MainMenu` state UI: New Game / Sandbox / Settings / Exit) and the ESC pause overlay. Buttons write `GameMode` and hand off to `Playing`. The Settings modal (audio volume, graphics preset, interface skin, and the Controls tab that REBINDS every action in `nova_input`, one binding group at a time) is shared by both entry points. Persistence is NOT the menu's: `settings_store` owns `SettingsStorePlugin`, which `nova_core` adds to every app, and it reads and writes the same cross-platform store (RON file / localStorage), keybind overrides included. |
 | `nova_editor`   | The ship editor scene (`NovaEditorPlugin`). Comes up on entering `Playing`, only in `GameMode::Sandbox`. |
 | `nova_gameplay` | The shared gameplay layer under the ship: `integrity/` (health, the two damage readings `erosion` and `carve`, and the debris a carve leaves in `spew`/`chunk`), `damage`, `gravity` (gravity wells), `markers` (the entity markers the ship tags with and this layer reads), `math`, `audio` (the bus-and-route sound engine every voice in the game goes through: `bus` for the four routes and the three volume tracks, `mixing` for the distance rolloff and the cue throttle, `spatial` for the stereo placement, `voice` for the one playback path), `juice`, `shake`, `settings` (`MasterVolume`/`GraphicsQuality` + apply systems; the per-bus `InterfaceVolume`/`WorldVolume`/`MusicVolume` live in `audio/bus`), `mesh` (the procedural `TriangleMeshBuilder`, plus the `SignedField` an asteroid is meshed from and carved in - nothing here takes a finished mesh apart), `transform`, `relations`, `beacon`, `objectives` (the `GameObjectives` list, its panel and the conveyance tags), `lifetime` (`TempEntity`/`DespawnEntity`), `cooldown`, `plugin`. Also owns `GameStates`, `PauseStates`, and the `GameMode` resource. Knows nothing about a ship. |
 | `nova_ship`     | The ship and how it is flown: `sections/` (the modular hull, its ammo, and the authored damage looks in `damage_effects`/`damage_cracks`/`damage_sparks`/`damage_plume`), `input/` (player rigs, the AI pilot and gunner, radar targeting with deliberate lock-on, and the flight and camera action DEFAULTS it registers into `nova_input`), `flight/` (the diegetic controller and its autopilot verbs), `camera/` (the chase-camera controller and the chase/skybox/post/WASD rigs under it), `physics/` (the PD attitude controller) and `ship_audio/` (the soundtrack those five produce). Depends on `nova_gameplay` and never the reverse; `NovaShipPlugin` owns the `SpaceshipSystems` brackets and `nova_core` adds it after `NovaGameplayPlugin`. |
@@ -214,8 +214,12 @@ dropping the plugins that need it.
 gameplay's `SpaceshipSystems` brackets, so it comes after), `NovaScenarioPlugin`,
 then - render-gated, a headless harness run draws neither - `NovaHudPlugin` and
 `NovaOsUiPlugin` (HUD first: the monitor orders itself against
-`NovaHudSystems`), then `NovaEditorPlugin` and `NovaMenuPlugin` (both only when
-no custom game plugins were supplied - the menu fronts the default app and
+`NovaHudSystems`), then `NovaEditorPlugin`, then `SettingsStorePlugin` (EVERY
+app, menu or not: a settings panel is where a value is edited, not what makes it
+apply, so an example that never builds a menu still flies on the player's own
+sensitivities, keybinds, volumes and quality preset - and `from_env` makes it
+inert under a scripted run), then `NovaMenuPlugin` (the editor and the menu only
+when no custom game plugins were supplied - the menu fronts the default app and
 nothing else, so an example that brings its own game plugins goes straight
 `Loading -> Playing`), and finally `DebugPlugin` under the `debug` feature. On
 `OnEnter(GameAssetsStates::Loaded)` it hands off to `MainMenu` (or straight to

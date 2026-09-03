@@ -1,6 +1,6 @@
 # Keybinds
 
-The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. Every one of these is REBINDABLE in-game under **Settings > Controls**, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and `Reset Defaults` puts the whole table back.
+The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; any manual input disengages them immediately. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. Every one of these is REBINDABLE in-game under **Settings > Controls**, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and `Reset Defaults` puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in [Settings](../settings/#mouse).
 
 A dash means the action has no binding on that device.
 

@@ -33,9 +33,11 @@ use nova_ui::{
 /// and [`NewGameScenario`] into scope.
 pub mod prelude {
     pub use super::{
-        ambience::MENU_BACKDROP_ENV, settings::WindowModeSetting,
-        settings_store::SettingsStorePlugin, widgets::MenuCueSystems, NewGameScenario,
-        NovaMenuPlugin,
+        ambience::MENU_BACKDROP_ENV,
+        settings::WindowModeSetting,
+        settings_store::{SettingsStoreLive, SettingsStorePlugin, SettingsStoreRoot},
+        widgets::MenuCueSystems,
+        NewGameScenario, NovaMenuPlugin,
     };
 }
 

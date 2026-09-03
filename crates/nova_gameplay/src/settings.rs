@@ -38,8 +38,8 @@ use crate::juice::prelude::JuiceSettings;
 /// Glob-import surface: `use nova_gameplay::settings::prelude::*`.
 pub mod prelude {
     pub use super::{
-        seed_from_env, GraphicsBudget, GraphicsQuality, HarnessMute, MasterVolume,
-        NovaSettingsPlugin, HARNESS_ENVS, MUTE_ENV, SEED_ENV,
+        harness_env_active, seed_from_env, GraphicsBudget, GraphicsQuality, HarnessMute,
+        MasterVolume, NovaSettingsPlugin, HARNESS_ENVS, MUTE_ENV, SEED_ENV,
     };
 }
 
@@ -137,13 +137,26 @@ pub struct HarnessMute(pub bool);
 /// them, so the drift this duplication invites fails a test.
 pub const HARNESS_ENVS: [&str; 2] = ["NOVA_AUTOPILOT", "NOVA_CAPTURE"];
 
+/// Whether a scripted run is driving this process: any of [`HARNESS_ENVS`] is
+/// present, whatever its value.
+///
+/// The one place that sweep is written. Two subsystems answer to it - the mute
+/// here and the settings store in `nova_menu` - and "a run that mutes itself is
+/// a run whose store is inert" is a property of the pair, not a coincidence of
+/// two identical loops.
+pub fn harness_env_active() -> bool {
+    HARNESS_ENVS
+        .iter()
+        .any(|key| std::env::var_os(key).is_some())
+}
+
 impl HarnessMute {
     fn from_env() -> Self {
         let nova_mute = std::env::var(MUTE_ENV).ok();
-        let harness_env_active = HARNESS_ENVS
-            .iter()
-            .any(|key| std::env::var_os(key).is_some());
-        Self(harness_muted_from(nova_mute.as_deref(), harness_env_active))
+        Self(harness_muted_from(
+            nova_mute.as_deref(),
+            harness_env_active(),
+        ))
     }
 }
 

@@ -33,7 +33,7 @@ pub mod source;
 use bevy::prelude::*;
 
 use crate::{
-    context::ActiveContexts, registry::InputBindings, sensitivity::MouseSensitivityPlugin,
+    context::ActiveContexts, registry::InputBindings, sensitivity::prelude::MouseSensitivityPlugin,
 };
 
 /// Installs the empty [`InputBindings`] table and the mouse sensitivities.

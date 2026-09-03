@@ -1,9 +1,14 @@
 //! `SettingsStorePlugin` on its own: the seam that makes a setting apply in an
 //! app that has no settings panel to edit it in.
 //!
-//! Every example supplies its own game plugins and never builds a menu, so the
+//! Most examples supply their own game plugins and never build a menu, so the
 //! rig here is deliberately menuless - a bare `App` with the store plugin and
 //! nothing else. If the plugin needs a neighbour to load, these fail.
+//!
+//! Both directions are driven through the plugin's own `live` flag and its own
+//! `root`, never through the process environment: a fixture that moves
+//! `NOVA_CONFIG_ROOT` or reads `NOVA_CAPTURE` is one whose result depends on
+//! what is running beside it.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{GraphicsQuality, MasterVolume};
@@ -11,7 +16,7 @@ use nova_input::prelude::{MousePath, MouseSensitivity};
 
 use crate::{
     settings_store::{PersistedSettings, SettingsStorePlugin, KEY},
-    tests::support::{settings_store_lock, shared_config_root},
+    tests::support::scratch_store,
 };
 
 /// A store of this test's own, with `look` pushed to the top of its range and
@@ -28,11 +33,14 @@ fn store_a_played_in_settings(root: &std::path::Path) -> PersistedSettings {
     saved
 }
 
-/// A menuless app: the store plugin and nothing else, which is what an example
-/// built with `with_game_plugins` gets.
-fn menuless_app(live: bool) -> App {
+/// A menuless app storing at `root`: the store plugin and nothing else, which
+/// is what an example built with `with_game_plugins` gets.
+fn menuless_app(live: bool, root: &std::path::Path) -> App {
     let mut app = App::new();
-    app.add_plugins(SettingsStorePlugin { live });
+    app.add_plugins(SettingsStorePlugin {
+        live,
+        root: Some(root.to_path_buf()),
+    });
     app
 }
 
@@ -45,15 +53,11 @@ fn menuless_app(live: bool) -> App {
 /// an example never has one.
 #[test]
 fn a_menuless_app_boots_on_the_saved_settings() {
-    let _guard = settings_store_lock();
-    let root = std::env::temp_dir().join(format!("nova_menu_store_live_{}", std::process::id()));
+    let root = scratch_store("live");
     let _ = std::fs::remove_dir_all(&root);
-    // SAFETY-BY-LOCK: `settings_store_lock` is held, so no parallel fixture is
-    // reading the config root while it points somewhere else.
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &root) };
     let saved = store_a_played_in_settings(&root);
 
-    let mut app = menuless_app(true);
+    let mut app = menuless_app(true, &root);
     app.update();
 
     let sensitivity = *app.world().resource::<MouseSensitivity>();
@@ -72,7 +76,6 @@ fn a_menuless_app_boots_on_the_saved_settings() {
         "including the ones an example never had before"
     );
 
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, shared_config_root()) };
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -88,14 +91,11 @@ fn a_menuless_app_boots_on_the_saved_settings() {
 /// process-wide state that a parallel fixture in this binary would also see.
 #[test]
 fn an_inert_store_neither_loads_nor_saves() {
-    let _guard = settings_store_lock();
-    let root = std::env::temp_dir().join(format!("nova_menu_store_inert_{}", std::process::id()));
+    let root = scratch_store("inert");
     let _ = std::fs::remove_dir_all(&root);
-    // SAFETY-BY-LOCK: see the sibling test.
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &root) };
     let saved = store_a_played_in_settings(&root);
 
-    let mut app = menuless_app(false);
+    let mut app = menuless_app(false, &root);
     app.update();
 
     assert_eq!(
@@ -125,6 +125,5 @@ fn an_inert_store_neither_loads_nor_saves() {
         on_disk.master_volume
     );
 
-    unsafe { std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, shared_config_root()) };
     let _ = std::fs::remove_dir_all(&root);
 }

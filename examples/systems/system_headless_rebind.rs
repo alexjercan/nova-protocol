@@ -20,9 +20,12 @@
 //!   - Escape both cancels a capture AND toggles the pause overlay
 //!     (`pause.rs:62`), so no beat here uses Escape past the first one.
 //!
-//! The config store is ISOLATED before the app builds: the settings save
-//! debounce plus `flush_settings_on_exit` would otherwise write this run's
-//! rebind into the developer's real `settings.ron` - the exact accident
+//! The store is INERT here, and the first beat asserts it. `NOVA_AUTOPILOT` is
+//! what makes it so (`SettingsStorePlugin::from_env`), and it has to hold in
+//! both directions: a live store would seed the table from the developer's real
+//! `settings.ron` - so this run would not be starting from the defaults it
+//! claims - and the save debounce plus `flush_settings_on_exit` would write
+//! this run's rebind back into it, the exact accident
 //! `nova_menu/src/tests/support.rs` records.
 //!
 //! Run (no display needed):
@@ -46,14 +49,6 @@ fn main() {
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
-    // BEFORE the app builds: `load_persisted_settings` runs at Startup and
-    // would seed the table from the real store; the exit flush would write
-    // back into it.
-    std::env::set_var(
-        "NOVA_CONFIG_ROOT",
-        std::env::temp_dir().join("nova_channel_rebind_config"),
-    );
-
     let mut app = editor_app(
         false,
         Some(StartupScenario::Id("shakedown_run".to_string())),
@@ -73,8 +68,8 @@ fn main() -> bevy::app::AppExit {
             .until(state_is(GameStates::Playing))
             .deadline(STEP_DEADLINE_SECS)
             .add()
-            .step("headless rebind: the store started clean")
-            .on_enter(assert_the_store_is_isolated)
+            .step("headless rebind: the settings store is inert")
+            .on_enter(assert_the_store_is_inert)
             .add()
             .step("headless rebind: ESC opens the pause overlay")
             .on_enter(press_key(KeyCode::Escape))
@@ -160,19 +155,28 @@ fn main_drive_is_bound_to(
     })
 }
 
-/// A leftover override means `NOVA_CONFIG_ROOT` did not isolate, and this run
-/// would be reading the developer's own `settings.ron`.
+/// The gate itself, not its consequence: under `NOVA_AUTOPILOT` the store is
+/// inert, so nothing was loaded and nothing will be written.
+///
+/// The empty override set is the consequence and is asserted with it, but on
+/// its own it proves nothing - an inert store leaves it empty whatever is in
+/// the developer's `settings.ron`, so a broken gate would read as a pass.
 #[cfg(feature = "debug")]
-fn assert_the_store_is_isolated(world: &mut World) {
+fn assert_the_store_is_inert(world: &mut World) {
+    let live = world.resource::<SettingsStoreLive>().0;
+    assert!(
+        !live,
+        "a scripted run must carry an inert settings store - a live one starts \
+         from the developer's own keybinds and ends by overwriting them"
+    );
     assert!(
         world.resource::<InputBindings>().overrides().is_empty(),
-        "the isolated store must start clean - a leftover override means \
-         NOVA_CONFIG_ROOT did not isolate"
+        "an inert store leaves the table on its defaults"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the rebind store starts isolated",
-        serde_json::json!({}),
+        "outcome: the rebind run's settings store is inert",
+        serde_json::json!({ "live": live }),
     );
 }
 

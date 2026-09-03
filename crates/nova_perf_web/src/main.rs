@@ -30,6 +30,15 @@ fn main() {
     let loader_id = scenario_id.clone();
     let mut app = AppBuilder::new()
         .with_game_plugins(move |app: &mut App| {
+            // A measurement run pins every setting at its default. `from_env`
+            // cannot decide this on the web - `var_os` is always `None` there,
+            // so the store would be live - and a blob left in this origin's
+            // localStorage by an earlier run would then load over the
+            // `?quality=` this capture was asked for.
+            app.add_plugins(SettingsStorePlugin {
+                live: false,
+                root: None,
+            });
             let id = loader_id.clone();
             app.add_systems(
                 OnEnter(GameAssetsStates::Loaded),

@@ -20,6 +20,7 @@ use nova_ship::prelude::{camera_bindings, flight_bindings};
 
 use crate::{
     mods::{ModEnableCheckbox, ModRow, ModToggle, SelectedModId},
+    settings_store::SettingsStorePlugin,
     NovaMenuPlugin,
 };
 
@@ -27,38 +28,26 @@ use crate::{
 pub(crate) const TEST_START_ID: &str = "story_start";
 pub(crate) const TEST_BACKDROP_ID: &str = "test_backdrop";
 
-/// Point the settings store at a scratch directory, once per test process.
+/// A scratch settings store of this test's own, named after `what`.
 ///
-/// `NovaMenuPlugin` loads the persisted settings at Startup. Without this the
-/// fixture reads the DEVELOPER'S real `settings.ron`, so a keybind saved by
-/// playing the game (or by a screenshot run) silently rewrites the table these
-/// tests assert on - which is exactly how it was found.
-fn isolate_the_config_store() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        std::env::set_var("NOVA_CONFIG_ROOT", shared_config_root());
-    });
+/// Every fixture below passes one to [`SettingsStorePlugin`] instead of moving
+/// `NOVA_CONFIG_ROOT`. The env var is process-wide, so a test that repoints it
+/// is repointing every test running beside it: that is how a store test holding
+/// a 300 percent look sensitivity made an unrelated panel test read one, and
+/// why the shared root needed a mutex nobody could be held to. A root passed to
+/// the plugin is the fixture's own and races with nothing.
+pub(crate) fn scratch_store(what: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!("nova_menu_store_{what}_{}", std::process::id()))
 }
 
-/// Serializes the tests that swap [`shared_config_root`] out for a store of
-/// their own.
+/// The store every fixture that does not care about persistence reads.
 ///
-/// `NOVA_CONFIG_ROOT` is process-wide and these tests run in parallel threads,
-/// so "the only test that writes the store" cannot be a convention - a second
-/// one arriving would point a running fixture at a directory it never wrote.
-pub(crate) fn settings_store_lock() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    LOCK.lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-/// The scratch root [`isolate_the_config_store`] points the store at.
-///
-/// A test that needs a store of its OWN must put this back when it is done: the
-/// `Once` above fires exactly once per process, so a test that removes
-/// `NOVA_CONFIG_ROOT` instead of restoring it leaves every later fixture
-/// reading the developer's real `settings.ron`.
-pub(crate) fn shared_config_root() -> std::path::PathBuf {
+/// It has to be SOME explicit root: without one the fixture reads the
+/// DEVELOPER's real `settings.ron`, so a keybind saved by playing the game (or
+/// by a screenshot run) silently rewrites the table these tests assert on -
+/// which is exactly how it was found. Nothing writes it, because no fixture
+/// here edits a setting it did not also assert on.
+fn shared_config_root() -> std::path::PathBuf {
     std::env::temp_dir().join("nova_menu_test_config")
 }
 
@@ -67,8 +56,21 @@ pub(crate) fn shared_config_root() -> std::path::PathBuf {
 /// systems (setup_menu_ui spawns plain components; the HUD level is a plain resource
 /// write), so insert `dummy_scenarios()` first - load_menu_ambience reads GameScenarios.
 pub(crate) fn app() -> App {
-    isolate_the_config_store();
+    app_storing_settings_at(shared_config_root())
+}
+
+/// [`app`] with the settings store pointed at a root of the caller's own, for
+/// the tests that assert on what reaches the file.
+pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> App {
     let mut app = App::new();
+    // Before `NovaMenuPlugin`, which adds `SettingsStorePlugin::from_env()`
+    // only when nothing else has: this is what keeps the fixture off the
+    // developer's real store AND off the process env, so `NOVA_CAPTURE=1
+    // cargo test` runs the same store these tests assert on.
+    app.add_plugins(SettingsStorePlugin {
+        live: true,
+        root: Some(root.into()),
+    });
     app.add_plugins(StatesPlugin);
     // Seeded so the backdrop draw is deterministic across runs.
     app.add_plugins(EntropyPlugin::<WyRand>::with_seed(42u64.to_ne_bytes()));
@@ -267,7 +269,16 @@ pub(crate) fn script_backdrop_pose(app: &mut App, camera: Entity) {
 /// with full bundle meta), entered into MainMenu and updated once so the
 /// mods screen's refresh systems have populated the list and details pane.
 pub(crate) fn mods_app() -> App {
-    let mut app = app();
+    dress_as_mods_app(app())
+}
+
+/// [`mods_app`] with the settings store pointed at a root of the caller's own;
+/// see [`app_storing_settings_at`].
+pub(crate) fn mods_app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> App {
+    dress_as_mods_app(app_storing_settings_at(root))
+}
+
+fn dress_as_mods_app(mut app: App) -> App {
     app.insert_resource(dummy_scenarios());
     app.insert_resource(ModCatalog(vec![
         ModInfo {

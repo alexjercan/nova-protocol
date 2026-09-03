@@ -16,14 +16,22 @@
 //!   - `Pointer<*>` auto-propagates, so a press on the track's visual children
 //!     resolves to the slider entity - aiming at the track centre is safe.
 //!
+//! The range then walks to CONTROLS -> MOUSE and drags a second track, the one
+//! setting whose value is not the resource anybody reads: the sliders speak
+//! PERCENTAGES, `MouseSensitivity` stores raw gains, and
+//! `apply_mouse_sensitivity` pushes those onto the `Scale` of every tagged
+//! binding. So the mouse verdict reads all three - the slider, the resource and
+//! the live `Scale` on the flight rig - because a wire client that moved the
+//! slider and never reached the rig would look identical at the first two.
+//!
 //! This range also prints the `ui` census the design record proposes for the
 //! snapshot's `ui` block: with the settings modal open, one JSON object that
 //! says which named widgets are on the screen, where, and which of them are
 //! buttons - what a channel client would read before deciding where to click.
 //!
-//! The config store is ISOLATED before the app builds: the volume change would
-//! otherwise debounce-save into the developer's real `settings.ron`, and the
-//! persisted store would also make the STARTING volume nondeterministic.
+//! The store is INERT under `NOVA_AUTOPILOT`, which is what keeps the STARTING
+//! volume deterministic and stops the drag debounce-saving into the developer's
+//! real `settings.ron`. `system_headless_rebind` asserts that gate.
 //!
 //! Run (no display needed):
 //! ```text
@@ -33,6 +41,10 @@
 
 #[cfg(feature = "debug")]
 use bevy::{prelude::*, ui::Pressed, ui_widgets::SliderValue, window::PrimaryWindow};
+#[cfg(feature = "debug")]
+use bevy_enhanced_input::prelude::Scale;
+#[cfg(feature = "debug")]
+use nova_input::prelude::{MousePath, MouseSensitivity};
 #[cfg(feature = "debug")]
 use nova_protocol::nova_os_ui::nova_os::prelude::NovaOsTerminal;
 #[cfg(feature = "debug")]
@@ -46,11 +58,6 @@ fn main() {
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
-    std::env::set_var(
-        "NOVA_CONFIG_ROOT",
-        std::env::temp_dir().join("nova_channel_drag_config"),
-    );
-
     let mut app = editor_app(
         false,
         Some(StartupScenario::Id("shakedown_run".to_string())),
@@ -108,7 +115,7 @@ fn main() -> bevy::app::AppExit {
             // takes.
             .step("headless drag: the track took the press")
             .on_enter(press_mouse(MouseButton::Left))
-            .until(the_track_is_pressed())
+            .until(node_is_pressed(TRACK))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step("headless drag: stamp the snap")
@@ -117,7 +124,7 @@ fn main() -> bevy::app::AppExit {
             // Two legs right along the track's centreline (it is 10-14 px
             // tall; vertical drift would leave the node).
             .step("headless drag: drag along the track")
-            .on_enter(drag_right)
+            .on_enter(drag_right_along(TRACK))
             .until(pointer_at_node(TRACK, Vec2::new(DRAG_PX, 0.0)))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
@@ -132,6 +139,53 @@ fn main() -> bevy::app::AppExit {
             .add()
             .step("headless drag: the drag moved the volume")
             .on_enter(assert_the_drag_landed)
+            .add()
+            // The second track: a setting the player reads in percent and the
+            // engine reads as a gain on a binding.
+            .click_named(
+                "headless drag: open the Controls tab",
+                "Settings Tab: Controls",
+                ui_node_present(MOUSE_GROUP_BUTTON),
+                BEAT_DEADLINE_SECS,
+            )
+            .click_named(
+                "headless drag: open the MOUSE group",
+                MOUSE_GROUP_BUTTON,
+                ui_node_present(LOOK_TRACK),
+                BEAT_DEADLINE_SECS,
+            )
+            .step("headless drag: aim at the look track")
+            .on_enter(hover_named(LOOK_TRACK))
+            .until(pointer_over_node(LOOK_TRACK))
+            .diagnose(pointer_hover_diagnosis(LOOK_TRACK))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless drag: the look track took the press")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(node_is_pressed(LOOK_TRACK))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless drag: stamp the look snap")
+            .on_enter(stamp_the_look_snap)
+            .add()
+            .step("headless drag: drag along the look track")
+            .on_enter(drag_right_along(LOOK_TRACK))
+            .until(pointer_at_node(LOOK_TRACK, Vec2::new(DRAG_PX, 0.0)))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless drag: release the look track")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(the_look_rose_off_the_snap())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            // One frame past the release for `apply_mouse_sensitivity`, which
+            // runs in `PreUpdate`, to carry the new gain onto the rig.
+            .step("headless drag: the rig took the new gain")
+            .until(the_rig_agrees_with_the_resource())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step("headless drag: the drag moved the look sensitivity")
+            .on_enter(assert_the_look_drag_landed)
             .add(),
     );
 
@@ -144,10 +198,25 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 const TRACK: &str = "Master Volume Slider Track";
 
+/// The Controls group that holds the sensitivity sliders, and the one track
+/// this range drags on it. `Look` is the path the flight rig wears, so it is
+/// the one whose `Scale` this run can read back.
+#[cfg(feature = "debug")]
+const MOUSE_GROUP_BUTTON: &str = "Controls Group: MOUSE";
+
+/// The look-sensitivity track, named by `MousePath::Look.label()`.
+#[cfg(feature = "debug")]
+const LOOK_TRACK: &str = "Look Sensitivity Slider Track";
+
 /// Horizontal drag distance. The track is ~430 px wide, so this is ~+0.14 of
-/// the 0..=1 range - far beyond the 0.02 the verdict demands over snap jitter.
+/// the volume's 0..=1 range and ~+28 points of the look slider's 100..=300 -
+/// far beyond what either verdict demands over snap jitter.
 #[cfg(feature = "debug")]
 const DRAG_PX: f32 = 60.0;
+
+/// Percentage points a look drag must clear to count, over snap jitter.
+#[cfg(feature = "debug")]
+const LOOK_MARGIN_PERCENT: f32 = 2.0;
 
 /// `MasterVolume` and the widget's own value at the arming press, before the
 /// drag - the baseline the verdict measures against.
@@ -173,11 +242,13 @@ fn widget_value(world: &World) -> Option<f32> {
 /// the WIDGET, one whole pointer -> picking -> observer chain past
 /// `pointer_pressed`.
 #[cfg(feature = "debug")]
-fn the_track_is_pressed() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
+fn node_is_pressed(
+    track: &'static str,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
         world
             .try_query_filtered::<&Name, With<Pressed>>()
-            .is_some_and(|mut query| query.iter(world).any(|name| name.as_str() == TRACK))
+            .is_some_and(|mut query| query.iter(world).any(|name| name.as_str() == track))
     })
 }
 
@@ -205,13 +276,15 @@ fn stamp_the_snap(world: &mut World) {
     world.insert_resource(Snap { volume, widget });
 }
 
-/// Two cursor legs right along the track's centreline.
+/// Two cursor legs right along a track's centreline.
 #[cfg(feature = "debug")]
-fn drag_right(world: &mut World) {
-    let centre =
-        ui_node_centre(world, TRACK).unwrap_or_else(|| panic!("`{TRACK}` vanished mid-drag"));
-    move_cursor(centre + Vec2::new(DRAG_PX * 0.5, 0.0))(world);
-    move_cursor(centre + Vec2::new(DRAG_PX, 0.0))(world);
+fn drag_right_along(track: &'static str) -> impl Fn(&mut World) {
+    move |world: &mut World| {
+        let centre =
+            ui_node_centre(world, track).unwrap_or_else(|| panic!("`{track}` vanished mid-drag"));
+        move_cursor(centre + Vec2::new(DRAG_PX * 0.5, 0.0))(world);
+        move_cursor(centre + Vec2::new(DRAG_PX, 0.0))(world);
+    }
 }
 
 /// The verdict: the RESOURCE moved past snap jitter, and the widget agrees
@@ -239,6 +312,105 @@ fn assert_the_drag_landed(world: &mut World) {
         world,
         "outcome: the slider widget agrees with the resource",
         serde_json::json!({ "widget": widget, "resource": after }),
+    );
+}
+
+/// `MouseSensitivity`'s look percentage at the arming press, before the drag.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct LookSnap {
+    percent: f32,
+}
+
+/// The look slider's own value - a PERCENTAGE, unlike the volume track's 0..=1.
+#[cfg(feature = "debug")]
+fn look_widget_percent(world: &World) -> Option<f32> {
+    world
+        .try_query::<(&Name, &SliderValue)>()?
+        .iter(world)
+        .find(|(name, _)| name.as_str() == LOOK_TRACK)
+        .map(|(_, value)| value.0)
+}
+
+/// The gain the flight rig is actually reading mouse motion through: the
+/// `Scale` on the binding tagged `MousePath::Look`.
+#[cfg(feature = "debug")]
+fn rig_look_gain(world: &World) -> Option<f32> {
+    world
+        .try_query::<(&MousePath, &Scale)>()?
+        .iter(world)
+        .find(|(path, _)| **path == MousePath::Look)
+        .map(|(_, scale)| scale.factor.x)
+}
+
+/// Record where the arming press left the look sensitivity.
+#[cfg(feature = "debug")]
+fn stamp_the_look_snap(world: &mut World) {
+    let percent = world
+        .resource::<MouseSensitivity>()
+        .percent(MousePath::Look);
+    info!("headless drag: press snapped the look sensitivity to {percent}%");
+    world.insert_resource(LookSnap { percent });
+}
+
+/// Advance once the RESOURCE has risen off the snap baseline.
+#[cfg(feature = "debug")]
+fn the_look_rose_off_the_snap() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let Some(snap) = world.get_resource::<LookSnap>() else {
+            return false;
+        };
+        world
+            .resource::<MouseSensitivity>()
+            .percent(MousePath::Look)
+            > snap.percent + LOOK_MARGIN_PERCENT
+    })
+}
+
+/// Advance once `apply_mouse_sensitivity` has carried the new gain onto the
+/// rig. That system runs in `PreUpdate`, so it is a frame behind the release.
+#[cfg(feature = "debug")]
+fn the_rig_agrees_with_the_resource(
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(|world: &World| {
+        let wanted = world.resource::<MouseSensitivity>().raw(MousePath::Look);
+        rig_look_gain(world).is_some_and(|gain| (gain - wanted).abs() < 1e-9)
+    })
+}
+
+/// The verdict: the resource moved past snap jitter, the slider agrees with it
+/// in percent, and the rig is reading motion through the new gain.
+#[cfg(feature = "debug")]
+fn assert_the_look_drag_landed(world: &mut World) {
+    let before = world.resource::<LookSnap>().percent;
+    let sensitivity = *world.resource::<MouseSensitivity>();
+    let after = sensitivity.percent(MousePath::Look);
+    assert!(
+        after > before + LOOK_MARGIN_PERCENT,
+        "the drag must raise the look sensitivity past snap jitter \
+         ({before}% -> {after}%)"
+    );
+    let widget = look_widget_percent(world).expect("the look track carries bevy's SliderValue");
+    assert!(
+        (widget - after).abs() < 1e-2,
+        "the widget and the resource must agree ({widget}% vs {after}%)"
+    );
+    let raw = sensitivity.raw(MousePath::Look);
+    let gain = rig_look_gain(world).expect("the flight rig carries a Look-tagged Scale");
+    assert!(
+        (gain - raw).abs() < 1e-9,
+        "the rig must read motion through the new gain ({gain} vs {raw})"
+    );
+    info!("headless drag: PASS the drag moved the look sensitivity {before}% -> {after}%");
+    nova_probe::probe_marker(
+        world,
+        "outcome: a wire drag moves the look sensitivity",
+        serde_json::json!({ "before_percent": before, "after_percent": after }),
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: the flight rig reads the new mouse gain",
+        serde_json::json!({ "raw": raw, "rig_scale": gain }),
     );
 }
 

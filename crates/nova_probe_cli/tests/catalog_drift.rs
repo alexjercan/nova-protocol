@@ -510,7 +510,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
     (
         "system_headless_rebind",
         &[
-            "the rebind store starts isolated",
+            "the rebind run's settings store is inert",
             "the registry takes a wire rebind",
         ],
     ),
@@ -519,6 +519,8 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         &[
             "a wire drag moves the volume",
             "the slider widget agrees with the resource",
+            "a wire drag moves the look sensitivity",
+            "the flight rig reads the new mouse gain",
         ],
     ),
     (
@@ -533,7 +535,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 218;
+const SYSTEMS_INVARIANTS: usize = 220;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

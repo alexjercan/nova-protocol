@@ -131,6 +131,15 @@ fn main() -> bevy::app::AppExit {
 }
 
 fn bench_plugin(app: &mut App) {
+    // A measurement tool owns its own tier. G cycles `GraphicsQuality`, and a
+    // live store would debounce that into the launching player's
+    // `settings.ron` - so the bench would end a session having set the game to
+    // whichever preset it happened to stop on. Inert in both directions, which
+    // also means a reading does not depend on the preset the developer plays at.
+    app.add_plugins(SettingsStorePlugin {
+        live: false,
+        root: None,
+    });
     app.init_resource::<Bench>();
     app.init_resource::<VolleyClock>();
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load_scene);
