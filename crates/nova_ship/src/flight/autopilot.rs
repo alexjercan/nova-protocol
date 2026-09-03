@@ -769,7 +769,11 @@ pub(super) fn autopilot_system(
         let mut throttles: Vec<f32> = vec![0.0; allocation.len()];
         let mut burning = false;
         if let (Some(error_dir), false) = (error_dir, done) {
-            if !fine {
+            // RCS pushes through the center of mass in any direction, so it
+            // never needs an attitude change. Keep the current helm bearing
+            // while RCS handles a low-speed STOP, terminal settle, or orbit
+            // trim; only a main-drive correction chooses and faces an engine.
+            if !fine && !use_rcs {
                 if let Some(chosen) = choose_group(
                     &groups,
                     error_dir,

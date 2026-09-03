@@ -345,19 +345,21 @@ fn orbit_rcs_reference_clears_on_disengage() {
     );
 }
 
-/// A STOP settling from below the RCS cap hands the brake to the torque-free
-/// RCS primitive: `RcsIntent` goes non-zero, the main thruster stays cold,
-/// and the ship still reaches rest. Delete the RCS branch and the main drive
-/// brakes instead (thruster fires), failing the cold-drive assertion.
+/// A STOP below the 100 m/s RCS cap hands the whole brake to the torque-free
+/// RCS primitive: the hull keeps its bearing, `RcsIntent` goes non-zero, the
+/// main thruster stays cold, and the ship still reaches rest. Delete the RCS
+/// branch and the main drive fires; allow normal alignment and the hull yaws.
 #[test]
-fn stop_terminal_brakes_via_rcs() {
+fn stop_below_the_rcs_cap_brakes_without_turning() {
     let mut app = flight_app();
     let (ship, thruster, _controller) = spawn_ship(&mut app);
     settle(&mut app);
-    // Below the cap, so RCS can act. STOP's goal is rest (desired == 0).
+    let initial_rotation = *app.world().get::<Rotation>(ship).unwrap();
+    // 9 u/s is 90 m/s: below the default 100 m/s cap. The velocity is lateral
+    // to the main drive, so any main-drive braking plan would have to yaw.
     app.world_mut()
         .entity_mut(ship)
-        .insert(LinearVelocity(Vec3::new(1.5, 0.0, 0.0)));
+        .insert(LinearVelocity(Vec3::new(9.0, 0.0, 0.0)));
     app.world_mut()
         .entity_mut(ship)
         .insert(Autopilot::engage(AutopilotAction::Stop));
@@ -381,6 +383,11 @@ fn stop_terminal_brakes_via_rcs() {
     assert!(
         max_thruster < 0.05,
         "the main drive stayed cold - RCS did the braking (max input {max_thruster})"
+    );
+    let final_rotation = *app.world().get::<Rotation>(ship).unwrap();
+    assert!(
+        initial_rotation.angle_between(final_rotation) < 1e-3,
+        "a sub-cap STOP must keep the hull bearing"
     );
     // Settles to WITHIN the autopilot's settle_deadband (0.75) - the same
     // "bounded creep is the contract" release the main drive gets. RCS
