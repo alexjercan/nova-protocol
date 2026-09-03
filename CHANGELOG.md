@@ -68,6 +68,9 @@ does NOT get an entry - and it is the only place they are written down.
   to two-thirds of its old gain.
 
 ### Ships & Sections
+- The 8 G turn limit is now a limit: holding the stick pins a ship at the
+  hardest turn its hull survives, and a ship that loses its nose speeds up to
+  the sharper turn its shorter body allows.
 - Every section wears an authored model at the thruster's standard: the hull
   cells, the controller core, the PDC mounts and the torpedo bay replace their
   placeholder cubes.

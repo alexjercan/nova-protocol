@@ -108,6 +108,7 @@ fn balanced_partial_burn_holds_an_off_center_twin_drive() {
                 frequency: 4.0,
                 damping_ratio: 4.0,
                 max_angular_acceleration: 0.5, // shipped acceleration authority
+                sustained_angular_speed: f32::INFINITY,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -344,6 +345,7 @@ fn hold_reverse_decel_from_300_keeps_the_hull_steady() {
             frequency: 4.0,
             damping_ratio: 4.0,
             max_angular_acceleration: 0.5,
+            sustained_angular_speed: f32::INFINITY,
         },
         PDControllerTarget(ship),
     ));

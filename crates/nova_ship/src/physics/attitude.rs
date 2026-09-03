@@ -121,6 +121,14 @@ impl AttitudeEnvelope {
     /// alone is over the limit, and the only correct thing left is to shed
     /// rate - so the full ceiling comes back there instead of trapping the ship
     /// in a spin it can never stop.
+    ///
+    /// A MAGNITUDE, so it says nothing about which way that last authority may
+    /// point. Past the corner it may only be spent slowing the hull down, and
+    /// the loop that spends it is what holds that line: pair this with
+    /// [`sustained_turn_rate`](Self::sustained_turn_rate) on the same
+    /// controller. Handed out on its own it is an acceleration budget a held
+    /// turn can spend going faster, which leaves the hull at whatever rate its
+    /// controller gains run to and the load limit meaning nothing.
     pub fn available(self, spin: f32) -> f32 {
         let structural = self.structural_ceiling;
         let centripetal = spin * spin;

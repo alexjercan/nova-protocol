@@ -66,6 +66,7 @@ pub(super) fn spawn_flyable_ship(world: &mut World) -> (Entity, Entity) {
                 frequency: 4.0,
                 damping_ratio: 4.0,
                 max_angular_acceleration: 40.0,
+                sustained_angular_speed: f32::INFINITY,
             },
         ))
         .id();

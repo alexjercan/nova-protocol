@@ -138,6 +138,7 @@ fn spawn_stacked_ship(
                 // Derived by the stack pass on the first tick; a bundle cannot
                 // know a ceiling that belongs to the hull.
                 max_angular_acceleration: 0.0,
+                sustained_angular_speed: f32::INFINITY,
             },
             PDControllerTarget(ship),
             Transform::default(),

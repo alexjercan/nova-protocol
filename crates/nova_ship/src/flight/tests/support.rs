@@ -128,6 +128,7 @@ pub(super) fn spawn_ship(app: &mut App) -> (Entity, Entity, Entity) {
                 // value stands. Model-derived coverage lives in the
                 // scratch-scenario rig and in `stacking`.
                 max_angular_acceleration: 100.0,
+                sustained_angular_speed: f32::INFINITY,
             },
             PDControllerTarget(ship),
             Transform::from_xyz(0.0, 0.0, 0.0),
@@ -280,6 +281,7 @@ pub(super) fn spawn_damage_shifted_single_drive(
             // carries no `ControllerSectionTuning`, so the stack pass leaves
             // it alone, and its ballast puts the real arm somewhere else.
             max_angular_acceleration: 5.232,
+            sustained_angular_speed: f32::INFINITY,
         },
         PDControllerTarget(ship),
         Transform::from_xyz(0.0, 0.0, 0.0),
@@ -422,6 +424,7 @@ pub(super) fn diag_ship(app: &mut App) -> (Entity, Entity) {
             // 8 G over this rig's 25 m arm - five sections along z, so the
             // furthest face is 2.5 u out.
             max_angular_acceleration: 3.139,
+            sustained_angular_speed: f32::INFINITY,
         },
         PDControllerTarget(ship),
     ));

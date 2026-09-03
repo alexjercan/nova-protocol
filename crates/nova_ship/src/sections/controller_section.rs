@@ -272,10 +272,13 @@ pub fn controller_section(config: ControllerSectionConfig) -> impl Bundle {
         PDController {
             frequency,
             damping_ratio: INTERNAL_DAMPING_RATIO,
-            // Seeded at zero and filled in by `update_controller_stack_tuning`
-            // on the first fixed tick: the ceiling is a property of the HULL,
-            // and a section bundle cannot know one.
+            // Both seeded and filled in by `update_controller_stack_tuning`
+            // on the first fixed tick: a ceiling and a sustained rate are
+            // properties of the HULL, and a section bundle cannot know one.
+            // The seeds are the two that withhold nothing - no authority at
+            // all, and no rate the loop is barred from holding.
             max_angular_acceleration: 0.0,
+            sustained_angular_speed: f32::INFINITY,
         },
         ControllerSectionRotationInput::default(),
         sounds,
@@ -486,8 +489,9 @@ pub(crate) fn update_controller_stack_tuning(
         };
         // Engine boundary: `structural_arm` measures the hull off its avian
         // colliders, so the arm arrives in world units.
-        let budget =
-            AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm)).available(spin);
+        let envelope = AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm));
+        let budget = envelope.available(spin);
+        let sustained = envelope.sustained_turn_rate();
         let precision = stack_curve(stack.len() as f32, STACK_PRECISION_LIMIT);
 
         for (_, entity, tuning) in stack {
@@ -505,6 +509,10 @@ pub(crate) fn update_controller_stack_tuning(
                 frequency: base_frequency * (share / precision).sqrt(),
                 damping_ratio: INTERNAL_DAMPING_RATIO * (share * precision).sqrt(),
                 max_angular_acceleration: budget * share,
+                // NOT shared out: every controller on the hull is fighting the
+                // same metal, so each one carries the whole rate rather than a
+                // fraction of it.
+                sustained_angular_speed: sustained,
             };
             let Ok((_, _, mut controller, _)) = q_controller.get_mut(*entity) else {
                 continue;
@@ -1012,6 +1020,7 @@ mod tests {
                             frequency: 4.0,
                             damping_ratio: 4.0,
                             max_angular_acceleration: 0.0,
+                            sustained_angular_speed: f32::INFINITY,
                         },
                     ))
                     .id()
@@ -1059,6 +1068,45 @@ mod tests {
             "8 G over a 15 m arm is 5.23 rad/s2, got {}",
             live.max_angular_acceleration
         );
+    }
+
+    /// The rate the hull may HOLD reaches every computer on it, whole.
+    ///
+    /// Authority is a budget and gets shared out; the sustained rate is a
+    /// property of the metal, and every loop on the hull is fighting the same
+    /// metal. A share of it would let a stacked hull hold a faster turn than a
+    /// lone computer on the same shape, which is the opposite of what stacking
+    /// does.
+    #[test]
+    fn every_computer_on_a_hull_carries_the_whole_sustained_rate() {
+        let mut app = stack_app();
+        let (_, one) = spawn_stack(&mut app, 1);
+        let (_, four) = spawn_stack(&mut app, 4);
+        app.world_mut().run_schedule(FixedUpdate);
+
+        let sustained = |controllers: &[Entity]| -> Vec<f32> {
+            controllers
+                .iter()
+                .filter_map(|entity| app.world().get::<PDController>(*entity))
+                .map(|pd| pd.sustained_angular_speed)
+                .collect()
+        };
+        // 8 G over the reference hull's 15 m arm is 5.232 rad/s2, and the rate
+        // at which holding the turn spends all of it is its square root.
+        let lone = sustained(&one);
+        assert_eq!(lone.len(), 1);
+        assert!(
+            (lone[0] - 5.232f32.sqrt()).abs() < 1e-2,
+            "one computer on a 15 m arm may hold {} rad/s",
+            lone[0]
+        );
+        for rate in sustained(&four) {
+            assert!(
+                (rate - lone[0]).abs() < 1e-4,
+                "a computer in a stack of four reads {rate} rad/s against {} alone",
+                lone[0]
+            );
+        }
     }
 
     /// Stacking splits ONE loop rather than running several. On a
@@ -1178,6 +1226,7 @@ mod tests {
                     frequency: 1.0,
                     damping_ratio: 1.0,
                     max_angular_acceleration: 0.0,
+                    sustained_angular_speed: f32::INFINITY,
                 },
             ));
         }
@@ -1216,6 +1265,7 @@ mod tests {
                         frequency: 4.0,
                         damping_ratio: 4.0,
                         max_angular_acceleration: 0.0,
+                        sustained_angular_speed: f32::INFINITY,
                     },
                 ))
                 .id()

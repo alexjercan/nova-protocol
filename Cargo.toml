@@ -154,6 +154,10 @@ name = "system_attitude_hold"
 path = "examples/systems/system_attitude_hold.rs"
 
 [[example]]
+name = "system_turn_limit"
+path = "examples/systems/system_turn_limit.rs"
+
+[[example]]
 name = "system_thrust_and_plume"
 path = "examples/systems/system_thrust_and_plume.rs"
 

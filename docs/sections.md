@@ -79,6 +79,16 @@ A hull already in a hard turn has spent its margin, and its sustained rate is
 the limit and the full ceiling comes back, so an over-spun hull can always shed
 rate.
 
+That returned ceiling is a MAGNITUDE, and the loop that spends it is what
+keeps it pointed the right way. `AttitudeEnvelope::available` is paired with
+`sustained_turn_rate` on the same `PDController`
+(`sustained_angular_speed`): past that rate the PD drops whatever part of its
+requested acceleration lies along the spin and keeps the rest, so the
+authority can brake and steer but not tighten. Without the pairing a held turn
+spends the returned ceiling on going faster and settles wherever the
+controller gains run to - which is what the load limit exists to stop, and
+what `examples/systems/system_turn_limit.rs` flies.
+
 Two consequences to expect rather than debug. A small hull is STRUCTURE-bound,
 so fitting more computers to it changes nothing at all. A hull that loses
 sections shortens its arm and turns SHARPER than it did intact.
