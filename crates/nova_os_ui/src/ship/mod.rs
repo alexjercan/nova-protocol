@@ -164,7 +164,8 @@ fn ship_command_tree() -> TerminalCommand {
                 "Show one section's detail",
                 CommandArity::UpTo(1),
             )
-            .with_arg_hint("<section>"),
+            .with_arg_hint("<section>")
+            .with_args(&[CommandArg::Live(live::SECTION)]),
         )
         .with_subcommand(
             TerminalCommand::gameplay(
@@ -172,11 +173,13 @@ fn ship_command_tree() -> TerminalCommand {
                 "Reload a weapon section",
                 CommandArity::UpTo(1),
             )
-            .with_arg_hint("<section>"),
+            .with_arg_hint("<section>")
+            .with_args(&[CommandArg::Live(live::SECTION)]),
         )
         .with_subcommand(
             TerminalCommand::gameplay("ship repair", "Repair a section", CommandArity::UpTo(1))
-                .with_arg_hint("<section>"),
+                .with_arg_hint("<section>")
+                .with_args(&[CommandArg::Live(live::SECTION)]),
         )
 }
 

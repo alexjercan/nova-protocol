@@ -35,8 +35,8 @@ use nova_input::prelude::{
     dispatch, ActionName, ActiveContexts, DispatchError, InputBindings, InputPhase, InputSource,
 };
 use nova_os::prelude::{
-    command_shell_specs, resolve_command_line, CommandChannel, CommandOutcome, CommandResult,
-    CommandSource,
+    command_shell_specs, resolve_command_line, CommandChannel, CommandClass, CommandOutcome,
+    CommandResult, CommandSource,
 };
 use nova_ship::prelude::{
     SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
@@ -167,8 +167,8 @@ pub fn wire_name(group: &str, name: &str) -> String {
 ///
 /// The stdin line number is the sequence: an ack names the line that asked.
 fn apply_command(world: &mut World, line: usize, text: &str) {
-    let source = CommandSource::Channel { seq: line as u64 };
-    let outcome = resolve_command_line(text, &command_shell_specs());
+    let source = CommandSource { seq: line as u64 };
+    let outcome = resolve_command_line(text, command_shell_specs());
     let Some(mut channel) = world.get_resource_mut::<CommandChannel>() else {
         // An app assembled without the dispatcher (a bare harness, not the
         // game) has no command shell at all. Say so, rather than dropping the
@@ -177,6 +177,19 @@ fn apply_command(world: &mut World, line: usize, text: &str) {
     };
     match outcome {
         CommandOutcome::Answer(result) => channel.answer(source, *result),
+        // `clear` and `close` control a screen. The channel has none, so it
+        // says so instead of acknowledging `ok` for a command that did nothing.
+        CommandOutcome::Invoke(invocation) if matches!(invocation.name, "clear" | "close") => {
+            let name = invocation.name;
+            channel.answer(
+                source,
+                CommandResult::refused(
+                    name,
+                    invocation.class,
+                    format!("{name}: the channel has no screen to {name}"),
+                ),
+            );
+        }
         CommandOutcome::Invoke(invocation) => channel.submit(source, invocation),
     }
 }
@@ -194,7 +207,7 @@ fn command_ack(line: u64, result: &CommandResult) -> serde_json::Value {
     serde_json::json!({
         "line": line,
         "command": result.command,
-        "class": result.class.map(nova_os::prelude::CommandClass::label),
+        "class": result.class.map(CommandClass::label),
         "state": result.status.label(),
         "detail": result.detail,
         "rows": result.rows.iter().map(|row| row.text.clone()).collect::<Vec<_>>(),
@@ -505,16 +518,13 @@ pub fn drain_acks(world: &mut World) -> (Vec<serde_json::Value>, Vec<(usize, Str
         .collect();
     // The command lane answers through the dispatcher's own queue rather than
     // `ChannelAck`, because the run happens a schedule later than the apply.
-    // Only the channel's answers are taken; the CRT's own are left alone.
     if let Some(mut channel) = world.get_resource_mut::<CommandChannel>() {
-        let answers =
-            channel.drain_answers_for(|source| matches!(source, CommandSource::Channel { .. }));
-        applied.extend(answers.into_iter().map(|(source, result)| {
-            let CommandSource::Channel { seq } = source else {
-                unreachable!("the filter above took channel answers only")
-            };
-            command_ack(seq, &result)
-        }));
+        applied.extend(
+            channel
+                .drain_answers()
+                .into_iter()
+                .map(|(source, result)| command_ack(source.seq, &result)),
+        );
     }
     (applied, errors)
 }
@@ -560,7 +570,7 @@ mod tests {
         apply_command(&mut world, 12, "graphics low");
         let queued = world.resource_mut::<CommandChannel>().drain_pending();
         assert_eq!(queued.len(), 1);
-        assert_eq!(queued[0].0, CommandSource::Channel { seq: 12 });
+        assert_eq!(queued[0].0, CommandSource { seq: 12 });
         assert_eq!(queued[0].1.name, "graphics");
         assert_eq!(queued[0].1.args, vec!["low".to_string()]);
     }
@@ -587,11 +597,7 @@ mod tests {
     fn a_command_ack_carries_the_command_its_class_and_its_result() {
         let ack = command_ack(
             9,
-            &CommandResult::ok(
-                "graphics",
-                nova_os::prelude::CommandClass::Setting,
-                "graphics: low",
-            ),
+            &CommandResult::ok("graphics", CommandClass::Setting, "graphics: low"),
         );
         assert_eq!(ack["line"], 9);
         assert_eq!(ack["command"], "graphics");

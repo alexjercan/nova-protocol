@@ -669,7 +669,9 @@ pub(crate) fn drive_nova_os_slide(
 
     if nova_os_active && close.closing && openness <= f32::EPSILON {
         close.closing = false;
-        next.set(PauseStates::Unpaused);
+        // Back to whatever the CRT was opened over, not always to flight: `:`
+        // from the pause menu leaves the player in the pause menu.
+        next.set(close.return_to);
     }
 }
 

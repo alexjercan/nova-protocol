@@ -13,8 +13,8 @@ use nova_ship::prelude::*;
 use super::{contacts::*, *};
 use crate::terminal::{nova_os_text_font, DRAWER_LINE_FONT_PX, NOVA_OS_PHOSPHOR_MUTED};
 
-/// Keep the terminal's arg-completion set in sync with the live contact labels,
-/// so `map goto <TAB>` offers them. Only writes on a real change.
+/// Publish the live contact labels under [`live::CONTACT`], so `map goto <TAB>`
+/// offers them. Only writes on a real change.
 pub(crate) fn sync_map_arg_completions(
     contacts: MapContacts,
     mut runtime: ResMut<MapRuntime>,
@@ -25,7 +25,7 @@ pub(crate) fn sync_map_arg_completions(
         return;
     }
     runtime.completion_labels = labels.clone();
-    terminal.merge_arg_completions([("map goto", labels)]);
+    terminal.merge_live_values([(live::CONTACT, labels)]);
 }
 
 /// Drain the arg-bearing `map goto` verb the terminal queued on submit, resolve

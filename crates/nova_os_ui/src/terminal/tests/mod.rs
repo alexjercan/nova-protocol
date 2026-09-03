@@ -57,6 +57,8 @@ fn toggle_app() -> App {
     app.init_resource::<ButtonInput<MouseButton>>();
     app.register_input_actions(crate::bindings::novaos_bindings());
     app.init_resource::<NovaOsCloseTransition>();
+    // The toggle names the shell it opens, so it needs the emulator.
+    app.init_resource::<NovaOsTerminal>();
     // The computer belongs to a ship: with none on the field the toggle is
     // inert (see `toggle_nova_os`), so the rig flies one.
     app.world_mut().spawn(PlayerSpaceshipMarker);
@@ -255,6 +257,7 @@ fn register_ship_view_command(app: &mut App) {
         summary: "Open the ship computer",
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         dispatch: CommandDispatch::App,
     });
     specs.push(TerminalCommandSpec {
@@ -262,6 +265,7 @@ fn register_ship_view_command(app: &mut App) {
         summary: "Print ship status summary",
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
     });
     app.world_mut()
@@ -312,7 +316,12 @@ fn objectives_app() -> App {
 }
 
 fn spawn_nova_os_shell(app: &mut App) {
-    app.add_systems(Update, ensure_nova_os_spawned);
+    // The keep-alive gate is the plugin's, not the system's: without it the
+    // rig spawns a second monitor on every update.
+    app.add_systems(
+        Update,
+        ensure_nova_os_spawned.run_if(not(any_with_component::<NovaOsRootMarker>)),
+    );
     app.world_mut().spawn((
         Name::new("Survey Cutter"),
         SpaceshipRootMarker,

@@ -239,17 +239,21 @@ juice, settings. The ship stack (input, sections, flight, camera, physics) is
 - `PauseStates { Unpaused, Paused, NovaOs }` - the freeze axis. `Paused` is the
   ESC pause overlay; `NovaOs` is the CRT terminal takeover, whichever shell it
   is showing - Tab opens the ship computer, `:` opens the command shell (same
-  clock freeze, cursor freed, no pause menu). Both frozen variants enter only
-  from `Unpaused` and exit back to it, never into each other. `nova_gameplay`
-  owns the enum and gates the spaceship sets; `nova_menu` owns the toggles and
-  the overlay UI. Only meaningful inside `Playing`; leaving `Playing` resets it.
+  clock freeze, cursor freed, no pause menu). The live transitions are
+  `Unpaused <-> Paused`, `Unpaused <-> NovaOs` and `Paused <-> NovaOs`: the CRT
+  is a surface OVER what was there, so `NovaOsCloseTransition::return_to`
+  records the state it covered and closing restores it. `nova_gameplay` owns the
+  enum and gates the spaceship sets; `nova_menu` owns the toggles and the
+  overlay UI. Only meaningful inside `Playing`; leaving `Playing` resets it.
 - The freeze itself is a NAMED hold, not a boolean: `ClockFreeze` counts
   `FreezeOwner::{PauseMenu, Terminal}` and stops `Time<Virtual>` +
   `Time<Physics>` while any owner holds. It has to be named because the two
-  surfaces overlap - `:` opens the terminal over an already-paused game, and an
-  unconditional unpause on its close handed a paused player a running world.
-  Switching CRT shells never passes through the hold at all, so the world does
-  not tick between a release and the re-hold it would otherwise need.
+  surfaces stack - `:` opens the terminal over an already-paused game - and the
+  handover is a state transition: `OnExit(Paused)` releases the `PauseMenu` hold
+  before `OnEnter(NovaOs)` takes the `Terminal` one, and the way back re-takes
+  it. Naming the owners is what stops one surface's release from unfreezing the
+  other's world. Switching CRT shells never passes through the hold at all, so
+  the world does not tick between a release and the re-hold it would need.
 - `GameAssetsStates { Loading, Processing, Loaded }` (`nova_assets`) - asset
   pipeline. Scenario setup hooks `OnEnter(GameAssetsStates::Loaded)` - see
   `examples/systems/system_scenario_grammar.rs`.
@@ -268,8 +272,10 @@ stateDiagram-v2
             [*] --> Unpaused
             Unpaused --> Paused: ESC
             Paused --> Unpaused: ESC
-            Unpaused --> NovaOs: Tab
-            NovaOs --> Unpaused: Tab
+            Unpaused --> NovaOs: Tab / :
+            NovaOs --> Unpaused: Tab / ESC
+            Paused --> NovaOs: :
+            NovaOs --> Paused: ESC
         }
     }
 

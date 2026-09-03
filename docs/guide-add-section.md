@@ -116,9 +116,8 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
 5. **Spawn arm.**
    In `crates/nova_scenario/src/objects/spaceship.rs`, add a match arm to
    `insert_spaceship_sections` (grep for it, then its `match &config.kind`). At
-   minimum insert the kind bundle; add input-binding / infinite-ammo handling
-   only if your kind needs it (see the `Turret` / `Thruster` arms for those
-   patterns):
+   minimum insert the kind bundle; add input-binding handling only if your kind
+   needs it (see the `Turret` / `Thruster` arms for that pattern):
 
    ```rust
    SectionKind::Shield(shield_config) => {

@@ -58,8 +58,8 @@ does NOT get an entry - and it is the only place they are written down.
   computer opens on a second shell. One CRT, two languages: `commands`
   switches, and each keeps its own transcript and history.
 - The command shell reads the run and writes your settings: 27 commands in
-  four classes, with `help`, completion and the wiki catalog all generated
-  from one registry.
+  four classes. `help` and Tab completion come from one registry, and Tab
+  offers the ship and section ids the world holds now.
 - Cheats are refused until you run `cheats enable`, which marks the run one
   way and turns the header amber. A fresh scenario is a fresh run and clears
   the mark.

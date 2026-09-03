@@ -2,18 +2,16 @@
 //! entry point both front ends share, and the structured result they both
 //! receive.
 //!
-//! This is NOT the scenario action vocabulary. [`EventActionConfig`] stays an
-//! authoring and implementation enum; a command exists here because it was
-//! deliberately added to [`COMMAND_CATALOG`], and adding a scenario action does
-//! not add a command.
+//! This is NOT the scenario action vocabulary. `EventActionConfig`
+//! (`nova_scenario::actions`) stays an authoring and implementation enum; a
+//! command exists here because it was deliberately added to
+//! [`COMMAND_CATALOG`], and adding a scenario action does not add a command.
 //!
 //! Everything in this module is pure: it parses a line against the catalog and
 //! answers whatever can be answered from the catalog alone (`help`, `commands`,
 //! usage, and every parse error). Anything that has to look at the live game is
 //! handed back as a [`CommandInvocation`] for the dispatcher above to run, so
 //! the CRT and the process channel go through one parser and one result shape.
-//!
-//! [`EventActionConfig`]: https://docs.rs/ "nova_scenario::actions::EventActionConfig"
 
 use std::sync::OnceLock;
 
@@ -21,8 +19,8 @@ use bevy::prelude::Resource;
 
 use crate::{
     shell::{
-        resolve_command, subcommands_of, CommandArity, CommandDispatch, ResolvedCommand,
-        TerminalCommandSpec,
+        resolve_command, subcommands_of, CommandArg, CommandArity, CommandDispatch,
+        ResolvedCommand, TerminalCommandSpec,
     },
     terminal::{CommandInvocation, TerminalRow, TerminalRowKind},
 };
@@ -72,11 +70,6 @@ impl CommandClass {
         }
     }
 
-    /// Whether running this class marks the run as cheated.
-    pub fn marks_run(self) -> bool {
-        matches!(self, CommandClass::Cheat)
-    }
-
     /// Parse the word `commands <class>` takes.
     pub fn parse(word: &str) -> Option<Self> {
         let word = word.to_ascii_lowercase();
@@ -85,6 +78,63 @@ impl CommandClass {
             .find(|class| class.label() == word)
     }
 }
+
+/// The live-value tokens the catalog names in a [`CommandArg::Live`] argument.
+///
+/// The token is all this crate knows: it says an argument is a ship without
+/// knowing what a ship is. The executor - which does own the world - publishes
+/// the values under the same token with
+/// [`NovaOsTerminal::merge_live_values`](crate::terminal::NovaOsTerminal::merge_live_values),
+/// and Tab then completes them.
+pub mod live {
+    /// Live ship ids.
+    pub const SHIP: &str = "ship";
+    /// Live section ids, across every ship: a section is addressed by its ship
+    /// AND its own id, and the terminal cannot know which ship was typed, so
+    /// the set it completes from is the union.
+    pub const SECTION: &str = "section";
+    /// Registered scenario ids.
+    pub const SCENARIO: &str = "scenario";
+    /// The live scenario's variable names.
+    pub const VARIABLE: &str = "variable";
+    /// Registered input action names.
+    pub const ACTION: &str = "action";
+    /// The input sources `bind` accepts.
+    pub const SOURCE: &str = "source";
+    /// Command names, for `help <command>`. Published by the terminal itself
+    /// from its own command set, so it needs no executor.
+    pub const COMMAND: &str = "command";
+    /// The labels the MAP app's live contact list is showing.
+    pub const CONTACT: &str = "contact";
+
+    /// Every token, so [`noun`] can be pinned against the list by test.
+    pub const ALL: &[&str] = &[
+        SHIP, SECTION, SCENARIO, VARIABLE, ACTION, SOURCE, COMMAND, CONTACT,
+    ];
+
+    /// What the player is being ASKED for, as `help` phrases it. Tab is what
+    /// turns the noun into the actual set.
+    pub fn noun(token: &str) -> &'static str {
+        match token {
+            SHIP => "a live ship id",
+            SECTION => "a section id on that ship",
+            SCENARIO => "a scenario id",
+            VARIABLE => "a scenario variable name",
+            ACTION => "an input action name",
+            SOURCE => "a key, mouse button or pad button",
+            COMMAND => "a command name",
+            CONTACT => "a contact label on the map",
+            _ => UNNAMED,
+        }
+    }
+
+    /// The answer [`noun`] gives for a token nobody phrased. Pinned by test.
+    pub const UNNAMED: &str = "a value the world knows";
+}
+
+/// The class words `commands [class]` accepts. Pinned against
+/// [`CommandClass::ALL`] by test, so a new class cannot go uncompleted.
+const CLASS_WORDS: &[&str] = &["utility", "readonly", "setting", "cheat"];
 
 /// One command's single source of metadata: what it is called, how it is typed,
 /// what it does, what it may touch, and how it is exercised.
@@ -106,6 +156,9 @@ pub struct CommandSpec {
     pub arity: CommandArity,
     /// The argument placeholder, for the shared usage renderer.
     pub arg_hint: Option<&'static str>,
+    /// What each argument position accepts, in order. Tab completion reads it,
+    /// so an argument declared here completes against the live world.
+    pub args: &'static [CommandArg],
     /// Worked examples printed by `help <command>`.
     pub examples: &'static [&'static str],
 }
@@ -122,6 +175,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         // `help ammo refill section` has to reach the command it names.
         arity: CommandArity::UpTo(3),
         arg_hint: Some("[command]"),
+        args: &[CommandArg::Live(live::COMMAND)],
         examples: &["help", "help ammo infinite"],
     },
     CommandSpec {
@@ -131,6 +185,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Utility,
         arity: CommandArity::Between(0, 1),
         arg_hint: Some("[class]"),
+        args: &[CommandArg::Words(CLASS_WORDS)],
         examples: &["commands", "commands cheat"],
     },
     CommandSpec {
@@ -140,6 +195,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Utility,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["clear"],
     },
     CommandSpec {
@@ -149,6 +205,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Utility,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["close"],
     },
     CommandSpec {
@@ -158,6 +215,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["scenario"],
     },
     CommandSpec {
@@ -167,6 +225,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Utility,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<id>"),
+        args: &[CommandArg::Live(live::SCENARIO)],
         examples: &["scenario load shakedown_run"],
     },
     CommandSpec {
@@ -176,6 +235,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["status"],
     },
     CommandSpec {
@@ -185,6 +245,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["ships"],
     },
     CommandSpec {
@@ -194,7 +255,8 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<id>"),
-        examples: &["ship player_ship"],
+        args: &[CommandArg::Live(live::SHIP)],
+        examples: &["ship player_spaceship"],
     },
     CommandSpec {
         name: "sections",
@@ -203,16 +265,23 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<ship-id>"),
-        examples: &["sections player_ship"],
+        args: &[CommandArg::Live(live::SHIP)],
+        examples: &["sections player_spaceship"],
     },
     CommandSpec {
         name: "section",
-        usage: "section <id>",
-        summary: "Inspect one section",
+        usage: "section <ship-id> <section-id>",
+        summary: "Inspect one section of one ship",
         class: CommandClass::ReadOnly,
-        arity: CommandArity::Between(1, 1),
-        arg_hint: Some("<id>"),
-        examples: &["section player_turret_1"],
+        // A section id is unique to its ship, not to the field: both cargoa
+        // hulls carry `turret_port`. The ship is part of the address.
+        arity: CommandArity::Between(2, 2),
+        arg_hint: Some("<ship-id> <section-id>"),
+        args: &[
+            CommandArg::Live(live::SHIP),
+            CommandArg::Live(live::SECTION),
+        ],
+        examples: &["section player_spaceship turret_port"],
     },
     CommandSpec {
         name: "objectives",
@@ -221,6 +290,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["objectives"],
     },
     CommandSpec {
@@ -230,6 +300,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["variables"],
     },
     CommandSpec {
@@ -239,6 +310,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<name>"),
+        args: &[CommandArg::Live(live::VARIABLE)],
         examples: &["variable gates_cleared"],
     },
     CommandSpec {
@@ -248,6 +320,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::Between(0, 1),
         arg_hint: Some("[action]"),
+        args: &[CommandArg::Live(live::ACTION)],
         examples: &["bindings", "bindings novaos_toggle"],
     },
     CommandSpec {
@@ -257,6 +330,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["settings"],
     },
     CommandSpec {
@@ -266,6 +340,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::ReadOnly,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["cheats status"],
     },
     CommandSpec {
@@ -275,6 +350,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Cheat,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         examples: &["cheats enable"],
     },
     CommandSpec {
@@ -284,6 +360,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Setting,
         arity: CommandArity::Between(0, 1),
         arg_hint: Some("[low|medium|high]"),
+        args: &[CommandArg::Words(&["low", "medium", "high"])],
         examples: &["graphics", "graphics low"],
     },
     CommandSpec {
@@ -293,6 +370,10 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Setting,
         arity: CommandArity::Between(0, 2),
         arg_hint: Some("[channel [0..1]]"),
+        args: &[
+            CommandArg::Words(&["master", "music", "world", "interface"]),
+            CommandArg::Free,
+        ],
         examples: &["volume", "volume master", "volume world 0.4"],
     },
     CommandSpec {
@@ -302,6 +383,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Setting,
         arity: CommandArity::Between(0, 1),
         arg_hint: Some("[windowed|borderless]"),
+        args: &[CommandArg::Words(&["windowed", "borderless"])],
         examples: &["window", "window borderless"],
     },
     CommandSpec {
@@ -311,6 +393,10 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Setting,
         arity: CommandArity::Between(2, 2),
         arg_hint: Some("<action> <source>"),
+        args: &[
+            CommandArg::Live(live::ACTION),
+            CommandArg::Live(live::SOURCE),
+        ],
         examples: &["bind novaos_toggle F1"],
     },
     CommandSpec {
@@ -320,6 +406,7 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Setting,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<action>"),
+        args: &[CommandArg::Live(live::ACTION)],
         examples: &["bind reset novaos_toggle"],
     },
     CommandSpec {
@@ -329,9 +416,13 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Cheat,
         arity: CommandArity::Between(2, 2),
         arg_hint: Some("<ship-id> <on|off>"),
+        args: &[
+            CommandArg::Live(live::SHIP),
+            CommandArg::Words(&["on", "off"]),
+        ],
         examples: &[
-            "ammo infinite player_ship on",
-            "ammo infinite player_ship off",
+            "ammo infinite player_spaceship on",
+            "ammo infinite player_spaceship off",
         ],
     },
     CommandSpec {
@@ -341,16 +432,21 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Cheat,
         arity: CommandArity::Between(1, 1),
         arg_hint: Some("<ship-id>"),
-        examples: &["ammo refill player_ship"],
+        args: &[CommandArg::Live(live::SHIP)],
+        examples: &["ammo refill player_spaceship"],
     },
     CommandSpec {
         name: "ammo refill section",
-        usage: "ammo refill section <section-id>",
+        usage: "ammo refill section <ship-id> <section-id>",
         summary: "Refill one finite magazine",
         class: CommandClass::Cheat,
-        arity: CommandArity::Between(1, 1),
-        arg_hint: Some("<section-id>"),
-        examples: &["ammo refill section player_turret_1"],
+        arity: CommandArity::Between(2, 2),
+        arg_hint: Some("<ship-id> <section-id>"),
+        args: &[
+            CommandArg::Live(live::SHIP),
+            CommandArg::Live(live::SECTION),
+        ],
+        examples: &["ammo refill section player_spaceship turret_port"],
     },
     CommandSpec {
         name: "speed-cap",
@@ -359,28 +455,32 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         class: CommandClass::Cheat,
         arity: CommandArity::Between(2, 2),
         arg_hint: Some("<ship-id> <m/s|off>"),
-        examples: &["speed-cap player_ship 400", "speed-cap player_ship off"],
+        args: &[CommandArg::Live(live::SHIP), CommandArg::Words(&["off"])],
+        examples: &[
+            "speed-cap player_spaceship 400",
+            "speed-cap player_spaceship off",
+        ],
     },
 ];
 
 /// The catalog as the shared matcher sees it - one [`TerminalCommandSpec`] per
-/// catalog row, every one dispatching to the command layer. Built once.
-pub fn command_shell_specs() -> Vec<TerminalCommandSpec> {
+/// catalog row, every one dispatching to the command layer. Built once and
+/// lent out: every caller reads the same slice, none copies it.
+pub fn command_shell_specs() -> &'static [TerminalCommandSpec] {
     static SPECS: OnceLock<Vec<TerminalCommandSpec>> = OnceLock::new();
-    SPECS
-        .get_or_init(|| {
-            COMMAND_CATALOG
-                .iter()
-                .map(|spec| TerminalCommandSpec {
-                    name: spec.name,
-                    summary: spec.summary,
-                    arity: spec.arity,
-                    arg_hint: spec.arg_hint,
-                    dispatch: CommandDispatch::Command,
-                })
-                .collect()
-        })
-        .clone()
+    SPECS.get_or_init(|| {
+        COMMAND_CATALOG
+            .iter()
+            .map(|spec| TerminalCommandSpec {
+                name: spec.name,
+                summary: spec.summary,
+                arity: spec.arity,
+                arg_hint: spec.arg_hint,
+                args: spec.args,
+                dispatch: CommandDispatch::Command,
+            })
+            .collect()
+    })
 }
 
 /// How many commands the catalog holds - the number the shell's introduction
@@ -566,12 +666,22 @@ pub fn resolve_command_line(line: &str, specs: &[TerminalCommandSpec]) -> Comman
             arity,
             args,
         } => {
+            // An OVER-run past a command that owns subcommands is a bad
+            // subcommand and is named as one. An UNDER-run is not: a bare
+            // `bind` typed nothing, and `unknown subcommand ''` blames the
+            // player for a word they never wrote.
             let subs = subcommands_of(&command, specs);
-            let headline = if subs.is_empty() {
-                format!("{command}: {}", arity.rejection())
-            } else {
-                let bad = args.first().map(String::as_str).unwrap_or_default();
-                format!("{command}: unknown subcommand '{bad}'")
+            // Past what the command accepts, the next word is a sub-command
+            // that does not exist (`ammo: unknown subcommand 'x'`). An arity
+            // miss that is NOT an overrun is just an arity miss, whether or not
+            // the command owns sub-commands - a bare `bind` is not a bad
+            // sub-command.
+            let overrun = arity
+                .overruns(args.len())
+                .then(|| args[arity.most()].as_str());
+            let headline = match overrun {
+                Some(bad) if !subs.is_empty() => format!("{command}: unknown subcommand '{bad}'"),
+                _ => format!("{command}: {}", arity.rejection()),
             };
             let mut result = CommandResult::error(
                 command.clone(),
@@ -607,31 +717,54 @@ fn version_line() -> String {
     format!("NOVA OS v{} // COMMANDS", nova_info::APP_VERSION)
 }
 
-/// The `help` answer: bare usage, or one command's block.
+/// The `help` answer: the whole catalog, or one command's block.
+///
+/// Bare `help` LISTS. A shell whose help only says "type a command" teaches
+/// nothing, and the catalog is the one thing a player arriving at `cmd>` does
+/// not have: every command, grouped by what it is allowed to touch, with the
+/// keys that drive the prompt under it.
 fn help_result(args: &[String]) -> CommandResult {
     // A command name can be several words, so the arguments are the NAME, not
     // a name and its own arguments.
     let command = args.join(" ");
     if command.is_empty() {
-        return CommandResult::ok("help", CommandClass::Utility, "shell usage").with_rows(vec![
-            TerminalRow::info("Usage: <command> [arguments]"),
-            TerminalRow::output("  help [command]     this text, or one command's details"),
-            TerminalRow::output("  commands [class]   list every command, or one class"),
-            TerminalRow::dim(format!(
-                "{} commands in {} classes: {}",
+        let mut rows = vec![
+            TerminalRow::info(format!(
+                "{} commands in {} classes. Usage: <command> [arguments]",
                 command_registry_count(),
                 CommandClass::ALL.len(),
-                CommandClass::ALL
-                    .iter()
-                    .map(|class| class.label())
-                    .collect::<Vec<_>>()
-                    .join(", "),
             )),
-            TerminalRow::dim("Cheats are refused until `cheats enable` arms them."),
-            TerminalRow::dim("`close` leaves the terminal; `clear` restores this introduction."),
-        ]);
+            TerminalRow::dim(String::new()),
+        ];
+        rows.extend(command_list_rows(None));
+        rows.extend(shell_key_rows());
+        return CommandResult::ok(
+            "help",
+            CommandClass::Utility,
+            format!("listed {} commands", command_registry_count()),
+        )
+        .with_rows(rows);
     }
     usage_result(&command)
+}
+
+/// What drives the prompt itself, printed under every catalog listing. These
+/// are the emulator's keys, not commands, so they have no catalog row to be
+/// read off - and a player who cannot find them types blind.
+fn shell_key_rows() -> Vec<TerminalRow> {
+    vec![
+        TerminalRow::dim(String::new()),
+        TerminalRow::info("PROMPT"),
+        TerminalRow::output("  Tab            complete a command, or the argument under the caret"),
+        TerminalRow::output("  Up / Down      walk this shell's history"),
+        TerminalRow::output("  Ctrl+A / E     caret to the start / end of the line"),
+        TerminalRow::output("  Ctrl+U / K     cut to the start / end of the line"),
+        TerminalRow::output("  Esc            close the terminal and return to what was under it"),
+        TerminalRow::dim("Type 'help <command>' for one command's details."),
+        TerminalRow::dim(
+            "Cheats are refused until `cheats enable` arms them, and arming marks the run.",
+        ),
+    ]
 }
 
 /// `help <command>` / `<command> help`: the full block for one command.
@@ -659,6 +792,12 @@ pub fn usage_rows(name: &str) -> Vec<TerminalRow> {
         )),
         TerminalRow::output(format!("Arguments: {}", arity_line(spec.arity))),
     ];
+    rows.extend(
+        spec.args
+            .iter()
+            .enumerate()
+            .map(|(at, arg)| TerminalRow::dim(format!("  {}. {}", at + 1, arg_line(*arg)))),
+    );
     if !spec.examples.is_empty() {
         rows.push(TerminalRow::output("Examples:"));
         rows.extend(
@@ -673,6 +812,17 @@ pub fn usage_rows(name: &str) -> Vec<TerminalRow> {
         ));
     }
     rows
+}
+
+/// What one argument position accepts, as `help <command>` says it. A live
+/// token is printed as the noun it names, because that is what a player is
+/// being asked for; Tab is what turns the noun into the actual set.
+fn arg_line(arg: CommandArg) -> String {
+    match arg {
+        CommandArg::Words(words) => format!("one of {}", words.join(", ")),
+        CommandArg::Live(token) => format!("{} (Tab lists it)", live::noun(token)),
+        CommandArg::Free => "a value".to_string(),
+    }
 }
 
 /// How many argument words a command takes, in words.
@@ -719,6 +869,7 @@ fn commands_result(class: Option<&String>) -> CommandResult {
         },
     )
     .with_rows(command_list_rows(filter))
+    .and_rows([TerminalRow::dim("Type 'help <command>' for details.")])
 }
 
 /// The catalog listing, grouped by class in [`CommandClass::ALL`] order.
@@ -741,6 +892,9 @@ pub fn command_list_rows(filter: Option<CommandClass>) -> Vec<TerminalRow> {
         if listed.peek().is_none() {
             continue;
         }
+        if !rows.is_empty() {
+            rows.push(TerminalRow::dim(String::new()));
+        }
         rows.push(TerminalRow::info(format!(
             "{} - {}",
             class.label().to_uppercase(),
@@ -752,7 +906,6 @@ pub fn command_list_rows(filter: Option<CommandClass>) -> Vec<TerminalRow> {
             }),
         );
     }
-    rows.push(TerminalRow::dim("Type 'help <command>' for details."));
     rows
 }
 
@@ -825,6 +978,129 @@ mod tests {
     }
 
     use super::*;
+
+    /// A declared argument is what Tab completes and what `help` describes, so
+    /// a command that takes arguments and declares none silently loses both.
+    #[test]
+    fn every_argument_position_is_declared() {
+        for spec in COMMAND_CATALOG {
+            let takes = match spec.arity {
+                CommandArity::None => 0,
+                CommandArity::UpTo(max) | CommandArity::Between(_, max) => max,
+            };
+            assert_eq!(
+                spec.args.is_empty(),
+                takes == 0,
+                "{} takes {takes} arguments and declares {}",
+                spec.name,
+                spec.args.len(),
+            );
+            // Fewer is legal: `help [command]` takes up to three WORDS and they
+            // are one argument, a command name.
+            assert!(
+                spec.args.len() <= takes,
+                "{} declares more arguments than it accepts",
+                spec.name,
+            );
+        }
+    }
+
+    /// Every live token a catalog argument names is phrased for `help`. The
+    /// fallback exists so a token cannot panic; a shipped token using it is a
+    /// command asking the player for "a value the world knows".
+    #[test]
+    fn every_live_token_is_phrased_for_help() {
+        for token in live::ALL {
+            assert_ne!(live::noun(token), live::UNNAMED, "{token} has no noun");
+        }
+        for spec in COMMAND_CATALOG {
+            for arg in spec.args {
+                if let CommandArg::Live(token) = arg {
+                    assert!(
+                        live::ALL.contains(token),
+                        "{} names the unlisted token '{token}'",
+                        spec.name,
+                    );
+                }
+            }
+        }
+    }
+
+    /// The class words `commands <class>` completes from are the classes, so a
+    /// new class cannot go uncompleted.
+    #[test]
+    fn the_class_words_are_the_classes() {
+        let words: Vec<&str> = CommandClass::ALL
+            .iter()
+            .map(|class| class.label())
+            .collect();
+        assert_eq!(CLASS_WORDS, words.as_slice());
+    }
+
+    /// A bare command that owns subcommands is an UNDER-run, not a bad
+    /// subcommand: `bind` used to print `bind: unknown subcommand ''`.
+    #[test]
+    fn an_arity_miss_reads_as_an_arity_miss_not_a_bad_subcommand() {
+        let specs = command_shell_specs();
+        let headline = |line: &str| {
+            let CommandOutcome::Answer(result) = resolve_command_line(line, &specs) else {
+                panic!("{line} is answered by the catalog");
+            };
+            result.detail
+        };
+        assert_eq!(headline("bind"), "bind: takes 2 arguments");
+        // The bad word is the first one PAST what the command accepts, not the
+        // first argument: `ammo refill <ship>` takes one, so the second is the
+        // sub-command that does not exist.
+        assert_eq!(
+            headline("ammo refill cargoa nope"),
+            "ammo refill: unknown subcommand 'nope'",
+        );
+    }
+
+    /// `help` alone has to teach the shell, not just name it: the catalog, and
+    /// the prompt keys that are not commands and so have no catalog row.
+    #[test]
+    fn bare_help_lists_the_catalog_and_the_prompt_keys() {
+        let specs = command_shell_specs();
+        let CommandOutcome::Answer(result) = resolve_command_line("help", &specs) else {
+            panic!("help is answered by the catalog");
+        };
+        let text: Vec<&str> = result.rows.iter().map(|row| row.text.as_str()).collect();
+        for spec in COMMAND_CATALOG {
+            assert!(
+                text.iter().any(|row| row.contains(spec.usage)),
+                "help does not list {}",
+                spec.name,
+            );
+        }
+        for class in CommandClass::ALL {
+            assert!(
+                text.iter()
+                    .any(|row| row.starts_with(&class.label().to_uppercase())),
+                "help does not head the {} class",
+                class.label(),
+            );
+        }
+        assert!(text.iter().any(|row| row.contains("Tab")), "help names Tab");
+    }
+
+    /// `help <command>` says what each argument POSITION accepts, in order, so
+    /// the player knows a section is addressed by its ship.
+    #[test]
+    fn one_commands_help_describes_each_argument() {
+        let rows = usage_rows("section");
+        let text: Vec<&str> = rows.iter().map(|row| row.text.as_str()).collect();
+        assert!(
+            text.iter().any(|row| row.contains(live::noun(live::SHIP))),
+            "the first argument is a ship: {text:?}",
+        );
+        assert!(
+            text.iter()
+                .any(|row| row.contains(live::noun(live::SECTION))),
+            "the second is a section on it: {text:?}",
+        );
+    }
 
     /// Every catalog row is reachable by the parser under its own name, and the
     /// classes agree between the catalog and what the parser hands the
@@ -930,10 +1206,10 @@ mod tests {
             other => panic!("{line} did not dispatch: {other:?}"),
         };
         assert_eq!(
-            invoke("ammo refill section PDC-1").name,
+            invoke("ammo refill section player_spaceship PDC-1").name,
             "ammo refill section"
         );
-        assert_eq!(invoke("ammo refill player_ship").name, "ammo refill");
+        assert_eq!(invoke("ammo refill player_spaceship").name, "ammo refill");
         assert_eq!(invoke("bind reset novaos_toggle").name, "bind reset");
         let bind = invoke("bind novaos_toggle F1");
         assert_eq!(bind.name, "bind");
@@ -1026,20 +1302,16 @@ pub mod prelude {
     };
 }
 
-/// Who asked for a command to run.
+/// The channel line one queued command came in on.
 ///
-/// The dispatcher answers both the same way; only the delivery of the answer
-/// differs - the shell prints its rows, the channel acknowledges by sequence.
+/// The CRT is not a source here: a typed command reaches the dispatcher through
+/// [`NovaOsTerminal::take_pending_command`](crate::terminal::NovaOsTerminal::take_pending_command)
+/// and its answer goes straight to the scrollback. This queue exists for the
+/// callers whose answer has to be addressed back to a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CommandSource {
-    /// The CRT's Command shell. The answer goes to that shell's scrollback.
-    Shell,
-    /// The process channel. The answer becomes an acknowledgement carrying this
-    /// sequence number.
-    Channel {
-        /// The channel line's sequence, echoed back on the acknowledgement.
-        seq: u64,
-    },
+pub struct CommandSource {
+    /// The channel line's sequence, echoed back on the acknowledgement.
+    pub seq: u64,
 }
 
 /// One command waiting for the dispatcher, and one answer waiting for its
@@ -1072,22 +1344,9 @@ impl CommandChannel {
         std::mem::take(&mut self.pending)
     }
 
-    /// Take every answer for one source. The front end's half: the channel asks
-    /// for its own without consuming the shell's.
-    pub fn drain_answers_for(
-        &mut self,
-        wanted: impl Fn(CommandSource) -> bool,
-    ) -> Vec<(CommandSource, CommandResult)> {
-        let mut taken = Vec::new();
-        self.answers.retain(|(source, result)| {
-            if wanted(*source) {
-                taken.push((*source, result.clone()));
-                false
-            } else {
-                true
-            }
-        });
-        taken
+    /// Take every answer waiting to be acknowledged. The front end's half.
+    pub fn drain_answers(&mut self) -> Vec<(CommandSource, CommandResult)> {
+        std::mem::take(&mut self.answers)
     }
 
     /// Whether anything is waiting to run.

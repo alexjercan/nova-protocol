@@ -527,6 +527,118 @@ mod tests {
             "no target, no order - the launch is skipped"
         );
     }
+
+    /// A ship with two weapon sections and a bystander ship carrying the same
+    /// section id, which is what every shipped scenario looks like: an id
+    /// addresses a section OF a ship, never one in the field.
+    fn two_armed_ships() -> (World, Entity, Entity, Entity) {
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let mut ship = |id: &str| {
+            world
+                .spawn((
+                    ScenarioScopedMarker,
+                    SpaceshipRootMarker,
+                    EntityId::new(id.to_string()),
+                ))
+                .id()
+        };
+        let player = ship("player");
+        let raider = ship("raider");
+        let mut turret = |ship: Entity, id: &str, rounds: u32| {
+            world
+                .spawn((
+                    ChildOf(ship),
+                    SectionMarker,
+                    EntityId::new(id.to_string()),
+                    SectionAmmo {
+                        rounds,
+                        capacity: 10,
+                    },
+                ))
+                .id()
+        };
+        let port = turret(player, "turret_port", 2);
+        let dorsal = turret(player, "turret_dorsal", 3);
+        turret(raider, "turret_port", 1);
+        (world, port, dorsal, raider)
+    }
+
+    /// SetInfiniteAmmo strips the magazine of the addressed ship alone, and
+    /// switching it back restores the authored capacity rather than what was
+    /// left in it.
+    #[test]
+    fn set_infinite_ammo_suspends_and_restores_the_scoped_ships_magazines() {
+        use nova_events::prelude::EventWorld;
+
+        let (mut world, port, dorsal, raider) = two_armed_ships();
+        let raider_turret = live_ship_sections(&mut world, raider)[0];
+
+        let run = |world: &mut World, enabled| {
+            let action = SetInfiniteAmmoActionConfig {
+                id: "player".to_string(),
+                enabled,
+            };
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            action.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(world);
+        };
+
+        run(&mut world, true);
+        assert!(
+            world.get::<SectionAmmo>(port).is_none(),
+            "port is unlimited"
+        );
+        assert!(
+            world.get::<SectionAmmo>(dorsal).is_none(),
+            "dorsal is unlimited"
+        );
+        assert!(
+            world.get::<SectionAmmo>(raider_turret).is_some(),
+            "the bystander ship keeps its magazine"
+        );
+
+        run(&mut world, false);
+        let restored = world
+            .get::<SectionAmmo>(port)
+            .expect("the magazine is back");
+        assert_eq!(
+            (restored.rounds, restored.capacity),
+            (10, 10),
+            "a restored magazine is full, not what was left in it"
+        );
+    }
+
+    /// RefillAmmo with a section id fills that section of that ship and leaves
+    /// every other magazine where it was.
+    #[test]
+    fn refill_ammo_fills_one_named_section_of_the_scoped_ship() {
+        use nova_events::prelude::EventWorld;
+
+        let (mut world, port, dorsal, raider) = two_armed_ships();
+        let raider_turret = live_ship_sections(&mut world, raider)[0];
+
+        let action = RefillAmmoActionConfig {
+            id: "player".to_string(),
+            section: Some("turret_port".to_string()),
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert_eq!(world.get::<SectionAmmo>(port).unwrap().rounds, 10);
+        assert_eq!(
+            world.get::<SectionAmmo>(dorsal).unwrap().rounds,
+            3,
+            "the other section of the same ship is untouched"
+        );
+        assert_eq!(
+            world.get::<SectionAmmo>(raider_turret).unwrap().rounds,
+            1,
+            "the same section id on another ship is untouched"
+        );
+    }
 }
 
 /// Switch unlimited ammunition on or off for a scenario ship's weapon sections
@@ -654,13 +766,17 @@ pub fn live_ship_sections(world: &mut World, ship: Entity) -> Vec<Entity> {
 }
 
 /// Strip or restore one section's magazine. See [`SuspendedSectionAmmo`].
-pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) {
+///
+/// `false` when the section was already in the asked-for state, so a caller
+/// that has to report what it touched does not have to diff the components
+/// itself.
+pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) -> bool {
     let mut entity = world.entity_mut(section);
     if enabled {
         let Some(ammo) = entity.get::<SectionAmmo>().copied() else {
             // Either already unlimited or not a weapon; both are already the
             // state the caller asked for.
-            return;
+            return false;
         };
         let reload = entity
             .get::<SectionReload>()
@@ -676,7 +792,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) {
         entity.remove::<SectionReload>();
     } else {
         let Some(suspended) = entity.get::<SuspendedSectionAmmo>().copied() else {
-            return;
+            return false;
         };
         entity.insert(SectionAmmo::new(suspended.capacity));
         if let Some(reload) = suspended.reload {
@@ -684,6 +800,7 @@ pub fn apply_infinite_ammo(world: &mut World, section: Entity, enabled: bool) {
         }
         entity.remove::<SuspendedSectionAmmo>();
     }
+    true
 }
 
 /// Fill one section's magazine, if it has one. `false` when the section has no

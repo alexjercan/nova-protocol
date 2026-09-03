@@ -646,7 +646,7 @@ Top a scoped ship's finite magazines back up without changing how they work.
 
 ```ron
 RefillAmmo((id: "player_spaceship")),                          // every weapon
-RefillAmmo((id: "player_spaceship", section: "turret_dorsal")), // just one
+RefillAmmo((id: "player_spaceship", section: Some("turret_dorsal"))), // just one
 ```
 
 <details class="explain">
@@ -655,7 +655,7 @@ RefillAmmo((id: "player_spaceship", section: "turret_dorsal")), // just one
 | field | type | default | meaning |
 |---|---|---|---|
 | `id` | string | required | scoped ship root; a dangling id is a lint Error |
-| `section` | `Option` string | `None` | one section's authored id; omitted refills every weapon on the ship |
+| `section` | `Option` string | `None` | one section's authored id, written `Some("...")`; omitted refills every weapon on the ship |
 
 Each magazine returns to its authored capacity and any reload in flight is
 cleared. Weapons with no finite magazine - and any whose magazine is

@@ -155,7 +155,7 @@ pub(crate) fn panel_button_label(label: &str, font: Handle<Font>) -> impl Bundle
         TextColor(NOVA_OS_PHOSPHOR),
     )
 }
-/// Keep the terminal's arg-completion set in sync with the live section codes, so
+/// Publish the player ship's live section codes under [`live::SECTION`], so
 /// `ship repair <TAB>` offers them. Only writes on a real change.
 pub(crate) fn sync_ship_arg_completions(
     sections: ShipSections,
@@ -167,13 +167,9 @@ pub(crate) fn sync_ship_arg_completions(
         return;
     }
     runtime.completion_codes = codes.clone();
-    // Merge (not replace) so the `map goto` completions the map app owns survive;
+    // Merge (not replace) so the `map goto` contacts the map app owns survive;
     // the `!=` gate above already ensured this set changed.
-    terminal.merge_arg_completions(
-        ["ship section", "ship reload", "ship repair"]
-            .into_iter()
-            .map(|verb| (verb, codes.clone())),
-    );
+    terminal.merge_live_values([(live::SECTION, codes)]);
 }
 
 /// Drain the arg-bearing `ship` CLI verb the terminal queued on submit, apply it

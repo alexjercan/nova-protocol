@@ -37,11 +37,11 @@ pub mod prelude {
         command::{nova_os_footer_hints, CommandBody, NovaOsCommandRegistry, TerminalCommand},
         commands::{
             command_intro_rows, command_list_rows, command_registry_count, command_shell_specs,
-            command_spec, resolve_command_line, usage_rows, CommandChannel, CommandClass,
+            command_spec, live, resolve_command_line, usage_rows, CommandChannel, CommandClass,
             CommandOutcome, CommandResult, CommandSource, CommandSpec, CommandStatus,
             COMMAND_CATALOG,
         },
-        shell::{CliOutput, CommandArity},
+        shell::{CliOutput, CommandArg, CommandArity},
         terminal::{
             nova_os_boot_banner_rows, nova_os_version_label, nova_os_welcome_rows,
             prompt_after_cursor, prompt_before_cursor, prompt_completion_ghost,

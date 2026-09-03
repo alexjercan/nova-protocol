@@ -266,3 +266,84 @@ fn binding_line(world: &World, action: &str) -> String {
         })
         .unwrap_or_else(|| "Unbound".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A mixer with all four channels at half, which is what `volume` reads
+    /// and writes.
+    fn mixer() -> World {
+        let mut world = World::new();
+        world.insert_resource(MasterVolume(0.5));
+        world.insert_resource(MusicVolume(0.5));
+        world.insert_resource(WorldVolume(0.5));
+        world.insert_resource(InterfaceVolume(0.5));
+        world
+    }
+
+    /// One action bound on both devices, so a rebind of either column has the
+    /// other one to keep.
+    fn bound() -> World {
+        let mut world = World::new();
+        world.insert_resource(InputBindings::from_actions([ActionBinding::new(
+            "fire", "WEAPONS", "Fire",
+        )
+        .keyboard([InputSource::parse("Space").expect("Space is bindable")])
+        .gamepad([
+            InputSource::parse("pad:south").expect("the south pad button is bindable")
+        ])]));
+        world
+    }
+
+    /// A factor is a fraction of full, so anything outside it is refused and
+    /// the mixer keeps what it had.
+    #[test]
+    fn a_volume_outside_the_range_is_not_written() {
+        let mut world = mixer();
+        for word in ["1.5", "-0.1", "loud"] {
+            let result = volume(&mut world, &["music".to_string(), word.to_string()]);
+            assert_eq!(result.status, CommandStatus::Error, "{word}");
+            assert!(
+                (world.resource::<MusicVolume>().factor() - 0.5).abs() < f32::EPSILON,
+                "'{word}' moved the channel"
+            );
+        }
+        let result = volume(&mut world, &["music".to_string(), "0.25".to_string()]);
+        assert_eq!(result.status, CommandStatus::Ok);
+        assert!((world.resource::<MusicVolume>().factor() - 0.25).abs() < f32::EPSILON);
+    }
+
+    /// A source belongs to the column of its own device, and rebinding one
+    /// column leaves the other one alone.
+    #[test]
+    fn a_bind_lands_in_the_column_of_its_own_device() {
+        let mut world = bound();
+        let result = bind(&mut world, "fire", "K");
+        assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
+        let table = world.resource::<InputBindings>();
+        let action = table.get("fire").expect("the action stays registered");
+        assert_eq!(action.keyboard, vec![InputSource::parse("K").unwrap()]);
+        assert_eq!(
+            action.gamepad,
+            vec![InputSource::parse("pad:south").unwrap()],
+            "a keyboard bind kept the pad column"
+        );
+
+        let result = bind(&mut world, "fire", "pad:east");
+        assert_eq!(result.status, CommandStatus::Ok, "{}", result.detail);
+        let action = world
+            .resource::<InputBindings>()
+            .get("fire")
+            .expect("the action stays registered");
+        assert_eq!(
+            action.gamepad,
+            vec![InputSource::parse("pad:east").unwrap()]
+        );
+        assert_eq!(
+            action.keyboard,
+            vec![InputSource::parse("K").unwrap()],
+            "a pad bind kept the keyboard column"
+        );
+    }
+}

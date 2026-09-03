@@ -55,6 +55,7 @@ fn teardown_scenario_entities(
     outcome: Option<&mut CurrentOutcome>,
     objectives: Option<&mut GameObjectives>,
     story_feed: Option<&mut StoryFeed>,
+    cheats: Option<&mut RunCheats>,
 ) {
     world.clear();
     // The objectives HUD mirror dies with the scenario too (same reset class as
@@ -96,6 +97,13 @@ fn teardown_scenario_entities(
     if let Some(outcome) = outcome {
         outcome.0 = None;
     }
+    // Arming and the cheat mark belong to ONE attempt, so every road out of a
+    // scenario clears them: `scenario load`, Retry, Next scenario and New Game
+    // all arrive here. Doing it anywhere else leaves a road that carries an
+    // armed run into a fresh one.
+    if let Some(cheats) = cheats {
+        cheats.begin_new_run();
+    }
     for entity in q_scoped.iter() {
         commands.entity(entity).despawn();
     }
@@ -111,6 +119,7 @@ pub(super) fn unload_scenario(
     mut outcome: Option<ResMut<CurrentOutcome>>,
     mut objectives: Option<ResMut<GameObjectives>>,
     mut story_feed: Option<ResMut<StoryFeed>>,
+    mut cheats: Option<ResMut<RunCheats>>,
 ) {
     teardown_scenario_entities(
         &mut commands,
@@ -120,6 +129,7 @@ pub(super) fn unload_scenario(
         outcome.as_deref_mut(),
         objectives.as_deref_mut(),
         story_feed.as_deref_mut(),
+        cheats.as_deref_mut(),
     );
     **current_scenario = None;
 }
@@ -188,6 +198,7 @@ pub(super) fn on_load_scenario(
     ships: Option<Res<GameShips>>,
     scenarios: Option<Res<GameScenarios>>,
     mut failure: Option<ResMut<ScenarioStartFailure>>,
+    mut cheats: Option<ResMut<RunCheats>>,
     bindings: Res<InputBindings>,
 ) {
     // The runtime content gate: a scenario with Error-level findings REFUSES to
@@ -231,6 +242,7 @@ pub(super) fn on_load_scenario(
         outcome.as_deref_mut(),
         objectives.as_deref_mut(),
         story_feed.as_deref_mut(),
+        cheats.as_deref_mut(),
     );
 
     let scenario = (**load).clone();

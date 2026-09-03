@@ -11,7 +11,10 @@ use nova_os::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
-use crate::{lookup, surface::world_line};
+use crate::{
+    lookup::{self, Resolved},
+    surface::world_line,
+};
 
 const CLASS: CommandClass = CommandClass::ReadOnly;
 
@@ -77,11 +80,8 @@ pub fn ships(world: &mut World) -> CommandResult {
 }
 
 /// `ship <id>`: one ship's identity, allegiance, hull and cap.
-pub fn ship(world: &mut World, id: &str) -> CommandResult {
-    let entity = match lookup::ship(world, id).or_error("ship", CLASS) {
-        Ok(entity) => entity,
-        Err(result) => return result,
-    };
+pub fn ship(world: &mut World, id: &str) -> Resolved {
+    let entity = lookup::ship(world, id).or_error("ship", CLASS)?;
     let sections = lookup::sections(world, entity).len();
     let cap = world
         .entity(entity)
@@ -92,32 +92,32 @@ pub fn ship(world: &mut World, id: &str) -> CommandResult {
         .get::<Name>()
         .map_or_else(|| id.to_string(), |name| name.to_string());
     let health = entity_ref.get::<Health>().cloned();
-    CommandResult::ok("ship", CLASS, format!("{id}: {sections} sections")).with_rows(vec![
-        TerminalRow::info(format!("ID ........... {id}")),
-        TerminalRow::output(format!("NAME ......... {name}")),
-        TerminalRow::output(format!(
-            "SIDE ......... {}",
-            allegiance_label(world, entity)
-        )),
-        TerminalRow::output(format!("HULL ......... {}", health_line(health.as_ref()))),
-        TerminalRow::output(format!("SECTIONS ..... {sections}")),
-        TerminalRow::output(format!("SPEED CAP .... {}", speed_cap_line(cap))),
-        TerminalRow::output(format!("AMMO ......... {}", ammo_line(world, entity))),
-    ])
+    Ok(
+        CommandResult::ok("ship", CLASS, format!("{id}: {sections} sections")).with_rows(vec![
+            TerminalRow::info(format!("ID ........... {id}")),
+            TerminalRow::output(format!("NAME ......... {name}")),
+            TerminalRow::output(format!(
+                "SIDE ......... {}",
+                allegiance_label(world, entity)
+            )),
+            TerminalRow::output(format!("HULL ......... {}", health_line(health.as_ref()))),
+            TerminalRow::output(format!("SECTIONS ..... {sections}")),
+            TerminalRow::output(format!("SPEED CAP .... {}", speed_cap_line(cap))),
+            TerminalRow::output(format!("AMMO ......... {}", ammo_line(world, entity))),
+        ]),
+    )
 }
 
 /// `sections <ship-id>`: one ship's sections, one line each.
-pub fn sections(world: &mut World, ship_id: &str) -> CommandResult {
-    let entity = match lookup::ship(world, ship_id).or_error("sections", CLASS) {
-        Ok(entity) => entity,
-        Err(result) => return result,
-    };
+pub fn sections(world: &mut World, ship_id: &str) -> Resolved {
+    let entity = lookup::ship(world, ship_id).or_error("sections", CLASS)?;
     let sections = lookup::sections(world, entity);
     if sections.is_empty() {
-        return CommandResult::ok("sections", CLASS, format!("{ship_id} has no sections"))
-            .with_rows(vec![TerminalRow::warn(format!(
-                "'{ship_id}' has no sections."
-            ))]);
+        return Ok(
+            CommandResult::ok("sections", CLASS, format!("{ship_id} has no sections")).with_rows(
+                vec![TerminalRow::warn(format!("'{ship_id}' has no sections."))],
+            ),
+        );
     }
     let width = sections.iter().map(|(_, id)| id.len()).max().unwrap_or(0);
     let rows = sections
@@ -129,33 +129,37 @@ pub fn sections(world: &mut World, ship_id: &str) -> CommandResult {
             ))
         })
         .collect();
-    CommandResult::ok(
+    Ok(CommandResult::ok(
         "sections",
         CLASS,
         format!("{} on {ship_id}", sections.len()),
     )
-    .with_rows(rows)
+    .with_rows(rows))
 }
 
-/// `section <id>`: one section's kind, integrity and magazine.
-pub fn section(world: &mut World, id: &str) -> CommandResult {
-    let entity = match lookup::section(world, id).or_error("section", CLASS) {
-        Ok(entity) => entity,
-        Err(result) => return result,
-    };
+/// `section <ship-id> <section-id>`: one section's kind, integrity and magazine.
+///
+/// The ship is part of the address because a section id is unique to its hull:
+/// two `cargoa` in one scenario both carry `turret_port`.
+pub fn section(world: &mut World, ship_id: &str, id: &str) -> Resolved {
+    let ship = lookup::ship(world, ship_id).or_error("section", CLASS)?;
+    let entity = lookup::section(world, ship, id).or_error("section", CLASS)?;
     let entity_ref = world.entity(entity);
     let health = entity_ref.get::<Health>().cloned();
     let ammo = entity_ref.get::<SectionAmmo>().copied();
     let reload = entity_ref.get::<SectionReload>().copied();
     let unlimited = entity_ref.get::<SuspendedSectionAmmo>().is_some();
     let kind = section_kind_label(world, entity);
-    CommandResult::ok("section", CLASS, format!("{id}: {kind}")).with_rows(vec![
-        TerminalRow::info(format!("ID ........... {id}")),
-        TerminalRow::output(format!("KIND ......... {kind}")),
-        TerminalRow::output(format!("INTEGRITY .... {}", health_line(health.as_ref()))),
-        TerminalRow::output(format!("MAGAZINE ..... {}", magazine_line(ammo, unlimited))),
-        TerminalRow::output(format!("RELOAD ....... {}", reload_line(reload))),
-    ])
+    Ok(
+        CommandResult::ok("section", CLASS, format!("{ship_id} {id}: {kind}")).with_rows(vec![
+            TerminalRow::info(format!("ID ........... {id}")),
+            TerminalRow::output(format!("SHIP ......... {ship_id}")),
+            TerminalRow::output(format!("KIND ......... {kind}")),
+            TerminalRow::output(format!("INTEGRITY .... {}", health_line(health.as_ref()))),
+            TerminalRow::output(format!("MAGAZINE ..... {}", magazine_line(ammo, unlimited))),
+            TerminalRow::output(format!("RELOAD ....... {}", reload_line(reload))),
+        ]),
+    )
 }
 
 /// `objectives`: what the panel is showing.

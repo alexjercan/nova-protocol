@@ -255,11 +255,15 @@ fn editor_plugin(app: &mut App) {
     // the Escape that closes the gallery, cancels a rebind or puts back what a
     // field held - belong to those modes' owners, and one press cannot reach
     // two owners because only one of them is the keyboard's.
+    //
+    // Unpaused as well: the CRT and the pause menu draw OVER the editor without
+    // claiming an input mode, so an Escape or Backspace typed into the shell
+    // used to back the editor out from under it.
     app.add_systems(
         Update,
         (escape_backs_out, backspace_steps_out)
             .run_if(in_input_mode(InputMode::Normal))
-            .run_if(in_state(ExampleStates::Editor)),
+            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused))),
     );
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands

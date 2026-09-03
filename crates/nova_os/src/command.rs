@@ -63,6 +63,10 @@ pub struct TerminalCommand {
     /// falls back to a generic `<arg>`). Set at the registration site with
     /// [`Self::with_arg_hint`].
     pub arg_hint: Option<&'static str>,
+    /// What each argument position accepts, in order. Drives Tab completion,
+    /// so a verb that names a live token here completes against the world.
+    /// Set with [`Self::with_args`].
+    pub args: &'static [CommandArg],
     /// What running the command does.
     pub body: CommandBody,
     /// Nested subcommands, each carrying its own FULL name.
@@ -77,6 +81,7 @@ impl TerminalCommand {
             summary,
             arity: CommandArity::None,
             arg_hint: None,
+            args: &[],
             body: CommandBody::Cli(output),
             subcommands: Vec::new(),
         }
@@ -90,6 +95,7 @@ impl TerminalCommand {
             summary,
             arity: CommandArity::None,
             arg_hint: None,
+            args: &[],
             body: CommandBody::App(Box::new(runtime)),
             subcommands: Vec::new(),
         }
@@ -105,6 +111,7 @@ impl TerminalCommand {
             summary,
             arity,
             arg_hint: None,
+            args: &[],
             body: CommandBody::Gameplay,
             subcommands: Vec::new(),
         }
@@ -116,6 +123,15 @@ impl TerminalCommand {
     /// `Usage: map goto <label>`.
     pub fn with_arg_hint(mut self, arg_hint: &'static str) -> Self {
         self.arg_hint = Some(arg_hint);
+        self
+    }
+
+    /// Say what each argument position accepts, so Tab completes values rather
+    /// than command names. A [`CommandArg::Live`] token is filled in by
+    /// whoever owns the world, through
+    /// [`NovaOsTerminal::merge_live_values`](crate::terminal::NovaOsTerminal::merge_live_values).
+    pub fn with_args(mut self, args: &'static [CommandArg]) -> Self {
+        self.args = args;
         self
     }
 
@@ -145,6 +161,7 @@ impl TerminalCommand {
             summary: self.summary,
             arity: self.arity,
             arg_hint: self.arg_hint,
+            args: self.args,
             dispatch: self.body.dispatch(),
         });
         for subcommand in &self.subcommands {

@@ -9,7 +9,7 @@
 use bevy::prelude::*;
 use nova_os::prelude::*;
 
-use crate::{cheats, inspect, settings};
+use crate::{cheats, inspect, lookup::answered, settings};
 
 /// Run one command against the live world.
 ///
@@ -35,9 +35,9 @@ pub fn execute(world: &mut World, invocation: &CommandInvocation) -> CommandResu
         "status" => inspect::status(world),
         "scenario" => inspect::scenario(world),
         "ships" => inspect::ships(world),
-        "ship" => inspect::ship(world, arg(0)),
-        "sections" => inspect::sections(world, arg(0)),
-        "section" => inspect::section(world, arg(0)),
+        "ship" => answered(inspect::ship(world, arg(0))),
+        "sections" => answered(inspect::sections(world, arg(0))),
+        "section" => answered(inspect::section(world, arg(0), arg(1))),
         "objectives" => inspect::objectives(world),
         "variables" => inspect::variables(world),
         "variable" => inspect::variable(world, arg(0)),
@@ -54,10 +54,10 @@ pub fn execute(world: &mut World, invocation: &CommandInvocation) -> CommandResu
 
         // Cheat.
         "cheats enable" => cheats::enable(world),
-        "ammo infinite" => cheats::ammo_infinite(world, arg(0), arg(1)),
-        "ammo refill" => cheats::ammo_refill(world, arg(0)),
-        "ammo refill section" => cheats::ammo_refill_section(world, arg(0)),
-        "speed-cap" => cheats::speed_cap(world, arg(0), arg(1)),
+        "ammo infinite" => answered(cheats::ammo_infinite(world, arg(0), arg(1))),
+        "ammo refill" => answered(cheats::ammo_refill(world, arg(0))),
+        "ammo refill section" => answered(cheats::ammo_refill_section(world, arg(0), arg(1))),
+        "speed-cap" => answered(cheats::speed_cap(world, arg(0), arg(1))),
 
         name => CommandResult::error(
             name,

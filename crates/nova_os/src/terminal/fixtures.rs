@@ -1,6 +1,9 @@
 //! Test fixtures shared by the terminal test modules.
 
-use crate::{command::prelude::core_command_specs, shell::prelude::*, terminal::NovaOsTerminal};
+use crate::{
+    command::prelude::core_command_specs, commands::live, shell::prelude::*,
+    terminal::NovaOsTerminal,
+};
 
 pub(super) fn type_text(terminal: &mut NovaOsTerminal, text: &str) {
     terminal.insert_text(text);
@@ -13,6 +16,7 @@ pub(super) fn cli_spec(name: &'static str, summary: &'static str) -> TerminalCom
         summary,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
     }
 }
@@ -24,18 +28,20 @@ pub(super) fn app_spec(name: &'static str, summary: &'static str) -> TerminalCom
         summary,
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         dispatch: CommandDispatch::App,
     }
 }
 
-/// An arg-bearing gameplay command spec named `name` taking one argument (an
-/// arg-bearing ship verb like `ship repair`).
+/// An arg-bearing gameplay command spec named `name`, taking one live section
+/// id (an arg-bearing ship verb like `ship repair`).
 pub(super) fn gameplay_spec(name: &'static str) -> TerminalCommandSpec {
     TerminalCommandSpec {
         name,
         summary: "",
         arity: CommandArity::UpTo(1),
         arg_hint: None,
+        args: &[CommandArg::Live(live::SECTION)],
         dispatch: CommandDispatch::Gameplay,
     }
 }

@@ -137,6 +137,10 @@ pub(crate) fn open_command_shell(
     // NOVA OS session the player never opened.
     terminal.open_shell(ShellKind::Commands);
     close.closing = false;
+    // The shell is a surface OVER what is already there, so closing it puts
+    // that back: `:` from the pause menu returns to the pause menu, not to a
+    // running world the player never asked to be in.
+    close.return_to = *current.get();
     next.set(PauseStates::NovaOs);
 }
 

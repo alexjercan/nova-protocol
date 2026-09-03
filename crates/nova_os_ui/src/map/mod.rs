@@ -131,7 +131,8 @@ impl Plugin for NovaOsMapPlugin {
                             "Fly the ship to a contact label",
                             CommandArity::UpTo(1),
                         )
-                        .with_arg_hint("<label>"),
+                        .with_arg_hint("<label>")
+                        .with_args(&[CommandArg::Live(live::CONTACT)]),
                     ),
             );
 

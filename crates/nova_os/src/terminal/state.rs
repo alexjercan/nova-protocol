@@ -10,7 +10,7 @@
 //! rebuilt, no reveal replays, and each shell comes back exactly as it was
 //! left.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 use bevy::prelude::*;
 
@@ -50,9 +50,6 @@ pub enum ShellKind {
 }
 
 impl ShellKind {
-    /// Both shells, in switch order.
-    pub const ALL: [ShellKind; 2] = [ShellKind::NovaOs, ShellKind::Commands];
-
     /// The prompt prefix this shell echoes a submitted line with.
     pub fn prompt_prefix(self) -> &'static str {
         match self {
@@ -98,10 +95,6 @@ pub(super) struct ShellSession {
     pub(super) cycle_stem: Option<String>,
     /// The current index into the match list for the active cycle stem.
     pub(super) cycle_index: usize,
-    /// Completion candidates for the argument of an arg-bearing command, keyed
-    /// by command name (`"ship repair" -> ["HULL-1", ...]`). The pure terminal
-    /// cannot enumerate live ids, so the bevy layer injects them.
-    pub(super) arg_completions: HashMap<&'static str, Vec<String>>,
 }
 
 impl ShellSession {
@@ -120,7 +113,6 @@ impl ShellSession {
             revealed: false,
             cycle_stem: None,
             cycle_index: 0,
-            arg_completions: HashMap::new(),
         }
     }
 }
@@ -152,18 +144,30 @@ pub struct NovaOsTerminal {
     /// Set by the `exit`/`close` commands; the keyboard system consumes it to
     /// drive the animated close of the computer (mirrors the HTML PoC's `exit`).
     pub(super) pending_close: bool,
-    /// How many [`NovaOsFlightLog`] entries had been seen the last time the NOVA
-    /// OS closed. The boot banner's "N unread events" line counts entries
-    /// appended since.
-    ///
-    /// [`NovaOsFlightLog`]: https://docs.rs/  "internal to nova_os_ui"
+    /// How many `NovaOsFlightLog` (nova_os_ui) entries had been seen the last
+    /// time the NOVA OS closed. The boot banner's "N unread events" line counts
+    /// entries appended since.
     pub(super) seen_events: usize,
     /// An arg-bearing NOVA OS gameplay command that [`Self::submit`] resolved
     /// and is waiting for the gameplay layer to apply.
     pub(super) pending_invocation: Option<NovaOsCommandInvocation>,
-    /// A Command-shell command that [`Self::submit`] resolved and is waiting for
-    /// the command dispatcher to run against the live game.
-    pub(super) pending_command: Option<CommandInvocation>,
+    /// The Command-shell commands [`Self::submit`] resolved and handed on for
+    /// the dispatcher to run against the live game, oldest first.
+    ///
+    /// A QUEUE, not a slot: the process channel can stage two Enters on one
+    /// tick, and a slot dropped the first of them silently.
+    pub(super) pending_commands: VecDeque<CommandInvocation>,
+    /// Values only the live world knows, keyed by the token a
+    /// [`CommandArg::Live`] argument names (`"ship" -> ["player_spaceship"]`).
+    ///
+    /// A key may be QUALIFIED by the argument before it (`"section:cargoa"`),
+    /// which is how `section <ship> <TAB>` offers that ship's sections and not
+    /// every ship's. Completion tries the qualified key first and falls back to
+    /// the bare token.
+    ///
+    /// Emulator-wide rather than per-shell: a token means one thing, and both
+    /// shells complete a ship id from the same set.
+    pub(super) live_values: HashMap<String, Vec<String>>,
     /// A shell switch a submitted command asked for, applied once the line it
     /// was typed on has been cleared.
     pub(super) pending_shell: Option<ShellKind>,
@@ -342,7 +346,7 @@ impl Default for NovaOsTerminal {
             // The Command shell's introduction is world-dependent (the live
             // scenario, the registry count, the cheat mark), so it is revealed
             // by the dispatcher on first entry rather than seeded here.
-            command: ShellSession::new(command_shell_specs(), Vec::new()),
+            command: ShellSession::new(command_shell_specs().to_vec(), Vec::new()),
             scrollback_revision: 0,
             active_mode: TerminalMode::Prompt,
             pending_close: false,
@@ -350,8 +354,10 @@ impl Default for NovaOsTerminal {
             back_out: None,
             seen_events: 0,
             pending_invocation: None,
-            pending_command: None,
+            pending_commands: VecDeque::new(),
+            live_values: HashMap::new(),
         };
+        terminal.seed_command_name_values();
         terminal.refresh_parse();
         terminal
     }
@@ -415,11 +421,12 @@ impl NovaOsTerminal {
 
     /// Enter a shell as the CRT's ground floor: Escape closes the computer
     /// rather than climbing back to whatever was active last time.
+    ///
+    /// A shell that is ALREADY active is entered as it was left, app and all:
+    /// the monitor key reopens onto the app the player was in, and only a
+    /// switch to the other language leaves it (see [`Self::switch_shell`]).
     pub fn open_shell(&mut self, shell: ShellKind) {
-        let switched = self.switch_shell(shell);
-        if !switched {
-            self.exit_app();
-        }
+        self.switch_shell(shell);
         self.back_out = None;
     }
 
@@ -470,16 +477,13 @@ impl NovaOsTerminal {
         shell: ShellKind,
         rows: impl IntoIterator<Item = TerminalRow>,
     ) {
-        let session = match shell {
+        match shell {
             ShellKind::NovaOs => &mut self.nova_os,
             ShellKind::Commands => &mut self.command,
-        };
-        session.scrollback.extend(rows);
-        let excess = session.scrollback.len().saturating_sub(MAX_SCROLLBACK_ROWS);
-        if excess > 0 {
-            session.scrollback.drain(..excess);
         }
-        self.bump_scrollback_revision();
+        .scrollback
+        .extend(rows);
+        self.after_shell_scrollback_change(shell);
     }
 
     /// Append one row to the active shell's scrollback.
@@ -499,7 +503,15 @@ impl NovaOsTerminal {
     /// Every scrollback mutation ends here, so neither the cap nor the revision
     /// can be bypassed by a new caller.
     fn after_scrollback_change(&mut self) {
-        let session = self.session_mut();
+        self.after_shell_scrollback_change(self.active);
+    }
+
+    /// [`Self::after_scrollback_change`] for a NAMED shell, whichever is active.
+    fn after_shell_scrollback_change(&mut self, shell: ShellKind) {
+        let session = match shell {
+            ShellKind::NovaOs => &mut self.nova_os,
+            ShellKind::Commands => &mut self.command,
+        };
         let excess = session.scrollback.len().saturating_sub(MAX_SCROLLBACK_ROWS);
         if excess > 0 {
             session.scrollback.drain(..excess);
@@ -554,6 +566,7 @@ impl NovaOsTerminal {
     /// (marking the resource changed) when the set actually changed.
     pub fn set_nova_os_commands(&mut self, commands: Vec<TerminalCommandSpec>) {
         self.nova_os.commands = commands;
+        self.seed_command_name_values();
         self.refresh_parse();
     }
 
@@ -562,62 +575,55 @@ impl NovaOsTerminal {
         &self.nova_os.commands
     }
 
-    /// The argument-completion candidates currently injected by the gameplay
-    /// layer into the NOVA OS shell, keyed by command name. The caller compares
-    /// against this before calling [`Self::merge_arg_completions`] so it only
-    /// marks the resource changed when the live set actually changed.
-    pub fn arg_completions(&self) -> &HashMap<&'static str, Vec<String>> {
-        &self.nova_os.arg_completions
+    /// The live values currently published for completion, keyed by the token a
+    /// [`CommandArg::Live`] argument names. A caller compares against this
+    /// before [`Self::merge_live_values`] so it only marks the resource changed
+    /// when the live set actually changed.
+    ///
+    /// [`CommandArg::Live`]: crate::shell::CommandArg::Live
+    pub fn live_values(&self) -> &HashMap<String, Vec<String>> {
+        &self.live_values
     }
 
-    /// Merge arg-completion candidates for the given NOVA OS verbs, leaving
-    /// other verbs' entries intact, so several gameplay-verb apps (`ship`,
-    /// `map`) can each own their own verbs without clobbering the shared map.
-    /// Only re-parses when a value actually changed.
-    pub fn merge_arg_completions(
+    /// Publish the values for one or more live tokens, leaving every other
+    /// token intact so the map's several owners (`ship`, `map`, the command
+    /// dispatcher) never clobber each other. Only re-parses on a real change.
+    pub fn merge_live_values(
         &mut self,
-        entries: impl IntoIterator<Item = (&'static str, Vec<String>)>,
+        entries: impl IntoIterator<Item = (impl Into<String>, Vec<String>)>,
     ) {
         let mut changed = false;
-        for (name, candidates) in entries {
-            match self.nova_os.arg_completions.get(name) {
+        for (token, candidates) in entries {
+            let token = token.into();
+            match self.live_values.get(&token) {
                 Some(existing) if *existing == candidates => {}
                 _ => {
-                    self.nova_os.arg_completions.insert(name, candidates);
+                    self.live_values.insert(token, candidates);
                     changed = true;
                 }
             }
         }
-        if changed && self.active == ShellKind::NovaOs {
+        if changed {
             self.refresh_parse();
         }
     }
 
-    /// Merge argument-completion candidates into the COMMAND shell (live ship
-    /// and section ids, action names, scenario ids). Same contract as
-    /// [`Self::merge_arg_completions`].
-    pub fn merge_command_arg_completions(
-        &mut self,
-        entries: impl IntoIterator<Item = (&'static str, Vec<String>)>,
-    ) {
-        let mut changed = false;
-        for (name, candidates) in entries {
-            match self.command.arg_completions.get(name) {
-                Some(existing) if *existing == candidates => {}
-                _ => {
-                    self.command.arg_completions.insert(name, candidates);
-                    changed = true;
-                }
-            }
-        }
-        if changed && self.active == ShellKind::Commands {
-            self.refresh_parse();
-        }
-    }
-
-    /// The Command shell's injected argument candidates, for the change compare.
-    pub fn command_arg_completions(&self) -> &HashMap<&'static str, Vec<String>> {
-        &self.command.arg_completions
+    /// Publish this emulator's own command names under
+    /// [`live::COMMAND`](crate::commands::live::COMMAND), so `help <TAB>` names
+    /// the catalog it is asking about. Needs no world, so the terminal fills it
+    /// itself whenever a command set changes.
+    fn seed_command_name_values(&mut self) {
+        let mut names: Vec<String> = self
+            .nova_os
+            .commands
+            .iter()
+            .chain(self.command.commands.iter())
+            .map(|spec| spec.name.to_string())
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        self.live_values
+            .insert(crate::commands::live::COMMAND.to_string(), names);
     }
 
     /// Take the arg-bearing gameplay invocation queued by the last
@@ -637,11 +643,21 @@ impl NovaOsTerminal {
         self.pending_invocation.as_ref()
     }
 
-    /// Take the Command-shell invocation queued by the last [`Self::submit`].
-    /// The command dispatcher drains this, runs it against the live game and
-    /// appends the result rows.
+    /// Take the oldest Command-shell invocation waiting for the dispatcher.
+    /// The dispatcher drains this, runs it against the live game and appends
+    /// the result rows.
     pub fn take_pending_command(&mut self) -> Option<CommandInvocation> {
-        self.pending_command.take()
+        self.pending_commands.pop_front()
+    }
+
+    /// Whether any invocation is waiting for the dispatcher.
+    ///
+    /// Read through the immutable `Deref` so an idle frame does not mark the
+    /// resource changed: every paint gate keys on that, and taking through
+    /// `ResMut` on an empty queue rebuilt the whole terminal UI 60 times a
+    /// second.
+    pub fn has_pending_command(&self) -> bool {
+        !self.pending_commands.is_empty()
     }
 
     /// Whether the `exit`/`close` command has requested an animated close,
@@ -650,6 +666,12 @@ impl NovaOsTerminal {
         let pending = self.pending_close;
         self.pending_close = false;
         pending
+    }
+
+    /// Whether an animated close is requested, without clearing it. Same
+    /// change-detection reason as [`Self::has_pending_command`].
+    pub fn has_pending_close(&self) -> bool {
+        self.pending_close
     }
 
     /// Request the animated close of the computer, as `exit`/`close` do.

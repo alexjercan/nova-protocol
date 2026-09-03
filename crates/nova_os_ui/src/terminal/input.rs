@@ -57,6 +57,7 @@ pub(crate) fn toggle_nova_os(
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     mut close: ResMut<NovaOsCloseTransition>,
+    mut terminal: ResMut<NovaOsTerminal>,
 ) {
     let Some(action) = bindings.get("novaos_toggle") else {
         return;
@@ -70,6 +71,11 @@ pub(crate) fn toggle_nova_os(
         PauseStates::Unpaused if player.is_empty() => {}
         PauseStates::Unpaused => {
             close.closing = false;
+            close.return_to = PauseStates::Unpaused;
+            // The toggle opens the SHIP's computer. Without naming the shell,
+            // it reopens whichever one was last active - so once `:` had been
+            // used, Tab only ever came back to the Command prompt.
+            terminal.open_shell(ShellKind::NovaOs);
             next.set(PauseStates::NovaOs);
         }
         PauseStates::NovaOs if pad && !desk => {
@@ -394,8 +400,11 @@ pub(crate) fn handle_terminal_keyboard(
         }
     }
 
-    // The `exit` command requests the same animated close as Esc/Start.
-    if terminal.take_pending_close() {
+    // The `exit`/`close` commands request the same animated close as Esc/Start.
+    // Peeked first: taking through `ResMut` on an idle frame would mark the
+    // terminal changed and defeat every paint gate that keys on that.
+    if terminal.has_pending_close() {
+        terminal.take_pending_close();
         close.closing = true;
     }
 }

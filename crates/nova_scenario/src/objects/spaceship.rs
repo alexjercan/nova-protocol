@@ -49,8 +49,8 @@ pub enum SpaceshipController {
     AI(AIControllerConfig),
 }
 
-/// Player-driver settings for a [`SpaceshipController::Player`] ship: per-section
-/// input bindings, an optional soft speed cap, and an infinite-ammo flag.
+/// Player-driver settings for a [`SpaceshipController::Player`] ship:
+/// per-section input bindings and an optional soft speed cap.
 /// Authored in the scenario RON and consumed at spawn by
 /// `insert_spaceship_sections`, which inserts the derived components on the ship
 /// root (see the per-field docs).

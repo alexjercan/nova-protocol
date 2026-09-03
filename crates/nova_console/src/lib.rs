@@ -20,6 +20,7 @@
 pub mod dispatch;
 
 mod cheats;
+mod completion;
 mod inspect;
 mod lookup;
 mod settings;
@@ -33,12 +34,12 @@ pub mod prelude {
 use bevy::prelude::*;
 use nova_gameplay::{
     audio::prelude::{SoundBank, UiSfx, NOVA_OS_ERROR_VOLUME, NOVA_OS_OK_VOLUME},
-    prelude::RunCheats,
+    prelude::{PauseStates, RunCheats},
 };
 use nova_os::prelude::*;
-use nova_os_ui::terminal::prelude::{play_nova_os_cue, NovaOsMonitorSettings};
+use nova_os_ui::terminal::prelude::{play_nova_os_cue, NovaOsMonitorSettings, NovaOsSystems};
 
-use crate::surface::world_line;
+use crate::{completion::publish_live_values, surface::world_line};
 
 /// Where the dispatcher runs in a frame.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -63,8 +64,6 @@ pub struct NovaConsolePlugin;
 
 impl Plugin for NovaConsolePlugin {
     fn build(&self, app: &mut App) {
-        use nova_os_ui::terminal::NovaOsSystems;
-
         app.init_resource::<CommandChannel>();
         app.configure_sets(
             Update,
@@ -72,8 +71,36 @@ impl Plugin for NovaConsolePlugin {
                 .after(NovaOsSystems::Input)
                 .before(NovaOsSystems::Simulate),
         );
-        app.add_systems(Update, run_command_shell.in_set(ConsoleSystems::Dispatch));
+        app.add_systems(
+            Update,
+            (
+                // Exclusive and a sync point, so it runs only on the frames that
+                // actually have something to run.
+                run_command_shell.run_if(command_shell_has_work),
+                // Only while the CRT is up: nothing can Tab at a shell that is
+                // not on screen.
+                publish_live_values.run_if(in_state(PauseStates::NovaOs)),
+            )
+                .in_set(ConsoleSystems::Dispatch),
+        );
     }
+}
+
+/// Whether anything is waiting for the dispatcher this frame.
+///
+/// Peeked through `Deref`: taking the queue to look at it would flag
+/// [`NovaOsTerminal`] as changed every frame and defeat the CRT's own
+/// change-detection gates.
+fn command_shell_has_work(
+    terminal: Option<Res<NovaOsTerminal>>,
+    channel: Option<Res<CommandChannel>>,
+) -> bool {
+    let from_prompt = terminal.is_some_and(|terminal| {
+        terminal.has_pending_command()
+            || (terminal.active_shell() == ShellKind::Commands
+                && !terminal.is_revealed(ShellKind::Commands))
+    });
+    from_prompt || channel.is_some_and(|channel| channel.has_pending())
 }
 
 /// Reveal the introduction when it is due, then run what is queued.
@@ -108,11 +135,21 @@ fn reveal_command_intro(world: &mut World) {
 }
 
 /// Run every command the prompt and the channel have handed over.
+///
+/// The prompt's queue is drained one at a time and only while it holds
+/// something: a bare `take` every frame would take `NovaOsTerminal` mutably and
+/// flag it as changed with nothing in hand.
 fn run_pending_commands(world: &mut World) {
-    let typed = world
-        .get_resource_mut::<NovaOsTerminal>()
-        .and_then(|mut terminal| terminal.take_pending_command());
-    if let Some(invocation) = typed {
+    while world
+        .get_resource::<NovaOsTerminal>()
+        .is_some_and(NovaOsTerminal::has_pending_command)
+    {
+        let Some(invocation) = world
+            .resource_mut::<NovaOsTerminal>()
+            .take_pending_command()
+        else {
+            break;
+        };
         let result = dispatch::execute(world, &invocation);
         answer_the_shell(world, &result);
     }
@@ -123,34 +160,21 @@ fn run_pending_commands(world: &mut World) {
         .unwrap_or_default();
     for (source, invocation) in queued {
         let result = dispatch::execute(world, &invocation);
-        match source {
-            CommandSource::Shell => answer_the_shell(world, &result),
-            CommandSource::Channel { .. } => {
-                if let Some(mut channel) = world.get_resource_mut::<CommandChannel>() {
-                    channel.answer(source, result);
-                }
-            }
+        if let Some(mut channel) = world.get_resource_mut::<CommandChannel>() {
+            channel.answer(source, result);
         }
     }
 }
 
-/// Put one answer on the screen: its rows, its shell control, and its cue.
+/// Put one answer on the screen: its rows, and its cue.
+///
+/// Shell control (`clear`, `close`) never arrives here: the emulator owns the
+/// screen and acts on those at submit time.
 fn answer_the_shell(world: &mut World, result: &CommandResult) {
     let Some(mut terminal) = world.get_resource_mut::<NovaOsTerminal>() else {
         return;
     };
-    match result.command.as_str() {
-        // `clear` restores the introduction rather than printing rows, so it
-        // re-arms the reveal and lets the next frame stage it against the world
-        // as it is NOW - which is the point of clearing after loading a
-        // scenario.
-        "clear" => {
-            terminal.replace_scrollback(Vec::new());
-            terminal.rearm_command_intro();
-        }
-        "close" => terminal.request_close(),
-        _ => terminal.extend_scrollback(result.rows.clone()),
-    }
+    terminal.extend_scrollback(result.rows.clone());
     cue_the_answer(world, result.status);
 }
 

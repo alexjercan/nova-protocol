@@ -66,6 +66,7 @@ pub mod prelude {
         components::{NovaOsCloseTransition, NovaOsMonitorSettings},
         crt::{nova_os_openness, nova_os_pointer_id, nova_os_window_px_showing},
         sound::play_nova_os_cue,
+        NovaOsSystems,
     };
 }
 
@@ -358,9 +359,14 @@ impl Plugin for NovaOsPlugin {
         // main menu and the editor, which have no ship to hang a flight surface
         // off. The spawn is idempotent, so this is a keep-alive rather than a
         // one-shot, and the ship-scoped half is reset when the ship goes.
+        // Gated on there being no root rather than early-returning inside the
+        // system: the run condition is one query, where the body declares the
+        // image and CRT-material asset collections it would need to spawn.
         app.add_systems(
             Update,
-            ensure_nova_os_spawned.in_set(NovaOsSystems::Simulate),
+            ensure_nova_os_spawned
+                .run_if(not(any_with_component::<components::NovaOsRootMarker>))
+                .in_set(NovaOsSystems::Simulate),
         );
         app.add_observer(reset_nova_os_for_new_ship);
     }

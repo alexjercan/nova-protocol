@@ -454,6 +454,7 @@ mod tests {
             summary: "Fly the ship to a contact label",
             arity: CommandArity::UpTo(1),
             arg_hint: Some("<label>"),
+            args: &[],
             dispatch: CommandDispatch::Gameplay,
         };
         let spin = TerminalCommandSpec {
@@ -461,6 +462,7 @@ mod tests {
             summary: "Spin up a subsystem",
             arity: CommandArity::UpTo(1),
             arg_hint: None,
+            args: &[],
             dispatch: CommandDispatch::Gameplay,
         };
         terminal.set_nova_os_commands(core_with([

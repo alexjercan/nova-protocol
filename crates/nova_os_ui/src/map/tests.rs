@@ -252,6 +252,7 @@ fn terminal_with_map_goto() -> NovaOsTerminal {
         summary: "Open the local-space map",
         arity: CommandArity::None,
         arg_hint: None,
+        args: &[],
         dispatch: CommandDispatch::App,
     });
     specs.push(TerminalCommandSpec {
@@ -259,6 +260,7 @@ fn terminal_with_map_goto() -> NovaOsTerminal {
         summary: "Fly the ship to a contact label",
         arity: CommandArity::UpTo(1),
         arg_hint: Some("<label>"),
+        args: &[],
         dispatch: CommandDispatch::Gameplay,
     });
     terminal.set_nova_os_commands(specs);

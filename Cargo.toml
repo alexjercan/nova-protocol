@@ -254,6 +254,10 @@ name = "system_nova_os"
 path = "examples/systems/system_nova_os.rs"
 
 [[example]]
+name = "system_command_shell"
+path = "examples/systems/system_command_shell.rs"
+
+[[example]]
 name = "system_headless_pointer"
 path = "examples/systems/system_headless_pointer.rs"
 

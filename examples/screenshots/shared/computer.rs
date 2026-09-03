@@ -27,13 +27,12 @@ use bevy::input::{
     ButtonState,
 };
 use bevy::prelude::*;
-use nova_protocol::{
-    nova_os_ui::{
-        nova_os::prelude::{NovaOsTerminal, TerminalMode},
-        terminal::nova_os_openness,
-    },
-    prelude::*,
+#[cfg(feature = "debug")]
+use nova_protocol::nova_os_ui::{
+    nova_os::prelude::{NovaOsTerminal, TerminalMode},
+    terminal::nova_os_openness,
 };
+use nova_protocol::prelude::*;
 
 /// A single named player ship at the origin - enough for the NOVA OS computer to
 /// spawn (it keys off the player ship root) and for `ship` to have real sections.

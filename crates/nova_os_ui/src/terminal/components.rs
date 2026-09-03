@@ -276,10 +276,27 @@ pub(crate) struct NovaOsOpenness(pub(super) f32);
 /// Public because the CRT is opened from outside this crate as well: the `:`
 /// gesture that opens the Command shell lives with the other global modal keys
 /// in `nova_menu`, and an open must clear a close that is still running.
-#[derive(Resource, Default)]
+#[derive(Resource)]
 pub struct NovaOsCloseTransition {
     /// Whether a close is animating out right now.
     pub closing: bool,
+    /// The pause state the CRT was opened OVER, and the one closing it returns
+    /// to.
+    ///
+    /// The terminal is a surface on top of whatever was there, so closing it
+    /// restores that surface: `:` from the pause menu comes back to the pause
+    /// menu, and Tab from flight comes back to flight. Whoever opens the CRT
+    /// records what it covered.
+    pub return_to: PauseStates,
+}
+
+impl Default for NovaOsCloseTransition {
+    fn default() -> Self {
+        Self {
+            closing: false,
+            return_to: PauseStates::Unpaused,
+        }
+    }
 }
 
 /// NovaOs-local combined flight log derived from [`StoryFeed`],

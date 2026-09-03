@@ -9,9 +9,9 @@ use nova_events::prelude::MetersPerSecond;
 use nova_gameplay::prelude::*;
 use nova_os::prelude::*;
 use nova_scenario::prelude::*;
-use nova_ship::prelude::{FlightSpeedCap, SuspendedSectionAmmo};
+use nova_ship::prelude::FlightSpeedCap;
 
-use crate::lookup;
+use crate::lookup::{self, Resolved};
 
 const CLASS: CommandClass = CommandClass::Cheat;
 
@@ -49,113 +49,92 @@ pub fn enable(world: &mut World) -> CommandResult {
 }
 
 /// `ammo infinite <ship-id> <on|off>`.
-pub fn ammo_infinite(world: &mut World, ship_id: &str, state: &str) -> CommandResult {
+pub fn ammo_infinite(world: &mut World, ship_id: &str, state: &str) -> Resolved {
     let enabled = match state.to_ascii_lowercase().as_str() {
         "on" => true,
         "off" => false,
         _ => {
-            return CommandResult::error(
+            return Err(CommandResult::error(
                 "ammo infinite",
                 Some(CLASS),
                 format!("ammo infinite: '{state}' is not on or off"),
-            )
+            ))
         }
     };
-    let ship = match lookup::ship(world, ship_id).or_error("ammo infinite", CLASS) {
-        Ok(ship) => ship,
-        Err(result) => return result,
-    };
-    let mut changed = 0usize;
-    for (section, _) in lookup::sections(world, ship) {
-        let was_unlimited = world
-            .entity(section)
-            .get::<SuspendedSectionAmmo>()
-            .is_some();
-        apply_infinite_ammo(world, section, enabled);
-        if world
-            .entity(section)
-            .get::<SuspendedSectionAmmo>()
-            .is_some()
-            != was_unlimited
-        {
-            changed += 1;
-        }
-    }
+    let ship = lookup::ship(world, ship_id).or_error("ammo infinite", CLASS)?;
+    let changed = lookup::sections(world, ship)
+        .into_iter()
+        .filter(|(section, _)| apply_infinite_ammo(world, *section, enabled))
+        .count();
     let word = if enabled { "unlimited" } else { "finite" };
     if changed == 0 {
-        return CommandResult::ok("ammo infinite", CLASS, format!("{ship_id}: already {word}"))
-            .with_rows(vec![TerminalRow::warn(format!(
-                "'{ship_id}' has no magazine to make {word}."
-            ))]);
+        return Ok(
+            CommandResult::ok("ammo infinite", CLASS, format!("{ship_id}: already {word}"))
+                .with_rows(vec![TerminalRow::warn(format!(
+                    "'{ship_id}' has no magazine to make {word}."
+                ))]),
+        );
     }
-    CommandResult::ok(
+    Ok(CommandResult::ok(
         "ammo infinite",
         CLASS,
         format!("{ship_id}: {changed} weapons {word}"),
     )
     .with_rows(vec![TerminalRow::warn(format!(
         "{ship_id}: {changed} weapons now fire {word}."
-    ))])
+    ))]))
 }
 
 /// `ammo refill <ship-id>`.
-pub fn ammo_refill(world: &mut World, ship_id: &str) -> CommandResult {
-    let ship = match lookup::ship(world, ship_id).or_error("ammo refill", CLASS) {
-        Ok(ship) => ship,
-        Err(result) => return result,
-    };
+pub fn ammo_refill(world: &mut World, ship_id: &str) -> Resolved {
+    let ship = lookup::ship(world, ship_id).or_error("ammo refill", CLASS)?;
     let refilled = lookup::sections(world, ship)
         .into_iter()
         .filter(|(section, _)| refill_section(world, *section))
         .count();
     if refilled == 0 {
-        return CommandResult::ok(
+        return Ok(CommandResult::ok(
             "ammo refill",
             CLASS,
             format!("{ship_id}: nothing to refill"),
         )
         .with_rows(vec![TerminalRow::warn(format!(
             "'{ship_id}' has no finite magazine to refill."
-        ))]);
+        ))]));
     }
-    CommandResult::ok(
+    Ok(CommandResult::ok(
         "ammo refill",
         CLASS,
         format!("{ship_id}: {refilled} magazines full"),
     )
     .with_rows(vec![TerminalRow::warn(format!(
         "{ship_id}: {refilled} magazines refilled."
-    ))])
+    ))]))
 }
 
-/// `ammo refill section <section-id>`.
-pub fn ammo_refill_section(world: &mut World, section_id: &str) -> CommandResult {
-    let section = match lookup::section(world, section_id).or_error("ammo refill section", CLASS) {
-        Ok(section) => section,
-        Err(result) => return result,
-    };
+/// `ammo refill section <ship-id> <section-id>`.
+pub fn ammo_refill_section(world: &mut World, ship_id: &str, section_id: &str) -> Resolved {
+    const NAME: &str = "ammo refill section";
+    let ship = lookup::ship(world, ship_id).or_error(NAME, CLASS)?;
+    let section = lookup::section(world, ship, section_id).or_error(NAME, CLASS)?;
     if !refill_section(world, section) {
-        return CommandResult::ok(
-            "ammo refill section",
-            CLASS,
-            format!("{section_id}: nothing to refill"),
-        )
-        .with_rows(vec![TerminalRow::warn(format!(
-            "'{section_id}' has no finite magazine."
-        ))]);
+        return Ok(
+            CommandResult::ok(NAME, CLASS, format!("{section_id}: nothing to refill")).with_rows(
+                vec![TerminalRow::warn(format!(
+                    "'{section_id}' has no finite magazine."
+                ))],
+            ),
+        );
     }
-    CommandResult::ok(
-        "ammo refill section",
-        CLASS,
-        format!("{section_id}: magazine full"),
+    Ok(
+        CommandResult::ok(NAME, CLASS, format!("{section_id}: magazine full")).with_rows(vec![
+            TerminalRow::warn(format!("{ship_id} {section_id}: magazine refilled.")),
+        ]),
     )
-    .with_rows(vec![TerminalRow::warn(format!(
-        "{section_id}: magazine refilled."
-    ))])
 }
 
 /// `speed-cap <ship-id> <number|off>`.
-pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> CommandResult {
+pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> Resolved {
     // Engine boundary: the player says metres per second, because every figure
     // the game shows is in metres, and `FlightSpeedCap` is compared against an
     // avian velocity every tick. The cap crosses here, once, in each direction.
@@ -163,27 +142,28 @@ pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> CommandResult
         None
     } else {
         match value.parse::<f32>() {
-            Ok(metres) if metres > 0.0 => Some(MetersPerSecond(metres).to_engine()),
+            // `inf` parses and is greater than zero, and a cap that can never
+            // be reached is not a cap; `nan` fails the comparison already.
+            Ok(metres) if metres > 0.0 && metres.is_finite() => {
+                Some(MetersPerSecond(metres).to_engine())
+            }
             Ok(_) => {
-                return CommandResult::error(
+                return Err(CommandResult::error(
                     "speed-cap",
                     Some(CLASS),
-                    "speed-cap: a cap must be greater than zero, or 'off'",
-                )
+                    "speed-cap: a cap must be a real speed greater than zero, or 'off'",
+                ))
             }
             Err(_) => {
-                return CommandResult::error(
+                return Err(CommandResult::error(
                     "speed-cap",
                     Some(CLASS),
                     format!("speed-cap: '{value}' is not a number or 'off'"),
-                )
+                ))
             }
         }
     };
-    let ship = match lookup::ship(world, ship_id).or_error("speed-cap", CLASS) {
-        Ok(ship) => ship,
-        Err(result) => return result,
-    };
+    let ship = lookup::ship(world, ship_id).or_error("speed-cap", CLASS)?;
     let mut entity = world.entity_mut(ship);
     match cap {
         Some(cap) => {
@@ -200,38 +180,132 @@ pub fn speed_cap(world: &mut World, ship_id: &str, value: &str) -> CommandResult
         ),
         None => format!("{ship_id}: cap removed"),
     };
-    CommandResult::ok("speed-cap", CLASS, detail.clone()).with_rows(vec![TerminalRow::warn(detail)])
+    Ok(CommandResult::ok("speed-cap", CLASS, detail.clone())
+        .with_rows(vec![TerminalRow::warn(detail)]))
 }
 
 /// `scenario load <id>`: abandon the attempt and start a fresh one.
 ///
 /// Utility, not Cheat: it decides nothing about how the abandoned attempt ended.
 /// It assigns no outcome and advances no campaign, so a scenario left this way
-/// is neither won nor lost - and the new run starts clean, arming and mark
-/// cleared.
+/// is neither won nor lost - and the new run starts clean, because the loader's
+/// teardown clears the arming and the mark on every road out of a scenario.
 pub fn scenario_load(world: &mut World, id: &str) -> CommandResult {
     const NAME: &str = "scenario load";
+    const CLASS: CommandClass = CommandClass::Utility;
+    // The menu owns its own transition into a scenario (loading screen, camera,
+    // state). Triggering the loader from under it spawns a scenario the menu is
+    // still covering, so the shell refuses rather than half-starting a run.
+    if world.get_resource::<State<GameStates>>().map(State::get) != Some(&GameStates::Playing) {
+        return CommandResult::refused(
+            NAME,
+            CLASS,
+            format!("{NAME}: only from a running game - start one from the menu first"),
+        );
+    }
     let Some(scenarios) = world.get_resource::<GameScenarios>() else {
-        return CommandResult::error(NAME, Some(CommandClass::Utility), "no scenarios are loaded");
+        return CommandResult::error(NAME, Some(CLASS), "no scenarios are loaded");
     };
     let Some(config) = scenarios.get(id).cloned() else {
         let mut known: Vec<&str> = scenarios.keys().map(String::as_str).collect();
         known.sort_unstable();
         return CommandResult::error(
             NAME,
-            Some(CommandClass::Utility),
+            Some(CLASS),
             format!("no scenario named '{id}' ({})", known.join(", ")),
         );
     };
-    if let Some(mut cheats) = world.get_resource_mut::<RunCheats>() {
-        cheats.begin_new_run();
-    }
-    if let Some(mut outcome) = world.get_resource_mut::<CurrentOutcome>() {
-        outcome.0 = None;
+    // A stale report from an earlier refusal would read back as this load's, so
+    // clear it before the trigger; the loader files a fresh one if it refuses.
+    if world
+        .get_resource::<ScenarioStartFailure>()
+        .is_some_and(|failure| failure.0.is_some())
+    {
+        world.resource_mut::<ScenarioStartFailure>().0 = None;
     }
     world.trigger(LoadScenario(config));
-    CommandResult::ok(NAME, CommandClass::Utility, format!("loading {id}")).with_rows(vec![
+    // The loader refuses a scenario with Error-level findings and files the
+    // report instead of tearing anything down, so the ack has to read what the
+    // trigger actually did rather than assume it started.
+    if let Some(report) = world
+        .get_resource::<ScenarioStartFailure>()
+        .and_then(|failure| failure.0.clone())
+    {
+        let rows = report
+            .messages
+            .iter()
+            .map(|message| TerminalRow::output(format!("  {message}")))
+            .collect();
+        return CommandResult::error(
+            NAME,
+            Some(CLASS),
+            format!(
+                "'{id}' refused to start ({} content errors)",
+                report.messages.len()
+            ),
+        )
+        .with_rows(rows);
+    }
+    CommandResult::ok(NAME, CLASS, format!("loading {id}")).with_rows(vec![
         TerminalRow::info(format!("Loading '{id}'.")),
         TerminalRow::dim("The abandoned attempt has no outcome; the new run is clean."),
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use nova_scenario::prelude::ScenarioConfig;
+
+    use super::*;
+
+    /// A world with a scenario registry and a game state, which is what
+    /// `scenario load` reads before it triggers anything.
+    fn world_at(state: GameStates) -> World {
+        let mut world = World::new();
+        world.insert_resource(State::new(state));
+        let mut scenarios = GameScenarios::default();
+        scenarios.insert(
+            "shakedown_run".to_string(),
+            ScenarioConfig::new(
+                "shakedown_run".to_string(),
+                "Shakedown Run".to_string(),
+                Handle::default().into(),
+            ),
+        );
+        world.insert_resource(scenarios);
+        world
+    }
+
+    /// The menu owns its own way into a scenario, so the shell refuses rather
+    /// than spawning a run under a menu that is still covering it.
+    #[test]
+    fn scenario_load_is_refused_outside_a_running_game() {
+        for state in [GameStates::MainMenu, GameStates::Loading] {
+            let mut world = world_at(state.clone());
+            let result = scenario_load(&mut world, "shakedown_run");
+            assert_eq!(result.status, CommandStatus::Refused, "{state:?}");
+        }
+    }
+
+    /// An id nobody has lists the ids that exist, so the next attempt can be
+    /// typed rather than guessed.
+    #[test]
+    fn an_unknown_scenario_lists_the_known_ones() {
+        let mut world = world_at(GameStates::Playing);
+        let result = scenario_load(&mut world, "nope");
+        assert_eq!(result.status, CommandStatus::Error);
+        assert!(result.detail.contains("shakedown_run"), "{}", result.detail);
+    }
+
+    /// A cap that can never be reached is not a cap.
+    #[test]
+    fn a_speed_cap_has_to_be_a_real_speed() {
+        let mut world = World::new();
+        for value in ["inf", "-inf", "nan", "0", "-5"] {
+            let Err(refusal) = speed_cap(&mut world, "cargoa", value) else {
+                panic!("'{value}' is not a speed cap");
+            };
+            assert_eq!(refusal.status, CommandStatus::Error, "{value}");
+        }
+    }
 }

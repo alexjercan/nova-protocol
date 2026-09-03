@@ -16,7 +16,10 @@ use super::{
     NovaOsTerminal, TerminalCommandSnapshot, TerminalMode,
 };
 use crate::{
-    commands::prelude::{resolve_command_line, CommandOutcome, CommandStatus},
+    commands::{
+        live,
+        prelude::{resolve_command_line, CommandOutcome, CommandStatus},
+    },
     shell::{
         resolve_command, subcommands_of, terminal_command_names, CliOutput, CommandDispatch,
         ResolvedCommand,
@@ -200,8 +203,22 @@ impl NovaOsTerminal {
                     TerminalSubmitOutcome::Ran
                 }
             }
+            // Shell control never reaches the dispatcher: the emulator owns
+            // the screen, so it acts here and the channel refuses these two
+            // outright rather than acknowledging a screen it does not have.
+            CommandOutcome::Invoke(invocation) if invocation.name == "clear" => {
+                self.replace_scrollback(Vec::new());
+                // The introduction is re-staged against the world as it is NOW,
+                // which is the point of clearing after loading a scenario.
+                self.rearm_command_intro();
+                TerminalSubmitOutcome::Ran
+            }
+            CommandOutcome::Invoke(invocation) if invocation.name == "close" => {
+                self.pending_close = true;
+                TerminalSubmitOutcome::Ran
+            }
             CommandOutcome::Invoke(invocation) => {
-                self.pending_command = Some(invocation);
+                self.pending_commands.push_back(invocation);
                 TerminalSubmitOutcome::Dispatched
             }
         }
@@ -252,7 +269,7 @@ impl NovaOsTerminal {
                 // is unreachable in practice; queueing it keeps the two shells'
                 // dispatch honest if one ever shares a spec with the other.
                 if let Some(spec) = crate::commands::command_spec(name) {
-                    self.pending_command = Some(CommandInvocation {
+                    self.pending_commands.push_back(CommandInvocation {
                         name,
                         class: spec.class,
                         args,
@@ -308,14 +325,18 @@ impl NovaOsTerminal {
                 // (`map: unknown subcommand 'v'`). Otherwise it took an argument it
                 // does not accept (`help: takes no arguments`).
                 let subs = subcommands_of(&command, &commands);
+                let overrun = arity
+                    .overruns(args.len())
+                    .then(|| args[arity.most()].as_str());
+                let text = match overrun {
+                    Some(bad) if !subs.is_empty() => {
+                        format!("{command}: unknown subcommand '{bad}'")
+                    }
+                    _ => format!("{command}: {}", arity.rejection()),
+                };
                 self.push_row(TerminalRow {
                     kind: TerminalRowKind::Error,
-                    text: if subs.is_empty() {
-                        format!("{command}: {}", arity.rejection())
-                    } else {
-                        let bad = args.first().map(String::as_str).unwrap_or_default();
-                        format!("{command}: unknown subcommand '{bad}'")
-                    },
+                    text,
                 });
                 self.extend_scrollback(command_help_rows(&command, &commands));
                 TerminalSubmitOutcome::Errored
@@ -387,10 +408,11 @@ impl NovaOsTerminal {
         true
     }
 
-    /// Completion candidates for `stem`: every command name it prefixes, plus the
-    /// universal sub-verbs (`<command> help`, `<command> version`) once the player
-    /// is past the command name. Drives Tab completion and the inline ghost, so
-    /// both understand sub-commands (fish-style), not just top-level names.
+    /// Completion candidates for `stem`: every command name it prefixes, the
+    /// universal sub-verbs (`<command> help`, `<command> version`), and - once
+    /// the player is past the name - the values the ARGUMENT under the caret
+    /// accepts. Drives Tab completion and the inline ghost, so both understand
+    /// sub-commands (fish-style) and arguments, not just top-level names.
     fn completion_matches(&self, stem: &str) -> Vec<String> {
         let session = self.session();
         let mut matches: Vec<String> = terminal_command_names(&session.commands)
@@ -417,27 +439,80 @@ impl NovaOsTerminal {
                 }
             }
         }
-        // Injected argument candidates for the arg-bearing verbs: once the
-        // player is past the command name (`ship repair <partial>`), offer the
-        // live ids whose start matches the partial (case-insensitive, so
-        // `hu` -> `HULL-3`).
-        for (name, candidates) in &session.arg_completions {
-            let Some(partial) = stem.strip_prefix(&format!("{name} ")) else {
-                continue;
-            };
-            let partial_lower = partial.to_ascii_lowercase();
-            for candidate in candidates {
-                if candidate.to_ascii_lowercase().starts_with(&partial_lower) {
-                    matches.push(format!("{name} {candidate}"));
-                }
-            }
-        }
-        // `arg_completions` is a `HashMap`, so the injected candidates arrive in a
+        matches.extend(self.argument_matches(stem));
+        // The live values live in a `HashMap`, so candidates arrive in a
         // per-process random order and Tab would cycle differently between runs.
         // Sorting is also what makes the dedup below a single pass.
         matches.sort_unstable();
         matches.dedup();
         matches
+    }
+
+    /// Completions for the argument position the caret is in.
+    ///
+    /// The command is resolved by the same longest-name rule the parser uses,
+    /// so `ammo refill section <TAB>` completes the section verb's first
+    /// argument rather than `ammo refill`'s. Which POSITION is being typed
+    /// follows the caret: a stem ending in a space starts a new word, anything
+    /// else is still editing the last one.
+    fn argument_matches(&self, stem: &str) -> Vec<String> {
+        let session = self.session();
+        let Some(spec) = terminal_command_names(&session.commands)
+            .filter(|name| stem.starts_with(&format!("{name} ")))
+            .max_by_key(|name| name.split_whitespace().count())
+            .and_then(|name| session.commands.iter().find(|spec| spec.name == name))
+        else {
+            return Vec::new();
+        };
+        let tail = &stem[spec.name.len() + 1..];
+        let typed: Vec<&str> = tail.split_whitespace().collect();
+        // A trailing space means the player has finished a word and started the
+        // next one; anything else means they are still editing the last.
+        let starting_a_word = tail.is_empty() || tail.ends_with(char::is_whitespace);
+        // A command NAME is several words, so a command that asks for one takes
+        // the whole tail as its single argument: `help ammo r<TAB>` reaches
+        // `help ammo refill`. Every other argument is one word in its position.
+        let names_a_command =
+            spec.args.first().and_then(|arg| arg.live_token()) == Some(live::COMMAND);
+        let at = match (names_a_command, starting_a_word) {
+            (true, _) => 0,
+            (false, true) => typed.len(),
+            (false, false) => typed.len() - 1,
+        };
+        let Some(arg) = spec.args.get(at) else {
+            return Vec::new();
+        };
+        let partial = match (names_a_command, starting_a_word) {
+            (true, _) => tail.trim_start(),
+            (false, true) => "",
+            (false, false) => typed[typed.len() - 1],
+        };
+        let settled: String = typed[..at.min(typed.len())]
+            .iter()
+            .map(|word| format!("{word} "))
+            .collect();
+        // A live set may be scoped by the argument before it, so
+        // `section <ship> <TAB>` offers that ship's sections rather than the
+        // union across the field. An unqualified set is the fallback.
+        let live = arg
+            .live_token()
+            .and_then(|token| {
+                let qualified = (at > 0).then(|| format!("{token}:{}", typed[at - 1]));
+                qualified
+                    .and_then(|key| self.live_values.get(&key))
+                    .or_else(|| self.live_values.get(token))
+            })
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let partial_lower = partial.to_ascii_lowercase();
+        arg.words()
+            .iter()
+            .map(|word| (*word).to_string())
+            .chain(live.iter().cloned())
+            // Case-insensitive, so `hu` reaches `HULL-3`.
+            .filter(|candidate| candidate.to_ascii_lowercase().starts_with(&partial_lower))
+            .map(|candidate| format!("{} {settled}{candidate}", spec.name))
+            .collect()
     }
 
     /// Record a submitted command line, skipping an immediate repeat and
@@ -574,7 +649,7 @@ impl NovaOsTerminal {
 mod tests {
     use super::*;
     use crate::{
-        commands::prelude::CommandClass,
+        commands::{live, prelude::CommandClass},
         terminal::{
             fixtures::{app_spec, cli_spec, command_shell, core_with, gameplay_spec, type_text},
             nova_os_welcome_rows, prompt_completion_ghost,
@@ -820,8 +895,8 @@ mod tests {
             .any(|row| row.text == "nova> ship repair HULL-3"));
     }
 
-    /// Tab completion of an arg-bearing verb's argument expands the injected live
-    /// section codes, case-insensitively.
+    /// Tab completion of an arg-bearing verb's argument expands the published
+    /// live section codes, case-insensitively.
     #[test]
     fn nova_os_arg_completion_expands_injected_codes() {
         let mut terminal = NovaOsTerminal::default();
@@ -829,8 +904,8 @@ mod tests {
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
-        terminal.merge_arg_completions([(
-            "ship repair",
+        terminal.merge_live_values([(
+            live::SECTION,
             vec![
                 "HULL-1".to_string(),
                 "HULL-3".to_string(),
@@ -904,9 +979,9 @@ mod tests {
         );
     }
 
-    /// Injected argument candidates come out of a `HashMap`, so without an
-    /// explicit order the Tab cycle differs between processes. The matches are
-    /// sorted and deduplicated, so the same stem always cycles the same way.
+    /// Live argument values come out of a `HashMap`, so without an explicit
+    /// order the Tab cycle differs between processes. The matches are sorted and
+    /// deduplicated, so the same stem always cycles the same way.
     #[test]
     fn nova_os_completion_matches_are_sorted_and_deduplicated() {
         let mut terminal = NovaOsTerminal::default();
@@ -914,8 +989,8 @@ mod tests {
             app_spec("ship", ""),
             gameplay_spec("ship repair"),
         ]));
-        terminal.merge_arg_completions([(
-            "ship repair",
+        terminal.merge_live_values([(
+            live::SECTION,
             vec![
                 "PDC-1".to_string(),
                 "HULL-3".to_string(),
@@ -937,6 +1012,121 @@ mod tests {
                 "ship repair version".to_string(),
             ],
         );
+    }
+
+    /// Completion follows the CARET, not the command: the second argument
+    /// completes from the second argument's set, and a live set scoped to the
+    /// ship already typed offers that ship's sections alone.
+    #[test]
+    fn the_argument_under_the_caret_is_what_completes() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.open_shell(ShellKind::Commands);
+        terminal.merge_live_values([
+            (
+                live::SHIP.to_string(),
+                vec!["cargoa".to_string(), "cargoa_raider".to_string()],
+            ),
+            (
+                format!("{}:cargoa", live::SECTION),
+                vec!["hull_front".to_string(), "turret_port".to_string()],
+            ),
+            (
+                format!("{}:cargoa_raider", live::SECTION),
+                vec!["turret_port".to_string()],
+            ),
+        ]);
+
+        // First position: the ships.
+        type_text(&mut terminal, "section cargoa_r");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "section cargoa_raider");
+
+        // Second position: only THAT ship's sections, and the settled first
+        // argument is kept.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "section cargoa hu");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "section cargoa hull_front");
+
+        // The raider carries no `hull_front`, so nothing completes there.
+        terminal.reset_prompt();
+        type_text(&mut terminal, "section cargoa_raider hu");
+        assert!(!terminal.complete());
+    }
+
+    /// A closed argument set lives in the catalog, so it completes with no
+    /// world at all.
+    #[test]
+    fn a_catalog_argument_completes_without_a_world() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.open_shell(ShellKind::Commands);
+        type_text(&mut terminal, "graphics me");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "graphics medium");
+    }
+
+    /// `help <TAB>` names commands, and a command name is several words, so it
+    /// is matched against the whole tail rather than the last word.
+    #[test]
+    fn help_completes_whole_multi_word_command_names() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.open_shell(ShellKind::Commands);
+        type_text(&mut terminal, "help ammo refill s");
+        assert!(terminal.complete());
+        assert_eq!(terminal.prompt(), "help ammo refill section");
+    }
+
+    /// `clear` and `close` control the SCREEN, which only the emulator has, so
+    /// they never reach the dispatcher.
+    #[test]
+    fn shell_control_is_answered_by_the_emulator_not_the_dispatcher() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.open_shell(ShellKind::Commands);
+        terminal.extend_scrollback(vec![TerminalRow {
+            kind: TerminalRowKind::Output,
+            text: "old".to_string(),
+        }]);
+
+        type_text(&mut terminal, "clear");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Ran,
+        );
+        assert!(!terminal.has_pending_command(), "clear is not dispatched");
+        assert!(terminal.scrollback().is_empty(), "the transcript is gone");
+        assert!(
+            !terminal.is_revealed(ShellKind::Commands),
+            "the introduction is re-armed against the world as it is now",
+        );
+
+        type_text(&mut terminal, "close");
+        assert_eq!(
+            terminal.submit(&TerminalCommandSnapshot::default()),
+            TerminalSubmitOutcome::Ran,
+        );
+        assert!(!terminal.has_pending_command(), "close is not dispatched");
+        assert!(terminal.has_pending_close());
+    }
+
+    /// Two commands submitted before the dispatcher runs both reach it: the
+    /// process channel can stage two Enters on one tick.
+    #[test]
+    fn two_submits_in_one_frame_both_reach_the_dispatcher() {
+        let mut terminal = NovaOsTerminal::default();
+        terminal.open_shell(ShellKind::Commands);
+        for line in ["ships", "status"] {
+            type_text(&mut terminal, line);
+            terminal.submit(&TerminalCommandSnapshot::default());
+        }
+        assert_eq!(
+            terminal.take_pending_command().map(|it| it.name),
+            Some("ships")
+        );
+        assert_eq!(
+            terminal.take_pending_command().map(|it| it.name),
+            Some("status")
+        );
+        assert!(terminal.take_pending_command().is_none());
     }
 
     /// History is bounded and never records an immediate repeat, so Up-arrow

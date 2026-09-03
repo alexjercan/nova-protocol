@@ -483,6 +483,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_command_shell",
+        &[
+            "`:` opens the command shell",
+            "a typed command answers from the live world",
+            "Tab completes an id only the live world knows",
+            "Escape gives back the surface the shell covered",
+            "Tab opens NOVA OS after the command shell has been used",
+        ],
+    ),
+    (
         "system_headless_novaos",
         &[
             "the NOVA OS verb registers headless",
@@ -523,7 +533,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 213;
+const SYSTEMS_INVARIANTS: usize = 218;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

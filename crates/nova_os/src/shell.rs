@@ -33,6 +33,23 @@ impl CommandArity {
         }
     }
 
+    /// Whether `count` argument words is MORE than this arity accepts, as
+    /// opposed to fewer. The two read differently: an over-run past a command
+    /// that owns subcommands named a subcommand that does not exist, while an
+    /// under-run simply stopped early.
+    pub(crate) fn overruns(self, count: usize) -> bool {
+        count > self.most()
+    }
+
+    /// The most argument words this command takes. The word at this index in an
+    /// over-long line is the first one the command did not ask for.
+    pub(crate) fn most(self) -> usize {
+        match self {
+            CommandArity::None => 0,
+            CommandArity::UpTo(max) | CommandArity::Between(_, max) => max,
+        }
+    }
+
     /// The message tail for an over-arity command: `takes no arguments` for
     /// `None`, `takes at most N argument(s)` otherwise.
     pub(crate) fn rejection(self) -> String {
@@ -98,6 +115,43 @@ pub enum CommandDispatch {
     Command,
 }
 
+/// What one argument POSITION accepts. Tab completion reads this to answer
+/// with values of the right kind instead of command names.
+///
+/// A closed set is answerable from the catalog alone. A live set is named by a
+/// token, and the layer that owns the world fills it in through
+/// [`NovaOsTerminal::merge_live_values`]: this crate stays a leaf, so it learns
+/// that an argument is a `"ship"` without ever learning what a ship is.
+///
+/// [`NovaOsTerminal::merge_live_values`]: crate::terminal::NovaOsTerminal::merge_live_values
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandArg {
+    /// A closed set of words (`on`, `off`), complete from the catalog alone.
+    Words(&'static [&'static str]),
+    /// A set only the live world knows, published under this token.
+    Live(&'static str),
+    /// A free value - a number, a name nothing can enumerate.
+    Free,
+}
+
+impl CommandArg {
+    /// The words this position accepts from the catalog alone, if it is closed.
+    pub fn words(self) -> &'static [&'static str] {
+        match self {
+            CommandArg::Words(words) => words,
+            CommandArg::Live(_) | CommandArg::Free => &[],
+        }
+    }
+
+    /// The live token this position reads its values from, if it has one.
+    pub fn live_token(self) -> Option<&'static str> {
+        match self {
+            CommandArg::Live(token) => Some(token),
+            CommandArg::Words(_) | CommandArg::Free => None,
+        }
+    }
+}
+
 /// A command as the matcher and the pure terminal see it: the (possibly
 /// multi-word) name, a one-line summary for `help`/completion, its argument arity
 /// and how it dispatches. Produced by flattening the [`crate::command`] registry
@@ -114,6 +168,10 @@ pub struct TerminalCommandSpec {
     /// (`"<label>"`, `"<section>"`), or `None` for a no-argument command or an
     /// arg-bearing command that named no argument (renders a generic `<arg>`).
     pub arg_hint: Option<&'static str>,
+    /// What each argument position accepts, in order. Empty for a command that
+    /// has not described its arguments; completion then offers nothing past
+    /// the name.
+    pub args: &'static [CommandArg],
     /// Whether it launches an app or performs a CLI action.
     pub dispatch: CommandDispatch,
 }
@@ -339,6 +397,7 @@ mod tests {
             summary: "Open the local-space map",
             arity: CommandArity::None,
             arg_hint: None,
+            args: &[],
             dispatch: CommandDispatch::App,
         });
         specs.push(TerminalCommandSpec {
@@ -346,6 +405,7 @@ mod tests {
             summary: "Print local-space contacts",
             arity: CommandArity::None,
             arg_hint: None,
+            args: &[],
             dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
         });
         specs
@@ -475,6 +535,7 @@ mod tests {
                 summary: "",
                 arity: CommandArity::None,
                 arg_hint: None,
+                args: &[],
                 dispatch: CommandDispatch::App,
             },
             TerminalCommandSpec {
@@ -482,6 +543,7 @@ mod tests {
                 summary: "",
                 arity: CommandArity::None,
                 arg_hint: None,
+                args: &[],
                 dispatch: CommandDispatch::Cli(CliOutput::Snapshot),
             },
             TerminalCommandSpec {
@@ -489,6 +551,7 @@ mod tests {
                 summary: "",
                 arity: CommandArity::UpTo(1),
                 arg_hint: None,
+                args: &[],
                 dispatch: CommandDispatch::Gameplay,
             },
             TerminalCommandSpec {
@@ -496,6 +559,7 @@ mod tests {
                 summary: "",
                 arity: CommandArity::None,
                 arg_hint: None,
+                args: &[],
                 dispatch: CommandDispatch::Cli(CliOutput::Help),
             },
         ];
@@ -546,7 +610,8 @@ mod tests {
     }
 }
 
-/// `CommandArity`, `CliOutput`, `CommandDispatch` and `TerminalCommandSpec`.
+/// `CommandArity`, `CommandArg`, `CliOutput`, `CommandDispatch` and
+/// `TerminalCommandSpec`.
 pub mod prelude {
-    pub use super::{CliOutput, CommandArity, CommandDispatch, TerminalCommandSpec};
+    pub use super::{CliOutput, CommandArg, CommandArity, CommandDispatch, TerminalCommandSpec};
 }

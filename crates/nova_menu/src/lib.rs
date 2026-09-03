@@ -23,7 +23,11 @@ use nova_hud::prelude::HudVisibility;
 use nova_os::prelude::NovaOsTerminal;
 use nova_os_ui::prelude::NovaOsCloseTransition;
 use nova_scenario::prelude::{CurrentOutcome, ScenarioStartFailure};
-use nova_ui::{prelude::UiSkin, widget::button_on_setting};
+use nova_ui::{
+    input_mode::prelude::{in_input_mode, InputMode},
+    prelude::UiSkin,
+    widget::button_on_setting,
+};
 
 /// Glob-import surface: `use nova_menu::prelude::*` brings [`NovaMenuPlugin`]
 /// and [`NewGameScenario`] into scope.
@@ -202,12 +206,15 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(Update, toggle_pause.run_if(in_state(GameStates::Playing)));
         // The command shell opens over every surface, so its key is NOT gated
         // on Playing the way the pause overlay's is. It IS gated on the CRT
-        // existing: a menu-only rig has no monitor to open.
+        // existing: a menu-only rig has no monitor to open. And on Normal input
+        // mode: in a focused text field - the editor's inspector, a rename - a
+        // `:` is a character the player is typing, not a gesture.
         app.add_systems(
             Update,
             open_command_shell.run_if(
                 resource_exists::<NovaOsTerminal>
-                    .and_then(resource_exists::<NovaOsCloseTransition>),
+                    .and_then(resource_exists::<NovaOsCloseTransition>)
+                    .and_then(in_input_mode(InputMode::Normal)),
             ),
         );
         app.add_systems(
@@ -220,8 +227,9 @@ impl Plugin for NovaMenuPlugin {
         );
         // The NOVA OS is a third variant on the same clock-freeze axis, but
         // WITHOUT `setup_pause_ui` - it draws its own surface in nova_gameplay's
-        // HUD. Only ever entered from / exited to `Unpaused`, so these never race
-        // the `Paused` hooks.
+        // HUD. `:` opens it over the pause menu too, so `Paused <-> NovaOs` is a
+        // live transition: the `Paused` hooks run on the way in and again on the
+        // way back, rebuilding the overlay the CRT covered.
         app.add_systems(
             OnEnter(PauseStates::NovaOs),
             (hold_clocks_for_terminal, release_cursor),

@@ -137,11 +137,13 @@ pub enum GameStates {
 /// entering any frozen variant. Init'd by `AppBuilder` next to [`GameStates`].
 /// Only meaningful inside `GameStates::Playing`; leaving Playing must reset it.
 ///
-/// Both frozen variants ([`PauseStates::Paused`] and [`PauseStates::NovaOs`])
-/// are entered ONLY from [`PauseStates::Unpaused`] and exit back to it - never
-/// one directly into the other - so the freeze/cursor hooks never
-/// double-fire.
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Default, States)]
+/// The CRT opens over the pause menu as well as over flight, so
+/// [`PauseStates::Paused`] -> [`PauseStates::NovaOs`] and back is a real
+/// transition: `Paused`'s hooks release on the way in and re-take on the way
+/// out, which is what rebuilds the overlay the CRT covered. The freeze holds
+/// are named ([`ClockFreeze`]) precisely so the handover cannot leave a paused
+/// player in a running world.
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Default, States)]
 pub enum PauseStates {
     #[default]
     /// Gameplay is running; input and section systems tick.

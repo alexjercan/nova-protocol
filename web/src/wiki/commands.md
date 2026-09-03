@@ -86,7 +86,7 @@ Every command belongs to one of four classes, and the class is the whole permiss
 | `ships` | live ships by id |
 | `ship <id>` | one ship: side, hull, sections, speed cap, magazines |
 | `sections <ship-id>` | that ship's sections, with health and ammunition |
-| `section <id>` | one section |
+| `section <ship-id> <section-id>` | one section of one ship |
 | `objectives` | the open objectives |
 | `variables` | the scenario's variables |
 | `variable <name>` | one of them |
@@ -115,7 +115,7 @@ Every one of these is refused until you run `cheats enable`. That command is the
 | `cheats enable` | arm cheats and mark this run, one way |
 | `ammo infinite <ship-id> <on\|off>` | unlimited ammunition on one ship's weapons |
 | `ammo refill <ship-id>` | top up every finite magazine on a ship |
-| `ammo refill section <section-id>` | top up one magazine |
+| `ammo refill section <ship-id> <section-id>` | top up one magazine |
 | `speed-cap <ship-id> <m/s\|off>` | change or remove a ship's manual speed cap |
 
 <details class="explain">

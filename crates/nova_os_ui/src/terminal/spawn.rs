@@ -35,8 +35,8 @@ use super::{casing::*, components::*, content::*, crt::*, shell::*, style::*};
 /// it - the session, the flight log, the topbar's ship name - are reset or
 /// reconciled instead (see [`reset_nova_os_for_new_ship`]).
 ///
-/// Idempotent: it early-returns once a root exists, so it is safe to run every
-/// frame.
+/// A keep-alive: the plugin runs it only while no root exists, so a spawned
+/// monitor costs nothing per frame.
 pub(crate) fn ensure_nova_os_spawned(
     mut commands: Commands,
     mut crt_materials: Option<ResMut<Assets<NovaOsCrtMaterial>>>,
@@ -45,12 +45,8 @@ pub(crate) fn ensure_nova_os_spawned(
     hud_assets: Option<Res<NovaHudAssets>>,
     settings: Option<Res<NovaOsMonitorSettings>>,
     game_state: Option<Res<State<GameStates>>>,
-    q_existing: Query<(), With<NovaOsRootMarker>>,
     q_player: Query<Option<&Name>, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
-    if !q_existing.is_empty() {
-        return;
-    }
     // Nothing is reachable through a half-loaded world, and the fonts the
     // monitor draws with are part of what is still loading.
     if game_state.is_some_and(|state| *state.get() == GameStates::Loading) {
