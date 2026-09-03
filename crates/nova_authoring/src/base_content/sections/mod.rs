@@ -315,8 +315,8 @@ mod ammunition_tests {
             let SectionKind::Torpedo(bay) = &section.kind else {
                 continue;
             };
-            // An unlimited bay is scene dressing (the siege battery), not a
-            // combat participant, and the AI launch cadence is what paces it.
+            // Unlimited authoring or testing bays have no sustained reload
+            // cadence to grade here.
             let (Some(capacity), Some(reload)) = (bay.ammo_capacity, bay.reload) else {
                 continue;
             };

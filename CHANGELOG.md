@@ -635,8 +635,8 @@ does NOT get an entry - and it is the only place they are written down.
   guns alone.
 - Retires the "guns and thrusters gone" defeat copy: every neutralized-defeat
   banner now reads "Nothing left to fight with".
-- New `heavy_torpedo_section` prototype: a capital-grade siege bay with a
-  ship-killing blast and armored ordnance, hidden from the editor gallery.
+- New `heavy_torpedo_section` prototype: an experimental, deliberately
+  overpowered siege bay with armored Breakers and a six-round rearming rack.
 - New `ForceTorpedoLaunch` event action: script a controller-less ship's
   torpedo bays to launch at a named target on timers.
 - **(breaking)** Unlimited player ammunition is a DEBUG-ONLY cheat:

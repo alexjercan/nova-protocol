@@ -747,8 +747,9 @@ kind: Torpedo((
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
   opposed to the tube it loads into. A type is DATA, not an enum: base authors
   its three (the straight-running Lance, the weaving Serpent, and the crimson
-  siege Breaker - a cruise of 700 m/s with a shallow 0.22 rad weave - that only the hidden
-  `heavy_torpedo_section` bay loads), and a mod authors its own by writing the
+  siege Breaker - a cruise of 700 m/s with a shallow 0.22 rad weave - that only
+  the experimental, deliberately overpowered `heavy_torpedo_section` bay loads),
+  and a mod authors its own by writing the
   same five fields:
   - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`,
     `"Breaker"`). It names

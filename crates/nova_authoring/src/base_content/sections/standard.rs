@@ -1003,10 +1003,7 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 collider: Some(SectionCollider::Cuboid { size: BAY_CELLS }),
                 // The same bay art at siege grade, so the same open muzzle.
                 link_points: bay_link_points(),
-                // Scene dressing, not player kit: this armoured finisher cuts
-                // much deeper than standard ordnance, so the editor gallery
-                // does not offer it.
-                hide_in_editor: true,
+                hide_in_editor: false,
                 // The same tube art, so the same iris: see `bay_muzzle_door`.
                 animations: bay_muzzle_door(),
             },
@@ -1050,8 +1047,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // defense visibly hammers it and still loses.
                 projectile_health: 5000.0,
                 torpedo_type: ordnance::breaker(),
-                ammo_capacity: None,
-                reload: None,
+                ammo_capacity: Some(6),
+                reload: Some(SectionReloadConfig {
+                    delay: 10.0,
+                    amount: 1,
+                }),
             }),
         },
     ];

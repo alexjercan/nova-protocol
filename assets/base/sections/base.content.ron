@@ -2617,7 +2617,6 @@
                     ),
                 ),
             ],
-            hide_in_editor: true,
             damage_effects: ([
                 Cracks,
                 Sparks,
@@ -2673,6 +2672,11 @@
                 weave_angle: 0.22,
                 weave_rate: 1.4,
             ),
+            ammo_capacity: Some(6),
+            reload: Some((
+                delay: 10.0,
+                amount: 1,
+            )),
         )),
     )),
     Section((
