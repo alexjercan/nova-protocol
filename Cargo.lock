@@ -4752,6 +4752,7 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_hud",
+ "nova_info",
  "nova_input",
  "nova_mod_format",
  "nova_os",

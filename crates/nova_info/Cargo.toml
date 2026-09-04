@@ -8,3 +8,9 @@ description = "Build info utilities for the Nova Protocol game"
 
 [lints]
 workspace = true
+
+[features]
+# Appends the short commit hash to `APP_VERSION`. Routed from the root `debug`
+# feature through `nova_core/debug`, so a debug build's status bar names the
+# exact revision it was built from.
+debug = []

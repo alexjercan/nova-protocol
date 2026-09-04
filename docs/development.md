@@ -881,6 +881,10 @@ parsing HTML.
 
 - Version: `workspace.package.version` in root `Cargo.toml`; crates inherit it.
 - `nova_info::APP_VERSION` comes from the `APP_VERSION` env var via `build.rs`.
+  A `--features debug` build appends the short commit hash
+  (`0.12.0+9da8b055`, or `+unknown` outside a checkout), so the status bar
+  names the revision. The build script tracks `.git/HEAD` and its ref, so a
+  new commit restamps it.
 - Packaging assets (icons, installer, .app) live under `build/`.
 
 ### The nix package

@@ -15,6 +15,7 @@ bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"
 rand = { version = "0.10.2" }
 nova_assets = { path = "../nova_assets" }
 nova_events = { path = "../nova_events" }
+nova_info = { path = "../nova_info" }
 # `serde` puts the Serialize/Deserialize derives on `BindingSpec`, which the
 # settings store persists.
 nova_input = { path = "../nova_input", features = ["serde"] }

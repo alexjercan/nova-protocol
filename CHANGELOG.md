@@ -313,6 +313,9 @@ does NOT get an entry - and it is the only place they are written down.
 - The process channel gains a `command` lane carrying the exact text a player
   would type, answered with the same result the screen prints. `action` is
   refused for good and points at it.
+- A `--features debug` build shows the commit it was built from on the status
+  bar, and restamps it on the next commit. The feature never reached the crate
+  that asks git, so the hash was missing.
 
 ## [0.12.0] - 2026-08-31
 

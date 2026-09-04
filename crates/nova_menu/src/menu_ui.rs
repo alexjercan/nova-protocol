@@ -6,6 +6,7 @@ use bevy::{
     ui_widgets::{observe, Activate},
 };
 use nova_gameplay::prelude::*;
+use nova_info::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::UiSkin,
@@ -128,10 +129,7 @@ pub(crate) fn setup_menu_ui(
                     },
                 ))
                 .with_children(|foot| {
-                    for text in [
-                        format!("v{}", env!("CARGO_PKG_VERSION")),
-                        "NOVA OS".to_string(),
-                    ] {
+                    for text in [format!("v{APP_VERSION}"), "NOVA OS".to_string()] {
                         foot.spawn((
                             UiText,
                             Text::new(text),

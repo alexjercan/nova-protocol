@@ -48,4 +48,4 @@ workspace = true
 # is a dev-dependency, and a `cargo build --bin` never resolves those. Routing
 # the feature here is what puts the per-system spans in the binary probe runs.
 trace = ["bevy/trace", "bevy/trace_chrome"]
-debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]
+debug = ["nova_debug", "bevy/track_location", "nova_console/debug", "nova_editor/debug", "nova_gameplay/debug", "nova_hud/debug", "nova_info/debug", "nova_os_ui/debug", "nova_menu/debug", "nova_scenario/debug"]

@@ -832,6 +832,22 @@ fn setup_status_ui(mut commands: Commands, game_assets: Res<GameAssets>) {
 mod tests {
     use super::*;
 
+    /// The status bar's version item names the revision a debug build came
+    /// from, which only happens if this crate's `debug` feature reaches
+    /// `nova_info` - nothing else in the graph turns that build script on, and
+    /// the plain version is a perfectly plausible-looking string when it does
+    /// not. Off a checkout the hash is `unknown`, but the `+` is still there.
+    #[test]
+    fn a_debug_build_stamps_the_revision_into_the_version() {
+        assert_eq!(
+            nova_info::APP_VERSION.contains('+'),
+            cfg!(feature = "debug"),
+            "APP_VERSION `{}` does not match a debug={} build",
+            nova_info::APP_VERSION,
+            cfg!(feature = "debug"),
+        );
+    }
+
     #[test]
     fn the_filter_covers_every_nova_crate_with_one_prefix_directive() {
         let filter = log_filter_str(Assembly::Windowed);
