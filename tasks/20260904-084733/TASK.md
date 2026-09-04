@@ -1,6 +1,6 @@
 # Review and simplify autopilot arrival standoff
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 
