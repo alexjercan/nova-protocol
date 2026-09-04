@@ -118,6 +118,13 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
+# The same opening's attack beat with nothing but the beat in it: three ships on
+# their authored marks and the real salvo, so a death-shot camera offset can be
+# judged in a rendered frame and the set piece can be recorded.
+[[example]]
+name = "first_shift_setpiece"
+path = "examples/playable/first_shift_setpiece.rs"
+
 # The sequel layout bench: the returning cutter approaches a long carrier
 # wreck field while five cleanup searchers wait behind the large planetoid.
 [[example]]

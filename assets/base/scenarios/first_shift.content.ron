@@ -2211,9 +2211,9 @@
                                             id: "transit_mark_two",
                                             name: "TRANSIT 2",
                                             position: (
+                                                -5200.0,
+                                                200.0,
                                                 -2600.0,
-                                                0.0,
-                                                -4600.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -3039,12 +3039,16 @@
                                     SetCameraAnchor((
                                         anchor: "cutter",
                                         offset: (
-                                            225.0,
-                                            10.0,
-                                            -85.0,
+                                            440.0,
+                                            25.0,
+                                            -235.0,
                                         ),
                                         frame: World,
-                                        look_at: Object("carrier"),
+                                        look_at: Point((
+                                            -1000.0,
+                                            0.0,
+                                            2500.0,
+                                        )),
                                     )),
                                 ],
                             ),

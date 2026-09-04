@@ -705,3 +705,93 @@ fn every_withheld_control_is_handed_back() {
         );
     }
 }
+
+/// Every mark the player must physically ARRIVE at stands outside every
+/// gravity well on the map.
+///
+/// GOTO finishes by coming to rest, and inside a well the pull never stops:
+/// the arrival cannot settle, the `OnGotoComplete` the beat waits on never
+/// fires, and the shift stops dead. The well is built here exactly the way the
+/// asteroid loader builds it - `GravityWell::from_mass` against the GEOMETRIC
+/// radius - at the WIDEST mesh the seed can grow, because the SOI floors at
+/// the body radius and a wider body is therefore a wider well.
+///
+/// This is what moved TRANSIT 2: it used to sit 2.72 km off the inspection
+/// planetoid, inside a 3.29 km reach, in the unfaded core of the pull.
+#[test]
+fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
+    let settings = GravitySettings::default();
+    let wells = [
+        (
+            "inspection",
+            stage::INSPECTION_POS,
+            stage::INSPECTION_MASS,
+            stage::INSPECTION_RADIUS,
+        ),
+        (
+            "concealment",
+            stage::CONCEALMENT_POS,
+            stage::CONCEALMENT_MASS,
+            stage::CONCEALMENT_RADIUS,
+        ),
+    ];
+    let marks = [
+        &WORK_MARK,
+        &TRIM_LATERAL,
+        &TRIM_VERTICAL,
+        &TRANSIT_ONE,
+        &TRANSIT_TWO,
+        &WORK_SITE,
+        &HOME_MARK,
+    ];
+    for (name, centre, mass, nominal) in wells {
+        let widest = Meters(nominal.0 * ASTEROID_GEOMETRIC_FACTOR_MAX).to_engine();
+        let soi = Meters::from_engine(GravityWell::from_mass(mass, widest, &settings).soi_radius);
+        for mark in marks {
+            let separation = (mark.position - centre).length();
+            assert!(
+                separation.0 > soi.0,
+                "'{}' stands {:.0} m from the {name} planetoid, inside its \
+                 {:.0} m sphere of influence - GOTO cannot come to rest there, \
+                 so the beat that waits on its arrival never fires",
+                mark.id,
+                separation.0,
+                soi.0,
+            );
+        }
+    }
+}
+
+/// The kill is filmed at a POINT, not at the ship being killed.
+///
+/// An `Object` aim is resolved to an entity and falls back to the ANCHOR when
+/// that entity dies (`ScriptedCameraLookAt::Entity` -> `subject.translation`).
+/// The Meridian dies inside this shot, so an object aim would swing the lens
+/// off the wreck and onto the player's own hull on the one frame the whole
+/// chapter is built around.
+#[test]
+fn the_kill_is_filmed_at_a_point_that_outlives_the_carrier() {
+    let death_shots: Vec<SetCameraAnchorActionConfig> = all_actions(&config())
+        .into_iter()
+        .filter_map(|action| match action {
+            EventActionConfig::SetCameraAnchor(shot) => Some(shot),
+            _ => None,
+        })
+        .filter(|shot| shot.offset == CINEMA_DEATH_OFFSET)
+        .collect();
+    assert_eq!(
+        death_shots.len(),
+        1,
+        "the chapter takes exactly one last shot"
+    );
+    assert!(
+        matches!(death_shots[0].look_at, CameraLookAtConfig::Point(_)),
+        "the last shot must aim at a point, not at the carrier it is filming \
+         the death of - got {:?}",
+        death_shots[0].look_at
+    );
+    assert_eq!(
+        death_shots[0].anchor, ID_CUTTER,
+        "and it stays on the player's own hull"
+    );
+}

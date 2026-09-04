@@ -137,10 +137,19 @@ pub(super) const TRANSIT_ONE: TempMark = TempMark {
 /// the staging point the orbit detour is proposed from. Deliberately OUTSIDE
 /// the inspection planetoid's arrival ring, so the detour is a decision rather
 /// than something that happens on arrival.
+///
+/// And outside the planetoid's GRAVITY, which is the harder constraint. The
+/// beat waits on a real `OnGotoComplete` here, and GOTO finishes by coming to
+/// rest: inside a well the pull never stops, so the arrival never settles and
+/// the shift cannot continue. The well reaches 3.29 km - `soi_radius` is
+/// `sqrt(mu / soi_cutoff_accel)` and owes nothing to the body's radius - and
+/// this mark stands 4.01 km out, 721 m clear of it. That is what moved it
+/// west: at its first position it sat 2.72 km from the centre, in the
+/// unfaded core of the well under a 3.7 m/s^2 pull.
 pub(super) const TRANSIT_TWO: TempMark = TempMark {
     id: "transit_mark_two",
     label: "TRANSIT 2",
-    position: Meters3::new(-2_600.0, 0.0, -4_600.0),
+    position: Meters3::new(-5_200.0, 200.0, -2_600.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
@@ -294,13 +303,30 @@ pub(super) const CINEMA_TUBES_OFFSET: Meters3 = Meters3::new(150.0, 90.0, -300.0
 /// the torpedoes both arrive down the middle.
 pub(super) const CINEMA_IMPACT_OFFSET: Meters3 = Meters3::new(-285.0, 175.0, 595.0);
 
-/// The last shot, back on the CUTTER and 240 m off its quarter, looking three
-/// kilometres down the hold at a carrier that is about to stop existing.
+/// The last shot: back on the CUTTER, 500 m off its quarter and pulled round
+/// behind it, looking three and a half kilometres down the hold at a carrier
+/// that is about to stop existing.
+///
+/// An over-the-shoulder, and every number in it is that composition. The
+/// camera sits 27 degrees off the Meridian's bearing, on the side the
+/// ordnance does NOT arrive from, so the cutter falls into the lower corner
+/// as a whole readable ship - about a fifth of the frame's height - and the
+/// torpedo lane crosses the OTHER edge on its way in. The Meridian holds the
+/// middle. It is 500 m rather than the 240 m this shot used to be because at
+/// 240 m the cutter was half again the size of the thing it was watching and
+/// sat between the lens and the kill.
+///
+/// The distance is also what keeps the shot honest at every window shape: the
+/// cutter lands at 63% of half-width on a 16:9 frame and 80% on the 4:3 the
+/// game opens at, inside both.
 ///
 /// The cut off the Meridian is not decoration. A camera anchored to a hull
 /// loses its anchor when that hull dies, and the wreck goes in the same second
 /// the last torpedo lands - so the end of the set piece would otherwise be the
 /// camera snapping home by itself, on the frame that matters most. Leaving
 /// early puts the player's own ship back in the composition and makes the kill
-/// something they watch rather than something that happens to the camera.
-pub(super) const CINEMA_DEATH_OFFSET: Meters3 = Meters3::new(225.0, 10.0, -85.0);
+/// something they watch rather than something that happens to the camera. For
+/// the same reason the shot aims at a POINT and not at the Meridian: an
+/// object aim falls back to the anchor when its target dies, which would swing
+/// the lens onto the cutter on exactly that frame.
+pub(super) const CINEMA_DEATH_OFFSET: Meters3 = Meters3::new(440.0, 25.0, -235.0);

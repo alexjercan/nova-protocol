@@ -678,3 +678,33 @@ and `test` clean in `web/`. Live under Xvfb: both chapters boot, the opening
 conversation runs and the first objective posts after it, and a throwaway
 scenario spawning all 11 promoted block hulls at once clads every one of them
 with no panic.
+
+### 2026-09-04: First Shift playtest revision, step 3
+
+Reframed the destruction's final Cutter-relative shot as a 500 m
+rear-quarter view. Cutter now sits at a controlled edge while Meridian stays
+central and the ordnance enters from the opposite edge. The shot aims at the
+fixed carrier berth rather than the carrier entity, so carrier despawn cannot
+make the camera fall back to its Cutter anchor and swing away from the kill.
+The warship is 109.7 degrees from Meridian at the lens and cannot enter the
+72.7-degree horizontal frame.
+
+The camera review is now reproducible in
+`examples/playable/first_shift_setpiece.rs`. Its CLI accepts an offset,
+resolution, capture switch and label, runs the real three-ship salvo on the
+authored marks, and writes default captures under `target/shots/`. Rendered
+reviews at 1280x720 and 1920x1080 accepted the shipped pose.
+
+The route audit also found TRANSIT 2 inside the inspection planetoid's gravity
+well: it was 2.72 km from the centre against a 3.29 km sphere of influence, so
+GOTO could not settle and its real completion event could never fire. The mark
+now stands 4.01 km out with 721 m gravity clearance. Both changed corridors
+clear conservative stage geometry by 851 m and 1,186 m with Cutter's hull
+included. Structural pins now require every arrival mark to stand outside both
+wells and the kill shot to use a persistent point aim.
+
+Proof: 16 focused First Shift structural tests pass; both probe catalog gates
+pass after restoring the three `system_turn_limit` outcome slugs omitted on
+master; `content gen` and `content lint` report 0 errors, 0 warnings and 0
+findings; `git diff --check` is clean; rendered 1280x720 and 1920x1080 captures
+were inspected from the set-piece bench.

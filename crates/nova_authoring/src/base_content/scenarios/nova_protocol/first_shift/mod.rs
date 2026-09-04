@@ -435,9 +435,17 @@ fn film(anchor: &str, offset: Meters3, look_at: CameraLookAtConfig) -> EventActi
     })
 }
 
-/// Look at `id`.
+/// Look at `id`, tracked while it lives.
 fn at(id: &str) -> CameraLookAtConfig {
     CameraLookAtConfig::Object(id.to_string())
+}
+
+/// Look at a fixed world point. The aim for a shot of something being
+/// destroyed: an object aim falls back to the ANCHOR the moment its target
+/// dies, which on this beat would swing the lens off the kill and onto the
+/// player's own hull.
+fn point(position: Meters3) -> CameraLookAtConfig {
+    CameraLookAtConfig::Point(position)
 }
 
 /// Give the camera back to the cutter's own chase rig.
@@ -1055,9 +1063,11 @@ fn orbit_watch(event: EventConfig, start: bool) -> ScenarioEventConfig {
 /// 3. Cut to the MERIDIAN. The two lances land first (a slug crosses 6.6 km in
 ///    under half a second), then the torpedoes arrive out of the same axis over
 ///    the following seconds. Nothing is said over an impact.
-/// 4. Cut back to the CUTTER, three kilometres off, for the last torpedoes and
-///    the kill - which is where the player watches it from, and which is not a
-///    shot the engine can take once the carrier is gone.
+/// 4. Cut back to the CUTTER, over its shoulder and three and a half
+///    kilometres off, for the last torpedoes and the kill - which is where the
+///    player watches it from, and which is not a shot the engine can take once
+///    the carrier is gone. It aims at the berth rather than at the ship
+///    standing on it, so the kill frame survives the ship.
 /// 5. The camera comes home before a word of the aftermath.
 ///
 /// The warship is left firing off screen on purpose. The beat is not a ship
@@ -1108,7 +1118,11 @@ fn salvo() -> EventActionConfig {
         // back BY ITSELF on the one frame that matters.
         step(
             SALVO_CUT_TO_CUTTER_AT,
-            vec![film(ID_CUTTER, CINEMA_DEATH_OFFSET, at(ID_CARRIER))],
+            vec![film(
+                ID_CUTTER,
+                CINEMA_DEATH_OFFSET,
+                point(stage::CARRIER_POS),
+            )],
         ),
         // The wreck has stopped moving by now. The camera goes back to the
         // cutter's own rig - the aftermath is the player's view, not a shot.
