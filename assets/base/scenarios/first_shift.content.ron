@@ -1734,9 +1734,136 @@
                     HintEmphasisClear((
                         verb: "STOP",
                     )),
+                    SuspendPlayerControl(()),
+                    SetCameraAnchor((
+                        anchor: "cutter",
+                        offset: (
+                            450.0,
+                            300.0,
+                            650.0,
+                        ),
+                        frame: World,
+                        look_at: Point((
+                            -350.0,
+                            190.0,
+                            900.0,
+                        )),
+                    )),
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the ball on the tape goes violet while you are on them. Short taps - she keeps whatever you give her.",
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trim_mark_lateral",
+                            name: "TRIM A",
+                            position: (
+                                -200.0,
+                                80.0,
+                                900.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "TRIM A",
+                            radius: 20.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(100.0),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trim_mark_vertical",
+                            name: "TRIM B",
+                            position: (
+                                -200.0,
+                                300.0,
+                                900.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "TRIM B",
+                            radius: 20.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(100.0),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trim_mark_return_lateral",
+                            name: "TRIM C",
+                            position: (
+                                -500.0,
+                                300.0,
+                                900.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "TRIM C",
+                            radius: 20.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(100.0),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "trim_mark_return_vertical",
+                            name: "TRIM D",
+                            position: (
+                                -500.0,
+                                80.0,
+                                900.0,
+                            ),
+                            rotation: (
+                                0.0,
+                                0.0,
+                                0.0,
+                                1.0,
+                            ),
+                        ),
+                        kind: Beacon((
+                            label: "TRIM D",
+                            radius: 20.0,
+                            color: Srgba((
+                                red: 0.3,
+                                green: 0.9,
+                                blue: 1.0,
+                                alpha: 1.0,
+                            )),
+                            area_radius: Some(100.0),
+                        )),
                     )),
                     Sequence((
                         key: "beat_2",
@@ -1749,40 +1876,14 @@
                                         verb: Rcs,
                                         enabled: true,
                                     )),
+                                    ReleaseCamera(()),
+                                    ResumePlayerControl(()),
                                     Objective((
                                         id: "trim_lateral",
                                         message: "Thruster across to TRIM A - hold [SHIFT].",
                                     )),
                                     HintEmphasisSet((
                                         verb: "RCS",
-                                    )),
-                                    SpawnScenarioObject((
-                                        base: (
-                                            id: "trim_mark_lateral",
-                                            name: "TRIM A",
-                                            position: (
-                                                -200.0,
-                                                80.0,
-                                                900.0,
-                                            ),
-                                            rotation: (
-                                                0.0,
-                                                0.0,
-                                                0.0,
-                                                1.0,
-                                            ),
-                                        ),
-                                        kind: Beacon((
-                                            label: "TRIM A",
-                                            radius: 20.0,
-                                            color: Srgba((
-                                                red: 0.3,
-                                                green: 0.9,
-                                                blue: 1.0,
-                                                alpha: 1.0,
-                                            )),
-                                            area_radius: Some(100.0),
-                                        )),
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_lateral",
@@ -1835,34 +1936,6 @@
                                         id: "trim_vertical",
                                         message: "Thruster up to TRIM B.",
                                     )),
-                                    SpawnScenarioObject((
-                                        base: (
-                                            id: "trim_mark_vertical",
-                                            name: "TRIM B",
-                                            position: (
-                                                -200.0,
-                                                300.0,
-                                                900.0,
-                                            ),
-                                            rotation: (
-                                                0.0,
-                                                0.0,
-                                                0.0,
-                                                1.0,
-                                            ),
-                                        ),
-                                        kind: Beacon((
-                                            label: "TRIM B",
-                                            radius: 20.0,
-                                            color: Srgba((
-                                                red: 0.3,
-                                                green: 0.9,
-                                                blue: 1.0,
-                                                alpha: 1.0,
-                                            )),
-                                            area_radius: Some(100.0),
-                                        )),
-                                    )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_vertical",
                                         label: "TRIM B",
@@ -1889,20 +1962,122 @@
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(4.0)))),
+                        expression: Term(Factor(Literal(Number(3.25)))),
                     )),
                     ObjectiveComplete((
                         id: "trim_vertical",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "The plate dropped three crates on the last shift. First one is out on the near edge, in the open. Go and get it.",
+                        speaker: "Copilot",
+                        text: "Now bring her back across.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_vertical",
                     )),
                     DespawnScenarioObject((
                         id: "trim_mark_vertical",
+                    )),
+                    Sequence((
+                        key: "beat_3.25",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Objective((
+                                        id: "trim_return_lateral",
+                                        message: "Thruster across to TRIM C.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "trim_mark_return_lateral",
+                                        label: "TRIM C",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trim_mark_return_lateral"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.25)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(3.5)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "trim_return_lateral",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "And down. Put her back where we started.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "trim_mark_return_lateral",
+                    )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_return_lateral",
+                    )),
+                    Sequence((
+                        key: "beat_3.5",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Objective((
+                                        id: "trim_return_vertical",
+                                        message: "Thruster down to TRIM D.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "trim_mark_return_vertical",
+                                        label: "TRIM D",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trim_mark_return_vertical"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.5)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "trim_return_vertical",
+                    )),
+                    StoryMessage((
+                        speaker: "Deck Chief",
+                        text: "The plate dropped three crates on the last shift. First one is out on the near edge, in the open. Go and get it.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "trim_mark_return_vertical",
+                    )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_return_vertical",
                     )),
                     Sequence((
                         key: "beat_4",

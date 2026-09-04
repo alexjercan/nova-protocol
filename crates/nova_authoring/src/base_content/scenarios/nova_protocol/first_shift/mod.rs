@@ -78,6 +78,8 @@ const OBJ_BURN: &str = "burn";
 const OBJ_STOP: &str = "stop";
 const OBJ_TRIM_LATERAL: &str = "trim_lateral";
 const OBJ_TRIM_VERTICAL: &str = "trim_vertical";
+const OBJ_TRIM_RETURN_LATERAL: &str = "trim_return_lateral";
+const OBJ_TRIM_RETURN_VERTICAL: &str = "trim_return_vertical";
 const OBJ_CRATE_FIRST: &str = "crate_first";
 const OBJ_CRATE_SECOND: &str = "crate_second";
 const OBJ_LOCK: &str = "lock";
@@ -107,6 +109,10 @@ const BEAT_STOP: f64 = 1.5;
 const BEAT_TRIM_LATERAL: f64 = 2.0;
 /// Second RCS translation, up.
 const BEAT_TRIM_VERTICAL: f64 = 3.0;
+/// Third RCS translation, back across.
+const BEAT_TRIM_RETURN_LATERAL: f64 = 3.25;
+/// Fourth RCS translation, down to the start.
+const BEAT_TRIM_RETURN_VERTICAL: f64 = 3.5;
 /// The first crate, on the plate's open edge.
 const BEAT_CRATE_FIRST: f64 = 4.0;
 /// The second, well inside the rocks.
@@ -534,32 +540,39 @@ pub(crate) fn first_shift(
             .collect(),
         },
         // STOP is a physical gate, not an elapsed dialogue gap. Only once the
-        // autopilot reports rest does the RCS lesson open.
+        // autopilot reports rest does the RCS lesson open. All four marks spawn
+        // together under a wide shot; only TRIM A receives the active marker.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStopComplete,
             once: true,
             filters: vec![entity(ID_CUTTER), number_equals(VAR_BEAT, BEAT_STOP)],
-            actions: vec![
+            actions: [
                 set_variable(VAR_BEAT, number(BEAT_TRIM_LATERAL)),
                 complete_objective(OBJ_STOP),
                 clear_hint_emphasis("STOP"),
+                suspend_player_control(),
+                film(ID_CUTTER, CINEMA_TRIM_OFFSET, point(TRIM_ROUTE_CENTRE)),
                 story_message(COPILOT, story::TRIM_COPILOT_TEACH),
-                beat_setup(
-                    BEAT_TRIM_LATERAL,
-                    INSTRUCTION_GAP,
-                    [
-                        grant(FlightVerb::Rcs),
-                        post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
-                        show_hint_emphasis("RCS"),
-                    ]
-                    .into_iter()
-                    .chain(TRIM_LATERAL.raise())
-                    .collect(),
-                ),
-            ],
+            ]
+            .into_iter()
+            .chain(TRIM_ROUTE.map(TempMark::spawn))
+            .chain([beat_setup(
+                BEAT_TRIM_LATERAL,
+                INSTRUCTION_GAP,
+                vec![
+                    grant(FlightVerb::Rcs),
+                    release_camera(),
+                    resume_player_control(),
+                    post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
+                    show_hint_emphasis("RCS"),
+                    TRIM_LATERAL.highlight(),
+                ],
+            )])
+            .collect(),
         },
-        // The second axis. Same gesture, almost nothing said over it.
+        // The second axis. The complete box stays visible, while the active
+        // marker advances by one corner.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnEnter,
@@ -578,13 +591,65 @@ pub(crate) fn first_shift(
             .chain([beat_setup(
                 BEAT_TRIM_VERTICAL,
                 INSTRUCTION_GAP,
-                [post_objective(
-                    OBJ_TRIM_VERTICAL,
-                    story::OBJ_TEXT_TRIM_VERTICAL,
-                )]
-                .into_iter()
-                .chain(TRIM_VERTICAL.raise())
-                .collect(),
+                vec![
+                    post_objective(OBJ_TRIM_VERTICAL, story::OBJ_TEXT_TRIM_VERTICAL),
+                    TRIM_VERTICAL.highlight(),
+                ],
+            )])
+            .collect(),
+        },
+        // Back across the top of the box.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnEnter,
+            once: true,
+            filters: vec![
+                TRIM_VERTICAL.entered(),
+                number_equals(VAR_BEAT, BEAT_TRIM_VERTICAL),
+            ],
+            actions: [
+                set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_LATERAL)),
+                complete_objective(OBJ_TRIM_VERTICAL),
+                story_message(COPILOT, story::TRIM_COPILOT_BACK_ACROSS),
+            ]
+            .into_iter()
+            .chain(TRIM_VERTICAL.clear())
+            .chain([beat_setup(
+                BEAT_TRIM_RETURN_LATERAL,
+                INSTRUCTION_GAP,
+                vec![
+                    post_objective(OBJ_TRIM_RETURN_LATERAL, story::OBJ_TEXT_TRIM_RETURN_LATERAL),
+                    TRIM_RETURN_LATERAL.highlight(),
+                ],
+            )])
+            .collect(),
+        },
+        // Down to the work-mark line, closing the box.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnEnter,
+            once: true,
+            filters: vec![
+                TRIM_RETURN_LATERAL.entered(),
+                number_equals(VAR_BEAT, BEAT_TRIM_RETURN_LATERAL),
+            ],
+            actions: [
+                set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_VERTICAL)),
+                complete_objective(OBJ_TRIM_RETURN_LATERAL),
+                story_message(COPILOT, story::TRIM_COPILOT_CLOSE_BOX),
+            ]
+            .into_iter()
+            .chain(TRIM_RETURN_LATERAL.clear())
+            .chain([beat_setup(
+                BEAT_TRIM_RETURN_VERTICAL,
+                INSTRUCTION_GAP,
+                vec![
+                    post_objective(
+                        OBJ_TRIM_RETURN_VERTICAL,
+                        story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
+                    ),
+                    TRIM_RETURN_VERTICAL.highlight(),
+                ],
             )])
             .collect(),
         },
@@ -596,16 +661,16 @@ pub(crate) fn first_shift(
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![
-                TRIM_VERTICAL.entered(),
-                number_equals(VAR_BEAT, BEAT_TRIM_VERTICAL),
+                TRIM_RETURN_VERTICAL.entered(),
+                number_equals(VAR_BEAT, BEAT_TRIM_RETURN_VERTICAL),
             ],
             actions: [
                 set_variable(VAR_BEAT, number(BEAT_CRATE_FIRST)),
-                complete_objective(OBJ_TRIM_VERTICAL),
+                complete_objective(OBJ_TRIM_RETURN_VERTICAL),
                 story_message(DECK_CHIEF, story::CRATE_CHIEF_FIRST),
             ]
             .into_iter()
-            .chain(TRIM_VERTICAL.clear())
+            .chain(TRIM_RETURN_VERTICAL.clear())
             .chain([beat_setup(
                 BEAT_CRATE_FIRST,
                 INSTRUCTION_GAP,

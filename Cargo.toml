@@ -118,6 +118,12 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
+# The opening's four-mark RCS briefing on the shared map, with the same pose,
+# lighting, Cutter and route as mainline, then live controls for handling review.
+[[example]]
+name = "first_shift_rcs"
+path = "examples/playable/first_shift_rcs.rs"
+
 # The opening's attack scene on the complete shared map: three block ships,
 # mainline lights and camera cuts, the real salvo, stills and a rail-hit loop.
 [[example]]

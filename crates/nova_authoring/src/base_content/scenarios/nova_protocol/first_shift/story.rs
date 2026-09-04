@@ -35,6 +35,12 @@ pub(super) const OBJ_TEXT_TRIM_LATERAL: &str = "Thruster across to TRIM A - hold
 pub(super) const TRIM_COPILOT_SECOND_AXIS: &str = "Good. Same again, straight up this time.";
 pub(super) const OBJ_TEXT_TRIM_VERTICAL: &str = "Thruster up to TRIM B.";
 
+pub(super) const TRIM_COPILOT_BACK_ACROSS: &str = "Now bring her back across.";
+pub(super) const OBJ_TEXT_TRIM_RETURN_LATERAL: &str = "Thruster across to TRIM C.";
+
+pub(super) const TRIM_COPILOT_CLOSE_BOX: &str = "And down. Put her back where we started.";
+pub(super) const OBJ_TEXT_TRIM_RETURN_VERTICAL: &str = "Thruster down to TRIM D.";
+
 // --- the plate ---------------------------------------------------------------
 
 pub(super) const CRATE_CHIEF_FIRST: &str =

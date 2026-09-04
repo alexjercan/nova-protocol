@@ -60,8 +60,8 @@ does NOT get an entry - and it is the only place they are written down.
 ### Scenarios & Objectives
 - First Shift now suspends flight, look, stance, and weapon input during staged
   shots, then restores control with the camera and on scenario teardown.
-- First Shift waits for physical STOP and GOTO completion before advancing or
-  removing a nav mark, and keeps Cutter's manual limit at 150 m/s.
+- First Shift waits for physical STOP and GOTO completion, frames all four RCS
+  marks before flight resumes, and keeps Cutter's manual limit at 150 m/s.
 - **(breaking)** The campaign is two new chapters, First Shift and Second
   Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
@@ -253,6 +253,8 @@ does NOT get an entry - and it is the only place they are written down.
 - New `railgun_wake_bench` example: the slug's ionized wake at three speeds
   under three lifetime policies, every knob live and in slow motion, driving
   the weapon's own tuning.
+- New `first_shift_rcs` example: the four-mark briefing on the shared campaign
+  map with mainline lighting and camera pose, then live Cutter controls.
 - New `first_shift_attack` example: the campaign attack on its complete shared
   map, with mainline lights and cuts, the real salvo, stills and a rail-hit loop.
 - `loop_vfx_range` parks a lance above the shooter and fires it over the

@@ -26,11 +26,13 @@ fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
 }
 
 /// The beats in the order the shift runs them.
-const BEATS: [f64; 18] = [
+const BEATS: [f64; 20] = [
     BEAT_LAUNCH,
     BEAT_STOP,
     BEAT_TRIM_LATERAL,
     BEAT_TRIM_VERTICAL,
+    BEAT_TRIM_RETURN_LATERAL,
+    BEAT_TRIM_RETURN_VERTICAL,
     BEAT_CRATE_FIRST,
     BEAT_CRATE_SECOND,
     BEAT_LOCK,
@@ -208,14 +210,14 @@ fn the_panel_never_points_at_two_places_at_once() {
     );
 }
 
-/// The thrusters are taught in OPEN SPACE, before the plate. Both trim marks
-/// must be clear of every rock's worst-case rendered body by more than their
-/// own trigger volume, and both lessons must run at beats BELOW the first
+/// The thrusters are taught in OPEN SPACE, before the plate. All four trim
+/// marks must be clear of every rock's worst-case rendered body by more than
+/// their own trigger volume, and every lesson must run at a beat BELOW the first
 /// crate - the old script's first RCS translation was inside the densest rock
 /// in the field, which is the last place to learn a new control.
 #[test]
 fn the_thrusters_are_taught_in_open_space_before_the_plate() {
-    for mark in [&WORK_MARK, &TRIM_LATERAL, &TRIM_VERTICAL] {
+    for mark in [&WORK_MARK].into_iter().chain(TRIM_ROUTE) {
         for (rock, radius) in stage::SALVAGE_ROCKS {
             let separation = (mark.position - rock).length().0;
             let required = radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX + mark.area.0;
@@ -229,7 +231,10 @@ fn the_thrusters_are_taught_in_open_space_before_the_plate() {
         }
     }
     assert!(
-        BEAT_TRIM_LATERAL < BEAT_CRATE_FIRST && BEAT_TRIM_VERTICAL < BEAT_CRATE_FIRST,
+        BEAT_TRIM_LATERAL < BEAT_CRATE_FIRST
+            && BEAT_TRIM_VERTICAL < BEAT_CRATE_FIRST
+            && BEAT_TRIM_RETURN_LATERAL < BEAT_CRATE_FIRST
+            && BEAT_TRIM_RETURN_VERTICAL < BEAT_CRATE_FIRST,
         "the plate opens before the thrusters are taught"
     );
 
@@ -293,6 +298,72 @@ fn the_rcs_lesson_waits_for_stop_and_keeps_the_manual_governor() {
         beat_set_by(stop),
         Some(BEAT_TRIM_LATERAL),
         "STOP completion does not advance to the first RCS translation"
+    );
+}
+
+#[test]
+fn the_rcs_briefing_shows_the_complete_four_mark_box_before_control_returns() {
+    let config = config();
+    let stop = config
+        .events
+        .iter()
+        .find(|event| {
+            matches!(event.name, EventConfig::OnStopComplete) && beat_of(event) == Some(BEAT_STOP)
+        })
+        .expect("no physical STOP completion opens the RCS lesson");
+    let spawned: Vec<&str> = stop
+        .actions
+        .iter()
+        .filter_map(|action| match action {
+            EventActionConfig::SpawnScenarioObject(object)
+                if TRIM_ROUTE.iter().any(|mark| mark.id == object.base.id) =>
+            {
+                Some(object.base.id.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        spawned,
+        TRIM_ROUTE.map(|mark| mark.id).to_vec(),
+        "all four route marks must spawn together in route order"
+    );
+    assert_eq!(
+        TRIM_ROUTE.map(|mark| mark.position),
+        [
+            Meters3::new(-200.0, 80.0, 900.0),
+            Meters3::new(-200.0, 300.0, 900.0),
+            Meters3::new(-500.0, 300.0, 900.0),
+            WORK_MARK.position,
+        ],
+        "the route no longer closes its four-mark box"
+    );
+
+    let mut actions = Vec::new();
+    for action in &stop.actions {
+        action.walk(&mut |action| actions.push(action.clone()));
+    }
+    assert!(
+        actions.iter().any(|action| {
+            matches!(action, EventActionConfig::SetCameraAnchor(shot)
+                if shot.anchor == ID_CUTTER
+                    && shot.offset == CINEMA_TRIM_OFFSET
+                    && matches!(&shot.look_at, CameraLookAtConfig::Point(position)
+                        if *position == TRIM_ROUTE_CENTRE))
+        }),
+        "the complete route is never framed from Cutter"
+    );
+    assert!(
+        actions
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::ReleaseCamera(_))),
+        "the briefing never returns the chase camera"
+    );
+    assert!(
+        actions
+            .iter()
+            .any(|action| matches!(action, EventActionConfig::ResumePlayerControl(_))),
+        "the briefing never restores player control"
     );
 }
 
@@ -496,14 +567,12 @@ fn distance_to_segment(point: Meters3, from: Meters3, to: Meters3) -> f32 {
     (point - (from + leg * along)).length().0
 }
 
-/// The cinematic is four shots in one order, and it comes home twice. The
-/// entrance is filmed from the CUTTER (the player is in their own set piece),
-/// the launch from the WARSHIP, the guns from the MERIDIAN, and the kill from
-/// the CUTTER again - and the chase rig is handed back once across the long
-/// middle leg and once BEFORE the aftermath, because the approach and the
-/// distress beat are both the player's own view rather than shots. Losing a
-/// release leaves the player watching the chapter from a pose they cannot fly
-/// out of.
+/// The chapter has five authored shots in order and comes home three times.
+/// The RCS route and entrance are filmed from the CUTTER, the launch from the
+/// WARSHIP, the guns from the MERIDIAN, and the kill from the CUTTER again.
+/// The chase rig returns after the briefing, across the warship's middle leg,
+/// and before the aftermath. Losing a release leaves the player watching the
+/// chapter from a pose they cannot fly out of.
 #[test]
 fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
     let config = config();
@@ -528,18 +597,19 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
         shots,
         vec![
             ID_CUTTER.to_string(),
+            ID_CUTTER.to_string(),
             ID_WARSHIP.to_string(),
             ID_CARRIER.to_string(),
             ID_CUTTER.to_string(),
         ],
-        "the shot list is out of order: the entrance is the cutter's, the \
-         tubes are the warship's, the guns are the Meridian's, and the kill is \
-         the cutter's again"
+        "the shot list is out of order: the RCS briefing and entrance are the \
+         cutter's, the tubes are the warship's, the guns are the Meridian's, \
+         and the kill is the cutter's again"
     );
     assert_eq!(
-        released, 2,
-        "the camera is handed back {released} times - it comes home once across \
-         the warship's second leg and once before the aftermath"
+        released, 3,
+        "the camera is handed back {released} times - after the RCS briefing, \
+         across the warship's second leg, and before the aftermath"
     );
 
     // Inside the salvo chain: the guns fire under the shot they belong to, and
@@ -684,8 +754,8 @@ fn every_anchored_cinematic_interval_restores_player_control() {
         .count();
 
     assert_eq!(
-        suspended, 2,
-        "entry and salvo each own one control interval"
+        suspended, 3,
+        "RCS briefing, entry and salvo each own one control interval"
     );
     assert_eq!(resumed, suspended, "every suspension must have a resume");
     assert_eq!(
@@ -760,6 +830,8 @@ fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
         &WORK_MARK,
         &TRIM_LATERAL,
         &TRIM_VERTICAL,
+        &TRIM_RETURN_LATERAL,
+        &TRIM_RETURN_VERTICAL,
         &TRANSIT_ONE,
         &TRANSIT_TWO,
         &WORK_SITE,

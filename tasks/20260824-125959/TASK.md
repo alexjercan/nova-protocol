@@ -725,3 +725,26 @@ and writes all four 1280x720 beat captures. The armed loop walk exits cleanly
 and encodes 154 deterministic frames as a 5.1-second, 1280x720, 30 fps VP9 webm;
 four sampled frames confirm that both lance hits and the physical hull damage
 are visible.
+
+### 2026-09-04: First Shift playtest revision, step 4
+
+Rebuilt the two-mark RCS nudge as a four-mark box around the stopped work mark:
+300 m across to TRIM A, 220 m up to B, back across to C, then down to D at the
+starting line. All four 100 m intersections spawn together after Cutter's real
+STOP. A wide Cutter-relative pose frames the complete route while control is
+suspended and the copilot explains short taps, translation without turning and
+the violet velocity display. The camera and control return together before RCS
+is granted and only TRIM A becomes the active objective; the active marker then
+advances one corner at a time while completed beacons despawn.
+
+Added `examples/playable/first_shift_rcs.rs` as the focused handling and framing
+bench. It uses the shared complete belt, mainline Cutter and carrier prototypes,
+150 m/s cap, light rig, route coordinates and briefing pose. Its live route
+moves the active marker A-B-C-D after the camera returns. A rendered 1280x720
+review loaded all 71 objects: all four labels and Cutter fit in the briefing
+frame, only A is gold after release, and the later marks remain visible.
+
+Proof: 17 focused First Shift structural tests pass, including the complete-box
+spawn, geometry, camera and control-return pin; `cargo check --example
+first_shift_rcs --features debug` passes; generated content lint reports 0
+errors, 0 warnings and 0 findings; web CI passes; `git diff --check` is clean.

@@ -63,18 +63,25 @@ pub(super) struct TempMark {
 }
 
 impl TempMark {
+    /// Spawn the visible mark without making it the active objective.
+    pub(super) fn spawn(&self) -> EventActionConfig {
+        spawn_object(stage::sized_beacon(
+            self.id,
+            self.label,
+            self.position,
+            self.area,
+            self.lock_signature,
+        ))
+    }
+
+    /// Make an existing visible mark the active objective.
+    pub(super) fn highlight(&self) -> EventActionConfig {
+        attach_objective_marker(self.id, self.label)
+    }
+
     /// Put the mark up and point the HUD at it.
     pub(super) fn raise(&self) -> Vec<EventActionConfig> {
-        vec![
-            spawn_object(stage::sized_beacon(
-                self.id,
-                self.label,
-                self.position,
-                self.area,
-                self.lock_signature,
-            )),
-            attach_objective_marker(self.id, self.label),
-        ]
+        vec![self.spawn(), self.highlight()]
     }
 
     /// Take it down: the chip first, then the mark itself.
@@ -100,8 +107,8 @@ pub(super) const WORK_MARK: TempMark = TempMark {
     lock_signature: None,
 };
 
-/// The RCS lesson, taught in OPEN SPACE and one axis at a time. Both marks sit
-/// a few hundred metres off the launch mark: far enough that the translation
+/// The RCS lesson, taught in OPEN SPACE as a four-mark box. The route sits a
+/// few hundred metres around the launch mark: far enough that each translation
 /// is a real maneuver at the 100 m/s RCS cap, close enough that it is a nudge
 /// rather than a leg. The trigger is tight on purpose - the lesson is placing
 /// the hull, and a wide sphere would pass a player who merely drifted past.
@@ -113,7 +120,7 @@ pub(super) const TRIM_LATERAL: TempMark = TempMark {
     lock_signature: None,
 };
 
-/// The second axis, straight up off the first. Same lesson, no new words.
+/// The second axis, straight up off the first.
 pub(super) const TRIM_VERTICAL: TempMark = TempMark {
     id: "trim_mark_vertical",
     label: "TRIM B",
@@ -121,6 +128,37 @@ pub(super) const TRIM_VERTICAL: TempMark = TempMark {
     area: Meters(100.0),
     lock_signature: None,
 };
+
+/// Back across the top of the box.
+pub(super) const TRIM_RETURN_LATERAL: TempMark = TempMark {
+    id: "trim_mark_return_lateral",
+    label: "TRIM C",
+    position: Meters3::new(-500.0, 300.0, 900.0),
+    area: Meters(100.0),
+    lock_signature: None,
+};
+
+/// Down to the original work-mark position, closing the box.
+pub(super) const TRIM_RETURN_VERTICAL: TempMark = TempMark {
+    id: "trim_mark_return_vertical",
+    label: "TRIM D",
+    position: WORK_MARK.position,
+    area: Meters(100.0),
+    lock_signature: None,
+};
+
+pub(super) const TRIM_ROUTE: [&TempMark; 4] = [
+    &TRIM_LATERAL,
+    &TRIM_VERTICAL,
+    &TRIM_RETURN_LATERAL,
+    &TRIM_RETURN_VERTICAL,
+];
+
+/// The centre all four route marks are framed around during the briefing.
+pub(super) const TRIM_ROUTE_CENTRE: Meters3 = Meters3::new(-350.0, 190.0, 900.0);
+
+/// Wide rear-quarter briefing pose: Cutter and the complete box remain in view.
+pub(super) const CINEMA_TRIM_OFFSET: Meters3 = Meters3::new(450.0, 300.0, 650.0);
 
 /// The first transit mark: the leg LOCK and GOTO are taught on, out west of
 /// the plate in clear space. Sized for the autopilot, which parks 500 m short
