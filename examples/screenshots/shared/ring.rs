@@ -2,7 +2,7 @@
 //! plus the leg-camera rig they pose off it.
 //!
 //! A gravity planetoid at the origin, a rock ring outside the flight path, a
-//! survey beacon over the pole, and the player's racer parked on the ring
+//! survey beacon over the pole, and the player's ship parked on the ring
 //! radius. Everything here is the production flight stack: the helpers insert
 //! the same [`Autopilot`] components the ORBIT and GOTO keybinds do and then
 //! watch the phase (`Align -> Burn -> Hold`) and the telemetry; no attitude,
@@ -89,13 +89,13 @@ pub const ORBIT_NORMAL: Vec3 = Vec3::Y;
 /// drift out of the light.
 pub const START_RADIAL: Vec3 = Vec3::new(0.35, 0.0, -0.94);
 
-/// Where the racer is parked before the verb takes it: on the ring, out along
+/// Where the ship is parked before the verb takes it: on the ring, out along
 /// [`START_RADIAL`].
 pub fn start_position() -> Meters3 {
     Meters3(START_RADIAL.normalize() * ORBIT_RADIUS.get())
 }
 
-/// Pointing along the ring's travel direction (`normal x radial`), so the racer
+/// Pointing along the ring's travel direction (`normal x radial`), so the ship
 /// is already squared with the track it is about to be put on rather than
 /// swinging through 90 degrees on the first frame of the insertion.
 pub fn start_rotation() -> Quat {
@@ -122,12 +122,12 @@ pub const BEACON_SIGNATURE: Meters = Meters(400.0);
 pub const STEADY_SECS: f32 = 2.0;
 
 /// The set: a gravity planetoid at the origin, a rock ring outside the flight
-/// path, and the player's racer parked on the ring radius.
+/// path, and the player's ship parked on the ring radius.
 pub fn the_ring(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
-    the_ring_with_hull(game_assets, ships, "racer")
+    the_ring_with_hull(game_assets, ships, "block_cutter")
 }
 
-/// The ring with a selected recipe hull for visual capture variants.
+/// The ring with a selected catalog hull for visual capture variants.
 pub fn the_ring_with_hull(
     game_assets: &GameAssets,
     ships: &GameShips,
@@ -143,7 +143,7 @@ pub fn the_ring_with_hull(
             speed_cap: None,
         }),
         None,
-        kit::kenney_hull(ships, hull),
+        kit::catalog_hull(ships, hull),
     );
 
     // The ring debris: OUTSIDE the flight path, and small. Two rules, both

@@ -12,7 +12,8 @@
 //!
 //! What it holds, and nothing else:
 //!
-//! - [`kenney_hull`]: the shipped section list for a semantic-parts Kenney ship.
+//! - [`catalog_hull`]: the shipped section list for a ship in the catalog, and
+//!   [`cell_section`], the id of the section one block hull carries at a cell.
 //! - [`NearField`]: near-field asteroid dressing, close enough to the subject to
 //!   actually be in frame.
 //! - [`ship_root`] and [`section_health`]: the two lookups a scene needs to
@@ -31,25 +32,41 @@
 use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
-/// The shipped semantic-parts assembly, read straight from the ship catalog.
+/// The shipped assembly, read straight from the ship catalog.
 ///
-/// `hull` is the catalog ship id (`racer`, `cargoa`, `cargob`).
+/// `hull` is the catalog ship id (`block_gunship`, `block_raider`, ...).
 ///
-/// Read from the catalog rather than copied, because a copy drifts: hand-typing
-/// the cargoa's two turret mounts at +-0.85 where the builders author +-0.95 is
-/// a hundred times the mate epsilon, so each mount's socket misses the nose's,
-/// the turrets join no component, `derive_link_point_graph` rejects the WHOLE
-/// ship as `Disconnected`, and section integrity falls back to empty adjacency -
-/// under which any single section death severs the entire hull into loose
-/// wrecks. There is exactly one set of coordinates, and it is the one the game
-/// ships.
-pub fn kenney_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
+/// Read from the catalog rather than copied, because a copy drifts: a turret
+/// mount hand-typed a tenth of a unit off its authored seat is a hundred times
+/// the mate epsilon, so its socket misses the plate's, the mount joins no
+/// component, `derive_link_point_graph` rejects the WHOLE ship as
+/// `Disconnected`, and section integrity falls back to empty adjacency - under
+/// which any single section death severs the entire hull into loose wrecks.
+/// There is exactly one set of coordinates, and it is the one the game ships.
+pub fn catalog_hull(ships: &GameShips, hull: &str) -> Vec<SpaceshipSectionConfig> {
     ships
         .get_ship(hull)
-        .unwrap_or_else(|| panic!("kenney_hull: unknown semantic ship '{hull}'"))
+        .unwrap_or_else(|| panic!("catalog_hull: unknown ship '{hull}'"))
         .hull
         .sections
         .clone()
+}
+
+/// The id of the section a BLOCK hull carries at one build-grid cell.
+///
+/// A block ship names its specials (`bridge`, `pdc_aft_port`) and numbers its
+/// plating (`plate_17`), and the numbering is an artifact of the order the
+/// design's boxes were unioned - it moves the moment a hull grows a cell. A
+/// scene that wants "the plate on the port waist" says so by its CELL, which is
+/// the coordinate the hull is actually authored in.
+///
+/// Cells are BUILD-GRID cells: one cell is one world unit is 10 m.
+pub fn cell_section(ships: &GameShips, hull: &str, cell: Vec3) -> String {
+    catalog_hull(ships, hull)
+        .into_iter()
+        .find(|section| section.position.abs_diff_eq(cell, 1e-3))
+        .unwrap_or_else(|| panic!("cell_section: '{hull}' carries no section at {cell:?}"))
+        .id
 }
 
 /// Near-field asteroid dressing: a ring of rocks close enough to the subject to

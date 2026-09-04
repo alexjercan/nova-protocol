@@ -1,4 +1,4 @@
-//! screenshot_hero_ship: the drydock's hero racer, close.
+//! screenshot_hero_ship: the drydock's hero gunship, close.
 //!
 //! Loads "Drydock drift" (`shared/drydock.rs`) and poses one three-quarter
 //! beauty pass on the hero hull, near enough that its sections read.
@@ -33,7 +33,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_hero_ship")]
 #[command(version = "1.0.0")]
-#[command(about = "The drydock's hero racer, close enough for its sections to read. Autopilot-only: a posed set behind a scripted camera", long_about = None)]
+#[command(about = "The drydock's hero gunship, close enough for its sections to read. Autopilot-only: a posed set behind a scripted camera", long_about = None)]
 struct Cli;
 
 fn main() -> bevy::app::AppExit {

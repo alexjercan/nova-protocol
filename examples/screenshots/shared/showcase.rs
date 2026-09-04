@@ -1,9 +1,10 @@
 //! The section showcase: one ship carrying every section type, plus the
 //! turntable that brings each one round to the camera for its closeup.
 //!
-//! The ship is the ENGINE's own section prototypes, not a Kenney hull: these
-//! shots document what each section type IS, so a reader has to be able to tell
-//! the parts apart. A pretty hull would hide exactly the thing being shown.
+//! The ship is a bare line of the ENGINE's own section prototypes, not a
+//! shipped hull: these shots document what each section type IS, so a reader
+//! has to be able to tell the parts apart. A finished hull would hide exactly
+//! the thing being shown.
 //!
 //! Framing is a turntable, not a camera fly-around. The photo rig
 //! (`shared/kit.rs`) is fixed in WORLD space, so orbiting the camera would light

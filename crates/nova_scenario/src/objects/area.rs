@@ -28,7 +28,8 @@ pub struct ScenarioAreaMarker;
 ///
 /// A spaceship is ONE rigid body wearing many section colliders, so avian fires
 /// a separate `CollisionStart`/`CollisionEnd` per section collider that touches
-/// an area sensor (empirically 3+ for the old trainer, 18 for a racer, 90+ for a
+/// an area sensor (empirically 3+ for the old trainer, 18 for a small modelled
+/// craft, 90+ for a
 /// skinned block ship). Without this, an `OnEnter` handler that is not
 /// idempotent - the salvage crate's `despawn + crates_recovered += 1` - runs
 /// once PER section collider, despawning a crate several times and over-counting
@@ -500,7 +501,7 @@ mod tests {
 
     /// A COMPOUND body - one rigid body wearing many section colliders, like a
     /// spaceship - must fire exactly ONE OnEnter, not one per collider. Regression
-    /// for the racer's 18-section hull triple-triggering the salvage crate pickup
+    /// for an 18-section modelled hull triple-triggering the salvage crate pickup
     /// (despawning a crate several times and over-counting the tally). Counts
     /// OnEnter deliveries by incrementing a variable each fire.
     #[test]

@@ -694,7 +694,7 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
     let picket = ObjectNode {
         name: "Picket Warden".to_string(),
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Prototype("cargoa".to_string()),
+            hull: ShipSource::Prototype("block_gunship".to_string()),
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             ..default()
         }),
@@ -707,7 +707,7 @@ fn a_seeded_hull_opens_on_its_ship_and_its_driver() {
         .collect();
 
     assert!(
-        said.contains(&("Hull".to_string(), "cargoa".to_string())),
+        said.contains(&("Hull".to_string(), "block_gunship".to_string())),
         "the hull it flies, by catalog id: {said:?}"
     );
     assert!(
@@ -726,7 +726,7 @@ fn a_picked_level_keeps_the_heading_its_fields_sit_under() {
     let picket = ObjectNode {
         name: "Picket Warden".to_string(),
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-            hull: ShipSource::Prototype("cargoa".to_string()),
+            hull: ShipSource::Prototype("block_gunship".to_string()),
             controller: SpaceshipController::AI(AIControllerConfig::default()),
             ..default()
         }),

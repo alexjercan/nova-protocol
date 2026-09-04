@@ -1,10 +1,10 @@
 //! "Drydock drift": the beauty set the website's pure-3D shots are taken from.
 //!
-//! A hero Kenney racer posed at the origin, a near-field rock belt close enough
-//! to be IN the frame, two neutral cargo hulls flying slow loops through the
-//! yard, and a planetoid far enough back that its surface reads as a body rather
-//! than a wall. The photo kit lights it (key + rim + fill) instead of the
-//! scenario's single top-down key.
+//! A hero gunship posed at the origin, a near-field rock belt close enough to be
+//! IN the frame, two neutral working hulls flying slow loops through the yard,
+//! and a planetoid far enough back that its surface reads as a body rather than
+//! a wall. The photo kit lights it (key + rim + fill) instead of the scenario's
+//! single top-down key.
 //!
 //! Included by each drydock producer with
 //! `#[path = "shared/drydock.rs"] mod drydock;`. It pulls in `shared/kit.rs`
@@ -49,22 +49,23 @@ pub const PLANETOID_RADIUS: Meters = Meters(300.0);
 /// world units, 1.56 km, and nothing posed further out than that is inside it.
 pub const PLANETOID_MASS: f32 = 6_000.0;
 
-/// The set: planetoid, near-field belt, hero racer, two drifting hulls.
+/// The set: planetoid, near-field belt, hero gunship, two drifting hulls.
 pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
-    // The hero: a Kenney racer at the origin, turned three-quarters and tipped
+    // The hero: a patrol gunship at the origin, turned three-quarters and tipped
     // off the horizontal so it reads as a ship parked in a yard rather than a
-    // model on a shelf.
+    // model on a shelf. The fleet's most detailed silhouette, which is what a
+    // beauty shot wants.
     let hero = ship(
         "drydock_hero",
-        "Hero Racer",
+        "Hero Gunship",
         Meters3::ZERO,
         Quat::from_rotation_y(-0.55) * Quat::from_rotation_x(0.10) * Quat::from_rotation_z(0.18),
         SpaceshipController::None,
         None,
-        kit::kenney_hull(ships, "racer"),
+        kit::catalog_hull(ships, "block_gunship"),
     );
 
-    // The yard traffic: two cargo hulls flying slow loops around the hero,
+    // The yard traffic: two working hulls flying slow loops around the hero,
     // NEUTRAL so they stay bystanders (nothing in this scene is meant to shoot
     // anything). Their routes run down opposite flanks at different heights, so
     // no framing catches them in a row.
@@ -79,7 +80,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
             Meters3::new(-300.0, 40.0, 860.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_hauler"),
     );
     let hauler_b = ship(
         "drydock_hauler_b",
@@ -92,7 +93,7 @@ pub fn drydock_drift(game_assets: &GameAssets, ships: &GameShips) -> ScenarioCon
             Meters3::new(580.0, -80.0, 600.0),
         ]),
         Some(Allegiance::Neutral),
-        kit::kenney_hull(ships, "cargob"),
+        kit::catalog_hull(ships, "block_cutter"),
     );
 
     let belt = kit::NearField {

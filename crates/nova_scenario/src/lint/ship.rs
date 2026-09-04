@@ -637,18 +637,18 @@ mod tests {
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["cargoa"]),
+            &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(errs[0].message.contains("no_such_ship"));
 
-        let s = scenario(vec![by_id("cargoa")], vec![]);
+        let s = scenario(vec![by_id("block_gunship")], vec![]);
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["cargoa"]),
+            &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
@@ -667,7 +667,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
-                    hull: ShipSource::Prototype("cargoa".to_string()),
+                    hull: ShipSource::Prototype("block_gunship".to_string()),
                     modifications: vec![ShipSectionModification {
                         section: section.to_string(),
                         modifications: vec![SectionModification::SetHealth(500.0)],
@@ -681,7 +681,7 @@ mod tests {
         let issues = lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["cargoa"]),
+            &ships(&["block_gunship"]),
             &known(&["test_scenario"]),
         );
         let errs = errors(&issues);
@@ -693,7 +693,7 @@ mod tests {
         assert!(lint_scenario(
             &s,
             &sections(&["hull"]),
-            &ships(&["cargoa"]),
+            &ships(&["block_gunship"]),
             &known(&["test_scenario"])
         )
         .is_empty());
@@ -705,8 +705,8 @@ mod tests {
     #[test]
     fn a_catalog_ship_is_linted_where_it_is_authored() {
         let ship = |proto: &str| ShipConfig {
-            id: "cargoa".to_string(),
-            name: "CargoA".to_string(),
+            id: "block_gunship".to_string(),
+            name: "Gunship".to_string(),
             hull: ShipHull {
                 sections: vec![SpaceshipSectionConfig {
                     id: "fuselage".to_string(),

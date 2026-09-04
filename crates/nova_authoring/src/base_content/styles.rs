@@ -74,7 +74,7 @@ pub const SALVAGE_STYLE_ID: &str = "salvage";
 /// subject wears, and a placeholder there would photograph the test pattern.
 ///
 /// `industrial` leads because a FALLBACK should be the least opinionated thing
-/// here. The other three are cast parts - the warship, the racer, the raider -
+/// here. The other three are cast parts - the warship, the yacht, the raider -
 /// and a ship that never named a style is none of them; a working hull with its
 /// services on the outside is what an arbitrary generated hull reads as. It is
 /// also the widest kit (seven pieces over six zones of the vocabulary), so it
@@ -940,7 +940,7 @@ fn armoured_style(assets: &BaseContentAssets) -> ShipStyleConfig {
     }
 }
 
-/// The CIVILIAN look: the racer's, and a ship built to be SOLD.
+/// The CIVILIAN look: a private yacht's, and a ship built to be SOLD.
 ///
 /// Two things carry it, and only two. The PAINT: the undressed derivation is a
 /// cool dark slate, near enough to bare metal that a "clean" look built on

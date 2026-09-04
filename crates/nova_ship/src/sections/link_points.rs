@@ -831,7 +831,7 @@ mod tests {
     /// where each end picks from the same two candidates.
     #[test]
     fn the_cardinal_axis_is_antisymmetric() {
-        // A real cargob pod -> fuselage direction: 36 degrees off -X, which is
+        // A real modelled pod -> fuselage direction: 36 degrees off -X, which is
         // exactly how far a part mated onto it used to arrive tilted.
         let oblique = Vec3::new(-0.8055, 0.1527, 0.5726).normalize();
         assert_eq!(cardinal_axis(oblique), Vec3::NEG_X);

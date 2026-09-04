@@ -53,17 +53,28 @@ struct Cli;
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "landing-damage-sequence";
 
-/// Scenario id of the corvette that takes the beating.
+/// Scenario id of the gunship that takes the beating.
 const SUBJECT_ID: &str = "damage_subject";
 
-/// The plating the broadside walks across, bow to waist.
+/// The catalog hull the beating is delivered to: the fleet's warship, which is
+/// the only one carrying enough guns for the turret beat to cost it something.
+const SUBJECT_HULL: &str = "block_gunship";
+
+/// The plating the broadside walks across, bow to waist, named by BUILD-GRID
+/// CELL along the port flank - the coordinate the hull is authored in, where
+/// its `plate_N` ids are an artifact of the union order (see
+/// [`kit::cell_section`]).
 ///
 /// Three sections rather than one, because the row's claim is that damage
 /// SPREADS: a single cracked cell reads as one unlucky hit, and the whole
 /// point of the level system is that a hull wears its history across every
 /// plate that took something.
 #[cfg(feature = "debug")]
-const BROADSIDE_SECTIONS: [&str; 3] = ["nose", "fuselage", "pod_port"];
+const BROADSIDE_CELLS: [Vec3; 3] = [
+    Vec3::new(-1.0, 0.0, -2.0),
+    Vec3::new(-1.0, 0.0, -1.0),
+    Vec3::new(-1.0, 0.0, 0.0),
+];
 
 /// How much of a section's maximum the broadside takes off.
 ///
@@ -77,15 +88,15 @@ const BROADSIDE_FRACTION: f32 = 0.78;
 /// killing it disables a gun without severing anything - which is the beat:
 /// losing a weapon is not the same event as losing structure.
 #[cfg(feature = "debug")]
-const DISABLED_TURRET: &str = "turret_port";
+const DISABLED_TURRET: &str = "pdc_forward_port";
 
-/// The section the final hit goes through.
+/// The cell the final hit goes through: the port aft deck plate.
 ///
-/// The port pod is the spine joint of the port flank: the engine block hangs
-/// off the hull through it, so cutting the pod frees the engine as an
-/// independent wreck. A tail cut frees nothing - the tail is a leaf.
+/// It is the seat the aft port mount stands on, and the mount's only link, so
+/// cutting the plate frees the gun and the deck it rode on as an independent
+/// wreck. A plate with nothing hanging off it frees nothing.
 #[cfg(feature = "debug")]
-const SEVERED_SECTION: &str = "pod_port";
+const SEVERED_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
 
 /// The slow tumble the hull carries into the sequence, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
@@ -126,7 +137,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(damage_range(&game_assets, &ships)));
 }
 
-/// The set: one corvette three-quarter to the lens with its port flank open,
+/// The set: one gunship three-quarter to the lens with its port flank open,
 /// a near rock field for parallax, and the photo rig.
 fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -139,11 +150,11 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Enemy),
-            // The whole shipped corvette, turrets included: the sequence needs
+            // The whole shipped gunship, turrets included: the sequence needs
             // a turret to disable and a real mate graph to sever along, and
             // both come from the catalog rather than from a hand-typed copy.
             hull: ShipSource::Inline(ShipHull {
-                sections: kit::kenney_hull(ships, "cargoa"),
+                sections: kit::catalog_hull(ships, SUBJECT_HULL),
                 ..default()
             }),
             ..default()
@@ -159,7 +170,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     };
 
     ScenarioConfig {
-        description: "A corvette worn down a level at a time, then cut open.".to_string(),
+        description: "A gunship worn down a level at a time, then cut open.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -227,7 +238,7 @@ fn damage_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // The cut waits for the production sever - a wreck fragment with its
         // own body - to actually exist, not for a duration.
-        .step("cut the port pod")
+        .step("cut the port aft deck")
         .on_enter(sever_pod)
         .until(any_entity::<With<ShipWreckFragmentMarker>>())
         .deadline(5.0)
@@ -271,8 +282,10 @@ fn spin_subject(world: &mut World) {
 /// Take most of the plating off three sections along the flank in one volley.
 #[cfg(feature = "debug")]
 fn spread_cracks(world: &mut World) {
-    for section in BROADSIDE_SECTIONS {
-        let Some(node) = kit::section_health(world, SUBJECT_ID, section) else {
+    let ships = world.resource::<GameShips>().clone();
+    for cell in BROADSIDE_CELLS {
+        let section = kit::cell_section(&ships, SUBJECT_HULL, cell);
+        let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
             warn!("damage loop: no health node under section '{section}'");
             continue;
         };
@@ -294,10 +307,12 @@ fn disable_turret(world: &mut World) {
     kill_section(world, DISABLED_TURRET);
 }
 
-/// Kill the port pod, which frees the engine block behind it.
+/// Kill the port aft deck plate, which frees the mount standing on it.
 #[cfg(feature = "debug")]
 fn sever_pod(world: &mut World) {
-    kill_section(world, SEVERED_SECTION);
+    let ships = world.resource::<GameShips>().clone();
+    let section = kit::cell_section(&ships, SUBJECT_HULL, SEVERED_CELL);
+    kill_section(world, &section);
 }
 
 /// Put one section down through the production damage path.

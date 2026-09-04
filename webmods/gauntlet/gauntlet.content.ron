@@ -1,14 +1,14 @@
 // Gauntlet Run 2.0 content: one NEW scenario (no base overrides) - a real
-// parkour/slalom course. Spawns a player racer at the START, then guides the
-// pilot gate by gate (objective + gold marker) through SIX gates to the
-// FINISH, over three escalating acts (warmup / slalom / hazard). The route
+// parkour/slalom course. Spawns the player in a cutter at the START, then
+// guides the pilot gate by gate (objective + gold marker) through SIX gates to
+// the FINISH, over three escalating acts (warmup / slalom / hazard). The route
 // turns and climbs; invulnerable asteroids crowd the racing line to punish
 // sloppy flying (collision damage), and an act-3 gravity well tugs the pilot
 // off-line to sling or avoid. Crossing FINISH declares Victory; wrecking your
 // ship on the rocks declares Defeat with a Retry. Pure flying skill, no combat.
 // Data-driven RON (no engine changes); `base` is the only dependency - it owns
-// the section prototypes the racer is built from and the shared textures. The
-// racer's crash tolerance is base's reinforced_hull_section (200 health); it is
+// the `block_cutter` the course is flown in and the shared textures. The
+// cutter's crash tolerance is base's reinforced_hull_section (200 health); it is
 // tuned by playtest against that base value, NOT by any mod's overlay of that
 // section (an enabled overlay could buff it, but gauntlet depends only on base).
 //
@@ -114,10 +114,10 @@
                     DebugMessage((
                         message: "Gauntlet Run 2.0 loaded from the mod portal.",
                     )),
-                    // The racer: the base game's unarmed civilian hull, which is
-                    // exactly what a time trial wants. All verbs enabled (no
+                    // The cutter: the base game's small unarmed workboat, which
+                    // is exactly what a time trial wants. All verbs enabled (no
                     // DisableVerb), so the pilot can GOTO/lock the gates from
-                    // the first second. The reinforced hull buys crash
+                    // the first second. Its reinforced plating buys crash
                     // tolerance so the course is run-and-fail, not one-touch
                     // death.
                     SpawnScenarioObject((
@@ -129,120 +129,12 @@
                         ),
                         kind: Spaceship((
                             controller: Player((
-                                // No guns on the course: the racer flies the
+                                // No guns on the course: the cutter flies the
                                 // gauntlet unarmed, so there is nothing to bind.
                                 input_mapping: {},
                                 speed_cap: Some(250.0),
                             )),
-                            hull: Inline((
-                                sections: [
-                                    (
-                                        id: "engine_starboard",
-                                        position: (
-                                            0.655,
-                                            0.570945,
-                                            1.512835,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_engine_starboard"),
-                                    ),
-                                    (
-                                        id: "engine_port",
-                                        position: (
-                                            -0.655,
-                                            0.570945,
-                                            1.512835,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_engine_port"),
-                                    ),
-                                    (
-                                        id: "wing_starboard",
-                                        position: (
-                                            0.805,
-                                            0.5,
-                                            0.11783552,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_wing_starboard"),
-                                    ),
-                                    (
-                                        id: "wing_port",
-                                        position: (
-                                            -0.805,
-                                            0.5,
-                                            0.11783552,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_wing_port"),
-                                    ),
-                                    (
-                                        id: "nose",
-                                        position: (
-                                            0.0,
-                                            0.611325,
-                                            -1.512835,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_nose"),
-                                    ),
-                                    (
-                                        id: "tail",
-                                        position: (
-                                            0.0,
-                                            0.85,
-                                            1.6128349,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_tail"),
-                                    ),
-                                    (
-                                        id: "fuselage",
-                                        position: (
-                                            0.0,
-                                            0.7,
-                                            0.100000024,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype("racer_fuselage"),
-                                    ),
-                                ],
-                            )),
+                            hull: Prototype("block_cutter"),
                         )),
                     )),
                     // --- Gates: START, six threaded gates, FINISH ---

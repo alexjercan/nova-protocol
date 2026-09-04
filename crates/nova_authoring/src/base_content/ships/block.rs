@@ -4,9 +4,9 @@
 //! Nothing here reaches for a modelled part. A block ship is a set of cells and
 //! a handful of placed specials, so it is readable in a diff, reproducible from
 //! the source, and buildable by anyone with the editor and no art pipeline -
-//! which is the whole point of making it the base game's own identity. The
-//! Kenney semantic fleet beside it says the opposite thing on purpose: that a
-//! mod can bring its own GLBs.
+//! which is the whole point of making it the base game's own identity. A mod
+//! that ships modelled craft (The Ledger) says the opposite thing on purpose:
+//! that a mod can bring its own GLBs.
 //!
 //! The STYLE is the fleet's vocabulary. `armoured` is military, `salvage` is
 //! scavenged, `industrial` is working freight, and a backdrop reads which is

@@ -109,7 +109,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             speed_cap: None,
         }),
         None,
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_gunship"),
     );
 
     // The corridor: big rocks spread wide around the beacon, so the shot has

@@ -78,8 +78,8 @@ pub fn sections(world: &mut World, ship: Entity) -> Vec<(Entity, String)> {
 
 /// The one section of `ship` with this id.
 ///
-/// A section id is unique to its hull, not to the field: two `cargoa` hulls
-/// both carry `turret_port`. The ship is therefore part of the address, and
+/// A section id is unique to its hull, not to the field: two gunship hulls
+/// both carry `pdc_aft_port`. The ship is therefore part of the address, and
 /// this never has to answer "which one".
 pub fn section(world: &mut World, ship: Entity, id: &str) -> Found {
     let ship_id = world
@@ -129,9 +129,9 @@ fn names(candidates: &[(Entity, String)]) -> String {
 mod tests {
     use super::*;
 
-    /// Two hulls of the same class carrying the same section id, which is the
-    /// shape every shipped scenario has: `cargoa` and `cargoa_raider` both
-    /// carry `turret_port`.
+    /// Two hulls carrying the same section id, which is the shape every
+    /// shipped scenario has: `block_gunship` and `block_raider` both carry a
+    /// `pdc_aft_port`.
     fn two_ships() -> (World, Entity, Entity) {
         let mut world = World::new();
         let mut ship = |id: &str, sections: &[&str]| {
@@ -147,8 +147,8 @@ mod tests {
             }
             ship
         };
-        let player = ship("cargoa", &["hull_front", "turret_port"]);
-        let raider = ship("cargoa_raider", &["turret_port"]);
+        let player = ship("block_gunship", &["hull_front", "pdc_aft_port"]);
+        let raider = ship("block_raider", &["pdc_aft_port"]);
         (world, player, raider)
     }
 
@@ -161,8 +161,8 @@ mod tests {
             Found::One(entity) => Some(entity),
             _ => None,
         };
-        let mine = found(&mut world, player, "turret_port").expect("the player's turret");
-        let theirs = found(&mut world, raider, "turret_port").expect("the raider's turret");
+        let mine = found(&mut world, player, "pdc_aft_port").expect("the player's turret");
+        let theirs = found(&mut world, raider, "pdc_aft_port").expect("the raider's turret");
         assert_ne!(mine, theirs, "each ship answers with its own section");
     }
 
@@ -171,15 +171,15 @@ mod tests {
     #[test]
     fn a_missing_id_names_the_scope_and_what_is_live() {
         let (mut world, player, _) = two_ships();
-        let Found::Missing(detail) = section(&mut world, player, "turret_dorsal") else {
-            panic!("`turret_dorsal` is not on the player ship");
+        let Found::Missing(detail) = section(&mut world, player, "pdc_dorsal") else {
+            panic!("`pdc_dorsal` is not on the player ship");
         };
-        assert!(detail.contains("on cargoa"), "{detail}");
-        assert!(detail.contains("hull_front, turret_port"), "{detail}");
+        assert!(detail.contains("on block_gunship"), "{detail}");
+        assert!(detail.contains("hull_front, pdc_aft_port"), "{detail}");
 
         let Found::Missing(detail) = ship(&mut world, "nobody") else {
             panic!("no ship is called `nobody`");
         };
-        assert!(detail.contains("cargoa, cargoa_raider"), "{detail}");
+        assert!(detail.contains("block_gunship, block_raider"), "{detail}");
     }
 }

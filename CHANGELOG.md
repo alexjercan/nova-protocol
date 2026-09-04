@@ -128,8 +128,16 @@ does NOT get an entry - and it is the only place they are written down.
 - A siege railgun lance joins the catalog beside the standard one: the same gun
   at capital grade, 500 damage through 360,000 power and a 30 m rake. Only the
   campaign's stolen warship carries one.
+- **(breaking)** The base game ships BLOCK hulls only: the modelled Racer,
+  CargoA and CargoB fleet and its part prototypes move into The Ledger, which
+  now carries their meshes itself.
 
 ### Modding & Mod Portal
+- The Ledger brings its own fleet - modelled craft, their section prototypes
+  and their GLBs - while still borrowing base's guns, sounds and skyboxes
+  through `dep://base/`.
+- The Gauntlet's course ship is the base cutter, so the time trial no longer
+  depends on a fleet that shipped with a campaign mod.
 - `SuspendPlayerControl` and `ResumePlayerControl` give cinematics explicit,
   teardown-safe authority without coupling control to camera actions.
 - `OnGotoComplete` and `OnStopComplete` let scenarios react when the player's

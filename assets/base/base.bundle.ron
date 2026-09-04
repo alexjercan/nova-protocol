@@ -55,28 +55,6 @@
         "gltf/pdc_housing.glb",
         "gltf/bay_tube.glb",
         "gltf/railgun_lance.glb",
-        // Semantic ship parts generated from the approved Kenney recipes.
-        "gltf/parts/cargoa/engine_port.glb",
-        "gltf/parts/cargoa/engine_starboard.glb",
-        "gltf/parts/cargoa/fuselage.glb",
-        "gltf/parts/cargoa/nose.glb",
-        "gltf/parts/cargoa/pod_port.glb",
-        "gltf/parts/cargoa/pod_starboard.glb",
-        "gltf/parts/cargoa/tail.glb",
-        "gltf/parts/cargob/engine_port.glb",
-        "gltf/parts/cargob/engine_starboard.glb",
-        "gltf/parts/cargob/fuselage.glb",
-        "gltf/parts/cargob/nose.glb",
-        "gltf/parts/cargob/pod_port.glb",
-        "gltf/parts/cargob/pod_starboard.glb",
-        "gltf/parts/cargob/tail.glb",
-        "gltf/parts/racer/engine_port.glb",
-        "gltf/parts/racer/engine_starboard.glb",
-        "gltf/parts/racer/fuselage.glb",
-        "gltf/parts/racer/nose.glb",
-        "gltf/parts/racer/tail.glb",
-        "gltf/parts/racer/wing_port.glb",
-        "gltf/parts/racer/wing_starboard.glb",
         // Decoration fixtures for the derived skin, generated from the recipes
         // in `scripts/greeble-recipes/` by `scripts/gen-greebles.py`. Declared
         // here so a style can name one with `self://gltf/greebles/<id>.glb` and

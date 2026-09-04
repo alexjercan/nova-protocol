@@ -182,14 +182,14 @@ mod tests {
     /// first match, not the first catalog entry.
     #[test]
     fn the_selection_resolves_through_the_active_filter() {
-        let sections = catalog_of(&["hull_a", "racer_nose", "racer_tail"]);
+        let sections = catalog_of(&["hull_a", "hauler_nose", "hauler_tail"]);
         let mut state = GalleryState {
-            filter: "racer".to_string(),
+            filter: "hauler".to_string(),
             ..default()
         };
-        assert_eq!(state.selected_id(&sections).as_deref(), Some("racer_nose"));
+        assert_eq!(state.selected_id(&sections).as_deref(), Some("hauler_nose"));
         state.selected = 1;
-        assert_eq!(state.selected_id(&sections).as_deref(), Some("racer_tail"));
+        assert_eq!(state.selected_id(&sections).as_deref(), Some("hauler_tail"));
         // Out of range (a filter that just narrowed) resolves to nothing rather
         // than to a neighbour.
         state.selected = 7;
@@ -254,7 +254,7 @@ mod tests {
         world.insert_resource(GalleryState {
             open: true,
             category: GalleryCategory::Weapons,
-            filter: "racer".to_string(),
+            filter: "hauler".to_string(),
             selected: 4,
             focused: true,
             ..default()
@@ -282,7 +282,7 @@ mod tests {
         world.insert_resource(SectionChoice::default());
         world.insert_resource(GalleryState {
             category: GalleryCategory::Structure,
-            filter: "racer".to_string(),
+            filter: "hauler".to_string(),
             selected: 4,
             focused: true,
             ..default()

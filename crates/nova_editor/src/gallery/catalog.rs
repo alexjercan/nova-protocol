@@ -73,7 +73,7 @@ impl GalleryCategory {
 /// `hide_in_editor` is honoured exactly as the drawer honours it, so a
 /// prototype hidden from one picker is hidden from both. The text filter is a
 /// case-insensitive substring of the display name or the catalog id - the id
-/// is what carries a part's ship family (`racer_nose`), so typing "racer"
+/// is what carries a part's ship family (`hauler_nose`), so typing "hauler"
 /// narrows to one craft.
 pub(crate) fn browsable(
     sections: &GameSections,
@@ -262,7 +262,7 @@ mod tests {
                 false,
             ),
             section(
-                "racer_nose",
+                "hauler_nose",
                 "Nose",
                 SectionKind::Hull(HullSectionConfig::default()),
                 false,
@@ -307,12 +307,12 @@ mod tests {
     }
 
     /// The filter matches the ID as well as the name, which is what makes a
-    /// ship family ("racer") findable - the semantic parts are all named for
-    /// their role, not their craft.
+    /// ship family ("hauler") findable - a modelled craft's parts are all named
+    /// for their role, not their craft.
     #[test]
     fn the_text_filter_matches_name_or_id_case_insensitively() {
         assert_eq!(
-            browsable(&catalog(), GalleryCategory::All, "RACER"),
+            browsable(&catalog(), GalleryCategory::All, "HAULER"),
             vec![1]
         );
         assert_eq!(
@@ -321,7 +321,7 @@ mod tests {
         );
         assert!(browsable(&catalog(), GalleryCategory::All, "zzz").is_empty());
         // Category and filter compose.
-        assert!(browsable(&catalog(), GalleryCategory::Propulsion, "racer").is_empty());
+        assert!(browsable(&catalog(), GalleryCategory::Propulsion, "hauler").is_empty());
     }
 
     /// Every kind the gallery can list, one of each.

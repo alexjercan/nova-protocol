@@ -19,9 +19,9 @@ use crate::physics::prelude::rigid_body_point_velocity;
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TurretSectionAimSystems;
 
-/// Half the beam of a shipped corvette, in world units: the cargoa's pods span
-/// x -1.6..1.6 (the hull is 4.9 u long by 3.2 u across by 1.6 u deep - 49 m by
-/// 32 m by 16 m). What a round has to land inside to hit a ship at all.
+/// Half the beam of a shipped corvette, in world units: the gunship's spine
+/// spans x -1.5..1.5, a 30 m core hull, with sponsons reaching 50 m across at
+/// midships. What a round has to land inside to hit a ship at all.
 pub const HULL_HIT_RADIUS: f32 = 1.6;
 
 /// The CLOSE edge of a gunfight, in world units: 100 u is 1 km, and gunfights

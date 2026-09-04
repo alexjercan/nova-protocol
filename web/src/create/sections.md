@@ -369,9 +369,8 @@ kind: Thruster((
 The cone is MESH geometry, sized in cells inside the section that carries it,
 not a distance out in the world: `offset`, the nozzle size and both flame
 lengths are all fractions of a 10 m cell. Every nested exhaust field has a
-default, so a mod can override only the values it needs. Copy a semantic engine
-part from `assets/base/sections/base.content.ron` for a complete rectangular
-example.
+default, so a mod can override only the values it needs. Copy a drive from
+`assets/base/sections/base.content.ron` for a complete rectangular example.
 
 ## Controller
 
@@ -969,13 +968,13 @@ alongside the base catalog. Either way, a ship references the section by id via
 `source: Prototype("<id>")` in its `sections` list. To ship the section, package
 the file as a mod - [Publish a mod](../publish-a-mod/) is the release flow.
 
-Base ships a whole catalog of semantic ship-part prototypes. The mainline
-corvette, gunship, and civilian hulls use `cargoa_*`, `cargob_*`, and
-`racer_*` parts. A mod
-does not have to inline a big ship or
+Base ships a whole catalog of GENERIC prototypes - hull cells, drives, mounts,
+bays - and every base hull is built out of them rather than out of parts cut for
+one craft. A mod does not have to inline a big ship or
 carry any mesh paths: build one as a compact list of
 `(id, position, rotation, source: Prototype("<base-part-id>"))` entries, and each
-prototype resolves the base's meshes and sounds for you. Vary a ship by grade
+prototype resolves the base's meshes and sounds for you. A mod that brings
+MODELLED craft brings their part prototypes with it, the way The Ledger does. Vary a ship by grade
 with a per-spawn `SetHealth` [modification](../ships/) on the parts you want
 weaker - a scavenger flies the same `pdc_kinetic_turret_section` at 60 mount
 health - rather than re-authoring the parts. `SectionSource` is `Inline`

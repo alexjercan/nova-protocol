@@ -42,8 +42,11 @@ belt starts paying attention.
    account. Reached only from the sell/fight ending; the burn ending ends
    the campaign at chapter four.
 
-Authoring notes: hand-written RON on base-game assets and section
-prototypes only (the gauntlet path); every fight, gate, pickup and branch
+Authoring notes: hand-written RON. Since 1.28.0 the mod carries its OWN
+fleet - the Racer, CargoB and CargoA parts, ships and GLB meshes under
+`gltf/parts/` (Kenney Space Kit cuts, CC0) - which is what makes it look
+unlike the block-built base game; guns, sounds and skyboxes are still base's
+by `dep://base/`. Every fight, gate, pickup and branch
 uses shipped scenario vocabulary - act-gated handlers, expression-guarded
 OnEnter sequencing, per-id OnDestroyed counting, StoryMessage comms beats
 (with `dwell` holds), Outcome + NextScenario chaining. Pacing is authored

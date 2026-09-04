@@ -301,7 +301,7 @@ mod tests {
     fn a_speed_cap_has_to_be_a_real_speed() {
         let mut world = World::new();
         for value in ["inf", "-inf", "nan", "0", "-5"] {
-            let Err(refusal) = speed_cap(&mut world, "cargoa", value) else {
+            let Err(refusal) = speed_cap(&mut world, "block_gunship", value) else {
                 panic!("'{value}' is not a speed cap");
             };
             assert_eq!(refusal.status, CommandStatus::Error, "{value}");

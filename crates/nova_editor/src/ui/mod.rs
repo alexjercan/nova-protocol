@@ -451,7 +451,7 @@ pub(crate) fn setup_editor_scene(
         // it needs a handle that does not assume a single Camera3d.
         EditorCamera,
         Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-        // The Kenney parts are flat-Kd meshes; a touch of ambient keeps their
+        // Modelled parts are flat-Kd meshes; a touch of ambient keeps their
         // shadow side readable without washing out the key light's form.
         AmbientLight {
             color: Color::WHITE,

@@ -844,8 +844,11 @@ mod tests {
                 ..Default::default()
             })
         };
-        let base = [ship("cargoa", "CargoA")];
-        let modded = [ship("cargoa", "Rusted CargoA"), ship("raider", "Raider")];
+        let base = [ship("block_gunship", "Gunship")];
+        let modded = [
+            ship("block_gunship", "Rusted Gunship"),
+            ship("raider", "Raider"),
+        ];
 
         let outcome = merge_bundles([base.iter(), modded.iter()]);
 
@@ -856,7 +859,7 @@ mod tests {
                 .iter()
                 .map(|ship| (ship.id.as_str(), ship.name.as_str()))
                 .collect::<Vec<_>>(),
-            vec![("cargoa", "Rusted CargoA"), ("raider", "Raider")],
+            vec![("block_gunship", "Rusted Gunship"), ("raider", "Raider")],
             "the mod's hull must win in place, and its new one must be added",
         );
     }

@@ -24,7 +24,7 @@ A hurt computer cracks and, past about a third of its health gone, throws sparks
 
 ## What sets how hard a ship turns
 
-<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 2.76 u (27.6 m) on the shipped corvette :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The corvette the widgets fly is crates/nova_authoring/src/base_content/ships/cargo_a.rs (parts :16-96, structural mates :98-108) with the shared PDC's own cube on its two mount points (sections/standard.rs:71,:240-242) and 1501 of torque per computer (standard.rs:384, ships/shared.rs:302); density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:376). Severing on a disconnected graph: crates/nova_ship/src/sections/integrity.rs:231-349. -->
+<!-- Stats verified against crates/nova_events/src/scale.rs (LOAD_LIMIT 8 * 9.81 m/s^2 :17) and crates/nova_ship/src/physics/attitude.rs (the two ceilings and the lower one winning :75-95 - the structural one is LOAD_LIMIT in m/s^2 over an arm in meters, so rad/s^2 comes out unchanged by the scale; the arm to the outer FACE of the furthest live section :157-184, engine world units crossed to Meters by its caller, reading 2.76 u (27.6 m) on the shipped corvette :151, the assembled mass properties :186-197, the sustained rate :111-113, the vector load a hard turn spends and the direction rule that holds it :117-145 with crates/nova_ship/src/physics/pd_controller.rs:156-190). The corvette the widgets fly is The Ledger's (webmods/the-ledger/ledger_ships.content.ron, with its part prototypes in webmods/the-ledger/ledger_sections.content.ron) with the shared PDC's own cube on its two mount points (sections/standard.rs:71,:240-242) and 1501 of torque per computer (standard.rs:376); density is 1 and not authorable, so a section's mass IS its authored box (crates/nova_ship/src/sections/base_section.rs:376). Severing on a disconnected graph: crates/nova_ship/src/sections/integrity.rs:231-349. -->
 
 The computer does not decide it on its own. A ship turns as hard as the lower of two limits allows:
 
@@ -88,7 +88,7 @@ The other half of stacking is **redundancy**. Lose one of two and the ship does 
 Every shipped flight computer carries the same torque and the same steering lag. What a ship does with them is the ship's own business - its mass and its length decide that. What separates the fuselage computers is how much structure they add to the craft that carries them.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 :31 used :368, steering_lag 0.5 :376, max_torque 1501.0 :384) and crates/nova_authoring/src/base_content/ships/ (controller kind steering_lag :300 and max_torque :302 in shared.rs; racer.rs:81 fuselage 240; cargo_b.rs:77 fuselage 300; cargo_a.rs:84 fuselage 350). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (basic_controller_section health CONTROLLER_BASE_HEALTH 100.0 :31 used :368, steering_lag 0.5 :376, max_torque 1501.0 :384) and webmods/the-ledger/ledger_sections.content.ron (the racer, cargob and cargoa fuselage prototypes: steering lag 0.5 s, max torque 1501.0, health 240, 300 and 350). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-controller.png</span></span></span><span class="catalog__title">Controller - shipped prototypes</span></div>
 <table>
 <thead>
@@ -102,3 +102,6 @@ Every shipped flight computer carries the same torque and the same steering lag.
 </tbody>
 </table>
 </div>
+
+The craft rows are The Ledger's: a mod that brings modelled craft brings their part prototypes with it, and base references none of them.
+

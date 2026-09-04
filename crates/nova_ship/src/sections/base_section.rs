@@ -301,8 +301,8 @@ pub struct BaseSectionConfig {
     pub link_points: Vec<LinkPoint>,
     /// When true this section is hidden from the editor sandbox's section
     /// palette - it can still be authored and spawned, it just does not clutter
-    /// the picker. Used for the cut-cube spaceship prototypes (racer/cargob/
-    /// cargoa), which are dozens of near-identical hull tiles that only make
+    /// the picker. Used for the cut-cube prototypes a modelled craft brings
+    /// with it, which are dozens of near-identical hull tiles that only make
     /// sense assembled into a ship, not placed one at a time. Serde-defaulted to
     /// false, so ordinary sections omit it; author a hidden one as
     /// `hide_in_editor: true`.

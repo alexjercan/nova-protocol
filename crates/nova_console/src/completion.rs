@@ -38,7 +38,7 @@ pub(crate) fn publish_live_values(
         ships.iter().map(|(_, id)| id.clone()).collect(),
     )];
     // Section ids are per hull, so they are published UNDER their ship: two
-    // `cargoa` both carry `turret_port`, and `section cargoa_raider <TAB>` has
+    // gunships both carry `pdc_aft_port`, and `section block_raider <TAB>` has
     // to offer that hull's, not the union.
     for (entity, id) in &ships {
         let mut codes: Vec<String> = q_sections

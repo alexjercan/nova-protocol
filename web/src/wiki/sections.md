@@ -40,7 +40,7 @@ Every page runs the same course: what the part does and the numbers that decide 
 
 ## The catalog at a glance
 
-The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft semantic parts (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them - the torpedo bays and the railgun are the exceptions, a two-cell tube and a three-cell spine at two and three times the mass.
+The standard unit-cell catalog at a glance - every child page carries the full per-kind stats, plus the per-craft modelled parts a mod such as The Ledger brings (noses, wings, pods, fuselages). A section weighs the space it fills, so the unit cells all weigh the same and health and the kind stat are what separate them - the torpedo bays and the railgun are the exceptions, a two-cell tube and a three-cell spine at two and three times the mass.
 
 <div class="catalog">
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: reinforced hull health 200 :584; basic thruster :611; basic controller :687 (max_torque 1501 :704); light hull 60 :732; cargo hull 200 :757; tank hull 200 :778; pdc_turret_prototype :414 (health 130 :429,:32) with gatling call sites :791-815 at 100/s :67 and twin call sites :816-839 at half per muzzle :75; torpedo bay builder :1144 with call sites :842-861; heavy_torpedo_section :994; both lances from railgun_lance_prototype with their grades at the two call sites in standard_section_prototypes. -->

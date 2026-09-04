@@ -31,9 +31,9 @@ readings](#damage-is-two-readings)).
 | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammo_capacity: 1` with a long `reload`. |
 
 `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
-Generic prototypes are authored in
-`crates/nova_authoring/src/base_content/sections/standard.rs`; semantic craft
-parts live under `base_content/ships/`. Their explicit `section_catalog()` is
+Every base prototype is GENERIC and authored in
+`crates/nova_authoring/src/base_content/sections/standard.rs`; a mod that brings
+modelled craft declares their parts itself. The explicit `section_catalog()` is
 generated into `assets/base/sections/base.content.ron` by `content -- gen` and
 merged into the resource by
 `crates/nova_assets/src/merge.rs`. The outer-skin cladding is not a prototype at
@@ -282,8 +282,10 @@ a unit cube by default), `SectionLinkPoints`, `ConnectedTo`, and `Health` (`base
 `sections/base_section.rs`), so the ship is one rigid body whose child colliders
 each carry their own health.
 
-See the semantic Racer, CargoA, and CargoB builders under
-`crates/nova_authoring/src/base_content/ships/` for complete generated examples.
+See the block ship builders under
+`crates/nova_authoring/src/base_content/ships/` for complete generated examples,
+and `webmods/the-ledger/ledger_ships.content.ron` for hand-authored ships built
+out of modelled parts a mod brings with it.
 The editor (`crates/nova_editor`) assembles ships interactively using
 `preview_section`, which has no health or rigid body and never enters the
 damage pipeline.
@@ -316,8 +318,7 @@ neighbours. The same structure always gives the same skin.
   only the meshes hung on each plate by the `dress_skin_plate` observer.
 
 Cladding is OPT IN. The derivation reads a hull as unit cells, which the
-catalog's cube sections are and the modelled semantic parts (the racer, the
-haulers) are not.
+catalog's cube sections are and the modelled parts a mod brings are not.
 
 #### The editor's live preview
 
@@ -541,7 +542,7 @@ socket from part GEOMETRY gets whatever angle the neighbour happened to sit at,
 so `cardinal_axis` snaps the derived normal to the nearest axis. It is
 antisymmetric (`cardinal_axis(-d) == -cardinal_axis(d)`), so both ends of one
 authored edge stay exactly opposed and no existing mate is lost. Without it the
-cargob's pod faced its fuselage 36 degrees off -X and anything mated onto that
+a modelled pod faced its fuselage 36 degrees off -X and anything mated onto that
 socket arrived tilted by exactly that much - which is what made parts look like
 they only fit the craft they were cut from.
 

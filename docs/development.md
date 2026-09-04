@@ -667,8 +667,8 @@ churns turns every unrelated diff into a binary one.
 The three mesh scripts (`gen-greebles.py`, `cut-obj-into-hulls.py`,
 `cut-obj-into-parts.py`) share ONE hand-rolled, stdlib-only glTF writer,
 `scripts/nova_glb.py`. Prove a change to it kept the committed art intact by
-re-cutting a ship and diffing against `assets/base/gltf/parts/<ship>/`, which
-is byte-reproducible from its recipe.
+re-cutting a ship and diffing against `webmods/the-ledger/gltf/parts/<ship>/`,
+which is byte-reproducible from its recipe.
 
 ### Eyeballing the site
 

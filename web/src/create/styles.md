@@ -322,7 +322,7 @@ The base game ships four authored looks and one piece of scaffolding:
 |---|---|
 | `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
-| `civilian` | the racer's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings |
+| `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows, smooth fairings |
 | `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
 | `placeholder` | scaffolding for the authored kits rather than a look to build on |
 

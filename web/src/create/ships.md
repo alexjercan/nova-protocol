@@ -33,7 +33,7 @@ can replace it for every scenario that names it.
                     id: "fuselage",
                     position: (0.0, 0.0, 0.0),
                     rotation: (0.0, 0.0, 0.0, 1.0),
-                    source: Prototype("cargoa_fuselage"),
+                    source: Prototype("basic_controller_section"),
                 ),
                 // ... hull, thruster, and weapon sections ...
             ],
@@ -55,7 +55,7 @@ can replace it for every scenario that names it.
 | `sections` | list | `[]` | the hull/thruster/gun/controller layout: one entry per section, each with a ship-local `id`, a `position` in BUILD CELLS (one cell is 10 m) and a `rotation`, both relative to the ship root, a `source` (`Prototype("<section id>")` or `Inline((..))`), and optional `modifications` |
 | `collapse_threshold` | `Option` number | `None` | structural collapse: the fraction of the health the ship was BUILT with below which whatever is left comes apart and the ship is destroyed. Strict RON `Some(0.1)`; omitted = the engine default `0.05`. Lower = the ship must be dismantled further (a capital), `Some(0.0)` = strip every last section. Clamped to `0..=1` |
 | `collapse_sound` | `Option` asset ref | `None` | the sound the hull makes when it COLLAPSES - the moment it stops being a ship and becomes wreckage, which is ONE event however many frames the sections then take to peel away. Strict RON `Some("dep://base/sounds/destroy_ship.wav")`. Authored on the hull because a spine going is not a section failing loudly; omitted, the ship comes apart to the sound of its own sections |
-| `skin` | bool | `false` | clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see [Cladding](../base-content/#cladding-not-a-prototype)). For hulls built out of the unit-cell sections; the modelled semantic parts do not stand on that lattice |
+| `skin` | bool | `false` | clad the ship: the game DERIVES an outer skin from the sections at spawn - destructible plates, nothing authored, no id to reference (see [Cladding](../base-content/#cladding-not-a-prototype)). For hulls built out of the unit-cell sections; modelled parts are their own sizes and do not stand on that lattice |
 | `style` | `Option` string | `None` | the LOOK the cladding wears, by [style](../styles/) id: plate materials plus the destructible decoration scattered over them. Strict RON `Some("raider")`; omitted = built-in plate colours and no decoration. An id nothing authored leaves the ship clad and bare rather than falling back to another look |
 
 Section entries are the same records a hull carried when it was inlined - see
@@ -101,11 +101,12 @@ A `section` id the hull does not carry does nothing at runtime, so the content
 lint reports it as an error.
 
 Reach for a second ship id instead when the difference is what the hull IS - the
-base game ships `cargoa` and `cargoa_raider` as separate hulls because thinner
-plating and scavenger-grade guns are a different ship to fight, not a tweak. It
-ships `cargob` and `cargob_lance` for the same reason: which torpedo TYPE the
-pods load decides whether a defender's point defense can answer the salvo at
-all, and that is the ship, not a tweak to it.
+base game ships `block_gunship` and `block_raider` as separate hulls because
+thinner plating, mismatched drives and guns welded where they fitted are a
+different ship to fight, not a tweak. The Ledger does the same with its two
+hauler loads, `cargob` and `cargob_lance`: which torpedo TYPE the pods carry
+decides whether a defender's point defense can answer the salvo at all, and that
+is the ship, not a tweak to it.
 
 ## One-off hulls
 
@@ -145,10 +146,27 @@ second scenario would spawn belongs in the catalog.
 
 ## Base ships
 
+Every base hull is BUILT: cells on a build grid, clad by the derived skin and
+painted by a [style](../styles/). Nothing in the base game is a modelled mesh.
+
 | id | what it is |
 |---|---|
-| `racer` | the unarmed Racer yacht - fast, expensive, the civilian hull the campaign protects |
-| `cargob` | the CargoB hauler - two torpedo pods, two PDC mounts, the capital silhouette. Its pods load weaving **Serpent** torpedoes |
-| `cargob_lance` | the same hauler loading straight-running **Lance** torpedoes: the same guns, hull and rack, but faster ordnance point defense can answer |
-| `cargoa` | the CargoA corvette at player grade - the armed hauler the player flies |
-| `cargoa_raider` | the same corvette at scavenger grade: every section set to lower health - thinner plating, fragile thrusters, mounts quicker to shoot off - carrying the same PDC guns |
+| `block_cutter` | Utility Cutter - the small unarmed workboat, and the smallest thing that still reads as a crewed ship |
+| `block_hauler` | Bulk Hauler - a flat freight spine between two cargo shoulders, containers amidships, one vectoring drive |
+| `block_gunship` | Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres |
+| `block_raider` | Salvage Raider - the scavenger: thin plating, an outrigger down one flank, a scrap boom up the other, two turrets welded where they fitted |
+| `block_carrier` | Industrial Carrier - the campaign's home, thirty-three cells long, with a cutter berth cut into each shoulder |
+| `block_warship` | Stolen Warship - the only capital combatant: two spinal lances and six flank siege bays, all carved flush into the hull |
+| `block_skiff` | Salvage Skiff - the cleanup group's unarmed sensor needle. It searches; it cannot answer |
+| `block_tug` | Salvage Tug - the unarmed fork tug that carries away what the search finds |
+| `block_picket` | Salvage Picket - the group's armed picket, its one gun pushed onto the nose face |
+| `block_claw` | Salvage Claw - a machinery pod against a long grapple arm, with the gun riding the arm |
+| `block_cleanup_leader` | Cleanup Leader - one dorsal gun, one flank Serpent bay: the only ordnance in the search group |
+| `block_wreck_bridge` | Carrier Wreck: Bridge - the carrier's tower sheared off whole |
+| `block_wreck_spine` | Carrier Wreck: Spine - a length of refinery spine, open at both ends |
+| `block_wreck_shoulder` | Carrier Wreck: Shoulder - a cargo shoulder torn along the deck it was welded to |
+| `block_wreck_plate` | Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is |
+
+A mod may ship MODELLED craft instead, and The Ledger does: its `racer`,
+`cargoa`, `cargoa_raider`, `cargob` and `cargob_lance` are assembled from GLB
+parts the mod carries under its own `gltf/parts/`.

@@ -160,7 +160,8 @@ pub struct NovaOsTerminal {
     /// Values only the live world knows, keyed by the token a
     /// [`CommandArg::Live`] argument names (`"ship" -> ["player_spaceship"]`).
     ///
-    /// A key may be QUALIFIED by the argument before it (`"section:cargoa"`),
+    /// A key may be QUALIFIED by the argument before it
+    /// (`"section:block_gunship"`),
     /// which is how `section <ship> <TAB>` offers that ship's sections and not
     /// every ship's. Completion tries the qualified key first and falls back to
     /// the bare token.

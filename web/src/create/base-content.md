@@ -31,11 +31,10 @@ sounds included), and a mod `Section` item that reuses the id REPLACES that
 part everywhere. See [Ship sections for mods](../sections/) for
 the `Section` grammar and the overlay flow.
 
-Ids are lowercase snake_case. Core editor parts use the
-`<variant>_<kind>_section` form. Shipped semantic ship parts use
-`<ship>_<part>`, for example `racer_fuselage` and `cargoa_engine_port`.
-Section kinds are `Hull`, `Thruster`, `Controller`, `Turret`, `Torpedo`, and
-`Railgun`.
+Ids are lowercase snake_case, in the `<variant>_<kind>_section` form. Every
+base prototype is GENERIC - a hull cell, a drive, a mount, a bay - so the same
+part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
+`Turret`, `Torpedo`, and `Railgun`.
 
 ### Core sections (the editor palette)
 
@@ -63,7 +62,7 @@ Every shipped prototype authors its [damage
 effects](../sections/#damage-effects) by kind, and the whole catalog follows one
 rule: Hull wears `([Cracks])` (the default, so it is omitted), Controller,
 Turret, Torpedo and Railgun wear `([Cracks, Sparks])`, and Thruster wears
-`([Cracks, Sparks, Plume])`. The semantic ship parts below use the same rule.
+`([Cracks, Sparks, Plume])`.
 No shipped mod authors the field at all, so base is the worked example.
 
 ### Cladding (not a prototype)
@@ -75,8 +74,8 @@ structure and the skin follows. There is nothing here for a mod to reference.
 A ship asks for it with one field - `skin: true` on the
 [ship](../ships/)'s hull - and gets destructible cladding: each plate
 carries its own health and mass, comes off when it is shot out, and leaves the
-hull behind it bare. Build the hull out of the unit-cell sections above; the
-semantic ship parts are modelled shapes of their own sizes and are not on the
+hull behind it bare. Build the hull out of the unit-cell sections above;
+modelled parts a mod brings are shapes of their own sizes and are not on the
 lattice the derivation reads.
 
 What the cladding LOOKS like is a [style](../styles/), which IS content and does
@@ -88,7 +87,7 @@ have an id.
 |---|---|
 | `industrial` | a working hull: exposed services, corrugation, radiators, safety-yellow paint on its edges |
 | `armoured` | flat plate, a belt down every straight edge, sensor blisters |
-| `civilian` | the racer's: pale satin paint, a cobalt livery rail, lit cabin windows |
+| `civilian` | a private yacht's: pale satin paint, a cobalt livery rail, lit cabin windows |
 | `salvage` | the raider's: mismatched patches, weld beads, a lashed drum, a whip antenna |
 | `placeholder` | scaffolding, in deliberately garish magenta: four placeholder greebles wired to four rules that exercise the whole plate vocabulary. It makes no art decision |
 
@@ -97,65 +96,22 @@ A ship names one with `style: Some("<id>")` beside `skin: true` on its
 a `Style` with the same id replaces that look everywhere; a new id is a new look.
 See [Ship skin styles](../styles/).
 
-### Semantic ship parts
+### Modelled ship parts (not base content)
 
-These prototypes are in the editor palette, and mods can reference them. Their
-tight primitive colliders and authored link points are part of each prototype -
-and those link points are what places one: a part attaches only where its own
-sockets meet another's. Ships use the suffix as the instance id: prototype
-`racer_engine_port` normally becomes instance `engine_port`.
+Base ships NO parts cut for one craft. Every base hull is built out of the
+generic prototypes above, on the build grid, and clad by the derived skin.
 
-There is no `*_turret_*` suffix in this table. The ten per-craft turret
-prototypes carried no mesh of their own - all of them were the same PDC on the
-same joint tree - and they are GONE from the catalog along with their `_light`
-twins. A mod naming one no longer resolves. Use the four catalog PDCs, all of
-which fit any hull face: `pdc_kinetic_turret_section` and
-`pdc_pierce_turret_section` for the single-barrel gatling in a Kinetic and a
-Pierce loadout, or `pdc_twin_kinetic_turret_section` and
-`pdc_twin_pierce_turret_section` for the two-barrel mount that splits the same
-total fire rate across two offset streams.
+A mod that brings modelled craft brings their part prototypes and their meshes
+with it. [The Ledger](../publish-a-mod/) is the worked example: its `racer`,
+`cargoa`, `cargoa_raider`, `cargob` and `cargob_lance` are assembled from
+`racer_*`, `cargoa_*` and `cargob_*` prototypes it declares itself, over GLBs it
+carries under its own `gltf/parts/`. Those ids resolve only where The Ledger is
+installed; nothing in base references them.
 
-| family | prototype suffix | kind | health |
-|---|---|---|---|
-| Racer | `engine_port`, `engine_starboard` | Thruster | 70 |
-| Racer | `wing_port`, `wing_starboard` | Hull | 180 |
-| Racer | `nose`, `tail` | Hull | 120 |
-| Racer | `fuselage` | Controller | 240 |
-| CargoB | `engine_port`, `engine_starboard` | Thruster | 70 |
-| CargoB | `pod_port`, `pod_starboard` | Torpedo | 350 |
-| CargoB | `pod_port_lance`, `pod_starboard_lance` | Torpedo | 350 |
-| CargoB | `nose` | Hull | 180 |
-| CargoB | `tail` | Hull | 150 |
-| CargoB | `fuselage` | Controller | 300 |
-| CargoA | `engine_port`, `engine_starboard` | Thruster | 70 |
-| CargoA | `pod_port`, `pod_starboard` | Hull | 350 |
-| CargoA | `nose` | Hull | 180 |
-| CargoA | `tail` | Hull | 150 |
-| CargoA | `fuselage` | Controller | 350 |
-
-Prefix each suffix with `racer_`, `cargob_`, or `cargoa_`. Input mappings use
-the instance id, such as `"turret_port"` or `"pod_starboard"`. The old
-coordinate-named cube prototypes do not exist.
-
-Turret MOUNTS are not in this table because they are not prototypes. A craft
-names where a gun goes; the gun is always `pdc_kinetic_turret_section`, seated
-on the face it stands on. A scavenger-grade craft flies the SAME gun with a
-`SetHealth(60.0)` modification on the mount - that is all that is left of the
-old `_light` variants.
-
-The shipped assemblies cast the hulls by role: the cargoa is the armed corvette
-(turrets on the pod shoulders), the cargob its torpedo-and-PDC gunship, and the
-racer an unarmed civilian yacht. The racer keeps its two mount POINTS, so a mod
-can bolt the shared PDC onto its wings, but no shipped racer mounts a gun.
-The base campaign flies BLOCK hulls; this cast is the catalog a mod draws on
-(it is what The Ledger flies), and it ships in base so any mod can.
-
-The cargob's pods come in two: the base id loads the weaving Serpent, and the
-`_lance` twin loads the straight-running Lance. Nothing else about the pod
-changes. A ship does not
-mix them - the two loads are two catalog SHIPS, `cargob` and `cargob_lance`
-(see [Ships](../ships/)). Lances run straight, so they are the load to pick for
-a player's first torpedo fight, one point defense can answer; Serpents weave.
+Turret MOUNTS are not prototypes either, in base or in a mod. A hull names where
+a gun goes; the gun is `pdc_kinetic_turret_section`, seated on the face it stands
+on, and a scavenger-grade craft flies the SAME gun with a `SetHealth(60.0)`
+modification on the mount.
 
 ## Impact rows
 
@@ -235,13 +191,8 @@ base section renders it: `gltf/hull-01.glb`, `gltf/turret-yaw-01.glb`,
 `gltf/turret-pitch-01.glb`, `gltf/turret-barrel-01.glb`,
 `gltf/torpedo-bay-01.glb`.
 
-Semantic ship meshes use `#Scene0` and live under `gltf/parts/`:
-
-- `gltf/parts/racer/` - `engine_port`, `engine_starboard`, `wing_port`,
-  `wing_starboard`, `nose`, `tail`, and `fuselage`.
-- `gltf/parts/cargob/` - `engine_port`, `engine_starboard`, `pod_port`,
-  `pod_starboard`, `nose`, `tail`, and `fuselage`.
-- `gltf/parts/cargoa/` - the same seven CargoB mesh names.
+Base ships no per-craft part meshes. A mod that brings modelled craft carries
+them itself, under its own `gltf/parts/`.
 
 Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see [Cladding](#cladding-not-a-prototype).
@@ -307,7 +258,7 @@ How a mod item interacts with this catalog (implemented in
 The builders behind this page live under
 `crates/nova_authoring/src/base_content/`: `sections/standard.rs` owns generic
 section prototypes, `sections/ordnance.rs` the torpedo types, `styles.rs` the
-skin styles, `ships/` owns semantic parts and complete craft,
+skin styles, `ships/` owns the block hulls,
 `scenarios/` groups mainline and main-menu scenarios, and
 `campaigns.rs` owns campaign membership. If this page and the generated RON
 ever disagree, the RON is the

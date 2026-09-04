@@ -42,28 +42,28 @@ pub const RAIDER_ID: &str = "hollow_raider";
 /// Where it appears: dead ahead of the parked player, far enough back that the
 /// frame has depth between the two hulls, close enough that the target reads.
 pub const RAIDER_POSITION: Meters3 = Meters3::new(0.0, 6.0, -340.0);
-/// The raider section the scripted blow takes off - the semantic nose part is
-/// forward and camera-facing, so the fragments and the hole are both in frame.
-pub const RAIDER_BLOWN_SECTION: &str = "nose";
+/// The raider section the scripted blow takes off - the bridge stands forward
+/// and proud on the dorsal deck, so the fragments and the hole are both in
+/// frame.
+pub const RAIDER_BLOWN_SECTION: &str = "bridge";
 /// The section the torpedo beat takes off on the raider's port side, where a
 /// blast arriving from above lands - a BACKSTOP, not the damage itself.
 ///
-/// This named the racer's `wing_port` for a while. The raider is a cargoa,
-/// which has no wings, so the blow could never resolve; it has to be a section
-/// this hull actually carries.
+/// It has to be a section this hull actually carries: the salvage raider's
+/// outrigger drive hangs off its port arm, which is the port-most thing on it.
 ///
 /// The blow was written when a Serpent carried 100 blast damage and left a
 /// 70-100 health section standing, so the frame needed help to show a hole. A
 /// Serpent carries 750 over a 300 m radius now, which is enough to take the
-/// whole corvette apart in the same tick, root and all. So this usually fires
+/// whole raider apart in the same tick, root and all. So this usually fires
 /// into an already-dead section and warns, harmlessly: the torpedo did the job
 /// the blow was there to guarantee. Worth revisiting whether the beat still
 /// earns its place - and worth NOT deleting until someone has looked at what
 /// the aftermath frame actually captures.
-pub const RAIDER_BLAST_SECTION: &str = "pod_port";
+pub const RAIDER_BLAST_SECTION: &str = "drive_outrigger";
 
 /// Scenario id of the friendly torpedo boat - the only hull in the set carrying
-/// torpedo pods, and the ship the ordnance beats are shot off.
+/// a launch bay, and the ship the ordnance beats are shot off.
 pub const LANCE_ID: &str = "hollow_lance";
 /// Where it sits: high and off the raider's far quarter, so the run comes DOWN
 /// onto the target - and, the reason for the height, through open sky. The rock
@@ -73,11 +73,13 @@ pub const LANCE_ID: &str = "hollow_lance";
 pub const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 /// How far short of its target a torpedo detonates: the proximity fuze fires at
 /// half the bay's blast radius (`torpedo_section/projectile.rs`), and the
-/// cargo-B's bays are authored at 300 m. The ordnance camera is framed off this,
-/// not off the raider - 150 m is a third of the frame at a close camera.
+/// standard assault bay is authored at 300 m. The ordnance camera is framed off
+/// this, not off the raider - 150 m is a third of the frame at a close camera.
 pub const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
-/// How many bays the cargo-B carries, and so how many torpedoes one salvo is.
-pub const EXPECTED_TORPEDO_COUNT: usize = 2;
+/// How many bays the cleanup leader carries, and so how many torpedoes one
+/// salvo is. One flank Serpent tube: it is the only ordnance in the base
+/// game's small-craft fleet.
+pub const EXPECTED_TORPEDO_COUNT: usize = 1;
 
 /// Seconds each AI flight holds fire after it spawns, so the shots are taken of
 /// a fight that has settled rather than of four ships still sorting out where
@@ -90,7 +92,7 @@ pub const ENGAGE_DELAY: f32 = 3.0;
 pub const AI_LEASH: Meters = Meters(3_200.0);
 
 /// The fighting set: the player on station, the raider it locks, the live
-/// background of four AI corvettes, the torpedo boat, and the rock shell around
+/// background of four AI craft, the torpedo boat, and the rock shell around
 /// all of it.
 ///
 /// The whole cast spawns `OnStart`, so a plain run gets the fight by loading the
@@ -100,7 +102,7 @@ pub fn ambush_hollow(
     sections: &GameSections,
     ships: &GameShips,
 ) -> ScenarioConfig {
-    let player_hull = kit::kenney_hull(ships, "cargoa");
+    let player_hull = kit::catalog_hull(ships, "block_gunship");
     let player = ship(
         PLAYER_ID,
         "Player Ship",
@@ -138,7 +140,7 @@ pub fn ambush_hollow(
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_raider"),
     );
 
     // The live background: two friendlies working the near flanks, two hostiles
@@ -158,7 +160,7 @@ pub fn ambush_hollow(
             Meters3::new(-860.0, -60.0, -700.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_gunship"),
     );
     let wingman_b = ship(
         "hollow_wing_b",
@@ -171,7 +173,7 @@ pub fn ambush_hollow(
             Meters3::new(400.0, -200.0, -1_100.0),
         ]),
         Some(Allegiance::Player),
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_gunship"),
     );
     let hostile_a = ship(
         "hollow_hostile_a",
@@ -184,7 +186,7 @@ pub fn ambush_hollow(
             Meters3::new(-1_900.0, 60.0, -3_000.0),
         ]),
         None,
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_raider"),
     );
     let hostile_b = ship(
         "hollow_hostile_b",
@@ -197,11 +199,11 @@ pub fn ambush_hollow(
             Meters3::new(2_100.0, -40.0, -3_300.0),
         ]),
         None,
-        kit::kenney_hull(ships, "cargob"),
+        kit::catalog_hull(ships, "block_raider"),
     );
 
-    // The torpedo boat: a cargo-B, which is the only Kenney hull in the catalog
-    // with launch bays. Posed, not AI - the AI's own launch envelope opens at
+    // The torpedo boat: the cleanup leader, which is the only small craft in
+    // the catalog with a launch bay. Posed, not AI - the AI's envelope opens at
     // 3x the blast radius and its cadence is a 10-second playtest knob, so a
     // capture that waited for it would be waiting on a coin flip. The script
     // pulls the trigger instead ([`loose_torpedoes`]) and the bay, the
@@ -215,7 +217,7 @@ pub fn ambush_hollow(
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::kenney_hull(ships, "cargob"),
+        kit::catalog_hull(ships, "block_cleanup_leader"),
     );
 
     ScenarioConfig {
@@ -264,7 +266,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
             speed_cap: None,
         }),
         None,
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_gunship"),
     );
     let raider = ship(
         RAIDER_ID,
@@ -273,7 +275,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         SpaceshipController::None,
         Some(Allegiance::Enemy),
-        kit::kenney_hull(ships, "cargoa"),
+        kit::catalog_hull(ships, "block_raider"),
     );
     let lance = ship(
         LANCE_ID,
@@ -284,7 +286,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShips) -> ScenarioC
             .rotation,
         SpaceshipController::None,
         Some(Allegiance::Player),
-        kit::kenney_hull(ships, "cargob"),
+        kit::catalog_hull(ships, "block_cleanup_leader"),
     );
     let shell = kit::NearField {
         id_prefix: "ordnance_rock_",
@@ -381,7 +383,7 @@ pub fn fighter(patrol: Vec<Meters3>) -> SpaceshipController {
 /// `Mouse(Left)` + `Gamepad(RightTrigger2)`).
 ///
 /// Read off the BUILT hull rather than typed out, for the same reason
-/// [`kit::kenney_hull`] is: the ids ARE the layout, and a hand-listed pair goes
+/// [`kit::catalog_hull`] is: the ids ARE the layout, and a hand-listed pair goes
 /// stale the moment a hull gains a gun. The map is keyed by INSTANCE id
 /// (`nova_scenario` snapshots bindings by section id at spawn), which is the id
 /// the assembly gave the mount.

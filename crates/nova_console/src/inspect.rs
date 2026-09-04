@@ -140,7 +140,7 @@ pub fn sections(world: &mut World, ship_id: &str) -> Resolved {
 /// `section <ship-id> <section-id>`: one section's kind, integrity and magazine.
 ///
 /// The ship is part of the address because a section id is unique to its hull:
-/// two `cargoa` in one scenario both carry `turret_port`.
+/// two gunships in one scenario both carry `pdc_aft_port`.
 pub fn section(world: &mut World, ship_id: &str, id: &str) -> Resolved {
     let ship = lookup::ship(world, ship_id).or_error("section", CLASS)?;
     let entity = lookup::section(world, ship, id).or_error("section", CLASS)?;

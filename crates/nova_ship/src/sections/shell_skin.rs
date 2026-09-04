@@ -592,10 +592,10 @@ fn turns() -> Vec<Quat> {
 ///
 /// OPT IN, not the default. The derivation reads a ship as a lattice of unit
 /// cells, which is what a ship built out of the catalog's cube sections is; the
-/// semantic craft (the racer, the haulers) are modelled parts of their own sizes
-/// standing at half cells, and bucketing those into a unit grid would wrap them
-/// in a skin that fits nothing. Until a hull can say which of the two it is, the
-/// ships that want cladding ask for it.
+/// modelled craft a mod brings are parts of their own sizes standing at half
+/// cells, and bucketing those into a unit grid would wrap them in a skin that
+/// fits nothing. Until a hull can say which of the two it is, the ships that
+/// want cladding ask for it.
 #[derive(Component, Clone, Copy, Default, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct ShipSkin(pub bool);

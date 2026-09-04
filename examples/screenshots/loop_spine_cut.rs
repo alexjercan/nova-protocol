@@ -1,14 +1,14 @@
-//! loop_spine_cut: the `spine-cut` webm loop - a corvette's flank is cut
-//! through, and the freed engine block severs and drifts away as an
-//! independent wreck.
+//! loop_spine_cut: the `spine-cut` webm loop - a gunship's flank is cut
+//! through, and the freed gun mount severs and drifts away as an independent
+//! wreck.
 //!
 //! The moving version of the section-severing invariant
 //! (`examples/systems/section_severing.rs`), staged on a real catalog hull:
-//! killing the corvette's port pod turns it into a genuine hole, and the
-//! engine block that was held on through it disconnects, gets its own rigid
-//! body and drifts free (`nova_ship::sections::integrity`). The loop opens
-//! on the intact hull turning slowly, holds through the cut, and rides the
-//! freed structure out to a calm drifting tail.
+//! killing the gunship's port aft deck plate turns it into a genuine hole, and
+//! the mount that was held on through it disconnects, gets its own rigid body
+//! and drifts free (`nova_ship::sections::integrity`). The loop opens on the
+//! intact hull turning slowly, holds through the cut, and rides the freed
+//! structure out to a calm drifting tail.
 //!
 //! Authored in the one capture idiom: an autopilot script whose steps call
 //! `loop_start` / `loop_end` (`nova_autopilot::loops`), same file smoke and
@@ -41,22 +41,29 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_spine_cut")]
 #[command(version = "1.0.0")]
-#[command(about = "The spine-cut webm loop: a severed engine block drifts off a corvette. Autopilot-only: every actor is scripted or inert", long_about = None)]
+#[command(about = "The spine-cut webm loop: a severed gun mount drifts off a gunship. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "spine-cut";
 
-/// Scenario id of the corvette that loses its port flank.
+/// Scenario id of the gunship that loses its port flank.
 const SUBJECT_ID: &str = "loop_subject";
 
-/// The section the cut goes through. The port pod is the spine joint of the
-/// port flank: the engine block hangs off the hull through it (probed live:
-/// the tail is a leaf, so a tail cut frees nothing), so cutting the pod
-/// severs the engine as an independent wreck.
+/// The catalog hull the cut is made in.
+const SUBJECT_HULL: &str = "block_gunship";
+
+/// The BUILD-GRID CELL the cut goes through: the port aft deck plate, which is
+/// the seat the aft port mount stands on and the mount's only link, so cutting
+/// it severs the gun as an independent wreck. A plate with nothing hanging off
+/// it frees nothing.
+///
+/// Named by cell rather than by id because a block hull's `plate_N` numbering
+/// is an artifact of the order its boxes were unioned (see
+/// [`kit::cell_section`]); the cell is the coordinate the hull is authored in.
 #[cfg(feature = "debug")]
-const CUT_SECTION: &str = "pod_port";
+const CUT_CELL: Vec3 = Vec3::new(-1.0, 1.0, 1.0);
 
 /// The slow tumble the hull carries into the cut, so the freed structure
 /// inherits real motion instead of hanging dead in frame.
@@ -149,7 +156,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(sever_range(&game_assets, &ships)));
 }
 
-/// The set: one corvette, three-quarter to the lens, a near rock field for
+/// The set: one gunship, three-quarter to the lens, a near rock field for
 /// depth and the photo rig.
 fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     let subject = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -162,7 +169,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
             controller: SpaceshipController::None,
             allegiance: Some(Allegiance::Enemy),
-            // The whole shipped corvette, turrets included. The kit used to
+            // The whole shipped gunship, turrets included. The kit used to
             // drop them: its own hand-typed copy of the mount centres had
             // drifted from the builders', so the mounts mated nothing and the
             // ship came back `Disconnected` - empty adjacency, under which ANY
@@ -170,7 +177,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             // reads the ship catalog now, so the cut severs exactly what hangs
             // off the cut section.
             hull: ShipSource::Inline(ShipHull {
-                sections: kit::kenney_hull(ships, "cargoa"),
+                sections: kit::catalog_hull(ships, SUBJECT_HULL),
                 ..default()
             }),
             ..default()
@@ -186,7 +193,7 @@ fn sever_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     };
 
     ScenarioConfig {
-        description: "A corvette losing its bow to a spine cut.".to_string(),
+        description: "A gunship losing its port mount to a spine cut.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -231,11 +238,19 @@ fn spin_subject(world: &mut World) {
     }
 }
 
+/// The id the cut section carries on the spawned hull.
+#[cfg(feature = "debug")]
+fn cut_section(world: &mut World) -> String {
+    let ships = world.resource::<GameShips>().clone();
+    kit::cell_section(&ships, SUBJECT_HULL, CUT_CELL)
+}
+
 /// Leave the cut section visibly cracked before the final severing hit.
 #[cfg(feature = "debug")]
 fn scar_spine(world: &mut World) {
-    let Some(node) = kit::section_health(world, SUBJECT_ID, CUT_SECTION) else {
-        warn!("spine loop: no health node under section '{CUT_SECTION}'");
+    let section = cut_section(world);
+    let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
+        warn!("spine loop: no health node under section '{section}'");
         return;
     };
     let amount = world
@@ -246,14 +261,15 @@ fn scar_spine(world: &mut World) {
         source: None,
         amount,
     });
-    info!("spine loop: scarred '{CUT_SECTION}' for {amount:.1}");
+    info!("spine loop: scarred '{section}' for {amount:.1}");
 }
 
 /// Kill the cut section through the production damage path.
 #[cfg(feature = "debug")]
 fn cut_spine(world: &mut World) {
-    let Some(node) = kit::section_health(world, SUBJECT_ID, CUT_SECTION) else {
-        warn!("spine loop: no health node under section '{CUT_SECTION}'");
+    let section = cut_section(world);
+    let Some(node) = kit::section_health(world, SUBJECT_ID, &section) else {
+        warn!("spine loop: no health node under section '{section}'");
         return;
     };
     world.trigger(HealthApplyDamage {
@@ -261,7 +277,7 @@ fn cut_spine(world: &mut World) {
         source: None,
         amount: 1.0e6,
     });
-    info!("spine loop: cut through '{CUT_SECTION}'");
+    info!("spine loop: cut through '{section}'");
 }
 
 /// Send each freed fragment gently away from the hull, on top of whatever

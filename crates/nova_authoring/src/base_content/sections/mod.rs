@@ -1,25 +1,25 @@
 //! Built-in section-prototype content.
 //!
-//! `standard` owns generic mountable modules; semantic body-part prototypes
-//! live with their complete craft definitions under `ships`. This module joins
-//! both sources into the one generated section catalog.
+//! Every built-in prototype is a generic mountable module: the base fleet is
+//! block-built, so no prototype here is a body part cut off one named craft.
+//! A mod that brings modelled craft brings their prototypes with them (The
+//! Ledger, task 20260824-125959).
 //!
 //! CLADDING is not here and is not a prototype at all. A ship's skin is DERIVED
 //! from the structure it wraps - see `nova_ship`'s `shell_skin` - so no id names
 //! a plate and nothing places one by hand.
 //!
 //! `ordnance` is the odd one out: a torpedo TYPE is not a section, it is what a
-//! torpedo bay loads, so it lives beside the bays that author it and is shared
-//! with the semantic pods under `ships`.
+//! torpedo bay loads, so it lives beside the bays that author it.
 
 use nova_ship::prelude::SectionConfig;
 
-use super::{assets::BaseContentAssets, ships};
+use super::assets::BaseContentAssets;
 
 pub(crate) mod ordnance;
 mod standard;
 
-pub(crate) use standard::{PDC_MOUNT_OFFSET, SIEGE_RAILGUN_LANCE_SECTION_ID};
+pub(crate) use standard::SIEGE_RAILGUN_LANCE_SECTION_ID;
 
 /// Generic hull, controller, thruster, turret, and torpedo prototypes.
 pub(crate) fn standard_section_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {
@@ -28,9 +28,7 @@ pub(crate) fn standard_section_prototypes(assets: &BaseContentAssets) -> Vec<Sec
 
 /// Complete built-in prototype catalog in stable generated-content order.
 pub(crate) fn section_catalog(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    let mut sections = standard_section_prototypes(assets);
-    sections.extend(ships::semantic_part_prototypes(assets));
-    sections
+    standard_section_prototypes(assets)
 }
 
 #[cfg(test)]

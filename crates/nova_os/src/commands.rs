@@ -273,8 +273,8 @@ pub const COMMAND_CATALOG: &[CommandSpec] = &[
         usage: "section <ship-id> <section-id>",
         summary: "Inspect one section of one ship",
         class: CommandClass::ReadOnly,
-        // A section id is unique to its ship, not to the field: both cargoa
-        // hulls carry `turret_port`. The ship is part of the address.
+        // A section id is unique to its ship, not to the field: both gunship
+        // hulls carry `pdc_aft_port`. The ship is part of the address.
         arity: CommandArity::Between(2, 2),
         arg_hint: Some("<ship-id> <section-id>"),
         args: &[
@@ -1053,7 +1053,7 @@ mod tests {
         // first argument: `ammo refill <ship>` takes one, so the second is the
         // sub-command that does not exist.
         assert_eq!(
-            headline("ammo refill cargoa nope"),
+            headline("ammo refill block_gunship nope"),
             "ammo refill: unknown subcommand 'nope'",
         );
     }

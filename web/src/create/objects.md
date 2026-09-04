@@ -110,7 +110,7 @@ id or authored inline.
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `hull` | hull source | required | `Prototype("cargoa")` names a [ship](../ships/) by id; `Inline((..))` carries a one-off hull (below) |
+| `hull` | hull source | required | `Prototype("block_gunship")` names a [ship](../ships/) by id; `Inline((..))` carries a one-off hull (below) |
 | `controller` | controller | required | who flies it (below) |
 | `allegiance` | `Option` side | `None` | side override, strict RON `Some(Neutral)`. Omitted = the controller default: Player ships fight for the player, AI ships are hostile |
 | `modifications` | list | `[]` | per-spawn deltas over the shared hull: `(section: "fuselage", modifications: [SetHealth(500.0)])`. Applied AFTER the section's own list, so the spawn wins. A section id the hull does not carry is a lint error |
@@ -136,12 +136,12 @@ SpawnScenarioObject((
                 "turret_port": [Mouse(Left)],
             },
         )),
-        // The shipped corvette, by id.
-        hull: Prototype("cargoa"),
-        // This spawn's own flight computer is hardened; every other cargoa
+        // The shipped patrol gunship, by id.
+        hull: Prototype("block_gunship"),
+        // This spawn's own flight computer is hardened; every other gunship
         // is untouched.
         modifications: [
-            (section: "fuselage", modifications: [SetHealth(500.0)]),
+            (section: "bridge", modifications: [SetHealth(500.0)]),
         ],
     )),
 )),
@@ -180,7 +180,7 @@ SpawnScenarioObject((
             patrol: [(0.0, 0.0, -3000.0), (800.0, 0.0, -2200.0)],
             engage_delay: Some(8.0),
         )),
-        hull: Prototype("cargoa_raider"),
+        hull: Prototype("block_raider"),
     )),
 )),
 ```
@@ -254,7 +254,7 @@ Each entry places one section in continuous ship-root space:
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | scenario-local section id; keys `input_mapping` (shipped ships use semantic ids such as `"turret_port"`) |
+| `id` | string | required | scenario-local section id; keys `input_mapping` (shipped hulls name their specials, such as `"pdc_forward_port"`) |
 | `position` | 3-tuple | required | continuous offset from the ship root, in BUILD CELLS (one cell is 10 m) - the one authored position that is not metric |
 | `rotation` | 4-tuple | required | rotation relative to the root; structural link points rotate with the section |
 | `source` | source | required | `Prototype("<id>")` - a [catalog id](../base-content/#section-prototypes), the compact reusable form - or `Inline((..))` with a full section config ([Ship sections for mods](../sections/)) |
@@ -270,8 +270,8 @@ Section modifications - closed, data-only deltas applied at spawn:
 | `SetAmmo(<number>)` | rounds | HARD magazine: override the weapon's rounds AND strip its auto-reload - when they are gone the section is dry for good. Inert on a section with no magazine |
 
 ```ron
-(id: "fuselage", position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),
- source: Prototype("racer_fuselage"),
+(id: "bridge", position: (0.0, 0.7, 0.1), rotation: (0.0, 0.0, 0.0, 1.0),
+ source: Prototype("basic_controller_section"),
  modifications: [ DisableVerb(Goto), DisableVerb(Orbit) ]),
 ```
 

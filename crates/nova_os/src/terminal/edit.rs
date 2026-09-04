@@ -1024,33 +1024,33 @@ mod tests {
         terminal.merge_live_values([
             (
                 live::SHIP.to_string(),
-                vec!["cargoa".to_string(), "cargoa_raider".to_string()],
+                vec!["block_gunship".to_string(), "block_raider".to_string()],
             ),
             (
-                format!("{}:cargoa", live::SECTION),
-                vec!["hull_front".to_string(), "turret_port".to_string()],
+                format!("{}:block_gunship", live::SECTION),
+                vec!["hull_front".to_string(), "pdc_aft_port".to_string()],
             ),
             (
-                format!("{}:cargoa_raider", live::SECTION),
-                vec!["turret_port".to_string()],
+                format!("{}:block_raider", live::SECTION),
+                vec!["pdc_aft_port".to_string()],
             ),
         ]);
 
         // First position: the ships.
-        type_text(&mut terminal, "section cargoa_r");
+        type_text(&mut terminal, "section block_r");
         assert!(terminal.complete());
-        assert_eq!(terminal.prompt(), "section cargoa_raider");
+        assert_eq!(terminal.prompt(), "section block_raider");
 
         // Second position: only THAT ship's sections, and the settled first
         // argument is kept.
         terminal.reset_prompt();
-        type_text(&mut terminal, "section cargoa hu");
+        type_text(&mut terminal, "section block_gunship hu");
         assert!(terminal.complete());
-        assert_eq!(terminal.prompt(), "section cargoa hull_front");
+        assert_eq!(terminal.prompt(), "section block_gunship hull_front");
 
         // The raider carries no `hull_front`, so nothing completes there.
         terminal.reset_prompt();
-        type_text(&mut terminal, "section cargoa_raider hu");
+        type_text(&mut terminal, "section block_raider hu");
         assert!(!terminal.complete());
     }
 

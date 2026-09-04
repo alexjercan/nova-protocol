@@ -13,9 +13,8 @@
         name: "Gauntlet Run",
         description: "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         author: "Nova Protocol",
-        version: "1.11.0",
-        // base ALONE: the racer's sections and the course textures all live in
-        // base. v1.0.0 also depended on "demo", which silently overrode
+        version: "1.12.0",
+        // base ALONE: the cutter and the course textures all live in base. v1.0.0 also depended on "demo", which silently overrode
         // reinforced_hull_section's health 200 -> 400 and forced players to
         // enable the demo arena. 2.0 drops that coupling: the crash tolerance is
         // base's honest 200-health hull (tuned by playtest), and the mod no

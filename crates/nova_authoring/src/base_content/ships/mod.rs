@@ -1,53 +1,30 @@
-//! Shipped semantic craft assemblies, their section prototypes, and the ship
-//! CONTENT entries a scenario spawns them by.
+//! The base game's shipped craft and the ship CONTENT entries a scenario
+//! spawns them by.
 //!
-//! A grade is a build-time knob, not a spawn-time one: the raider corvette
+//! Every one of them is BLOCK-BUILT: cells on a grid wearing a derived skin,
+//! with no modelled part anywhere in the fleet. That is the base game's
+//! identity, and it is why a mod bringing its own GLB craft (The Ledger, task
+//! 20260824-125959) reads as a different game rather than as more of this one.
+//!
+//! A grade is a build-time knob, not a spawn-time one: the salvage raider
 //! carries thinner plating and mounts that are quicker to shoot off, which is a
 //! different ship to fight and to read about, so it is a second CATALOG entry
-//! rather than a flag a scenario flips. Two entries cost one line each here and no machinery
-//! anywhere else.
-//!
-//! ORDNANCE is the same shape of knob. The two cargo-B entries differ only in
-//! which torpedo their pods load, and that decides whether the ship a player
-//! meets is one their point defense can answer - which is exactly "a different
-//! ship to fight" again.
+//! rather than a flag a scenario flips. Two entries cost one line each here and
+//! no machinery anywhere else.
 
 use nova_scenario::prelude::{
     SectionModification, ShipConfig, ShipHull, ShipSectionModification, ShipSource,
     SpaceshipSectionConfig,
 };
-use nova_ship::prelude::SectionConfig;
 
 use super::assets::BaseContentAssets;
 
 mod block;
-mod cargo_a;
-mod cargo_b;
-mod racer;
-mod shared;
 
 pub(crate) use block::{
     BLOCK_BRIDGE_SECTION_ID, BLOCK_GUNSHIP_TURRET_IDS, BLOCK_WARSHIP_BAY_IDS,
     BLOCK_WARSHIP_RAILGUN_IDS,
 };
-use shared::{Ordnance, ShipGrade};
-
-/// The id the player-grade CargoA corvette is spawned by.
-pub(crate) const CARGOA_SHIP_ID: &str = "cargoa";
-/// The id the scavenger-grade CargoA corvette is spawned by: thinner plating,
-/// flimsier gun mounts, a softer flight computer. The gun itself is the same
-/// shared PDC every craft carries.
-pub(crate) const CARGOA_RAIDER_SHIP_ID: &str = "cargoa_raider";
-/// The id the CargoB torpedo hauler is spawned by: weaving Serpents in the
-/// tubes, which is the escalation a defender cannot screen.
-pub(crate) const CARGOB_SHIP_ID: &str = "cargob";
-/// The id the CargoB is spawned by when its tubes carry straight-running
-/// LANCES. The same hull, guns and rack; the ordnance is the whole difference,
-/// and it is the campaign's difficulty setting for a player's first torpedo
-/// fight (see `sections::ordnance`).
-pub(crate) const CARGOB_LANCE_SHIP_ID: &str = "cargob_lance";
-/// The id the unarmed Racer yacht is spawned by.
-pub(crate) const RACER_SHIP_ID: &str = "racer";
 
 /// The id the block-built utility cutter is spawned by: the small unarmed
 /// workboat, and the base game's plainest craft.
@@ -89,42 +66,9 @@ pub(crate) const BLOCK_WRECK_SHOULDER_SHIP_ID: &str = "block_wreck_shoulder";
 /// Loose carrier plating - the small pieces a debris field is mostly made of.
 pub(crate) const BLOCK_WRECK_PLATE_SHIP_ID: &str = "block_wreck_plate";
 
-/// Semantic Racer, CargoB, and CargoA part prototypes in generated-content order.
-pub(crate) fn semantic_part_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {
-    let mut sections = racer::prototypes_for(assets);
-    sections.extend(cargo_b::prototypes_for(assets));
-    sections.extend(cargo_a::prototypes_for(assets));
-    sections
-}
-
 /// Every shipped ship, in stable generated-content order.
 pub(crate) fn ship_catalog(assets: &BaseContentAssets) -> Vec<ShipConfig> {
     vec![
-        ship(assets, RACER_SHIP_ID, "Racer Yacht", racer::sections()),
-        ship(
-            assets,
-            CARGOB_SHIP_ID,
-            "CargoB Hauler",
-            cargo_b::sections(Ordnance::Serpent),
-        ),
-        ship(
-            assets,
-            CARGOB_LANCE_SHIP_ID,
-            "CargoB Hauler (Lance)",
-            cargo_b::sections(Ordnance::Lance),
-        ),
-        ship(
-            assets,
-            CARGOA_SHIP_ID,
-            "CargoA Corvette",
-            cargo_a::sections(ShipGrade::Player),
-        ),
-        ship(
-            assets,
-            CARGOA_RAIDER_SHIP_ID,
-            "CargoA Raider Corvette",
-            cargo_a::sections(ShipGrade::Enemy),
-        ),
         block_ship(
             assets,
             BLOCK_CUTTER_SHIP_ID,
@@ -245,8 +189,8 @@ pub(crate) fn on_section(
 }
 
 /// One catalog entry over a built section list. Every shipped ship takes the
-/// engine's collapse threshold and goes unclad, so the hull is its sections
-/// plus the one voice no section can own: the ship coming apart.
+/// engine's collapse threshold, so the hull is its sections plus the one voice
+/// no section can own: the ship coming apart.
 fn ship(
     assets: &BaseContentAssets,
     id: &str,
@@ -264,9 +208,9 @@ fn ship(
     }
 }
 
-/// One catalog entry over a BLOCK hull. The same entry as above plus the two
-/// fields the modelled fleet cannot have: a derived skin, which reads a hull as
-/// unit cells, and the style it wears.
+/// One catalog entry over a BLOCK hull: the entry above plus the two fields a
+/// cell-built hull carries - a derived skin, which reads a hull as unit cells,
+/// and the style it wears.
 fn block_ship(
     assets: &BaseContentAssets,
     id: &str,
@@ -282,21 +226,16 @@ fn block_ship(
 
 #[cfg(test)]
 mod tests {
-    use bevy::prelude::Vec3;
     use nova_scenario::prelude::SectionSource;
-    use nova_ship::prelude::{
-        cardinal_axis, derive_link_point_graph, snap_placement, unit_cube_link_points,
-        PlacedSectionLinkPoints, SectionLinkPoints,
-    };
+    use nova_ship::prelude::{derive_link_point_graph, PlacedSectionLinkPoints, SectionLinkPoints};
 
-    use super::{cargo_a::*, cargo_b::*, racer::*, shared::*, BaseContentAssets};
+    use super::BaseContentAssets;
 
     /// Every shipped ship, ASSEMBLED, derives one connected structural graph.
     ///
-    /// Checked on the assembly rather than on the part specs, because the specs
-    /// are no longer the whole story: a turret mount contributes no prototype
-    /// of its own, so its sockets come from the shared PDC and its pose is
-    /// derived from the face it stands on. Only the assembled ship exercises
+    /// Checked on the assembly rather than on the block designs, because the
+    /// designs are not the whole story: a turret stands on a face, so its pose
+    /// is derived from the cell it bolts to. Only the assembled ship exercises
     /// that, and only the assembled ship is what the game spawns.
     ///
     /// `derive_link_point_graph` is all-or-nothing: one mount whose socket
@@ -352,57 +291,6 @@ mod tests {
                 ship.id,
                 mates.len(),
             );
-        }
-    }
-
-    /// The claim the whole snap exists for: a part cut off ONE craft mates onto
-    /// a plain cube square, not at whatever angle its neighbour on that craft
-    /// happened to sit at.
-    ///
-    /// The cargob's torpedo pod is the case the owner hit - its fuselage socket
-    /// used to point 36 degrees off -X, and the pod arrived on a hull tilted by
-    /// exactly that much. Every socket of every shipped part is checked, on
-    /// every face of the cube, because "only parts from the same ship fit" was
-    /// the shape of the bug.
-    #[test]
-    fn every_semantic_part_mates_square_onto_a_plain_cube() {
-        for (specs, edges) in [
-            (RACER_PARTS.as_slice(), RACER_EDGES.as_slice()),
-            (CARGOB_PARTS.as_slice(), CARGOB_EDGES.as_slice()),
-            (CARGOA_PARTS.as_slice(), CARGOA_EDGES.as_slice()),
-        ] {
-            // The meshed parts only: a turret mount contributes no prototype,
-            // so it has no sockets of its own to mate with.
-            for index in 0..specs.len() - 2 {
-                for socket in link_points(specs, edges, index) {
-                    for face in unit_cube_link_points() {
-                        let (_, rotation) = snap_placement(face.position, face.normal, &socket, 0);
-
-                        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-                            let placed = rotation * axis;
-                            assert!(
-                                placed.abs_diff_eq(cardinal_axis(placed), 1e-4),
-                                "part {index} socket `{}` arrived tilted ({placed:?}) on \
-                                 the cube's `{}` face",
-                                socket.id,
-                                face.id,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn part_mesh_offsets_preserve_recipe_assembly_bounds() {
-        for specs in [&RACER_PARTS[..7], &CARGOB_PARTS[..7], &CARGOA_PARTS[..7]] {
-            for spec in specs {
-                let rendered_min = spec.center() + spec.mesh_offset() + spec.bbox_min;
-                let rendered_max = spec.center() + spec.mesh_offset() + spec.bbox_max;
-                assert_eq!(rendered_min, spec.origin + spec.bbox_min);
-                assert_eq!(rendered_max, spec.origin + spec.bbox_max);
-            }
         }
     }
 }

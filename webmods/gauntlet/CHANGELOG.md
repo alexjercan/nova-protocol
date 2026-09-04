@@ -3,6 +3,14 @@
 All notable changes to the Gauntlet Run mod. Versions are the `meta.version`
 in `gauntlet.bundle.ron`; the portal keeps every published version.
 
+## 1.12.0
+
+- The course is now flown in the base game's `block_cutter`, not the Racer.
+  Required: the Racer and its parts left the base game for The Ledger, so a
+  gauntlet built on them would spawn nothing. The cutter is the same thing the
+  course wanted - unarmed, reinforced, all verbs free - in a hull about twice
+  the beam, so the slaloms read a little tighter.
+
 ## 1.11.0
 
 - The course is authored in METERS. Every gate, slalom, gravity well and start

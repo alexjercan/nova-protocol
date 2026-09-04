@@ -187,8 +187,8 @@ export function engineMetersPerSec2(
 // exactly as `AttitudeEnvelope::new` takes `Meters::from_engine(arm)`
 // (controller_section.rs:487-489).
 const LOAD_LIMIT = 8 * 9.81; // m/s^2, scale.rs:17 (MetersPerSecondSquared)
-const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:726
-// The shipped corvette's structural arm: centre of mass to the outer FACE of
+const CONTROLLER_MAX_TORQUE = 1501; // standard.rs:718
+// The Ledger's corvette: its structural arm, centre of mass to the outer FACE of
 // its furthest section (attitude.rs:136-149). WORLD UNITS - it is measured off
 // avian collider boxes, and the ship part tables below are the same geometry.
 // The GOTO widget flies this hull. `hullState(CARGOA_PARTS)` re-derives it from
@@ -202,24 +202,24 @@ const CORVETTE_ARM_U = 2.76;
 // acceleration comes out in WORLD UNITS per second squared. Nothing configures
 // `Time<Fixed>`, so the rate is Bevy's own.
 const FIXED_TICK_HZ = 64; // thruster_section.rs:489
-const THRUSTER_MAGNITUDE = 1.0; // standard.rs:650, ships/shared.rs:285
+const THRUSTER_MAGNITUDE = 1.0; // standard.rs:642, and the ledger's own drives
 
 // Catalog fixtures (crates/nova_authoring/src/base_content/sections/standard.rs).
 // Authored content is METERS now, so the blast radius is the metric number.
-const LIGHT_HULL_HP = 60; // standard.rs:758 (light_hull_section)
-const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:1207 (Serpent/Lance warhead)
-const TORPEDO_BLAST_RADIUS = 300; // standard.rs:1199 (Meters)
+const LIGHT_HULL_HP = 60; // standard.rs:750 (light_hull_section)
+const TORPEDO_BLAST_DAMAGE = 750; // standard.rs:1196 (Serpent/Lance warhead)
+const TORPEDO_BLAST_RADIUS = 300; // standard.rs:1188 (Meters)
 
-// The shared turret mount (standard.rs `turret_joint_tree` :206-318). Traverse
-// is unbounded (:279-282) and elevation runs from the depression floor to
-// straight up (:298-299), so what a mount cannot see is a cone under its own
-// keel and nothing else. Every hinge slews at the same rate (:279,:291).
-const TURRET_DEPRESSION_DEG = -10; // standard.rs:104,298 (PI / 18)
-const TURRET_ELEVATION_DEG = 90; // standard.rs:299 (FRAC_PI_2)
-const TURRET_SLEW_DEG_S = 180; // standard.rs:281,291 (PI rad/s)
+// The shared turret mount (standard.rs `turret_joint_tree` :204-310). Traverse
+// is unbounded (:280-281) and elevation runs from the depression floor to
+// straight up (:296-297), so what a mount cannot see is a cone under its own
+// keel and nothing else. Every hinge slews at the same rate (:279,:283).
+const TURRET_DEPRESSION_DEG = -10; // standard.rs:102,296 (PI / 18)
+const TURRET_ELEVATION_DEG = 90; // standard.rs:297 (FRAC_PI_2)
+const TURRET_SLEW_DEG_S = 180; // standard.rs:279,283 (PI rad/s)
 // A turret has no range field: muzzle speed times projectile lifetime IS its
 // reach (config.rs:135-144), 1 000 m/s over 2.0 s.
-const PDC_REACH = 2000; // meters; standard.rs:486,493
+const PDC_REACH = 2000; // meters; standard.rs:478,493
 
 // Magazines and the quiet interval that refills them
 // (crates/nova_ship/src/sections/ammo.rs). One reload rule serves every
@@ -228,14 +228,14 @@ const PDC_REACH = 2000; // meters; standard.rs:486,493
 // the delay (ammo.rs:171-174), and the total is clamped at capacity
 // (ammo.rs:156). An EMPTY trigger pull never resets it (ammo.rs:134), so a
 // dry weapon reloads while the trigger is still held down.
-const PDC_CAPACITY = 500; // standard.rs:503
-const PDC_RELOAD_DELAY = 3.0; // standard.rs:505
-const PDC_RELOAD_AMOUNT = 200; // standard.rs:506
+const PDC_CAPACITY = 500; // standard.rs:495
+const PDC_RELOAD_DELAY = 3.0; // standard.rs:497
+const PDC_RELOAD_AMOUNT = 200; // standard.rs:498
 const PDC_FIRE_RATE = 100; // standard.rs:74 (rounds per second)
-const BAY_CAPACITY = 6; // standard.rs:1226
-const BAY_RELOAD_DELAY = 10.0; // standard.rs:1238
-const BAY_RELOAD_AMOUNT = 1; // standard.rs:1239
-const BAY_FIRE_RATE = 1.0; // standard.rs:1189 (launches per second)
+const BAY_CAPACITY = 6; // standard.rs:1215
+const BAY_RELOAD_DELAY = 10.0; // standard.rs:1227
+const BAY_RELOAD_AMOUNT = 1; // standard.rs:1228
+const BAY_FIRE_RATE = 1.0; // standard.rs:1178 (launches per second)
 
 // The terminal weave (crates/nova_ship/src/sections/torpedo_section/). The
 // corkscrew rides at full amplitude beyond three blast radii and tapers to
@@ -251,13 +251,13 @@ const SERPENT_WEAVE_RATE = 1.4; // mod.rs:415 (rad/s)
 // `layers: u32::MAX`), so `slug_power` alone bounds what one shot takes, and
 // at 15 000 m/s the pierce curve sits at its 3.0 ceiling whatever the ships are
 // doing. The shot's cycle is the charge plus the one-shell reload.
-const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:928
-const LANCE_SLUG_SPEED = 15000; // standard.rs:929 (MetersPerSecond)
-const LANCE_SLUG_DAMAGE = 300; // standard.rs:943
-const LANCE_SLUG_POWER = 1800; // standard.rs:949
-const LANCE_RAKE_RADIUS = 10; // standard.rs:968 (Meters)
-const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:971
-const LANCE_RELOAD_DELAY = 12; // standard.rs:987
+const LANCE_CHARGE_SECONDS = 1.5; // standard.rs:920
+const LANCE_SLUG_SPEED = 15000; // standard.rs:1157 (MetersPerSecond)
+const LANCE_SLUG_DAMAGE = 300; // standard.rs:932
+const LANCE_SLUG_POWER = 1800; // standard.rs:938
+const LANCE_RAKE_RADIUS = 10; // standard.rs:957 (Meters)
+const LANCE_SLUG_LIFETIME = 1.2; // standard.rs:960
+const LANCE_RELOAD_DELAY = 12; // standard.rs:976
 const LANCE_CYCLE_SECS = LANCE_CHARGE_SECONDS + LANCE_RELOAD_DELAY;
 const LANCE_REACH = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME; // meters
 // The corridor scope counts BUILD CELLS, and a cell is one world unit - the
@@ -265,16 +265,16 @@ const LANCE_REACH = LANCE_SLUG_SPEED * LANCE_SLUG_LIFETIME; // meters
 // `radius.to_engine()` (railgun_section/firing.rs:215-218). This is the one
 // place the authored corridor meets the lattice.
 export const LANCE_RAKE_RADIUS_CELLS = LANCE_RAKE_RADIUS / METERS_PER_UNIT;
-const REINFORCED_HULL_HP = 200; // standard.rs:604
+const REINFORCED_HULL_HP = 200; // standard.rs:596
 
 // The kinetic PDC round (standard.rs:59; the pierce round is half of it,
-// :69) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1191),
+// :69) and the torpedoes' reach at the bay's 100 s lifetime (standard.rs:1180),
 // from the measured along-the-line table at the head of ordnance.rs:13-21 -
 // that table is still quoted in world units, so the reaches and cruise caps
 // below are its numbers stated in meters. A torpedo's cruise cap is authored:
 // ordnance.rs:49 (Lance) and torpedo_section/mod.rs:413 (Serpent).
 const KINETIC_PDC_BULLET_DAMAGE = 4.0; // standard.rs:59
-const PDC_MUZZLE_SPEED = 1000; // standard.rs:486 (MetersPerSecond)
+const PDC_MUZZLE_SPEED = 1000; // standard.rs:478 (MetersPerSecond)
 const SERPENT_REACH = 29140; // meters; ordnance.rs:21 (2 914 u)
 const LANCE_TORPEDO_REACH = 31300; // meters; ordnance.rs:21 (3 130 u)
 const SERPENT_CRUISE = 320; // torpedo_section/mod.rs:413 (MetersPerSecond)
@@ -843,7 +843,7 @@ export interface AmmoRule {
 }
 
 // The rate a weapon holds forever by firing each batch the moment it lands:
-// `amount / (delay + amount / rate)`. standard.rs:594 works the shipped PDC
+// `amount / (delay + amount / rate)`. standard.rs:586 works the shipped PDC
 // through it - 200 / (3 + 200/100) = 40 rounds/s against a 100/s cyclic rate.
 export function sustainedRate(w: AmmoRule): number {
     return w.amount / (w.delay + w.amount / w.rate);
@@ -1054,7 +1054,7 @@ export function lanceCorridor(
 
 // The three weapon families' reach and time of flight to a target `range`
 // METERS out. Reach is never authored: a round's is muzzle speed times its
-// lifetime (config.rs:135-144), the slug's the same (standard.rs:929,:971),
+// lifetime (config.rs:135-144), the slug's the same (standard.rs:1157,:1167),
 // and a torpedo's is the along-the-line speed it settles at over the bay's
 // lifetime. Every speed and reach here is SI, so the flight time is seconds
 // with no conversion anywhere. Infinity: the shot never arrives.
@@ -2562,7 +2562,7 @@ function initBlastLayers(host: HTMLElement): void {
     else transport.play();
 }
 
-// ---- shipped hulls --------------------------------------------------------
+// ---- modelled hulls (The Ledger) ------------------------------------------
 
 type Vec3T = [number, number, number];
 
@@ -2574,10 +2574,10 @@ interface ShipPart {
     size: Vec3T;
 }
 
-// One authored craft part, in the terms the ship files write it in: an origin
-// plus the bounding box the art was cut to. The section sits at the middle of
-// that box and its collider IS the box, so nothing here is re-derived
-// (crates/nova_authoring/src/base_content/ships/shared.rs:44-50,:235).
+// One authored craft part, in the terms the mod's section file writes it in: an
+// origin plus the bounding box the art was cut to. The section sits at the
+// middle of that box and its collider IS the box, so nothing here is re-derived
+// (webmods/the-ledger/ledger_sections.content.ron).
 function shipPart(
     id: string,
     label: string,
@@ -2618,7 +2618,7 @@ function turretMount(id: string, label: string, center: Vec3T): ShipPart {
     };
 }
 
-// The shipped corvette (ships/cargo_a.rs:16-96): two drives on two pods, a
+// The Ledger's corvette (webmods/the-ledger/ledger_ships.content.ron): two drives on two pods, a
 // nose carrying both guns on its cheeks, a tail, and the fuselage that IS the
 // flight computer.
 const CARGOA_PARTS: ShipPart[] = [
@@ -2682,7 +2682,7 @@ const CARGOA_PARTS: ShipPart[] = [
     turretMount("turret_port", "T", [-0.95, 0.8, -1.8]),
 ];
 
-// The authored structural mates (cargo_a.rs:98-108). Both guns hang off the
+// The authored structural mates (webmods/the-ledger/ledger_ships.content.ron). Both guns hang off the
 // NOSE, and each drive hangs off its own pod - which is what decides who goes
 // adrift when a part in the middle dies.
 const CARGOA_MATES: [string, string][] = [
@@ -2696,8 +2696,8 @@ const CARGOA_MATES: [string, string][] = [
     ["nose", "turret_port"],
 ];
 
-// The civilian yacht, which flies UNARMED: the base assembly takes the meshed
-// seven and leaves its two mount points empty (ships/racer.rs:13-88,:107-115).
+// The Ledger's civilian yacht, which flies UNARMED: the assembly takes the
+// meshed seven and leaves its two mount points empty (webmods/the-ledger/ledger_ships.content.ron).
 const RACER_PARTS: ShipPart[] = [
     shipPart(
         "engine_starboard",
@@ -2757,7 +2757,7 @@ const RACER_PARTS: ShipPart[] = [
     ),
 ];
 
-// The torpedo hauler (ships/cargo_b.rs:9-82). Its two big side pods are the
+// The Ledger's torpedo hauler (webmods/the-ledger/ledger_ships.content.ron). Its two big side pods are the
 // tubes, and its guns stand on their shoulders rather than on the nose.
 const CARGOB_PARTS: ShipPart[] = [
     shipPart(
@@ -2855,7 +2855,7 @@ interface HullState {
 // structural arm derived off it (attitude.rs:146-186). Density is 1 and not
 // authorable, so a section's mass is exactly its box volume
 // (base_section.rs:376) - which is why NOTHING in this function reads an
-// authored number. Every shipped section is mounted axis-aligned except the
+// authored number. Every section on these craft is mounted axis-aligned except the
 // turret mounts, whose box is a cube and so is the same under any rotation;
 // that is what lets the arm drop the rotation term the Rust carries.
 export function hullState(parts: ShipPart[]): HullState {
@@ -2937,7 +2937,7 @@ export function hullState(parts: ShipPart[]): HullState {
 // A cut that disconnects the structural graph severs it: the body carrying the
 // live computers keeps ship identity and every other piece drifts away as an
 // inert wreck (nova_ship/src/sections/integrity.rs:231-349). The fuselage is
-// the only computer on all three shipped craft, so the retained body is the
+// the only computer on all three of these craft, so the retained body is the
 // one it sits in.
 export function severedParts(
     parts: ShipPart[],
@@ -3167,7 +3167,7 @@ function initControllerArm(host: HTMLElement): void {
         const state = hullState(held);
         const structural = structuralCeiling(state.arm);
         // ONE computer: the fuselage is the corvette's only Controller part
-        // (cargo_a.rs:77-86), and it is the only one the shipped craft carry.
+        // (webmods/the-ledger/ledger_ships.content.ron), and it is the only one these craft carry.
         // Torque sums with no curve and no cap (controller_section.rs:385-388),
         // so with the fuselage gone there is no propulsive ceiling at all -
         // and no ship, because the fuselage is also what holds it together.
@@ -3286,7 +3286,7 @@ function initControllerArm(host: HTMLElement): void {
                 `gives up at ${structural.toFixed(2)} rad/s^2, and the one ` +
                 `flight computer in its fuselage could push ` +
                 `${torque.toFixed(1)} - ${(torque / structural).toFixed(0)} ` +
-                "times as hard. Every shipped craft sits this far clear of " +
+                "times as hard. Every one of these craft sits this far clear of " +
                 "its computers, which is why fitting more of them buys no " +
                 "turn rate at all.";
         } else if (gain <= -0.5) {
@@ -4550,7 +4550,7 @@ function initGotoVerb(host: HTMLElement): void {
         "widget__note",
         "Simplified to one dimension: no gravity, one forward drive group " +
             "(so the brake angle is a full 180), a stationary target. The " +
-            "hull is the shipped corvette, held by its own structure to " +
+            "hull is The Ledger's corvette, held by its own structure to " +
             "2.84 rad/s^2. The envelope, flip line, 85% brake margin, " +
             "15 m/s approach floor, standoff and RCS settle are the game's " +
             "own rules."
@@ -6276,7 +6276,7 @@ function initTorpedoRun(host: HTMLElement): void {
 
 // Thrust is authored per drive; MASS is not authored at all. A section weighs
 // exactly its own box (base_section.rs:376), so the same two drives move three
-// shipped hulls at three different rates and nothing anywhere says so.
+// modelled hulls at three different rates and nothing anywhere says so.
 interface DriveRig {
     name: string;
     detail: string;
@@ -6293,7 +6293,7 @@ function initThrusterMass(host: HTMLElement): void {
     header(
         host,
         "What the drive has to move",
-        "Every shipped drive pushes with the same 1.0, and every hull " +
+        "Every drive here pushes with the same 1.0, and every hull " +
             "carries two of them. What differs is the MASS on the other " +
             "side of it - a section weighs its own box, and nothing " +
             "authors that. Bolt basic drives on and watch it out."
@@ -6309,7 +6309,7 @@ function initThrusterMass(host: HTMLElement): void {
     const y = (a: number): number =>
         Y0 - (clamp(a, 0, ACCEL_MAX) / ACCEL_MAX) * (Y0 - Y1);
     // A basic drive is a unit cube (base_section.rs:79-85) pushing 1.0
-    // (standard.rs:650), so each one added is +1 of impulse over +1 of mass.
+    // (standard.rs:642), so each one added is +1 of impulse over +1 of mass.
     // The impulse, the tick rate and the box masses are all ENGINE figures, so
     // the quotient is world units per second squared - and this is the one
     // place it crosses into the m/s^2 every reading below is in.
@@ -6325,7 +6325,7 @@ function initThrusterMass(host: HTMLElement): void {
         viewBox: "0 0 560 230",
         role: "img",
         "aria-label":
-            "Acceleration against drives added, one curve per shipped hull. " +
+            "Acceleration against drives added, one curve per modelled hull. " +
             "All three climb toward the same hard ceiling, and the light " +
             "yacht starts more than twice as high as the hauler.",
     });
@@ -6466,7 +6466,8 @@ function initThrusterMass(host: HTMLElement): void {
         const stock = DRIVE_RIGS.map((r) => accel(r, 0));
         if (extra === 0) {
             readout.textContent =
-                `Stock, all three carry two drives pushing 1.0 each. The ` +
+                `Stock, all three of The Ledger's hulls carry two drives ` +
+                `pushing 1.0 each. The ` +
                 `yacht weighs ${hullState(RACER_PARTS).mass.toFixed(2)} and ` +
                 `pulls ${metersPerSec2(stock[0], 0)}; the hauler weighs ` +
                 `${hullState(CARGOB_PARTS).mass.toFixed(2)} and pulls ` +
@@ -6527,8 +6528,8 @@ function initThrusterMass(host: HTMLElement): void {
 // ---- hull-armour ----------------------------------------------------------
 
 // Health is authored per part; the mass that carries it is NOT. So the
-// catalog's health column and the cost of bolting a part on rank the shipped
-// hulls in different orders, and only one of those orders is a build decision.
+// catalog's health column and the cost of bolting a part on rank these hull
+// parts in different orders, and only one of those orders is a build decision.
 interface ArmourPart {
     name: string;
     health: number;
@@ -6537,7 +6538,7 @@ interface ArmourPart {
 
 function craftPart(parts: ShipPart[], id: string, name: string): ArmourPart {
     const part = parts.find((p) => p.id === id);
-    if (!part) throw new Error(`no shipped part ${id}`);
+    if (!part) throw new Error(`no catalog part ${id}`);
     return {
         name,
         health: part.health,
@@ -6545,9 +6546,9 @@ function craftPart(parts: ShipPart[], id: string, name: string): ArmourPart {
     };
 }
 
-// The two unit-cell hulls author no collider at all (standard.rs:311,:411), so
+// The two unit-cell hulls author no collider at all (standard.rs:303,:411), so
 // each is the default unit cube - one of mass, exactly
-// (base_section.rs:79-85). Their health is standard.rs:308,:408.
+// (base_section.rs:79-85). Their health is standard.rs:300,:408.
 const CARGOA_NOSE = craftPart(CARGOA_PARTS, "nose", "CargoA // Nose");
 const RACER_TAIL = craftPart(RACER_PARTS, "tail", "Racer // Tail");
 const ARMOUR_PARTS: ArmourPart[] = [
@@ -6938,7 +6939,7 @@ function initBattlefieldLoad(host: HTMLElement): void {
 // step is exponential decay to within a rounding error, so the widget models
 // the coast as `v(t) = v0 * exp(-k t)`.
 const TORPEDO_LINEAR_DAMPING = 0.8; // torpedo_section/mod.rs:265 (1/s)
-const TORPEDO_EJECT_SPEED = 80; // standard.rs:1190 (MetersPerSecond)
+const TORPEDO_EJECT_SPEED = 80; // standard.rs:1179 (MetersPerSecond)
 const TORPEDO_IGNITION_DELAY = 0.6; // torpedo_section/mod.rs:451
 // The shipped warhead mesh is `nose_cone_mesh(0.16, 0.65, 0.35)` - a 0.65 body
 // under a 0.35 nose, so one world unit end to end, which is 10 m

@@ -381,7 +381,7 @@ path = "examples/systems/stress_many_structures.rs"
 # below stage the same set, and each is short enough to read in one screen.
 # The scene builders they share live in examples/screenshots/shared/.
 
-# The Drydock drift beauty set: a hero racer over a real gravity well.
+# The Drydock drift beauty set: a hero gunship over a real gravity well.
 [[example]]
 name = "screenshot_gravity"
 path = "examples/screenshots/screenshot_gravity.rs"

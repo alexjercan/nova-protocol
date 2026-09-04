@@ -1,6 +1,6 @@
 //! loop_torpedo_blast: the `torpedo-blast` webm loop - a Serpent torpedo
 //! weaves in and its blast carves the outer hull layers off a stationary
-//! corvette.
+//! gunship.
 //!
 //! The docs site's first MOVING figure, authored in the same idiom as every
 //! still: an autopilot script whose steps call `loop_start` / `loop_end`
@@ -12,7 +12,7 @@
 //! second).
 //!
 //! The set is `screenshot_combat`'s ordnance chapter boiled down to its two
-//! ships: a target corvette parked at the origin and the torpedo boat high
+//! ships: a target gunship parked at the origin and the torpedo boat high
 //! off its quarter, firing DOWN through open sky. Same rock shell, same seed,
 //! same reasoning (a level camera in a rock field frames rock soup; tipping
 //! the lens up puts sky behind the subject). Every actor is scripted or
@@ -48,15 +48,17 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "loop_torpedo_blast")]
 #[command(version = "1.0.0")]
-#[command(about = "The torpedo-blast webm loop: a salvo carves a corvette's outer hull. Autopilot-only: every actor is scripted or inert", long_about = None)]
+#[command(about = "The torpedo-blast webm loop: a salvo carves a gunship's outer hull. Autopilot-only: every actor is scripted or inert", long_about = None)]
 struct Cli;
 
 /// The loop this example records - the webm's file stem.
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "torpedo-blast";
 
-/// Scenario id of the stationary corvette the salvo carves.
+/// Scenario id of the stationary gunship the salvo carves.
 const TARGET_ID: &str = "loop_target";
+/// The catalog hull the salvo is aimed at.
+const TARGET_HULL: &str = "block_gunship";
 /// Scenario id of the torpedo boat.
 const LANCE_ID: &str = "loop_lance";
 
@@ -65,28 +67,44 @@ const LANCE_ID: &str = "loop_lance";
 /// bearing `screenshot_combat` proved out for its ordnance chapter.
 const LANCE_POSITION: Meters3 = Meters3::new(-380.0, 300.0, -560.0);
 
-/// The proximity fuze fires 150 m short of the target (half the cargo-B
-/// bay's 300 m blast radius); the camera frames the midpoint of hull and
-/// fuze point so the detonation opens inside the frame, not at its edge.
+/// The proximity fuze fires 150 m short of the target (half the standard
+/// assault bay's 300 m blast radius); the camera frames the midpoint of hull
+/// and fuze point so the detonation opens inside the frame, not at its edge.
 #[cfg(feature = "debug")]
 const TORPEDO_FUZE_RANGE: Meters = Meters(150.0);
 
 /// ONE round, not the boat's full salvo: the 300 m blast covers the whole
-/// corvette, and two same-tick detonations (shared health snapshot,
+/// gunship, and two same-tick detonations (shared health snapshot,
 /// `blast_penetration`'s BLUE lane) gut every outer section at once - the
 /// aggregate falls through the structural-collapse floor and the WHOLE ship
 /// despawns. One warhead leaves a wounded hull for the scripted carve.
 #[cfg(feature = "debug")]
 const EXPECTED_TORPEDO_COUNT: usize = 1;
 
-/// The outer hull layers the detonation takes off: the sections on the blast
-/// side of the parked target. They spawn at prototype health while the rest
-/// of the hull is authored tougher (see [`blast_range`]), so the blast beat
-/// destroys exactly these and the ship SURVIVES into the aftermath frames.
-const CARVED_SECTIONS: [&str; 2] = ["nose", "pod_port"];
+/// The outer hull layers the detonation takes off, by BUILD-GRID CELL: the two
+/// starboard aft deck plates, which is the quarter the boat's bearing puts on
+/// the blast side of the parked target. The aft starboard mount stands on the
+/// forward one, so it comes off with the plate.
+///
+/// Named by cell rather than by id because a block hull's `plate_N` numbering
+/// is an artifact of the order its boxes were unioned (see
+/// [`kit::cell_section`]); the cell is the coordinate the hull is authored in.
+///
+/// They spawn at prototype health while the rest of the hull is authored
+/// tougher (see [`blast_range`]), so the blast beat destroys exactly these and
+/// the ship SURVIVES into the aftermath frames.
+const CARVED_CELLS: [Vec3; 2] = [Vec3::new(1.0, 1.0, 1.0), Vec3::new(1.0, 1.0, 2.0)];
+
+/// The ids [`CARVED_CELLS`] resolve to on the shipped target hull.
+fn carved_section_ids(ships: &GameShips) -> Vec<String> {
+    CARVED_CELLS
+        .iter()
+        .map(|&cell| kit::cell_section(ships, TARGET_HULL, cell))
+        .collect()
+}
 
 /// Authored health for every non-carved section. A Serpent's warhead is 750
-/// blast damage across a 300 m sphere - the whole 40 m hull is inside it,
+/// blast damage across a 300 m sphere - the whole hull is inside it,
 /// and every prototype-health section is depleted outright (proved live: the
 /// root structurally collapsed mid-loop at 42 of 2030 aggregate). At this
 /// figure the same warhead wounds the hull for a few hundred per section and
@@ -190,7 +208,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
 /// shell around them and the photo rig. Both ships are `Controller::None` -
 /// nothing here flies itself, so the capture is deterministic.
 fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
-    // The whole shipped corvette, turrets included. The kit used to drop them:
+    // The whole shipped gunship, turrets included. The kit used to drop them:
     // its own hand-typed copy of the mount centres had drifted from the
     // builders', so the mounts mated nothing and the ship came back
     // `Disconnected` - empty adjacency, under which the scripted carve would
@@ -205,16 +223,19 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
         // sections face the lens.
         Quat::from_rotation_y(std::f32::consts::PI - 0.4),
         Some(Allegiance::Enemy),
-        kit::kenney_hull(ships, "cargoa")
-            .into_iter()
-            .map(|mut section| {
-                if !CARVED_SECTIONS.contains(&section.id.as_str()) {
-                    section.modifications =
-                        vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
-                }
-                section
-            })
-            .collect(),
+        {
+            let carved = carved_section_ids(ships);
+            kit::catalog_hull(ships, TARGET_HULL)
+                .into_iter()
+                .map(|mut section| {
+                    if !carved.contains(&section.id) {
+                        section.modifications =
+                            vec![SectionModification::SetHealth(TOUGH_SECTION_HEALTH)];
+                    }
+                    section
+                })
+                .collect()
+        },
     );
     let lance = ship(
         LANCE_ID,
@@ -224,7 +245,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
             .looking_at(Vec3::ZERO, Vec3::Y)
             .rotation,
         Some(Allegiance::Player),
-        kit::kenney_hull(ships, "cargob"),
+        kit::catalog_hull(ships, "block_cleanup_leader"),
     );
     // The same shell, radii and seed as screenshot_combat's hollow: proven to
     // keep the pocket clear of the subject and the salvo's bearing.
@@ -238,7 +259,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShips) -> ScenarioConfig {
     };
 
     ScenarioConfig {
-        description: "A torpedo salvo carving a parked corvette.".to_string(),
+        description: "A torpedo salvo carving a parked gunship.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -381,8 +402,8 @@ fn commit_torpedoes(world: &mut World) {
 /// Take the carved sections off through the production damage path.
 #[cfg(feature = "debug")]
 fn carve_target_sections(world: &mut World) {
-    for section in CARVED_SECTIONS {
-        let Some(node) = target_section_health(world, section) else {
+    for section in carved_section_ids(world.resource::<GameShips>()) {
+        let Some(node) = target_section_health(world, &section) else {
             warn!("torpedo loop: no health node under section '{section}'");
             continue;
         };
@@ -408,9 +429,10 @@ fn carved_sections_gone() -> std::sync::Arc<nova_protocol::nova_debug::harness::
         else {
             return true;
         };
-        !sections.iter(world).any(|(id, parent)| {
-            parent.parent() == target && CARVED_SECTIONS.contains(&id.0.as_str())
-        })
+        let carved = carved_section_ids(world.resource::<GameShips>());
+        !sections
+            .iter(world)
+            .any(|(id, parent)| parent.parent() == target && carved.contains(&id.0))
     })
 }
 

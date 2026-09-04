@@ -96,17 +96,9 @@ const TWIN_FIRE_RATE: f32 = GATLING_FIRE_RATE * 0.5;
 /// the rest of it, where a unit-cube turret replaces the face outright.
 const PDC_TURRET_SIZE: f32 = 0.5;
 
-/// How far the shared PDC's base socket sits from the mount's own centre.
-///
-/// A mount bolts down by its base plate, so this is the ONLY offset a host
-/// needs to know to put a socket where the gun will actually stand. Ship
-/// builders read it to place the socket they offer a turret (see
-/// `ships::shared::link_points`).
-pub(crate) const PDC_MOUNT_OFFSET: f32 = PDC_TURRET_SIZE * 0.5;
-
 /// How far a shipped turret's pitch hinge may DEPRESS below level (10 deg).
-/// Every shipped mount sits ON a hull - the cargoa's nose cheeks most tightly -
-/// so a deeper floor only swings the barrel back across its own ship.
+/// Every shipped mount sits ON a hull, so a deeper floor only swings the barrel
+/// back across its own ship.
 const TURRET_DEPRESSION_LIMIT: f32 = std::f32::consts::PI / 18.0;
 
 /// The size the turret art was drawn at: one whole section cube. A tree
@@ -296,11 +288,11 @@ fn turret_joint_tree(
                     axis: Some(Vec3::X),
                     speed: std::f32::consts::PI, // 180 degrees per second
                     // Depression floor: every shipped turret is HULL-MOUNTED, so a
-                    // deep depression just aims the barrel into its own ship (the
-                    // cargoa's nose cheeks are the tightest case). 10 degrees is
-                    // enough to reach a target slightly below the mount without
-                    // the muzzle sweeping back across the bodywork. Elevation
-                    // stays at 90: straight up is the point-defense arc.
+                    // deep depression just aims the barrel into its own ship.
+                    // 10 degrees is enough to reach a target slightly below the
+                    // mount without the muzzle sweeping back across the
+                    // bodywork. Elevation stays at 90: straight up is the
+                    // point-defense arc.
                     min: Some(-TURRET_DEPRESSION_LIMIT),
                     max: Some(std::f32::consts::FRAC_PI_2),
                     render_mesh: Some(art_spec.pitch_mesh.clone()),
@@ -926,14 +918,11 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // depth of anything that flies. Depth is NOT the cost of this
                 // weapon; the commit, the recoil and the reload are.
                 slug_power: 1800.0,
-                // ONE UNIT, from the range's measurement bank. It is the
-                // smallest radius that reaches the immediate lateral
-                // neighbour on every shipped hull - the cargoa's pods stand
-                // 0.81 off its spine and the cargob's 0.61 - and on the unit
-                // lattice hulls are built on it takes the face and diagonal
-                // neighbours of the cell it bores through and stops short of
-                // the second ring at 1.5. The corridor is three cells wide,
-                // which is a hole you can see and not a ship you delete.
+                // ONE UNIT, from the range's measurement bank. On the unit
+                // lattice every hull is built on it takes the face and
+                // diagonal neighbours of the cell it bores through and stops
+                // short of the second ring at 1.5. The corridor is three cells
+                // wide, which is a hole you can see and not a ship you delete.
                 rake_radius: Meters(10.0),
             },
         ),

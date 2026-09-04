@@ -3,6 +3,17 @@
 All notable changes to The Ledger campaign mod. Versions are the `meta.version`
 in `the-ledger.bundle.ron`; the portal keeps every published version.
 
+## 1.28.0
+
+- The mod now SHIPS the fleet it flies. The Racer, CargoB and CargoA parts,
+  ships and GLB meshes moved out of the base game and into this bundle
+  (`ledger_sections.content.ron`, `ledger_ships.content.ron`,
+  `gltf/parts/`). Required: the base game is block-built now, so a campaign
+  built on those prototypes would spawn gunless wrecks against a catalog that
+  no longer holds them. Nothing about how the campaign PLAYS changes - the same
+  craft, the same numbers, carried by the mod instead of borrowed from base.
+- Every gun, sound and skybox is still base's, by `dep://base/`.
+
 ## 1.27.0
 
 - The campaign is authored in METERS. Every distance and speed in the five

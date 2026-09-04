@@ -151,7 +151,7 @@ A beaten mount cracks and, past about a third of its health gone, throws sparks 
 Four turrets ship on two mounts. The gatlings put one barrel on the compact assembly every craft carries; the twins put two barrels on a broader one. A twin's tubes each fire at half the gatling's cadence, so the pair costs the same total rate and drains the magazine no faster - the trade is two offset streams instead of one dense one. Within each mount the only thing that separates the pair is the round it loads. The Pierce guns deal half the damage per hit, so mount a Kinetic and a Pierce and the punch-versus-rake trade on [Combat](../../combat-weapons/#damage-types) is the only thing you are feeling.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared joint tree turret_joint_tree :199 (yaw unlimited :221-222, pitch -10deg to +90deg :291-292, slew PI :274,:284); pdc_turret_prototype :414 (health TURRET_BASE_HEALTH 130 :429,:32, muzzle 100 :473, lifetime 2.0 :480, magazine 500 :486, reload 3.0s/200 :487-489) with call sites :791-839 - gatlings on gatling_art :142 at GATLING_FIRE_RATE 100 :67, twins on twin_art :162 (two muzzles at x +-0.12) at TWIN_FIRE_RATE = half per muzzle :75; damage kinetic 4.0 :52, pierce 2.0 :62. Every craft mounts the kinetic gatling: ships/shared.rs `module` and `placement`. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: shared joint tree turret_joint_tree :199 (yaw unlimited :221-222, pitch -10deg to +90deg :291-292, slew PI :274,:284); pdc_turret_prototype :414 (health TURRET_BASE_HEALTH 130 :429,:32, muzzle 100 :473, lifetime 2.0 :480, magazine 500 :486, reload 3.0s/200 :487-489) with call sites :791-839 - gatlings on gatling_art :142 at GATLING_FIRE_RATE 100 :67, twins on twin_art :162 (two muzzles at x +-0.12) at TWIN_FIRE_RATE = half per muzzle :75; damage kinetic 4.0 :52, pierce 2.0 :62. Every craft mounts the kinetic gatling: base hulls seat it on a face, and a mod's modelled craft name it at their mount points. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-turret.png</span></span></span><span class="catalog__title">Turret - shipped prototypes</span></div>
 <table>
 <thead>
@@ -166,5 +166,5 @@ Four turrets ship on two mounts. The gatlings put one barrel on the compact asse
 </table>
 </div>
 
-<!-- raider mount health: nova_authoring ships/shared.rs ENEMY_TURRET_HEALTH = 60 and the ShipGrade::Enemy SetHealth pass -->
+<!-- raider mount health: 60, a SetHealth modification on the mount rather than a separate prototype -->
 Raider hulls mount the same guns from the same catalog. The scavenger grade only lowers the mount's health to 60 (against 130 on a player hull), so an enemy's guns are quicker to shoot off - but every round they land hits exactly as hard as yours.

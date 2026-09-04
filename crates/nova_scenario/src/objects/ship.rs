@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn a_ship_source_resolves_by_id_or_reports_nothing() {
         let ships = GameShips(vec![ShipConfig {
-            id: "cargoa".to_string(),
+            id: "block_gunship".to_string(),
             name: "Corvette".to_string(),
             hull: ShipHull {
                 collapse_threshold: Some(0.25),
@@ -204,7 +204,7 @@ mod tests {
             },
         }]);
 
-        let worn = ShipSource::Prototype("cargoa".to_string());
+        let worn = ShipSource::Prototype("block_gunship".to_string());
         assert_eq!(
             worn.resolve(&ships)
                 .and_then(|hull| hull.collapse_threshold),

@@ -44,7 +44,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(ring::the_ring_with_hull(
         &game_assets,
         &ships,
-        "cargoa",
+        "block_gunship",
     )));
 }
 

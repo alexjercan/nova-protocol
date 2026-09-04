@@ -32,7 +32,7 @@ The iris is honest. A safed bay keeps it shut and so does an empty one, so an op
 
 **Then it homes.** Once the drive catches, the torpedo steers on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears: a short time or distance from launch, so it cannot go off in your lap. It curves through [gravity wells](../../gravity-wells/) like everything else, and from that moment it is a body the other side can shoot at. Not cheaply: a warhead carries more hit points than the hardest single PDC round can deliver, so an intercept costs a short burst rather than one lucky tap, and the siege bay's armoured torpedoes take sustained fire across the whole closing window. How a defending battery picks and holds its torpedoes is on the [Turret](../turret/#point-defense) page.
 
-<!-- projectile_health 10.0, sized above the hardest single PDC round (4.0 authored x the 2.0 Kinetic speed ceiling): crates/nova_authoring/src/base_content/sections/standard.rs:1218 with the reasoning above it; siege bay 5000.0 at :1051. -->
+<!-- projectile_health 10.0, sized above the hardest single PDC round (4.0 authored x the 2.0 Kinetic speed ceiling): crates/nova_authoring/src/base_content/sections/standard.rs:1207 with the reasoning above it; siege bay 5000.0 at :1051. -->
 
 **The warhead bursts just before contact.** Against a locked ship or rock the fuze fires about thirty meters from the nearest part of that body's skin. That near-contact margin keeps the physical torpedo from becoming a dud on the hull, while the warhead still delivers almost all its rated pressure and puts the crater on the target. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it bursts a half-radius short, because there is no surface left to reach.
 
@@ -138,7 +138,7 @@ The result scales through geometry rather than a ship-size bonus. A thin small c
 The two normal bays share every number but the torpedo type. The experimental siege bay uses the same six-round rearming rack but launches much faster, tougher, and more destructive Breakers. It is balancing and scenario kit, not a fair alternative for normal play. Ordnance hp is what point defense has to shoot through per torpedo.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :1144 (health :1157, blast radius 300 m :1199, blast damage 750 :1207, projectile_health 10 :1218, rack 6 :1226, rearm 10s/1 :1237-1239); heavy_torpedo_section :994 (editor-visible :1006, radius 450 m :1038, blast 2000 :1039, projectile_health 5000 :1048, rack 6 :1050, rearm 10s/1 :1051-1053, Breaker). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 350 m/s :68, no weave :72-73), breaker :95-108 (cruise 700 m/s :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). CargoB pods: ships/cargo_b.rs (health 350), torpedo kind and the _lance variants in ships/shared.rs. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs: torpedo_bay_prototype :1144 (health :1157, blast radius 300 m :1199, blast damage 750 :1207, projectile_health 10 :1218, rack 6 :1226, rearm 10s/1 :1237-1239); heavy_torpedo_section :994 (editor-visible :1006, radius 450 m :1038, blast 2000 :1039, projectile_health 5000 :1048, rack 6 :1050, rearm 10s/1 :1051-1053, Breaker). Torpedo types: sections/ordnance.rs lance :62-75 (cruise 350 m/s :68, no weave :72-73), breaker :95-108 (cruise 700 m/s :104); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). CargoB pods: webmods/the-ledger/ledger_sections.content.ron (health 350, with the _lance variants beside them). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-torpedo-bay.png</span></span></span><span class="catalog__title">Torpedo bay - shipped prototypes</span></div>
 <table>
 <thead>
@@ -153,3 +153,6 @@ The two normal bays share every number but the torpedo type. The experimental si
 </tbody>
 </table>
 </div>
+
+The craft rows are The Ledger's: a mod that brings modelled craft brings their part prototypes with it, and base references none of them.
+
