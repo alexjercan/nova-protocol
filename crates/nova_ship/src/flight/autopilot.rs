@@ -14,9 +14,9 @@ use nova_gameplay::prelude::*;
 
 use super::{
     guidance::{
-        arrival_eta, goto_desired_velocity, goto_flip_point, orbit_desired_velocity,
-        orbit_plane_normal, orbit_ring_offset, orbit_target_radius, ship_turn_rate, slew_rotation,
-        stop_rest_distance,
+        arrival_eta, goto_desired_velocity, goto_flip_point, orbit_band_floor,
+        orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
+        ship_turn_rate, slew_rotation, stop_rest_distance,
     },
     state::RcsReference,
     thrusters::{
@@ -66,6 +66,10 @@ pub(super) fn autopilot_system(
             // The per-ship translation-arrival override (scenario-authored;
             // ships without it fly the global standoff).
             Option<&FlightArrivalStandoff>,
+            // This hull's own outer reach, so the arrival parks the FACE at the
+            // margin rather than the origin. Absent (a hull with no live
+            // sections measured yet) reads as a point.
+            Option<&HullRadius>,
             // RCS terminal settle: the per-hull cap override and the intent the
             // autopilot writes to hand the last-meters brake to the torque-free
             // RCS primitive.
@@ -117,7 +121,17 @@ pub(super) fn autopilot_system(
     // it - in FixedUpdate, GlobalTransform is the previous frame's eased render
     // pose); the GlobalTransform fallback keeps static markers without a
     // physics body navigable.
-    q_target: Query<(Option<&Position>, &GlobalTransform, Option<&BodyRadius>)>,
+    //
+    // The size resolve takes the LARGEST size a target publishes - a solid
+    // body's BodyRadius, a hull's HullRadius, or the well radius read below -
+    // so it never grows a per-target-kind branch. An unsized mark stays a
+    // point, which is honest.
+    q_target: Query<(
+        Option<&Position>,
+        &GlobalTransform,
+        Option<&BodyRadius>,
+        Option<&HullRadius>,
+    )>,
     // ORBIT's well lookup: avian Position (the force system's frame), not
     // GlobalTransform, so the ring the computer flies is the ring gravity
     // pulls on. Without<SpaceshipRootMarker> is a design statement, not an
@@ -140,14 +154,17 @@ pub(super) fn autopilot_system(
         com,
         prev_telemetry,
         standoff_override,
+        hull_radius,
         rcs_cap_override,
         rcs_intent,
         rcs_reference,
     ) in &mut q_ship
     {
         let has_telemetry = prev_telemetry.is_some();
-        let arrival_standoff =
-            standoff_override.map_or(settings.arrival_standoff, |standoff| **standoff);
+        let arrival_standoff = resolved_arrival_standoff(standoff_override, &settings);
+        // The mover's half of the model. Every centre distance below is
+        // `target radius + this + margin`.
+        let mover_radius = hull_radius.map_or(0.0, |radius| **radius);
         // No flight computer, no autopilot - the ship is adrift on manual.
         let Some(turn_rate) = ship_turn_rate(
             q_computer
@@ -227,7 +244,7 @@ pub(super) fn autopilot_system(
                 q_target
                     .get(well_entity)
                     .ok()
-                    .and_then(|(_, _, r)| r.map(|r| **r))
+                    .and_then(|(_, _, r, _)| r.map(|r| **r))
                     .unwrap_or(0.0),
             );
             well
@@ -292,100 +309,107 @@ pub(super) fn autopilot_system(
                 .sum()
         };
 
-        // The arrival leg shared by GOTO and GotoPos: fly at the goal, come
-        // to rest at the standoff - measured from the target's SURFACE
-        // (`target_radius`, zero for unsized targets and GotoPos), so a big
-        // body is given its size instead of being treated as a point.
-        // Published distances are surface-relative too.
-        let arrival_desired = |goal: Vec3, target_radius: f32| -> (Vec3, ManeuverTelemetry) {
-            let standoff = arrival_standoff + target_radius.max(0.0);
-            let to_target = goal - position.0;
-            let distance = to_target.length();
-            // Zero only if the ship sits exactly on the goal center; the
-            // else branch below has distance > standoff > 0, so there the
-            // fallback never engages.
-            let closing_dir = to_target.normalize_or_zero();
-            let closing_speed = velocity.dot(closing_dir);
-            // Where the leg rests: the standoff boundary on the closing
-            // line. Capped at the ship's own distance so at or inside the
-            // envelope it degenerates to the ship position - the computer
-            // stops there, it never flies back out to the boundary.
-            let park_point = goal - closing_dir * standoff.min(distance);
-            if distance <= standoff {
-                (
-                    Vec3::ZERO,
-                    ManeuverTelemetry {
-                        goal,
-                        goal_entity: None,
-                        park_point,
-                        distance: (distance - target_radius.max(0.0)).max(0.0),
-                        closing_speed,
-                        brake_accel: 0.0,
-                        flip_point: None,
-                        seconds_to_flip: None,
-                        eta: None,
-                    },
-                )
-            } else {
-                let brake_dir = -closing_dir;
-                let brake_speed = velocity.length().max(settings.min_approach_speed);
-                let (accel, lead) = braking_plan(brake_dir, brake_speed);
-                let gravity = gravity_along(goal - closing_dir * standoff, closing_dir);
-                // The published deceleration is the effective one, so any
-                // instrument reading it sees the plan the computer actually
-                // flies (the field is currently write-only in the HUD).
-                // Zero means the pull exceeds the brake authority: no
-                // stopping plan (flip/eta are None and the desired velocity
-                // is zero - brake flat out).
-                let brake_accel = (accel * settings.decel_margin - gravity).max(0.0);
-                if brake_accel <= 0.0 && prev_telemetry.is_none_or(|t| t.brake_accel > 0.0) {
-                    // Once per degradation entry, not per tick: the
-                    // previous published plan still had brake authority.
-                    debug!(
-                        "autopilot_system: well pull {gravity} exceeds brake authority \
+        // The arrival leg shared by GOTO and GotoPos. ONE model:
+        //
+        //     centre distance = target radius + mover radius + margin
+        //
+        // so a big body is given its size, this hull is given its own, and the
+        // margin is the GAP between the two surfaces - which is what makes an
+        // authored zero mean "face on the mark" rather than "origin on the
+        // mark". `floor` raises that centre distance for a well-bearing target
+        // to the ORBIT band's own floor, so the ring the handoff plans is the
+        // ring the leg already parked on. Published distances are the gap.
+        let arrival_desired =
+            |goal: Vec3, target_radius: f32, floor: f32| -> (Vec3, ManeuverTelemetry) {
+                let radii = target_radius.max(0.0) + mover_radius;
+                let standoff = (radii + arrival_standoff).max(floor);
+                let to_target = goal - position.0;
+                let distance = to_target.length();
+                // Zero only if the ship sits exactly on the goal center; the
+                // else branch below has distance > standoff > 0, so there the
+                // fallback never engages.
+                let closing_dir = to_target.normalize_or_zero();
+                let closing_speed = velocity.dot(closing_dir);
+                // Where the leg rests: the standoff boundary on the closing
+                // line. Capped at the ship's own distance so at or inside the
+                // envelope it degenerates to the ship position - the computer
+                // stops there, it never flies back out to the boundary.
+                let park_point = goal - closing_dir * standoff.min(distance);
+                if distance <= standoff {
+                    (
+                        Vec3::ZERO,
+                        ManeuverTelemetry {
+                            goal,
+                            goal_entity: None,
+                            park_point,
+                            distance: (distance - radii).max(0.0),
+                            closing_speed,
+                            brake_accel: 0.0,
+                            flip_point: None,
+                            seconds_to_flip: None,
+                            eta: None,
+                        },
+                    )
+                } else {
+                    let brake_dir = -closing_dir;
+                    let brake_speed = velocity.length().max(settings.min_approach_speed);
+                    let (accel, lead) = braking_plan(brake_dir, brake_speed);
+                    let gravity = gravity_along(goal - closing_dir * standoff, closing_dir);
+                    // The published deceleration is the effective one, so any
+                    // instrument reading it sees the plan the computer actually
+                    // flies (the field is currently write-only in the HUD).
+                    // Zero means the pull exceeds the brake authority: no
+                    // stopping plan (flip/eta are None and the desired velocity
+                    // is zero - brake flat out).
+                    let brake_accel = (accel * settings.decel_margin - gravity).max(0.0);
+                    if brake_accel <= 0.0 && prev_telemetry.is_none_or(|t| t.brake_accel > 0.0) {
+                        // Once per degradation entry, not per tick: the
+                        // previous published plan still had brake authority.
+                        debug!(
+                            "autopilot_system: well pull {gravity} exceeds brake authority \
                          on the arrival leg of {ship:?}; no stopping plan"
-                    );
-                }
-                let flip = goto_flip_point(
-                    distance,
-                    closing_speed,
-                    accel * settings.decel_margin,
-                    lead,
-                    standoff,
-                    gravity,
-                );
-                let eta = arrival_eta(
-                    distance,
-                    closing_speed,
-                    accel * settings.decel_margin,
-                    lead,
-                    standoff,
-                    gravity,
-                );
-                (
-                    goto_desired_velocity(
-                        to_target,
-                        standoff,
-                        accel,
-                        settings.decel_margin,
-                        lead,
-                        settings.min_approach_speed,
-                        gravity,
-                    ),
-                    ManeuverTelemetry {
-                        goal,
-                        goal_entity: None,
-                        park_point,
-                        distance: (distance - target_radius.max(0.0)).max(0.0),
+                        );
+                    }
+                    let flip = goto_flip_point(
+                        distance,
                         closing_speed,
-                        brake_accel,
-                        flip_point: flip.map(|(from_goal, _)| goal - closing_dir * from_goal),
-                        seconds_to_flip: flip.map(|(_, seconds)| seconds),
-                        eta,
-                    },
-                )
-            }
-        };
+                        accel * settings.decel_margin,
+                        lead,
+                        standoff,
+                        gravity,
+                    );
+                    let eta = arrival_eta(
+                        distance,
+                        closing_speed,
+                        accel * settings.decel_margin,
+                        lead,
+                        standoff,
+                        gravity,
+                    );
+                    (
+                        goto_desired_velocity(
+                            to_target,
+                            standoff,
+                            accel,
+                            settings.decel_margin,
+                            lead,
+                            settings.min_approach_speed,
+                            gravity,
+                        ),
+                        ManeuverTelemetry {
+                            goal,
+                            goal_entity: None,
+                            park_point,
+                            distance: (distance - radii).max(0.0),
+                            closing_speed,
+                            brake_accel,
+                            flip_point: flip.map(|(from_goal, _)| goal - closing_dir * from_goal),
+                            seconds_to_flip: flip.map(|(_, seconds)| seconds),
+                            eta,
+                        },
+                    )
+                }
+            };
 
         // The goal, as a desired velocity right now. GOTO and STOP legs
         // also publish their live numbers as [`ManeuverTelemetry`] for the
@@ -455,41 +479,56 @@ pub(super) fn autopilot_system(
                 Vec3::ZERO
             }
             AutopilotAction::Goto { target } => {
-                let Ok((target_position, target_transform, body_radius)) = q_target.get(target)
+                let Ok((target_position, target_transform, body_radius, target_hull)) =
+                    q_target.get(target)
                 else {
                     debug!("autopilot_system: GOTO target {target:?} is gone, disengaging");
                     commands.entity(ship).remove::<Autopilot>();
                     continue;
                 };
-                // The target's size, from whichever source it carries:
-                // the authored BodyRadius and/or the well's body_radius.
-                // Max is conservative if they ever disagree; unsized
-                // targets stay at zero (center-relative, unchanged).
-                let target_radius = body_radius.map_or(0.0, |r| **r).max(
-                    q_wells
-                        .get(target)
-                        .map_or(0.0, |(_, well)| well.body_radius),
-                );
+                // The LARGEST size the target publishes: a solid body's
+                // BodyRadius, a hull's own HullRadius, the well's physics
+                // body_radius. Max is conservative if two ever disagree;
+                // a target that publishes none is a point.
+                let target_radius = body_radius
+                    .map_or(0.0, |r| **r)
+                    .max(target_hull.map_or(0.0, |r| **r))
+                    .max(
+                        q_wells
+                            .get(target)
+                            .map_or(0.0, |(_, well)| well.body_radius),
+                    );
+                // A well-bearing target parks no closer than the ring ORBIT
+                // would accept, so the handoff below never has to burn the
+                // ship back outward to reach a legal ring.
+                let floor = q_wells.get(target).map_or(0.0, |(_, well)| {
+                    orbit_band_floor(&band_well(target, well), &gravity_settings, &settings)
+                });
                 let goal_position = target_position
                     .map(|p| p.0)
                     .unwrap_or_else(|| target_transform.translation());
-                let (desired, mut numbers) = arrival_desired(goal_position, target_radius);
+                let (desired, mut numbers) = arrival_desired(goal_position, target_radius, floor);
                 // Arrived means INSIDE the park envelope, not merely
                 // "wants zero velocity": the degraded no-stopping-plan
                 // state also zeroes the desired velocity arbitrarily far
                 // out, and a done-at-apex there must release (as it
                 // always did), never park into an orbit whose ring
                 // correction assumes it starts near the ring. The
-                // published distance is surface-relative, so the
-                // envelope test is against the bare standoff.
-                goto_arrived = numbers.distance <= arrival_standoff;
+                // published distance is the hull-to-surface gap, so the
+                // envelope is that gap at rest: the margin, or more where
+                // the band floor pushed the leg out.
+                let park_gap = (target_radius + mover_radius + arrival_standoff).max(floor)
+                    - target_radius
+                    - mover_radius;
+                goto_arrived = numbers.distance <= park_gap;
                 numbers.goal_entity = Some(target);
                 telemetry = Some(numbers);
                 desired
             }
             AutopilotAction::GotoPos { position } => {
-                // A bare position has no size: center-relative, as before.
-                let (desired, numbers) = arrival_desired(position, 0.0);
+                // A mark has no size, and no well to floor against: the leg
+                // rests one margin off this hull's own face.
+                let (desired, numbers) = arrival_desired(position, 0.0, 0.0);
                 telemetry = Some(numbers);
                 desired
             }
@@ -716,12 +755,15 @@ pub(super) fn autopilot_system(
             // handing back a ship that immediately starts falling: the one-key
             // parking flow becomes zero-key when the computer was already told
             // where to go. engage() resets the phase. The ring is planned HERE,
-            // from the leg's intent - the park point, standoff above the
-            // (geometric) surface - never from wherever terminal creep dragged
-            // the ship: a plan-from-current-radius could ring at the band
-            // bottom, and the insertion from a crept position has been seen to
-            // graze the rock. max with the current radius so a ship that
-            // settled slightly outside the park point is not corrected inward.
+            // from the leg's intent - the SAME centre distance the arrival flew,
+            // resolved margin and this hull's own radius included - never from
+            // wherever terminal creep dragged the ship: a plan-from-current-
+            // radius could ring at the band bottom, and the insertion from a
+            // crept position has been seen to graze the rock. max with the
+            // current radius so a ship that settled slightly outside the park
+            // point is not corrected inward. Because the arrival already floors
+            // itself at the band floor, this cannot burn the ship outward to a
+            // ring it was never told to fly.
             // Breakout semantics (any flight input, Z) are ORBIT's own,
             // unchanged. Everything else - GotoPos, well-less targets, STOP, a
             // bandless well - releases as before.
@@ -730,7 +772,7 @@ pub(super) fn autopilot_system(
                     if let Ok((well_position, well_data)) = q_wells.get(target) {
                         let well = band_well(target, well_data);
                         let r_vec = position.0 - well_position.0;
-                        let park = well.body_radius + settings.arrival_standoff;
+                        let park = well.body_radius + mover_radius + arrival_standoff;
                         if let Some(radius) = orbit_target_radius(
                             park.max(r_vec.length()),
                             &well,

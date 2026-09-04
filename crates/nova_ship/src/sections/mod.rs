@@ -14,6 +14,7 @@ pub mod damage_effects;
 pub mod damage_plume;
 pub mod damage_sparks;
 pub mod fixture;
+pub mod hull_radius;
 pub mod hull_section;
 pub mod integrity;
 pub mod link_points;
@@ -37,12 +38,13 @@ pub mod prelude {
         ammo::prelude::*, base_section::prelude::*, catalog_ids::prelude::*, clearance::prelude::*,
         controller_section::prelude::*, damage_cracks::prelude::*, damage_effects::prelude::*,
         damage_plume::prelude::*, damage_sparks::prelude::*, fixture::prelude::*,
-        hull_section::prelude::*, integrity::prelude::*, link_points::prelude::*,
-        live_structure_anchor, placeholder_art::prelude::*, railgun_section::prelude::*,
-        section_animation::prelude::*, shell_shape::prelude::*, shell_skin::prelude::*,
-        skin_decor::prelude::*, skin_reading::prelude::*, skin_report::prelude::*,
-        skin_style::prelude::*, thruster_section::prelude::*, torpedo_section::prelude::*,
-        turret_section::prelude::*, SpaceshipSectionPlugin, SpaceshipSectionSystems,
+        hull_radius::prelude::*, hull_section::prelude::*, integrity::prelude::*,
+        link_points::prelude::*, live_structure_anchor, placeholder_art::prelude::*,
+        railgun_section::prelude::*, section_animation::prelude::*, shell_shape::prelude::*,
+        shell_skin::prelude::*, skin_decor::prelude::*, skin_reading::prelude::*,
+        skin_report::prelude::*, skin_style::prelude::*, thruster_section::prelude::*,
+        torpedo_section::prelude::*, turret_section::prelude::*, SpaceshipSectionPlugin,
+        SpaceshipSectionSystems,
     };
 }
 
@@ -219,6 +221,17 @@ impl Plugin for SpaceshipSectionPlugin {
 
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
+        app.register_type::<hull_radius::prelude::HullRadius>();
+        // The hull's own size, derived once per tick for every reader: the
+        // attitude stack (SyncStack) turns it into the structural turn
+        // ceiling, and the flight layer - pinned after SyncStack - adds it to
+        // the arrival. Both must see THIS tick's hull, so the pass runs ahead
+        // of the earlier of the two.
+        app.add_systems(
+            FixedUpdate,
+            hull_radius::publish_hull_radius
+                .before(controller_section::prelude::ControllerSectionSystems::SyncStack),
+        );
         app.add_plugins(integrity::ShipIntegrityPlugin);
         // The authored-animation rig and driver. Unconditional, not
         // render-gated: the components must exist headless (a server loads

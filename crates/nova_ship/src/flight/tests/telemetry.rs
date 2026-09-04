@@ -70,8 +70,10 @@ fn goto_publishes_telemetry_and_disengaging_clears_it() {
         "flip is short of the goal"
     );
     assert!(telemetry.eta.expect("eta while closing") > 0.0);
-    // The park point sits exactly one standoff short of the goal on
-    // the closing line (GotoPos has no target radius).
+    // The park point sits exactly one margin short of the goal on the
+    // closing line: GotoPos contributes no target radius, and the rig's
+    // sections carry no `SectionMarker`, so this hull publishes no
+    // `HullRadius` either - both halves of the model are zero here.
     let standoff = app.world().resource::<FlightSettings>().arrival_standoff;
     assert!(
         (telemetry.park_point.distance(goal) - standoff).abs() < 1e-3,

@@ -644,16 +644,24 @@ MoveShipTo((
 | `order` | string | required | the key this order's completion is reported under; an empty key is a lint Error |
 | `ship` | string | required | scoped `None`- or AI-controller ship root; a dangling or player-driven id is a lint Error |
 | `position` | meters `(x, y, z)` | required | the mark to fly to, in world coordinates |
-| `arrival_standoff` | `Option` meters | `None` | how far short of the mark to come to rest |
+| `arrival_standoff` | `Option` meters | `None` | the margin to leave between the ship's own hull and the mark; `Some(0.0)` parks the hull's face on it |
 
 Completes when the ship's autopilot lets go - it is inside the standoff and
 settled - and fires
 [`OnShipOrderComplete`](../events/#onshipordercomplete) with `kind: Move`.
 
 `arrival_standoff` exists because the default 500 m is far too coarse to
-stage a shot with. It is installed for the life of the order and taken back
-off when the order retires, so a cinematic's tight staging does not silently
-retune every later GOTO the hull flies. `None` uses the ship's own standoff.
+stage a shot with. It is a MARGIN, not a centre distance: the ship comes to
+rest with that much clear water between its own hull and the mark, so a
+warship and a shuttle sent to the same mark both stop where you staged them.
+It is installed for the life of the order and taken back off when the order
+retires - on completion as well as on a cancel or an interruption - so a
+cinematic's tight staging does not silently retune every later GOTO the hull
+flies. `None` uses the ship's own standoff.
+
+A margin is a PARKING rule, not a route guarantee. The leg flies a straight
+line and nothing is dodged on the way in; stage the approach yourself if
+something is in it.
 
 </details>
 

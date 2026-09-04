@@ -276,10 +276,12 @@ mod tests {
         world
     }
 
-    /// A 50 world unit (500 m) standoff on the ship->goal line (the ship sits
-    /// at the origin), the same shape the autopilot publishes.
+    /// The default navigation margin on the ship->goal line (the ship sits at
+    /// the origin), the same shape the autopilot publishes. Read from
+    /// [`FlightSettings`] rather than copied: a hand-typed number here would
+    /// silently stop matching the dial the ribbon actually draws.
     fn park_point(goal: Vec3) -> Vec3 {
-        goal - goal.normalize_or_zero() * 50.0
+        goal - goal.normalize_or_zero() * FlightSettings::default().arrival_standoff
     }
 
     fn telemetry(goal: Vec3, flip: Option<Vec3>) -> ManeuverTelemetry {

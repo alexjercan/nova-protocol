@@ -572,11 +572,13 @@ fn check_action(
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
             check_object_prototypes(config, scenario, sections, ships, issues);
+            check_spawned_arrival_standoff(config, scenario, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
             // The template is a full object config too - a scattered ship with
             // a bad prototype is the same bug one wrapper deeper.
             check_object_prototypes(&config.template, scenario, sections, ships, issues);
+            check_spawned_arrival_standoff(&config.template, scenario, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
             // the field the author wrote - say so before it ships.
             if config.count > MAX_SCATTER_COUNT {
@@ -740,18 +742,12 @@ fn check_action(
                 issues,
             );
             check_order_key(&config.order, "MoveShipTo", scenario, issues);
-            if let Some(standoff) = config.arrival_standoff {
-                if !standoff.0.is_finite() || standoff.0 < 0.0 {
-                    issues.push(LintIssue::error(
-                        scenario,
-                        format!(
-                            "MoveShipTo '{}' arrival_standoff must be a non-negative finite \
-                             number of meters, got {}",
-                            config.order, standoff.0
-                        ),
-                    ));
-                }
-            }
+            check_arrival_standoff(
+                config.arrival_standoff,
+                &format!("MoveShipTo '{}'", config.order),
+                scenario,
+                issues,
+            );
         }
         EventActionConfig::ForceAlign(config) => {
             check_orderable_ship(
@@ -1128,6 +1124,54 @@ fn check_order_key(order: &str, what: &str, scenario: &str, issues: &mut Vec<Lin
             format!("{what} has an empty order key (nothing could wait for its completion)"),
         ));
     }
+}
+
+/// An authored arrival standoff must be a distance the autopilot can fly to.
+///
+/// Zero is legal - it means the hull's own face on the mark - so only negative
+/// and non-finite values are rejected. Unsafe-but-flyable values are the
+/// creator's to choose: a margin is a parking rule, never an obstacle
+/// guarantee, and clamping one would quietly move a mark the author staged.
+fn check_arrival_standoff(
+    standoff: Option<nova_events::prelude::Meters>,
+    what: &str,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let Some(standoff) = standoff else {
+        return;
+    };
+    if !standoff.0.is_finite() || standoff.0 < 0.0 {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "{what} arrival_standoff must be a non-negative finite number of meters, \
+                 got {}",
+                standoff.0
+            ),
+        ));
+    }
+}
+
+/// The same check on the spawn side: an AI ship authors the identical field,
+/// and it went unlinted while the order path was covered.
+fn check_spawned_arrival_standoff(
+    config: &ScenarioObjectConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let ScenarioObjectKind::Spaceship(ship) = &config.kind else {
+        return;
+    };
+    let SpaceshipController::AI(ai) = &ship.controller else {
+        return;
+    };
+    check_arrival_standoff(
+        ai.arrival_standoff,
+        &format!("ship '{}'", config.base.id),
+        scenario,
+        issues,
+    );
 }
 
 /// A section-addressed weapon action must name a section the ship carries, of
@@ -1771,6 +1815,73 @@ mod tests {
                     ship: "warship".to_string(),
                     section: "bay".to_string(),
                     target: "warship".to_string(),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+    }
+
+    /// Both authored margins are the same field with the same rule, so both
+    /// are linted the same way: negative and non-finite are errors, zero is
+    /// legal. The AI one used to be silently unchecked - and its guard used to
+    /// throw a zero away instead.
+    #[test]
+    fn a_negative_arrival_standoff_is_an_error_on_either_authored_path() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship(
+                    "picket",
+                    SpaceshipController::AI(AIControllerConfig {
+                        arrival_standoff: Some(Meters(-10.0)),
+                        ..default()
+                    }),
+                ),
+                spawn_armed_ship("warship", SpaceshipController::None),
+                EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+                    order: "approach".to_string(),
+                    ship: "warship".to_string(),
+                    position: Meters3::new(0.0, 0.0, -1_200.0),
+                    arrival_standoff: Some(Meters(f32::NAN)),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        assert!(
+            errs.iter()
+                .any(|issue| issue.message.contains("ship 'picket' arrival_standoff")),
+            "the AI spawn field is linted: {issues:?}"
+        );
+        assert!(
+            errs.iter().any(|issue| issue
+                .message
+                .contains("MoveShipTo 'approach' arrival_standoff")),
+            "and the order field still is: {issues:?}"
+        );
+    }
+
+    /// Zero is a legal margin - the hull's own face on the mark - so it must
+    /// not be linted as if it were missing or wrong.
+    #[test]
+    fn a_zero_arrival_standoff_is_clean_on_either_authored_path() {
+        let s = scenario(
+            vec![
+                spawn_armed_ship(
+                    "picket",
+                    SpaceshipController::AI(AIControllerConfig {
+                        arrival_standoff: Some(Meters::ZERO),
+                        ..default()
+                    }),
+                ),
+                spawn_armed_ship("warship", SpaceshipController::None),
+                EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+                    order: "approach".to_string(),
+                    ship: "warship".to_string(),
+                    position: Meters3::new(0.0, 0.0, -1_200.0),
+                    arrival_standoff: Some(Meters::ZERO),
                 }),
             ],
             vec![],

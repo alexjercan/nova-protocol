@@ -10,6 +10,7 @@
 //! (10 m), a speed a world unit per second and an acceleration a world unit
 //! per second squared.
 
+mod arrival;
 mod control;
 mod goto;
 mod manual;

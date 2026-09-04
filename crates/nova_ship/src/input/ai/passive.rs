@@ -25,11 +25,11 @@ const AI_WAYPOINT_SLACK: f32 = 25.0;
 /// patrol adds on top of the autopilot's arrival standoff before calling a
 /// waypoint reached. Small = the ship presses in close to each mark and the
 /// loop reads deliberate (a nav drill hugging its beacons); the default 250 m
-/// keeps combat patrols flowing. The autopilot still brakes toward rest at
-/// `FlightSettings::arrival_standoff` from the mark, so slack below ~20 m risks
-/// asymptoting outside the advance gate - author small, not zero. Authored in
-/// meters via `AIControllerConfig::waypoint_slack`; this component holds the
-/// world units the patrol compares against.
+/// keeps combat patrols flowing. The autopilot still brakes toward rest one
+/// resolved margin off this hull's own face, and the gate counts both, so
+/// slack below ~20 m risks asymptoting outside it - author small, not zero.
+/// Authored in meters via `AIControllerConfig::waypoint_slack`; this component
+/// holds the world units the patrol compares against.
 #[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct AIWaypointSlack(pub f32);
@@ -179,6 +179,7 @@ pub(super) fn update_passive_flight(
             Option<&AIAvoidanceDetour>,
             Option<&AIWaypointSlack>,
             Option<&FlightArrivalStandoff>,
+            Option<&HullRadius>,
         ),
         // A ship under a scenario helm order does not fly its own routine:
         // the order owns the helm until it is interrupted or reaches a
@@ -191,24 +192,44 @@ pub(super) fn update_passive_flight(
         ),
     >,
     q_wells: Query<(Entity, &EntityId), With<GravityWell>>,
-    q_obstacles: Query<(&Transform, &BodyRadius), Without<AISpaceshipMarker>>,
+    // A nav beacon publishes a BodyRadius so a GOTO can park off its face, but
+    // it is a mark to fly TO, not a rock to fly around: its volume stops
+    // nothing, and a route whose waypoints ARE its beacons (the menu's weave
+    // drill) would be pushed off every mark it exists to reach.
+    q_obstacles: Query<
+        (&Transform, &BodyRadius),
+        (Without<AISpaceshipMarker>, Without<BeaconMarker>),
+    >,
 ) {
-    // Sized bodies (asteroids, planetoids - anything with a derived
-    // geometric BodyRadius) are what patrol legs steer around. Collected
-    // once; the field does not change per ship.
+    // Sized SOLID bodies (asteroids, planetoids) are what patrol legs steer
+    // around. Collected once; the field does not change per ship.
     let obstacles: Vec<(Vec3, f32)> = q_obstacles
         .iter()
         .map(|(transform, radius)| (transform.translation, **radius))
         .collect();
-    for (ship, transform, velocity, state, route, orbit, autopilot, detour, slack, standoff) in
-        &mut q_spaceship
+    for (
+        ship,
+        transform,
+        velocity,
+        state,
+        route,
+        orbit,
+        autopilot,
+        detour,
+        slack,
+        standoff,
+        hull_radius,
+    ) in &mut q_spaceship
     {
         let has_autopilot = autopilot.is_some();
         let waypoint_slack = slack.map_or(AI_WAYPOINT_SLACK, |slack| slack.0);
-        // The gate mirrors the autopilot's own arrival rule, per-ship
-        // override included: a ship authored to park closer must not have
-        // its patrol turn early on the global standoff.
-        let arrival_standoff = standoff.map_or(settings.arrival_standoff, |standoff| **standoff);
+        // The gate mirrors the autopilot's own arrival rule, per-ship override
+        // and hull size included: the leg comes to rest one resolved margin off
+        // this hull's own face, so a gate that counted only the margin would
+        // sit INSIDE the rest point on a big hull with tight slack and the
+        // route would never turn.
+        let rest_radius =
+            resolved_arrival_standoff(standoff, &settings) + hull_radius.map_or(0.0, |r| **r);
         match *state {
             AIBehaviorState::Patrol => {
                 // Patrol without a route cannot happen through the
@@ -224,7 +245,7 @@ pub(super) fn update_passive_flight(
                 // ship's position, not on autopilot completion, so a ship
                 // shoved onto its waypoint (or re-entering Patrol on top of
                 // one) advances too.
-                let arrive_radius = arrival_standoff + waypoint_slack;
+                let arrive_radius = rest_radius + waypoint_slack;
                 let position = transform.translation;
                 let mut detour = detour.map(|detour| detour.0);
                 if position.distance(waypoint) <= arrive_radius {
@@ -531,6 +552,125 @@ mod avoidance_tests {
                 "slack {slack:?}: expected first-leg-held {expect_first_leg_held}"
             );
         }
+    }
+
+    /// The gate is the autopilot's own rest point, so it has to count the
+    /// same things: a big hull comes to rest a hull-radius further out than a
+    /// point would, and a gate blind to that sits INSIDE the rest point - the
+    /// ship parks, the route never turns, and the patrol stalls forever.
+    #[test]
+    fn the_patrol_gate_counts_the_hull_it_is_flying() {
+        for (hull, expect_first_leg_held) in [(None, true), (Some(10.0), false)] {
+            let mut world = World::new();
+            world.init_resource::<FlightSettings>();
+            world.init_resource::<Time>();
+            // 80 u out: past the default 50 + 25 gate, inside 50 + 10 + 25.
+            let first = Vec3::new(0.0, 0.0, -80.0);
+            let ship = world
+                .spawn((
+                    AISpaceshipMarker,
+                    AIBehaviorState::Patrol,
+                    AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
+                    Transform::default(),
+                    LinearVelocity(Vec3::ZERO),
+                ))
+                .id();
+            if let Some(hull) = hull {
+                world.entity_mut(ship).insert(HullRadius(hull));
+            }
+
+            run_passive(&mut world);
+
+            let current = world
+                .entity(ship)
+                .get::<AIPatrolRoute>()
+                .unwrap()
+                .current_waypoint()
+                .unwrap();
+            assert_eq!(
+                current == first,
+                expect_first_leg_held,
+                "hull {hull:?}: expected first-leg-held {expect_first_leg_held}"
+            );
+        }
+    }
+
+    /// The third site that resolves the margin. A ship authored to park wide
+    /// turns its route wide; one authored to park close presses in. The gate
+    /// and the arrival must not disagree about the same ship's stated intent.
+    #[test]
+    fn the_patrol_gate_reads_the_ships_own_margin() {
+        for (margin, expect_first_leg_held) in [(None, true), (Some(60.0), false)] {
+            let mut world = World::new();
+            world.init_resource::<FlightSettings>();
+            world.init_resource::<Time>();
+            let first = Vec3::new(0.0, 0.0, -80.0);
+            let ship = world
+                .spawn((
+                    AISpaceshipMarker,
+                    AIBehaviorState::Patrol,
+                    AIPatrolRoute::new(vec![first, Vec3::new(0.0, 0.0, 200.0)]),
+                    Transform::default(),
+                    LinearVelocity(Vec3::ZERO),
+                ))
+                .id();
+            if let Some(margin) = margin {
+                world.entity_mut(ship).insert(FlightArrivalStandoff(margin));
+            }
+
+            run_passive(&mut world);
+
+            let current = world
+                .entity(ship)
+                .get::<AIPatrolRoute>()
+                .unwrap()
+                .current_waypoint()
+                .unwrap();
+            assert_eq!(
+                current == first,
+                expect_first_leg_held,
+                "margin {margin:?}: expected first-leg-held {expect_first_leg_held}"
+            );
+        }
+    }
+
+    /// A beacon publishes a radius so a GOTO can park off its orb - it must
+    /// not become a rock the route rounds. The menu's weave drill flies its
+    /// beacons AS waypoints, so an avoiding patrol would be pushed off every
+    /// mark it exists to reach.
+    #[test]
+    fn a_nav_beacon_is_a_mark_to_fly_to_not_a_rock_to_fly_around() {
+        let mut world = World::new();
+        world.init_resource::<FlightSettings>();
+        world.init_resource::<Time>();
+        // Squarely on the leg, and big enough that a rock this size would
+        // block it (see `a_blocked_leg_flies_a_detour_corner`).
+        world.spawn((
+            BeaconMarker,
+            Transform::from_translation(Vec3::new(10.0, 0.0, -200.0)),
+            BodyRadius(50.0),
+        ));
+        let ship = world
+            .spawn((
+                AISpaceshipMarker,
+                AIBehaviorState::Patrol,
+                AIPatrolRoute::new(vec![W1, W2]),
+                Transform::default(),
+                LinearVelocity(Vec3::ZERO),
+            ))
+            .id();
+
+        run_passive(&mut world);
+
+        assert!(
+            world.entity(ship).get::<AIAvoidanceDetour>().is_none(),
+            "a beacon does not block a leg"
+        );
+        assert_eq!(
+            world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
+            Some(AutopilotAction::GotoPos { position: W1 }),
+            "the route leg is flown straight at the mark"
+        );
     }
 
     #[test]

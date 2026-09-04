@@ -7,6 +7,7 @@ use nova_gameplay::{prelude::*, test_support::settle};
 
 use super::support::*;
 use crate::prelude::*;
+
 #[test]
 fn goto_arrives_at_standoff_and_disengages() {
     let mut app = flight_app();
@@ -282,9 +283,10 @@ fn goto_standoff_is_surface_relative_for_sized_targets() {
 fn handoff_ring_clears_the_geometric_radius() {
     // A well whose real collider (BodyRadius 70) reaches far past its
     // nominal physics radius (40): the parking handoff must ring at
-    // the GEOMETRIC park radius (70 + 50 = 120), not clamp the crept
-    // position against a band floored on the nominal sphere - that
-    // ring could sit inside the actual rock.
+    // the GEOMETRIC park radius (70 + 0 + 50 = 120 - target radius,
+    // this point-mass rig hull, margin), not clamp the crept position
+    // against a band floored on the nominal sphere - that ring could
+    // sit inside the actual rock.
     let mut app = orbit_app();
     let gravity = GravitySettings::default();
     let well = app

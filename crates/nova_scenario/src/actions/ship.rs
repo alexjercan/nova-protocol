@@ -211,8 +211,10 @@ pub struct MoveShipToActionConfig {
     pub ship: String,
     /// The mark to fly to, world coordinates in meters.
     pub position: Meters3,
-    /// How far short of the mark to come to rest. `None` flies the ship's own
-    /// standoff (the global 500 m unless the spawn overrode it).
+    /// The navigation MARGIN to leave between the ship's own hull and the
+    /// mark. `None` flies the ship's own standoff (the global 500 m unless the
+    /// spawn overrode it); `Some(0)` parks the hull's face on the mark, the
+    /// same meaning the field has on an AI spawn.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -1389,6 +1391,42 @@ mod tests {
         );
         assert!(world.get::<ScriptedRailgunOrder>(railgun).is_none());
         assert!(world.get::<ScriptedTorpedoOrder>(bay).is_none());
+    }
+
+    /// A staged zero survives the meters seam as a zero. It is the one
+    /// authored margin whose meaning a guard could quietly change, and it now
+    /// means the same thing here as it does on an AI spawn: the hull's own
+    /// face on the mark.
+    #[test]
+    fn a_zero_arrival_standoff_reaches_the_directive_as_zero() {
+        let ScriptedFixture {
+            mut world, warship, ..
+        } = a_scripted_ship_and_a_bystander();
+
+        run(
+            &mut world,
+            &MoveShipToActionConfig {
+                order: "dock".to_string(),
+                ship: "warship".to_string(),
+                position: Meters3::new(0.0, 0.0, 1000.0),
+                arrival_standoff: Some(Meters::ZERO),
+            },
+        );
+
+        let order = world
+            .get::<ShipHelmOrder>(warship)
+            .expect("the move is installed");
+        assert!(
+            matches!(
+                order.directive,
+                ShipOrderDirective::Move {
+                    arrival_standoff: Some(standoff),
+                    ..
+                } if standoff == 0.0
+            ),
+            "got {:?}",
+            order.directive
+        );
     }
 
     /// An AI ship TAKES a helm order - that is the whole point of the shared

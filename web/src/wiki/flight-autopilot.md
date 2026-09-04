@@ -31,12 +31,12 @@ Nothing about handling is authored; it falls out of the hull you built. A sectio
 
 The autopilot verbs are the assist. Each writes to the _same_ actuators you use - the controller's rotation command and the thrusters' throttle - so you watch the hull physically swing and the plume light up; there are no invisible forces. Any manual input (a thruster key, a burn, a rotation, or CANCEL) disengages it instantly and hands you back a ship that is already moving.
 
-- **GOTO** - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest at a standoff (about 500 m plus the target's radius, measured from the surface, kept outside a torpedo's blast radius). It tracks a drifting target.
+- **GOTO** - burns toward your current nav lock, flips at the arrival curve, and decelerates to rest a standoff off the target's SURFACE (about 500 m, kept outside a torpedo's blast radius). The gap is measured from your own hull, not from its centre, so a hauler and a shuttle both stop the same distance clear - and it counts whatever size the target publishes: a rock's geometry, a planetoid's body, a beacon's orb, another ship's hull. A bare position has no size, so the leg simply parks your hull face 500 m off the mark. It tracks a drifting target.
 - **ORBIT** - circularizes and station-keeps around the dominant [gravity well](../gravity-wells/), holding a stable ring at orbital speed (`v = sqrt(mu / r)`) with micro-burns. It never self-completes - it holds until you break away.
 - **STOP** - flips to retrograde and burns until you are at rest, budgeting for the local gravity pull along your velocity.
 
 <div class="widget" data-widget="goto-verb">
-<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
+<p>One GOTO leg by the numbers: the drive burns out while the arrival envelope allows, swings retrograde one flip early (the envelope budgets the coast the flip costs), brakes at 85% of what the drive can do down to a 15 m/s approach floor, and eases the last stretch onto the 500 m standoff with the fine RCS jets. The scope flies the shipped corvette, so the resolved distance counts its hull as well as the body's. A longer leg just means a higher peak speed - the flip always lands the braking ramp on the standoff.</p>
 </div>
 
 <details class="explain">

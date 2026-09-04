@@ -9,18 +9,24 @@
 //! that field in meters, because meters is what a creator reads in the file.
 
 use bevy::prelude::*;
-use nova_events::prelude::{MetersPerSecond, MetersPerSecondSquared};
+use nova_events::prelude::{Meters, MetersPerSecond, MetersPerSecondSquared};
 
-/// The geometric radius of a scenario object, world units: the surface the GOTO
-/// arrival standoff measures from and the orbit band's clearance floor clears
-/// (the "stops too close" playtest). Derived from the actual generated collider
-/// where one exists (asteroids: the noise-displaced mesh's outermost vertex,
-/// which can reach well past the nominal designation radius) rather than
-/// authored by hand. Unsized targets fall back to zero (center-relative, the
-/// pre-existing behavior, fine for ships and debris). Well bodies are also
-/// covered by [`GravityWell::body_radius`](nova_gameplay::gravity::GravityWell) (the
+/// The geometric radius of a SOLID scenario body, world units: the surface the
+/// GOTO arrival measures from, the orbit band's clearance floor clears (the
+/// "stops too close" playtest), and the AI's patrol legs steer around. Derived
+/// from the actual generated collider where one exists (asteroids: the
+/// noise-displaced mesh's outermost vertex, which can reach well past the
+/// nominal designation radius) rather than authored by hand. Well bodies are
+/// also covered by
+/// [`GravityWell::body_radius`](nova_gameplay::gravity::GravityWell) (the
 /// nominal physics radius); the arrival and the band take the larger of the two
 /// when both exist.
+///
+/// A ship's own extent is [`HullRadius`](crate::prelude::HullRadius) instead -
+/// it is derived from live sections and shrinks as they die, and a hull is not
+/// something patrol legs detour around. The arrival resolve takes the largest
+/// size the target publishes, whichever component carries it, so it never grows
+/// a per-target-kind branch.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct BodyRadius(pub f32);
@@ -47,17 +53,36 @@ pub struct FlightIntent {
 pub struct FlightSpeedCap(pub f32);
 
 /// Per-ship override (world units) of [`FlightSettings::arrival_standoff`]
-/// for translation legs, on the ship root: how far from a GOTO/GotoPos goal
-/// this ship's computer comes to rest. A scenario authors it in meters and the
-/// loader crosses the seam, for ships that must visibly REACH their marks (a
-/// nav drill parking on its beacons) instead of stopping the default 500 m
-/// short. Narrow like the speed cap: only the
-/// GOTO/GotoPos arrival rule reads it - the ORBIT park and every global
-/// tuning stay on [`FlightSettings`] - and ships without the component keep
-/// the default.
+/// for translation legs, on the ship root: the navigation MARGIN this ship's
+/// computer leaves between its own hull and whatever it parks at. A scenario
+/// authors it in meters and the loader crosses the seam, for ships that must
+/// visibly REACH their marks (a nav drill parking on its beacons) instead of
+/// stopping the default 500 m short. `Some(0)` is legal and means the hull's
+/// outer face on the mark.
+///
+/// One dial, read once through [`resolved_arrival_standoff`]: the GOTO/GotoPos
+/// arrival, the ORBIT park a GOTO hands off to, and the AI patrol's advance
+/// gate all resolve it the same way, so a ship authored to park close is never
+/// burned back out to a ring nobody asked for. Ships without the component keep
+/// the global default.
 #[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 #[reflect(Component)]
 pub struct FlightArrivalStandoff(pub f32);
+
+/// The navigation margin `ship` flies, world units: its own
+/// [`FlightArrivalStandoff`] when it carries one, the global
+/// [`FlightSettings::arrival_standoff`] otherwise.
+///
+/// The ONE place the precedence lives. Every site that needs the margin - the
+/// arrival, the ORBIT park, the patrol advance gate - calls this instead of
+/// reading the setting directly, which is what keeps the three from disagreeing
+/// about the same ship's stated intent.
+pub fn resolved_arrival_standoff(
+    per_ship: Option<&FlightArrivalStandoff>,
+    settings: &FlightSettings,
+) -> f32 {
+    per_ship.map_or(settings.arrival_standoff, |standoff| **standoff)
+}
 
 /// The pilot's (or autopilot's) RCS fine-adjustment command, on the ship root:
 /// a desired translation direction in the ship's LOCAL frame, each component
@@ -133,16 +158,17 @@ impl Autopilot {
 pub enum AutopilotAction {
     /// Kill all velocity: flip retrograde and burn to rest.
     Stop,
-    /// Fly to `target` and come to rest at [`FlightSettings::arrival_standoff`]
-    /// from it. Replans toward the target's current position every tick, so a
-    /// drifting target is tracked; there is no collision avoidance.
+    /// Fly to `target` and come to rest one resolved margin off its surface -
+    /// centre distance is the target's radius plus this hull's plus the margin.
+    /// Replans toward the target's current position every tick, so a drifting
+    /// target is tracked; there is no collision avoidance.
     Goto {
         /// The destination entity (the aim-assist lock at engage time).
         target: Entity,
     },
-    /// Fly to a fixed world position and come to rest at
-    /// [`FlightSettings::arrival_standoff`] from it - the same arrival rule as
-    /// `Goto`, just without an entity to track. The AI patrol loop flies its
+    /// Fly to a fixed world position and come to rest one resolved margin off
+    /// this hull's own face - the same arrival rule as `Goto`, minus a target
+    /// radius, because a mark has no size. The AI patrol loop flies its
     /// waypoints with this; the player input layer never engages it.
     GotoPos {
         /// The destination, world coordinates.
@@ -194,19 +220,22 @@ pub struct ManeuverTelemetry {
     /// caption off its marker.
     pub goal_entity: Option<Entity>,
     /// Where the leg comes to rest, world coordinates: `goal` pulled back along
-    /// the closing line by the effective standoff
-    /// ([`FlightSettings::arrival_standoff`] plus the resolved target radius).
-    /// At or inside the park envelope it degenerates to the ship's own
-    /// position - the computer will not fly back out, and the instruments must
-    /// not draw a leg it will not fly. Equals `goal` for STOP (the predicted
-    /// rest point IS the park point). The trajectory ribbon terminates here,
-    /// not at the goal center.
+    /// the closing line by the whole centre distance (the resolved target
+    /// radius, plus this hull's own [`HullRadius`](crate::prelude::HullRadius),
+    /// plus the resolved navigation margin). At or inside the park envelope it
+    /// degenerates to the ship's own position - the computer will not fly back
+    /// out, and the instruments must not draw a leg it will not fly. Equals
+    /// `goal` for STOP (the predicted rest point IS the park point). The
+    /// trajectory ribbon terminates here, not at the goal center.
     pub park_point: Vec3,
-    /// Distance to the goal SURFACE, world units: the center distance minus the
-    /// target's resolved radius ([`BodyRadius`] / `GravityWell::body_radius`,
-    /// zero for unsized targets and GotoPos), so the readout never says "50"
-    /// while hovering over a mountain. Clamped at zero - at or inside the
-    /// surface reads 0, never a negative number on the chip.
+    /// The GAP, world units: centre distance less the target's resolved radius
+    /// ([`BodyRadius`] / `GravityWell::body_radius` /
+    /// [`HullRadius`](crate::prelude::HullRadius), zero for unsized targets and
+    /// GotoPos) and less this hull's own radius. Hull face to target surface,
+    /// so the readout never says "50" while hovering over a mountain and a
+    /// parked leg reads its authored margin whatever the two hulls measure.
+    /// Clamped at zero - at or inside contact reads 0, never a negative number
+    /// on the chip.
     pub distance: f32,
     /// Speed along the line to the goal, u/s (negative = opening).
     pub closing_speed: f32,
@@ -271,8 +300,12 @@ pub struct FlightSettings {
     /// Below 1.0 it brakes early, absorbing spool lag and PD settling instead
     /// of overshooting the goal.
     pub decel_margin: f32,
-    /// GOTO arrives at rest this far from the target, world units (500 m).
-    /// Kept outside the torpedo's authored 300 m blast radius on purpose.
+    /// The default navigation MARGIN a translation leg comes to rest with,
+    /// world units: the gap between the mover's hull and the target's surface,
+    /// not a centre distance. Kept outside the torpedo's authored 300 m blast
+    /// radius on purpose. Overridable per ship with [`FlightArrivalStandoff`];
+    /// resolve it through [`resolved_arrival_standoff`], never by reading this
+    /// field at an arrival site.
     pub arrival_standoff: f32,
     /// The autopilot only burns when the nose is at least this aligned with
     /// the burn direction (cosine) - same discipline as the AI.
@@ -364,7 +397,8 @@ impl Default for FlightSettings {
             spool_up_rate: 6.0,
             spool_down_rate: 10.0,
             decel_margin: 0.85,
-            arrival_standoff: 50.0,
+            // Convert player-facing SI values at the flight-physics boundary.
+            arrival_standoff: Meters(500.0).to_engine(),
             align_cos: 0.95,
             stop_speed_epsilon: 0.2,
             min_approach_speed: 1.5,

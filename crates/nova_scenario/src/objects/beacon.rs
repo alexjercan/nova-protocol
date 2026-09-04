@@ -78,6 +78,12 @@ pub fn beacon_scenario_object(config: BeaconConfig) -> impl Bundle {
             radius: config.radius.to_engine(),
             color: config.color,
         },
+        // The beacon's own size, so a GOTO parks off the orb's face instead of
+        // treating a 20 m marker as a point. Engine boundary: the arrival rule
+        // compares this against an avian position every tick. Intangible all
+        // the same - the AI's patrol avoidance skips beacons, because a nav
+        // mark is something to fly TO.
+        BodyRadius(config.radius.to_engine()),
         BeaconAreaRadius(config.area_radius.map(Meters::to_engine)),
         // A nav point holds its position: on rails like a well source.
         // Lockability is
@@ -279,6 +285,27 @@ mod tests {
         // No authored area -> no trigger role.
         assert!(world.get::<ScenarioAreaMarker>(entity).is_none());
         assert!(world.get::<Sensor>(entity).is_none());
+    }
+
+    /// A beacon publishes its own size, so a GOTO parks off the ORB rather
+    /// than treating a 20 m marker as a point. It is still intangible: the
+    /// radius is geometry for the arrival to read, not a collider and not an
+    /// obstacle the AI rounds.
+    #[test]
+    fn a_beacon_publishes_the_orb_it_draws() {
+        let mut world = World::new();
+        let entity = world.spawn(beacon_scenario_object(config(None))).id();
+        world.flush();
+
+        assert_eq!(
+            world.get::<BodyRadius>(entity).map(|r| **r),
+            Some(Meters(20.0).to_engine()),
+            "20 m of orb is 2 world units"
+        );
+        assert!(
+            world.get::<Collider>(entity).is_none(),
+            "and it stops nothing - the ship flies through its own markers"
+        );
     }
 
     /// With an authored area radius the beacon doubles as its own trigger

@@ -259,9 +259,11 @@ pub(super) const WARSHIP_FIRING_POS: Meters3 = Meters3::new(3_700.0, 150.0, -2_2
 /// whose mesh reaches three kilometres, and a `MoveShipTo` has no avoidance of
 /// its own: the warship flew into the planetoid and died on the way out.
 pub(super) const WARSHIP_EXIT_POS: Meters3 = Meters3::new(12_000.0, 2_000.0, 1_000.0);
-/// How close the two approach legs park. The default 500 m is fine for
-/// gameplay and far too loose for staging: both marks are chosen for their
-/// sight lines.
+/// How close the two approach legs park: the margin between the warship's own
+/// hull and the mark. The default 500 m is fine for gameplay and far too loose
+/// for staging - both marks are chosen for their sight lines. This hull is
+/// 119 m from its centre of mass to its outer face, so 200 m of margin puts
+/// its centre 319 m off the mark.
 pub(super) const WARSHIP_APPROACH_STANDOFF: Meters = Meters(200.0);
 /// How square the bore must be on the carrier before the guns are allowed to
 /// speak. Two degrees at 6.6 km is a 230 m error - inside a hull this size.

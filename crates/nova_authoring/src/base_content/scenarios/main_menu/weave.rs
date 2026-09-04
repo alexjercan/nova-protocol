@@ -76,11 +76,12 @@ pub(crate) fn menu_weave(
             allegiance: None,
             controller: SpaceshipController::AI(AIControllerConfig {
                 patrol: WEAVE_LOOP.to_vec(),
-                // Press in close to each mark: the DEFAULTS turn 750 m out
-                // (500 m autopilot standoff + 250 m slack) - most of an 870 m
-                // leg. Standoff 100 m parks the computer nearly on the beacon
-                // and slack 50 m turns at ~150 m, so the runner visibly
-                // REACHES each mark before rolling onto the next.
+                // Press in close to each mark: the DEFAULTS turn 792 m out
+                // (500 m margin + 250 m slack + the cutter's own 42 m hull) -
+                // most of an 870 m leg. A 100 m margin parks the cutter's
+                // FACE that far off the beacon - 142 m centre to mark - and
+                // 50 m of slack turns at 192 m, so the runner visibly REACHES
+                // each mark before rolling onto the next.
                 waypoint_slack: Some(Meters(50.0)),
                 arrival_standoff: Some(Meters(100.0)),
                 ..Default::default()

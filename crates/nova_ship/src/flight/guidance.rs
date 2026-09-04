@@ -212,11 +212,27 @@ pub(super) fn orbit_plane_normal(r_vec: Vec3, velocity: Vec3, ship_up: Vec3) -> 
     Vec3::Y
 }
 
+/// The closest ring ORBIT will ever plan around `well`: `orbit_clearance_factor
+/// * (body_radius + surface_margin)`, room to breathe over the surface clamp.
+///
+/// Shared with the GOTO arrival, which floors its own park distance here. The
+/// two used to be independent safe distances that crossed at a body radius the
+/// campaign's own planetoid straddles: below the crossing GOTO parked outside
+/// the ring, above it GOTO parked inside a ring ORBIT calls unsafe and the
+/// handoff shoved the ship back out. One floor, one model, no shove. Pure for
+/// unit testing.
+pub(super) fn orbit_band_floor(
+    well: &GravityWell,
+    gravity: &GravitySettings,
+    settings: &FlightSettings,
+) -> f32 {
+    settings.orbit_clearance_factor.max(1.0) * (well.body_radius + gravity.surface_margin)
+}
+
 /// The ORBIT plan's target ring radius: the current radius, clamped into the
-/// stable band of the well - no closer than `orbit_clearance_factor *
-/// (body_radius + surface_margin)` (room to breathe over the surface clamp), no
-/// farther than `orbit_band_safety * fade_start` (orbits are only trusted in
-/// the unfaded core). `None` when the well has no stable band at all (clearance
+/// stable band of the well - no closer than [`orbit_band_floor`], no farther
+/// than `orbit_band_safety * fade_start` (orbits are only trusted in the
+/// unfaded core). `None` when the well has no stable band at all (clearance
 /// past the trusted core) - such a well is unorbitable and the verb refuses to
 /// plan. Pure for unit testing.
 pub(super) fn orbit_target_radius(
@@ -225,8 +241,7 @@ pub(super) fn orbit_target_radius(
     gravity: &GravitySettings,
     settings: &FlightSettings,
 ) -> Option<f32> {
-    let min =
-        settings.orbit_clearance_factor.max(1.0) * (well.body_radius + gravity.surface_margin);
+    let min = orbit_band_floor(well, gravity, settings);
     let fade_start = well.soi_radius * (1.0 - gravity.fade_fraction.clamp(0.0, 1.0));
     let max = settings.orbit_band_safety.clamp(0.0, 1.0) * fade_start;
     // No stable band (the clearance already sits past the trusted core):

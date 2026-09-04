@@ -98,16 +98,18 @@ const COMBAT_DECAY_SECS = 30; // contacts.rs:24
 // `FlightSettings` is engine tuning and every length and speed on it is still
 // WORLD UNITS - the doc comments on the fields say so - so the GOTO scope
 // models in world units and converts only where it prints.
-const ARRIVAL_STANDOFF = 50; // state.rs:367 (world units)
-const DECEL_MARGIN = 0.85; // state.rs:366
-const MIN_APPROACH_SPEED = 1.5; // state.rs:370 (world units/s)
-const ARRIVAL_SPOOL_PAD = 0.5; // state.rs:377
-const STOP_SPEED_EPSILON = 0.2; // state.rs:369 (world units/s)
-const TURN_RATE_SCALE = 0.9; // state.rs:374
-const TURN_RATE_MIN_DEG = 10; // state.rs:375
-const TURN_RATE_MAX_DEG = 240; // state.rs:376
-const RCS_ACCEL = 1.5; // state.rs:399 (world units/s^2)
-const RCS_SPEED_CAP = 2.0; // state.rs:396 (world units/s)
+// Cited by FIELD, not by line: the file moves and a stale line number reads
+// like a checked fact.
+const ARRIVAL_STANDOFF = 50; // FlightSettings::arrival_standoff (world units)
+const DECEL_MARGIN = 0.85; // FlightSettings::decel_margin
+const MIN_APPROACH_SPEED = 1.5; // FlightSettings::min_approach_speed (u/s)
+const ARRIVAL_SPOOL_PAD = 0.5; // FlightSettings::arrival_spool_pad
+const STOP_SPEED_EPSILON = 0.2; // FlightSettings::stop_speed_epsilon (u/s)
+const TURN_RATE_SCALE = 0.9; // FlightSettings::turn_rate_scale
+const TURN_RATE_MIN_DEG = 10; // FlightSettings::turn_rate_min_deg
+const TURN_RATE_MAX_DEG = 240; // FlightSettings::turn_rate_max_deg
+const RCS_ACCEL = 1.5; // FlightSettings::rcs_accel (world units/s^2)
+const RCS_SPEED_CAP = 2.0; // FlightSettings::rcs_speed_cap (world units/s)
 
 // ---- units -----------------------------------------------------------------
 //
@@ -776,7 +778,11 @@ export function gotoSim(
     peakV: number;
     duration: number;
 } {
-    const standoff = ARRIVAL_STANDOFF + Math.max(targetRadius, 0); // autopilot.rs:296
+    // The whole arrival model: target radius + mover radius + margin. The
+    // corvette this scope flies contributes its own structural arm, so the
+    // leg parks its HULL FACE one margin off the target's surface.
+    const standoff =
+        ARRIVAL_STANDOFF + Math.max(targetRadius, 0) + CORVETTE_ARM_U;
     const park = targetDistance - standoff;
     const turnRate = hullTurnRate(structuralCeiling(CORVETTE_ARM_U));
     const lead = Math.PI / turnRate + ARRIVAL_SPOOL_PAD; // autopilot.rs:209
@@ -4452,7 +4458,7 @@ function initGotoVerb(host: HTMLElement): void {
         etaStat.textContent = `${sim.duration.toFixed(1)} s`;
         standoffStat.textContent =
             `${engineMeters(sim.standoff)} off the center ` +
-            `(${engineMeters(ARRIVAL_STANDOFF)} + the body)`;
+            `(${engineMeters(ARRIVAL_STANDOFF)} + the body + this hull)`;
     };
 
     const PHASE_LABEL: Record<GotoSample["phase"], string> = {

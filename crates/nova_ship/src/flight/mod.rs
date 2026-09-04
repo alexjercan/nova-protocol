@@ -68,9 +68,9 @@ pub use self::{
         ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
     },
     state::{
-        Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, FlightArrivalStandoff,
-        FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry, OrbitPlan, RcsActive,
-        RcsIntent, RcsReference, RcsSpeedCap,
+        resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
+        FlightArrivalStandoff, FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry,
+        OrbitPlan, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
 };
 
@@ -78,13 +78,13 @@ pub use self::{
 /// telemetry, and `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
-        cancel_ship_order, interrupt_ship_order, resume_ship_order, retire_ship_order_execution,
-        AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
-        FlightArrivalStandoff, FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry,
-        NovaFlightPlugin, NovaFlightSystems, OrbitPlan, RcsActive, RcsIntent, RcsSpeedCap,
-        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
-        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
-        ShipOrderReports, SuspendedArrivalStandoff,
+        cancel_ship_order, interrupt_ship_order, resolved_arrival_standoff, resume_ship_order,
+        retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
+        AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent, FlightSettings,
+        FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder,
+        ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome,
+        ShipOrderReport, ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
     };
 }
 

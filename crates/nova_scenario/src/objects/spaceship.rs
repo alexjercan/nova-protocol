@@ -198,10 +198,12 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub order_interruption: Option<AIOrderInterruption>,
-    /// Translation-arrival standoff override: how far from a GOTO goal this
-    /// ship's computer comes to rest, instead of the engine's 500 m default.
-    /// Author it small (with a small `waypoint_slack`) on a ship that must
-    /// visibly REACH its waypoints. None = the default. See
+    /// Translation-arrival standoff override: the navigation MARGIN this
+    /// ship's computer leaves between its own hull and a GOTO goal's surface,
+    /// instead of the engine's 500 m default. Author it small (with a small
+    /// `waypoint_slack`) on a ship that must visibly REACH its waypoints;
+    /// `Some(0.0)` parks the hull's face on the mark. `None` = the default, the
+    /// same meaning the field has on a `MoveShipTo`. See
     /// `FlightArrivalStandoff`.
     #[cfg_attr(
         feature = "serde",
@@ -667,12 +669,13 @@ fn insert_spaceship_sections(
                         .insert(AIWaypointSlack(slack.to_engine()));
                 }
             }
+            // NOT the guard shape above: zero is a meaningful margin here (the
+            // hull's face on the mark), and it means the same thing on a spawn
+            // as it does on a `MoveShipTo`. None inherits, Some(x) is used.
             if let Some(standoff) = config.arrival_standoff {
-                if standoff > Meters::ZERO {
-                    commands
-                        .entity(entity)
-                        .insert(FlightArrivalStandoff(standoff.to_engine()));
-                }
+                commands
+                    .entity(entity)
+                    .insert(FlightArrivalStandoff(standoff.to_engine()));
             }
         }
     }
@@ -799,8 +802,49 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
         assert!(
+            world
+                .entity(orbiter)
+                .get::<FlightArrivalStandoff>()
+                .is_none(),
+            "an unauthored margin inherits the global one, it does not pin it"
+        );
+        assert!(
             world.entity(orbiter).get::<AIOrderInterruption>().is_none(),
             "an unauthored policy is Never, which carries no component"
+        );
+    }
+
+    /// Zero is a margin, not an absence: it parks the hull's own face on the
+    /// mark. The spawn path used to drop it silently while the `MoveShipTo`
+    /// path honored it, so the same authored number meant two things.
+    #[test]
+    fn a_zero_arrival_standoff_is_authored_not_dropped() {
+        let mut world = World::new();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShips>();
+        world.add_observer(insert_spaceship_sections);
+
+        let ship = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig {
+                        arrival_standoff: Some(Meters::ZERO),
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+
+        assert_eq!(
+            world
+                .entity(ship)
+                .get::<FlightArrivalStandoff>()
+                .map(|s| **s),
+            Some(0.0),
+            "Some(0) is used, exactly as it is on a MoveShipTo"
         );
     }
 

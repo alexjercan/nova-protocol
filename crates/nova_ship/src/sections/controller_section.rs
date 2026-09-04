@@ -5,15 +5,15 @@
 //! into one hull-wide ceiling (see [`update_controller_stack_tuning`]).
 
 use avian3d::prelude::*;
-use bevy::{ecs::entity::EntityHashMap, platform::collections::HashSet, prelude::*};
+use bevy::{platform::collections::HashSet, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{
-    AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker, SectionMarker,
+    AssetRef, ControllerSectionMarker, SectionClass, SectionInactiveMarker,
 };
 
 use crate::prelude::{
-    structural_arm, AttitudeEnvelope, PDController, PDControllerInput, PDControllerOutput,
-    PDControllerSystems, PDControllerTarget, PlaceholderArt, RenderMeshTransform, SectionCollider,
+    AttitudeEnvelope, HullRadius, PDController, PDControllerInput, PDControllerOutput,
+    PDControllerSystems, PDControllerTarget, PlaceholderArt, RenderMeshTransform,
     SectionRenderMeshTransform, SectionRenderOf,
 };
 
@@ -355,43 +355,15 @@ fn stack_curve(n: f32, limit: f32) -> f32 {
     limit - (limit - 1.0) / n.max(1.0)
 }
 
-/// The mass properties and spin the attitude ceiling is derived from. Avian
-/// keeps the centre of mass in the body's local frame, which is the frame a
-/// section's `Transform` is already in.
+/// The hull state the attitude ceiling is derived from: the inertia the
+/// computers twist, the spin already spent, and the arm the metal tears at -
+/// published by `publish_hull_radius` ahead of this pass, so the arrival rule
+/// and the envelope size the same hull.
 type HullBody<'w> = (
-    &'w ComputedCenterOfMass,
     &'w ComputedAngularInertia,
     &'w AngularVelocity,
+    Option<&'w HullRadius>,
 );
-
-/// Live sections, as the arm needs them: where the section sits on the hull and
-/// how big its authored box is.
-type HullSection<'w> = (&'w Transform, Option<&'w SectionCollider>, &'w ChildOf);
-
-/// The structural arm of every hull with live sections, keyed by root.
-///
-/// ONE pass over every live section rather than one pass per hull: the arm
-/// needs each section's offset from its own root's centre of mass, and
-/// re-filtering the section query per hull is quadratic in a busy scene.
-fn hull_arms(
-    arms: &mut EntityHashMap<f32>,
-    q_root: &Query<HullBody>,
-    q_section: &Query<HullSection, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
-) {
-    arms.clear();
-    for (transform, collider, &ChildOf(root)) in q_section {
-        let Ok((center_of_mass, _, _)) = q_root.get(root) else {
-            continue;
-        };
-        let half_extents = collider.copied().unwrap_or_default().aabb_half_extents();
-        let arm = structural_arm(
-            center_of_mass.0,
-            [(transform.translation, transform.rotation, half_extents)],
-        );
-        let entry = arms.entry(root).or_insert(0.0);
-        *entry = entry.max(arm);
-    }
-}
 
 /// Fold every live controller on a hull into ONE attitude loop, split back
 /// across the sections that provide it.
@@ -424,12 +396,10 @@ fn hull_arms(
 /// the spin all move while the ship is flying and dying, so a hull that lost
 /// its nose turns sharper and a hull already in a hard turn has less left.
 pub(crate) fn update_controller_stack_tuning(
-    // Two buffers, reused: this runs on every fixed tick for every hull in the
-    // scene, so it must not allocate per ship per tick.
+    // Reused: this runs on every fixed tick for every hull in the scene, so it
+    // must not allocate per ship per tick.
     mut stacks: Local<Vec<(Entity, Entity, ControllerSectionTuning)>>,
-    mut arms: Local<EntityHashMap<f32>>,
     q_root: Query<HullBody>,
-    q_section: Query<HullSection, (With<SectionMarker>, Without<SectionInactiveMarker>)>,
     mut q_controller: Query<
         (
             Entity,
@@ -443,8 +413,6 @@ pub(crate) fn update_controller_stack_tuning(
         ),
     >,
 ) {
-    hull_arms(&mut arms, &q_root, &q_section);
-
     stacks.clear();
     for (entity, tuning, _, &ChildOf(root)) in &q_controller {
         stacks.push((root, entity, *tuning));
@@ -477,17 +445,17 @@ pub(crate) fn update_controller_stack_tuning(
         // ceilings come out infinite, which is the honest answer while the
         // colliders are still being linked and neither can be asked.
         let (inertia, arm, spin) = match q_root.get(root) {
-            Ok((_, angular_inertia, angular_velocity)) => (
+            Ok((angular_inertia, angular_velocity, hull_radius)) => (
                 angular_inertia
                     .principal_angular_inertia_with_local_frame()
                     .0
                     .max_element(),
-                arms.get(&root).copied().unwrap_or(0.0),
+                hull_radius.map_or(0.0, |radius| **radius),
                 angular_velocity.length(),
             ),
             Err(_) => (0.0, 0.0, 0.0),
         };
-        // Engine boundary: `structural_arm` measures the hull off its avian
+        // Engine boundary: `HullRadius` measures the hull off its avian
         // colliders, so the arm arrives in world units.
         let envelope = AttitudeEnvelope::new(total_torque, inertia, Meters::from_engine(arm));
         let budget = envelope.available(spin);
@@ -877,7 +845,10 @@ fn insert_controller_section_render(
 
 #[cfg(test)]
 mod tests {
+    use nova_gameplay::prelude::SectionMarker;
+
     use super::*;
+    use crate::prelude::SectionCollider;
 
     /// The precision curve's shape is the feature: a real ceiling, most of the
     /// gain on the second unit, and a tenth unit that is not worth mounting.
@@ -940,9 +911,18 @@ mod tests {
         );
     }
 
+    /// Production ordering: the hull's size is published first and the stack
+    /// pass reads it, exactly as `SpaceshipSectionPlugin` wires them.
     fn stack_app() -> App {
         let mut app = App::new();
-        app.add_systems(FixedUpdate, update_controller_stack_tuning);
+        app.add_systems(
+            FixedUpdate,
+            (
+                crate::sections::hull_radius::publish_hull_radius,
+                update_controller_stack_tuning,
+            )
+                .chain(),
+        );
         app
     }
 

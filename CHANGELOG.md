@@ -18,6 +18,17 @@ does NOT get an entry - and it is the only place they are written down.
 ### Gameplay & Flight
 - RCS reaches 100 m/s at a mass-independent 5 G with one acceleration budget;
   STOP below that speed brakes on RCS without turning the ship.
+- GOTO parks a margin off the target's SURFACE, measured from the ship's own
+  hull: a warship and a shuttle sent to one mark now stop the same distance
+  clear of it.
+- GOTO sizes every target it can. A beacon's orb and another ship's hull push
+  the park point out the way an asteroid's geometry already did; a bare
+  position still has no size.
+- A GOTO at a planetoid arrives on a ring ORBIT accepts, so the parking handoff
+  no longer burns the ship back outward to reach a legal orbit.
+- The ORBIT park and the AI patrol's advance gate read the ship's own arrival
+  standoff instead of the global one, so a hull authored to park close is
+  flown that way throughout.
 
 ### Combat & Weapons
 - A PDC out of combat sinks into a housed pit and two lids slide shut over it;
@@ -63,6 +74,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A menu duellist that leaves the arena forfeits: it goes neutral, and the
   survivor drops the chase and comes back to the middle of the shot instead of
   trading fire past the frame edge.
+- A COMPLETED helm order gives back the `arrival_standoff` it staged, as a
+  canceled or interrupted one already did, so tight staging cannot retune every
+  later GOTO the hull flies.
 
 ### Interface & HUD
 - A completed objective no longer ghosts green down the right of the screen.
@@ -114,6 +128,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** Content is authored in meters: a 300 m blast is
   `blast_radius: 300`. Every world distance and speed is x10. Build-grid
   geometry - colliders, links, mounts, part poses - stays in cells.
+- An AI ship's `arrival_standoff: Some(0.0)` is honored - its hull's face on
+  the mark - instead of being dropped, and is linted like the `MoveShipTo`
+  field it mirrors.
 - A section declares animation tracks on its base config: a cue, nodes by name
   prefix, a motion and travel times. Kind systems steer cues; tracks move art
   only, never colliders.

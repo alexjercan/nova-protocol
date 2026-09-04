@@ -657,6 +657,14 @@ fn engage_leg(
 }
 
 /// Report a completion and hand the helm back unless the directive is a hold.
+///
+/// The order's displaced arrival standoff comes back here as well as on a
+/// cancellation. An override that outlived its own order is the same bug either
+/// way: a cinematic's tight staging silently retuning every later GOTO the hull
+/// flies. What does NOT come back is the rest of the execution - a completed
+/// alignment is still holding its bearing and a completed orbit is still flying
+/// its ring, so tearing those down here would undo the thing that just
+/// succeeded.
 fn complete(
     commands: &mut Commands,
     ship: Entity,
@@ -670,9 +678,36 @@ fn complete(
     );
     reports.push(&order.key, order.kind(), ShipOrderOutcome::Complete);
     commands.entity(ship).insert(ShipOrderReported);
+    commands.queue(move |world: &mut World| {
+        if let Ok(mut entity) = world.get_entity_mut(ship) {
+            restore_arrival_standoff(&mut entity);
+        }
+    });
     if !order.directive.holds_after_completion() {
         commands.entity(ship).remove::<ShipOrderHelmAuthority>();
     }
+}
+
+/// Put back the [`FlightArrivalStandoff`] a scripted move displaced, and drop
+/// the record of it.
+///
+/// A no-op on a ship that never displaced one, so both the terminal path
+/// (completion) and the retirement path (cancel, interrupt) can call it
+/// unconditionally.
+fn restore_arrival_standoff(ship: &mut EntityWorldMut) {
+    let Some(SuspendedArrivalStandoff(previous)) = ship.get::<SuspendedArrivalStandoff>().copied()
+    else {
+        return;
+    };
+    match previous {
+        Some(standoff) => {
+            ship.insert(FlightArrivalStandoff(standoff));
+        }
+        None => {
+            ship.remove::<FlightArrivalStandoff>();
+        }
+    }
+    ship.remove::<SuspendedArrivalStandoff>();
 }
 
 /// Report a failure and hand the helm back.
@@ -707,19 +742,7 @@ pub fn retire_ship_order_execution(world: &mut World, ship: Entity) {
     let Ok(mut entity) = world.get_entity_mut(ship) else {
         return;
     };
-    if let Some(SuspendedArrivalStandoff(previous)) =
-        entity.get::<SuspendedArrivalStandoff>().copied()
-    {
-        match previous {
-            Some(standoff) => {
-                entity.insert(FlightArrivalStandoff(standoff));
-            }
-            None => {
-                entity.remove::<FlightArrivalStandoff>();
-            }
-        }
-        entity.remove::<SuspendedArrivalStandoff>();
-    }
+    restore_arrival_standoff(&mut entity);
     entity.remove::<(
         ShipOrderEngaged,
         ScriptedAlign,
@@ -952,12 +975,58 @@ mod tests {
                 .contains::<ShipOrderHelmAuthority>(),
             "a finished move hands the helm back"
         );
+        assert!(
+            !app.world().entity(ship).contains::<FlightArrivalStandoff>(),
+            "and the staging standoff with it - an override must not outlive \
+             the order that installed it"
+        );
+        assert!(
+            !app.world()
+                .entity(ship)
+                .contains::<SuspendedArrivalStandoff>(),
+            "the record of what was displaced goes too"
+        );
 
         app.update();
         assert_eq!(
             outcomes(&app, ship),
             vec![ShipOrderOutcome::Complete],
             "and does not report a second time"
+        );
+    }
+
+    /// A ship that AUTHORED its own margin gets that margin back, not the
+    /// engine default: the order borrows the dial for its own staging and the
+    /// completion hands it back, exactly as a cancellation already did.
+    #[test]
+    fn a_completed_move_gives_the_ships_own_standoff_back() {
+        let mut app = order_app();
+        let ship = ordered_ship(
+            &mut app,
+            ShipOrderDirective::Move {
+                position: Vec3::new(0.0, 0.0, -100.0),
+                arrival_standoff: Some(4.0),
+            },
+        );
+        // The nav-drill tuning the ship flies when nobody is ordering it.
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(FlightArrivalStandoff(12.0));
+
+        app.update();
+        assert_eq!(
+            app.world().get::<FlightArrivalStandoff>(ship).map(|s| **s),
+            Some(4.0),
+            "the order stages its own margin over the ship's"
+        );
+
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        app.update();
+        assert_eq!(outcomes(&app, ship), vec![ShipOrderOutcome::Complete]);
+        assert_eq!(
+            app.world().get::<FlightArrivalStandoff>(ship).map(|s| **s),
+            Some(12.0),
+            "and completion returns the ship's own"
         );
     }
 
