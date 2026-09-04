@@ -60,8 +60,9 @@ does NOT get an entry - and it is the only place they are written down.
 ### Scenarios & Objectives
 - First Shift keeps control suspended from the warship reveal through teardown.
   Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
-- First Shift waits for physical STOP and GOTO completion, frames all four RCS
-  marks before flight resumes, and keeps Cutter's manual limit at 150 m/s.
+- First Shift waits for physical STOP and GOTO completion. Its experienced crew
+  uses four framed RCS marks to check a replaced manifold before entering the
+  rocks, while Cutter keeps its 150 m/s manual limit.
 - First Shift salvage crates collect only at visible contact: their pickup
   radius shrank from 80 m to the 15 m crate envelope.
 - **(breaking)** The campaign is two new chapters, First Shift and Second

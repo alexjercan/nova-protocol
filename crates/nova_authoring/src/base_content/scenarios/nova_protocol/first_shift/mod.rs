@@ -261,6 +261,13 @@ const OPEN_NORMAL_GAP: f64 = 4.0;
 const OPEN_SHORT_GAP: f64 = 2.0;
 const OPEN_REPLY_GAP: f64 = 3.0;
 
+/// The RCS acceptance briefing alternates terse crew replies with enough room
+/// for the maintenance history and route instructions to land.
+const TRIM_FIRST_AT: f64 = 1.5;
+const TRIM_SHORT_GAP: f64 = 2.5;
+const TRIM_NORMAL_GAP: f64 = 4.0;
+const TRIM_LONG_GAP: f64 = 5.5;
+
 /// The crew's lines during the hold, from the moment the ring goes stable.
 const ORBIT_TALK_FIRST_AT: f64 = 3.0;
 const ORBIT_TALK_GAP: f64 = 4.5;
@@ -297,6 +304,8 @@ const SALVO_AFTERMATH_AT: f64 = 4.0;
 // --- keys --------------------------------------------------------------------
 
 const SEQ_OPENING: &str = "opening";
+const SEQ_TRIM_BRIEFING: &str = "trim_briefing";
+const SEQ_TRIM_COMPLETE: &str = "trim_complete";
 const SEQ_ORBIT_TALK: &str = "orbit_talk";
 const SEQ_PLUME: &str = "plume";
 const SEQ_EMERGING: &str = "emerging";
@@ -675,20 +684,32 @@ pub(crate) fn first_shift(
                     clear_hint_emphasis("STOP"),
                     suspend_player_control(),
                     film(ID_CUTTER, CINEMA_TRIM_OFFSET, point(TRIM_ROUTE_CENTRE)),
-                    story_message(COPILOT, story::TRIM_COPILOT_TEACH),
                 ]
                 .into_iter()
                 .chain(TRIM_ROUTE.map(TempMark::spawn))
-                .chain([beat_setup(
-                    BEAT_TRIM_LATERAL,
-                    INSTRUCTION_GAP,
+                .chain([sequence(
+                    SEQ_TRIM_BRIEFING,
                     vec![
-                        grant(FlightVerb::Rcs),
-                        release_camera(),
-                        resume_player_control(),
-                        post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
-                        show_hint_emphasis("RCS"),
-                        TRIM_LATERAL.highlight(),
+                        open_line(TRIM_FIRST_AT, ENGINEER, story::TRIM_ENGINEER_WHAT_TEST),
+                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_MAINTENANCE),
+                        open_line(TRIM_LONG_GAP, ENGINEER, story::TRIM_ENGINEER_DOUBT),
+                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_PROSPECTOR),
+                        open_line(TRIM_NORMAL_GAP, ENGINEER, story::TRIM_ENGINEER_NEWS),
+                        open_line(TRIM_NORMAL_GAP, COPILOT, story::TRIM_COPILOT_RECORDER),
+                        open_line(TRIM_LONG_GAP, ENGINEER, story::TRIM_ENGINEER_RUN_IT),
+                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_BOX),
+                        step(
+                            TRIM_LONG_GAP,
+                            vec![
+                                grant(FlightVerb::Rcs),
+                                release_camera(),
+                                resume_player_control(),
+                                post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
+                                story_message(COPILOT, story::TRIM_COPILOT_FIRST_MARK),
+                                show_hint_emphasis("RCS"),
+                                TRIM_LATERAL.highlight(),
+                            ],
+                        ),
                     ],
                 )])
                 .collect(),
@@ -792,14 +813,19 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_CRATE_FIRST)),
                     complete_objective(OBJ_TRIM_RETURN_VERTICAL),
-                    story_message(DECK_CHIEF, story::CRATE_CHIEF_FIRST),
+                    story_message(COPILOT, story::TRIM_COPILOT_CLEAN),
                 ]
                 .into_iter()
                 .chain(TRIM_RETURN_VERTICAL.clear())
-                .chain([beat_setup(
-                    BEAT_CRATE_FIRST,
-                    INSTRUCTION_GAP,
-                    reveal_crate(1, OBJ_CRATE_FIRST, story::OBJ_TEXT_CRATE_FIRST),
+                .chain([sequence(
+                    SEQ_TRIM_COMPLETE,
+                    vec![
+                        open_line(TRIM_NORMAL_GAP, DECK_CHIEF, story::CRATE_CHIEF_FIRST),
+                        step(
+                            INSTRUCTION_GAP,
+                            reveal_crate(1, OBJ_CRATE_FIRST, story::OBJ_TEXT_CRATE_FIRST),
+                        ),
+                    ],
                 )])
                 .collect(),
             },

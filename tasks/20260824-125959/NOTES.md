@@ -149,9 +149,10 @@ An experienced crew should not fly four arbitrary training beacons. The route
 works better as a post-maintenance handling check before Cutter One enters the
 tight plate.
 
-Recommended setup:
+Accepted setup:
 
-- Cutter One has just come off maintenance or had an RCS manifold replaced.
+- Cutter One has just completed scheduled maintenance in which its port RCS
+  manifold was replaced.
 - Automated diagnostics prove that valves and controllers answer. They do not
   prove the cutter's real translation under its current mass, thrust balance,
   and human helm input.
@@ -169,25 +170,14 @@ Recommended setup:
   third recovery is poorly characterized. The check is due to the ship's
   maintenance state, not the crew's inexperience.
 
-Possible exchange after reaching the work mark:
+The copilot's caution comes from Prospector Six, a cutter operated by another
+company. Its computer reported green before a port manifold locked open in the
+belt. News first blamed pilot error; the recovered flight recorder contradicted
+that account. Nobody aboard survived. This is background industrial history,
+not a mystery tied to First Shift's third recovery.
 
-**COPILOT**
-
-"Main drive idle. Before the plate, we close the handling card. Yard changed
-the port manifold."
-
-**ENGINEER**
-
-"Diagnostics passed."
-
-**COPILOT**
-
-"Diagnostics do not have to fly between rocks."
-
-**COPILOT**
-
-"Four trim marks. Right, up, left, down. Short pulses. If she tracks clean, we
-go to work."
-
-The objective and control dock teach the actual input. The crew dialogue
-explains why the maneuver matters.
+The scene 2 conversation is now production dialogue. It starts ambiguously with
+the copilot asking for a full stop and a handling check, reveals the scheduled
+repair and Prospector Six during the wide four-mark shot, and returns control
+with explicit Shift-plus-mouse guidance. The objective and control dock teach
+the input; the crew explains why the maneuver matters.

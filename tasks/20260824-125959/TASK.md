@@ -915,3 +915,23 @@ Proof: all 19 focused First Shift tests pass and generated content lint reports
 0 errors, 0 warnings and 0 findings. A rendered 1280x720 review at 10, 25 and 43
 seconds keeps Cutter One, Meridian and up to three dialogue cards readable
 through the full conversation.
+
+### 2026-09-04: First Shift dialogue pass, scene 2
+
+Recast the four-mark RCS lesson as Cutter One's live acceptance check after a
+scheduled port-manifold replacement. The engineer challenges the copilot's
+caution; the answer is Prospector Six, another company's cutter whose green
+computer report preceded a locked-open manifold and the cutter's loss in the
+belt. The flight recorder cleared its dead crew after news blamed pilot error.
+
+The safe wide shot now holds a paced eight-line conversation before returning
+camera and helm authority. Each mark gets a longer response that reports what
+the crew observes and directs the next leg. Objectives explicitly name Shift
+and mouse movement, while the first flight bark connects the violet velocity
+marker to RCS. Returning to the origin proves no residual drift before Meridian
+closes the handling card and releases the first manifested recovery.
+
+Proof: all 19 focused First Shift tests pass; generated content lint reports 0
+errors, 0 warnings and 0 findings; web CI passes. A rendered 1280x720 review at
+10, 22, 33 and 39 seconds keeps the full trim box visible throughout the
+conversation and returns to a readable objective, active mark and flight bark.

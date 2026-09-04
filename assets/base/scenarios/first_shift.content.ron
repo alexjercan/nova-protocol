@@ -1800,7 +1800,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Mark made. Take the way off her - press [X] and let STOP bring us to rest.",
+                        text: "Good. This is as clear a spot as we\'re going to get. Bring us to a full stop first. I want to clear the handling card.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "work_mark",
@@ -1816,7 +1816,7 @@
                                 actions: [
                                     Objective((
                                         id: "stop",
-                                        message: "Press [X] and let STOP bring Cutter to rest.",
+                                        message: "Press [X] and let STOP bring Cutter One to rest.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "STOP",
@@ -1864,10 +1864,6 @@
                             190.0,
                             900.0,
                         )),
-                    )),
-                    StoryMessage((
-                        speaker: "Copilot",
-                        text: "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the ball on the tape goes violet while you are on them. Short taps - she keeps whatever you give her.",
                     )),
                     SpawnScenarioObject((
                         base: (
@@ -1982,10 +1978,82 @@
                         )),
                     )),
                     Sequence((
-                        key: "beat_2",
+                        key: "trim_briefing",
                         steps: [
                             (
+                                after: Some(1.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "What test are you running this time?",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Yard replaced the port RCS manifold during scheduled maintenance. Computer says everything is green.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "And you don\'t believe it.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "So did Prospector Six before they lost her in the belt.",
+                                    )),
+                                ],
+                            ),
+                            (
                                 after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Different company. News said pilot error.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "The flight recorder didn\'t. Port manifold locked open. Nobody aboard survived.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "All right. Run your box.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Four marks. Out to A, up to B, across to C, then back down to D. Bring us home without any drift and I\'ll clear the card.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.5),
                                 actions: [
                                     SetControllerVerb((
                                         id: "cutter",
@@ -1996,7 +2064,11 @@
                                     ResumePlayerControl(()),
                                     Objective((
                                         id: "trim_lateral",
-                                        message: "Thruster across to TRIM A - hold [SHIFT].",
+                                        message: "Hold [SHIFT], move the mouse, and translate across to TRIM A.",
+                                    )),
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Let\'s move toward A. When the velocity marker turns violet, we\'re running on RCS.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "RCS",
@@ -2034,7 +2106,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Good. Same again, straight up this time.",
+                        text: "Good response and no roll. Take us up to B. Let\'s see if the new manifold fights the vertical bank.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_lateral",
@@ -2050,7 +2122,7 @@
                                 actions: [
                                     Objective((
                                         id: "trim_vertical",
-                                        message: "Thruster up to TRIM B.",
+                                        message: "Hold [SHIFT] and move the mouse up toward TRIM B.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_vertical",
@@ -2085,7 +2157,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Now bring her back across.",
+                        text: "Still clean. Bring us across to C with the same pressure, then watch the drift when you let go.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_vertical",
@@ -2101,7 +2173,7 @@
                                 actions: [
                                     Objective((
                                         id: "trim_return_lateral",
-                                        message: "Thruster across to TRIM C.",
+                                        message: "Use [SHIFT] and the mouse to cross toward TRIM C.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_return_lateral",
@@ -2136,7 +2208,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "And down. Put her back where we started.",
+                        text: "Port response is even. Bring us down to D and settle where we started.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_return_lateral",
@@ -2152,7 +2224,7 @@
                                 actions: [
                                     Objective((
                                         id: "trim_return_vertical",
-                                        message: "Thruster down to TRIM D.",
+                                        message: "Use [SHIFT] and the mouse to descend toward TRIM D.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "trim_mark_return_vertical",
@@ -2186,8 +2258,8 @@
                         id: "trim_return_vertical",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "The plate dropped three crates on the last shift. First one is out on the near edge, in the open. Go and get it.",
+                        speaker: "Copilot",
+                        text: "Back on the mark. No residual drift. That\'s a clean box.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_return_vertical",
@@ -2196,8 +2268,17 @@
                         id: "trim_mark_return_vertical",
                     )),
                     Sequence((
-                        key: "beat_4",
+                        key: "trim_complete",
                         steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "Handling card closed. First manifested crate is on Plate Seven\'s near edge. Bring it in.",
+                                    )),
+                                ],
+                            ),
                             (
                                 after: Some(4.0),
                                 actions: [

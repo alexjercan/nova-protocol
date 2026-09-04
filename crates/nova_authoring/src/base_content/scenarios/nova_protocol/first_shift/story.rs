@@ -40,28 +40,52 @@ pub(super) const OBJ_TEXT_BURN: &str = "Burn to the work mark.";
 // --- the thrusters -----------------------------------------------------------
 
 pub(super) const TRIM_COPILOT_STOP: &str =
-    "Mark made. Take the way off her - press [X] and let STOP bring us to rest.";
-pub(super) const OBJ_TEXT_STOP: &str = "Press [X] and let STOP bring Cutter to rest.";
-pub(super) const TRIM_COPILOT_TEACH: &str =
-    "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the \
-     ball on the tape goes violet while you are on them. Short taps - she keeps whatever you \
-     give her.";
-pub(super) const OBJ_TEXT_TRIM_LATERAL: &str = "Thruster across to TRIM A - hold [SHIFT].";
+    "Good. This is as clear a spot as we're going to get. Bring us to a full stop first. I \
+     want to clear the handling card.";
+pub(super) const OBJ_TEXT_STOP: &str = "Press [X] and let STOP bring Cutter One to rest.";
 
-pub(super) const TRIM_COPILOT_SECOND_AXIS: &str = "Good. Same again, straight up this time.";
-pub(super) const OBJ_TEXT_TRIM_VERTICAL: &str = "Thruster up to TRIM B.";
+pub(super) const TRIM_ENGINEER_WHAT_TEST: &str = "What test are you running this time?";
+pub(super) const TRIM_COPILOT_MAINTENANCE: &str =
+    "Yard replaced the port RCS manifold during scheduled maintenance. Computer says \
+     everything is green.";
+pub(super) const TRIM_ENGINEER_DOUBT: &str = "And you don't believe it.";
+pub(super) const TRIM_COPILOT_PROSPECTOR: &str =
+    "So did Prospector Six before they lost her in the belt.";
+pub(super) const TRIM_ENGINEER_NEWS: &str = "Different company. News said pilot error.";
+pub(super) const TRIM_COPILOT_RECORDER: &str =
+    "The flight recorder didn't. Port manifold locked open. Nobody aboard survived.";
+pub(super) const TRIM_ENGINEER_RUN_IT: &str = "All right. Run your box.";
+pub(super) const TRIM_COPILOT_BOX: &str =
+    "Four marks. Out to A, up to B, across to C, then back down to D. Bring us home without \
+     any drift and I'll clear the card.";
+pub(super) const TRIM_COPILOT_FIRST_MARK: &str =
+    "Let's move toward A. When the velocity marker turns violet, we're running on RCS.";
+pub(super) const OBJ_TEXT_TRIM_LATERAL: &str =
+    "Hold [SHIFT], move the mouse, and translate across to TRIM A.";
 
-pub(super) const TRIM_COPILOT_BACK_ACROSS: &str = "Now bring her back across.";
-pub(super) const OBJ_TEXT_TRIM_RETURN_LATERAL: &str = "Thruster across to TRIM C.";
+pub(super) const TRIM_COPILOT_SECOND_AXIS: &str =
+    "Good response and no roll. Take us up to B. Let's see if the new manifold fights the \
+     vertical bank.";
+pub(super) const OBJ_TEXT_TRIM_VERTICAL: &str = "Hold [SHIFT] and move the mouse up toward TRIM B.";
 
-pub(super) const TRIM_COPILOT_CLOSE_BOX: &str = "And down. Put her back where we started.";
-pub(super) const OBJ_TEXT_TRIM_RETURN_VERTICAL: &str = "Thruster down to TRIM D.";
+pub(super) const TRIM_COPILOT_BACK_ACROSS: &str =
+    "Still clean. Bring us across to C with the same pressure, then watch the drift when you \
+     let go.";
+pub(super) const OBJ_TEXT_TRIM_RETURN_LATERAL: &str =
+    "Use [SHIFT] and the mouse to cross toward TRIM C.";
+
+pub(super) const TRIM_COPILOT_CLOSE_BOX: &str =
+    "Port response is even. Bring us down to D and settle where we started.";
+pub(super) const OBJ_TEXT_TRIM_RETURN_VERTICAL: &str =
+    "Use [SHIFT] and the mouse to descend toward TRIM D.";
+
+pub(super) const TRIM_COPILOT_CLEAN: &str =
+    "Back on the mark. No residual drift. That's a clean box.";
 
 // --- the plate ---------------------------------------------------------------
 
 pub(super) const CRATE_CHIEF_FIRST: &str =
-    "The plate dropped three crates on the last shift. First one is out on the near edge, in \
-     the open. Go and get it.";
+    "Handling card closed. First manifested crate is on Plate Seven's near edge. Bring it in.";
 pub(super) const OBJ_TEXT_CRATE_FIRST: &str = "Recover the first crate.";
 
 pub(super) const CRATE_ENGINEER_SECOND: &str =
