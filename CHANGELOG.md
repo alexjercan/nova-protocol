@@ -90,8 +90,8 @@ does NOT get an entry - and it is the only place they are written down.
 - Nova Protocol's campaign comms now give each recurring voice a distinct green
   CRT portrait, including Cutter One's crew, Meridian and unknown channels.
 - Comms use screen-relative cards with 20 px message text and distinct speaker
-  headers. Objective notifications, world labels, diamonds and edge chevrons
-  are larger and clearer over clutter.
+  headers. New lines fade in without growing across the screen edge or earlier
+  transcript. Objective guidance is larger and clearer over clutter.
 - A completed objective no longer ghosts green down the right of the screen.
   Its chip leaving the top of the stack, under the completion chime, is the
   whole cue.

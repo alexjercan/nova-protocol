@@ -1032,3 +1032,8 @@ channels. Added reproducible 32x32 SVG generation, shipped 512x512 PNGs through
 the base bundle, and attached portraits recursively to First Shift and Second
 Shift story actions. Preview-only speakers retain the HUD fallback. No runtime
 shader was added; the accepted clean pixel treatment remains unblurred at 48x48.
+
+Removed the comms card scale pop after owner review found it crossed the left
+screen edge and visually intruded into older transcript cards. New messages now
+use the existing fade and audio blip only. The flex stack admits each card at
+its final layout size, so previous lines move once and retain stable geometry.

@@ -36,7 +36,7 @@ The HUD is CONTEXTUAL: it shows you what the situation calls for and gets out of
 - **Weapons hot** - the ammo gauges appear on your weapons and the lock readout grows. With the trigger down the reticle pulses. A hull carrying a railgun draws its [bore sight](#bore-sight).
 - **Low ammo or reloading** - a nearly-dry group (a quarter magazine or less) pulses amber and forces the gauges up on its own, even with the safety on: a dry magazine is news before you pull the trigger. An active reload holds them up the same way, with its own pulse.
 - **A posted objective** - a chip carrying the objective itself pops into the stack at the top of the screen the moment it posts, like a chat notification, and then keeps a slow breath. The chip is a notification: it leaves once you have read it - after a dwell, or the moment you open NOVA OS.
-- **An incoming transmission** - the comms card arrives grown and settles while it holds.
+- **An incoming transmission** - the comms card fades in with a soft blip while the earlier transcript stays still.
 
 </details>
 
