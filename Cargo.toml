@@ -205,6 +205,13 @@ path = "examples/playable/compare_asteroids.rs"
 name = "compare_planets"
 path = "examples/playable/compare_planets.rs"
 
+# The planetoid-look lineup (task 20260815-231945): seeded planet types and
+# seeds over two rows, a focus planet the keys re-draw from a type and a seed,
+# and today's textured planetoid at the same framing for contrast.
+[[example]]
+name = "planet_types"
+path = "examples/playable/planet_types.rs"
+
 # systems/ - the section curriculum first: one range per ship section, each
 # walking a named roster of invariants across several rounds.
 [[example]]
@@ -407,6 +414,13 @@ path = "examples/screenshots/screenshot_scenario_picker.rs"
 [[example]]
 name = "screenshot_editor"
 path = "examples/screenshots/screenshot_editor.rs"
+
+# A planet placed from the object palette and re-typed in the inspector: the
+# editor draws the real surface, so this is what proves a creator sees the type
+# and seed they picked.
+[[example]]
+name = "screenshot_planet_editor"
+path = "examples/screenshots/screenshot_planet_editor.rs"
 
 # The wiki section closeups, on a turntable: the parts that fly a ship, then
 # the parts that fight with it.

@@ -521,8 +521,8 @@ fn the_orbit_is_a_detour_the_crew_comes_back_from() {
         TRANSIT_TWO.position,
     );
     assert!(
-        cover < stage::INSPECTION_RADIUS.0 * 3.5,
-        "TRANSIT 2 is visible around even the inspection body's smallest mesh: {cover:.0} m"
+        cover < stage::inspection_body_radius().0,
+        "TRANSIT 2 is visible around the inspection body: {cover:.0} m"
     );
     let return_view_clearance = distance_to_segment(
         stage::INSPECTION_POS,
@@ -530,7 +530,7 @@ fn the_orbit_is_a_detour_the_crew_comes_back_from() {
         ORBIT_RETURN_GATE_POS,
     );
     assert!(
-        return_view_clearance > stage::INSPECTION_RADIUS.0 * ASTEROID_GEOMETRIC_FACTOR_MAX,
+        return_view_clearance > stage::inspection_body_radius().0,
         "the return gate is still hidden behind the inspection body"
     );
 
@@ -651,12 +651,15 @@ fn the_hold_frames_the_set_piece_without_standing_in_it() {
 fn every_fixed_cutter_goto_corridor_clears_the_stage() {
     const CUTTER_RADIUS: f32 = 55.0;
     const FLIGHT_MARGIN: f32 = 100.0;
+    // Geometric radii, not nominal ones. A rock has to be widened to its
+    // worst-case mesh; a planet already publishes its exact surface.
     let bodies: Vec<(Meters3, Meters)> = stage::SALVAGE_ROCKS
         .into_iter()
         .chain(stage::AMBIENT_ROCKS)
+        .map(|(position, nominal)| (position, Meters(nominal.0 * ASTEROID_GEOMETRIC_FACTOR_MAX)))
         .chain([
-            (stage::INSPECTION_POS, stage::INSPECTION_RADIUS),
-            (stage::CONCEALMENT_POS, stage::CONCEALMENT_RADIUS),
+            (stage::INSPECTION_POS, stage::inspection_body_radius()),
+            (stage::CONCEALMENT_POS, stage::concealment_body_radius()),
         ])
         .collect();
     let legs = [
@@ -684,7 +687,7 @@ fn every_fixed_cutter_goto_corridor_clears_the_stage() {
     for (name, from, to) in legs {
         for (body, radius) in &bodies {
             let separation = distance_to_segment(*body, from, to);
-            let required = radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX + CUTTER_RADIUS + FLIGHT_MARGIN;
+            let required = radius.0 + CUTTER_RADIUS + FLIGHT_MARGIN;
             assert!(
                 separation > required,
                 "Cutter's '{name}' corridor passes {separation:.0} m from the \
@@ -702,9 +705,9 @@ fn the_transit_route_clears_the_inspection_gravity_well() {
     const CUTTER_RADIUS: Meters = Meters(55.0);
     const FLIGHT_MARGIN: Meters = Meters(100.0);
     let settings = GravitySettings::default();
-    let widest = Meters(stage::INSPECTION_RADIUS.0 * ASTEROID_GEOMETRIC_FACTOR_MAX).to_engine();
+    let surface = stage::inspection_body_radius().to_engine();
     let soi = Meters::from_engine(
-        GravityWell::from_mass(stage::INSPECTION_MASS, widest, &settings).soi_radius,
+        GravityWell::from_mass(stage::INSPECTION_MASS, surface, &settings).soi_radius,
     );
     let required = soi + CUTTER_RADIUS + FLIGHT_MARGIN;
     for (name, from, to) in [
@@ -738,9 +741,10 @@ fn the_warship_never_flies_a_leg_through_a_body() {
     let bodies: Vec<(Meters3, Meters)> = stage::SALVAGE_ROCKS
         .into_iter()
         .chain(stage::AMBIENT_ROCKS)
+        .map(|(position, nominal)| (position, Meters(nominal.0 * ASTEROID_GEOMETRIC_FACTOR_MAX)))
         .chain([
-            (stage::INSPECTION_POS, stage::INSPECTION_RADIUS),
-            (stage::CONCEALMENT_POS, stage::CONCEALMENT_RADIUS),
+            (stage::INSPECTION_POS, stage::inspection_body_radius()),
+            (stage::CONCEALMENT_POS, stage::concealment_body_radius()),
         ])
         .collect();
     let legs = [
@@ -755,7 +759,7 @@ fn the_warship_never_flies_a_leg_through_a_body() {
     for (name, from, to) in legs {
         for (body, radius) in &bodies {
             let separation = distance_to_segment(*body, from, to);
-            let required = radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX;
+            let required = radius.0;
             assert!(
                 separation > required,
                 "the warship's '{name}' leg passes {separation:.0} m from the \
@@ -1048,13 +1052,13 @@ fn no_beacon_or_salvage_objective_stands_in_a_gravity_well() {
             "Inspection Planetoid".to_string(),
             stage::INSPECTION_POS,
             stage::INSPECTION_MASS,
-            stage::INSPECTION_RADIUS,
+            stage::inspection_body_radius(),
         ),
         (
             "Concealment Planetoid".to_string(),
             stage::CONCEALMENT_POS,
             stage::CONCEALMENT_MASS,
-            stage::CONCEALMENT_RADIUS,
+            stage::concealment_body_radius(),
         ),
     ];
     wells.extend(
@@ -1096,9 +1100,10 @@ fn no_beacon_or_salvage_objective_stands_in_a_gravity_well() {
         &WORK_SITE,
         &HOME_MARK,
     ];
-    for (name, centre, mass, nominal) in wells {
-        let widest = Meters(nominal.0 * ASTEROID_GEOMETRIC_FACTOR_MAX).to_engine();
-        let soi = Meters::from_engine(GravityWell::from_mass(mass, widest, &settings).soi_radius);
+    for (name, centre, mass, surface) in wells {
+        let soi = Meters::from_engine(
+            GravityWell::from_mass(mass, surface.to_engine(), &settings).soi_radius,
+        );
         for mark in marks {
             let separation = (mark.position - centre).length();
             let required = soi + mark.area + VISIBLE_GRAVITY_BUFFER;

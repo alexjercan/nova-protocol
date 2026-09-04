@@ -22,8 +22,13 @@ struct Preview {
 pub fn run(scene: FirstShiftScene, poses: &'static [ShipPose]) -> bevy::app::AppExit {
     let mut app = AppBuilder::new().with_game_plugins(preview_plugin).build();
     app.insert_resource(Preview { scene, poses });
+    // Wrapped in the ONE-capture beat rather than the bare preset: an unarmed
+    // run walks the identical steps and writes nothing, so this stays the smoke
+    // path while `NOVA_CAPTURE` turns any First Shift scene into a still.
     #[cfg(feature = "debug")]
-    app.add_plugins(nova_protocol::nova_debug::harness::nova_autopilot());
+    app.add_plugins(nova_protocol::nova_debug::harness::nova_screenshot(
+        nova_protocol::nova_debug::harness::nova_autopilot(),
+    ));
     app.run()
 }
 

@@ -54,10 +54,10 @@
                                 1.0,
                             ),
                         ),
-                        kind: Asteroid((
-                            radius: 200.0,
-                            texture: "self://textures/asteroid.png",
-                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                        kind: Planet((
+                            radius: 950.0,
+                            planet_type: DustWorld,
+                            seed: 7,
                             mass: Some(27000.0),
                             invulnerable: true,
                         )),
@@ -78,10 +78,10 @@
                                 1.0,
                             ),
                         ),
-                        kind: Asteroid((
-                            radius: 500.0,
-                            texture: "self://textures/asteroid.png",
-                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                        kind: Planet((
+                            radius: 2250.0,
+                            planet_type: BarrenRock,
+                            seed: 3,
                             mass: Some(20000.0),
                             invulnerable: true,
                         )),

@@ -14,7 +14,7 @@ pub(crate) fn menu_waystation(
 ) -> ScenarioConfig {
     let mut objects = vec![
         // Lighter pull for the two heavy haulers to hold their orbit.
-        backdrop_planetoid(asteroid_texture.clone(), 30_000.0),
+        backdrop_planetoid(30_000.0),
         backdrop_orbiter(
             "waystation_hauler_a",
             "Hauler Biscuit",

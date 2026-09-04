@@ -8,9 +8,13 @@ use nova_authoring::prelude::*;
 use nova_protocol::prelude::*;
 use preview::ShipPose;
 
+// Parked 2.5 km off the inspection body on the +Z side, so the default -Z
+// facing frames the planetoid this chapter is built around. The old pose sat
+// 13 km out with the body BEHIND the camera: it exercised the scene but showed
+// nothing of it, which is no use as a review shot.
 const POSES: &[ShipPose] = &[ShipPose {
     id: "cutter",
-    position: Meters3::new(-7_041.0, -565.0, -13_020.0),
+    position: Meters3::new(-4_500.0, 100.0, -4_000.0),
     rotation: Quat::IDENTITY,
 }];
 

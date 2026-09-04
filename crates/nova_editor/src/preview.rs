@@ -43,6 +43,7 @@ const MIN_OBJECT_RADIUS: f32 = 1.5;
 pub(crate) struct PreviewArt<'w> {
     meshes: ResMut<'w, Assets<Mesh>>,
     materials: ResMut<'w, Assets<StandardMaterial>>,
+    planet_materials: ResMut<'w, Assets<PlanetSurfaceMaterial>>,
     asset_server: Res<'w, AssetServer>,
 }
 
@@ -142,6 +143,27 @@ pub(crate) fn insert_preview_object(
                 ..default()
             });
             sphere_body(entity, art, radius, material);
+        }
+        // The one preview that is NOT schematic, because for a planet the
+        // look IS the authored value. A creator picks a type and a seed and
+        // has no other way to see what they picked; a flat swatch would show
+        // the type and hide the seed completely, and two seeds of one type are
+        // different worlds. So the stage builds the real surface, just coarser
+        // (see PLANET_EDITOR_SUBDIVISIONS).
+        //
+        // The BODY radius, like the rock above and for the same reason - but
+        // the factor is honest here. A planet's mesh stands `1 + relief` off
+        // its authored radius, a few percent, so the stage draws very nearly
+        // the number the inspector shows.
+        ScenarioObjectKind::Planet(planet) => {
+            let radius = planet.body_radius().to_engine().max(MIN_OBJECT_RADIUS);
+            let visual = PlanetVisual::build(planet, PLANET_EDITOR_SUBDIVISIONS);
+            entity.insert((
+                Transform::from_scale(Vec3::splat(radius)),
+                Mesh3d(art.meshes.add(visual.mesh)),
+                MeshMaterial3d(art.planet_materials.add(visual.material)),
+                Collider::sphere(radius),
+            ));
         }
         ScenarioObjectKind::Beacon(beacon) => {
             let radius = beacon.radius.to_engine().max(MIN_OBJECT_RADIUS);
@@ -255,6 +277,9 @@ fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
     match kind {
         ScenarioObjectKind::Anchor(_) => &["body_radius"],
         ScenarioObjectKind::Asteroid(_) => &["radius", "texture"],
+        // Every field the surface is generated from, because the editor draws
+        // the real surface: a seed change IS a different world.
+        ScenarioObjectKind::Planet(_) => &["radius", "planet_type", "seed", "relief", "sea_level"],
         ScenarioObjectKind::Beacon(_) => &["radius", "color"],
         ScenarioObjectKind::SalvageCrate(_) => &["size"],
         ScenarioObjectKind::Light(_) => &["color"],

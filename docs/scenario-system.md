@@ -612,13 +612,21 @@ them - are `/create/objects/`; what follows is what the modules have in common.
 
 All share `BaseScenarioObjectConfig` (id, name, position, rotation) and spawn
 scoped entities via `base_scenario_object`, which deliberately carries NO body:
-each kind declares its own `RigidBody`, and the asteroid alone opts into
-`Dynamic` + `TransformInterpolation`. A carved rock also emits new dynamic
-bodies at runtime - every piece a crater severs (`CarvedChunkMarker`,
+each kind declares its own `RigidBody`, and only the asteroid and the planet
+opt into `Dynamic` + `TransformInterpolation`. A carved rock also emits new
+dynamic bodies at runtime - every piece a crater severs (`CarvedChunkMarker`,
 `integrity/chunk.rs`) - so the spawn kinds are not the whole population of a
 live scene.
 
-Three engine facts the object configs do not show:
+Four engine facts the object configs do not show:
+
+- **`BodyRadius` is DERIVED from the mesh, not read from the config.** Both
+  ground kinds publish `radius * unit_extent`, and the two extents are nothing
+  alike: an asteroid's noise mesh puts it in `[3.5, 6.0]`, a planet's is
+  `1 + relief`, about 1.05. Everything measured off a body - the gravity well's
+  clamp, the sphere of influence, an orbit ring, a GOTO standoff - reads that
+  derived number, so moving content between the two kinds means carrying the
+  DERIVED radius across, not the authored one.
 
 - **Nothing supplies a light.** `Light` is an ordinary spawned kind
   (`objects/light.rs`) and the engine adds none of its own, so a scenario that

@@ -61,6 +61,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
 - First Shift moves WORK SITE and the third crate fully clear of Belt Rock 6's
   gravity well, so the return GOTO can settle and complete.
+- **(breaking)** A scenario places a `Planet`: a type and a seed draw a world
+  with terrain, biomes and a cap. A planetoid authored as a big `Asteroid` is
+  now a rock - re-author it at its true radius.
 - First Shift keeps control suspended from the warship reveal through teardown.
   Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
 - First Shift makes physical STOP, four framed RCS marks and two completed GOTO

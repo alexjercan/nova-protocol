@@ -22,6 +22,15 @@ pub mod beacon;
 /// lights itself with.
 pub mod light;
 pub mod modification;
+/// The authored planet OBJECT: the components a spawned world carries, the
+/// gravity well it becomes, and the plugin that draws it.
+pub mod planet;
+/// The SHAPE of a planetoid and the material that shades it: a signed height
+/// field, the displaced icosphere carrying it, and the banded planet material.
+pub mod planet_surface;
+/// What KIND of world a planetoid is: the authored types, the biomes each may
+/// draw from, and the seeded draw that turns one into the other.
+pub mod planet_type;
 pub mod salvage;
 /// The ship CONTENT kind: a hull authored once and spawned by id.
 pub mod ship;
@@ -33,7 +42,8 @@ pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
         asteroid_surface::prelude::*, beacon::prelude::*, light::prelude::*,
-        modification::prelude::*, salvage::prelude::*, ship::prelude::*, spaceship::prelude::*,
+        modification::prelude::*, planet::prelude::*, planet_surface::prelude::*,
+        planet_type::prelude::*, salvage::prelude::*, ship::prelude::*, spaceship::prelude::*,
         ScenarioObjectsPlugin,
     };
 }
@@ -62,6 +72,9 @@ impl Plugin for ScenarioObjectsPlugin {
             render: self.render,
         });
         app.add_plugins(asteroid_carve::AsteroidCarvePlugin {
+            render: self.render,
+        });
+        app.add_plugins(planet::PlanetPlugin {
             render: self.render,
         });
         app.add_plugins(spaceship::SpaceshipPlugin);

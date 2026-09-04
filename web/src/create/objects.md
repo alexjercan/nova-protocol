@@ -3,7 +3,7 @@
 Everything a scenario can place in the world. An object is spawned by
 [`SpawnScenarioObject`](../actions/#spawnscenarioobject) (or in bulk by
 [`ScatterObjects`](../actions/#scatterobjects)): a shared `base` block plus a
-`kind` that picks one of the SIX kinds below. Every object gets the base's
+`kind` that picks one of the SEVEN kinds below. Every object gets the base's
 id, name and pose, is scenario-scoped (teardown removes it), and carries a
 type name the `type_name` filters match:
 
@@ -11,6 +11,7 @@ type name the `type_name` filters match:
 |---|---|---|---|
 | [`Anchor`](#anchor) | `"anchor"` | static | invisible authored gravity well (framing/orbit target) |
 | [`Asteroid`](#asteroid) | `"asteroid"` | dynamic | destructible rock, optional gravity well |
+| [`Planet`](#planet) | `"planet"` | dynamic | a seeded WORLD: biomes, terrain, optional gravity well |
 | [`Spaceship`](#spaceship) | `"spaceship"` | dynamic | a multi-section ship, player- or AI-flown |
 | [`Beacon`](#beacon) | `"beacon"` | static | lockable nav marker with a HUD chip |
 | [`SalvageCrate`](#salvagecrate) | `"salvage_crate"` | static | fly-through pickup |
@@ -101,6 +102,70 @@ Author the size you want the fight to take. The shipped tutorial targets are
 is what keeps a target brief now that there is no `health` field to turn down.
 
 <!-- Numbers verified against crates/nova_gameplay/src/integrity/carve.rs (DAMAGE_PER_UNIT_VOLUME 8.0 per cubic world unit :83, mark_radius :264-277) and crates/nova_authoring/src/base_content/sections/standard.rs (KINETIC_PDC_BULLET_DAMAGE 4.0 :59, GATLING_FIRE_RATE 100.0 :74). Tutorial radii from assets/mods/example/example.content.ron (:409, :424). -->
+
+## Planet
+
+A world. Pick a TYPE and a SEED and you get a body with its own terrain,
+palette and polar cap - mountains, basins, seas where the type has them.
+Nothing is textured and nothing is authored band by band: the type decides
+what kinds of ground the world can have, and the seed decides which of them it
+got and where.
+
+Use this for anything meant to read as somewhere. An [asteroid](#asteroid)
+with a big radius is a rock the size of a planet, and it looks like one.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `planet_type` | type name | required | `BarrenRock`, `DustWorld`, `IceWorld`, `Volcanic`, `Greenhouse` or `Temperate`. A name outside that list is a LOAD ERROR, not a fallback |
+| `radius` | number | required | MEAN radius in meters, and the body's real size. Unlike a rock's nominal radius, the surface stands only `1 + relief` off this - a few percent - so this is very nearly what everything measures from |
+| `seed` | number | required | which world of that type: the biome in every band, the cap latitude, the palette tint and the terrain itself. Required on purpose - a landmark cannot be a body the engine picked for you |
+| `invulnerable` | bool | required | `true` = weapons fire leaves it alone, and its gravity well survives the whole scenario |
+| `mass` | `Option` number | `None` | well STRENGTH, exactly as on an [asteroid](#asteroid): `mass = (soi / 20)^2` for an `soi` in meters. `None` = the global rule |
+| `relief` | `Option` number | `None` | how far the highest ground stands above the mean radius, in meters. `None` = the type's own (2% of the radius on a hazy greenhouse, 6% on a volcanic world). Must be positive and smaller than the radius |
+| `sea_level` | `Option` number | `None` | where the surface flattens into sea, as a fraction 0-1 of the height range. `Some(0.0)` drains a sea; `None` = the type's own (only `IceWorld` and `Temperate` have one) |
+| `lock_signature` | `Option` number | `None` | radar signature override in meters; `None` = the mean radius |
+
+```ron
+SpawnScenarioObject((
+    base: (id: "planetoid", name: "Planetoid", position: (2500.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Planet((
+        planet_type: DustWorld,
+        radius: 950.0,
+        seed: 7,
+        mass: Some(27000.0),
+        invulnerable: true,
+    )),
+)),
+```
+
+### Sizing a planet
+
+Author the size you want the body to BE. A rock's `radius` is a designation
+its noise mesh reaches three to six times past; a planet's is the real thing,
+and the geometric surface every rule reads - the gravity well's clamp, the
+sphere of influence, the ring [`OrbitShip`](../actions/#orbitship) flies, a
+[GOTO](../actions/#moveshipto) standoff - is `radius * (1 + relief)`.
+
+That also means porting old content is not a copy of the number. A planetoid
+authored as `Asteroid((radius: 200.0))` drew a body about 1 km across; written
+as a planet it wants `radius: 950.0`, not `200.0`, or every distance around it
+collapses by about five.
+
+### Picking a type
+
+Each type is a palette and a terrain character, not a single look - a seed
+moves the biomes, the cap and the tint, so two `DustWorld`s are two worlds.
+
+| type | reads as | has a sea |
+|---|---|---|
+| `BarrenRock` | airless grey stone, dark mare against pale highland | no |
+| `DustWorld` | ochre and rust plains under thin polar frost | no |
+| `IceWorld` | blue-white sheets and frost peaks | yes |
+| `Volcanic` | black basalt cut by glowing fissures | no |
+| `Greenhouse` | pale choking haze, almost no silhouette | no |
+| `Temperate` | deep sea, sand shelves, green continents, ice cap | yes |
+
+<!-- Fields verified against crates/nova_scenario/src/objects/planet_type.rs (PlanetConfig :332, PlanetType::relief :227, sea_level :246) and the lint in crates/nova_scenario/src/lint/scenario.rs (check_planet). -->
 
 ## Spaceship
 

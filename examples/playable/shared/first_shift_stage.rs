@@ -7,10 +7,17 @@ use nova_protocol::prelude::*;
 pub const CARRIER_POS: Meters3 = Meters3::new(-1_000.0, 0.0, 2_500.0);
 pub const INSPECTION_POS: Meters3 = Meters3::new(-4_500.0, -400.0, -6_500.0);
 pub const CONCEALMENT_POS: Meters3 = Meters3::new(4_500.0, 300.0, -6_500.0);
-pub const INSPECTION_RADIUS: Meters = Meters(200.0);
+/// Mean radii, matching `nova_authoring`'s stage: both bodies are PLANETS,
+/// and these numbers reproduce the body radius each published as a rock, so
+/// the benches frame the same geometry the chapters do.
+pub const INSPECTION_RADIUS: Meters = Meters(950.0);
 pub const INSPECTION_MASS: f32 = 27_000.0;
-pub const CONCEALMENT_RADIUS: Meters = Meters(500.0);
+pub const INSPECTION_TYPE: PlanetType = PlanetType::DustWorld;
+pub const INSPECTION_SEED: u32 = 7;
+pub const CONCEALMENT_RADIUS: Meters = Meters(2_250.0);
 pub const CONCEALMENT_MASS: f32 = 20_000.0;
+pub const CONCEALMENT_TYPE: PlanetType = PlanetType::BarrenRock;
+pub const CONCEALMENT_SEED: u32 = 3;
 
 /// A broad plate of small rocks between the carrier and both planetoids. The
 /// former banana's narrow tail is gone; its curved bowl is filled so the cutter
@@ -82,6 +89,28 @@ pub const AMBIENT_ROCKS: [(Meters3, Meters); 20] = [
     (Meters3::new(7_000.0, -1_600.0, -7_000.0), Meters(58.0)),
 ];
 
+fn planetoid(
+    id: &str,
+    name: &str,
+    position: Meters3,
+    radius: Meters,
+    mass: f32,
+    planet_type: PlanetType,
+    seed: u32,
+) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(planet_type, radius, seed).anchored(mass),
+        ),
+    }
+}
+
 fn asteroid(
     id: &str,
     name: &str,
@@ -114,23 +143,23 @@ fn asteroid(
 /// Build the complete fixed belt used by both First Shift chapters.
 pub fn belt(texture: &Handle<Image>) -> Vec<ScenarioObjectConfig> {
     let mut objects = vec![
-        asteroid(
+        planetoid(
             "inspection_planetoid",
             "Inspection Planetoid",
             INSPECTION_POS,
             INSPECTION_RADIUS,
-            Some(INSPECTION_MASS),
-            true,
-            texture,
+            INSPECTION_MASS,
+            INSPECTION_TYPE,
+            INSPECTION_SEED,
         ),
-        asteroid(
+        planetoid(
             "concealment_planetoid",
             "Concealment Planetoid",
             CONCEALMENT_POS,
             CONCEALMENT_RADIUS,
-            Some(CONCEALMENT_MASS),
-            true,
-            texture,
+            CONCEALMENT_MASS,
+            CONCEALMENT_TYPE,
+            CONCEALMENT_SEED,
         ),
     ];
     objects.extend(

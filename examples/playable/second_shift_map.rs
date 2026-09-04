@@ -279,21 +279,23 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
             RELAY_EVIDENCE_POS,
             Color::srgb(0.2, 0.85, 1.0),
         )),
-        spawn(asteroid(
+        spawn(planetoid(
             "inspection_planetoid",
             "Inspection Planetoid",
             stage::INSPECTION_POS,
             stage::INSPECTION_RADIUS,
-            Some(27_000.0),
-            &game_assets.asteroid_texture,
+            27_000.0,
+            stage::INSPECTION_TYPE,
+            stage::INSPECTION_SEED,
         )),
-        spawn(asteroid(
+        spawn(planetoid(
             "concealment_planetoid",
             "Concealment Planetoid",
             stage::CONCEALMENT_POS,
             stage::CONCEALMENT_RADIUS,
-            Some(20_000.0),
-            &game_assets.asteroid_texture,
+            20_000.0,
+            stage::CONCEALMENT_TYPE,
+            stage::CONCEALMENT_SEED,
         )),
         spawn(beacon(
             "cleanup_entry",
@@ -465,6 +467,28 @@ fn facing(from: Meters3, target: Meters3) -> Quat {
     Transform::from_translation(from.to_engine())
         .looking_at(target.to_engine(), Vec3::Y)
         .rotation
+}
+
+fn planetoid(
+    id: &str,
+    name: &str,
+    position: Meters3,
+    radius: Meters,
+    mass: f32,
+    planet_type: PlanetType,
+    seed: u32,
+) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(planet_type, radius, seed).anchored(mass),
+        ),
+    }
 }
 
 fn asteroid(

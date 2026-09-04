@@ -578,12 +578,23 @@ pub fn audit_scenario(
                         cover.invulnerable += 1;
                     }
                     ScenarioObjectKind::Asteroid(_) => cover.destructible += 1,
+                    // A planet is cover the same way an invulnerable rock is,
+                    // and every authored one is invulnerable today. Counted
+                    // here so the audit does not silently stop seeing the
+                    // biggest bodies in the scene.
+                    ScenarioObjectKind::Planet(planet) if planet.invulnerable => {
+                        cover.invulnerable += 1;
+                    }
+                    ScenarioObjectKind::Planet(_) => cover.destructible += 1,
                     _ => {}
                 },
                 EventActionConfig::ScatterObjects(scatter) => {
                     let hard = matches!(
                         &scatter.template.kind,
                         ScenarioObjectKind::Asteroid(rock) if rock.invulnerable
+                    ) || matches!(
+                        &scatter.template.kind,
+                        ScenarioObjectKind::Planet(planet) if planet.invulnerable
                     );
                     if hard {
                         cover.scattered_hard += scatter.count as usize;

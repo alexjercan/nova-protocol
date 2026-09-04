@@ -96,6 +96,9 @@ pub(crate) fn object_mark(object: &ObjectNode) -> (&'static str, &'static str) {
         ScenarioObjectKind::SalvageCrate(_) => ("\u{25a3}", "SALVAGE"),
         // BLACK SUN WITH RAYS.
         ScenarioObjectKind::Light(_) => ("\u{2600}", "LIGHT"),
+        // CIRCLE WITH LEFT HALF BLACK - a lit world with a terminator, told
+        // apart from the rock's solid disc at a glance.
+        ScenarioObjectKind::Planet(_) => ("\u{25d0}", "PLANET"),
     }
 }
 

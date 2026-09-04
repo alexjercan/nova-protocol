@@ -696,6 +696,7 @@ const MASS: FieldSpec = floored("mass", "", 0.5);
 const RADIUS: FieldSpec = floored("radius", "m", 0.5);
 const AREA_RADIUS: FieldSpec = floored("area_radius", "m", 1.0);
 const INVULNERABLE: FieldSpec = plain("invulnerable");
+const PLANET_TYPE: FieldSpec = plain("planet_type");
 const SEED: FieldSpec = FieldSpec {
     name: "seed",
     unit: "",
@@ -787,6 +788,10 @@ const RAILGUN_PICKS: &[FieldSpec] = &[
 ];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
 const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MASS, INVULNERABLE, SEED];
+/// A planet's first screen. `planet_type` leads because it is the field that
+/// changes everything else about the body; `seed` is second for the same
+/// reason it is on a rock - it picks WHICH world of that kind.
+const PLANET_PICKS: &[FieldSpec] = &[PLANET_TYPE, SEED, RADIUS, MASS, INVULNERABLE];
 /// The whole point of a spaceship object is WHICH ship and WHO flies it, and a
 /// pick takes the field with everything under it - so the hull's source and the
 /// controller's own fields come along.
@@ -826,6 +831,7 @@ const DECLARED: &[&[FieldSpec]] = &[
     RAILGUN_PICKS,
     ANCHOR_PICKS,
     ASTEROID_PICKS,
+    PLANET_PICKS,
     SPACESHIP_PICKS,
     BEACON_PICKS,
     SALVAGE_PICKS,
@@ -1934,6 +1940,7 @@ pub(crate) fn object_config(kind: &ScenarioObjectKind) -> Option<&dyn PartialRef
         ScenarioObjectKind::Beacon(config) => Some(config),
         ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
+        ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
     }
 }
@@ -1946,6 +1953,7 @@ pub(crate) fn object_config_mut(kind: &mut ScenarioObjectKind) -> Option<&mut dy
         ScenarioObjectKind::Beacon(config) => Some(config),
         ScenarioObjectKind::SalvageCrate(config) => Some(config),
         ScenarioObjectKind::Light(config) => Some(config),
+        ScenarioObjectKind::Planet(config) => Some(config),
         ScenarioObjectKind::Spaceship(config) => Some(config),
     }
 }
@@ -2015,6 +2023,7 @@ fn object_picks(kind: &ScenarioObjectKind) -> &'static [FieldSpec] {
         ScenarioObjectKind::Beacon(_) => BEACON_PICKS,
         ScenarioObjectKind::SalvageCrate(_) => SALVAGE_PICKS,
         ScenarioObjectKind::Light(_) => LIGHT_PICKS,
+        ScenarioObjectKind::Planet(_) => PLANET_PICKS,
     }
 }
 

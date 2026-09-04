@@ -255,3 +255,50 @@ fn no_scenario_starts_the_player_inside_one_of_its_own_trigger_volumes() {
         }
     }
 }
+
+/// Both belt bodies became PLANETS, and the swap kept the geometry the
+/// chapters were authored against.
+///
+/// `BodyRadius` is derived, not authored: the sim measures `radius *
+/// unit_extent`, and a rock's noise mesh reaches 3.5-6.0 times past its
+/// nominal radius where a planet's stands only `1 + relief` off it. Carrying
+/// the old radius LITERAL across would have shrunk each body about fivefold,
+/// and with it the well clamp, the 8x sphere of influence and the 1.5x ring
+/// the ORBIT autopilot flies. So the radii were re-authored to reproduce the
+/// body radius each rock actually published, measured through
+/// `asteroid_scenario_object` before the swap:
+///
+/// | body        | seed       | old body radius |
+/// |-------------|------------|-----------------|
+/// | inspection  | 3739450406 | 1 000.1 m       |
+/// | concealment | 2243070031 | 2 377.0 m       |
+#[test]
+fn the_belt_planets_keep_the_body_radius_their_rocks_published() {
+    let objects = stage::belt(&AssetRef::<Image>::default());
+    for (id, previous) in [
+        (stage::ID_INSPECTION, 1_000.1_f32),
+        (stage::ID_CONCEALMENT, 2_377.0_f32),
+    ] {
+        let object = objects
+            .iter()
+            .find(|object| object.base.id == id)
+            .unwrap_or_else(|| panic!("the belt must still carry '{id}'"));
+        let ScenarioObjectKind::Planet(planet) = &object.kind else {
+            panic!("'{id}' must be a planet, not a {:?}", object.kind);
+        };
+        assert!(
+            planet.invulnerable && planet.mass.is_some(),
+            "'{id}' is a well the chapters orbit, so it stays massed and \
+             indestructible"
+        );
+        let drift = (planet.body_radius().0 - previous).abs() / previous;
+        assert!(
+            drift < 0.01,
+            "'{id}' now measures {:.1} m against the {previous:.1} m it \
+             published as a rock ({:.1}% off): the well, the SOI and the \
+             orbit ring all move with it",
+            planet.body_radius().0,
+            drift * 100.0
+        );
+    }
+}

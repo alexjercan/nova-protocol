@@ -827,30 +827,34 @@ mod tests {
     fn no_sweep_mark_sits_inside_something_solid() {
         // Enough room for the hull itself around the worst-case surface.
         const HULL_PAD: f32 = 100.0;
+        // Geometric radii throughout: a planet publishes its exact surface,
+        // a rock has to be widened to the worst mesh its seed can draw.
         let bodies = [
             (
                 "the inspection planetoid",
                 stage::INSPECTION_POS,
-                stage::INSPECTION_RADIUS,
+                stage::inspection_body_radius(),
             ),
             (
                 "the concealment planetoid",
                 stage::CONCEALMENT_POS,
-                stage::CONCEALMENT_RADIUS,
+                stage::concealment_body_radius(),
             ),
         ]
         .into_iter()
-        .chain(
-            stage::SALVAGE_ROCKS
-                .into_iter()
-                .map(|(position, radius)| ("a plate rock", position, radius)),
-        );
+        .chain(stage::SALVAGE_ROCKS.into_iter().map(|(position, radius)| {
+            (
+                "a plate rock",
+                position,
+                Meters(radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX),
+            )
+        }));
         let bodies: Vec<_> = bodies.collect();
         for searcher in cleanup_group() {
             for mark in searcher.route {
                 for (name, centre, radius) in &bodies {
                     let clearance = (mark - *centre).length().0;
-                    let required = radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX + HULL_PAD;
+                    let required = radius.0 + HULL_PAD;
                     assert!(
                         clearance > required,
                         "'{}' is sent to {mark:?}, {clearance:.0} m from {name} at \

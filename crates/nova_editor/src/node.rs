@@ -294,13 +294,16 @@ pub(crate) enum ObjectChoice {
     SalvageCrate,
     /// One of the scene's own lights.
     Light,
+    /// A seeded world with a gravity well.
+    Planet,
 }
 
 impl ObjectChoice {
     /// Every kind the palette offers.
-    pub(crate) const ALL: [ObjectChoice; 5] = [
+    pub(crate) const ALL: [ObjectChoice; 6] = [
         ObjectChoice::Anchor,
         ObjectChoice::Asteroid,
+        ObjectChoice::Planet,
         ObjectChoice::Beacon,
         ObjectChoice::SalvageCrate,
         ObjectChoice::Light,
@@ -314,6 +317,7 @@ impl ObjectChoice {
             ObjectChoice::Beacon => "Beacon",
             ObjectChoice::SalvageCrate => "Salvage",
             ObjectChoice::Light => "Light",
+            ObjectChoice::Planet => "Planet",
         }
     }
 
@@ -326,6 +330,7 @@ impl ObjectChoice {
             ObjectChoice::Beacon => "beacon",
             ObjectChoice::SalvageCrate => "salvage",
             ObjectChoice::Light => "light",
+            ObjectChoice::Planet => "planet",
         }
     }
 
@@ -350,6 +355,18 @@ impl ObjectChoice {
                 seed: None,
                 lock_signature: None,
             }),
+            // Small, light and destructible-by-default like the stock rock:
+            // a placed planet is a planet you can see, not a well that starts
+            // bending the scene the moment it lands.
+            //
+            // The seed is written out rather than left at zero, because the
+            // template is what teaches the form: a planet names WHICH world of
+            // its type it is, and there is no default for that.
+            ObjectChoice::Planet => ScenarioObjectKind::Planet(PlanetConfig::new(
+                PlanetType::DustWorld,
+                Meters(120.0),
+                7,
+            )),
             ObjectChoice::Beacon => ScenarioObjectKind::Beacon(BeaconConfig {
                 label: "BEACON".to_string(),
                 radius: Meters(30.0),
@@ -1732,6 +1749,9 @@ mod tests {
         app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
         app.init_asset::<Mesh>();
         app.init_asset::<StandardMaterial>();
+        // The planet preview draws the real surface, so the art param reaches
+        // for this asset whatever kind the node holds.
+        app.init_asset::<PlanetSurfaceMaterial>();
         let node = app
             .world_mut()
             .spawn((

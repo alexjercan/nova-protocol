@@ -140,6 +140,9 @@ pub enum ScenarioObjectKind {
     /// An authored light - the scene's own key, rim, fill or lamp. A scene that
     /// spawns none renders black; the engine no longer supplies one.
     Light(LightConfig),
+    /// A world: a seeded planet type with a gravity well. An asteroid with a
+    /// big radius is a rock; this is the body that reads as somewhere.
+    Planet(PlanetConfig),
 }
 
 impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
@@ -189,6 +192,13 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
                 }
                 ScenarioObjectKind::Light(config) => {
                     entity_commands.insert(light_scenario_object(config.clone()));
+                }
+                ScenarioObjectKind::Planet(planet) => {
+                    // Same shape as the rock above and for the same reason:
+                    // the body builds its collider child in THIS batch. No
+                    // seed to resolve here - unlike a rock, a planet names its
+                    // own, because which world it is belongs to the author.
+                    planet_scenario_object(&mut entity_commands, planet.clone());
                 }
             }
         });

@@ -78,7 +78,7 @@ SpawnScenarioObject((
 | field | type | default | meaning |
 |---|---|---|---|
 | `base` | object base | required | identity + pose (below) |
-| `kind` | object kind | required | `Anchor((..))` / `Asteroid((..))` / `Spaceship((..))` / `Beacon((..))` / `SalvageCrate((..))` / `Light(..)` |
+| `kind` | object kind | required | `Anchor((..))` / `Asteroid((..))` / `Planet((..))` / `Spaceship((..))` / `Beacon((..))` / `SalvageCrate((..))` / `Light(..)` |
 
 The `base` block:
 

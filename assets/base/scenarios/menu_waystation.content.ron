@@ -26,10 +26,10 @@
                                 1.0,
                             ),
                         ),
-                        kind: Asteroid((
-                            radius: 200.0,
-                            texture: "self://textures/asteroid.png",
-                            destroy_sound: Some("self://sounds/destroy_rock.wav"),
+                        kind: Planet((
+                            radius: 900.0,
+                            planet_type: Temperate,
+                            seed: 7,
                             mass: Some(30000.0),
                             invulnerable: true,
                         )),

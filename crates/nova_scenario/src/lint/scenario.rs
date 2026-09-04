@@ -573,12 +573,14 @@ fn check_action(
         EventActionConfig::SpawnScenarioObject(config) => {
             check_object_prototypes(config, scenario, sections, ships, issues);
             check_spawned_arrival_standoff(config, scenario, issues);
+            check_planet(config, scenario, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
             // The template is a full object config too - a scattered ship with
             // a bad prototype is the same bug one wrapper deeper.
             check_object_prototypes(&config.template, scenario, sections, ships, issues);
             check_spawned_arrival_standoff(&config.template, scenario, issues);
+            check_planet(&config.template, scenario, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
             // the field the author wrote - say so before it ships.
             if config.count > MAX_SCATTER_COUNT {
@@ -1172,6 +1174,77 @@ fn check_spawned_arrival_standoff(
         scenario,
         issues,
     );
+}
+
+/// Every authored figure on a planet has to be one the generator can use.
+///
+/// A planet's radius is its REAL size, and the whole body - the mesh range,
+/// the derived body radius, the well clamp, the sphere of influence, an orbit
+/// ring - is measured off it. A zero or negative radius does not draw a small
+/// planet; it divides the authored relief by nothing. The generator will not
+/// paper over any of this, so the lint has to name the file first.
+fn check_planet(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
+    let ScenarioObjectKind::Planet(planet) = &config.kind else {
+        return;
+    };
+    let id = &config.base.id;
+
+    if !planet.radius.0.is_finite() || planet.radius.0 <= 0.0 {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "planet '{id}' needs a positive finite mean radius in meters, got {}",
+                planet.radius.0
+            ),
+        ));
+    }
+    if let Some(relief) = planet.relief {
+        if !relief.0.is_finite() || relief.0 <= 0.0 || relief.0 >= planet.radius.0 {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "planet '{id}' authors {} m of relief against a {} m radius; relief is \
+                     a height above the mean surface, so it must be positive and smaller \
+                     than the radius",
+                    relief.0, planet.radius.0
+                ),
+            ));
+        }
+    }
+    if let Some(sea_level) = planet.sea_level {
+        if !(0.0..=1.0).contains(&sea_level) {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "planet '{id}' authors a sea level of {sea_level}; it is a fraction of \
+                     the height range, so it runs 0 to 1"
+                ),
+            ));
+        }
+    }
+    if let Some(mass) = planet.mass {
+        if !mass.is_finite() || mass <= 0.0 {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "planet '{id}' authors a mass of {mass}; a gravity well needs a \
+                     positive one"
+                ),
+            ));
+        }
+    }
+    if let Some(signature) = planet.lock_signature {
+        if !signature.0.is_finite() || signature.0 <= 0.0 {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "planet '{id}' authors a lock signature of {} m; drop the override to \
+                     read at the mean radius instead",
+                    signature.0
+                ),
+            ));
+        }
+    }
 }
 
 /// A section-addressed weapon action must name a section the ship carries, of
@@ -1860,6 +1933,81 @@ mod tests {
                 .message
                 .contains("MoveShipTo 'approach' arrival_standoff")),
             "and the order field still is: {issues:?}"
+        );
+    }
+
+    /// Nothing on a planet is allowed to be nonsense-but-tolerated.
+    ///
+    /// The generator divides the authored relief by the radius and measures
+    /// the whole body off the result, so a zero radius does not draw a small
+    /// world - it produces a body radius of NaN and takes the gravity well,
+    /// the sphere of influence and every orbit inside it with it. The lint is
+    /// the first place that can name the file, so it is where this fails.
+    #[test]
+    fn a_planet_authored_with_impossible_figures_is_an_error() {
+        let planet = |id: &str, config: PlanetConfig| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Planet(config),
+            })
+        };
+        let sound = || PlanetConfig::new(PlanetType::DustWorld, Meters(900.0), 7);
+
+        let s = scenario(
+            vec![
+                planet(
+                    "no_size",
+                    PlanetConfig::new(PlanetType::DustWorld, Meters::ZERO, 7),
+                ),
+                planet(
+                    "relief_past_the_radius",
+                    PlanetConfig {
+                        relief: Some(Meters(2_000.0)),
+                        ..sound()
+                    },
+                ),
+                planet(
+                    "sea_above_the_peaks",
+                    PlanetConfig {
+                        sea_level: Some(1.4),
+                        ..sound()
+                    },
+                ),
+                planet(
+                    "weightless_well",
+                    PlanetConfig {
+                        mass: Some(0.0),
+                        ..sound()
+                    },
+                ),
+                planet("sound", sound()),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]));
+        let errs = errors(&issues);
+        for id in [
+            "no_size",
+            "relief_past_the_radius",
+            "sea_above_the_peaks",
+            "weightless_well",
+        ] {
+            assert!(
+                errs.iter()
+                    .any(|issue| issue.message.contains(&format!("planet '{id}'"))),
+                "'{id}' must be an error: {issues:?}"
+            );
+        }
+        assert!(
+            !errs
+                .iter()
+                .any(|issue| issue.message.contains("planet 'sound'")),
+            "a well-authored planet stays clean: {issues:?}"
         );
     }
 

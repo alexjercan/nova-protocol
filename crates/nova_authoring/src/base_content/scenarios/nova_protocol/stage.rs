@@ -21,9 +21,23 @@ pub(crate) const CARRIER_POS: Meters3 = Meters3::new(-1_000.0, 0.0, 2_500.0);
 
 /// The small planetoid the first shift's inspection round is flown against.
 pub(crate) const INSPECTION_POS: Meters3 = Meters3::new(-4_500.0, -400.0, -6_500.0);
-/// Its nominal radius. The noise mesh reaches 3.5-6.0 times this, so the
-/// geometric body runs 700-1 200 m.
-pub(crate) const INSPECTION_RADIUS: Meters = Meters(200.0);
+/// Its MEAN radius, and now a real one.
+///
+/// As a rock this read 200 m and meant nothing directly: the noise mesh
+/// reached 3.5-6.0 times past it, and the geometric body the sim measured from
+/// came out at 1 000.1 m. A planet's mesh stands only `1 + relief` off its
+/// radius, so the number has to carry the size itself. 950 m of mean radius
+/// puts the surface at 997.5 m - within 0.3% of the body this scene was tuned
+/// against, so the well, the 3.29 km sphere of influence and the ORBIT
+/// autopilot's ring are the ones the chapters were authored for.
+/// `the_belt_planets_keep_the_body_radius_their_rocks_published` pins it.
+pub(crate) const INSPECTION_RADIUS: Meters = Meters(950.0);
+/// A dust world: ochre and mundane, the sort of body a maintenance shift is
+/// sent to inspect, and instantly distinct from the dark rock across the belt.
+pub(crate) const INSPECTION_TYPE: PlanetType = PlanetType::DustWorld;
+/// Draws a wide ochre plain under a pale frost cap, with the basin turned
+/// toward the approach lane the chapter flies in on.
+pub(crate) const INSPECTION_SEED: u32 = 7;
 /// Its mass parameter (mu, u^3/s^2): the shakedown's proven tutorial well,
 /// a 3.29 km sphere of influence with an escapable surface pull.
 pub(crate) const INSPECTION_MASS: f32 = 27_000.0;
@@ -32,7 +46,16 @@ pub(crate) const INSPECTION_MASS: f32 = 27_000.0;
 /// something: it is two and a half times the inspection body's nominal radius,
 /// so its 1.75-3.0 km hull is opaque to anything parked behind it.
 pub(crate) const CONCEALMENT_POS: Meters3 = Meters3::new(4_500.0, 300.0, -6_500.0);
-pub(crate) const CONCEALMENT_RADIUS: Meters = Meters(500.0);
+/// Its MEAN radius, on the same footing as [`INSPECTION_RADIUS`]: 2 250 m puts
+/// the surface at 2 373.8 m, within 0.2% of the 2 377.0 m body the rock
+/// published, so what it hides it still hides.
+pub(crate) const CONCEALMENT_RADIUS: Meters = Meters(2_250.0);
+/// Barren rock: airless grey stone, no cap, no colour. It exists to be a wall,
+/// and it reads as one beside the dust world.
+pub(crate) const CONCEALMENT_TYPE: PlanetType = PlanetType::BarrenRock;
+/// Draws dark mare against pale highland, so the silhouette stays legible at
+/// belt range without the body ever looking inviting.
+pub(crate) const CONCEALMENT_SEED: u32 = 3;
 /// Deliberately WEAKER than the inspection body despite being larger: the
 /// first shift's navigation lesson is authored against one well, and a second
 /// one reaching into the route would teach the wrong thing about both.
@@ -188,13 +211,19 @@ pub(crate) fn rock(
 
 /// One of the two planetoids: a gravity source, and indestructible, because
 /// both chapters are authored against it still being there.
+///
+/// A PLANET, not a big rock. The ids, the masses and the invulnerable flag are
+/// unchanged, and the radii are chosen to reproduce the body radius each rock
+/// published (see [`INSPECTION_RADIUS`]), so this is a look change and not a
+/// gameplay one.
 pub(crate) fn planetoid(
     id: &str,
     name: &str,
     position: Meters3,
     radius: Meters,
     mass: f32,
-    texture: &AssetRef<Image>,
+    planet_type: PlanetType,
+    seed: u32,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -203,17 +232,35 @@ pub(crate) fn planetoid(
             position,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
-            destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-            radius,
-            texture: texture.clone(),
-            mass: Some(mass),
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(planet_type, radius, seed).anchored(mass),
+        ),
     }
+}
+
+/// The GEOMETRIC surface of an authored planetoid: the radius the sim
+/// measures from, and the one every clearance rule is written against.
+///
+/// A rock only ever offered a RANGE here, because its noise mesh reaches
+/// 3.5-6.0 times past its nominal radius depending on the seed, so a route had
+/// to clear `nominal * ASTEROID_GEOMETRIC_FACTOR_MAX` and hope. A planet is
+/// exact: `radius * (1 + relief)`, whatever the seed. Corridor and well tests
+/// read this instead of guessing at a worst case.
+#[cfg(test)]
+pub(crate) fn planetoid_body_radius(planet_type: PlanetType, radius: Meters) -> Meters {
+    PlanetConfig::new(planet_type, radius, 0).body_radius()
+}
+
+/// The inspection body's geometric surface (see [`planetoid_body_radius`]).
+#[cfg(test)]
+pub(crate) fn inspection_body_radius() -> Meters {
+    planetoid_body_radius(INSPECTION_TYPE, INSPECTION_RADIUS)
+}
+
+/// The concealment body's geometric surface (see [`planetoid_body_radius`]).
+#[cfg(test)]
+pub(crate) fn concealment_body_radius() -> Meters {
+    planetoid_body_radius(CONCEALMENT_TYPE, CONCEALMENT_RADIUS)
 }
 
 /// Every fixed body of the belt: both planetoids, the rock plate, the far
@@ -226,7 +273,8 @@ pub(crate) fn belt(texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
             INSPECTION_POS,
             INSPECTION_RADIUS,
             INSPECTION_MASS,
-            texture,
+            INSPECTION_TYPE,
+            INSPECTION_SEED,
         ),
         planetoid(
             ID_CONCEALMENT,
@@ -234,7 +282,8 @@ pub(crate) fn belt(texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
             CONCEALMENT_POS,
             CONCEALMENT_RADIUS,
             CONCEALMENT_MASS,
-            texture,
+            CONCEALMENT_TYPE,
+            CONCEALMENT_SEED,
         ),
     ];
     for (index, (position, radius)) in SALVAGE_ROCKS.into_iter().enumerate() {

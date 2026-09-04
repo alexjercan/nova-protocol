@@ -2,15 +2,21 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
-use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 
 use crate::base_content::ships;
 
-pub(super) fn backdrop_planetoid(
-    asteroid_texture: AssetRef<Image>,
-    mass: f32,
-) -> ScenarioObjectConfig {
+/// The body the menu is framed around.
+///
+/// A TEMPERATE world, and deliberately the showiest type there is: this is the
+/// game's first frame, and a blue-green world with a coastline says "space
+/// game with real planets" before a single word of the menu is read. Every
+/// other type is available to a backdrop that wants a different mood.
+///
+/// 900 m of mean radius puts the surface at 945 m, within 0.5% of the 940.6 m
+/// body the rock here published, so the orbiter's ring and the well the menu
+/// ambience flies against are unchanged.
+pub(super) fn backdrop_planetoid(mass: f32) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: "menu_planetoid".to_string(),
@@ -18,18 +24,19 @@ pub(super) fn backdrop_planetoid(
             position: Meters3::ZERO,
             rotation: Quat::IDENTITY,
         },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
-            destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
-            radius: Meters(200.0),
-            texture: asteroid_texture,
-            mass: Some(mass),
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
+        kind: ScenarioObjectKind::Planet(
+            PlanetConfig::new(MENU_PLANETOID_TYPE, Meters(900.0), MENU_PLANETOID_SEED)
+                .anchored(mass),
+        ),
     }
 }
+
+/// The menu world's type (see [`backdrop_planetoid`]).
+pub(super) const MENU_PLANETOID_TYPE: PlanetType = PlanetType::Temperate;
+/// Draws deep sea broken by pale-sand shelves and green continents, under a
+/// bright cap. Picked against the menu's own key light, which is strong enough
+/// to wash a shallower draw out to olive.
+pub(super) const MENU_PLANETOID_SEED: u32 = 7;
 
 /// The backdrop camera contract: every backdrop poses its OWN camera with a
 /// `SetCamera` in its OnStart (lint makes a poseless backdrop an Error).
@@ -147,5 +154,32 @@ pub(super) fn backdrop_beacon(
             area_radius: None,
             lock_signature: None,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The menu backdrop kept its geometry across the move to a planet.
+    ///
+    /// Same derivation as the belt bodies
+    /// (`the_belt_planets_keep_the_body_radius_their_rocks_published`): the
+    /// rock here published a 940.6 m body radius, and the menu orbiter is
+    /// posed against that, not against the 200 m designation in its config.
+    #[test]
+    fn the_menu_world_keeps_the_body_radius_its_rock_published() {
+        let object = backdrop_planetoid(30_000.0);
+        let ScenarioObjectKind::Planet(planet) = &object.kind else {
+            panic!("the menu backdrop must be a planet");
+        };
+        let drift = (planet.body_radius().0 - 940.6) / 940.6;
+        assert!(
+            drift.abs() < 0.01,
+            "the menu world measures {:.1} m against the 940.6 m its rock \
+             published ({:.1}% off)",
+            planet.body_radius().0,
+            drift * 100.0
+        );
     }
 }

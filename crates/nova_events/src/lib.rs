@@ -53,9 +53,9 @@ pub mod prelude {
         OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
         ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
-        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
-        TIMER_KEY_FIELD_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
+        SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME,
+        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -112,6 +112,8 @@ pub const ASTEROID_TYPE_NAME: &str = "asteroid";
 pub const BEACON_TYPE_NAME: &str = "beacon";
 /// [`EntityTypeName`] value for an authored light.
 pub const LIGHT_TYPE_NAME: &str = "light";
+/// [`EntityTypeName`] value for an authored planet.
+pub const PLANET_TYPE_NAME: &str = "planet";
 /// [`EntityTypeName`] value for an authored salvage crate.
 pub const SALVAGE_CRATE_TYPE_NAME: &str = "salvage_crate";
 /// [`EntityTypeName`] value for an authored spaceship.

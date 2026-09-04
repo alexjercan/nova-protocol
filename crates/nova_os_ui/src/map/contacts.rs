@@ -8,7 +8,7 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::{
-    prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME},
+    prelude::{EntityId, EntityTypeName, ASTEROID_TYPE_NAME, PLANET_TYPE_NAME},
     units::prelude::*,
 };
 use nova_gameplay::prelude::*;
@@ -248,6 +248,7 @@ impl MapContacts<'_, '_> {
     /// Every contact entity with its kind + stable sort key, for the code-minting
     /// pass. Uses the SAME classification as [`Self::collect`] (via
     /// [`ship_contact_kind`]) so labels never disagree with the rendered list.
+
     pub(crate) fn classified(&self) -> Vec<(Entity, MapContactKind, String)> {
         let mut out = Vec::new();
         if let Some((player, _, _)) = self.player_frame() {
@@ -260,7 +261,7 @@ impl MapContacts<'_, '_> {
             out.push((entity, MapContactKind::Objective, self.sort_key(entity)));
         }
         for (entity, _, type_name) in &self.terrain {
-            if type_name.0 != ASTEROID_TYPE_NAME {
+            if !is_terrain(type_name) {
                 continue;
             }
             out.push((entity, MapContactKind::Terrain, self.sort_key(entity)));
@@ -367,12 +368,12 @@ impl MapContacts<'_, '_> {
             });
         }
         for (entity, gt, type_name) in &self.terrain {
-            if type_name.0 != ASTEROID_TYPE_NAME {
+            if !is_terrain(type_name) {
                 continue;
             }
             let world_pos = gt.translation();
             let (range, brg, mark) = bearing(world_pos);
-            let name = "ASTEROID".to_string();
+            let name = terrain_name(type_name).to_string();
             contacts.push(MapContact {
                 entity,
                 kind: MapContactKind::Terrain,
@@ -503,4 +504,23 @@ pub(crate) fn map_rows_from_contacts(contacts: &[MapContact]) -> Vec<TerminalRow
 /// handler when it builds a command snapshot.
 pub fn terminal_map_rows(contacts: &MapContacts) -> Vec<TerminalRow> {
     map_rows_from_contacts(&contacts.collect())
+}
+
+/// Whether an entity type name is a body the tactical map draws as terrain.
+///
+/// The map's terrain query is every named entity that is not a ship, so it
+/// has to filter by name. Two names qualify: a rock and a world. A kind that
+/// is added and NOT listed here vanishes from the map silently, which is why
+/// this is one function rather than a comparison repeated per call site.
+fn is_terrain(type_name: &EntityTypeName) -> bool {
+    matches!(type_name.0.as_str(), ASTEROID_TYPE_NAME | PLANET_TYPE_NAME)
+}
+
+/// What the map calls one piece of terrain.
+fn terrain_name(type_name: &EntityTypeName) -> &'static str {
+    if type_name.0 == PLANET_TYPE_NAME {
+        "PLANET"
+    } else {
+        "ASTEROID"
+    }
 }
