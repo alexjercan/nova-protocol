@@ -824,8 +824,11 @@ cases:
 ## Railgun
 
 `RailgunSectionConfig` - a spinal railgun with no traverse of its own: the HULL
-aims it, and tapping the trigger COMMITS the shot. The shipped
-`railgun_lance_section`:
+aims it, and tapping the trigger COMMITS the shot. Two ship, and they are the
+same gun at two grades: `railgun_lance_section` is the balanced one every
+buildable hull can mount, and `siege_railgun_lance_section` is the campaign's
+stolen warship, which differs in `slug_damage`, `slug_power` and `rake_radius`
+and in nothing else. The standard one:
 
 ```ron
 kind: Railgun((
@@ -888,11 +891,14 @@ kind: Railgun((
   - **It spends the same budget.** Every section in the corridor takes the
     flat `slug_damage` once and pays out of the same `slug_power`. There is no
     second damage number, no falloff and no blast.
-  Wider is not more. Against dense material the budget binds either way, so a
-  big radius removes the same total and spends it sideways on the entry face
-  instead of forward through the hull: the shipped 10 m bores three cells wide
-  through a four-deep wall and out the back, while 40 m strips the front layer
-  and stops one cell in. Pick the radius for the SHAPE you want, then let the
+  Wider is not more, unless the budget can pay for it. Against dense material
+  the budget usually binds either way, so a big radius removes the same total
+  and spends it sideways on the entry face instead of forward through the hull:
+  the standard lance's 10 m bores three cells wide through a four-deep wall and
+  out the back, while 40 m on the same 1800 power strips the front layer and
+  stops one cell in. Widen only when the power is no longer the constraint -
+  which is what the siege grade buys with 360,000, and why it is the one lance
+  that can afford 30 m. Pick the radius for the SHAPE you want, then let the
   power decide how much of it you get.
 - `recoil_impulse` - impulse applied backwards along the bore at the muzzle
   point on the tick the slug leaves. Raw impulse with no `dt`, in the units a

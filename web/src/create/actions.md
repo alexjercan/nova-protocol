@@ -43,6 +43,8 @@ never panics a scenario). All 38 at a glance:
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
 | [`DebugMessage`](#debugmessage) | [variables](#variables-timers-debugging) | log a line in debug builds |
 | [`SetCamera`](#setcamera) | [camera](#camera-photo-mode) | pin the scenario camera at a pose |
+| [`SetCameraAnchor`](#setcameraanchor) | [camera](#camera-photo-mode) | ride the camera on an object, framing what you name |
+| [`ReleaseCamera`](#releasecamera) | [camera](#camera-photo-mode) | hand the camera back to the player's chase rig |
 | [`Screenshot`](#screenshot) | [camera](#camera-photo-mode) | capture the primary window to a PNG |
 | [`SetSkybox`](#setskybox) | [camera](#camera-photo-mode) | swap the scenario's skybox mid-scenario |
 
@@ -1136,6 +1138,68 @@ SetCamera((position: (0.0, 300.0, 800.0), look_at: (0.0, 0.0, 0.0))),
 
 Part of the screenshot/photo surface; no scenario camera present is a warn
 no-op.
+
+</details>
+
+### SetCameraAnchor
+
+Ride the camera on a scenario object at a fixed offset, facing what you name.
+The shot follows the object every frame, so a cinematic can hold the player's
+own ship in frame while they are still flying it.
+
+```ron
+// Over the player's shoulder, watching the carrier come apart.
+SetCameraAnchor((anchor: "cutter", offset: (140.0, 55.0, -195.0), frame: World, look_at: Point((-1000.0, 0.0, 2500.0)))),
+// Riding the hull, watching whatever is coming.
+SetCameraAnchor((anchor: "cutter", offset: (-165.0, 30.0, 70.0), look_at: Object("warship"))),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `anchor` | object id | required | the scoped object the camera rides |
+| `offset` | 3-tuple | required | where the camera sits relative to it, meters |
+| `frame` | `Local` \| `World` | `Local` | whether `offset` turns with the anchor's hull or stays on world axes |
+| `look_at` | `Anchor` \| `Point((x,y,z))` \| `Object("id")` | `Anchor` | what the shot faces |
+
+`Local` composes the same shot whatever heading the anchor is on - an
+over-the-shoulder chase. `World` composes the same shot whatever the anchor is
+DOING, which is what you want while the player is still flying: their heading
+is not yours to choose.
+
+`look_at: Object` follows a live object and falls back to the anchor if that
+object dies mid-shot; `look_at: Point` is fixed world space and survives
+whatever was standing there. Frame something that is about to be destroyed with
+`Point`, not `Object`.
+
+Camera authority only. It never steers or stops the ship it rides, so the
+player keeps the helm through the whole shot. Like `SetCamera` it drops
+free-fly control and re-enforces the pose every frame; unlike `SetCamera` there
+is something to hand back to, so pair it with [`ReleaseCamera`](#releasecamera).
+An anchor id that names nothing warns and leaves the camera alone.
+
+</details>
+
+### ReleaseCamera
+
+Drop every scripted camera override and hand the view back to the player's
+normal chase rig.
+
+```ron
+ReleaseCamera(()),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+No fields. Takes off both [`SetCamera`](#setcamera)'s fixed pose and
+[`SetCameraAnchor`](#setcameraanchor)'s ride, whichever is on. The chase rig
+never stopped solving underneath, so the shot ends and the player is looking
+out of their own ship again - there is no restore pose to author.
+
+Harmless when nothing is pinned.
 
 </details>
 

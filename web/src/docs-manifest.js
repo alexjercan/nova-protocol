@@ -713,6 +713,8 @@ const CREATE_PAGES = [
             "VariableSet",
             "DebugMessage",
             "SetCamera",
+            "SetCameraAnchor",
+            "ReleaseCamera",
             "Screenshot",
             "SetSkybox",
         ],

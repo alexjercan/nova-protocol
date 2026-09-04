@@ -63,6 +63,153 @@ impl EventAction<NovaEventWorld> for SetCameraActionConfig {
     }
 }
 
+/// What a [`SetCameraAnchorActionConfig`] shot looks at.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CameraLookAtConfig {
+    /// The anchor itself.
+    #[default]
+    Anchor,
+    /// A fixed world point. The right choice for a shot of something being
+    /// destroyed: the aim survives the target.
+    Point(Meters3),
+    /// Another scenario object by id, tracked while it lives; the shot falls
+    /// back to the anchor if it goes away.
+    Object(String),
+}
+
+/// Anchor the scenario camera to a live scenario object and hold a pose
+/// relative to it, re-solved every frame ([`ScriptedCameraAnchor`]).
+///
+/// The difference from [`SetCameraActionConfig`] is the whole point: a fixed
+/// world pose frames the place a ship WAS, so a cinematic authored with one
+/// abandons the player the moment they move. This one keeps them in the shot.
+///
+/// Camera authority only. Nothing here steers, stops or slows the ship it
+/// frames - a beat that needs the player parked has to earn that with an
+/// objective. Released by [`ReleaseCameraActionConfig`]; a no-op with a warning
+/// when there is no scenario camera or no such anchor.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetCameraAnchorActionConfig {
+    /// The `EntityId` of the scoped object the shot is framed around.
+    #[reflect(@Names::Object)]
+    pub anchor: String,
+    /// Camera position relative to the anchor, in `frame`.
+    pub offset: Meters3,
+    /// Whether `offset` is measured in the anchor's own frame (over the
+    /// shoulder, turning with the hull) or in world axes (a fixed staged
+    /// composition, indifferent to which way the player is pointing).
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub frame: CameraOffsetFrame,
+    /// What the camera looks at.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub look_at: CameraLookAtConfig,
+}
+
+/// Resolve one scoped scenario id to its entity.
+fn scoped_entity(world: &mut World, id: &str) -> Option<Entity> {
+    let mut query = world.query_filtered::<(Entity, &EntityId), With<ScenarioScopedMarker>>();
+    query
+        .iter(world)
+        .find(|(_, entity_id)| entity_id.0 == id)
+        .map(|(entity, _)| entity)
+}
+
+/// Resolve the scenario camera.
+fn scenario_camera(world: &mut World) -> Option<Entity> {
+    let mut query = world.query_filtered::<Entity, With<ScenarioCameraMarker>>();
+    query.iter(world).next()
+}
+
+impl EventAction<NovaEventWorld> for SetCameraAnchorActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let anchor_id = self.anchor.clone();
+        let offset = self.offset;
+        let frame = self.frame;
+        let look_at = self.look_at.clone();
+        debug!(
+            "SetCameraAnchor: '{}' offset {:?} ({:?}) look_at {:?}",
+            anchor_id, offset, frame, look_at
+        );
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(camera) = scenario_camera(world) else {
+                    warn!("SetCameraAnchor: no scenario camera present; nothing to pose");
+                    return;
+                };
+                let Some(anchor) = scoped_entity(world, &anchor_id) else {
+                    warn!(
+                        "SetCameraAnchor: no scoped object with id '{}'; the camera is \
+                         left alone",
+                        anchor_id
+                    );
+                    return;
+                };
+                let look_at = match &look_at {
+                    CameraLookAtConfig::Anchor => ScriptedCameraLookAt::Anchor,
+                    CameraLookAtConfig::Point(point) => ScriptedCameraLookAt::Point(*point),
+                    CameraLookAtConfig::Object(id) => match scoped_entity(world, id) {
+                        Some(entity) => ScriptedCameraLookAt::Entity(entity),
+                        None => {
+                            warn!(
+                                "SetCameraAnchor: no scoped object with id '{}' to look at; \
+                                 framing the anchor instead",
+                                id
+                            );
+                            ScriptedCameraLookAt::Anchor
+                        }
+                    },
+                };
+
+                if let Ok(mut entity) = world.get_entity_mut(camera) {
+                    // Drop free-fly input and any FIXED pose: the two overrides
+                    // write the same derived transform, and a stale fixed pose
+                    // left behind would fight the anchored one every frame.
+                    entity.remove::<WASDCameraController>();
+                    entity.remove::<ScriptedCameraPose>();
+                    entity.insert(ScriptedCameraAnchor {
+                        anchor,
+                        offset,
+                        frame,
+                        look_at,
+                    });
+                }
+            });
+        });
+    }
+}
+
+/// Hand the scenario camera back to whatever rig owns it - the player's chase
+/// camera during a run, the free-fly rig without a player ship.
+///
+/// There is no restore POSE to author, because the losing writers never
+/// stopped: the chase rig keeps solving its own framing underneath the
+/// override every frame, so taking the override off is the whole restore.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ReleaseCameraActionConfig;
+
+impl EventAction<NovaEventWorld> for ReleaseCameraActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!("ReleaseCamera: handing the camera back to its own rig");
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(camera) = scenario_camera(world) else {
+                    warn!("ReleaseCamera: no scenario camera present; nothing to release");
+                    return;
+                };
+                if let Ok(mut entity) = world.get_entity_mut(camera) {
+                    entity.remove::<ScriptedCameraPose>();
+                    entity.remove::<ScriptedCameraAnchor>();
+                }
+            });
+        });
+    }
+}
+
 /// Environment variable naming the directory relative capture paths resolve
 /// under.
 ///
@@ -568,6 +715,142 @@ mod tests {
         );
     }
 
+    /// The anchored pose resolves BOTH ids and lands a `ScriptedCameraAnchor`
+    /// on the camera - the shot follows the ship instead of framing the place
+    /// it used to be. It also drops any fixed pose, because the two overrides
+    /// write the same derived transform and would otherwise fight every frame.
+    #[test]
+    fn set_camera_anchor_binds_the_shot_to_a_live_object() {
+        use nova_events::prelude::EventWorld;
+
+        use crate::prelude::{ScenarioCameraMarker, ScriptedCameraAnchor, ScriptedCameraPose};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let camera = world
+            .spawn((
+                ScenarioCameraMarker,
+                WASDCameraController,
+                ScriptedCameraPose {
+                    position: Meters3::new(0.0, 500.0, 0.0),
+                    look_at: Meters3::ZERO,
+                },
+                Transform::default(),
+            ))
+            .id();
+        let cutter = world
+            .spawn((ScenarioScopedMarker, EntityId("cutter".to_string())))
+            .id();
+        let carrier = world
+            .spawn((ScenarioScopedMarker, EntityId("carrier".to_string())))
+            .id();
+
+        let action = SetCameraAnchorActionConfig {
+            anchor: "cutter".to_string(),
+            offset: Meters3::new(0.0, 45.0, 180.0),
+            frame: CameraOffsetFrame::World,
+            look_at: CameraLookAtConfig::Object("carrier".to_string()),
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let anchor = world
+            .get::<ScriptedCameraAnchor>(camera)
+            .expect("the camera is anchored to the cutter");
+        assert_eq!(anchor.anchor, cutter);
+        assert_eq!(anchor.offset, Meters3::new(0.0, 45.0, 180.0));
+        assert_eq!(anchor.frame, CameraOffsetFrame::World);
+        assert!(
+            matches!(anchor.look_at, ScriptedCameraLookAt::Entity(entity) if entity == carrier),
+            "the look-at id must resolve to the carrier entity"
+        );
+        assert!(
+            world.get::<ScriptedCameraPose>(camera).is_none(),
+            "the fixed pose is dropped so the two overrides cannot fight"
+        );
+        assert!(world.get::<WASDCameraController>(camera).is_none());
+    }
+
+    /// An anchor id that names nothing leaves the camera exactly as it was.
+    /// Silently framing the world origin would look like a bug in the shot
+    /// rather than a bug in the script.
+    #[test]
+    fn set_camera_anchor_on_a_missing_object_leaves_the_camera_alone() {
+        use nova_events::prelude::EventWorld;
+
+        use crate::prelude::{ScenarioCameraMarker, ScriptedCameraAnchor};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let camera = world
+            .spawn((ScenarioCameraMarker, WASDCameraController))
+            .id();
+
+        let action = SetCameraAnchorActionConfig {
+            anchor: "ghost".to_string(),
+            offset: Meters3::new(0.0, 45.0, 180.0),
+            frame: CameraOffsetFrame::World,
+            look_at: CameraLookAtConfig::Anchor,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(world.get::<ScriptedCameraAnchor>(camera).is_none());
+        assert!(
+            world.get::<WASDCameraController>(camera).is_some(),
+            "a failed pose must not take the free-fly rig with it"
+        );
+    }
+
+    /// ReleaseCamera takes BOTH overrides off, whichever one is holding the
+    /// camera. That is the whole restore: the chase rig never stopped solving
+    /// its own framing underneath, so there is no pose to put back.
+    #[test]
+    fn release_camera_takes_both_overrides_off() {
+        use nova_events::prelude::EventWorld;
+
+        use crate::prelude::{
+            ScenarioCameraMarker, ScriptedCameraAnchor, ScriptedCameraLookAt, ScriptedCameraPose,
+        };
+
+        for holder in ["pose", "anchor"] {
+            let mut world = World::new();
+            world.init_resource::<NovaEventWorld>();
+            world.init_resource::<GameObjectives>();
+            let subject = world.spawn_empty().id();
+            let mut camera = world.spawn((ScenarioCameraMarker, Transform::default()));
+            if holder == "pose" {
+                camera.insert(ScriptedCameraPose {
+                    position: Meters3::new(0.0, 500.0, 0.0),
+                    look_at: Meters3::ZERO,
+                });
+            } else {
+                camera.insert(ScriptedCameraAnchor {
+                    anchor: subject,
+                    offset: Meters3::new(0.0, 45.0, 180.0),
+                    frame: CameraOffsetFrame::World,
+                    look_at: ScriptedCameraLookAt::Anchor,
+                });
+            }
+            let camera = camera.id();
+
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            ReleaseCameraActionConfig.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(&mut world);
+
+            assert!(
+                world.get::<ScriptedCameraPose>(camera).is_none()
+                    && world.get::<ScriptedCameraAnchor>(camera).is_none(),
+                "the {holder} override survived a release"
+            );
+        }
+    }
+
     /// SetCamera against a world with no scenario camera is a warn-and-continue
     /// no-op, not a panic (a headless rig without the loader's camera).
     #[test]
@@ -646,6 +929,43 @@ mod tests {
         let back: SetCameraActionConfig = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back.position, config.position);
         assert_eq!(back.look_at, config.look_at);
+    }
+
+    /// A modder authors the cinematic in RON, so the whole anchored-pose
+    /// vocabulary - the offset frame and every look-at arm - must survive a
+    /// round trip.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn set_camera_anchor_round_trips_through_ron() {
+        for look_at in [
+            CameraLookAtConfig::Anchor,
+            CameraLookAtConfig::Point(Meters3::new(-1_000.0, 0.0, 2_500.0)),
+            CameraLookAtConfig::Object("carrier".to_string()),
+        ] {
+            let action = EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+                anchor: "cutter".to_string(),
+                offset: Meters3::new(0.0, 45.0, 180.0),
+                frame: CameraOffsetFrame::World,
+                look_at: look_at.clone(),
+            });
+            let ron = ron::to_string(&action).expect("serialize");
+            let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
+            let EventActionConfig::SetCameraAnchor(config) = back else {
+                panic!("expected SetCameraAnchor, got {back:?}");
+            };
+            assert_eq!(config.anchor, "cutter");
+            assert_eq!(config.frame, CameraOffsetFrame::World);
+            assert_eq!(format!("{:?}", config.look_at), format!("{look_at:?}"));
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn release_camera_round_trips_through_ron() {
+        let ron = ron::to_string(&EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig))
+            .expect("serialize");
+        let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
+        assert!(matches!(back, EventActionConfig::ReleaseCamera(_)));
     }
 
     #[cfg(feature = "serde")]

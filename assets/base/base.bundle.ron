@@ -25,6 +25,10 @@
     // enforces completeness; sidecar `.meta` files ride along and are not listed).
     resources: [
         "textures/cubemap.png",
+        // The second sky. No base scenario flies under it - the campaign's two
+        // chapters share one sky on purpose, because they are the same hour of
+        // the same day - but it ships as the thing a mod or a `SetSkybox`
+        // swaps TO, and the editor sandbox loads it by path.
         "textures/cubemap_alt.png",
         "textures/asteroid.png",
         "gltf/hull-01.glb",

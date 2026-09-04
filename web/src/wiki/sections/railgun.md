@@ -187,7 +187,7 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs :891-990 and assets/base/sections/base.content.ron (railgun_lance_section). No shipped ship prototype mounts one; the editor sandbox's `picket_lance` does (crates/nova_editor/src/scenario.rs). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/standard.rs (railgun_lance_prototype and its two call sites in standard_section_prototypes) and assets/base/sections/base.content.ron. Only the campaign's stolen warship mounts one - the siege grade, both spinal guns (ships/block.rs stolen_warship); the editor sandbox's `picket_lance` carries the standard one (crates/nova_editor/src/scenario.rs). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-railgun.png</span></span></span><span class="catalog__title">Railgun - shipped prototypes</span></div>
 <table>
 <thead>
@@ -195,8 +195,9 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">10 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-siege-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Siege Railgun Lance<span class="catalog__flag">experimental</span></span><span class="catalog__id">siege_railgun_lance_section</span></td><td class="catalog__num">500</td><td>Pierce</td><td class="catalog__num">360,000 power</td><td class="catalog__num">30 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
 </tbody>
 </table>
 </div>
 
-One railgun ships, and no mainline hull carries it. It is a part you bolt on yourself in the ship editor, or one a scenario builds onto a hull it spawns - see [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.
+Two railguns ship, and they are the same gun at two grades. The standard lance is the one you bolt on yourself in the ship editor; no buildable hull carries either. The siege lance is the campaign's - the stolen warship's two spinal guns, priced to cross a carrier rather than bore a corridor through a corvette, and it is deliberately overpowered for that one scene. See [Ship sections for mods](../../../create/sections/#railgun) for the numbers a mod can change, the rake radius among them.

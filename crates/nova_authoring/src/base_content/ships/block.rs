@@ -20,7 +20,10 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, SpaceshipSectionConfig};
 
-use crate::base_content::styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID};
+use crate::base_content::{
+    sections,
+    styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID},
+};
 
 /// The plain structural cell every block hull is mostly made of.
 const HULL: &str = "reinforced_hull_section";
@@ -34,7 +37,11 @@ const CAPITAL_THRUSTER: &str = "capital_thruster_section";
 const PDC: &str = "pdc_kinetic_turret_section";
 const TORPEDO: &str = "torpedo_section";
 const SIEGE_TORPEDO: &str = "heavy_torpedo_section";
-const RAILGUN: &str = "railgun_lance_section";
+/// The capital-grade lance, mounted by exactly one hull in the fleet: the
+/// stolen warship's two spinal guns. A separate PROTOTYPE rather than a
+/// per-spawn override, so the standard lance every other ship carries is
+/// untouched and the heavy one is a thing you can see in the catalog.
+const SIEGE_RAILGUN: &str = sections::SIEGE_RAILGUN_LANCE_SECTION_ID;
 
 /// How far a turret drops into its own cell to put its socket on the plate
 /// below: the mount's one link point sits a quarter cell under its centre.
@@ -371,13 +378,13 @@ pub(super) fn stolen_warship() -> BlockShip {
             flank_bay(BLOCK_WARSHIP_BAY_IDS[5], 1.5, 6.0, -yaw),
             part(
                 BLOCK_WARSHIP_RAILGUN_IDS[0],
-                RAILGUN,
+                SIEGE_RAILGUN,
                 Vec3::new(-1.0, 0.0, -5.0),
                 Quat::IDENTITY,
             ),
             part(
                 BLOCK_WARSHIP_RAILGUN_IDS[1],
-                RAILGUN,
+                SIEGE_RAILGUN,
                 Vec3::new(1.0, 0.0, -5.0),
                 Quat::IDENTITY,
             ),
@@ -787,6 +794,32 @@ mod tests {
             assert!(
                 sections.iter().any(|section| section.id == *weapon),
                 "the warship is missing '{weapon}'"
+            );
+        }
+    }
+
+    /// The heavy lance is the STOLEN WARSHIP's, and nothing else in the fleet
+    /// carries one. The opening set piece needs a gun that opens a carrier in
+    /// one shot; every other lance in the game is the catalog's standard one,
+    /// and this is what keeps those two facts from drifting into each other.
+    #[test]
+    fn only_the_stolen_warship_mounts_the_siege_lance() {
+        for (name, ship) in fleet() {
+            let siege = ship
+                .sections()
+                .into_iter()
+                .filter(|section| {
+                    matches!(&section.source, SectionSource::Prototype(id) if id == SIEGE_RAILGUN)
+                })
+                .count();
+            let expected = if name == "warship" {
+                BLOCK_WARSHIP_RAILGUN_IDS.len()
+            } else {
+                0
+            };
+            assert_eq!(
+                siege, expected,
+                "'{name}' mounts {siege} siege lances, expected {expected}"
             );
         }
     }

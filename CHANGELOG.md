@@ -49,9 +49,9 @@ does NOT get an entry - and it is the only place they are written down.
 - **(breaking)** The campaign is two new chapters, First Shift and Second
   Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
-- First Shift opens New Game: a salvage round that teaches the helm one verb at
-  a time, and ends with a warship killing your carrier while your unarmed
-  cutter can only watch from abeam.
+- First Shift opens New Game: a crewed cutter's shift that teaches the helm one
+  verb at a time, an orbit the crew talks you into, and a warship that kills
+  your carrier while you can only watch.
 - Second Shift returns to the same belt an hour later. Recover three recorders
   out of the wreck while a five-ship cleanup group sweeps it; being seen costs
   you the quiet route home, not the run.
@@ -103,6 +103,9 @@ does NOT get an entry - and it is the only place they are written down.
 - Eleven block ships join the catalog - a cutter, a hauler, a gunship, a
   raider, an industrial carrier, a stolen warship and five cleanup craft - plus
   four wreck fragments of the carrier.
+- A siege railgun lance joins the catalog beside the standard one: the same gun
+  at capital grade, 500 damage through 360,000 power and a 30 m rake. Only the
+  campaign's stolen warship carries one.
 
 ### Modding & Mod Portal
 - **(breaking)** Content is authored in meters: a 300 m blast is
@@ -138,6 +141,9 @@ does NOT get an entry - and it is the only place they are written down.
 - `ForceRailgunFire` fires one named railgun section. It and `ForceTorpedoFire`
   still refuse a player- or AI-driven ship; a helm order refuses only the
   player's.
+- `SetCameraAnchor` rides the camera on an object at a local or world offset,
+  facing a point or another object, so a cinematic keeps the player's ship in
+  frame; `ReleaseCamera` hands the view back.
 - `content lint` checks a helm order's ship and key, an empty patrol route, an
   orbit's well, an AI constraint's ship, and a forced shot's section id and
   class.

@@ -583,6 +583,8 @@ fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
         EventActionConfig::CreateScenarioArea(config) => Some(config),
         EventActionConfig::NextScenario(config) => Some(config),
         EventActionConfig::SetCamera(config) => Some(config),
+        EventActionConfig::SetCameraAnchor(config) => Some(config),
+        EventActionConfig::ReleaseCamera(config) => Some(config),
         EventActionConfig::Screenshot(config) => Some(config),
         EventActionConfig::SetSkybox(config) => Some(config),
         EventActionConfig::Outcome(config) => Some(config),
@@ -627,6 +629,8 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
         EventActionConfig::CreateScenarioArea(config) => Some(config),
         EventActionConfig::NextScenario(config) => Some(config),
         EventActionConfig::SetCamera(config) => Some(config),
+        EventActionConfig::SetCameraAnchor(config) => Some(config),
+        EventActionConfig::ReleaseCamera(config) => Some(config),
         EventActionConfig::Screenshot(config) => Some(config),
         EventActionConfig::SetSkybox(config) => Some(config),
         EventActionConfig::Outcome(config) => Some(config),
@@ -674,6 +678,10 @@ pub(crate) enum ActionChoice {
     SetSkybox,
     /// Pose the scenario camera.
     SetCamera,
+    /// Anchor the scenario camera to an object and hold a pose relative to it.
+    SetCameraAnchor,
+    /// Hand the camera back to the player's chase rig.
+    ReleaseCamera,
     /// Capture the window.
     Screenshot,
     /// Cap a ship's manual speed.
@@ -726,7 +734,7 @@ pub(crate) enum ActionChoice {
 
 impl ActionChoice {
     /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 38] = [
+    pub(crate) const ALL: [ActionChoice; 40] = [
         ActionChoice::Objective,
         ActionChoice::ObjectiveComplete,
         ActionChoice::ObjectiveMarkerAttach,
@@ -741,6 +749,8 @@ impl ActionChoice {
         ActionChoice::CreateScenarioArea,
         ActionChoice::SetSkybox,
         ActionChoice::SetCamera,
+        ActionChoice::SetCameraAnchor,
+        ActionChoice::ReleaseCamera,
         ActionChoice::Screenshot,
         ActionChoice::SetSpeedCap,
         ActionChoice::SetControllerVerb,
@@ -784,6 +794,8 @@ impl ActionChoice {
             ActionChoice::CreateScenarioArea => "Create Area",
             ActionChoice::SetSkybox => "Set Skybox",
             ActionChoice::SetCamera => "Set Camera",
+            ActionChoice::SetCameraAnchor => "Anchor Camera",
+            ActionChoice::ReleaseCamera => "Release Camera",
             ActionChoice::Screenshot => "Screenshot",
             ActionChoice::SetSpeedCap => "Set Speed Cap",
             ActionChoice::SetControllerVerb => "Set Flight Verb",
@@ -828,6 +840,8 @@ impl ActionChoice {
             ActionChoice::CreateScenarioArea => "area",
             ActionChoice::SetSkybox => "sky",
             ActionChoice::SetCamera => "camera",
+            ActionChoice::SetCameraAnchor => "anchor",
+            ActionChoice::ReleaseCamera => "release",
             ActionChoice::Screenshot => "shot",
             ActionChoice::SetSpeedCap => "cap",
             ActionChoice::SetControllerVerb => "verb",
@@ -945,6 +959,17 @@ impl ActionChoice {
                 position: Meters3::new(0.0, 400.0, 1200.0),
                 look_at: Meters3::ZERO,
             }),
+            ActionChoice::SetCameraAnchor => {
+                EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+                    anchor: String::new(),
+                    offset: Meters3::new(0.0, 40.0, 120.0),
+                    frame: CameraOffsetFrame::Local,
+                    look_at: CameraLookAtConfig::Anchor,
+                })
+            }
+            ActionChoice::ReleaseCamera => {
+                EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig)
+            }
             ActionChoice::Screenshot => EventActionConfig::Screenshot(ScreenshotActionConfig {
                 path: "shot.png".to_string(),
             }),
@@ -1130,6 +1155,8 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
             EventActionConfig::CreateScenarioArea(_) => ActionChoice::CreateScenarioArea,
             EventActionConfig::NextScenario(_) => ActionChoice::NextScenario,
             EventActionConfig::SetCamera(_) => ActionChoice::SetCamera,
+            EventActionConfig::SetCameraAnchor(_) => ActionChoice::SetCameraAnchor,
+            EventActionConfig::ReleaseCamera(_) => ActionChoice::ReleaseCamera,
             EventActionConfig::Screenshot(_) => ActionChoice::Screenshot,
             EventActionConfig::SetSkybox(_) => ActionChoice::SetSkybox,
             EventActionConfig::Outcome(_) => ActionChoice::Outcome,

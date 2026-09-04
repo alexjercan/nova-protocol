@@ -123,8 +123,25 @@ pub(crate) const BEACON_COLOR: Color = Color::srgb(0.3, 0.9, 1.0);
 /// a ship parked outside the objective it just flew to.
 pub(crate) const BEACON_AREA_RADIUS: Meters = Meters(700.0);
 
-/// A lit navigation mark with a trigger volume around it.
+/// A lit navigation mark with a trigger volume around it, sized for a leg the
+/// autopilot flies.
 pub(crate) fn beacon(id: &str, label: &str, position: Meters3) -> ScenarioObjectConfig {
+    sized_beacon(id, label, position, BEACON_AREA_RADIUS, None)
+}
+
+/// The same mark with the trigger volume and the radar signature spelled out.
+///
+/// A hand-flown mark wants a TIGHT volume - a lesson that asks the player to
+/// place the hull cannot be passed by drifting through a 700 m sphere - and a
+/// mark the lock lesson is taught against has to be something the radar can
+/// see at all, which a plain beacon is not.
+pub(crate) fn sized_beacon(
+    id: &str,
+    label: &str,
+    position: Meters3,
+    area_radius: Meters,
+    lock_signature: Option<Meters>,
+) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: id.to_string(),
@@ -136,8 +153,8 @@ pub(crate) fn beacon(id: &str, label: &str, position: Meters3) -> ScenarioObject
             label: label.to_string(),
             radius: Meters(20.0),
             color: BEACON_COLOR,
-            area_radius: Some(BEACON_AREA_RADIUS),
-            lock_signature: None,
+            area_radius: Some(area_radius),
+            lock_signature,
         }),
     }
 }

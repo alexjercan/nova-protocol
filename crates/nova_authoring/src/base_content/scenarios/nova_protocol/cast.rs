@@ -19,8 +19,23 @@ pub(crate) const DECK_CHIEF: &str = "Deck Chief";
 pub(crate) const CONTROL: &str = "Meridian Control";
 
 /// The player's own comms label: a plain "You", not a callsign - neutral and
-/// reusable, so the campaign's player voice commits to no name.
+/// reusable, so the campaign's player voice commits to no name. The player is
+/// the [`CUTTER_NAME`] cutter's captain, and the two voices below are their
+/// crew.
 pub(crate) const PLAYER: &str = "You";
+
+/// The player's ship, named in objective text and used as its scenario id. A
+/// working cutter with a crew on it, not a generic `player_spaceship`: the
+/// chapter's ending is about people, and the ship has to be one of them.
+pub(crate) const CUTTER_NAME: &str = "Cutter";
+
+/// The seat beside the player's. Runs the checklist, reads the tape, and is
+/// the one who suggests the thing nobody put on the work sheet.
+pub(crate) const COPILOT: &str = "Copilot";
+
+/// Down the back with the crates. Says what the crew is thinking and is never
+/// on the record.
+pub(crate) const ENGINEER: &str = "Engineer";
 
 /// The wreck's automatic beacon, the only thing still transmitting at the end
 /// of chapter one and the reason chapter two happens.

@@ -3,7 +3,7 @@
         id: "second_shift",
         name: "Second Shift",
         description: "Search the Meridian\'s wreck, and get out before the cleanup group finds you.",
-        cubemap: "self://textures/cubemap_alt.png",
+        cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://thumbnails/second_shift.png"),
         watches: [
             (
@@ -19,12 +19,12 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
-                            id: "player_spaceship",
-                            name: "Maintenance Cutter",
+                            id: "cutter",
+                            name: "Cutter",
                             position: (
-                                -1200.0,
-                                300.0,
-                                -5300.0,
+                                2000.0,
+                                -600.0,
+                                2400.0,
                             ),
                             rotation: (
                                 0.0,
@@ -2260,7 +2260,7 @@
                 filters: [
                     Entity((
                         id: Some("approach_mark"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -2677,9 +2677,9 @@
                                         id: "extraction",
                                         name: "Extraction",
                                         position: (
-                                            -1500.0,
-                                            300.0,
-                                            -5700.0,
+                                            2300.0,
+                                            -600.0,
+                                            2800.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -2770,7 +2770,7 @@
                 filters: [
                     Entity((
                         id: Some("extraction"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -2835,7 +2835,7 @@
                 filters: [
                     Entity((
                         id: Some("extraction"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -2899,7 +2899,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("player_spaceship"),
+                        id: Some("cutter"),
                     )),
                     Expression((LessThan(
                         Term(Factor(Name("beat"))),
@@ -2922,7 +2922,7 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("player_spaceship"),
+                        id: Some("cutter"),
                     )),
                     Expression((LessThan(
                         Term(Factor(Name("beat"))),
@@ -2946,7 +2946,7 @@
                 filters: [
                     Entity((
                         id: Some("evidence_relay"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -2976,7 +2976,7 @@
                 filters: [
                     Entity((
                         id: Some("evidence_engineering"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -3006,7 +3006,7 @@
                 filters: [
                     Entity((
                         id: Some("evidence_bridge"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),

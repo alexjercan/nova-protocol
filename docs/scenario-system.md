@@ -169,7 +169,7 @@ twice.
 
 ### What an action does that its RON cannot show
 
-Most actions are a straight write into `NovaEventWorld`. Four are not, and the
+Most actions are a straight write into `NovaEventWorld`. Five are not, and the
 difference is engine behaviour rather than authored syntax:
 
 - **`Outcome`** is not just an overlay. Setting one puts the app into
@@ -181,6 +181,19 @@ difference is engine behaviour rather than authored syntax:
   `CameraAuthoritySystems::Override`, because both camera controllers keep
   writing the camera `Transform` otherwise - the same swap the
   player-ship-spawn observer does.
+- **`SetCameraAnchor`** is the same override, SOLVED every frame instead of
+  once: `ScriptedCameraAnchor` names an entity, an offset in its local or the
+  world frame, and what to look at, and `track_scripted_camera_anchor` rebuilds
+  the pose from wherever that entity now is. `ScriptedCameraTransform` is the
+  one thing `Override` enforces, so the two pose kinds compose - swapping one
+  for the other never drops the camera. Losing the anchor entity releases the
+  override rather than freezing the shot, and a `look_at` entity that dies
+  falls back to the anchor. It is camera authority ONLY: it issues no helm
+  order, so a cinematic never quietly flies the player's ship.
+  `ReleaseCamera` removes both pose kinds. There is nothing to restore because
+  the scenario camera IS the player's chase camera - the chase sync keeps
+  writing in `CameraAuthoritySystems::Solve` the whole time the override is up,
+  so dropping the override hands the view straight back.
 - **`SetSkybox`** installs DEFERRED. The skybox setup observer reads the image
   immediately and would panic on a handle that has not loaded, so the action
   only tags the scenario camera with `PendingSkyboxSwap` and

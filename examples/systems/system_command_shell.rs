@@ -31,11 +31,17 @@ fn main() {
     eprintln!("run it with --features debug");
 }
 
-/// The id the shakedown scenario gives the player's hull. The range types it
-/// half and lets completion finish it, so a rename breaks this range loudly
-/// rather than leaving the completion untested.
+/// The id First Shift gives the player's hull. The range types it half and lets
+/// completion finish it, so a rename breaks this range loudly rather than
+/// leaving the completion untested.
 #[cfg(feature = "debug")]
-const PLAYER_ID: &str = "player_spaceship";
+const PLAYER_ID: &str = "cutter";
+
+/// A UNIQUE prefix of it. Tab completion reads the live world, so this has to
+/// name one ship and no other: the carrier is the only other hull on the map,
+/// and it starts with a `c` too.
+#[cfg(feature = "debug")]
+const PLAYER_ID_PREFIX: &str = "cut";
 
 #[cfg(feature = "debug")]
 fn main() -> bevy::app::AppExit {
@@ -108,9 +114,9 @@ fn main() -> bevy::app::AppExit {
             // Completion asks the WORLD, not the catalog: `ship` takes a live
             // ship id, and the ids come from the ships that are actually there.
             .step("command shell: half an id at the prompt")
-            .on_enter(type_text("ship play"))
+            .on_enter(type_text(format!("ship {PLAYER_ID_PREFIX}")))
             .until(resource_where::<NovaOsTerminal>(|terminal| {
-                terminal.prompt() == "ship play"
+                terminal.prompt() == format!("ship {PLAYER_ID_PREFIX}")
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()

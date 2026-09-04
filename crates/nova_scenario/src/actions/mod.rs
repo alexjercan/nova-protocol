@@ -32,23 +32,24 @@ pub mod prelude {
     pub use super::{
         advance_scenario_sequences, apply_infinite_ammo, apply_pending_skybox_swaps,
         base_scenario_object, live_ship_sections, refill_section, sequence_gate_handlers,
-        AILeashConfig, ActionEffect, BaseScenarioObjectConfig, ClearShipOrderActionConfig,
-        CurrentOutcome, DebugMessageActionConfig, DespawnScenarioObjectActionConfig,
-        EventActionConfig, ForceAlignActionConfig, ForceRailgunFireActionConfig,
-        ForceTorpedoFireActionConfig, HintEmphasisClearActionConfig, HintEmphasisSetActionConfig,
-        HudReadoutActionConfig, HudReadoutFormatConfig, MoveShipToActionConfig,
-        NextScenarioActionConfig, ObjectiveActionConfig, ObjectiveCompleteActionConfig,
-        ObjectiveMarkerAttachActionConfig, ObjectiveMarkerDetachActionConfig,
-        OrbitShipActionConfig, OutcomeActionConfig, PatrolShipActionConfig, PendingSkyboxSwap,
-        RefillAmmoActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
+        AILeashConfig, ActionEffect, BaseScenarioObjectConfig, CameraLookAtConfig,
+        ClearShipOrderActionConfig, CurrentOutcome, DebugMessageActionConfig,
+        DespawnScenarioObjectActionConfig, EventActionConfig, ForceAlignActionConfig,
+        ForceRailgunFireActionConfig, ForceTorpedoFireActionConfig, HintEmphasisClearActionConfig,
+        HintEmphasisSetActionConfig, HudReadoutActionConfig, HudReadoutFormatConfig,
+        MoveShipToActionConfig, NextScenarioActionConfig, ObjectiveActionConfig,
+        ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
+        ObjectiveMarkerDetachActionConfig, OrbitShipActionConfig, OutcomeActionConfig,
+        PatrolShipActionConfig, PendingSkyboxSwap, RefillAmmoActionConfig,
+        ReleaseCameraActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
         ScenarioObjectConfig, ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig,
         SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SetAIEngageRangeActionConfig,
         SetAILeashActionConfig, SetAIPointDefenseRangeActionConfig, SetAllegianceActionConfig,
-        SetCameraActionConfig, SetControllerVerbActionConfig, SetInfiniteAmmoActionConfig,
-        SetSkyboxActionConfig, SetSpeedCapActionConfig, StopShipActionConfig,
-        StoryMessageActionConfig, TimerCancelActionConfig, TimerStartActionConfig,
-        VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT, NEXT_SCENARIO_DELAY_MAX_SECS,
-        NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
+        SetCameraActionConfig, SetCameraAnchorActionConfig, SetControllerVerbActionConfig,
+        SetInfiniteAmmoActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
+        StopShipActionConfig, StoryMessageActionConfig, TimerCancelActionConfig,
+        TimerStartActionConfig, VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT,
+        NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
 }
 
@@ -121,6 +122,11 @@ pub enum EventActionConfig {
     NextScenario(NextScenarioActionConfig),
     /// Pose the scenario camera for a scripted shot (photo mode).
     SetCamera(SetCameraActionConfig),
+    /// Anchor the scenario camera to a live object and hold a pose relative to
+    /// it (a cinematic that keeps the player's ship in the shot).
+    SetCameraAnchor(SetCameraAnchorActionConfig),
+    /// Hand the scenario camera back to the player's chase rig.
+    ReleaseCamera(ReleaseCameraActionConfig),
     /// Capture the primary window to a PNG (photo mode).
     Screenshot(ScreenshotActionConfig),
     /// Swap the scenario's skybox cubemap mid-scenario (modding hook).
@@ -233,6 +239,12 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::SetCamera(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SetCameraAnchor(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ReleaseCamera(config) => {
                 config.action(world, info);
             }
             EventActionConfig::Screenshot(config) => {
@@ -381,6 +393,8 @@ impl EventActionConfig {
             | EventActionConfig::HintEmphasisClear(_)
             | EventActionConfig::NextScenario(_)
             | EventActionConfig::SetCamera(_)
+            | EventActionConfig::SetCameraAnchor(_)
+            | EventActionConfig::ReleaseCamera(_)
             | EventActionConfig::Screenshot(_)
             | EventActionConfig::SetSkybox(_)
             | EventActionConfig::Outcome(_)

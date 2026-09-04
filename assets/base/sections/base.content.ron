@@ -2486,6 +2486,235 @@
     )),
     Section((
         base: (
+            id: "siege_railgun_lance_section",
+            name: "Siege Railgun Lance",
+            description: "The same spinal lance at capital grade: the shot that opens a working hull end to end rather than boring a corridor through it. Two hundred times the pierce budget, spent down a bore three times as wide. Deliberately overpowered siege ordnance for a scripted capital, not a balanced duel.",
+            health: 180.0,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    3.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_mid",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_mid",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_mid",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_mid",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: Charge,
+                    node_prefix: "charge_bolt",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -1.18,
+                        ),
+                    ),
+                    open_seconds: 0.0,
+                    close_seconds: 0.0,
+                ),
+            ],
+        ),
+        kind: Railgun((
+            render_mesh: Some("self://gltf/railgun_lance.glb#Scene0"),
+            muzzle_offset: (
+                0.0,
+                0.0,
+                -1.5,
+            ),
+            charge_seconds: 1.5,
+            slug_speed: 15000.0,
+            slug_damage: 500.0,
+            slug_power: 360000.0,
+            rake_radius: Some(30.0),
+            slug_lifetime: 1.2,
+            recoil_impulse: 45.0,
+            fire_sound: Some("self://sounds/railgun_fire.wav"),
+            charge_sound: Some("self://sounds/railgun_charge.wav"),
+            reload_sound: Some("self://sounds/railgun_reload.wav"),
+            ammo_capacity: Some(1),
+            reload: Some((
+                delay: 12.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
             id: "heavy_torpedo_section",
             name: "Siege Torpedo Bay Section",
             description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",

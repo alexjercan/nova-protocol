@@ -39414,7 +39414,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("railgun_lance_section"),
+                    source: Prototype("siege_railgun_lance_section"),
                 ),
                 (
                     id: "railgun_starboard",
@@ -39429,7 +39429,7 @@
                         0.0,
                         1.0,
                     ),
-                    source: Prototype("railgun_lance_section"),
+                    source: Prototype("siege_railgun_lance_section"),
                 ),
                 (
                     id: "pdc_forward_port",

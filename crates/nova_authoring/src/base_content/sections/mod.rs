@@ -19,7 +19,7 @@ use super::{assets::BaseContentAssets, ships};
 pub(crate) mod ordnance;
 mod standard;
 
-pub(crate) use standard::PDC_MOUNT_OFFSET;
+pub(crate) use standard::{PDC_MOUNT_OFFSET, SIEGE_RAILGUN_LANCE_SECTION_ID};
 
 /// Generic hull, controller, thruster, turret, and torpedo prototypes.
 pub(crate) fn standard_section_prototypes(assets: &BaseContentAssets) -> Vec<SectionConfig> {

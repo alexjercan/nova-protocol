@@ -2,7 +2,7 @@
     Scenario((
         id: "first_shift",
         name: "First Shift",
-        description: "A routine inspection round out of the carrier Meridian.",
+        description: "A routine shift on the rock plate, out of the carrier Meridian.",
         cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://thumbnails/first_shift.png"),
         watches: [
@@ -19,8 +19,8 @@
                 actions: [
                     SpawnScenarioObject((
                         base: (
-                            id: "player_spaceship",
-                            name: "Maintenance Cutter",
+                            id: "cutter",
+                            name: "Cutter",
                             position: (
                                 -1100.0,
                                 0.0,
@@ -1503,72 +1503,6 @@
                     )),
                     SpawnScenarioObject((
                         base: (
-                            id: "crate_1",
-                            name: "Maintenance Crate 1",
-                            position: (
-                                2800.0,
-                                20.0,
-                                -3800.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: SalvageCrate((
-                            size: 15.0,
-                            area_radius: 80.0,
-                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
-                            id: "crate_2",
-                            name: "Maintenance Crate 2",
-                            position: (
-                                2300.0,
-                                20.0,
-                                -4250.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: SalvageCrate((
-                            size: 15.0,
-                            area_radius: 80.0,
-                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
-                            id: "crate_3",
-                            name: "Maintenance Crate 3",
-                            position: (
-                                1700.0,
-                                20.0,
-                                -4400.0,
-                            ),
-                            rotation: (
-                                0.0,
-                                0.0,
-                                0.0,
-                                1.0,
-                            ),
-                        ),
-                        kind: SalvageCrate((
-                            size: 15.0,
-                            area_radius: 80.0,
-                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
-                        )),
-                    )),
-                    SpawnScenarioObject((
-                        base: (
                             id: "first_shift_key",
                             name: "Key Light",
                             position: (
@@ -1652,14 +1586,6 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    VariableSet((
-                        key: "crates_recovered",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
-                    VariableSet((
-                        key: "setup_last",
-                        expression: Term(Factor(Literal(Number(0.0)))),
-                    )),
                     Sequence((
                         key: "opening",
                         steps: [
@@ -1668,12 +1594,12 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Deck Chief",
-                                        text: "Cutter one, you are clear of the bay. Take her out slow - she is a work boat, not a racer.",
+                                        text: "Cutter one, you are clear of the bay. Take her out slow.",
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(3.5),
+                                after: Some(5.0),
                                 actions: [
                                     StoryMessage((
                                         speaker: "You",
@@ -1682,43 +1608,29 @@
                                 ],
                             ),
                             (
-                                after: Some(3.5),
+                                after: Some(5.0),
                                 actions: [
                                     StoryMessage((
                                         speaker: "Deck Chief",
-                                        text: "Inspection round today. Ring survey, and the plate dropped three crates on the last shift.",
+                                        text: "Work mark is lit ahead of you. Burn for it and mind your brakes - the Meridian is a big thing to reverse into.",
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(3.5),
+                                after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Understood. Where do you want me first?",
+                                    Objective((
+                                        id: "burn",
+                                        message: "Burn to the work mark.",
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(3.5),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Work mark is lit ahead of you. Burn for it, and mind your brakes - the Meridian is a big thing to reverse into.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(0.0),
-                                actions: [
                                     SpawnScenarioObject((
                                         base: (
-                                            id: "flight_beacon",
+                                            id: "work_mark",
                                             name: "WORK MARK",
                                             position: (
-                                                0.0,
-                                                100.0,
-                                                -900.0,
+                                                -500.0,
+                                                80.0,
+                                                900.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -1736,15 +1648,11 @@
                                                 blue: 1.0,
                                                 alpha: 1.0,
                                             )),
-                                            area_radius: Some(700.0),
+                                            area_radius: Some(300.0),
                                         )),
                                     )),
-                                    Objective((
-                                        id: "burn",
-                                        message: "Burn to the work mark.",
-                                    )),
                                     ObjectiveMarkerAttach((
-                                        target_id: "flight_beacon",
+                                        target_id: "work_mark",
                                         label: "WORK MARK",
                                     )),
                                 ],
@@ -1758,8 +1666,8 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("flight_beacon"),
-                        other_id: Some("player_spaceship"),
+                        id: Some("work_mark"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -1775,48 +1683,228 @@
                         id: "burn",
                     )),
                     SetSpeedCap((
-                        id: "player_spaceship",
+                        id: "cutter",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Crates are in the rock plate south of you. Nothing our size fits in there - use your thrusters and take it a metre at a time.",
+                        speaker: "Copilot",
+                        text: "Mark made. Take the way off her - hold [X] until we are stopped.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "work_mark",
+                    )),
+                    DespawnScenarioObject((
+                        id: "work_mark",
                     )),
                     Sequence((
                         key: "beat_2",
                         steps: [
                             (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the ball on the tape goes violet while you are on them. Short taps - she keeps whatever you give her.",
+                                    )),
+                                ],
+                            ),
+                            (
                                 after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(2.0)))),
-                                    )),
                                     SetControllerVerb((
-                                        id: "player_spaceship",
+                                        id: "cutter",
                                         verb: Rcs,
                                         enabled: true,
                                     )),
                                     Objective((
-                                        id: "salvage",
-                                        message: "Recover the 3 maintenance crates - hold [SHIFT] to thruster sideways.",
+                                        id: "trim_lateral",
+                                        message: "Thruster across to TRIM A - hold [SHIFT].",
                                     )),
-                                    ObjectiveMarkerDetach((
-                                        target_id: "flight_beacon",
+                                    HintEmphasisSet((
+                                        verb: "RCS",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "trim_mark_lateral",
+                                            name: "TRIM A",
+                                            position: (
+                                                -200.0,
+                                                80.0,
+                                                900.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "TRIM A",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(100.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "trim_mark_lateral",
+                                        label: "TRIM A",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trim_mark_lateral"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(2.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(3.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "trim_lateral",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "Good. Same again, straight up this time.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "trim_mark_lateral",
+                    )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_lateral",
+                    )),
+                    Sequence((
+                        key: "beat_3",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Objective((
+                                        id: "trim_vertical",
+                                        message: "Thruster up to TRIM B.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "trim_mark_vertical",
+                                            name: "TRIM B",
+                                            position: (
+                                                -200.0,
+                                                300.0,
+                                                900.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "TRIM B",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(100.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "trim_mark_vertical",
+                                        label: "TRIM B",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("trim_mark_vertical"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(3.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(4.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "trim_vertical",
+                    )),
+                    StoryMessage((
+                        speaker: "Deck Chief",
+                        text: "The plate dropped three crates on the last shift. First one is out on the near edge, in the open. Go and get it.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "trim_mark_vertical",
+                    )),
+                    DespawnScenarioObject((
+                        id: "trim_mark_vertical",
+                    )),
+                    Sequence((
+                        key: "beat_4",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "crate_1",
+                                            name: "Maintenance Crate 1",
+                                            position: (
+                                                -200.0,
+                                                -60.0,
+                                                -1400.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: SalvageCrate((
+                                            size: 15.0,
+                                            area_radius: 80.0,
+                                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
+                                        )),
+                                    )),
+                                    Objective((
+                                        id: "crate_first",
+                                        message: "Recover the first crate.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_1",
                                         label: "CRATE",
-                                    )),
-                                    ObjectiveMarkerAttach((
-                                        target_id: "crate_2",
-                                        label: "CRATE",
-                                    )),
-                                    ObjectiveMarkerAttach((
-                                        target_id: "crate_3",
-                                        label: "CRATE",
-                                    )),
-                                    HintEmphasisSet((
-                                        verb: "RCS",
                                     )),
                                 ],
                             ),
@@ -1830,27 +1918,70 @@
                 filters: [
                     Entity((
                         id: Some("crate_1"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("setup_last"))),
-                        Term(Factor(Literal(Number(2.0)))),
+                        Term(Factor(Literal(Number(4.0)))),
                     ))),
                 ],
                 actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(5.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "crate_first",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "crate_1",
+                    )),
                     DespawnScenarioObject((
                         id: "crate_1",
                     )),
-                    VariableSet((
-                        key: "crates_recovered",
-                        expression: Add(
-                            Factor(Name("crates_recovered")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
+                    StoryMessage((
+                        speaker: "Engineer",
+                        text: "One aboard. Next one is well inside the rocks - fly it on the thrusters and take your time.",
+                    )),
+                    Sequence((
+                        key: "beat_5",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "crate_2",
+                                            name: "Maintenance Crate 2",
+                                            position: (
+                                                200.0,
+                                                100.0,
+                                                -3000.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: SalvageCrate((
+                                            size: 15.0,
+                                            area_radius: 80.0,
+                                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
+                                        )),
+                                    )),
+                                    Objective((
+                                        id: "crate_second",
+                                        message: "Recover the second crate.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "crate_2",
+                                        label: "CRATE",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -1860,159 +1991,84 @@
                 filters: [
                     Entity((
                         id: Some("crate_2"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("setup_last"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    DespawnScenarioObject((
-                        id: "crate_2",
-                    )),
-                    VariableSet((
-                        key: "crates_recovered",
-                        expression: Add(
-                            Factor(Name("crates_recovered")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnEnter,
-                once: true,
-                filters: [
-                    Entity((
-                        id: Some("crate_3"),
-                        other_id: Some("player_spaceship"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("setup_last"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    DespawnScenarioObject((
-                        id: "crate_3",
-                    )),
-                    VariableSet((
-                        key: "crates_recovered",
-                        expression: Add(
-                            Factor(Name("crates_recovered")),
-                            Term(Factor(Literal(Number(1.0)))),
-                        ),
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("crates_recovered"))),
-                        Term(Factor(Literal(Number(1.0)))),
-                    ))),
-                ],
-                actions: [
-                    ObjectiveComplete((
-                        id: "salvage",
-                    )),
-                    Objective((
-                        id: "salvage",
-                        message: "Crates recovered: 1/3.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("crates_recovered"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                ],
-                actions: [
-                    ObjectiveComplete((
-                        id: "salvage",
-                    )),
-                    Objective((
-                        id: "salvage",
-                        message: "Crates recovered: 2/3.",
-                    )),
-                ],
-            ),
-            (
-                name: OnUpdate,
-                once: true,
-                filters: [
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(2.0)))),
-                    ))),
-                    Expression((Equal(
-                        Term(Factor(Name("crates_recovered"))),
-                        Term(Factor(Literal(Number(3.0)))),
+                        Term(Factor(Literal(Number(5.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(3.0)))),
+                        expression: Term(Factor(Literal(Number(6.0)))),
                     )),
                     ObjectiveComplete((
-                        id: "salvage",
+                        id: "crate_second",
                     )),
-                    HintEmphasisClear((
-                        verb: "RCS",
+                    ObjectiveMarkerDetach((
+                        target_id: "crate_2",
+                    )),
+                    DespawnScenarioObject((
+                        id: "crate_2",
                     )),
                     StoryMessage((
                         speaker: "Deck Chief",
-                        text: "Good. Ring survey next - the small body out west. Warm the targeting computer and hold your radar on it.",
+                        text: "Two. The third one drifted clean out of the plate, so we are going the long way round. Warm the targeting computer and hold your radar on the transit mark - [CTRL].",
                     )),
                     Sequence((
-                        key: "beat_3",
+                        key: "beat_6",
                         steps: [
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(3.0)))),
-                                    )),
                                     SetControllerVerb((
-                                        id: "player_spaceship",
+                                        id: "cutter",
                                         verb: Lock,
                                         enabled: true,
                                     )),
+                                    HintEmphasisClear((
+                                        verb: "RCS",
+                                    )),
                                     Objective((
                                         id: "lock",
-                                        message: "Lock the inspection planetoid - hold [CTRL].",
-                                    )),
-                                    ObjectiveMarkerAttach((
-                                        target_id: "inspection_planetoid",
-                                        label: "SURVEY",
+                                        message: "Lock TRANSIT 1 - hold [CTRL].",
                                     )),
                                     HintEmphasisSet((
                                         verb: "RADAR",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "transit_mark_one",
+                                            name: "TRANSIT 1",
+                                            position: (
+                                                -1600.0,
+                                                100.0,
+                                                -3600.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "TRANSIT 1",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(700.0),
+                                            lock_signature: Some(300.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "transit_mark_one",
+                                        label: "TRANSIT 1",
                                     )),
                                 ],
                             ),
@@ -2025,18 +2081,18 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("inspection_planetoid"),
-                        other_id: Some("player_spaceship"),
+                        id: Some("transit_mark_one"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(3.0)))),
+                        Term(Factor(Literal(Number(6.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(4.0)))),
+                        expression: Term(Factor(Literal(Number(7.0)))),
                     )),
                     ObjectiveComplete((
                         id: "lock",
@@ -2044,44 +2100,24 @@
                     HintEmphasisClear((
                         verb: "RADAR",
                     )),
-                    CreateScenarioArea((
-                        id: "approach_ring",
-                        name: "Approach Ring",
-                        position: (
-                            -4500.0,
-                            -400.0,
-                            -6500.0,
-                        ),
-                        rotation: (
-                            0.0,
-                            0.0,
-                            0.0,
-                            1.0,
-                        ),
-                        radius: 2400.0,
-                    )),
                     StoryMessage((
                         speaker: "Deck Chief",
-                        text: "Now hand her to the computer. It flies the leg; you watch the belt.",
+                        text: "Locked. Now hand her to the computer - [G]. It flies the leg, you watch the belt.",
                     )),
                     Sequence((
-                        key: "beat_4",
+                        key: "beat_7",
                         steps: [
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(4.0)))),
-                                    )),
                                     SetControllerVerb((
-                                        id: "player_spaceship",
+                                        id: "cutter",
                                         verb: Goto,
                                         enabled: true,
                                     )),
                                     Objective((
-                                        id: "approach",
-                                        message: "Locked. Press [G] to let the computer fly.",
+                                        id: "goto",
+                                        message: "Press [G] and let the computer fly.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "GOTO",
@@ -2097,47 +2133,202 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("approach_ring"),
-                        other_id: Some("player_spaceship"),
+                        id: Some("transit_mark_one"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(4.0)))),
+                        Term(Factor(Literal(Number(7.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(5.0)))),
+                        expression: Term(Factor(Literal(Number(8.0)))),
                     )),
                     ObjectiveComplete((
-                        id: "approach",
+                        id: "goto",
                     )),
                     HintEmphasisClear((
                         verb: "GOTO",
                     )),
                     StoryMessage((
                         speaker: "Deck Chief",
-                        text: "That is the body\'s pull you are feeling. Ride it round - the computer will hold the ring for you while the survey runs.",
+                        text: "Second mark is up. Same again.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "transit_mark_one",
+                    )),
+                    DespawnScenarioObject((
+                        id: "transit_mark_one",
                     )),
                     Sequence((
-                        key: "beat_5",
+                        key: "beat_8",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Objective((
+                                        id: "transit",
+                                        message: "Fly to TRANSIT 2.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "transit_mark_two",
+                                            name: "TRANSIT 2",
+                                            position: (
+                                                -2600.0,
+                                                0.0,
+                                                -4600.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "TRANSIT 2",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(700.0),
+                                            lock_signature: Some(300.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "transit_mark_two",
+                                        label: "TRANSIT 2",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("transit_mark_two"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(8.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(9.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "transit",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "Skipper. That is the survey body right there, and we have never once flown a ring on one.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "transit_mark_two",
+                    )),
+                    DespawnScenarioObject((
+                        id: "transit_mark_two",
+                    )),
+                    Sequence((
+                        key: "beat_9",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Computer holds it for you. Half a minute. Nobody has to hear about it.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    SetControllerVerb((
+                                        id: "cutter",
+                                        verb: Orbit,
+                                        enabled: true,
+                                    )),
+                                    CreateScenarioArea((
+                                        id: "approach_ring",
+                                        name: "Approach Ring",
+                                        position: (
+                                            -4500.0,
+                                            -400.0,
+                                            -6500.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        radius: 2400.0,
+                                    )),
+                                    Objective((
+                                        id: "detour",
+                                        message: "Fly to the inspection planetoid.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "inspection_planetoid",
+                                        label: "SURVEY BODY",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("approach_ring"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(9.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(10.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "detour",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "That pull you can feel is the body. Lock it and press [O] - the computer finds the ring.",
+                    )),
+                    Sequence((
+                        key: "beat_10",
                         steps: [
                             (
                                 after: Some(6.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(5.0)))),
-                                    )),
-                                    SetControllerVerb((
-                                        id: "player_spaceship",
-                                        verb: Orbit,
-                                        enabled: true,
-                                    )),
                                     Objective((
                                         id: "orbit",
                                         message: "Press [O] and hold the orbit.",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "ORBIT",
                                     )),
                                 ],
                             ),
@@ -2150,17 +2341,49 @@
                 filters: [
                     Entity((
                         id: Some("inspection_planetoid"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
+                        Term(Factor(Literal(Number(10.0)))),
                     ))),
                 ],
                 actions: [
                     TimerStart((
                         key: "orbit_hold",
-                        seconds: Term(Factor(Literal(Number(5.0)))),
+                        seconds: Term(Factor(Literal(Number(13.0)))),
+                    )),
+                    Sequence((
+                        key: "orbit_talk",
+                        steps: [
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Look at that. Whole belt turning under us.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Put it in the log as a sensor check.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "It is going in the log as nothing.",
+                                    )),
+                                ],
+                            ),
+                        ],
                     )),
                 ],
             ),
@@ -2169,11 +2392,11 @@
                 filters: [
                     Entity((
                         id: Some("inspection_planetoid"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
+                        Term(Factor(Literal(Number(10.0)))),
                     ))),
                 ],
                 actions: [
@@ -2187,11 +2410,11 @@
                 filters: [
                     Entity((
                         id: Some("inspection_planetoid"),
-                        other_id: Some("player_spaceship"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
+                        Term(Factor(Literal(Number(10.0)))),
                     ))),
                 ],
                 actions: [
@@ -2209,41 +2432,81 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(5.0)))),
+                        Term(Factor(Literal(Number(10.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(6.0)))),
+                        expression: Term(Factor(Literal(Number(11.0)))),
                     )),
                     ObjectiveComplete((
                         id: "orbit",
                     )),
+                    HintEmphasisClear((
+                        verb: "ORBIT",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "inspection_planetoid",
+                    )),
+                    DespawnScenarioObject((
+                        id: "approach_ring",
+                    )),
                     StoryMessage((
                         speaker: "Meridian Control",
-                        text: "Cutter one, Meridian Control. Survey received. Break your orbit and come home - the bay is holding a slot for you.",
+                        text: "Cutter one, Meridian Control. We have you flying rings on the survey body. That is not on today\'s sheet.",
                     )),
                     Sequence((
-                        key: "beat_6",
+                        key: "beat_11",
                         steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "We lift within the hour and the bonus is on a clean manifest. Get back on the plate and find me that third crate.",
+                                    )),
+                                ],
+                            ),
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(6.0)))),
-                                    )),
                                     Objective((
                                         id: "return",
-                                        message: "Return to the Meridian.",
+                                        message: "Return to the work site on the plate.",
                                     )),
-                                    ObjectiveMarkerDetach((
-                                        target_id: "inspection_planetoid",
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "work_site",
+                                            name: "WORK SITE",
+                                            position: (
+                                                1400.0,
+                                                -100.0,
+                                                -1200.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "WORK SITE",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(700.0),
+                                            lock_signature: Some(300.0),
+                                        )),
                                     )),
                                     ObjectiveMarkerAttach((
-                                        target_id: "carrier",
-                                        label: "Meridian",
+                                        target_id: "work_site",
+                                        label: "WORK SITE",
                                     )),
                                 ],
                             ),
@@ -2252,32 +2515,191 @@
                 ],
             ),
             (
-                name: OnExit,
+                name: OnEnter,
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("approach_ring"),
-                        other_id: Some("player_spaceship"),
+                        id: Some("work_site"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(6.0)))),
+                        Term(Factor(Literal(Number(11.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(7.0)))),
+                        expression: Term(Factor(Literal(Number(12.0)))),
                     )),
                     ObjectiveComplete((
                         id: "return",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "Signal is weak. It is somewhere off to starboard, close in.",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "work_site",
+                    )),
+                    DespawnScenarioObject((
+                        id: "work_site",
+                    )),
+                    Sequence((
+                        key: "beat_12",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "crate_3",
+                                            name: "Maintenance Crate 3",
+                                            position: (
+                                                1800.0,
+                                                -120.0,
+                                                -1400.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: SalvageCrate((
+                                            size: 15.0,
+                                            area_radius: 80.0,
+                                            pickup_sound: Some("self://sounds/salvage_pickup.wav"),
+                                        )),
+                                    )),
+                                    Objective((
+                                        id: "search",
+                                        message: "Recover the last crate.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "crate_3",
+                                        label: "CRATE",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("crate_3"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(12.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(13.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "search",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "crate_3",
+                    )),
+                    DespawnScenarioObject((
+                        id: "crate_3",
+                    )),
+                    StoryMessage((
+                        speaker: "Deck Chief",
+                        text: "Three for three and the sheet is clean. Bring her home - hold on the outer mark and we will walk you in.",
+                    )),
+                    Sequence((
+                        key: "beat_13",
+                        steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Objective((
+                                        id: "home",
+                                        message: "Return to the Meridian and hold on the outer mark.",
+                                    )),
+                                    SpawnScenarioObject((
+                                        base: (
+                                            id: "home_mark",
+                                            name: "MERIDIAN HOLD",
+                                            position: (
+                                                2000.0,
+                                                -600.0,
+                                                2400.0,
+                                            ),
+                                            rotation: (
+                                                0.0,
+                                                0.0,
+                                                0.0,
+                                                1.0,
+                                            ),
+                                        ),
+                                        kind: Beacon((
+                                            label: "MERIDIAN HOLD",
+                                            radius: 20.0,
+                                            color: Srgba((
+                                                red: 0.3,
+                                                green: 0.9,
+                                                blue: 1.0,
+                                                alpha: 1.0,
+                                            )),
+                                            area_radius: Some(700.0),
+                                            lock_signature: Some(300.0),
+                                        )),
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "home_mark",
+                                        label: "MERIDIAN HOLD",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("home_mark"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(13.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(14.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "home",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "home_mark",
+                    )),
+                    DespawnScenarioObject((
+                        id: "home_mark",
                     )),
                     SpawnScenarioObject((
                         base: (
                             id: "warship",
                             name: "Unidentified Warship",
                             position: (
-                                7900.0,
+                                8400.0,
                                 250.0,
                                 -6500.0,
                             ),
@@ -2295,6 +2717,83 @@
                         )),
                     )),
                     MoveShipTo((
+                        order: "warship_emerge",
+                        ship: "warship",
+                        position: (
+                            7600.0,
+                            300.0,
+                            -3200.0,
+                        ),
+                        arrival_standoff: Some(200.0),
+                    )),
+                    SetCameraAnchor((
+                        anchor: "cutter",
+                        offset: (
+                            -100.0,
+                            25.0,
+                            185.0,
+                        ),
+                        frame: World,
+                        look_at: Object("warship"),
+                    )),
+                    StoryMessage((
+                        speaker: "Meridian Control",
+                        text: "Cutter one, stay on the mark. We have a drive plume off the large body and no transponder on it.",
+                    )),
+                    Sequence((
+                        key: "plume",
+                        steps: [
+                            (
+                                after: Some(8.399999618530273),
+                                actions: [
+                                    Objective((
+                                        id: "witness",
+                                        message: "Hold the mark. Do not close.",
+                                    )),
+                                    ObjectiveMarkerAttach((
+                                        target_id: "warship",
+                                        label: "UNKNOWN",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                    Sequence((
+                        key: "emerging",
+                        steps: [
+                            (
+                                after: Some(20.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "It is not squawking. It is not slowing either.",
+                                    )),
+                                ],
+                            ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnShipOrderComplete,
+                once: true,
+                filters: [
+                    ShipOrder((
+                        order: Some("warship_emerge"),
+                        ship: Some("warship"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(14.0)))),
+                    ))),
+                ],
+                actions: [
+                    ReleaseCamera(()),
+                    StoryMessage((
+                        speaker: "You",
+                        text: "Control, that is a fleet hull. Earth military. It is coming round on you.",
+                    )),
+                    MoveShipTo((
                         order: "warship_approach",
                         ship: "warship",
                         position: (
@@ -2304,30 +2803,15 @@
                         ),
                         arrival_standoff: Some(200.0),
                     )),
-                    StoryMessage((
-                        speaker: "Meridian Control",
-                        text: "Cutter one, hold. We have a drive plume off the large body and no transponder on it.",
-                    )),
                     Sequence((
-                        key: "beat_7",
+                        key: "closing",
                         steps: [
                             (
-                                after: Some(8.399999618530273),
+                                after: Some(18.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "setup_last",
-                                        expression: Term(Factor(Literal(Number(7.0)))),
-                                    )),
-                                    Objective((
-                                        id: "witness",
-                                        message: "Keep your distance. Do not close.",
-                                    )),
-                                    ObjectiveMarkerDetach((
-                                        target_id: "carrier",
-                                    )),
-                                    ObjectiveMarkerAttach((
-                                        target_id: "warship",
-                                        label: "UNKNOWN",
+                                    StoryMessage((
+                                        speaker: "Meridian Control",
+                                        text: "Unidentified vessel, this is a civil industrial hull. We are unarmed. Respond.",
                                     )),
                                 ],
                             ),
@@ -2345,13 +2829,13 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(7.0)))),
+                        Term(Factor(Literal(Number(14.0)))),
                     ))),
                 ],
                 actions: [
                     StoryMessage((
-                        speaker: "You",
-                        text: "Control, that is a fleet hull. Earth military. It is turning on you.",
+                        speaker: "Deck Chief",
+                        text: "It is turning, Control. It is putting its whole side on us.",
                     )),
                     ForceAlign((
                         order: "warship_align",
@@ -2375,47 +2859,26 @@
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(7.0)))),
+                        Term(Factor(Literal(Number(14.0)))),
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
-                        speaker: "Meridian Control",
-                        text: "Unidentified vessel, this is a civil industrial hull. We are unarmed. Respond.",
-                    )),
                     Sequence((
                         key: "salvo",
                         steps: [
                             (
                                 after: Some(0.0),
                                 actions: [
-                                    ForceRailgunFire((
-                                        ship: "warship",
-                                        section: "railgun_port",
+                                    SetCameraAnchor((
+                                        anchor: "warship",
+                                        offset: (
+                                            150.0,
+                                            90.0,
+                                            -300.0,
+                                        ),
+                                        frame: World,
+                                        look_at: Object("carrier"),
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(2.5),
-                                actions: [
-                                    ForceRailgunFire((
-                                        ship: "warship",
-                                        section: "railgun_starboard",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(3.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Drive\'s gone. We have no power to the ring and no way to answer them. Stay where you are.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(3.0),
-                                actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
                                         section: "bay_port_forward",
@@ -2424,7 +2887,7 @@
                                 ],
                             ),
                             (
-                                after: Some(1.2),
+                                after: Some(1.0),
                                 actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
@@ -2434,7 +2897,7 @@
                                 ],
                             ),
                             (
-                                after: Some(1.2),
+                                after: Some(1.0),
                                 actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
@@ -2444,7 +2907,7 @@
                                 ],
                             ),
                             (
-                                after: Some(1.2),
+                                after: Some(1.0),
                                 actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
@@ -2454,7 +2917,7 @@
                                 ],
                             ),
                             (
-                                after: Some(1.2),
+                                after: Some(1.0),
                                 actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
@@ -2464,7 +2927,7 @@
                                 ],
                             ),
                             (
-                                after: Some(1.2),
+                                after: Some(1.0),
                                 actions: [
                                     ForceTorpedoFire((
                                         ship: "warship",
@@ -2474,7 +2937,58 @@
                                 ],
                             ),
                             (
+                                after: Some(1.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "Tubes. Tubes - it just put its whole bay in the air, Meridian, they are on you -",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(1.0),
+                                actions: [
+                                    SetCameraAnchor((
+                                        anchor: "carrier",
+                                        offset: (
+                                            -285.0,
+                                            175.0,
+                                            595.0,
+                                        ),
+                                        frame: World,
+                                        look_at: Object("warship"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(0.5),
+                                actions: [
+                                    ForceRailgunFire((
+                                        ship: "warship",
+                                        section: "railgun_port",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(1.5),
+                                actions: [
+                                    ForceRailgunFire((
+                                        ship: "warship",
+                                        section: "railgun_starboard",
+                                    )),
+                                ],
+                            ),
+                            (
                                 after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "Drive\'s gone. No power to the ring and nothing to answer them with.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
                                 actions: [
                                     StoryMessage((
                                         speaker: "You",
@@ -2483,12 +2997,24 @@
                                 ],
                             ),
                             (
-                                after: Some(12.0),
+                                after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "beat",
-                                        expression: Term(Factor(Literal(Number(8.0)))),
+                                    SetCameraAnchor((
+                                        anchor: "cutter",
+                                        offset: (
+                                            225.0,
+                                            10.0,
+                                            -85.0,
+                                        ),
+                                        frame: World,
+                                        look_at: Object("carrier"),
                                     )),
+                                ],
+                            ),
+                            (
+                                after: Some(8.0),
+                                actions: [
+                                    ReleaseCamera(()),
                                 ],
                             ),
                             (
@@ -2498,9 +3024,9 @@
                                         order: "warship_exit",
                                         ship: "warship",
                                         position: (
-                                            11000.0,
-                                            1200.0,
-                                            -12000.0,
+                                            12000.0,
+                                            2000.0,
+                                            1000.0,
                                         ),
                                     )),
                                     StoryMessage((
@@ -2521,6 +3047,12 @@
                             (
                                 after: Some(6.0),
                                 actions: [
+                                    ObjectiveComplete((
+                                        id: "witness",
+                                    )),
+                                    ObjectiveMarkerDetach((
+                                        target_id: "warship",
+                                    )),
                                     Objective((
                                         id: "silence",
                                         message: "Hold position and keep the channel open.",
@@ -2532,7 +3064,7 @@
                                 actions: [
                                     VariableSet((
                                         key: "beat",
-                                        expression: Term(Factor(Literal(Number(9.0)))),
+                                        expression: Term(Factor(Literal(Number(15.0)))),
                                     )),
                                 ],
                             ),
@@ -2546,24 +3078,21 @@
                 filters: [
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(9.0)))),
+                        Term(Factor(Literal(Number(15.0)))),
                     ))),
                 ],
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(10.0)))),
+                        expression: Term(Factor(Literal(Number(16.0)))),
                     )),
                     ObjectiveComplete((
                         id: "silence",
                     )),
-                    ObjectiveMarkerDetach((
-                        target_id: "warship",
-                    )),
                     SpawnScenarioObject((
                         base: (
                             id: "distress_beacon",
-                            name: "MERIDIAN",
+                            name: "Meridian",
                             position: (
                                 -1000.0,
                                 0.0,
@@ -2577,7 +3106,7 @@
                             ),
                         ),
                         kind: Beacon((
-                            label: "MERIDIAN",
+                            label: "Meridian",
                             radius: 20.0,
                             color: Srgba((
                                 red: 0.3,
@@ -2590,7 +3119,7 @@
                     )),
                     ObjectiveMarkerAttach((
                         target_id: "distress_beacon",
-                        label: "MERIDIAN",
+                        label: "Meridian",
                     )),
                     StoryMessage((
                         speaker: "You",
@@ -2613,7 +3142,7 @@
                                 actions: [
                                     VariableSet((
                                         key: "beat",
-                                        expression: Term(Factor(Literal(Number(11.0)))),
+                                        expression: Term(Factor(Literal(Number(17.0)))),
                                     )),
                                     Objective((
                                         id: "done",
@@ -2638,11 +3167,11 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("player_spaceship"),
+                        id: Some("cutter"),
                     )),
                     Expression((LessThan(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
+                        Term(Factor(Literal(Number(16.0)))),
                     ))),
                 ],
                 actions: [
@@ -2661,11 +3190,11 @@
                 once: true,
                 filters: [
                     Entity((
-                        id: Some("player_spaceship"),
+                        id: Some("cutter"),
                     )),
                     Expression((LessThan(
                         Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
+                        Term(Factor(Literal(Number(16.0)))),
                     ))),
                 ],
                 actions: [

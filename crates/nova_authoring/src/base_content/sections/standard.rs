@@ -39,6 +39,12 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 /// blocks (600) because it must stay a weak spot worth shooting at.
 const RAILGUN_BASE_HEALTH: f32 = 180.0;
 
+/// The capital-grade lance's prototype id. The standard lance is named from
+/// `nova_ship`'s catalog ids because the editor sandbox has to reach it; this
+/// one is only ever mounted by authored content, so it stays beside the
+/// builder that writes it.
+pub(crate) const SIEGE_RAILGUN_LANCE_SECTION_ID: &str = "siege_railgun_lance_section";
+
 // Authored per-hit Kinetic damage of the shared PDC, a playtest knob. A
 // point-defense profile: LOW per-hit, HIGH rate (100 rounds/s). At 4.0 the PDC
 // does ~400 DPS, while a 60-HP scavenger section takes 15 rounds (~0.15 s of
@@ -889,44 +895,17 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
              target that will not shoot back.",
             ordnance::lance(),
         ),
-        SectionConfig {
-            base: BaseSectionConfig {
-                id: RAILGUN_LANCE_SECTION_ID.to_string(),
-                name: "Railgun Lance".to_string(),
+        railgun_lance_prototype(
+            meshes,
+            LanceSpec {
+                id: RAILGUN_LANCE_SECTION_ID,
+                name: "Railgun Lance",
                 description: "A spinal kinetic lance: no traverse, so the HULL \
                               aims it. Tapping the trigger COMMITS - the bolt \
                               walks the bore and the shot leaves when it \
                               arrives, whether or not the nose is still on the \
                               target. What leaves rakes through everything in \
-                              the line, and shoves the ship that fired."
-                    .to_string(),
-                health: RAILGUN_BASE_HEALTH,
-                material: None,
-                destroy_sound: Some(meshes.section_destroy_sound.clone()),
-                // Three cells long, and the collider has to claim all of it:
-                // the lance is the biggest single target on any ship carrying
-                // one.
-                collider: Some(SectionCollider::Cuboid { size: LANCE_CELLS }),
-                link_points: lance_link_points(),
-                hide_in_editor: false,
-                // Capacitor banks and rails: it arcs and sparks as it fails.
-                damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
-                animations: lance_charge_bolt(),
-            },
-            kind: SectionKind::Railgun(RailgunSectionConfig {
-                render_mesh: Some(meshes.railgun_lance.clone()),
-                render_mesh_transform: None,
-                // ON the brake face. The recoil is applied at this point, not
-                // at the centre of mass, so a lance bolted off the ship's axis
-                // yaws it as well as pushing it - which is the whole reason a
-                // builder puts one on the spine.
-                muzzle_offset: Vec3::NEG_Z * (LANCE_CELLS.z * 0.5),
-                // The alignment window, and the tell. Long enough that a
-                // target being lanced can see the bolt climbing the bore and
-                // break the line; short enough that a pilot who has already
-                // set up the shot is not flying a straight line forever.
-                charge_seconds: 1.5,
-                slug_speed: MetersPerSecond(15_000.0),
+                              the line, and shoves the ship that fired.",
                 // Dealt in FULL to every layer crossed. It clears every hull,
                 // controller, turret and bay in the catalog outright - the
                 // toughest of those is a reinforced hull block at 200 - so an
@@ -947,11 +926,6 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // depth of anything that flies. Depth is NOT the cost of this
                 // weapon; the commit, the recoil and the reload are.
                 slug_power: 1800.0,
-                // The width that budget is actually spent on. No shipped hull
-                // is more than about six cells deep, so a bore-width slug left
-                // 85 percent of its power on the far side of everything it
-                // ever hit.
-                //
                 // ONE UNIT, from the range's measurement bank. It is the
                 // smallest radius that reaches the immediate lateral
                 // neighbour on every shipped hull - the cargoa's pods stand
@@ -960,35 +934,38 @@ pub fn standard_section_prototypes(meshes: &BaseContentAssets) -> Vec<SectionCon
                 // neighbours of the cell it bores through and stops short of
                 // the second ring at 1.5. The corridor is three cells wide,
                 // which is a hole you can see and not a ship you delete.
-                //
-                // Wider is NOT more: against dense material the power budget
-                // binds either way, so a 40 m rake removes the same total and
-                // spends it sideways on the entry face instead of forward
-                // through the hull. See `system_railgun_lance` invariant 9.
-                rake_radius: Some(Meters(10.0)),
-                // 18 km of reach. A spinal gun outranges every mount on the
-                // ship carrying it, which is what makes lining up worth doing.
-                slug_lifetime: 1.2,
-                // Raw per-shot impulse, in the same register as a thruster's
-                // per-tick magnitude: about two thirds of a second of the
-                // basic drive's full burn, delivered in one instant.
-                recoil_impulse: 45.0,
-                fire_sound: Some(meshes.railgun_fire_sound.clone()),
-                charge_sound: Some(meshes.railgun_charge_sound.clone()),
-                reload_sound: Some(meshes.railgun_reload_sound.clone()),
-                // One shell in the air per gun, ever. The magazine IS the
-                // design: a lance that could queue a second shot would be a
-                // turret with a long fire rate.
-                ammo_capacity: Some(1),
-                // The tempo. Twelve quiet seconds return the shell, so a lance
-                // fires roughly every thirteen and a half - and every one of
-                // those is a decision rather than a trigger pull.
-                reload: Some(SectionReloadConfig {
-                    delay: 12.0,
-                    amount: 1,
-                }),
-            }),
-        },
+                rake_radius: Meters(10.0),
+            },
+        ),
+        railgun_lance_prototype(
+            meshes,
+            LanceSpec {
+                id: SIEGE_RAILGUN_LANCE_SECTION_ID,
+                name: "Siege Railgun Lance",
+                description: "The same spinal lance at capital grade: the shot \
+                              that opens a working hull end to end rather than \
+                              boring a corridor through it. Two hundred times \
+                              the pierce budget, spent down a bore three times \
+                              as wide. Deliberately overpowered siege ordnance \
+                              for a scripted capital, not a balanced duel.",
+                // Half again the standard slug. Enough to clear the two large
+                // drives (480 and 1250) in a shot or two rather than several,
+                // which is what "this gun answers a capital hull" means.
+                slug_damage: 500.0,
+                // The whole difference. The standard lance is priced to cross
+                // 27 reinforced blocks; this one is priced to cross a carrier
+                // the long way and keep going, so a hull's depth stops being
+                // the thing that saves it.
+                slug_power: 360_000.0,
+                // Three units, so the corridor is a wound rather than a hole:
+                // on the unit lattice this takes the second ring of
+                // neighbours as well, roughly seven cells across. Widening
+                // only pays because `slug_power` above is no longer the
+                // binding constraint - at the standard budget the same radius
+                // would spend the shot sideways on the entry face.
+                rake_radius: Meters(30.0),
+            },
+        ),
         SectionConfig {
             base: BaseSectionConfig {
                 id: "heavy_torpedo_section".to_string(),
@@ -1133,6 +1110,94 @@ fn lance_charge_bolt() -> Vec<SectionAnimation> {
     }]
 }
 
+/// The one authored difference between the two shipped lances: what the slug
+/// costs its target. Everything else - the art, the bore, the commit, the
+/// recoil, the single shell and the twelve-second reload - is the WEAPON, and
+/// is shared by construction below.
+struct LanceSpec<'a> {
+    id: &'a str,
+    name: &'a str,
+    description: &'a str,
+    /// Damage dealt in full to every layer the slug crosses.
+    slug_damage: f32,
+    /// The pierce budget: the only bound on how deep one shell goes.
+    slug_power: f32,
+    /// How wide a corridor the budget is spent on.
+    rake_radius: Meters,
+}
+
+/// One spinal lance, named for the GRADE it is built at.
+///
+/// Two entries rather than a spawn-time knob, for the reason the catalog draws
+/// that line everywhere else (see `ships`): a gun that crosses a carrier is a
+/// different thing to meet and to write about than one that bores a corridor
+/// through a corvette, so it is a second prototype a hull mounts on purpose.
+/// Keeping them one builder means a tempo or recoil edit lands on both and
+/// cannot quietly become an unmeasured third difference.
+fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> SectionConfig {
+    SectionConfig {
+        base: BaseSectionConfig {
+            id: spec.id.to_string(),
+            name: spec.name.to_string(),
+            description: spec.description.to_string(),
+            health: RAILGUN_BASE_HEALTH,
+            material: None,
+            destroy_sound: Some(meshes.section_destroy_sound.clone()),
+            // Three cells long, and the collider has to claim all of it: the
+            // lance is the biggest single target on any ship carrying one.
+            collider: Some(SectionCollider::Cuboid { size: LANCE_CELLS }),
+            link_points: lance_link_points(),
+            hide_in_editor: false,
+            // Capacitor banks and rails: it arcs and sparks as it fails.
+            damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
+            animations: lance_charge_bolt(),
+        },
+        kind: SectionKind::Railgun(RailgunSectionConfig {
+            render_mesh: Some(meshes.railgun_lance.clone()),
+            render_mesh_transform: None,
+            // ON the brake face. The recoil is applied at this point, not at
+            // the centre of mass, so a lance bolted off the ship's axis yaws it
+            // as well as pushing it - which is the whole reason a builder puts
+            // one on the spine.
+            muzzle_offset: Vec3::NEG_Z * (LANCE_CELLS.z * 0.5),
+            // The alignment window, and the tell. Long enough that a target
+            // being lanced can see the bolt climbing the bore and break the
+            // line; short enough that a pilot who has already set up the shot
+            // is not flying a straight line forever.
+            charge_seconds: 1.5,
+            slug_speed: MetersPerSecond(15_000.0),
+            slug_damage: spec.slug_damage,
+            slug_power: spec.slug_power,
+            // Wider is NOT free: against dense material the power budget binds,
+            // so a rake the budget cannot pay for removes the same total and
+            // spends it sideways on the entry face instead of forward through
+            // the hull. See `system_railgun_lance` invariant 9.
+            rake_radius: Some(spec.rake_radius),
+            // 18 km of reach. A spinal gun outranges every mount on the ship
+            // carrying it, which is what makes lining up worth doing.
+            slug_lifetime: 1.2,
+            // Raw per-shot impulse, in the same register as a thruster's
+            // per-tick magnitude: about two thirds of a second of the basic
+            // drive's full burn, delivered in one instant.
+            recoil_impulse: 45.0,
+            fire_sound: Some(meshes.railgun_fire_sound.clone()),
+            charge_sound: Some(meshes.railgun_charge_sound.clone()),
+            reload_sound: Some(meshes.railgun_reload_sound.clone()),
+            // One shell in the air per gun, ever. The magazine IS the design: a
+            // lance that could queue a second shot would be a turret with a
+            // long fire rate.
+            ammo_capacity: Some(1),
+            // The tempo. Twelve quiet seconds return the shell, so a lance
+            // fires roughly every thirteen and a half - and every one of those
+            // is a decision rather than a trigger pull.
+            reload: Some(SectionReloadConfig {
+                delay: 12.0,
+                amount: 1,
+            }),
+        }),
+    }
+}
+
 /// One assault torpedo bay, named for the ORDNANCE it loads.
 ///
 /// Everything a bay is - the tube art, the cadence, the warhead, the rack and
@@ -1245,6 +1310,61 @@ fn torpedo_bay_prototype(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two shipped lances differ in exactly the three numbers the grade
+    /// is: what the slug costs a layer, how deep it goes, and how wide. The
+    /// standard lance is what every buildable ship mounts and its values are
+    /// balanced against ship hulls, so the campaign's siege gun has to be a
+    /// SECOND prototype rather than a heavier number written over the first.
+    #[test]
+    fn the_siege_lance_is_a_second_gun_and_not_a_heavier_first_one() {
+        let lances: Vec<(String, RailgunSectionConfig)> =
+            crate::generation::build_section_catalog()
+                .into_iter()
+                .filter_map(|section| match section.kind {
+                    SectionKind::Railgun(lance) => Some((section.base.id, lance)),
+                    _ => None,
+                })
+                .collect();
+        let find = |id: &str| {
+            lances
+                .iter()
+                .find(|(found, _)| found == id)
+                .map(|(_, lance)| lance)
+                .unwrap_or_else(|| panic!("no '{id}' in the catalog"))
+        };
+        let standard = find(RAILGUN_LANCE_SECTION_ID);
+        let siege = find(SIEGE_RAILGUN_LANCE_SECTION_ID);
+
+        assert_eq!(
+            (
+                standard.slug_damage,
+                standard.slug_power,
+                standard.rake_radius
+            ),
+            (300.0, 1_800.0, Some(Meters(10.0))),
+            "the standard lance's balanced numbers moved"
+        );
+        assert!(
+            siege.slug_damage > standard.slug_damage
+                && siege.slug_power > standard.slug_power
+                && siege.rake_radius > standard.rake_radius,
+            "the siege lance does not outgun the standard one"
+        );
+
+        // Everything that is not the grade is the WEAPON, and both lances have
+        // to keep saying the same thing about it: the same commit, the same
+        // recoil, the same single shell and the same long reload.
+        assert_eq!(siege.charge_seconds, standard.charge_seconds);
+        assert_eq!(siege.slug_speed, standard.slug_speed);
+        assert_eq!(siege.slug_lifetime, standard.slug_lifetime);
+        assert_eq!(siege.recoil_impulse, standard.recoil_impulse);
+        assert_eq!(siege.ammo_capacity, standard.ammo_capacity);
+        assert_eq!(
+            siege.reload.as_ref().map(|reload| reload.delay),
+            standard.reload.as_ref().map(|reload| reload.delay)
+        );
+    }
 
     /// Every catalog bay that shows the tube art declares the muzzle-door
     /// track, and the track's node prefix matches real named nodes in the

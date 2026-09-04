@@ -45,29 +45,33 @@ That is the whole core loop: burn, lock, GOTO, shoot. First Shift walks you thro
 
 ## First Shift, beat by beat
 
-You open on the flank of the industrial carrier **Meridian**, undocked and drifting, while the Deck Chief talks you through a routine inspection round - the run's first conversation, and the campaign's first look at your own voice. The chief's lines carry the story; each objective arrives as a short amber notification a beat later, while gold markers keep the current target in view.
+You open on the flank of the industrial carrier **Meridian**, undocked and drifting, while the Deck Chief clears you for an ordinary day's work on the rock plate. You are the cutter's captain and you have a crew: the copilot in the seat beside you and the engineer down the back are the other two voices. The chief's lines carry the story; each objective arrives as a short amber notification a beat later, and one gold marker at a time keeps the current target in view.
 
-### Part 1 - Burn and thruster
+### Part 1 - Burn, then trim
 
-1. **Burn to the work mark.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. A gentle 250 m/s cap holds you in while the chief is still talking, and lifts when you arrive.
-2. **Recover 3 maintenance crates.** They sit deep in a rock plate nothing bigger than the cutter fits into. Your fine thrusters unlock here: hold <kbd>Shift</kbd> and move the mouse to translate sideways a metre at a time, and fly through each crate to collect it.
+1. **Burn to the work mark.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. A gentle 250 m/s cap holds you in while the chief is still talking, and lifts the moment you park on the mark.
+2. **Trim across, then up.** Your fine thrusters unlock here, in open space, with nothing to hit. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and the RCS runs out at 100 m/s however long you hold it. Two short marks, one across and one straight up.
 
-### Part 2 - Lock and let the computer fly
+### Part 2 - The plate
+
+3. **Recover the crates, one at a time.** The first sits on the plate's open edge where the rocks are sparse; the second is well inside them, where they are not. Fly through a crate to collect it. The next one is not shown until the one before it is aboard.
+
+### Part 3 - Lock and let the computer fly
 
 <figure class="figure">
     <!-- Capture: assets/tutorial-radar-lock.png -->
     <div class="figure__placeholder">
         <span class="figure__placeholder-tag">Screenshot needed</span>
         <span class="figure__placeholder-name">assets/tutorial-radar-lock.png</span>
-        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto the inspection planetoid.</span>
+        <span class="figure__placeholder-note">The white NAV crosshair mid-sweep while holding CTRL, with the lock brackets snapping onto the first transit mark.</span>
     </div>
     <figcaption class="figure__caption">Radar locking is deliberate: hold CTRL and the radar locks whatever you look at.</figcaption>
 </figure>
 
-3. **Lock the inspection planetoid.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the small body out west until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
-4. **Press GOTO.** With the body locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the surface.
+4. **Lock the transit mark.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the mark out west until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
+5. **Press GOTO.** With the mark locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the mark. Then the chief gives you a second one and says almost nothing about it - the same two keys, on your own.
 
-### Part 3 - Gravity and orbit
+### Part 4 - The detour
 
 <figure class="figure">
     <!-- Capture: assets/tutorial-orbit.png -->
@@ -79,13 +83,16 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
     <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
 </figure>
 
-5. **Press ORBIT and hold it.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Hold it steady for five seconds and the survey is signed off.
-6. **Return to the Meridian.** Break away with <kbd>Z</kbd> and fly home. The shift is over.
+6. **Take the crew up on it.** Nobody assigned this. The copilot points out the survey body sitting there with a crate still outstanding, and the engineer is not going to talk you out of it. GOTO across.
+7. **Press ORBIT and hold it.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Hold it for about thirteen seconds - long enough for the crew to enjoy it, and for the Meridian to notice.
+8. **Get back on the plate.** Meridian Control has been watching. The carrier lifts within the hour, the last crate is still out there, and finishing is what the bonus is for. Fly back to the work site.
 
-### Part 4 - What you cannot stop
+### Part 5 - What you cannot stop
 
-7. **A warship comes out from behind the large planetoid.** It turns its whole hull onto your carrier, puts two railgun slugs into it, and walks six siege torpedoes across it. The cutter is unarmed and you are told to keep your distance - there is nothing here to win, and the game means it.
-8. **Hold position and keep the channel open.** Nobody answers. What finally does is an automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
+9. **Collect the last crate, then run home.** The sheet is clean and the chief calls you in. Hold on the outer mark three kilometres off the Meridian - the last GOTO of the shift, and the only thing the rest of the chapter is waiting for.
+10. **A warship comes out from behind the large planetoid.** It crosses into plain sight, closes to a firing position, turns its whole hull onto your carrier, walks six siege torpedoes out of its bays and puts two railgun slugs after them. It takes over a minute to arrive and there is nothing here to win. The game means it.
+11. **You keep the stick the whole way.** The camera takes four shots and hands itself back twice - your own view across the warship's long middle leg, and again before the aftermath. Nothing ever steers your ship for you: you can fly out of the set piece at any point in it.
+12. **Keep the channel open.** Nobody answers. What finally does is an automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
 
 (Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)
 

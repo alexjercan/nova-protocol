@@ -18,6 +18,8 @@ use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
+/// The scripted-camera layer: who owns the scenario camera while a script does.
+mod camera;
 mod clock;
 #[cfg(test)]
 mod fixtures;
@@ -27,6 +29,11 @@ pub mod preload;
 mod trackers;
 mod wake;
 
+use camera::register_scripted_camera;
+pub use camera::{
+    CameraOffsetFrame, ScriptedCameraAnchor, ScriptedCameraLookAt, ScriptedCameraPose,
+    ScriptedCameraTransform,
+};
 use clock::register_clock_and_pulse;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use clock::tick_scenario_timers;
@@ -46,11 +53,12 @@ pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CampaignConfig,
-        CampaignId, ContentIssues, CurrentScenario, GameCampaigns, GameScenarios, LoadScenario,
-        NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId,
-        ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker, ScenarioStartFailure,
-        ScenarioStartFailureReport, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
+        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CameraOffsetFrame,
+        CampaignConfig, CampaignId, ContentIssues, CurrentScenario, GameCampaigns, GameScenarios,
+        LoadScenario, NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
+        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
+        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
+        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
     };
 }
 
@@ -604,106 +612,16 @@ impl Plugin for ScenarioLoaderPlugin {
         app.register_type::<PendingSkyboxSwap>();
         app.add_systems(Update, apply_pending_skybox_swaps.run_if(scenario_is_live));
 
-        // Scripted-camera override (photo mode / the capture scripts): the
-        // `SetCamera` action pins a `ScriptedCameraPose` on the scenario camera;
-        // enforce it in `CameraAuthoritySystems::Override`, the phase that runs after
-        // every base writer - WASD sync, chase sync AND camera shake - and
-        // before propagation.
-        // Both controllers keep writing the camera Transform every frame (and
-        // removing a controller does not stop it - the private state components
-        // survive), so a one-shot Transform set would be immediately
-        // overwritten; running in the override phase is what makes the pose
-        // stick, on every frame rather than on the frames the executor happened
-        // to schedule it last.
-        //
-        // The chain is normally declared by nova_gameplay's camera controller;
-        // add it when that plugin is absent (a scenario-only test app) so the
-        // override phase is never an unordered set.
+        // Scripted-camera override (photo mode, the capture scripts, the
+        // mainline cinematic). The chain it runs in is normally declared by
+        // nova_ship's camera authority layer; add it when that plugin is absent
+        // (a scenario-only test app) so the override phase is never an
+        // unordered set.
         if !app.is_plugin_added::<CameraAuthorityPlugin>() {
             app.add_plugins(CameraAuthorityPlugin);
         }
-        app.add_systems(
-            PostUpdate,
-            (
-                derive_scripted_camera_transform.before(CameraAuthoritySystems::Override),
-                enforce_scripted_camera_pose.in_set(CameraAuthoritySystems::Override),
-            ),
-        );
-        app.add_observer(drop_scripted_camera_transform);
+        register_scripted_camera(app);
     }
-}
-
-/// A scripted camera pose that overrides the free-fly WASD controller, applied
-/// every frame by `enforce_scripted_camera_pose`. Set by the `SetCamera`
-/// scenario action (photo mode) and the capture scripts (`pose_camera`); while
-/// present it pins the [`ScenarioCameraMarker`] camera at `position` looking at
-/// `look_at`.
-#[derive(Component, Debug, Clone, Copy)]
-#[require(ScriptedCameraTransform)]
-pub struct ScriptedCameraPose {
-    /// World-space camera position.
-    pub position: Meters3,
-    /// World-space point the camera looks at (up is +Y).
-    pub look_at: Meters3,
-}
-
-/// The Bevy transform a [`ScriptedCameraPose`] means, derived by
-/// `derive_scripted_camera_transform` only when the pose changes.
-///
-/// The pose has to be RE-APPLIED every frame, because the whole point of the
-/// override is to win the frame's last write; it does not have to be
-/// RE-DERIVED every frame. The identity default is never read: the derive runs
-/// in `PostUpdate` before the override, and `Changed` fires on the insert, so
-/// the transform exists by the first frame the pose does.
-#[derive(Component, Debug, Clone, Copy, Default, Deref)]
-pub struct ScriptedCameraTransform(pub Transform);
-
-impl ScriptedCameraTransform {
-    /// The transform `pose` means.
-    ///
-    /// Engine boundary: the one place a scripted pose becomes a Bevy transform,
-    /// so every poser upstream of it stays in meters.
-    pub fn of(pose: &ScriptedCameraPose) -> Self {
-        Self(
-            Transform::from_translation(pose.position.to_engine())
-                .looking_at(pose.look_at.to_engine(), Vec3::Y),
-        )
-    }
-}
-
-/// Derive each changed [`ScriptedCameraPose`] into the transform the override
-/// then writes.
-fn derive_scripted_camera_transform(
-    mut cameras: Query<
-        (&mut ScriptedCameraTransform, &ScriptedCameraPose),
-        Changed<ScriptedCameraPose>,
-    >,
-) {
-    for (mut derived, pose) in &mut cameras {
-        *derived = ScriptedCameraTransform::of(pose);
-    }
-}
-
-/// Pin every camera carrying a [`ScriptedCameraPose`] to that pose. Runs in
-/// [`CameraAuthoritySystems::Override`] so it wins the frame's last write to the
-/// camera Transform, shake offset included.
-fn enforce_scripted_camera_pose(mut cameras: Query<(&mut Transform, &ScriptedCameraTransform)>) {
-    for (mut transform, derived) in &mut cameras {
-        *transform = **derived;
-    }
-}
-
-/// Release the camera when its pose is taken off it.
-///
-/// A required component outlives the one that required it, so dropping the
-/// pose alone would leave the derived transform behind and the override would
-/// keep winning every frame - a camera nothing could aim again. Releasing is
-/// spelled `remove::<ScriptedCameraPose>()` wherever a script hands the camera
-/// back, so the pair is kept honest here rather than at each of those.
-fn drop_scripted_camera_transform(remove: On<Remove, ScriptedCameraPose>, mut commands: Commands) {
-    commands
-        .entity(remove.entity)
-        .remove::<ScriptedCameraTransform>();
 }
 
 #[cfg(test)]
@@ -720,66 +638,6 @@ mod tests {
             "Sky Test".to_string(),
             "sky_test".to_string(),
             AssetRef::from("textures/sky.png".to_string()),
-        );
-    }
-
-    /// A script that hands the camera back gets a camera it can aim again.
-    ///
-    /// [`ScriptedCameraPose`] REQUIRES [`ScriptedCameraTransform`], and a
-    /// required component outlives its requirer: with the derived half left
-    /// behind, the override would keep writing the released pose every frame.
-    #[test]
-    fn releasing_the_scripted_pose_releases_the_camera() {
-        let mut app = App::new();
-        app.add_systems(
-            PostUpdate,
-            (
-                derive_scripted_camera_transform,
-                enforce_scripted_camera_pose,
-            )
-                .chain(),
-        );
-        app.add_observer(drop_scripted_camera_transform);
-
-        let eye = Meters3::new(0.0, 100.0, 0.0);
-        let camera = app
-            .world_mut()
-            .spawn((
-                Transform::default(),
-                ScriptedCameraPose {
-                    position: eye,
-                    look_at: Meters3::ZERO,
-                },
-            ))
-            .id();
-        app.update();
-        assert_eq!(
-            app.world()
-                .get::<Transform>(camera)
-                .expect("the camera has a transform")
-                .translation,
-            eye.to_engine(),
-            "the pose is enforced while it is on the camera"
-        );
-
-        app.world_mut()
-            .entity_mut(camera)
-            .remove::<ScriptedCameraPose>();
-        let free = Transform::from_xyz(1.0, 2.0, 3.0);
-        app.world_mut().entity_mut(camera).insert(free);
-        app.update();
-
-        assert!(
-            app.world().get::<ScriptedCameraTransform>(camera).is_none(),
-            "the derived transform goes with the pose it came from"
-        );
-        assert_eq!(
-            app.world()
-                .get::<Transform>(camera)
-                .expect("the camera has a transform")
-                .translation,
-            free.translation,
-            "a released camera keeps what its own controller wrote"
         );
     }
 

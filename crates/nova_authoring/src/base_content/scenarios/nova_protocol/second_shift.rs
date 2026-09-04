@@ -23,7 +23,7 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use super::{
-    cast::{CARRIER_NAME, CLEANUP_LEADER, PLAYER},
+    cast::{CARRIER_NAME, CLEANUP_LEADER, CUTTER_NAME, PLAYER},
     pacing::{self, INSTRUCTION_GAP, REVEAL_GAP},
     ships, stage, SCENARIO_ELAPSED_VAR,
 };
@@ -36,18 +36,25 @@ pub const SECOND_SHIFT_SCENARIO_ID: &str = "second_shift";
 //
 // Reviewed in `examples/playable/second_shift_map.rs`.
 
-/// The cutter comes back in from the far edge of the belt, pointed at the
-/// field.
-const PLAYER_START_POS: Meters3 = Meters3::new(-1_200.0, 300.0, -5_300.0);
+/// Where chapter one left them: the outer mark off the Meridian's starboard
+/// quarter, the hold they watched the carrier die from. Chapter two opens on
+/// the same coordinates under the same sky, so the cut between the two is a
+/// cut in TIME and nothing else.
+///
+/// It IS chapter one's hold, not a copy of it. The one number the two chapters
+/// share, so restaging the set piece cannot leave chapter two opening somewhere
+/// the player never was.
+const PLAYER_START_POS: Meters3 = super::first_shift::HOME_HOLD_POS;
 /// The mark at the edge of the debris, so the approach has somewhere to be.
 /// Far enough out that the player must fly to it: a mark whose trigger volume
 /// reached back to the spawn would complete the approach before the opening
 /// had finished posting it.
 const APPROACH_MARK_POS: Meters3 = Meters3::new(900.0, 250.0, -4_200.0);
-/// Where the cutter runs to. Four hundred metres off the start: the whole
+/// Where the cutter runs to. Five hundred metres off the start: the whole
 /// chapter is a loop out into the wreck and back, and the way out is the way
-/// you came.
-const EXTRACTION_POS: Meters3 = Meters3::new(-1_500.0, 300.0, -5_700.0);
+/// you came - out past the Meridian's grave, away from the corner the cleanup
+/// crew arrived from.
+const EXTRACTION_POS: Meters3 = Meters3::new(2_300.0, -600.0, 2_800.0);
 /// The lit line through the middle of the rock plate. It is not the fastest
 /// way home; it is the way home with rock between you and the sweep.
 const QUIET_ROUTE_POS: Meters3 = Meters3::new(1_400.0, 500.0, -2_800.0);
@@ -184,7 +191,9 @@ fn cleanup_group() -> [Searcher; 5] {
 }
 
 // Scenario entity ids.
-const ID_PLAYER: &str = "player_spaceship";
+/// The same cutter chapter one flew, so a save, a console command and a log
+/// line name one ship across the campaign.
+const ID_PLAYER: &str = "cutter";
 const ID_APPROACH_MARK: &str = "approach_mark";
 const ID_QUIET_ROUTE: &str = "quiet_route";
 const ID_EXTRACTION: &str = "extraction";
@@ -236,7 +245,7 @@ fn player_ship() -> ScenarioObjectConfig {
     ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: ID_PLAYER.to_string(),
-            name: "Maintenance Cutter".to_string(),
+            name: CUTTER_NAME.to_string(),
             position: PLAYER_START_POS,
             rotation: Quat::IDENTITY,
         },

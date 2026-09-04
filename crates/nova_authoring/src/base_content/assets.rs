@@ -14,8 +14,6 @@ use nova_gameplay::prelude::AssetRef;
 pub struct BaseContentAssets {
     /// Default built-in skybox.
     pub cubemap: AssetRef<Image>,
-    /// Alternate deep-field skybox used by later campaign chapters.
-    pub cubemap_alt: AssetRef<Image>,
     /// Default procedural-asteroid surface texture.
     pub asteroid_texture: AssetRef<Image>,
     /// Standard hull mesh: the crew cell, a hatch on every face.
@@ -211,7 +209,6 @@ impl BaseContentAssets {
     pub fn from_paths() -> Self {
         Self {
             cubemap: AssetRef::from("self://textures/cubemap.png".to_string()),
-            cubemap_alt: AssetRef::from("self://textures/cubemap_alt.png".to_string()),
             asteroid_texture: AssetRef::from("self://textures/asteroid.png".to_string()),
             hull: AssetRef::from("self://gltf/hull_personnel.glb#Scene0".to_string()),
             hull_cargo: AssetRef::from("self://gltf/hull_cargo.glb#Scene0".to_string()),
