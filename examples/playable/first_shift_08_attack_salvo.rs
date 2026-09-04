@@ -31,12 +31,14 @@ const WARSHIP_PREVIEW_POS: Meters3 = Meters3::new(3_700.0, 150.0, -2_200.0);
 const SHIPPED_DEATH_OFFSET: &str = "440,25,-235";
 const DEFAULT_CAPTURE_DIR: &str = "target/shots";
 const LOOP_WINDOW: &str = "railgun_loop_window";
+const SCENE_DONE: &str = "attack_salvo_scene_done";
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "first-shift-railgun-hits";
-const STILL_BEATS: [(f64, &str); 4] = [
-    (14.0, "run"),
-    (17.0, "impact"),
-    (21.0, "kill"),
+const STILL_BEATS: [(f64, &str); 5] = [
+    (5.0, "run"),
+    (6.75, "impact"),
+    (18.0, "kill"),
+    (25.5, "exit"),
     (29.0, "wreck"),
 ];
 
@@ -51,7 +53,7 @@ struct Cli {
     #[arg(long, value_name = "WxH", default_value = "1280x720", value_parser = parse_resolution)]
     resolution: UVec2,
 
-    /// Capture four review stills under `target/shots` or `NOVA_CAPTURE_DIR`.
+    /// Capture five review stills under `target/shots` or `NOVA_CAPTURE_DIR`.
     #[arg(long)]
     capture: bool,
 
@@ -89,34 +91,49 @@ fn parse_resolution(raw: &str) -> Result<UVec2, String> {
 
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
+    #[cfg(feature = "debug")]
+    let capture_stills = cli.capture;
     let mut app = AppBuilder::new().with_game_plugins(attack_plugin).build();
     app.insert_resource(cli);
 
     #[cfg(feature = "debug")]
     {
         app.add_plugins(LoopCapturePlugin::default());
-        app.add_plugins(
-            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
-                .step("load the attack salvo")
-                .enter(GameStates::Loading)
-                .until(player_ship_present())
-                .deadline(60.0)
-                .add()
-                .step("wait for the railgun window")
-                .until(scenario_variable_is(LOOP_WINDOW, 1.0))
-                .deadline(30.0)
-                .add()
-                .step("open the railgun loop")
-                .on_enter(|world| loop_start(world, LOOP_NAME))
-                .until(scenario_variable_is(LOOP_WINDOW, 0.0))
-                .deadline(10.0)
-                .add()
-                .step("close the railgun loop")
-                .on_enter(|world| loop_end(world, LOOP_NAME))
-                .until(loop_written(LOOP_NAME))
-                .deadline(60.0)
-                .add(),
-        );
+        let load = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+            .step("load the attack salvo")
+            .enter(GameStates::Loading)
+            .until(player_ship_present())
+            .deadline(60.0)
+            .add();
+        if capture_stills {
+            app.add_plugins(
+                load.step("wait for the complete destruction scene")
+                    .until(scenario_variable_is(SCENE_DONE, 1.0))
+                    .deadline(40.0)
+                    .add(),
+            );
+        } else {
+            app.add_plugins(
+                load.step("wait for the railgun window")
+                    .until(scenario_variable_is(LOOP_WINDOW, 1.0))
+                    .deadline(30.0)
+                    .add()
+                    .step("open the railgun loop")
+                    .on_enter(|world| loop_start(world, LOOP_NAME))
+                    .until(scenario_variable_is(LOOP_WINDOW, 0.0))
+                    .deadline(10.0)
+                    .add()
+                    .step("close the railgun loop")
+                    .on_enter(|world| loop_end(world, LOOP_NAME))
+                    .until(loop_written(LOOP_NAME))
+                    .deadline(60.0)
+                    .add()
+                    .step("wait for the complete destruction scene")
+                    .until(scenario_variable_is(SCENE_DONE, 1.0))
+                    .deadline(40.0)
+                    .add(),
+            );
+        }
         app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
     }
 
@@ -260,8 +277,9 @@ fn instrument_salvo(scenario: &mut ScenarioConfig, cli: &Cli) {
         ));
         order += 1;
     };
-    add(7.5, vec![set_number(LOOP_WINDOW, 1.0)]);
-    add(11.5, vec![set_number(LOOP_WINDOW, 0.0)]);
+    add(6.0, vec![set_number(LOOP_WINDOW, 1.0)]);
+    add(10.0, vec![set_number(LOOP_WINDOW, 0.0)]);
+    add(30.0, vec![set_number(SCENE_DONE, 1.0)]);
     if cli.capture {
         for (at, beat) in STILL_BEATS {
             add(at, vec![capture(cli, beat)]);
@@ -282,7 +300,8 @@ fn instrument_salvo(scenario: &mut ScenarioConfig, cli: &Cli) {
         })
         .collect();
 
-    scenario.events[0]
-        .actions
-        .insert(0, set_number(LOOP_WINDOW, 0.0));
+    scenario.events[0].actions.splice(
+        0..0,
+        [set_number(LOOP_WINDOW, 0.0), set_number(SCENE_DONE, 0.0)],
+    );
 }

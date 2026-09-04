@@ -278,36 +278,19 @@ const ORBIT_TALK_GAP: f64 = 4.5;
 const APPROACH_SILENT_AT: f64 = 20.0;
 const APPROACH_CHALLENGE_AT: f64 = 18.0;
 
-/// The salvo's own cadence, also timed against the measured run.
+/// The salvo's own cadence, timed against the measured ordnance run.
 ///
-/// The order is the SHOT list, not the gun list: six bays walked open under a
-/// tight shot on the warship, one line from the cockpit, then the camera cuts
-/// to the Meridian for the two lances and the torpedoes that arrive after
-/// them, and back to the cutter for the kill. Nothing is said over a launch or
-/// an impact.
-///
-/// The measured ordnance decides where the two cuts go. A Breaker leaves its
-/// tube at 80 m/s and runs at 700, and across this 6.6 km the first one arrives
-/// about 13 s after the first tube opens and the last about 23 s, with the
-/// carrier gone a half second behind it. So the camera is on the Meridian at
-/// 7.5 s - five clear seconds before anything reaches it - and off again at
-/// 20 s, three seconds before the hull it is anchored to stops existing.
+/// Six bays walk open under the warship shot. The camera cuts to Meridian for
+/// the paired railgun strike, then to Cutter before the first torpedo arrives.
+/// Once the last torpedo destroys the carrier, the warship starts outbound
+/// while the Cutter shot holds, then the same view closes on the aftermath.
+/// There is no dialogue in this destruction scene.
 const SALVO_BAY_GAP: f64 = 1.0;
-const SALVO_TUBES_CALL_AT: f64 = 1.5;
 const SALVO_CUT_TO_CARRIER_AT: f64 = 1.0;
 const SALVO_LANCES_AT: f64 = 0.5;
-// Leave the paired impact room before dialogue resumes, while keeping the
-// following camera cadence on its authored beat.
-const SALVO_LAST_WORDS_AT: f64 = 3.5;
-const SALVO_POD_CALL_AT: f64 = 4.5;
 const SALVO_CUT_TO_CUTTER_AT: f64 = 4.0;
-/// The camera comes home here - after the last torpedo has arrived, and before
-/// a word of the aftermath. What follows is the player's own view again.
-const SALVO_RELEASE_AT: f64 = 8.0;
-const SALVO_EXIT_AT: f64 = 4.0;
-const SALVO_SECOND_CALL_AT: f64 = 7.0;
-const SALVO_SILENCE_AT: f64 = 6.0;
-const SALVO_DISTRESS_AT: f64 = 14.0;
+const SALVO_EXIT_AT: f64 = 14.0;
+const SALVO_AFTERMATH_AT: f64 = 4.0;
 
 // --- keys --------------------------------------------------------------------
 
@@ -1070,14 +1053,12 @@ pub(crate) fn first_shift(
                 .collect(),
             },
             // It is out from behind the body and close enough to read a hull off.
-            // The entry shot ends here, on the identification: the camera goes back
-            // to the player for the second leg, so the half minute in which the
-            // thing crosses the belt is theirs to look around in.
+            // The Cutter shot holds through the second leg. Control stays suspended:
+            // there is nothing useful to fly during a staged approach, and the
+            // destruction sequence follows without returning to gameplay.
             on_order(
                 ORDER_EMERGE,
                 vec![
-                    release_camera(),
-                    resume_player_control(),
                     story_message(PLAYER, story::ATTACK_PLAYER_MILITARY),
                     move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
                     // Halfway through the second leg. The Meridian tries talking to
@@ -1181,6 +1162,7 @@ pub fn first_shift_scene(
             !matches!(action, EventActionConfig::SpawnScenarioObject(object) if object.base.id == ID_CARRIER)
         });
     }
+    start_actions.extend(preview_control_grants(scene));
     let (entry_actions, handlers) = match scene {
         FirstShiftScene::Departure => unreachable!(),
         FirstShiftScene::Rcs => {
@@ -1265,7 +1247,12 @@ pub fn first_shift_scene(
             (entry, handlers)
         }
         FirstShiftScene::AttackSalvo => {
-            start_actions.push(spawn_object(warship()));
+            start_actions.extend([
+                suspend_player_control(),
+                spawn_object(warship()),
+                post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
+                attach_objective_marker(ID_WARSHIP, "WARSHIP"),
+            ]);
             let mut entry = scenes
                 .take(scene)
                 .pop()
@@ -1298,6 +1285,21 @@ pub fn first_shift_scene(
     full.description = format!("Standalone review of {}.", scene_name(scene));
     full.events = events;
     full
+}
+
+fn preview_control_grants(scene: FirstShiftScene) -> Vec<EventActionConfig> {
+    let mut grants = vec![grant(FlightVerb::Rcs), grant(FlightVerb::Lock)];
+    if matches!(
+        scene,
+        FirstShiftScene::Orbit
+            | FirstShiftScene::Return
+            | FirstShiftScene::AttackApproach
+            | FirstShiftScene::AttackSalvo
+            | FirstShiftScene::Aftermath
+    ) {
+        grants.extend([grant(FlightVerb::Goto), grant(FlightVerb::Orbit)]);
+    }
+    grants
 }
 
 fn with_end_message(
@@ -1480,32 +1482,16 @@ fn orbit_watch(event: EventConfig, start: bool) -> ScenarioEventConfig {
     }
 }
 
-/// The salvo: the whole attack, from the first tube to the empty channel.
+/// The carrier kill as one silent cinematic chain.
 ///
-/// It is a single chain because it is a single continuous event, and because
-/// the cadence IS the writing. The shot list, in order:
-///
-/// 1. Tight on the WARSHIP, down its own firing line, while six bays walk open
-///    and six torpedoes leave straight away from the camera.
-/// 2. One line from the cockpit, which is the only thing said over the guns.
-/// 3. Cut to the MERIDIAN. Both lances fire together and land first (a slug
-///    crosses 6.6 km in under half a second), then the torpedoes arrive over
-///    the following seconds. Nothing is said over an impact.
-/// 4. Cut back to the CUTTER, over its shoulder and three and a half
-///    kilometres off, for the last torpedoes and the kill - which is where the
-///    player watches it from, and which is not a shot the engine can take once
-///    the carrier is gone. It aims at the berth rather than at the ship
-///    standing on it, so the kill frame survives the ship.
-/// 5. The camera comes home before a word of the aftermath.
-///
-/// The warship is left firing off screen on purpose. The beat is not a ship
-/// shooting; it is a carrier coming apart with its crew still on the channel.
+/// The tubes launch under the warship shot. Meridian owns the railgun impact
+/// shot. Cutter owns the torpedo impacts, destruction, and aftermath while the
+/// warship starts outbound. Control remains suspended until scenario teardown.
 fn salvo() -> EventActionConfig {
     let bays = ships::BLOCK_WARSHIP_BAY_IDS;
     let mut steps = vec![step(
         0.0,
         vec![
-            suspend_player_control(),
             film(ID_WARSHIP, CINEMA_TUBES_OFFSET, at(ID_CARRIER)),
             fire_bay(bays[0]),
         ],
@@ -1517,10 +1503,6 @@ fn salvo() -> EventActionConfig {
     );
     steps.extend([
         step(
-            SALVO_TUBES_CALL_AT,
-            vec![story_message(PLAYER, story::ATTACK_PLAYER_TUBES)],
-        ),
-        step(
             SALVO_CUT_TO_CARRIER_AT,
             vec![film(ID_CARRIER, CINEMA_IMPACT_OFFSET, at(ID_WARSHIP))],
         ),
@@ -1530,14 +1512,6 @@ fn salvo() -> EventActionConfig {
                 .iter()
                 .map(|railgun| fire_railgun(railgun))
                 .collect(),
-        ),
-        step(
-            SALVO_LAST_WORDS_AT,
-            vec![story_message(DECK_CHIEF, story::ATTACK_CHIEF_LAST)],
-        ),
-        step(
-            SALVO_POD_CALL_AT,
-            vec![story_message(PLAYER, story::ATTACK_PLAYER_POD)],
         ),
         // Off the carrier before it dies, and back onto the cutter for the last
         // impacts. A camera anchored to a hull loses its anchor when that hull
@@ -1551,44 +1525,28 @@ fn salvo() -> EventActionConfig {
                 point(stage::CARRIER_POS),
             )],
         ),
-        // The wreck has stopped moving by now. The camera goes back to the
-        // cutter's own rig - the aftermath is the player's view, not a shot.
-        step(
-            SALVO_RELEASE_AT,
-            vec![release_camera(), resume_player_control()],
-        ),
+        // The last torpedo has landed. The warship starts away without an
+        // extra cut between Cutter's view of the kill and the aftermath.
         step(
             SALVO_EXIT_AT,
-            vec![
-                // Nothing waits on this arrival. The order exists so the ship
-                // leaves under its own thrust, taking its time, entirely
-                // unbothered - and OUTBOUND, clear of the large body it came
-                // from, because a move order flies a straight line and will
-                // fly it through a planetoid.
-                EventActionConfig::MoveShipTo(MoveShipToActionConfig {
-                    order: ORDER_EXIT.to_string(),
-                    ship: ID_WARSHIP.to_string(),
-                    position: WARSHIP_EXIT_POS,
-                    arrival_standoff: None,
-                }),
-                story_message(PLAYER, story::AFTER_PLAYER_SAY_AGAIN),
-            ],
+            vec![EventActionConfig::MoveShipTo(MoveShipToActionConfig {
+                order: ORDER_EXIT.to_string(),
+                ship: ID_WARSHIP.to_string(),
+                position: WARSHIP_EXIT_POS,
+                arrival_standoff: None,
+            })],
         ),
+        // Once its departure reads, return to Cutter and the wreck. This is the
+        // aftermath composition, not a return to player camera or control.
         step(
-            SALVO_SECOND_CALL_AT,
-            vec![story_message(PLAYER, story::AFTER_PLAYER_ANYONE)],
-        ),
-        step(
-            SALVO_SILENCE_AT,
+            SALVO_AFTERMATH_AT,
             vec![
+                film(ID_CUTTER, CINEMA_DEATH_OFFSET, point(stage::CARRIER_POS)),
                 complete_objective(OBJ_WITNESS),
                 detach_objective_marker(ID_WARSHIP),
                 post_objective(OBJ_SILENCE, story::OBJ_TEXT_SILENCE),
+                set_variable(VAR_BEAT, number(BEAT_DISTRESS)),
             ],
-        ),
-        step(
-            SALVO_DISTRESS_AT,
-            vec![set_variable(VAR_BEAT, number(BEAT_DISTRESS))],
         ),
     ]);
     sequence(SEQ_SALVO, steps)

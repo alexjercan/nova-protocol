@@ -2998,8 +2998,6 @@
                     ))),
                 ],
                 actions: [
-                    ReleaseCamera(()),
-                    ResumePlayerControl(()),
                     StoryMessage((
                         speaker: "You",
                         text: "Control, that is a fleet hull. Earth military. It is coming round on you.",
@@ -3080,7 +3078,6 @@
                             (
                                 after: Some(0.0),
                                 actions: [
-                                    SuspendPlayerControl(()),
                                     SetCameraAnchor((
                                         anchor: "warship",
                                         offset: (
@@ -3149,15 +3146,6 @@
                                 ],
                             ),
                             (
-                                after: Some(1.5),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Tubes. Tubes - it just put its whole bay in the air, Meridian, they are on you -",
-                                    )),
-                                ],
-                            ),
-                            (
                                 after: Some(1.0),
                                 actions: [
                                     SetCameraAnchor((
@@ -3186,20 +3174,35 @@
                                 ],
                             ),
                             (
-                                after: Some(3.5),
+                                after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Drive\'s gone. No power to the ring and nothing to answer them with.",
+                                    SetCameraAnchor((
+                                        anchor: "cutter",
+                                        offset: (
+                                            440.0,
+                                            25.0,
+                                            -235.0,
+                                        ),
+                                        frame: World,
+                                        look_at: Point((
+                                            -1000.0,
+                                            0.0,
+                                            2500.0,
+                                        )),
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(4.5),
+                                after: Some(14.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Chief. Chief, get to a pod. Chief -",
+                                    MoveShipTo((
+                                        order: "warship_exit",
+                                        ship: "warship",
+                                        position: (
+                                            12000.0,
+                                            2000.0,
+                                            1000.0,
+                                        ),
                                     )),
                                 ],
                             ),
@@ -3220,45 +3223,6 @@
                                             2500.0,
                                         )),
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(8.0),
-                                actions: [
-                                    ReleaseCamera(()),
-                                    ResumePlayerControl(()),
-                                ],
-                            ),
-                            (
-                                after: Some(4.0),
-                                actions: [
-                                    MoveShipTo((
-                                        order: "warship_exit",
-                                        ship: "warship",
-                                        position: (
-                                            12000.0,
-                                            2000.0,
-                                            1000.0,
-                                        ),
-                                    )),
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Meridian Control, cutter one. Say again.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(7.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Meridian. Anyone on this channel.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(6.0),
-                                actions: [
                                     ObjectiveComplete((
                                         id: "witness",
                                     )),
@@ -3269,11 +3233,6 @@
                                         id: "silence",
                                         message: "Hold position and keep the channel open.",
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(14.0),
-                                actions: [
                                     VariableSet((
                                         key: "beat",
                                         expression: Term(Factor(Literal(Number(15.0)))),

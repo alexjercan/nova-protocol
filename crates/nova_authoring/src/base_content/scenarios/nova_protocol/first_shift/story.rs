@@ -125,17 +125,8 @@ pub(super) const ATTACK_CONTROL_CHALLENGE: &str =
 pub(super) const ATTACK_CHIEF_TURNING: &str =
     "It is turning, Control. It is putting its whole side on us.";
 
-pub(super) const ATTACK_PLAYER_TUBES: &str =
-    "Tubes. Tubes - it just put its whole bay in the air, Meridian, they are on you -";
-
-pub(super) const ATTACK_CHIEF_LAST: &str =
-    "Drive's gone. No power to the ring and nothing to answer them with.";
-pub(super) const ATTACK_PLAYER_POD: &str = "Chief. Chief, get to a pod. Chief -";
-
 // --- the silence -------------------------------------------------------------
 
-pub(super) const AFTER_PLAYER_SAY_AGAIN: &str = "Meridian Control, cutter one. Say again.";
-pub(super) const AFTER_PLAYER_ANYONE: &str = "Meridian. Anyone on this channel.";
 pub(super) const OBJ_TEXT_SILENCE: &str = "Hold position and keep the channel open.";
 
 pub(super) const AFTER_PLAYER_CARRIER_SIGNAL: &str =

@@ -771,3 +771,23 @@ examples compile with debug features. Eight thin scenes complete rendered
 runtime smoke checks; the salvo captures a 466,806-byte rail-hit loop. Generated
 First Shift content is unchanged, and content lint reports 0 errors, 0 warnings
 and 0 findings.
+
+### 2026-09-04: Silent terminal cinematic
+
+Kept player and camera authority suspended after the warship reveal. The
+approach no longer returns to the chase rig for a flight segment that gives the
+player nothing useful to do. Recut the destruction as a silent sequence:
+warship launch, Meridian railgun strike, then Cutter holding the torpedo
+impacts, the warship starting away and the aftermath without another cut. The distress act opens on
+that final shot and scenario teardown restores authority.
+
+Standalone post-training scenes now explicitly enable RCS and Lock instead of
+inheriting the production Cutter's fresh-spawn gates. Later scenes also receive
+GOTO and ORBIT when their campaign prerequisites would already have granted
+them. Mainline capability teaching is unchanged.
+
+Proof: 18 focused tests pass, including silent-salvo, shot-order, terminal
+control-authority and preview-capability pins. Scenes 07-09 compile. Content
+lint reports 0 errors, 0 warnings and 0 findings. A rendered five-still review
+confirmed there is no camera cut between Cutter's torpedo and aftermath views;
+the 575,077-byte rail-hit loop and complete 34.5-second walk both exit cleanly.

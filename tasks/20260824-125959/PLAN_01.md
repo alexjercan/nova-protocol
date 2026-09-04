@@ -319,9 +319,9 @@ unless the reviewed cinematic proves that scripted repositioning is necessary.
 - Every prescribed GOTO segment clears conservative stage geometry.
 - Every temporary mark is eventually removed.
 - The orbit detour completes a real lap before the return-to-work beat.
-- Every cinematic pose in First Shift has paired control suspension and restore.
-- Camera and player control restore before the distress aftermath and on
-  teardown.
+- The RCS teaching pose has paired control suspension and restore.
+- The terminal attack keeps camera and player control suspended from reveal
+  through aftermath; scenario teardown restores both.
 - Generated base content passes content lint.
 
 ### Rendered review
@@ -337,7 +337,9 @@ Play First Shift from the beginning and verify:
 - The full orbit begins and ends at useful angles.
 - The visual-cover joke reads without promising nonexistent radio mechanics.
 - Mouse movement cannot steer Cutter during a cinematic.
-- The destruction camera keeps Cutter and Meridian readable together.
+- The silent destruction sequence clearly shows the railgun strike on Meridian,
+  torpedo impacts from Cutter, the warship starting away without another cut,
+  and Cutter facing the aftermath.
 - The removed front close-up does not return in another pose.
 - Comms, objective notifications, and world markers are readable at 720p and
   1080p.

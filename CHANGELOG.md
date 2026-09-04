@@ -58,8 +58,8 @@ does NOT get an entry - and it is the only place they are written down.
   lights the hulls it passes; Low draws neither.
 
 ### Scenarios & Objectives
-- First Shift now suspends flight, look, stance, and weapon input during staged
-  shots, then restores control with the camera and on scenario teardown.
+- First Shift keeps control suspended from the warship reveal through teardown.
+  Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
 - First Shift waits for physical STOP and GOTO completion, frames all four RCS
   marks before flight resumes, and keeps Cutter's manual limit at 150 m/s.
 - **(breaking)** The campaign is two new chapters, First Shift and Second

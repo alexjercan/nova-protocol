@@ -59,6 +59,17 @@ fn reusable_scenes_keep_preview_positions_out_of_production_code() {
             }),
             "{scene:?} has no explicit preview end message"
         );
+        if scene != FirstShiftScene::Departure {
+            for verb in [FlightVerb::Rcs, FlightVerb::Lock] {
+                assert!(
+                    all_actions(&preview).iter().any(|action| {
+                        matches!(action, EventActionConfig::SetControllerVerb(grant)
+                            if grant.id == ID_CUTTER && grant.verb == verb && grant.enabled)
+                    }),
+                    "{scene:?} does not enable {verb:?} for standalone review"
+                );
+            }
+        }
         if scene == FirstShiftScene::AttackApproach {
             assert!(
                 spawned_ids.contains(&ID_WARSHIP),
@@ -628,14 +639,11 @@ fn distance_to_segment(point: Meters3, from: Meters3, to: Meters3) -> f32 {
     (point - (from + leg * along)).length().0
 }
 
-/// The chapter has five authored shots in order and comes home three times.
-/// The RCS route and entrance are filmed from the CUTTER, the launch from the
-/// WARSHIP, the guns from the MERIDIAN, and the kill from the CUTTER again.
-/// The chase rig returns after the briefing, across the warship's middle leg,
-/// and before the aftermath. Losing a release leaves the player watching the
-/// chapter from a pose they cannot fly out of.
+/// The RCS briefing returns to gameplay. The attack does not: Cutter frames
+/// the approach, the warship frames launch, Meridian frames the lances, and
+/// Cutter frames both the torpedo kill and aftermath until teardown.
 #[test]
-fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
+fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
     let config = config();
     let mut shots: Vec<String> = Vec::new();
     let mut released = 0_usize;
@@ -662,19 +670,17 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
             ID_WARSHIP.to_string(),
             ID_CARRIER.to_string(),
             ID_CUTTER.to_string(),
+            ID_CUTTER.to_string(),
         ],
-        "the shot list is out of order: the RCS briefing and entrance are the \
-         cutter's, the tubes are the warship's, the guns are the Meridian's, \
-         and the kill is the cutter's again"
+        "the shot list must run RCS, approach, launch, rail impact, torpedo \
+         impact, aftermath without an intermediate departure angle"
     );
     assert_eq!(
-        released, 3,
-        "the camera is handed back {released} times - after the RCS briefing, \
-         across the warship's second leg, and before the aftermath"
+        released, 1,
+        "only the RCS lesson returns to gameplay; the attack stays cinematic"
     );
 
-    // Inside the salvo chain: the guns fire under the shot they belong to, and
-    // the release step lands before the step that opens the distress act.
+    // Inside the salvo chain, each weapon and movement runs under its shot.
     let salvo = all_actions(&config)
         .into_iter()
         .find_map(|action| match action {
@@ -751,13 +757,38 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
          fires at {last_lance} - the guns land off screen"
     );
 
-    let release = step_with(&|action| matches!(action, EventActionConfig::ReleaseCamera(_)))
-        .expect("the salvo never releases the camera");
+    let exit = step_with(&|action| {
+        matches!(action, EventActionConfig::MoveShipTo(order) if order.order == ORDER_EXIT)
+    })
+    .expect("the warship never starts away");
+    let aftermath_cutter = salvo
+        .steps
+        .iter()
+        .rposition(|step| {
+            step.actions.iter().any(|action| {
+                matches!(action, EventActionConfig::SetCameraAnchor(shot)
+                    if shot.anchor == ID_CUTTER)
+            })
+        })
+        .expect("the aftermath never returns to Cutter");
     assert!(
-        on_cutter < release,
-        "the camera is anchored to the carrier until step {release} - it would \
-         be handed back by the carrier's own destruction, on the frame the \
-         chapter is about"
+        on_cutter < exit && exit < aftermath_cutter,
+        "the Cutter view must hold through torpedo impacts at {on_cutter}, the \
+         warship starting away at {exit}, and aftermath at {aftermath_cutter}"
+    );
+    assert!(
+        salvo
+            .steps
+            .iter()
+            .all(|step| step.actions.iter().all(|action| {
+                !matches!(
+                    action,
+                    EventActionConfig::StoryMessage(_)
+                        | EventActionConfig::ReleaseCamera(_)
+                        | EventActionConfig::ResumePlayerControl(_)
+                )
+            })),
+        "the destruction scene must stay silent and keep cinematic authority"
     );
     let distress = salvo
         .steps
@@ -769,10 +800,9 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
                 .any(|action| format!("{action:?}") == write)
         })
         .expect("the salvo never opens the distress act");
-    assert!(
-        release < distress,
-        "the camera is handed back at step {release} and the aftermath opens at \
-         {distress} - the player would watch it from the cinematic pose"
+    assert_eq!(
+        aftermath_cutter, distress,
+        "the distress act must open on the final Cutter aftermath shot"
     );
 }
 
@@ -798,7 +828,7 @@ fn the_script_never_flies_the_cutter_for_the_player() {
 }
 
 #[test]
-fn every_anchored_cinematic_interval_restores_player_control() {
+fn only_the_training_cinematic_returns_control_before_teardown() {
     let config = config();
     let actions = all_actions(&config);
     let suspended = actions
@@ -815,13 +845,13 @@ fn every_anchored_cinematic_interval_restores_player_control() {
         .count();
 
     assert_eq!(
-        suspended, 3,
-        "RCS briefing, entry and salvo each own one control interval"
+        suspended, 2,
+        "RCS briefing and attack entry each own one control interval"
     );
-    assert_eq!(resumed, suspended, "every suspension must have a resume");
+    assert_eq!(resumed, 1, "only the RCS briefing returns player control");
     assert_eq!(
-        resumed, released,
-        "control returns whenever the anchored camera is handed back"
+        released, 1,
+        "only the RCS briefing returns the chase camera"
     );
 }
 
@@ -916,13 +946,12 @@ fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
     }
 }
 
-/// The kill is filmed at a POINT, not at the ship being killed.
+/// The torpedo kill and aftermath are filmed at a POINT, not at the ship being
+/// killed.
 ///
-/// An `Object` aim is resolved to an entity and falls back to the ANCHOR when
-/// that entity dies (`ScriptedCameraLookAt::Entity` -> `subject.translation`).
-/// The Meridian dies inside this shot, so an object aim would swing the lens
-/// off the wreck and onto the player's own hull on the one frame the whole
-/// chapter is built around.
+/// An `Object` aim falls back to the anchor when that entity dies. Meridian
+/// dies during the first Cutter shot and is absent in the second, so both must
+/// retain the berth as a stable world-space subject.
 #[test]
 fn the_kill_is_filmed_at_a_point_that_outlives_the_carrier() {
     let death_shots: Vec<SetCameraAnchorActionConfig> = all_actions(&config())
@@ -935,17 +964,17 @@ fn the_kill_is_filmed_at_a_point_that_outlives_the_carrier() {
         .collect();
     assert_eq!(
         death_shots.len(),
-        1,
-        "the chapter takes exactly one last shot"
+        2,
+        "the chapter needs one Cutter shot for the kill and one for aftermath"
     );
-    assert!(
-        matches!(death_shots[0].look_at, CameraLookAtConfig::Point(_)),
-        "the last shot must aim at a point, not at the carrier it is filming \
-         the death of - got {:?}",
-        death_shots[0].look_at
-    );
-    assert_eq!(
-        death_shots[0].anchor, ID_CUTTER,
-        "and it stays on the player's own hull"
-    );
+    for shot in death_shots {
+        assert!(
+            matches!(shot.look_at, CameraLookAtConfig::Point(_)),
+            "a Cutter destruction shot follows a carrier that can no longer exist"
+        );
+        assert_eq!(
+            shot.anchor, ID_CUTTER,
+            "the destruction and aftermath stay on the player's own hull"
+        );
+    }
 }
