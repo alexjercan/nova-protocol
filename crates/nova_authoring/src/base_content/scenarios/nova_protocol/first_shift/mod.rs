@@ -61,6 +61,108 @@ use crate::scenario_helpers::prelude::*;
 /// The scenario id, shared with nova_menu's New Game entry.
 pub const FIRST_SHIFT_SCENARIO_ID: &str = "first_shift";
 
+/// Reusable authored scenes that compose First Shift and its focused examples.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FirstShiftScene {
+    /// Opening conversation, launch mark, and STOP instruction.
+    Departure,
+    /// Four-mark RCS briefing and route.
+    Rcs,
+    /// The first two salvage crates.
+    Salvage,
+    /// Radar lock and two completed GOTO legs.
+    Navigation,
+    /// Planetoid approach, orbit, and return to the plate.
+    Orbit,
+    /// Final crate and call home.
+    Return,
+    /// Warship emergence, approach, and alignment.
+    AttackApproach,
+    /// The aligned warship's complete weapon and camera sequence.
+    AttackSalvo,
+    /// Silence and the first distress signal.
+    Aftermath,
+}
+
+struct FirstShiftScenes {
+    departure: Vec<ScenarioEventConfig>,
+    rcs: Vec<ScenarioEventConfig>,
+    salvage: Vec<ScenarioEventConfig>,
+    navigation: Vec<ScenarioEventConfig>,
+    orbit: Vec<ScenarioEventConfig>,
+    return_to_carrier: Vec<ScenarioEventConfig>,
+    attack_approach: Vec<ScenarioEventConfig>,
+    attack_salvo: Vec<ScenarioEventConfig>,
+    aftermath: Vec<ScenarioEventConfig>,
+    global: Vec<ScenarioEventConfig>,
+}
+
+impl FirstShiftScenes {
+    fn from_events(events: Vec<ScenarioEventConfig>) -> Self {
+        let mut events = events.into_iter();
+        let scenes = Self {
+            departure: Self::take_exact(&mut events, 2, "departure"),
+            rcs: Self::take_exact(&mut events, 5, "RCS"),
+            salvage: Self::take_exact(&mut events, 2, "salvage"),
+            navigation: Self::take_exact(&mut events, 3, "navigation"),
+            orbit: Self::take_exact(&mut events, 6, "orbit"),
+            return_to_carrier: Self::take_exact(&mut events, 1, "return"),
+            attack_approach: Self::take_exact(&mut events, 3, "attack approach"),
+            attack_salvo: Self::take_exact(&mut events, 1, "attack salvo"),
+            aftermath: Self::take_exact(&mut events, 1, "aftermath"),
+            global: Self::take_exact(&mut events, 2, "global handlers"),
+        };
+        assert!(
+            events.next().is_none(),
+            "First Shift scene partition drifted"
+        );
+        scenes
+    }
+
+    fn take_exact(
+        events: &mut std::vec::IntoIter<ScenarioEventConfig>,
+        count: usize,
+        name: &str,
+    ) -> Vec<ScenarioEventConfig> {
+        let scene: Vec<_> = events.by_ref().take(count).collect();
+        assert_eq!(
+            scene.len(),
+            count,
+            "First Shift {name} scene partition drifted"
+        );
+        scene
+    }
+
+    fn into_campaign(self) -> Vec<ScenarioEventConfig> {
+        self.departure
+            .into_iter()
+            .chain(self.rcs)
+            .chain(self.salvage)
+            .chain(self.navigation)
+            .chain(self.orbit)
+            .chain(self.return_to_carrier)
+            .chain(self.attack_approach)
+            .chain(self.attack_salvo)
+            .chain(self.aftermath)
+            .chain(self.global)
+            .collect()
+    }
+
+    fn take(&mut self, scene: FirstShiftScene) -> Vec<ScenarioEventConfig> {
+        match scene {
+            FirstShiftScene::Departure => std::mem::take(&mut self.departure),
+            FirstShiftScene::Rcs => std::mem::take(&mut self.rcs),
+            FirstShiftScene::Salvage => std::mem::take(&mut self.salvage),
+            FirstShiftScene::Navigation => std::mem::take(&mut self.navigation),
+            FirstShiftScene::Orbit => std::mem::take(&mut self.orbit),
+            FirstShiftScene::Return => std::mem::take(&mut self.return_to_carrier),
+            FirstShiftScene::AttackApproach => std::mem::take(&mut self.attack_approach),
+            FirstShiftScene::AttackSalvo => std::mem::take(&mut self.attack_salvo),
+            FirstShiftScene::Aftermath => std::mem::take(&mut self.aftermath),
+        }
+    }
+}
+
 /// Where the chapter leaves the player: the outer mark off the Meridian's
 /// quarter that the set piece is composed from and the cutter is still sitting
 /// on when the credits line lands.
@@ -481,538 +583,562 @@ pub(crate) fn first_shift(
         ThreePointRig::around("first_shift", Meters3::new(0.0, 0.0, -2_000.0), 25.0).objects(),
     );
 
-    let events = vec![
-        // The world, the counter, and the three lines that start the shift. No
-        // objective while the chief talks: the panel stays empty until she
-        // sends the cutter off.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnStart,
-            once: false,
-            filters: vec![],
-            actions: start_spawns
+    let scenes = FirstShiftScenes {
+        departure: vec![
+            // The world, the counter, and the three lines that start the shift. No
+            // objective while the chief talks: the panel stays empty until she
+            // sends the cutter off.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStart,
+                once: false,
+                filters: vec![],
+                actions: start_spawns
+                    .into_iter()
+                    .map(EventActionConfig::SpawnScenarioObject)
+                    .chain([
+                        set_variable(VAR_BEAT, number(BEAT_LAUNCH)),
+                        sequence(
+                            SEQ_OPENING,
+                            vec![
+                                open_line(OPEN_FIRST_AT, DECK_CHIEF, story::OPEN_CHIEF_CLEAR),
+                                open_line(OPEN_GAP, PLAYER, story::OPEN_PLAYER_GREEN),
+                                open_line(OPEN_GAP, DECK_CHIEF, story::OPEN_CHIEF_BURN),
+                                step(
+                                    INSTRUCTION_GAP,
+                                    [post_objective(OBJ_BURN, story::OBJ_TEXT_BURN)]
+                                        .into_iter()
+                                        .chain(WORK_MARK.raise())
+                                        .collect(),
+                                ),
+                            ],
+                        ),
+                    ])
+                    .collect(),
+            },
+            // The mark is made. STOP must finish before the thrusters are taught
+            // HERE, in open space, where a mistake costs nothing - not on the
+            // plate, which is where the old script first asked for them. The 150
+            // m/s manual governor stays for the whole shift.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![WORK_MARK.entered(), number_equals(VAR_BEAT, BEAT_LAUNCH)],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_STOP)),
+                    complete_objective(OBJ_BURN),
+                    story_message(COPILOT, story::TRIM_COPILOT_STOP),
+                ]
                 .into_iter()
-                .map(EventActionConfig::SpawnScenarioObject)
-                .chain([
-                    set_variable(VAR_BEAT, number(BEAT_LAUNCH)),
-                    sequence(
-                        SEQ_OPENING,
+                .chain(WORK_MARK.clear())
+                .chain([beat_setup(
+                    BEAT_STOP,
+                    INSTRUCTION_GAP,
+                    vec![
+                        post_objective(OBJ_STOP, story::OBJ_TEXT_STOP),
+                        show_hint_emphasis("STOP"),
+                    ],
+                )])
+                .collect(),
+            },
+        ],
+        rcs: vec![
+            // STOP is a physical gate, not an elapsed dialogue gap. Only once the
+            // autopilot reports rest does the RCS lesson open. All four marks spawn
+            // together under a wide shot; only TRIM A receives the active marker.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnStopComplete,
+                once: true,
+                filters: vec![entity(ID_CUTTER), number_equals(VAR_BEAT, BEAT_STOP)],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_TRIM_LATERAL)),
+                    complete_objective(OBJ_STOP),
+                    clear_hint_emphasis("STOP"),
+                    suspend_player_control(),
+                    film(ID_CUTTER, CINEMA_TRIM_OFFSET, point(TRIM_ROUTE_CENTRE)),
+                    story_message(COPILOT, story::TRIM_COPILOT_TEACH),
+                ]
+                .into_iter()
+                .chain(TRIM_ROUTE.map(TempMark::spawn))
+                .chain([beat_setup(
+                    BEAT_TRIM_LATERAL,
+                    INSTRUCTION_GAP,
+                    vec![
+                        grant(FlightVerb::Rcs),
+                        release_camera(),
+                        resume_player_control(),
+                        post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
+                        show_hint_emphasis("RCS"),
+                        TRIM_LATERAL.highlight(),
+                    ],
+                )])
+                .collect(),
+            },
+            // The second axis. The complete box stays visible, while the active
+            // marker advances by one corner.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    TRIM_LATERAL.entered(),
+                    number_equals(VAR_BEAT, BEAT_TRIM_LATERAL),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_TRIM_VERTICAL)),
+                    complete_objective(OBJ_TRIM_LATERAL),
+                    story_message(COPILOT, story::TRIM_COPILOT_SECOND_AXIS),
+                ]
+                .into_iter()
+                .chain(TRIM_LATERAL.clear())
+                .chain([beat_setup(
+                    BEAT_TRIM_VERTICAL,
+                    INSTRUCTION_GAP,
+                    vec![
+                        post_objective(OBJ_TRIM_VERTICAL, story::OBJ_TEXT_TRIM_VERTICAL),
+                        TRIM_VERTICAL.highlight(),
+                    ],
+                )])
+                .collect(),
+            },
+            // Back across the top of the box.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    TRIM_VERTICAL.entered(),
+                    number_equals(VAR_BEAT, BEAT_TRIM_VERTICAL),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_LATERAL)),
+                    complete_objective(OBJ_TRIM_VERTICAL),
+                    story_message(COPILOT, story::TRIM_COPILOT_BACK_ACROSS),
+                ]
+                .into_iter()
+                .chain(TRIM_VERTICAL.clear())
+                .chain([beat_setup(
+                    BEAT_TRIM_RETURN_LATERAL,
+                    INSTRUCTION_GAP,
+                    vec![
+                        post_objective(
+                            OBJ_TRIM_RETURN_LATERAL,
+                            story::OBJ_TEXT_TRIM_RETURN_LATERAL,
+                        ),
+                        TRIM_RETURN_LATERAL.highlight(),
+                    ],
+                )])
+                .collect(),
+            },
+            // Down to the work-mark line, closing the box.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    TRIM_RETURN_LATERAL.entered(),
+                    number_equals(VAR_BEAT, BEAT_TRIM_RETURN_LATERAL),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_VERTICAL)),
+                    complete_objective(OBJ_TRIM_RETURN_LATERAL),
+                    story_message(COPILOT, story::TRIM_COPILOT_CLOSE_BOX),
+                ]
+                .into_iter()
+                .chain(TRIM_RETURN_LATERAL.clear())
+                .chain([beat_setup(
+                    BEAT_TRIM_RETURN_VERTICAL,
+                    INSTRUCTION_GAP,
+                    vec![
+                        post_objective(
+                            OBJ_TRIM_RETURN_VERTICAL,
+                            story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
+                        ),
+                        TRIM_RETURN_VERTICAL.highlight(),
+                    ],
+                )])
+                .collect(),
+            },
+            // Only now does the plate open, with the first crate on its outer edge
+            // where the rocks are sparse. The leg out to it is the quiet time
+            // before the field starts asking for things.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    TRIM_RETURN_VERTICAL.entered(),
+                    number_equals(VAR_BEAT, BEAT_TRIM_RETURN_VERTICAL),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_CRATE_FIRST)),
+                    complete_objective(OBJ_TRIM_RETURN_VERTICAL),
+                    story_message(DECK_CHIEF, story::CRATE_CHIEF_FIRST),
+                ]
+                .into_iter()
+                .chain(TRIM_RETURN_VERTICAL.clear())
+                .chain([beat_setup(
+                    BEAT_CRATE_FIRST,
+                    INSTRUCTION_GAP,
+                    reveal_crate(1, OBJ_CRATE_FIRST, story::OBJ_TEXT_CRATE_FIRST),
+                )])
+                .collect(),
+            },
+        ],
+        salvage: vec![
+            // One crate at a time, each revealed only when the one before it is
+            // aboard. Three chips at once turns a lesson in flying the plate into a
+            // shopping list.
+            crate_pickup(
+                1,
+                BEAT_CRATE_FIRST,
+                OBJ_CRATE_FIRST,
+                BEAT_CRATE_SECOND,
+                ENGINEER,
+                story::CRATE_ENGINEER_SECOND,
+                reveal_crate(2, OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
+            ),
+            // Two aboard, and the third is out of the plate entirely - which is the
+            // errand that needs the targeting computer.
+            crate_pickup(
+                2,
+                BEAT_CRATE_SECOND,
+                OBJ_CRATE_SECOND,
+                BEAT_LOCK,
+                DECK_CHIEF,
+                story::LOCK_CHIEF,
+                [
+                    grant(FlightVerb::Lock),
+                    clear_hint_emphasis("RCS"),
+                    post_objective(OBJ_LOCK, story::OBJ_TEXT_LOCK),
+                    show_hint_emphasis("RADAR"),
+                ]
+                .into_iter()
+                .chain(TRANSIT_ONE.raise())
+                .collect(),
+            ),
+        ],
+        navigation: vec![
+            // The lock landed. GOTO is its own lesson, on its own card, once there
+            // is a lock for it to fly.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnTravelLockStart,
+                once: true,
+                filters: vec![TRANSIT_ONE.entered(), number_equals(VAR_BEAT, BEAT_LOCK)],
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_GOTO)),
+                    complete_objective(OBJ_LOCK),
+                    clear_hint_emphasis("RADAR"),
+                    story_message(DECK_CHIEF, story::GOTO_CHIEF),
+                    beat_setup(
+                        BEAT_GOTO,
+                        INSTRUCTION_GAP,
                         vec![
-                            open_line(OPEN_FIRST_AT, DECK_CHIEF, story::OPEN_CHIEF_CLEAR),
-                            open_line(OPEN_GAP, PLAYER, story::OPEN_PLAYER_GREEN),
-                            open_line(OPEN_GAP, DECK_CHIEF, story::OPEN_CHIEF_BURN),
-                            step(
-                                INSTRUCTION_GAP,
-                                [post_objective(OBJ_BURN, story::OBJ_TEXT_BURN)]
-                                    .into_iter()
-                                    .chain(WORK_MARK.raise())
-                                    .collect(),
-                            ),
+                            grant(FlightVerb::Goto),
+                            post_objective(OBJ_GOTO, story::OBJ_TEXT_GOTO),
+                            show_hint_emphasis("GOTO"),
                         ],
+                    ),
+                ],
+            },
+            // The repeat: the same two keys with four words over them, so the
+            // gesture is practised once before it matters. Completion waits for
+            // the autopilot to settle before the target is retired.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnGotoComplete,
+                once: true,
+                filters: vec![
+                    cutter_completes_goto(TRANSIT_ONE.id),
+                    number_equals(VAR_BEAT, BEAT_GOTO),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_TRANSIT)),
+                    complete_objective(OBJ_GOTO),
+                    clear_hint_emphasis("GOTO"),
+                    story_message(DECK_CHIEF, story::TRANSIT_CHIEF_AGAIN),
+                ]
+                .into_iter()
+                .chain(TRANSIT_ONE.clear())
+                .chain([beat_setup(
+                    BEAT_TRANSIT,
+                    INSTRUCTION_GAP,
+                    [post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT)]
+                        .into_iter()
+                        .chain(TRANSIT_TWO.raise())
+                        .collect(),
+                )])
+                .collect(),
+            },
+            // The detour. It is the CREW's idea, out here where the survey body is
+            // close and the third crate is still a long way off - not an assignment,
+            // which is what makes the Meridian's answer to it land.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnGotoComplete,
+                once: true,
+                filters: vec![
+                    cutter_completes_goto(TRANSIT_TWO.id),
+                    number_equals(VAR_BEAT, BEAT_TRANSIT),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_DETOUR)),
+                    complete_objective(OBJ_TRANSIT),
+                    story_message(COPILOT, story::DETOUR_COPILOT),
+                ]
+                .into_iter()
+                .chain(TRANSIT_TWO.clear())
+                .chain([coached_beat_setup(
+                    BEAT_DETOUR,
+                    ENGINEER,
+                    story::DETOUR_ENGINEER,
+                    vec![
+                        grant(FlightVerb::Orbit),
+                        approach_ring(),
+                        post_objective(OBJ_DETOUR, story::OBJ_TEXT_DETOUR),
+                        attach_objective_marker(stage::ID_INSPECTION, "SURVEY BODY"),
+                    ],
+                )])
+                .collect(),
+            },
+        ],
+        orbit: vec![
+            // Arrival, deep in the body's pull.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    cutter_enters(ID_APPROACH_RING),
+                    number_equals(VAR_BEAT, BEAT_DETOUR),
+                ],
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_ORBIT)),
+                    complete_objective(OBJ_DETOUR),
+                    story_message(COPILOT, story::ORBIT_COPILOT),
+                    beat_setup(
+                        BEAT_ORBIT,
+                        MID_GAP,
+                        vec![
+                            post_objective(OBJ_ORBIT, story::OBJ_TEXT_ORBIT),
+                            show_hint_emphasis("ORBIT"),
+                        ],
+                    ),
+                ],
+            },
+            // The hold: stable station-keeping starts the clock and the crew's one
+            // unguarded conversation; losing the ring or ending the orbit cancels
+            // the clock, so only one continuous hold finishes the detour.
+            orbit_watch(EventConfig::OnOrbitStable, true),
+            orbit_watch(EventConfig::OnOrbitUnstable, false),
+            orbit_watch(EventConfig::OnOrbitEnd, false),
+            // And the Meridian, which has been watching the whole thing, sends them
+            // back to the job they left.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnTimerEnd,
+                once: true,
+                filters: vec![timer(TIMER_ORBIT_HOLD), number_equals(VAR_BEAT, BEAT_ORBIT)],
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_RETURN)),
+                    complete_objective(OBJ_ORBIT),
+                    clear_hint_emphasis("ORBIT"),
+                    detach_objective_marker(stage::ID_INSPECTION),
+                    despawn_object(ID_APPROACH_RING),
+                    story_message(CONTROL, story::RETURN_CONTROL),
+                    coached_beat_setup(
+                        BEAT_RETURN,
+                        DECK_CHIEF,
+                        story::RETURN_CHIEF,
+                        [post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN)]
+                            .into_iter()
+                            .chain(WORK_SITE.raise())
+                            .collect(),
+                    ),
+                ],
+            },
+            // Back on the plate, parked at the work site: the return completes on
+            // GOTO's physical settle edge, not on crossing the mark or leaving the
+            // body it was flown from.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnGotoComplete,
+                once: true,
+                filters: vec![
+                    cutter_completes_goto(WORK_SITE.id),
+                    number_equals(VAR_BEAT, BEAT_RETURN),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_SEARCH)),
+                    complete_objective(OBJ_RETURN),
+                    story_message(COPILOT, story::SEARCH_COPILOT),
+                ]
+                .into_iter()
+                .chain(WORK_SITE.clear())
+                .chain([beat_setup(
+                    BEAT_SEARCH,
+                    INSTRUCTION_GAP,
+                    reveal_crate(3, OBJ_SEARCH, story::OBJ_TEXT_SEARCH),
+                )])
+                .collect(),
+            },
+        ],
+        return_to_carrier: vec![
+            // The last crate comes aboard, the sheet is clean, and the chief calls
+            // them in. The mark is lit on radar and sized for the autopilot, so the
+            // leg home is a GOTO with the crew talking over it - which is how the
+            // shift gets the cutter parked exactly where the set piece is composed
+            // from without ever taking the stick off the player.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    cutter_enters(&crate_id(3)),
+                    number_equals(VAR_BEAT, BEAT_SEARCH),
+                ],
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_VANTAGE)),
+                    complete_objective(OBJ_SEARCH),
+                    detach_objective_marker(&crate_id(3)),
+                    despawn_object(&crate_id(3)),
+                    story_message(DECK_CHIEF, story::HOME_CHIEF),
+                    beat_setup(
+                        BEAT_VANTAGE,
+                        INSTRUCTION_GAP,
+                        [post_objective(OBJ_HOME, story::OBJ_TEXT_HOME)]
+                            .into_iter()
+                            .chain(HOME_MARK.raise())
+                            .collect(),
+                    ),
+                ],
+            },
+        ],
+        attack_approach: vec![
+            // GOTO has come to rest at the outer mark, three kilometres off the Meridian, with the
+            // whole belt on the other side of the canopy. THAT is what the attack
+            // waits for: the player is where the shot is, holding station, and not
+            // about to hit anything.
+            //
+            // The camera comes on in the SAME frame the warship starts moving,
+            // because the entrance is the shot and the first leg is thirty-four
+            // measured seconds long: the player's own hull in the near ground, a
+            // plume nobody can identify yet down the middle of the frame, and one
+            // line from Control over it. Waiting for the ship to ARRIVE before
+            // filming it would spend that whole leg on the chase rig.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnGotoComplete,
+                once: true,
+                filters: vec![
+                    cutter_completes_goto(HOME_MARK.id),
+                    number_equals(VAR_BEAT, BEAT_VANTAGE),
+                ],
+                actions: [
+                    set_variable(VAR_BEAT, number(BEAT_ATTACK)),
+                    complete_objective(OBJ_HOME),
+                ]
+                .into_iter()
+                .chain(HOME_MARK.clear())
+                .chain([
+                    spawn_object(warship()),
+                    move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
+                    suspend_player_control(),
+                    film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
+                    story_message(CONTROL, story::ATTACK_CONTROL_PLUME),
+                    pacing::beat_later(
+                        SEQ_PLUME,
+                        REVEAL_GAP,
+                        vec![
+                            post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
+                            attach_objective_marker(ID_WARSHIP, "UNKNOWN"),
+                        ],
+                    ),
+                    // Halfway through the first leg, with nothing to do but watch
+                    // it grow.
+                    sequence(
+                        SEQ_EMERGING,
+                        vec![step(
+                            APPROACH_SILENT_AT,
+                            vec![story_message(COPILOT, story::ATTACK_COPILOT_SILENT)],
+                        )],
                     ),
                 ])
                 .collect(),
-        },
-        // The mark is made. STOP must finish before the thrusters are taught
-        // HERE, in open space, where a mistake costs nothing - not on the
-        // plate, which is where the old script first asked for them. The 150
-        // m/s manual governor stays for the whole shift.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![WORK_MARK.entered(), number_equals(VAR_BEAT, BEAT_LAUNCH)],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_STOP)),
-                complete_objective(OBJ_BURN),
-                story_message(COPILOT, story::TRIM_COPILOT_STOP),
-            ]
-            .into_iter()
-            .chain(WORK_MARK.clear())
-            .chain([beat_setup(
-                BEAT_STOP,
-                INSTRUCTION_GAP,
+            },
+            // It is out from behind the body and close enough to read a hull off.
+            // The entry shot ends here, on the identification: the camera goes back
+            // to the player for the second leg, so the half minute in which the
+            // thing crosses the belt is theirs to look around in.
+            on_order(
+                ORDER_EMERGE,
                 vec![
-                    post_objective(OBJ_STOP, story::OBJ_TEXT_STOP),
-                    show_hint_emphasis("STOP"),
-                ],
-            )])
-            .collect(),
-        },
-        // STOP is a physical gate, not an elapsed dialogue gap. Only once the
-        // autopilot reports rest does the RCS lesson open. All four marks spawn
-        // together under a wide shot; only TRIM A receives the active marker.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnStopComplete,
-            once: true,
-            filters: vec![entity(ID_CUTTER), number_equals(VAR_BEAT, BEAT_STOP)],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRIM_LATERAL)),
-                complete_objective(OBJ_STOP),
-                clear_hint_emphasis("STOP"),
-                suspend_player_control(),
-                film(ID_CUTTER, CINEMA_TRIM_OFFSET, point(TRIM_ROUTE_CENTRE)),
-                story_message(COPILOT, story::TRIM_COPILOT_TEACH),
-            ]
-            .into_iter()
-            .chain(TRIM_ROUTE.map(TempMark::spawn))
-            .chain([beat_setup(
-                BEAT_TRIM_LATERAL,
-                INSTRUCTION_GAP,
-                vec![
-                    grant(FlightVerb::Rcs),
                     release_camera(),
                     resume_player_control(),
-                    post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
-                    show_hint_emphasis("RCS"),
-                    TRIM_LATERAL.highlight(),
-                ],
-            )])
-            .collect(),
-        },
-        // The second axis. The complete box stays visible, while the active
-        // marker advances by one corner.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                TRIM_LATERAL.entered(),
-                number_equals(VAR_BEAT, BEAT_TRIM_LATERAL),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRIM_VERTICAL)),
-                complete_objective(OBJ_TRIM_LATERAL),
-                story_message(COPILOT, story::TRIM_COPILOT_SECOND_AXIS),
-            ]
-            .into_iter()
-            .chain(TRIM_LATERAL.clear())
-            .chain([beat_setup(
-                BEAT_TRIM_VERTICAL,
-                INSTRUCTION_GAP,
-                vec![
-                    post_objective(OBJ_TRIM_VERTICAL, story::OBJ_TEXT_TRIM_VERTICAL),
-                    TRIM_VERTICAL.highlight(),
-                ],
-            )])
-            .collect(),
-        },
-        // Back across the top of the box.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                TRIM_VERTICAL.entered(),
-                number_equals(VAR_BEAT, BEAT_TRIM_VERTICAL),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_LATERAL)),
-                complete_objective(OBJ_TRIM_VERTICAL),
-                story_message(COPILOT, story::TRIM_COPILOT_BACK_ACROSS),
-            ]
-            .into_iter()
-            .chain(TRIM_VERTICAL.clear())
-            .chain([beat_setup(
-                BEAT_TRIM_RETURN_LATERAL,
-                INSTRUCTION_GAP,
-                vec![
-                    post_objective(OBJ_TRIM_RETURN_LATERAL, story::OBJ_TEXT_TRIM_RETURN_LATERAL),
-                    TRIM_RETURN_LATERAL.highlight(),
-                ],
-            )])
-            .collect(),
-        },
-        // Down to the work-mark line, closing the box.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                TRIM_RETURN_LATERAL.entered(),
-                number_equals(VAR_BEAT, BEAT_TRIM_RETURN_LATERAL),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_VERTICAL)),
-                complete_objective(OBJ_TRIM_RETURN_LATERAL),
-                story_message(COPILOT, story::TRIM_COPILOT_CLOSE_BOX),
-            ]
-            .into_iter()
-            .chain(TRIM_RETURN_LATERAL.clear())
-            .chain([beat_setup(
-                BEAT_TRIM_RETURN_VERTICAL,
-                INSTRUCTION_GAP,
-                vec![
-                    post_objective(
-                        OBJ_TRIM_RETURN_VERTICAL,
-                        story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
+                    story_message(PLAYER, story::ATTACK_PLAYER_MILITARY),
+                    move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
+                    // Halfway through the second leg. The Meridian tries talking to
+                    // it, which is the last thing anybody tries.
+                    sequence(
+                        SEQ_CLOSING,
+                        vec![step(
+                            APPROACH_CHALLENGE_AT,
+                            vec![story_message(CONTROL, story::ATTACK_CONTROL_CHALLENGE)],
+                        )],
                     ),
-                    TRIM_RETURN_VERTICAL.highlight(),
-                ],
-            )])
-            .collect(),
-        },
-        // Only now does the plate open, with the first crate on its outer edge
-        // where the rocks are sparse. The leg out to it is the quiet time
-        // before the field starts asking for things.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                TRIM_RETURN_VERTICAL.entered(),
-                number_equals(VAR_BEAT, BEAT_TRIM_RETURN_VERTICAL),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_CRATE_FIRST)),
-                complete_objective(OBJ_TRIM_RETURN_VERTICAL),
-                story_message(DECK_CHIEF, story::CRATE_CHIEF_FIRST),
-            ]
-            .into_iter()
-            .chain(TRIM_RETURN_VERTICAL.clear())
-            .chain([beat_setup(
-                BEAT_CRATE_FIRST,
-                INSTRUCTION_GAP,
-                reveal_crate(1, OBJ_CRATE_FIRST, story::OBJ_TEXT_CRATE_FIRST),
-            )])
-            .collect(),
-        },
-        // One crate at a time, each revealed only when the one before it is
-        // aboard. Three chips at once turns a lesson in flying the plate into a
-        // shopping list.
-        crate_pickup(
-            1,
-            BEAT_CRATE_FIRST,
-            OBJ_CRATE_FIRST,
-            BEAT_CRATE_SECOND,
-            ENGINEER,
-            story::CRATE_ENGINEER_SECOND,
-            reveal_crate(2, OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
-        ),
-        // Two aboard, and the third is out of the plate entirely - which is the
-        // errand that needs the targeting computer.
-        crate_pickup(
-            2,
-            BEAT_CRATE_SECOND,
-            OBJ_CRATE_SECOND,
-            BEAT_LOCK,
-            DECK_CHIEF,
-            story::LOCK_CHIEF,
-            [
-                grant(FlightVerb::Lock),
-                clear_hint_emphasis("RCS"),
-                post_objective(OBJ_LOCK, story::OBJ_TEXT_LOCK),
-                show_hint_emphasis("RADAR"),
-            ]
-            .into_iter()
-            .chain(TRANSIT_ONE.raise())
-            .collect(),
-        ),
-        // The lock landed. GOTO is its own lesson, on its own card, once there
-        // is a lock for it to fly.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnTravelLockStart,
-            once: true,
-            filters: vec![TRANSIT_ONE.entered(), number_equals(VAR_BEAT, BEAT_LOCK)],
-            actions: vec![
-                set_variable(VAR_BEAT, number(BEAT_GOTO)),
-                complete_objective(OBJ_LOCK),
-                clear_hint_emphasis("RADAR"),
-                story_message(DECK_CHIEF, story::GOTO_CHIEF),
-                beat_setup(
-                    BEAT_GOTO,
-                    INSTRUCTION_GAP,
-                    vec![
-                        grant(FlightVerb::Goto),
-                        post_objective(OBJ_GOTO, story::OBJ_TEXT_GOTO),
-                        show_hint_emphasis("GOTO"),
-                    ],
-                ),
-            ],
-        },
-        // The repeat: the same two keys with four words over them, so the
-        // gesture is practised once before it matters. Completion waits for
-        // the autopilot to settle before the target is retired.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnGotoComplete,
-            once: true,
-            filters: vec![
-                cutter_completes_goto(TRANSIT_ONE.id),
-                number_equals(VAR_BEAT, BEAT_GOTO),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRANSIT)),
-                complete_objective(OBJ_GOTO),
-                clear_hint_emphasis("GOTO"),
-                story_message(DECK_CHIEF, story::TRANSIT_CHIEF_AGAIN),
-            ]
-            .into_iter()
-            .chain(TRANSIT_ONE.clear())
-            .chain([beat_setup(
-                BEAT_TRANSIT,
-                INSTRUCTION_GAP,
-                [post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT)]
-                    .into_iter()
-                    .chain(TRANSIT_TWO.raise())
-                    .collect(),
-            )])
-            .collect(),
-        },
-        // The detour. It is the CREW's idea, out here where the survey body is
-        // close and the third crate is still a long way off - not an assignment,
-        // which is what makes the Meridian's answer to it land.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnGotoComplete,
-            once: true,
-            filters: vec![
-                cutter_completes_goto(TRANSIT_TWO.id),
-                number_equals(VAR_BEAT, BEAT_TRANSIT),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_DETOUR)),
-                complete_objective(OBJ_TRANSIT),
-                story_message(COPILOT, story::DETOUR_COPILOT),
-            ]
-            .into_iter()
-            .chain(TRANSIT_TWO.clear())
-            .chain([coached_beat_setup(
-                BEAT_DETOUR,
-                ENGINEER,
-                story::DETOUR_ENGINEER,
-                vec![
-                    grant(FlightVerb::Orbit),
-                    approach_ring(),
-                    post_objective(OBJ_DETOUR, story::OBJ_TEXT_DETOUR),
-                    attach_objective_marker(stage::ID_INSPECTION, "SURVEY BODY"),
-                ],
-            )])
-            .collect(),
-        },
-        // Arrival, deep in the body's pull.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                cutter_enters(ID_APPROACH_RING),
-                number_equals(VAR_BEAT, BEAT_DETOUR),
-            ],
-            actions: vec![
-                set_variable(VAR_BEAT, number(BEAT_ORBIT)),
-                complete_objective(OBJ_DETOUR),
-                story_message(COPILOT, story::ORBIT_COPILOT),
-                beat_setup(
-                    BEAT_ORBIT,
-                    MID_GAP,
-                    vec![
-                        post_objective(OBJ_ORBIT, story::OBJ_TEXT_ORBIT),
-                        show_hint_emphasis("ORBIT"),
-                    ],
-                ),
-            ],
-        },
-        // The hold: stable station-keeping starts the clock and the crew's one
-        // unguarded conversation; losing the ring or ending the orbit cancels
-        // the clock, so only one continuous hold finishes the detour.
-        orbit_watch(EventConfig::OnOrbitStable, true),
-        orbit_watch(EventConfig::OnOrbitUnstable, false),
-        orbit_watch(EventConfig::OnOrbitEnd, false),
-        // And the Meridian, which has been watching the whole thing, sends them
-        // back to the job they left.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnTimerEnd,
-            once: true,
-            filters: vec![timer(TIMER_ORBIT_HOLD), number_equals(VAR_BEAT, BEAT_ORBIT)],
-            actions: vec![
-                set_variable(VAR_BEAT, number(BEAT_RETURN)),
-                complete_objective(OBJ_ORBIT),
-                clear_hint_emphasis("ORBIT"),
-                detach_objective_marker(stage::ID_INSPECTION),
-                despawn_object(ID_APPROACH_RING),
-                story_message(CONTROL, story::RETURN_CONTROL),
-                coached_beat_setup(
-                    BEAT_RETURN,
-                    DECK_CHIEF,
-                    story::RETURN_CHIEF,
-                    [post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN)]
-                        .into_iter()
-                        .chain(WORK_SITE.raise())
-                        .collect(),
-                ),
-            ],
-        },
-        // Back on the plate, parked at the work site: the return completes on
-        // GOTO's physical settle edge, not on crossing the mark or leaving the
-        // body it was flown from.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnGotoComplete,
-            once: true,
-            filters: vec![
-                cutter_completes_goto(WORK_SITE.id),
-                number_equals(VAR_BEAT, BEAT_RETURN),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_SEARCH)),
-                complete_objective(OBJ_RETURN),
-                story_message(COPILOT, story::SEARCH_COPILOT),
-            ]
-            .into_iter()
-            .chain(WORK_SITE.clear())
-            .chain([beat_setup(
-                BEAT_SEARCH,
-                INSTRUCTION_GAP,
-                reveal_crate(3, OBJ_SEARCH, story::OBJ_TEXT_SEARCH),
-            )])
-            .collect(),
-        },
-        // The last crate comes aboard, the sheet is clean, and the chief calls
-        // them in. The mark is lit on radar and sized for the autopilot, so the
-        // leg home is a GOTO with the crew talking over it - which is how the
-        // shift gets the cutter parked exactly where the set piece is composed
-        // from without ever taking the stick off the player.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnEnter,
-            once: true,
-            filters: vec![
-                cutter_enters(&crate_id(3)),
-                number_equals(VAR_BEAT, BEAT_SEARCH),
-            ],
-            actions: vec![
-                set_variable(VAR_BEAT, number(BEAT_VANTAGE)),
-                complete_objective(OBJ_SEARCH),
-                detach_objective_marker(&crate_id(3)),
-                despawn_object(&crate_id(3)),
-                story_message(DECK_CHIEF, story::HOME_CHIEF),
-                beat_setup(
-                    BEAT_VANTAGE,
-                    INSTRUCTION_GAP,
-                    [post_objective(OBJ_HOME, story::OBJ_TEXT_HOME)]
-                        .into_iter()
-                        .chain(HOME_MARK.raise())
-                        .collect(),
-                ),
-            ],
-        },
-        // GOTO has come to rest at the outer mark, three kilometres off the Meridian, with the
-        // whole belt on the other side of the canopy. THAT is what the attack
-        // waits for: the player is where the shot is, holding station, and not
-        // about to hit anything.
-        //
-        // The camera comes on in the SAME frame the warship starts moving,
-        // because the entrance is the shot and the first leg is thirty-four
-        // measured seconds long: the player's own hull in the near ground, a
-        // plume nobody can identify yet down the middle of the frame, and one
-        // line from Control over it. Waiting for the ship to ARRIVE before
-        // filming it would spend that whole leg on the chase rig.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnGotoComplete,
-            once: true,
-            filters: vec![
-                cutter_completes_goto(HOME_MARK.id),
-                number_equals(VAR_BEAT, BEAT_VANTAGE),
-            ],
-            actions: [
-                set_variable(VAR_BEAT, number(BEAT_ATTACK)),
-                complete_objective(OBJ_HOME),
-            ]
-            .into_iter()
-            .chain(HOME_MARK.clear())
-            .chain([
-                spawn_object(warship()),
-                move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
-                suspend_player_control(),
-                film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
-                story_message(CONTROL, story::ATTACK_CONTROL_PLUME),
-                pacing::beat_later(
-                    SEQ_PLUME,
-                    REVEAL_GAP,
-                    vec![
-                        post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
-                        attach_objective_marker(ID_WARSHIP, "UNKNOWN"),
-                    ],
-                ),
-                // Halfway through the first leg, with nothing to do but watch
-                // it grow.
-                sequence(
-                    SEQ_EMERGING,
-                    vec![step(
-                        APPROACH_SILENT_AT,
-                        vec![story_message(COPILOT, story::ATTACK_COPILOT_SILENT)],
-                    )],
-                ),
-            ])
-            .collect(),
-        },
-        // It is out from behind the body and close enough to read a hull off.
-        // The entry shot ends here, on the identification: the camera goes back
-        // to the player for the second leg, so the half minute in which the
-        // thing crosses the belt is theirs to look around in.
-        on_order(
-            ORDER_EMERGE,
-            vec![
-                release_camera(),
-                resume_player_control(),
-                story_message(PLAYER, story::ATTACK_PLAYER_MILITARY),
-                move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
-                // Halfway through the second leg. The Meridian tries talking to
-                // it, which is the last thing anybody tries.
-                sequence(
-                    SEQ_CLOSING,
-                    vec![step(
-                        APPROACH_CHALLENGE_AT,
-                        vec![story_message(CONTROL, story::ATTACK_CONTROL_CHALLENGE)],
-                    )],
-                ),
-            ],
-        ),
-        // On its firing mark. Now it turns, and the turn takes six seconds that
-        // the deck chief spends narrating it.
-        on_order(
-            ORDER_APPROACH,
-            vec![
-                story_message(DECK_CHIEF, story::ATTACK_CHIEF_TURNING),
-                EventActionConfig::ForceAlign(ForceAlignActionConfig {
-                    order: ORDER_ALIGN.to_string(),
-                    ship: ID_WARSHIP.to_string(),
-                    look_at: stage::CARRIER_POS,
-                    tolerance_degrees: WARSHIP_ALIGN_TOLERANCE,
-                }),
-            ],
-        ),
-        // The bore is on the Meridian and the alignment HOLDS it there, so
-        // every gun below fires down the same line. Nothing is said into the
-        // gap: the next voice is the cockpit, over open tubes.
-        on_order(ORDER_ALIGN, vec![salvo()]),
-        // The distress act: the warship is a plume on the horizon and the wreck
-        // starts talking on its own.
-        ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnUpdate,
-            once: true,
-            filters: vec![number_equals(VAR_BEAT, BEAT_DISTRESS)],
-            actions: pacing::open_outro(
-                VAR_BEAT,
-                BEAT_OUTRO,
-                outro(),
-                vec![
-                    complete_objective(OBJ_SILENCE),
-                    spawn_object(stage::beacon(ID_DISTRESS, CARRIER_NAME, stage::CARRIER_POS)),
-                    attach_objective_marker(ID_DISTRESS, CARRIER_NAME),
-                    story_message(PLAYER, story::AFTER_PLAYER_CARRIER_SIGNAL),
                 ],
             ),
-        },
-        defeat(story::DEFEAT_DESTROYED, EventConfig::OnDestroyed),
-        defeat(story::DEFEAT_NEUTRALIZED, EventConfig::OnNeutralized),
-    ];
+            // On its firing mark. Now it turns, and the turn takes six seconds that
+            // the deck chief spends narrating it.
+            on_order(
+                ORDER_APPROACH,
+                vec![
+                    story_message(DECK_CHIEF, story::ATTACK_CHIEF_TURNING),
+                    EventActionConfig::ForceAlign(ForceAlignActionConfig {
+                        order: ORDER_ALIGN.to_string(),
+                        ship: ID_WARSHIP.to_string(),
+                        look_at: stage::CARRIER_POS,
+                        tolerance_degrees: WARSHIP_ALIGN_TOLERANCE,
+                    }),
+                ],
+            ),
+        ],
+        attack_salvo: vec![
+            // The bore is on the Meridian and the alignment HOLDS it there, so
+            // every gun below fires down the same line. Nothing is said into the
+            // gap: the next voice is the cockpit, over open tubes.
+            on_order(ORDER_ALIGN, vec![salvo()]),
+        ],
+        aftermath: vec![
+            // The distress act: the warship is a plume on the horizon and the wreck
+            // starts talking on its own.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnUpdate,
+                once: true,
+                filters: vec![number_equals(VAR_BEAT, BEAT_DISTRESS)],
+                actions: pacing::open_outro(
+                    VAR_BEAT,
+                    BEAT_OUTRO,
+                    outro(),
+                    vec![
+                        complete_objective(OBJ_SILENCE),
+                        spawn_object(stage::beacon(ID_DISTRESS, CARRIER_NAME, stage::CARRIER_POS)),
+                        attach_objective_marker(ID_DISTRESS, CARRIER_NAME),
+                        story_message(PLAYER, story::AFTER_PLAYER_CARRIER_SIGNAL),
+                    ],
+                ),
+            },
+        ],
+        global: vec![
+            defeat(story::DEFEAT_DESTROYED, EventConfig::OnDestroyed),
+            defeat(story::DEFEAT_NEUTRALIZED, EventConfig::OnNeutralized),
+        ],
+    };
+    let events = scenes.into_campaign();
 
     ScenarioConfig {
         description: "A routine shift on the rock plate, out of the carrier Meridian.".to_string(),
@@ -1024,6 +1150,242 @@ pub(crate) fn first_shift(
             "First Shift".to_string(),
             cubemap,
         )
+    }
+}
+
+/// Build one standalone First Shift scene from the same authored fragments as
+/// the campaign. The returned production spawn positions are intentionally not
+/// scene-specific; an example owns any preview pose it needs.
+pub fn first_shift_scene(
+    scene: FirstShiftScene,
+    cubemap: AssetRef<Image>,
+    asteroid_texture: AssetRef<Image>,
+) -> ScenarioConfig {
+    let mut full = first_shift(cubemap, asteroid_texture);
+    let mut scenes = FirstShiftScenes::from_events(std::mem::take(&mut full.events));
+    if scene == FirstShiftScene::Departure {
+        full.id = scene_id(scene).to_string();
+        full.name = scene_name(scene).to_string();
+        full.events = with_end_message(scenes.take(scene), scene);
+        return full;
+    }
+
+    let mut start_actions: Vec<EventActionConfig> = scenes.departure[0]
+        .actions
+        .iter()
+        .filter(|action| matches!(action, EventActionConfig::SpawnScenarioObject(_)))
+        .cloned()
+        .collect();
+    if scene == FirstShiftScene::Aftermath {
+        start_actions.retain(|action| {
+            !matches!(action, EventActionConfig::SpawnScenarioObject(object) if object.base.id == ID_CARRIER)
+        });
+    }
+    let (entry_actions, handlers) = match scene {
+        FirstShiftScene::Departure => unreachable!(),
+        FirstShiftScene::Rcs => {
+            start_actions.push(post_objective(OBJ_STOP, story::OBJ_TEXT_STOP));
+            let mut handlers = scenes.take(scene);
+            let entry = handlers.remove(0).actions;
+            (entry, with_end_message(handlers, scene))
+        }
+        FirstShiftScene::Salvage => {
+            start_actions.extend([
+                post_objective(
+                    OBJ_TRIM_RETURN_VERTICAL,
+                    story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
+                ),
+                TRIM_RETURN_VERTICAL.spawn(),
+                TRIM_RETURN_VERTICAL.highlight(),
+            ]);
+            (
+                scenes
+                    .rcs
+                    .last()
+                    .expect("RCS scene is empty")
+                    .actions
+                    .clone(),
+                with_end_message(scenes.take(scene), scene),
+            )
+        }
+        FirstShiftScene::Navigation => {
+            start_actions.extend([
+                spawn_object(crate_object(2)),
+                post_objective(OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
+                attach_objective_marker(&crate_id(2), "SALVAGE"),
+            ]);
+            (
+                scenes
+                    .salvage
+                    .last()
+                    .expect("salvage scene is empty")
+                    .actions
+                    .clone(),
+                with_end_message(scenes.take(scene), scene),
+            )
+        }
+        FirstShiftScene::Orbit => {
+            start_actions.push(post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT));
+            start_actions.extend(TRANSIT_TWO.raise());
+            (
+                scenes
+                    .navigation
+                    .last()
+                    .expect("navigation scene is empty")
+                    .actions
+                    .clone(),
+                with_end_message(scenes.take(scene), scene),
+            )
+        }
+        FirstShiftScene::Return => {
+            start_actions.push(post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN));
+            start_actions.extend(WORK_SITE.raise());
+            (
+                scenes
+                    .orbit
+                    .last()
+                    .expect("orbit scene is empty")
+                    .actions
+                    .clone(),
+                with_end_message(scenes.take(scene), scene),
+            )
+        }
+        FirstShiftScene::AttackApproach => {
+            start_actions.push(post_objective(OBJ_HOME, story::OBJ_TEXT_HOME));
+            start_actions.extend(HOME_MARK.raise());
+            let mut handlers = scenes.take(scene);
+            let entry = handlers.remove(0).actions;
+            let mut end = scenes
+                .attack_salvo
+                .first()
+                .expect("attack salvo scene is empty")
+                .clone();
+            end.actions = vec![scene_end_message(scene)];
+            handlers.push(end);
+            (entry, handlers)
+        }
+        FirstShiftScene::AttackSalvo => {
+            start_actions.push(spawn_object(warship()));
+            let mut entry = scenes
+                .take(scene)
+                .pop()
+                .expect("attack salvo scene is empty")
+                .actions;
+            append_to_sequence(&mut entry, SEQ_SALVO, scene_end_message(scene));
+            (entry, Vec::new())
+        }
+        FirstShiftScene::Aftermath => {
+            start_actions.push(post_objective(OBJ_SILENCE, story::OBJ_TEXT_SILENCE));
+            let mut handlers = scenes.take(scene);
+            let mut entry = handlers.remove(0).actions;
+            replace_outcome_with_end(&mut entry, pacing::OUTRO_SEQUENCE, scene_end_message(scene));
+            (entry, handlers)
+        }
+    };
+    start_actions.extend(entry_actions);
+    let mut events = vec![ScenarioEventConfig {
+        label: None,
+        name: EventConfig::OnStart,
+        once: false,
+        filters: vec![],
+        actions: start_actions,
+    }];
+    events.extend(handlers);
+    events.extend(scenes.global);
+
+    full.id = scene_id(scene).to_string();
+    full.name = scene_name(scene).to_string();
+    full.description = format!("Standalone review of {}.", scene_name(scene));
+    full.events = events;
+    full
+}
+
+fn with_end_message(
+    mut events: Vec<ScenarioEventConfig>,
+    scene: FirstShiftScene,
+) -> Vec<ScenarioEventConfig> {
+    events
+        .last_mut()
+        .expect("First Shift scene is empty")
+        .actions
+        .push(scene_end_message(scene));
+    events
+}
+
+fn append_to_sequence(actions: &mut [EventActionConfig], key: &str, action: EventActionConfig) {
+    let sequence = actions
+        .iter_mut()
+        .find_map(|candidate| match candidate {
+            EventActionConfig::Sequence(sequence) if sequence.key == key => Some(sequence),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
+    sequence
+        .steps
+        .last_mut()
+        .expect("First Shift sequence is empty")
+        .actions
+        .push(action);
+}
+
+fn replace_outcome_with_end(
+    actions: &mut [EventActionConfig],
+    key: &str,
+    action: EventActionConfig,
+) {
+    let sequence = actions
+        .iter_mut()
+        .find_map(|candidate| match candidate {
+            EventActionConfig::Sequence(sequence) if sequence.key == key => Some(sequence),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
+    let final_actions = &mut sequence
+        .steps
+        .last_mut()
+        .expect("First Shift sequence is empty")
+        .actions;
+    final_actions.retain(|candidate| {
+        !matches!(
+            candidate,
+            EventActionConfig::Outcome(_) | EventActionConfig::NextScenario(_)
+        )
+    });
+    final_actions.push(action);
+}
+
+fn scene_end_message(scene: FirstShiftScene) -> EventActionConfig {
+    story_message(
+        "PREVIEW",
+        format!("Here is where {} would end.", scene_name(scene)),
+    )
+}
+
+fn scene_id(scene: FirstShiftScene) -> &'static str {
+    match scene {
+        FirstShiftScene::Departure => "first_shift_01_departure",
+        FirstShiftScene::Rcs => "first_shift_02_rcs",
+        FirstShiftScene::Salvage => "first_shift_03_salvage",
+        FirstShiftScene::Navigation => "first_shift_04_navigation",
+        FirstShiftScene::Orbit => "first_shift_05_orbit",
+        FirstShiftScene::Return => "first_shift_06_return",
+        FirstShiftScene::AttackApproach => "first_shift_07_attack_approach",
+        FirstShiftScene::AttackSalvo => "first_shift_08_attack_salvo",
+        FirstShiftScene::Aftermath => "first_shift_09_aftermath",
+    }
+}
+
+fn scene_name(scene: FirstShiftScene) -> &'static str {
+    match scene {
+        FirstShiftScene::Departure => "First Shift 01 - Departure",
+        FirstShiftScene::Rcs => "First Shift 02 - RCS",
+        FirstShiftScene::Salvage => "First Shift 03 - Salvage",
+        FirstShiftScene::Navigation => "First Shift 04 - Navigation",
+        FirstShiftScene::Orbit => "First Shift 05 - Orbit",
+        FirstShiftScene::Return => "First Shift 06 - Return",
+        FirstShiftScene::AttackApproach => "First Shift 07 - Attack Approach",
+        FirstShiftScene::AttackSalvo => "First Shift 08 - Attack Salvo",
+        FirstShiftScene::Aftermath => "First Shift 09 - Aftermath",
     }
 }
 

@@ -16,6 +16,67 @@ fn config() -> ScenarioConfig {
     first_shift(AssetRef::default(), AssetRef::default())
 }
 
+#[test]
+fn reusable_scenes_keep_preview_positions_out_of_production_code() {
+    let scenes = [
+        FirstShiftScene::Departure,
+        FirstShiftScene::Rcs,
+        FirstShiftScene::Salvage,
+        FirstShiftScene::Navigation,
+        FirstShiftScene::Orbit,
+        FirstShiftScene::Return,
+        FirstShiftScene::AttackApproach,
+        FirstShiftScene::AttackSalvo,
+        FirstShiftScene::Aftermath,
+    ];
+    for scene in scenes {
+        let preview = first_shift_scene(scene, AssetRef::default(), AssetRef::default());
+        let cutter = spawned_ship(&preview, ID_CUTTER)
+            .unwrap_or_else(|| panic!("{scene:?} preview does not spawn Cutter"));
+        assert_eq!(
+            cutter.base.position, CUTTER_START_POS,
+            "{scene:?} embeds a preview-only Cutter position; examples must own it"
+        );
+        let spawned_ids: Vec<&str> = preview
+            .events
+            .iter()
+            .flat_map(|event| &event.actions)
+            .filter_map(|action| match action {
+                EventActionConfig::SpawnScenarioObject(object) => Some(object.base.id.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            spawned_ids.contains(&stage::ID_INSPECTION)
+                && spawned_ids.contains(&stage::ID_CONCEALMENT),
+            "{scene:?} does not reuse the production stage"
+        );
+        assert!(
+            all_actions(&preview).iter().any(|action| {
+                matches!(action, EventActionConfig::StoryMessage(message)
+                    if message.speaker == "PREVIEW"
+                        && message.text.starts_with("Here is where First Shift"))
+            }),
+            "{scene:?} has no explicit preview end message"
+        );
+        if scene == FirstShiftScene::AttackApproach {
+            assert!(
+                spawned_ids.contains(&ID_WARSHIP),
+                "attack scene does not carry its warship fixture: {spawned_ids:?}"
+            );
+        }
+        if scene == FirstShiftScene::Return {
+            assert!(
+                all_actions(&preview).iter().any(|action| {
+                    matches!(action, EventActionConfig::SpawnScenarioObject(object)
+                        if object.base.id == crate_id(3))
+                }),
+                "return scene does not carry its crate fixture"
+            );
+        }
+    }
+}
+
 /// Every action the script can run, chain steps included.
 fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
     let mut found = Vec::new();

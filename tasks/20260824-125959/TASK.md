@@ -748,3 +748,26 @@ Proof: 17 focused First Shift structural tests pass, including the complete-box
 spawn, geometry, camera and control-return pin; `cargo check --example
 first_shift_rcs --features debug` passes; generated content lint reports 0
 errors, 0 warnings and 0 findings; web CI passes; `git diff --check` is clean.
+
+### 2026-09-04: Reusable First Shift scenes
+
+Partitioned the unchanged First Shift event graph into nine named production
+scenes. Mainline concatenates those fragments in order. A narrow
+`nova_authoring::prelude::first_shift_scene` API builds standalone reviews from
+the same world spawns, cast, story, objectives, cameras, actions and handlers.
+Preview prerequisite state is assembled around the production boundaries, but
+ship poses remain constants in each example and the reusable scenes never move
+the player.
+
+Replaced the two duplicated benches with numbered scene examples and added the
+remaining seven. The salvo example keeps its still and rail-hit instrumentation
+by modifying the production sequence after construction. Every standalone
+scene now closes with a PREVIEW comms line that says where that scene would end;
+the campaign graph does not receive these preview-only lines.
+
+Proof: 18 focused First Shift structural tests pass, including production-stage,
+production-pose and explicit-end-message checks for all nine scenes. All nine
+examples compile with debug features. Eight thin scenes complete rendered
+runtime smoke checks; the salvo captures a 466,806-byte rail-hit loop. Generated
+First Shift content is unchanged, and content lint reports 0 errors, 0 warnings
+and 0 findings.

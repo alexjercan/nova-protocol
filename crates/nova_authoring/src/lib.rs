@@ -21,6 +21,10 @@
 mod base_content;
 
 pub mod balance;
+/// Narrow runtime-neutral access to reusable built-in scenario scenes.
+pub mod built_in_scenarios {
+    pub use crate::base_content::scenarios::nova_protocol::{first_shift_scene, FirstShiftScene};
+}
 /// Generic constructors for Rust-authored scenario configuration.
 pub mod scenario_helpers;
 // The CLI driver is native-only: `gen` writes through
@@ -39,7 +43,7 @@ pub mod lint_walk;
 /// surface into scope.
 pub mod prelude {
     pub use super::{
-        balance::prelude::*, content_report::prelude::*, generation::prelude::*,
-        lint_walk::prelude::*, scenario_helpers::prelude::*,
+        balance::prelude::*, built_in_scenarios::*, content_report::prelude::*,
+        generation::prelude::*, lint_walk::prelude::*, scenario_helpers::prelude::*,
     };
 }

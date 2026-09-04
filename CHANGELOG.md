@@ -253,10 +253,8 @@ does NOT get an entry - and it is the only place they are written down.
 - New `railgun_wake_bench` example: the slug's ionized wake at three speeds
   under three lifetime policies, every knob live and in slow motion, driving
   the weapon's own tuning.
-- New `first_shift_rcs` example: the four-mark briefing on the shared campaign
-  map with mainline lighting and camera pose, then live Cutter controls.
-- New `first_shift_attack` example: the campaign attack on its complete shared
-  map, with mainline lights and cuts, the real salvo, stills and a rail-hit loop.
+- First Shift is composed from nine reusable production scenes; matching
+  numbered examples add only preview ship poses and an explicit end message.
 - `loop_vfx_range` parks a lance above the shooter and fires it over the
   target once per pass, so the cycle measures the wake; `NOVA_VFX_RANGE_BARE_SLUG=1`
   runs the same cycle with a bare slug.
