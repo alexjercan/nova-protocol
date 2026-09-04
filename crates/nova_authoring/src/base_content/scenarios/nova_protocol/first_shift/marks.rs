@@ -168,23 +168,25 @@ pub(super) const TRIM_ROUTE_CENTRE: Meters3 = Meters3::new(-350.0, 190.0, 900.0)
 pub(super) const CINEMA_TRIM_OFFSET: Meters3 = Meters3::new(450.0, 300.0, 650.0);
 
 /// The first transit mark takes the mandatory route around the inspection
-/// body's western flank. Both direct legs retain Cutter's hull clearance and
-/// the authored flight margin instead of asking GOTO to avoid the body.
+/// body's western flank. It stands well beyond the gravity well with its whole
+/// 700 m beacon volume outside, rather than using the well boundary as a
+/// waypoint.
 pub(super) const TRANSIT_ONE: TempMark = TempMark {
     id: "transit_mark_one",
     label: "TRANSIT 1",
-    position: Meters3::new(-8_000.0, -1_600.0, -5_000.0),
+    position: Meters3::new(-6_803.0, -5_750.0, -5_061.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
 
-/// The second mark is 4.00 km from the inspection body's centre, outside its
-/// 3.29 km gravity well and directly behind it from Meridian. Reaching this
-/// fixed visual cover is what makes the crew's optional detour credible.
+/// The second mark remains directly behind the inspection body from Meridian,
+/// but stands 7 km from its centre. Its complete beacon volume and a visible
+/// buffer remain outside the 3.29 km gravity well. Reaching this fixed visual
+/// cover is what makes the crew's optional detour credible.
 pub(super) const TRANSIT_TWO: TempMark = TempMark {
     id: "transit_mark_two",
     label: "TRANSIT 2",
-    position: Meters3::new(-5_945.0, -565.0, -10_216.0),
+    position: Meters3::new(-7_041.0, -565.0, -13_020.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };

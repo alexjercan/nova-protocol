@@ -10,7 +10,7 @@ use preview::ShipPose;
 
 const POSES: &[ShipPose] = &[ShipPose {
     id: "cutter",
-    position: Meters3::new(-5_945.0, -565.0, -10_216.0),
+    position: Meters3::new(-7_041.0, -565.0, -13_020.0),
     rotation: Quat::IDENTITY,
 }];
 

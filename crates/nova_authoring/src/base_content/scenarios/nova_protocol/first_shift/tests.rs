@@ -694,6 +694,41 @@ fn every_fixed_cutter_goto_corridor_clears_the_stage() {
     }
 }
 
+/// The two prescribed transit legs route around the inspection body's gravity
+/// well, not merely around its visible rock. A player following GOTO should not
+/// cross the well on the way to beacons that were moved outside it.
+#[test]
+fn the_transit_route_clears_the_inspection_gravity_well() {
+    const CUTTER_RADIUS: Meters = Meters(55.0);
+    const FLIGHT_MARGIN: Meters = Meters(100.0);
+    let settings = GravitySettings::default();
+    let widest = Meters(stage::INSPECTION_RADIUS.0 * ASTEROID_GEOMETRIC_FACTOR_MAX).to_engine();
+    let soi = Meters::from_engine(
+        GravityWell::from_mass(stage::INSPECTION_MASS, widest, &settings).soi_radius,
+    );
+    let required = soi + CUTTER_RADIUS + FLIGHT_MARGIN;
+    for (name, from, to) in [
+        (
+            "second crate to transit 1",
+            CRATE_POSITIONS[1],
+            TRANSIT_ONE.position,
+        ),
+        (
+            "transit 1 to transit 2",
+            TRANSIT_ONE.position,
+            TRANSIT_TWO.position,
+        ),
+    ] {
+        let separation = distance_to_segment(stage::INSPECTION_POS, from, to);
+        assert!(
+            separation > required.0,
+            "Cutter's '{name}' route passes {separation:.0} m from the inspection \
+             body, inside its {:.0} m gravity-flight envelope",
+            required.0,
+        );
+    }
+}
+
 /// Every leg the warship is ordered to fly is FLYABLE. A `MoveShipTo` is a
 /// straight line with no avoidance of its own, so a mark on the far side of a
 /// body is a hull grinding into it - which is how the warship used to die on
@@ -993,17 +1028,20 @@ fn every_withheld_control_is_handed_back() {
 /// Every mark the player must physically ARRIVE at stands outside every
 /// gravity well on the map.
 ///
-/// GOTO finishes by coming to rest, and inside a well the pull never stops:
+/// A beacon is not outside a gravity well merely because its centre clears the
+/// numerical boundary. Its complete trigger volume must clear the well with a
+/// visible authored buffer. Otherwise the marker still sits against a
+/// planetoid, and part of the place it asks the player to occupy remains in
+/// gravity.
+///
+/// GOTO also finishes by coming to rest, and inside a well the pull never stops:
 /// the arrival cannot settle, the `OnGotoComplete` the beat waits on never
 /// fires, and the shift stops dead. The well is built here exactly the way the
-/// asteroid loader builds it - `GravityWell::from_mass` against the GEOMETRIC
-/// radius - at the WIDEST mesh the seed can grow, because the SOI floors at
-/// the body radius and a wider body is therefore a wider well.
-///
-/// This is what moved TRANSIT 2: it used to sit 2.72 km off the inspection
-/// planetoid, inside a 3.29 km reach, in the unfaded core of the pull.
+/// asteroid loader builds it - `GravityWell::from_mass` against the widest
+/// geometric radius.
 #[test]
 fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
+    const VISIBLE_GRAVITY_BUFFER: Meters = Meters(500.0);
     let settings = GravitySettings::default();
     let wells = [
         (
@@ -1035,14 +1073,15 @@ fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
         let soi = Meters::from_engine(GravityWell::from_mass(mass, widest, &settings).soi_radius);
         for mark in marks {
             let separation = (mark.position - centre).length();
+            let required = soi + mark.area + VISIBLE_GRAVITY_BUFFER;
             assert!(
-                separation.0 > soi.0,
-                "'{}' stands {:.0} m from the {name} planetoid, inside its \
-                 {:.0} m sphere of influence - GOTO cannot come to rest there, \
-                 so the beat that waits on its arrival never fires",
+                separation.0 > required.0,
+                "'{}' stands {:.0} m from the {name} planetoid; its full beacon \
+                 volume and 500 m gravity buffer require {:.0} m - no beacon \
+                 may stand against or inside a gravity well",
                 mark.id,
                 separation.0,
-                soi.0,
+                required.0,
             );
         }
     }

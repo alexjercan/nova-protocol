@@ -987,3 +987,24 @@ web CI passes. Rendered 1280x720 captures under `/tmp/first-shift-story-05.png`
 through `09.png` verify each preview, with additional scene 07 captures for the
 Earth Navy identification and Earthworks challenge. Scene 08 remains free of
 narrative cards.
+
+### 2026-09-04: Transit beacons moved clear of gravity
+
+Owner review caught that both transit beacon centres were only about 4 km from
+the inspection planetoid's centre. The old test compared only each centre with
+the 3.29 km sphere of influence. It ignored the beacon's own 700 m area, leaving
+its volume almost touching the well and placing the marker visibly against the
+planetoid. That proof was inadequate.
+
+TRANSIT 1 now routes below the plate at 6.00 km from the body. TRANSIT 2 remains
+on the covered bearing from Meridian but stands 7.00 km from the body. The
+revised test requires every complete beacon volume plus another 500 m visible
+buffer to clear every gravity well. A second test proves both GOTO transit
+segments also clear the inspection well with Cutter's 55 m hull sphere and 100
+m flight margin included. The orbit preview pose moved with TRANSIT 2.
+
+Proof: all 20 focused First Shift tests pass, including complete beacon-volume
+and transit-segment gravity clearance. The orbit example compiles, and generated
+content lint reports 0 errors, 0 warnings and 0 findings. A rendered scene 05
+start at `/tmp/first-shift-transit2-clear.png` shows the survey body 7.00 km
+away after TRANSIT 2 despawns, rather than filling the beacon's vicinity.
