@@ -64,8 +64,8 @@ pub(super) struct TempMark {
     /// Trigger volume. A hand-flown mark wants a tight one; a mark the
     /// autopilot parks at must contain the park point.
     pub(super) area: Meters,
-    /// Radar signature, for the marks LOCK and GOTO are taught against. A
-    /// beacon without one is invisible to the targeting computer.
+    /// Radar signature override for marks whose authored route should pin the
+    /// acquisition range instead of inheriting the global beacon default.
     pub(super) lock_signature: Option<Meters>,
 }
 
@@ -191,13 +191,14 @@ pub(super) const TRANSIT_TWO: TempMark = TempMark {
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
 
-/// The return work site sits below the plate's carrier-side edge. Its descent
-/// keeps the direct leg from the near-side orbit gate under the clutter, while
-/// leaving the last crate 1.09 km away for the final close-work search.
+/// The return work site sits below the plate's carrier-side edge, clear of
+/// Belt Rock 6's 1.26 km sphere of influence. Its complete 700 m trigger volume
+/// and a further 500 m visual buffer remain outside every gravity well, while
+/// leaving the last crate 1.17 km away for the final close-work search.
 pub(super) const WORK_SITE: TempMark = TempMark {
     id: "work_site",
     label: "WORK SITE",
-    position: Meters3::new(1_000.0, -750.0, -750.0),
+    position: Meters3::new(-1_200.0, -1_200.0, -800.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
@@ -228,7 +229,7 @@ pub(super) const HOME_MARK: TempMark = TempMark {
 };
 
 /// Radar signature carried by the marks the targeting computer is taught on.
-pub(super) const TRANSIT_SIGNATURE: Meters = Meters(300.0);
+pub(super) const TRANSIT_SIGNATURE: Meters = Meters(400.0);
 
 // --- the crates --------------------------------------------------------------
 
@@ -242,7 +243,7 @@ pub(super) const TRANSIT_SIGNATURE: Meters = Meters(300.0);
 pub(super) const CRATE_POSITIONS: [Meters3; 3] = [
     Meters3::new(-200.0, -60.0, -1_400.0),
     Meters3::new(200.0, 100.0, -3_000.0),
-    Meters3::new(1_800.0, -120.0, -1_400.0),
+    Meters3::new(-600.0, -400.0, -1_400.0),
 ];
 
 /// Visible crate edge and its pickup envelope. The 15 m sphere encloses the

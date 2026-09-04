@@ -20,12 +20,12 @@ pub mod prelude {
 
 /// The lock scanner sees a beacon like a well-sized rock: a nav point is
 /// exactly the thing the player locks to GOTO, so it must be acquirable
-/// from a full tutorial leg away (signature * range-per-unit, 200 * 30 = 6 km
-/// at the default settings), not at debris range.
+/// from a full navigation leg away (signature * range-per-unit, 400 * 30 =
+/// 12 km at the default settings), not at debris range.
 ///
 /// Public because a scenario's GOTO legs are pinned against this range: the
 /// pin that proves a leg is lockable must read the signature, not a copy.
-pub const BEACON_LOCK_SIGNATURE: Meters = Meters(200.0);
+pub const BEACON_LOCK_SIGNATURE: Meters = Meters(400.0);
 
 /// Blink period (seconds) of the emissive pulse.
 const BEACON_BLINK_PERIOD_SECS: f32 = 1.2;
@@ -55,7 +55,7 @@ pub struct BeaconConfig {
     )]
     pub area_radius: Option<Meters>,
     /// Radar signature override; `None` = the default `BEACON_LOCK_SIGNATURE`
-    /// (6 km of lock range). A scenario whose GOTO leg is longer than that
+    /// (12 km of lock range). A scenario whose GOTO leg is longer than that
     /// authors the signature the leg needs.
     #[cfg_attr(
         feature = "serde",

@@ -8,7 +8,7 @@ A scenario spawns a handful of object kinds:
 
 - **Asteroids** - rocks with a radar signature and an optional [gravity well](../gravity-wells/). A normal rock has no health: it is carved away by what hits it, and how big it is decides how long that takes (see [Shooting rock](../combat-weapons/#shooting-rock)). An invulnerable planetoid never wears at all.
 - **Spaceships** - multi-section [builds](../sections/) under a player or AI controller (which can withhold or grant flight verbs).
-- **Nav beacons** - lockable waypoints with authorable radar signatures and optional trigger areas.
+- **Nav beacons** - lockable waypoints visible to radar within 12 km by default, with authorable signatures for longer legs and optional trigger areas.
 - **Salvage crates** - small pickups collected by flying through them.
 - **Lights** - the scene's own key/rim/fill lighting; a scenario that spawns
   none renders black.

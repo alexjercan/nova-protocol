@@ -291,7 +291,7 @@ live distance, edge-clamped direction cue).
 | `radius` | number | required | visual orb radius, meters |
 | `color` | color | required | orb + emissive tint, tagged: `Srgba((red: 0.3, green: 0.9, blue: 1.0, alpha: 1.0))` |
 | `area_radius` | `Option` number | `None` | when set, the beacon IS its own trigger area of this radius in meters - [`OnEnter`](../events/#onenter)/`OnExit` fire under the beacon's id, no `CreateScenarioArea` needed |
-| `lock_signature` | `Option` number | `None` | radar signature override in meters; the default 200 m gives a lock range of about 6 km - author bigger for longer GOTO legs |
+| `lock_signature` | `Option` number | `None` | radar signature override in meters; the default 400 m gives a lock range of about 12 km - author bigger for longer GOTO legs |
 
 ```ron
 SpawnScenarioObject((

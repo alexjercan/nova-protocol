@@ -1037,3 +1037,12 @@ Removed the comms card scale pop after owner review found it crossed the left
 screen edge and visually intruded into older transcript cards. New messages now
 use the existing fade and audio blip only. The flex stack admits each card at
 its final layout size, so previous lines move once and retain stable geometry.
+
+Corrected the return route after owner playtesting identified that WORK SITE was
+inside Belt Rock 6's default-mass gravity well, where GOTO could not settle.
+Moved WORK SITE, its complete 700 m volume, the third crate, and a 500 m visible
+buffer outside every authored and radius-designated well in the shared belt.
+Expanded the regression proof from the two planetoids to every rock that the
+runtime promotes to a well, and included all three salvage objectives. Raised
+the default and First Shift beacon signatures from their 6/9 km ranges to 12 km;
+every prescribed lock leg now has a range proof from its preceding goal.

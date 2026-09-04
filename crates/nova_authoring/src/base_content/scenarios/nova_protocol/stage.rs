@@ -132,9 +132,8 @@ pub(crate) fn beacon(id: &str, label: &str, position: Meters3) -> ScenarioObject
 /// The same mark with the trigger volume and the radar signature spelled out.
 ///
 /// A hand-flown mark wants a TIGHT volume - a lesson that asks the player to
-/// place the hull cannot be passed by drifting through a 700 m sphere - and a
-/// mark the lock lesson is taught against has to be something the radar can
-/// see at all, which a plain beacon is not.
+/// place the hull cannot be passed by drifting through a 700 m sphere. A long
+/// authored leg can also override the global beacon radar signature.
 pub(crate) fn sized_beacon(
     id: &str,
     label: &str,

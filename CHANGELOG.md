@@ -58,6 +58,9 @@ does NOT get an entry - and it is the only place they are written down.
   lights the hulls it passes; Low draws neither.
 
 ### Scenarios & Objectives
+- Nav beacons are radar-acquirable within 12 km by default, up from 6 km.
+- First Shift moves WORK SITE and the third crate fully clear of Belt Rock 6's
+  gravity well, so the return GOTO can settle and complete.
 - First Shift keeps control suspended from the warship reveal through teardown.
   Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
 - First Shift makes physical STOP, four framed RCS marks and two completed GOTO

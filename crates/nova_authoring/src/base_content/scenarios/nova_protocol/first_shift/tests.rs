@@ -1025,8 +1025,8 @@ fn every_withheld_control_is_handed_back() {
     }
 }
 
-/// Every mark the player must physically ARRIVE at stands outside every
-/// gravity well on the map.
+/// Every beacon and salvage objective the player must physically reach stands
+/// outside every gravity well on the map.
 ///
 /// A beacon is not outside a gravity well merely because its centre clears the
 /// numerical boundary. Its complete trigger volume must clear the well with a
@@ -1040,23 +1040,51 @@ fn every_withheld_control_is_handed_back() {
 /// asteroid loader builds it - `GravityWell::from_mass` against the widest
 /// geometric radius.
 #[test]
-fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
+fn no_beacon_or_salvage_objective_stands_in_a_gravity_well() {
     const VISIBLE_GRAVITY_BUFFER: Meters = Meters(500.0);
     let settings = GravitySettings::default();
-    let wells = [
+    let mut wells = vec![
         (
-            "inspection",
+            "Inspection Planetoid".to_string(),
             stage::INSPECTION_POS,
             stage::INSPECTION_MASS,
             stage::INSPECTION_RADIUS,
         ),
         (
-            "concealment",
+            "Concealment Planetoid".to_string(),
             stage::CONCEALMENT_POS,
             stage::CONCEALMENT_MASS,
             stage::CONCEALMENT_RADIUS,
         ),
     ];
+    wells.extend(
+        stage::SALVAGE_ROCKS
+            .into_iter()
+            .enumerate()
+            .filter(|(_, (_, radius))| radius.to_engine() >= settings.min_well_radius)
+            .map(|(index, (position, radius))| {
+                (
+                    format!("Salvage Rock {}", index + 1),
+                    position,
+                    settings.default_mass,
+                    radius,
+                )
+            }),
+    );
+    wells.extend(
+        stage::AMBIENT_ROCKS
+            .into_iter()
+            .enumerate()
+            .filter(|(_, (_, radius))| radius.to_engine() >= settings.min_well_radius)
+            .map(|(index, (position, radius))| {
+                (
+                    format!("Belt Rock {}", index + 1),
+                    position,
+                    settings.default_mass,
+                    radius,
+                )
+            }),
+    );
     let marks = [
         &WORK_MARK,
         &TRIM_LATERAL,
@@ -1076,14 +1104,65 @@ fn no_mark_the_player_flies_to_stands_in_a_gravity_well() {
             let required = soi + mark.area + VISIBLE_GRAVITY_BUFFER;
             assert!(
                 separation.0 > required.0,
-                "'{}' stands {:.0} m from the {name} planetoid; its full beacon \
-                 volume and 500 m gravity buffer require {:.0} m - no beacon \
-                 may stand against or inside a gravity well",
+                "'{}' stands {:.0} m from {name}; its full beacon volume and \
+                 500 m gravity buffer require {:.0} m - no beacon may stand \
+                 against or inside a gravity well",
                 mark.id,
                 separation.0,
                 required.0,
             );
         }
+        for (index, position) in CRATE_POSITIONS.into_iter().enumerate() {
+            let separation = (position - centre).length();
+            let required = soi + CRATE_AREA_RADIUS + VISIBLE_GRAVITY_BUFFER;
+            assert!(
+                separation.0 > required.0,
+                "crate {} stands {:.0} m from {name}; its pickup volume and \
+                 500 m gravity buffer require {:.0} m - no salvage objective \
+                 may stand against or inside a gravity well",
+                index + 1,
+                separation.0,
+                required.0,
+            );
+        }
+    }
+}
+
+#[test]
+fn every_prescribed_beacon_is_acquirable_from_the_previous_goal() {
+    let settings = TargetingSettings::default();
+    let lock_range =
+        Meters::from_engine(TRANSIT_SIGNATURE.to_engine() * settings.signature_range_per_unit);
+    let legs = [
+        (
+            "crate 2 to transit 1",
+            CRATE_POSITIONS[1],
+            TRANSIT_ONE.position,
+        ),
+        (
+            "transit 1 to transit 2",
+            TRANSIT_ONE.position,
+            TRANSIT_TWO.position,
+        ),
+        (
+            "orbit return to work site",
+            ORBIT_RETURN_GATE_POS,
+            WORK_SITE.position,
+        ),
+        (
+            "crate 3 to Meridian hold",
+            CRATE_POSITIONS[2],
+            HOME_MARK.position,
+        ),
+    ];
+    for (name, from, to) in legs {
+        let distance = (to - from).length();
+        assert!(
+            distance.0 < lock_range.0,
+            "{name} is {:.0} m but the beacon is only acquirable within {:.0} m",
+            distance.0,
+            lock_range.0,
+        );
     }
 }
 
