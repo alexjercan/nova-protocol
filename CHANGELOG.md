@@ -16,8 +16,9 @@ does NOT get an entry - and it is the only place they are written down.
 ## [Unreleased]
 
 ### Gameplay & Flight
-- RCS reaches 100 m/s at a mass-independent 5 G with one acceleration budget;
-  STOP below that speed brakes on RCS without turning the ship.
+- RCS reaches 100 m/s at a mass-independent 5 G, one speed budget and one
+  acceleration budget for every direction; STOP below that speed brakes on RCS
+  without turning the ship.
 - GOTO parks a margin off the target's SURFACE, measured from the ship's own
   hull: a warship and a shuttle sent to one mark now stop the same distance
   clear of it.
@@ -226,6 +227,8 @@ does NOT get an entry - and it is the only place they are written down.
   rest of the settings. Music is reserved: nothing routes to it yet.
 
 ### Fixes
+- A ship's speed cap governs its TOTAL speed, so turning to a fresh heading and
+  burning again no longer stacks a second cap's worth on top of the first.
 - A trigger volume reports a ship LEAVING again. A damaged ship despawns
   section colliders inside the volume, and the occupancy count that never saw
   those colliders end held it inside forever.

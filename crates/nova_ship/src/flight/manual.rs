@@ -32,9 +32,66 @@ pub(crate) fn accumulate_rcs_axis(current: f32, delta: f32) -> f32 {
 /// Feel-tune.
 const RCS_PLAYER_INTENT_DECAY: f32 = 0.4;
 
-/// Fraction of the cap over which the manual burn tapers to zero (the
+/// Fraction of the cap over which a speed budget tapers to zero (the
 /// last stretch below the cap). Wide enough to feel like drag, not a wall.
 const SPEED_CAP_TAPER_FRACTION: f32 = 0.2;
+
+/// The fraction of `push` - the delta-v one tick of a commanded burn would
+/// add, world frame - that a VECTOR speed budget of `cap` allows.
+///
+/// `residual` is the velocity the budget is measured against: the plain
+/// velocity for the manual burn, `velocity - RcsReference` for RCS. The budget
+/// limits its MAGNITUDE, so straight and diagonal input spend the same
+/// allowance and no combination of axes buys more speed than one axis does.
+///
+/// Three regimes, in order:
+///
+/// - **Not growing.** A step that leaves the residual no faster than it
+///   already is passes untouched, so braking and retrograde trim keep full
+///   authority at and above the cap and an overspeed ship can always fly back
+///   inside the budget.
+/// - **Soft taper.** Otherwise the headroom `cap - speed` tapers the step over
+///   the last `taper_band`, in proportion to how much of the step actually
+///   becomes speed: a push straight down the residual meets the whole taper
+///   (the straight-line rule the manual burn always had), a near-tangential
+///   one barely feels it. Both terms are continuous and monotone in the
+///   residual speed, so the approach to the cap is a first-order relaxation
+///   rather than an on/off gate that could chatter at the boundary.
+/// - **Finite step.** A tapered step still lands a whole tick's delta-v at
+///   once, so it is finally shrunk to the largest fraction that stays inside
+///   the budget sphere. The sphere never shrinks below where the ship already
+///   is: an overspeed ship is held, never shoved.
+///
+/// Pure for unit testing.
+pub(super) fn speed_budget_scale(residual: Vec3, push: Vec3, cap: f32, taper_band: f32) -> f32 {
+    let step = push.length();
+    if step <= 0.0 {
+        return 1.0;
+    }
+    let speed = residual.length();
+    let grown = (residual + push).length();
+    if grown <= speed {
+        return 1.0;
+    }
+    let growth = ((grown - speed) / step).clamp(0.0, 1.0);
+    let taper = ((cap - speed) / taper_band.max(f32::EPSILON)).clamp(0.0, 1.0);
+    let gate = 1.0 - growth * (1.0 - taper);
+    gate.min(step_inside_sphere(residual, push, speed.max(cap)))
+}
+
+/// The largest `s` in `0..=1` with `|residual + s * push| <= radius`: the
+/// positive root of the quadratic, which exists because `radius` is never
+/// below `|residual|`.
+fn step_inside_sphere(residual: Vec3, push: Vec3, radius: f32) -> f32 {
+    let square_step = push.length_squared();
+    if square_step <= 0.0 {
+        return 1.0;
+    }
+    let along = residual.dot(push);
+    let outside = residual.length_squared() - radius * radius;
+    let discriminant = (along * along - square_step * outside).max(0.0);
+    ((-along + discriminant.sqrt()) / square_step).clamp(0.0, 1.0)
+}
 
 /// Manual main-drive burn for intent-carrying ships with no autopilot
 /// engaged: allocate the analog burn over the live unbound engine set as a
@@ -54,6 +111,7 @@ pub(super) fn manual_burn_system(
             &FlightIntent,
             Option<&ComputedCenterOfMass>,
             Option<&FlightSpeedCap>,
+            &ComputedMass,
             &Rotation,
             &LinearVelocity,
         ),
@@ -77,19 +135,8 @@ pub(super) fn manual_burn_system(
 ) {
     let dt = time.delta_secs();
 
-    for (ship, intent, com, speed_cap, rotation, velocity) in &q_ship {
-        let mut burn = intent.burn.clamp(0.0, 1.0);
-
-        // The soft speed cap: taper the commanded burn to zero as the
-        // velocity component ALONG the burn direction (the hull's world
-        // forward - the primary set's thrust axis) approaches the cap.
-        // Raw-clock pose (avian Rotation) - this is FixedUpdate.
-        if let Some(cap) = speed_cap {
-            let burn_direction = rotation.0.mul_vec3(Vec3::NEG_Z);
-            let along = velocity.dot(burn_direction);
-            let taper_band = (**cap * SPEED_CAP_TAPER_FRACTION).max(1.0);
-            burn *= ((**cap - along) / taper_band).clamp(0.0, 1.0);
-        }
+    for (ship, intent, com, speed_cap, mass, rotation, velocity) in &q_ship {
+        let burn = intent.burn.clamp(0.0, 1.0);
 
         // The allocation set: every live unbound engine (bound thrusters keep
         // their own keys), with its balance coefficients in the ship-local
@@ -130,17 +177,34 @@ pub(super) fn manual_burn_system(
             ));
         }
 
+        // The primary set's authority: a ThrusterSectionMagnitude is an
+        // IMPULSE per fixed tick, so the sum over the forward set divided by
+        // the hull mass is the delta-v a full-stick burn adds this tick.
+        let authority: f32 = allocation
+            .iter()
+            .filter(|(_, e)| e.primary)
+            .map(|(_, e)| e.forward)
+            .sum();
+
+        // The soft speed cap on TOTAL speed, not on the burn axis: a pilot who
+        // turns and burns again spends the same one budget, instead of
+        // stacking a fresh cap onto every heading they point at. Raw-clock
+        // pose (avian Rotation) - this is FixedUpdate.
+        let burn = match speed_cap {
+            Some(cap) => {
+                let step = rotation.0.mul_vec3(Vec3::NEG_Z) * authority / mass.value().max(1e-6);
+                let taper_band = (**cap * SPEED_CAP_TAPER_FRACTION).max(1.0);
+                burn * speed_budget_scale(velocity.0, step, **cap, taper_band)
+            }
+            None => burn,
+        };
+
         // Deliver `burn` of the main-drive set's forward thrust, balanced. The
         // uniform throttle `burn` over that set is a feasible split, so a
         // centered drive spools exactly as before; an off-center one is
         // trimmed toward straight flight, recruiting an off-axis engine when
         // the set cannot trim itself.
-        let demand: f32 = burn
-            * allocation
-                .iter()
-                .filter(|(_, e)| e.primary)
-                .map(|(_, e)| e.forward)
-                .sum::<f32>();
+        let demand = burn * authority;
         let coeffs: Vec<BalanceEngine> = allocation.iter().map(|(_, e)| *e).collect();
         let throttles = balance_throttles(&coeffs, demand);
 
@@ -157,9 +221,9 @@ pub(super) fn manual_burn_system(
 
 /// Reaction-control fine translation: the shared RCS primitive. For a ship
 /// carrying a non-zero [`RcsIntent`] (a ship-local desired direction), apply a
-/// magnitude-limited, per-axis speed-capped acceleration at the center of mass
-/// in that direction, so the pilot - or the autopilot - can translate the hull
-/// without changing its attitude.
+/// magnitude-limited, speed-capped acceleration at the center of mass in that
+/// direction, so the pilot - or the autopilot - can translate the hull without
+/// changing its attitude.
 ///
 /// Two properties define it:
 /// - **No torque, geometry-independent.** The push is one linear impulse at the
@@ -167,11 +231,12 @@ pub(super) fn manual_burn_system(
 ///   needs no physical side/vertical thrusters - the `Rcs` verb is the fiction
 ///   that the flight computer has cold-gas quads. The impulse is scaled by mass
 ///   so `rcs_accel` is a true acceleration and the feel is mass-independent.
-/// - **Capped, never free propulsion.** The cap is [`manual_burn_system`]'s
-///   speed-cap taper generalized to three signed ship-local axes: a push in a
-///   direction the hull already travels at the cap yields nothing, while the
-///   opposite direction still accelerates. So RCS can only reshuffle velocity
-///   within `+/-cap` per axis, never accumulate speed by spamming it.
+/// - **Capped, never free propulsion.** One [`speed_budget_scale`] budget
+///   limits the MAGNITUDE of `velocity - reference`, the same rule the manual
+///   burn flies: a push that would carry the hull past the cap yields nothing
+///   however many axes it is spread over, while anything that slows the hull
+///   still acts. So RCS can only reshuffle velocity inside one sphere of radius
+///   `cap`, never accumulate speed by spamming it diagonally.
 ///
 /// Gated on the ship granting the `Rcs` verb (same rule as `ship_grants_verb`
 /// in the input layer). Deliberately NOT gated on `Without<Autopilot>`: the
@@ -240,31 +305,19 @@ pub(super) fn rcs_burn_system(
         // RESIDUAL `v - reference` and can trim a fast-moving orbit.
         let reference = reference.map(|r| r.0).unwrap_or(Vec3::ZERO);
 
-        // Accumulate each independently speed-capped axis, then clamp the
-        // combined acceleration. The speed cap remains per local axis, but a
-        // diagonal command gets no more acceleration than a straight command.
-        let mut acceleration = Vec3::ZERO;
-        for axis in [Vec3::X, Vec3::Y, Vec3::Z] {
-            let cmd = intent.0.dot(axis);
-            if cmd.abs() < 1e-4 {
-                continue;
-            }
-            let world_axis = rotation.mul_vec3(axis);
-            // Residual along the axis, relative to the reference: this is what
-            // the cap limits, so a prograde trim of an orbit sees only the
-            // small `v - v_orbit` delta, not the full orbital speed.
-            let along = (velocity - reference).dot(world_axis);
-            // Headroom toward the commanded sign: full push while far from the
-            // cap, tapering to zero as the along-axis speed nears the cap in
-            // the pushed direction; the opposite direction always has headroom.
-            let gate = ((cap - cmd.signum() * along) / taper_band).clamp(0.0, 1.0);
-            acceleration += world_axis * (cmd.clamp(-1.0, 1.0) * gate);
-        }
-        acceleration = acceleration.clamp_length_max(1.0) * settings.rcs_accel;
-        if acceleration != Vec3::ZERO {
+        // One acceleration budget for every direction: each axis is a unit
+        // command, and the whole vector is clamped to unit length, so a
+        // three-axis diagonal pushes exactly as hard as a single axis.
+        let command = intent
+            .0
+            .clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
+            .clamp_length_max(1.0);
+        let step = rotation.mul_vec3(command) * settings.rcs_accel * dt;
+        let delta_v = step * speed_budget_scale(velocity - reference, step, cap, taper_band);
+        if delta_v != Vec3::ZERO {
             // Scale by mass so the 1/mass inside apply_linear_impulse yields
-            // exactly `acceleration * dt`, independent of hull mass.
-            force.apply_linear_impulse(acceleration * dt * mass);
+            // exactly `delta_v`, independent of hull mass.
+            force.apply_linear_impulse(delta_v * mass);
         }
     }
 }
@@ -288,5 +341,129 @@ pub(super) fn decay_player_rcs_intent(mut q_intent: Query<&mut RcsIntent, With<R
         if intent.0.length_squared() < 1e-4 {
             intent.0 = Vec3::ZERO;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CAP: f32 = 10.0;
+    const BAND: f32 = CAP * SPEED_CAP_TAPER_FRACTION;
+    /// One tick of the shipped 5 g RCS at 64 Hz.
+    const STEP: f32 = 4.905 / 64.0;
+
+    /// Integrate a held push from rest and report the speed it settles at.
+    fn terminal_speed(direction: Vec3) -> f32 {
+        let push = direction.normalize() * STEP;
+        let mut velocity = Vec3::ZERO;
+        for _ in 0..4000 {
+            velocity += push * speed_budget_scale(velocity, push, CAP, BAND);
+        }
+        velocity.length()
+    }
+
+    /// The budget is on the VECTOR, so however many axes a held push is spread
+    /// over it reaches the one ceiling - the `sqrt(2)` and `sqrt(3)` diagonals
+    /// the per-axis gate used to hand out are gone.
+    #[test]
+    fn one_two_and_three_axis_pushes_reach_the_same_ceiling() {
+        let one = terminal_speed(Vec3::X);
+        let two = terminal_speed(Vec3::new(1.0, 1.0, 0.0));
+        let three = terminal_speed(Vec3::ONE);
+        assert!(
+            (one - CAP).abs() < 1e-2,
+            "one axis settles at the cap: {one}"
+        );
+        assert!((two - one).abs() < 1e-3, "two axes: {two} vs {one}");
+        assert!((three - one).abs() < 1e-3, "three axes: {three} vs {one}");
+    }
+
+    /// Straight-line flight below the taper band is untouched, and inside the
+    /// band the scale is exactly the old headroom taper.
+    #[test]
+    fn a_straight_push_keeps_full_authority_below_the_band_and_tapers_inside_it() {
+        let push = Vec3::X * STEP;
+        assert_eq!(speed_budget_scale(Vec3::ZERO, push, CAP, BAND), 1.0);
+        assert_eq!(speed_budget_scale(Vec3::X * 5.0, push, CAP, BAND), 1.0);
+        let inside = speed_budget_scale(Vec3::X * 9.0, push, CAP, BAND);
+        assert!(
+            (inside - 0.5).abs() < 1e-3,
+            "half the headroom left: {inside}"
+        );
+        assert_eq!(speed_budget_scale(Vec3::X * CAP, push, CAP, BAND), 0.0);
+    }
+
+    /// Anything that slows the ship keeps full authority at the cap and well
+    /// past it, so a ship carried overspeed by a well or a maneuver can always
+    /// brake back inside the budget.
+    #[test]
+    fn braking_keeps_full_authority_at_and_above_the_cap() {
+        let brake = Vec3::NEG_X * STEP;
+        assert_eq!(speed_budget_scale(Vec3::X * CAP, brake, CAP, BAND), 1.0);
+        assert_eq!(speed_budget_scale(Vec3::X * 40.0, brake, CAP, BAND), 1.0);
+        // Partly retrograde still slows the ship, so it is still free.
+        let oblique = Vec3::new(-1.0, 1.0, 0.0).normalize() * STEP;
+        assert_eq!(speed_budget_scale(Vec3::X * 40.0, oblique, CAP, BAND), 1.0);
+    }
+
+    /// A push across the velocity grows the speed only to second order, which
+    /// the per-tick sphere limit is what catches: at the cap a tangential push
+    /// is spent, and an overspeed ship is held where it is rather than shoved
+    /// further out.
+    #[test]
+    fn a_tangential_push_cannot_carry_the_residual_past_the_budget() {
+        let across = Vec3::Y * STEP;
+        assert_eq!(speed_budget_scale(Vec3::X * CAP, across, CAP, BAND), 0.0);
+        assert_eq!(speed_budget_scale(Vec3::X * 40.0, across, CAP, BAND), 0.0);
+        // Below the cap it costs almost nothing: the ship still maneuvers.
+        let free = speed_budget_scale(Vec3::X * 5.0, across, CAP, BAND);
+        assert!(
+            free > 0.99,
+            "a tangential push below the band is free: {free}"
+        );
+        // Held from the cap it never accumulates, however long it is held.
+        let mut velocity = Vec3::X * CAP;
+        for _ in 0..4000 {
+            velocity += across * speed_budget_scale(velocity, across, CAP, BAND);
+        }
+        assert!(
+            velocity.length() <= CAP + 1e-3,
+            "a held tangential push must not creep past the cap: {}",
+            velocity.length()
+        );
+    }
+
+    /// The approach to the cap is a monotone first-order relaxation - the
+    /// speed never overshoots and never falls back - so nothing oscillates at
+    /// the boundary.
+    #[test]
+    fn the_approach_to_the_cap_never_overshoots_or_backs_off() {
+        let push = Vec3::X * STEP;
+        let mut velocity = Vec3::ZERO;
+        for _ in 0..4000 {
+            let next = velocity + push * speed_budget_scale(velocity, push, CAP, BAND);
+            assert!(
+                next.length() >= velocity.length() - 1e-6 && next.length() <= CAP + 1e-6,
+                "monotone and inside the cap: {} -> {}",
+                velocity.length(),
+                next.length()
+            );
+            velocity = next;
+        }
+    }
+
+    /// A step larger than the whole band still lands ON the cap rather than
+    /// through it: the sphere limit, not the taper, is what bounds the
+    /// finite-step overshoot.
+    #[test]
+    fn one_huge_step_lands_on_the_cap_instead_of_through_it() {
+        let push = Vec3::X * 100.0;
+        let scale = speed_budget_scale(Vec3::ZERO, push, CAP, BAND);
+        assert!(
+            ((push * scale).length() - CAP).abs() < 1e-3,
+            "the step is trimmed to the budget: {}",
+            (push * scale).length()
+        );
     }
 }

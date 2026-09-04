@@ -480,3 +480,109 @@ fn stop_terminal_without_rcs_verb_uses_the_main_drive() {
         velocity_of(&app, ship).length()
     );
 }
+
+/// The cap is one VECTOR budget, not three axes of budget: a held nudge
+/// reaches the same speed whether it is spread over one, two or three
+/// ship-local axes. Under the old per-axis gate the two-axis push settled at
+/// `sqrt(2) * cap` and the three-axis one at `sqrt(3) * cap`.
+#[test]
+fn rcs_reaches_one_speed_ceiling_on_one_two_or_three_axes() {
+    let cap = 2.0;
+    let terminal_speed = |intent: Vec3| -> f32 {
+        let mut app = flight_app();
+        let (ship, _) = spawn_rcs_ship(&mut app, cap);
+        set_rcs(&mut app, ship, intent);
+        for _ in 0..900 {
+            app.update();
+            let speed = velocity_of(&app, ship).length();
+            assert!(
+                speed <= cap + 1e-2,
+                "no direction may cross the cap (intent {intent:?}, speed {speed})"
+            );
+        }
+        velocity_of(&app, ship).length()
+    };
+
+    let one = terminal_speed(Vec3::X);
+    let two = terminal_speed(Vec3::new(1.0, 1.0, 0.0));
+    let three = terminal_speed(Vec3::ONE);
+    assert!(one > cap - 0.05, "a held nudge reaches the cap (got {one})");
+    assert!(
+        (two - one).abs() < 1e-2,
+        "two axes share the one budget: {two} vs {one}"
+    );
+    assert!(
+        (three - one).abs() < 1e-2,
+        "three axes share the one budget: {three} vs {one}"
+    );
+}
+
+/// The vector budget is measured against the REFERENCE, so a diagonal trim of
+/// a fast-moving craft spends one cap of residual however many axes it uses -
+/// while the absolute speed stays far above the cap the whole time. This is
+/// the shape the ORBIT trim flies: a fast reference, a small residual.
+#[test]
+fn rcs_diagonal_trim_spends_one_budget_against_a_fast_reference() {
+    let mut app = flight_app();
+    let cap = 2.0;
+    let reference = Vec3::new(20.0, 0.0, 0.0);
+    let (ship, _, _) = spawn_ship(&mut app);
+    settle(&mut app);
+    app.world_mut().entity_mut(ship).insert((
+        LinearVelocity(reference),
+        RcsReference(reference),
+        RcsSpeedCap(cap),
+        RcsIntent(Vec3::ONE),
+    ));
+
+    for _ in 0..900 {
+        app.update();
+        let residual = (velocity_of(&app, ship) - reference).length();
+        assert!(
+            residual <= cap + 1e-2,
+            "a diagonal trim spends one cap of RESIDUAL (got {residual})"
+        );
+    }
+    let residual = (velocity_of(&app, ship) - reference).length();
+    assert!(
+        residual > cap - 0.05,
+        "the trim does reach its budget (residual {residual})"
+    );
+    assert!(
+        velocity_of(&app, ship).length() > 4.0 * cap,
+        "and the absolute speed stays far above the cap - the budget is \
+         reference-relative (v = {})",
+        velocity_of(&app, ship).length()
+    );
+}
+
+/// Recovery: a ship carried well past the cap (a maneuver, a well, a scenario
+/// hand-off) can still brake on RCS, and the retrograde push keeps FULL
+/// authority the whole way down instead of being tapered off with the rest.
+#[test]
+fn rcs_brakes_a_ship_from_above_the_cap_back_inside_it() {
+    let mut app = flight_app();
+    let cap = 2.0;
+    let (ship, _controller) = spawn_rcs_ship(&mut app, cap);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(LinearVelocity(Vec3::new(3.0 * cap, 0.0, 0.0)));
+    set_rcs(&mut app, ship, -Vec3::X);
+    let mut slowest = f32::MAX;
+    for _ in 0..600 {
+        app.update();
+        slowest = slowest.min(velocity_of(&app, ship).length());
+    }
+    assert!(
+        slowest < 0.1,
+        "an overspeed ship must be able to brake all the way back to rest \
+         (slowest {slowest}, cap {cap})"
+    );
+    // Held past rest the same command is prograde again, and the budget stops
+    // it at the cap on the far side.
+    assert!(
+        velocity_of(&app, ship).length() <= cap + 1e-2,
+        "and the budget catches it again on the far side (v = {})",
+        velocity_of(&app, ship).length()
+    );
+}

@@ -529,3 +529,91 @@ fn manual_burn_accelerates_and_is_ignored_while_engaged() {
     assert!(speed < 0.5, "STOP should reach rest, got {speed}");
     assert!(app.world().get::<Autopilot>(ship).is_none());
 }
+
+/// The manual cap is one TOTAL-speed budget, not a budget per heading: a ship
+/// already crossing at the cap gets nothing more from a full burn, and one
+/// crossing at half the cap levels off at the cap rather than adding a second
+/// cap's worth along the nose. Under the old along-burn gate the crossing
+/// component was invisible to the taper, so turning and burning again reached
+/// `sqrt(2) * cap`.
+#[test]
+fn manual_burn_spends_one_total_speed_budget_whatever_the_heading() {
+    const CAP: f32 = 20.0;
+
+    // The nose points -Z, so a +X velocity is pure crossing speed - exactly
+    // what a pilot carries after building speed and then turning.
+    let speed_after_burn = |crossing: f32| -> f32 {
+        let mut app = flight_app();
+        let (ship, ..) = spawn_ship(&mut app);
+        settle(&mut app);
+        app.world_mut().entity_mut(ship).insert((
+            FlightSpeedCap(CAP),
+            FlightIntent { burn: 1.0 },
+            LinearVelocity(Vec3::X * crossing),
+        ));
+        run(&mut app, 900);
+        velocity_of(&app, ship).length()
+    };
+
+    let at_the_cap = speed_after_burn(CAP);
+    assert!(
+        at_the_cap <= CAP + 0.05,
+        "a full burn across a ship already at the cap buys nothing \
+         (got {at_the_cap}, cap {CAP})"
+    );
+    let half = speed_after_burn(0.5 * CAP);
+    assert!(
+        half > 0.5 * CAP + 1.0,
+        "delivery guard: the burn must actually fire below the budget \
+         (got {half})"
+    );
+    // The spool-down tail keeps pushing after the gate closes; the old
+    // per-heading gate reached sqrt(0.25 + 1) * CAP = 22.4 and kept going.
+    assert!(
+        half <= CAP + 1.0,
+        "and it must level off at the ONE budget, not add a fresh cap along \
+         the nose (got {half}, cap {CAP})"
+    );
+}
+
+/// Recovery: a ship carried past the cap can always burn its way back inside
+/// it. The budget never blocks a burn that slows the ship down, at the cap or
+/// far above it.
+#[test]
+fn manual_burn_brakes_a_ship_from_above_the_cap_back_inside_it() {
+    const CAP: f32 = 20.0;
+    let mut app = flight_app();
+    let (ship, ..) = spawn_ship(&mut app);
+    settle(&mut app);
+    // Travelling +Z with the nose on -Z: a held burn is pure retro.
+    app.world_mut().entity_mut(ship).insert((
+        FlightSpeedCap(CAP),
+        FlightIntent { burn: 1.0 },
+        LinearVelocity(Vec3::Z * 3.0 * CAP),
+    ));
+    let mut slowest = f32::MAX;
+    let mut fastest = 0.0f32;
+    for _ in 0..900 {
+        app.update();
+        let speed = velocity_of(&app, ship).length();
+        slowest = slowest.min(speed);
+        fastest = fastest.max(speed);
+    }
+    assert!(
+        slowest < 1.0,
+        "an overspeed ship must be able to brake all the way back to rest \
+         (slowest {slowest}, cap {CAP})"
+    );
+    // Past rest the held burn is prograde again, and the budget catches it at
+    // the cap - never at the speed it started overspeed with.
+    assert!(
+        fastest <= 3.0 * CAP + 0.05,
+        "braking must not be answered with a bigger budget (fastest {fastest})"
+    );
+    let speed = velocity_of(&app, ship).length();
+    assert!(
+        speed <= CAP + 1.0,
+        "and it settles on the one budget once it is back inside it \
+         (got {speed}, cap {CAP})"
+    );
+}

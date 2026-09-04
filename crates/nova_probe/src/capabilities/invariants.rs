@@ -63,7 +63,7 @@ use super::{
 pub const INVARIANTS_PARAM: &str = "invariants";
 
 /// A [`FlightSpeedCap`] is a soft taper gate, not a clamp: autopilot
-/// maneuvers, gravity wells and RCS diagonals all legitimately exceed it.
+/// maneuvers, gravity wells and collisions all legitimately exceed it.
 /// The invariant only flags ABSURD speeds - beyond this multiple of the cap
 /// nothing in the engine can honestly produce the value.
 pub const SPEED_SANITY_MULTIPLIER: f32 = 10.0;

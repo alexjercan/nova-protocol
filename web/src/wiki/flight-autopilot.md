@@ -21,7 +21,7 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 ## Manual flight
 
-You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like First Shift's 250 m/s starter governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, along the burn axis only, so a held throttle levels off instead of accelerating forever. Turning and braking are never capped.
+You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like First Shift's 250 m/s starter governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, so a held throttle levels off instead of accelerating forever. The cap is on your TOTAL speed, not on the heading you happen to be pointing, so turning and burning again spends the same one allowance. A burn that would slow you down is never capped.
 
 ## The hull decides the handling
 
@@ -72,12 +72,12 @@ See [Keybinds](../keybinds/) for the verb keys.
 
 For the last few meters of an approach - where a main-drive burn is too coarse - a ship can carry **RCS** (a reaction-control system): hold <kbd>Shift</kbd> and steer with the mouse (lateral and fore/aft) and the scroll wheel (up and down) to nudge the ship straight along its own axes, with **no rotation**. On a gamepad the same gesture is one thumb: click the left stick to engage, then push it to translate. While you hold it the helm and camera hold still so you can concentrate on the translation, the [velocity sphere](../hud/) turns violet, and a soft burn loop plays.
 
-RCS is controlled translation rather than a main-engine burn: each ship-local axis caps at 100 m/s. It accelerates at a mass-independent 5 g, and diagonal input shares that same total acceleration budget rather than multiplying it across axes.
+RCS is controlled translation rather than a main-engine burn: it caps at 100 m/s in any direction. It accelerates at a mass-independent 5 g, and diagonal input shares that one speed budget and that one acceleration budget rather than multiplying either across axes.
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-The cap is per ship-local axis, relative to whatever the maneuver is holding as its reference: push an axis you are already coasting at the cap and nothing happens, while the opposite direction still slows you. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.
+The cap is on the whole velocity vector, measured relative to whatever the maneuver is holding as its reference: one, two or three axes of input all run out at the same 100 m/s, and pushing further in a direction you are already coasting at the cap does nothing - while anything that slows you down still works, at the cap and above it, so a ship carried overspeed can always brake back inside. The push is a single linear impulse through the center of mass, so RCS never rotates the hull, and the last 20 m/s before the cap taper off rather than hitting a wall. The autopilot uses the same thrusters under the hood - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops still turn the main drive into the braking direction.
 
 </details>
 

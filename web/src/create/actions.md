@@ -543,6 +543,13 @@ SetSpeedCap((id: "player_spaceship"))              // release the governor
 | `id` | string | required | scoped ship root |
 | `cap` | `Option` number | `None` | `Some(250.0)` installs/updates the cap, in m/s; `None` or omitted REMOVES it |
 
+The governor limits the ship's TOTAL speed, not the speed along whatever
+heading it points: a pilot who turns and burns again spends the same one
+allowance. It is soft - the manual burn tapers off over the last stretch below
+the cap - and it never blocks a burn that slows the ship, so a ship carried
+past the cap by a well or a maneuver can always brake back inside it. Only the
+MANUAL burn reads it; the autopilot plans its own deceleration.
+
 </details>
 
 ### SetControllerVerb

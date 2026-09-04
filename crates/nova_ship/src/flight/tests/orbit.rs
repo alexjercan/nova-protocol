@@ -68,21 +68,26 @@ fn strong_gravity_orbit_holds_the_ring_on_the_main_drive_not_rcs() {
 
 /// ORBIT trims via the error-relative RCS, but ONLY while the residual `|v -
 /// v_orbit|` is below the cap. From near-rest the desired is the full orbital
-/// velocity (~4.9 u/s at r=50, above the 2 u/s cap), so the main drive spins
-/// the orbit up and RCS stays idle; once the ship is near orbital velocity the
-/// residual drops sub-cap and RCS takes over the trim. The invariant that pins
-/// error-relative (not absolute) behavior: whenever RCS is trimming, its
-/// `RcsReference` is the fast orbital velocity (well above the cap) and `|v -
-/// reference|` is within the cap - impossible under the old absolute cap, which
-/// would have gated to zero.
+/// velocity (~4.9 u/s at r=50, above this hull's 2 u/s cap), so the main drive
+/// spins the orbit up and RCS stays idle; once the ship is near orbital
+/// velocity the residual drops sub-cap and RCS takes over the trim. The
+/// invariant that pins error-relative (not absolute) behavior: whenever RCS is
+/// trimming, its `RcsReference` is the fast orbital velocity (well above the
+/// cap) and the VECTOR `|v - reference|` is within the one budget - impossible
+/// under the old absolute cap, which would have gated to zero.
+///
+/// The cap is pinned per hull rather than left to
+/// [`FlightSettings::rcs_speed_cap`]: the premise is a cap BELOW the ring's
+/// orbital speed, and the shipped default (100 m/s) sits well above it.
 #[test]
 fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
+    let cap = 2.0;
     let mut app = orbit_app();
     let well = spawn_orbit_well(&mut app);
     let (ship, _, _) = spawn_ship(&mut app);
     app.world_mut()
         .entity_mut(ship)
-        .insert(Transform::from_xyz(50.0, 0.0, 0.0));
+        .insert((Transform::from_xyz(50.0, 0.0, 0.0), RcsSpeedCap(cap)));
     settle(&mut app);
     // From rest the residual is the full orbital speed, above the cap, so
     // the first ticks must NOT engage RCS - the main drive spins up.
@@ -105,7 +110,6 @@ fn orbit_engages_rcs_only_to_trim_a_sub_cap_residual() {
         );
     }
 
-    let cap = 2.0;
     let mut saw_trim = false;
     for _ in 0..1500 {
         app.update();

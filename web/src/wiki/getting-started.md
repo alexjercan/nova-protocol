@@ -50,7 +50,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 ### Part 1 - Burn, then trim
 
 1. **Burn to the work mark.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. A gentle 250 m/s cap holds you in while the chief is still talking, and lifts the moment you park on the mark.
-2. **Trim across, then up.** Your fine thrusters unlock here, in open space, with nothing to hit. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and the RCS runs out at 100 m/s however long you hold it. Two short marks, one across and one straight up.
+2. **Trim across, then up.** Your fine thrusters unlock here, in open space, with nothing to hit. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and the RCS runs out at 100 m/s in any direction, however long you hold it. Two short marks, one across and one straight up.
 
 ### Part 2 - The plate
 
