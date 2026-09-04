@@ -250,8 +250,14 @@ does NOT get an entry - and it is the only place they are written down.
 - A trigger volume reports a ship LEAVING again. A damaged ship despawns
   section colliders inside the volume, and the occupancy count that never saw
   those colliders end held it inside forever.
+- A flight computer severed onto a wreck aims at the wreck. It kept targeting
+  the hull it left, so the attitude loop errored every tick once that hull
+  died, and would have twisted the wrong body.
 
 ### Internals & Tooling
+- Ramming and destruction report one line per FRAME - contacts, damage, and
+  what died by type - instead of one line per contact and three per section.
+  The per-event detail moved to `trace`.
 - `wfc_arena` rolls a fresh seed head per hand-run and logs it, so a launch
   fields a new matchup; `--seed` replays one and a scripted run stays pinned.
 - Every example flies on your saved settings - mouse sensitivity, keybinds,

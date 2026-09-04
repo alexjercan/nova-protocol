@@ -606,6 +606,8 @@ pub enum ControllerSectionSystems {
     SyncStack,
     /// Copies the held rotation command into the PD controller's input.
     SyncRotationInput,
+    /// Re-points a controller section that a hull split moved onto a new root.
+    SyncTarget,
 }
 
 /// A plugin that will enable the ControllerSection.
@@ -629,6 +631,11 @@ impl Plugin for ControllerSectionPlugin {
             .register_type::<FlightVerb>();
 
         app.add_observer(insert_controller_section_target);
+
+        app.add_systems(
+            FixedUpdate,
+            sync_controller_section_target.in_set(ControllerSectionSystems::SyncTarget),
+        );
 
         app.add_systems(
             FixedUpdate,
@@ -662,6 +669,7 @@ impl Plugin for ControllerSectionPlugin {
         app.configure_sets(
             FixedUpdate,
             (
+                ControllerSectionSystems::SyncTarget,
                 ControllerSectionSystems::SyncStack,
                 ControllerSectionSystems::SyncRotationInput,
                 PDControllerSystems::Sync,
@@ -741,6 +749,41 @@ fn insert_controller_section_target(
         commands
             .entity(entity)
             .insert(ControllerSectionRotationInput(transform.rotation));
+    }
+}
+
+/// Keep a controller section aimed at the hull it is actually bolted to.
+///
+/// [`insert_controller_section_target`] reads `ChildOf` once, when the section
+/// is added. A hull that SPLITS reparents whole components of sections onto a
+/// fresh wreck root (`sever_disconnected_structures`), and a controller that
+/// came across with one of them kept targeting the hull it left. Two things
+/// followed: the PD pass logged an error every fixed tick once that old root
+/// was despawned, and a controller that was ever made live again would have
+/// stabilized a body it is no longer part of.
+///
+/// `Changed<ChildOf>` covers the initial insert too, but the observer is what
+/// lands the target on the same frame a section spawns, and it also seeds the
+/// helm attitude - so this only ever corrects a MOVE.
+fn sync_controller_section_target(
+    mut commands: Commands,
+    // Only live controllers carry a `PDController`; a preview controller has no
+    // target and must not gain one. Mirrors the observer's filter.
+    q_moved: Query<
+        (Entity, &ChildOf, Option<&PDControllerTarget>),
+        (
+            With<ControllerSectionMarker>,
+            With<PDController>,
+            Changed<ChildOf>,
+        ),
+    >,
+) {
+    for (entity, ChildOf(root), target) in &q_moved {
+        if target.is_some_and(|target| **target == *root) {
+            continue;
+        }
+        trace!("sync_controller_section_target: {entity:?} now targets {root:?}");
+        commands.entity(entity).insert(PDControllerTarget(*root));
     }
 }
 
@@ -1507,6 +1550,54 @@ mod tests {
         assert!(
             app.world().get::<PDControllerTarget>(preview).is_none(),
             "a preview controller must not target a root - that is the PD-spam fix"
+        );
+    }
+
+    #[test]
+    fn a_severed_controller_section_targets_the_hull_it_left_with() {
+        // `sever_disconnected_structures` reparents a split hull's sections onto
+        // a fresh wreck root. The observer above only ever ran at spawn, so the
+        // controller kept targeting the hull it left: the PD pass then errored
+        // every fixed tick once that root was despawned, and a controller made
+        // live again would have stabilized a body it is no longer part of.
+        let mut app = App::new();
+        app.add_observer(insert_controller_section_target);
+        app.add_systems(Update, sync_controller_section_target);
+
+        let hull = app.world_mut().spawn_empty().id();
+        let controller = app
+            .world_mut()
+            .spawn((
+                controller_section(ControllerSectionConfig::default()),
+                ChildOf(hull),
+            ))
+            .id();
+        let preview = app
+            .world_mut()
+            .spawn((
+                preview_controller_section(ControllerSectionConfig::default()),
+                ChildOf(hull),
+            ))
+            .id();
+        app.update();
+
+        let wreck = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .entity_mut(controller)
+            .insert(ChildOf(wreck));
+        app.world_mut().entity_mut(preview).insert(ChildOf(wreck));
+        app.update();
+
+        assert_eq!(
+            app.world()
+                .get::<PDControllerTarget>(controller)
+                .map(|target| **target),
+            Some(wreck),
+            "a severed controller must target the fragment it came across with"
+        );
+        assert!(
+            app.world().get::<PDControllerTarget>(preview).is_none(),
+            "a reparented preview controller must still gain no target"
         );
     }
 }

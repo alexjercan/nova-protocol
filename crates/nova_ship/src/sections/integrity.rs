@@ -169,7 +169,7 @@ fn on_section_disable(
     };
 
     if depleted && !leaf {
-        debug!("on_section_disable: depleted interior section {entity:?} destroyed");
+        trace!("on_section_disable: depleted interior section {entity:?} destroyed");
         commands.entity(entity).try_insert(IntegrityDestroyMarker);
     } else if !depleted && !leaf {
         trace!("on_section_disable: collapse disabled interior section {entity:?}");
@@ -795,7 +795,7 @@ fn cascade_structural_collapse(
             )
         });
         let (section, ..) = standing[0];
-        debug!("cascade_structural_collapse: no leaf to peel, forcing {section:?} apart");
+        trace!("cascade_structural_collapse: no leaf to peel, forcing {section:?} apart");
         commands.entity(section).try_insert(IntegrityDestroyMarker);
     }
 }
@@ -1240,6 +1240,12 @@ mod physics_tests {
     use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
 
     use super::*;
+    use crate::{
+        physics::prelude::{PDControllerPlugin, PDControllerTarget},
+        sections::controller_section::prelude::{
+            controller_section, ControllerSectionConfig, ControllerSectionPlugin,
+        },
+    };
 
     fn integrity_physics_app() -> App {
         let mut app = unfinished_integrity_physics_app();
@@ -1276,6 +1282,84 @@ mod physics_tests {
 
     fn neighbors(app: &App, entity: Entity) -> Vec<Entity> {
         app.world().get::<ConnectedTo>(entity).unwrap().0.clone()
+    }
+
+    /// The same app with the helm stack behind it, for the one contract that
+    /// spans both: a sever moves a controller section, and its PD target has to
+    /// come with it.
+    fn integrity_helm_app() -> App {
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(ShipIntegrityPlugin);
+        app.add_plugins(PDControllerPlugin);
+        app.add_plugins(ControllerSectionPlugin::default());
+        app.finish();
+        app
+    }
+
+    /// A hull that SPLITS is the only thing that moves a controller section
+    /// between roots, and it is where the PD pass's dangling target came from:
+    /// the target observer runs at spawn, so a severed helm went on aiming at
+    /// the hull it left, and once that hull was despawned the PD pass logged an
+    /// error every fixed tick for the rest of the scene.
+    ///
+    /// Two live helms against one: the pair keeps the ship (the ranking counts
+    /// live controllers first), so the lone helm is the one that leaves.
+    #[test]
+    fn a_split_ship_re_points_the_helm_that_left() {
+        let mut app = integrity_helm_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let kept_helm = spawn_section(&mut app, root, Vec3::ZERO);
+        let kept_pair = spawn_section(&mut app, root, Vec3::X);
+        let bridge = spawn_section(&mut app, root, Vec3::X * 2.0);
+        let severed_helm = spawn_section(&mut app, root, Vec3::X * 3.0);
+        for helm in [kept_helm, kept_pair, severed_helm] {
+            app.world_mut()
+                .entity_mut(helm)
+                .insert(controller_section(ControllerSectionConfig::default()));
+        }
+        settle(&mut app);
+
+        assert_eq!(
+            app.world()
+                .get::<PDControllerTarget>(severed_helm)
+                .map(|target| **target),
+            Some(root),
+            "the fixture must start with every helm on the ship it was built into"
+        );
+
+        app.world_mut().trigger(HealthApplyDamage {
+            entity: bridge,
+            source: None,
+            amount: 100.0,
+        });
+        settle(&mut app);
+
+        let wreck = app.world().get::<ChildOf>(severed_helm).unwrap().0;
+        assert_ne!(
+            wreck, root,
+            "the lone helm must have left with the severed component"
+        );
+        assert_eq!(
+            app.world()
+                .get::<PDControllerTarget>(severed_helm)
+                .map(|target| **target),
+            Some(wreck),
+            "a severed helm must target the wreck it came across with, not the hull it left"
+        );
+        assert_eq!(
+            app.world()
+                .get::<PDControllerTarget>(kept_helm)
+                .map(|target| **target),
+            Some(root),
+            "the retained helms must be left alone"
+        );
     }
 
     #[test]

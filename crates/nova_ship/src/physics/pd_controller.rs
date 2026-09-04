@@ -76,6 +76,22 @@ fn setup_pd_controller_system(add: On<Add, PDController>, mut commands: Commands
         .insert(PDControllerOutput::default());
 }
 
+/// Turn each controller's attitude command into a torque for the body it
+/// targets.
+///
+/// A target that is not a body is NORMAL, not an error. A ship dies section by
+/// section, so there are ticks where the root is already despawned and the
+/// controller's own despawn has not applied yet, and a freshly severed
+/// fragment is a rigid body a tick before avian's prepare pass gives it mass
+/// properties. The output is ZEROED rather than left alone: it is the only
+/// value `sync_controller_section_forces` applies, and a stale torque held
+/// over from the body that no longer exists would be pushed into the next one
+/// the controller is pointed at.
+///
+/// What keeps the target itself honest is
+/// `sync_controller_section_target`, which re-points a controller
+/// section when a split moves it onto a new hull. Before it existed this loop
+/// logged an error at the fixed rate for the rest of the scene.
 fn update_controller_root_torque(
     q_root: Query<(&ComputedAngularInertia, &Rotation, &AngularVelocity)>,
     mut q_controller: Query<(
@@ -90,10 +106,13 @@ fn update_controller_root_torque(
     {
         let Ok((angular_inertia, rotation, angular_velocity)) = q_root.get(**controller_target)
         else {
-            error!(
-                "update_controller_root_torque: root entity {:?} not found in q_root",
+            trace!(
+                "update_controller_root_torque: target {:?} is not a body; holding no torque",
                 **controller_target
             );
+            if **controller_output != Vec3::ZERO {
+                **controller_output = Vec3::ZERO;
+            }
             continue;
         };
 
@@ -862,6 +881,37 @@ mod tests {
             unheld > HELD_TURN_SUSTAINED * 2.0,
             "the unlimited control must run away as it always did, got {unheld} rad/s; \
              otherwise the limited body proves nothing"
+        );
+    }
+
+    /// A ship dies section by section, so a controller outlives its hull by a
+    /// tick or two. The loop must hand the next body a clean slate rather than
+    /// the torque it was pushing into the one that is gone - and it must do it
+    /// without narrating the state at 60 Hz for the rest of the scene.
+    #[test]
+    fn a_controller_whose_body_is_gone_holds_no_torque() {
+        let mut app = physics_app();
+        let (body, controller) = spawn_spinning_ship(&mut app, Vec3::new(0.0, 0.0, 2.0));
+
+        // Let the loop build a real correcting torque against the spin.
+        simulate_seconds(&mut app, 0.2);
+        let torque = **app.world().get::<PDControllerOutput>(controller).unwrap();
+        assert!(
+            torque.length() > 0.0,
+            "the fixture must be pushing a torque before the hull dies, got {torque:?}"
+        );
+
+        // Orphan the controller first: a despawn takes its descendants with it,
+        // and the case under test is the one where it does not.
+        app.world_mut().entity_mut(controller).remove::<ChildOf>();
+        app.world_mut().entity_mut(body).despawn();
+        app.update();
+
+        let torque = **app.world().get::<PDControllerOutput>(controller).unwrap();
+        assert_eq!(
+            torque,
+            Vec3::ZERO,
+            "a controller with no body must hold no torque, still at {torque:?}"
         );
     }
 

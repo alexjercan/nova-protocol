@@ -19,8 +19,11 @@
 //! [`NovaBlast`](crate::damage::NovaBlast) volume's job and lives in
 //! [`crate::damage`].
 
+use std::collections::BTreeMap;
+
 use avian3d::prelude::*;
 use bevy::prelude::*;
+use nova_events::prelude::EntityTypeName;
 
 use super::{components::prelude::*, health::prelude::*};
 use crate::damage::prelude::{apply_damage, DamageType};
@@ -67,16 +70,112 @@ impl Plugin for IntegrityCorePlugin {
         app.register_type::<IntegrityDisabledMarker>();
         app.register_type::<IntegrityDestroyMarker>();
 
+        app.init_resource::<ImpactTally>();
+        app.init_resource::<DestructionTally>();
+
         app.add_observer(on_collider_of_spawn_insert_collision_events);
         app.add_observer(on_impact_collision_deal_damage);
         app.add_observer(on_health_depleted_insert_disabled);
+        app.add_observer(tally_a_destroyed_node);
         app.add_observer(destroy_a_disabled_leaf);
         app.add_observer(destroy_a_disabled_node_that_became_a_leaf);
         app.add_observer(destroy_the_structure_of_a_disabled_root);
         app.add_observer(prune_a_destroyed_node_from_its_neighbours);
 
         app.add_systems(Update, derive_integrity_leaves.in_set(IntegritySystems));
+        app.add_systems(Last, (report_impact_tally, report_destruction_tally));
     }
+}
+
+/// A frame's worth of ram damage, reported as one line.
+///
+/// WHY THE PER-CONTACT LINE CANNOT BE `debug!`: `--features debug` puts the
+/// nova crates at DEBUG by default (`nova_core::log_filter_str`), and a salvo
+/// against a block ship lands HUNDREDS of contacts per frame - every plate of
+/// every section that a burst touches. A line each is not a log, it is a
+/// denial of service against the terminal, and it hides the events a person
+/// opened the log for. The per-contact detail is still there at `trace!`, one
+/// module at a time (`RUST_LOG=nova_gameplay::integrity=trace`).
+#[derive(Resource, Default)]
+struct ImpactTally {
+    contacts: usize,
+    damage: f32,
+    worst: f32,
+    worst_at: Option<Entity>,
+}
+
+/// A frame's worth of destruction, reported as one line, for the same reason
+/// [`ImpactTally`] exists: a structural collapse peels a hundred sections and
+/// each one used to cost three or four lines across this module and
+/// [`explode`](super::explode).
+///
+/// Counted by type name rather than by entity, because that is the figure a
+/// person reading a death is after - "107 reinforced hull sections" says what
+/// died; a hundred and seven entity ids do not.
+#[derive(Resource, Default)]
+struct DestructionTally {
+    nodes: usize,
+    kinds: BTreeMap<String, usize>,
+}
+
+/// Count a destroyed node for the frame summary.
+fn tally_a_destroyed_node(
+    add: On<Add, IntegrityDestroyMarker>,
+    mut tally: ResMut<DestructionTally>,
+    q_destroyed: Query<Option<&EntityTypeName>, With<IntegrityDestroyMarker>>,
+) {
+    let Ok(type_name) = q_destroyed.get(add.entity) else {
+        return;
+    };
+
+    tally.nodes += 1;
+    let kind = type_name.map_or_else(|| "unnamed".to_string(), |name| name.0.clone());
+    *tally.kinds.entry(kind).or_default() += 1;
+}
+
+/// `"3 nodes"`, `"1 node"`. A tally line reads as a sentence or it is noise of
+/// a quieter kind.
+fn plural(count: usize, singular: &str) -> String {
+    if count == 1 {
+        singular.to_string()
+    } else {
+        format!("{singular}s")
+    }
+}
+
+fn report_impact_tally(mut tally: ResMut<ImpactTally>) {
+    if tally.contacts == 0 {
+        return;
+    }
+
+    debug!(
+        "impacts: {} {} for {:.2} damage (worst {:.2} on {:?})",
+        tally.contacts,
+        plural(tally.contacts, "contact"),
+        tally.damage,
+        tally.worst,
+        tally.worst_at
+    );
+    *tally = ImpactTally::default();
+}
+
+fn report_destruction_tally(mut tally: ResMut<DestructionTally>) {
+    if tally.nodes == 0 {
+        return;
+    }
+
+    let kinds = tally
+        .kinds
+        .iter()
+        .map(|(kind, count)| format!("{kind} x{count}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    debug!(
+        "integrity: destroyed {} {} ({kinds})",
+        tally.nodes,
+        plural(tally.nodes, "node")
+    );
+    *tally = DestructionTally::default();
 }
 
 /// Opt a health-bearing collider into collision events, so impacts against it
@@ -109,6 +208,7 @@ fn on_collider_of_spawn_insert_collision_events(
 fn on_impact_collision_deal_damage(
     collision: On<CollisionStart>,
     mut commands: Commands,
+    mut tally: ResMut<ImpactTally>,
     q_body: Query<(&LinearVelocity, &ComputedMass), With<RigidBody>>,
     // Excluding a blast volume keeps a blast overlap from ALSO dealing
     // impact damage - it is a massless static sensor, and its damage is the
@@ -141,10 +241,19 @@ fn on_impact_collision_deal_damage(
         return;
     }
 
-    debug!(
+    trace!(
         "on_impact_collision: collider {:?} (body {:?}) rammed by {:?} (body {:?}) for {amount:.2}",
-        collider1, body, collider2, other
+        collider1,
+        body,
+        collider2,
+        other
     );
+    tally.contacts += 1;
+    tally.damage += amount;
+    if amount > tally.worst {
+        tally.worst = amount;
+        tally.worst_at = Some(body);
+    }
     // Where the rammer IS, which for a contact is where it hit to within the
     // half-cell the carve is quantized to anyway. Avian reports the pair, not
     // the manifold, so a true contact point would cost a second lookup for a
@@ -192,7 +301,7 @@ fn destroy_a_disabled_leaf(
         return;
     }
 
-    debug!("integrity: disabled leaf {:?} destroyed", add.entity);
+    trace!("integrity: disabled leaf {:?} destroyed", add.entity);
     commands.entity(add.entity).insert(IntegrityDestroyMarker);
 }
 
@@ -207,7 +316,7 @@ fn destroy_a_disabled_node_that_became_a_leaf(
         return;
     }
 
-    debug!(
+    trace!(
         "integrity: {:?} became a disabled leaf, cascading",
         add.entity
     );
@@ -225,7 +334,7 @@ fn destroy_the_structure_of_a_disabled_root(
         return;
     }
 
-    debug!("integrity: disabled root {:?} destroyed", add.entity);
+    trace!("integrity: disabled root {:?} destroyed", add.entity);
     commands.entity(add.entity).insert(IntegrityDestroyMarker);
 }
 

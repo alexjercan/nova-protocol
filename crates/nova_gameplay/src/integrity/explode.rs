@@ -219,13 +219,20 @@ fn on_destroyed_entity(
         return;
     };
 
-    debug!(
+    // One line per destroyed entity, and a collapse destroys a hundred at once.
+    // `IntegrityCorePlugin`'s frame tally reports the count and the types; this
+    // is the per-entity detail behind it. A SHIP dying is the exception: one
+    // line per ship in a scenario, and the line a combat log is read for.
+    trace!(
         "on_destroyed_entity: entity {:?} destroyed (id: {:?}, type: {:?})",
-        entity, id, type_name
+        entity,
+        id,
+        type_name
     );
     let id = id.to_string();
     let type_name = type_name.to_string();
     if is_ship && !already_defeated {
+        debug!("on_destroyed_entity: ship {entity:?} destroyed (id: {id}, type: {type_name})");
         // Persist the exact-once guard through the rest of this frame. This
         // also prevents neutralization detection from reporting a second
         // defeat if destruction and section loss converge in one update.
@@ -367,7 +374,7 @@ fn detach_destroyed_body(
         }
     }
 
-    debug!("detach_destroyed_body: {entity:?} left as {piece:?}");
+    trace!("detach_destroyed_body: {entity:?} left as {piece:?}");
     // Queued after the reparent, so the children are no longer descendants by
     // the time the recursive despawn reads them.
     commands.entity(entity).try_despawn();
