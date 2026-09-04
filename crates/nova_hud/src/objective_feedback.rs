@@ -1,14 +1,17 @@
 //! Objective change feedback: the objectives panel swaps text silently, so
 //! completions and new postings were easy to miss mid-flight. This module
-//! diffs [`GameObjectives`] by id each time it changes and answers with:
+//! diffs [`GameObjectives`] by id each time it changes and answers with one
+//! UI sound per change kind - `UiSfx::ObjectiveComplete` for removals,
+//! `UiSfx::ObjectiveNew` for additions, both non-positional one-shots.
 //!
-//! - a UI sound per change (UiSfx::ObjectiveComplete for removals,
-//!   UiSfx::ObjectiveNew for additions; non-positional one-shots), and
-//! - a transient "ghost" line for each completed objective: the finished
-//!   message in done-green, fading out over a couple of seconds. The
-//!   ghost is NOT a child of the bcs panel - rebuild_lines replaces the
-//!   panel's whole child set on every change and would despawn a ghost
-//!   mid-fade - so ghosts stack in their own absolute node beside it.
+//! Sound is ALL it owns. Everything the player SEES about an objective is the
+//! objective stack's chip at the top of the screen (`objective_stack`): it
+//! posts when the objective arrives and it leaves when the objective is done.
+//! This module used to draw a second cue of its own as well - a green "ghost"
+//! of the finished message, fading down its own column on the right - and it
+//! is gone. It repeated the line the player had already read, in a corner they
+//! were not looking at, while the chime and the chip leaving said the same
+//! thing at the top of the screen.
 //!
 //! GameObjectives is write-on-diff (nova_scenario's state_to_world), so
 //! `resource_changed` here means a REAL change, not the per-frame pulse.
@@ -16,15 +19,9 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 
-use super::HudTier;
-
-/// Width of the completion-ghost column (top-right). Kept local since the
-/// green completion ghosts still stack in that column.
-const GHOST_COLUMN_WIDTH_PX: f32 = 280.0;
-
-/// `ObjectiveFeedbackPlugin` and its ghost-line markers.
+/// `ObjectiveFeedbackPlugin`.
 pub mod prelude {
-    pub use super::{ObjectiveFeedbackPlugin, ObjectiveGhostLineMarker, ObjectiveGhostsHudMarker};
+    pub use super::ObjectiveFeedbackPlugin;
 }
 
 /// Feedback tunables, a resource for the inspector and a future settings
@@ -62,35 +59,11 @@ struct NewCueState {
 const OBJECTIVE_NEW_VOLUME: f32 = 0.30;
 const OBJECTIVE_COMPLETE_VOLUME: f32 = 0.38;
 
-/// How long a completed objective's ghost line lingers (seconds), fading
-/// linearly to zero alpha.
-const GHOST_FADE_SECS: f32 = 2.5;
-
-/// Done-green for the ghost line text.
-const GHOST_COLOR: Color = Color::srgba(0.4, 0.95, 0.5, 1.0);
-
-const GHOST_FONT_PX: f32 = 13.0;
-
-/// Marker for the ghost stack container (one, spawned with the plugin).
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct ObjectiveGhostsHudMarker;
-
-/// One fading completed-objective line; `age` drives the fade.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct ObjectiveGhostLineMarker {
-    /// Seconds since the line was posted; drives the alpha fade-out.
-    pub age: f32,
-    /// The line's full-alpha color; the fade only ramps alpha (green for
-    /// completions, objective gold for fresh postings).
-    pub base: Color,
-}
-
-/// Answers each [`GameObjectives`] change with feedback: a UI cue per
-/// completion/addition and a fading done-green ghost line per completed
-/// objective.
-/// Registers [`ObjectiveGhostLineMarker`]/[`ObjectiveFeedbackSettings`], inits
-/// those resources, spawns the ghost stack in Startup, and runs
-/// `objective_change_feedback`, `play_pending_new_cue` and `fade_ghost_lines`
+/// Answers each [`GameObjectives`] change with a UI cue per completion and
+/// per addition.
+///
+/// Registers [`ObjectiveFeedbackSettings`], inits it and the pending-cue
+/// state, and runs `objective_change_feedback` and `play_pending_new_cue`
 /// (chained) in Update within [`super::NovaHudSystems`].
 #[derive(Default)]
 pub struct ObjectiveFeedbackPlugin;
@@ -99,17 +72,14 @@ impl Plugin for ObjectiveFeedbackPlugin {
     fn build(&self, app: &mut App) {
         trace!("ObjectiveFeedbackPlugin: build");
 
-        app.register_type::<ObjectiveGhostLineMarker>();
         app.register_type::<ObjectiveFeedbackSettings>();
         app.init_resource::<ObjectiveFeedbackSettings>();
         app.init_resource::<NewCueState>();
-        app.add_systems(Startup, spawn_ghost_stack);
         app.add_systems(
             Update,
             (
                 objective_change_feedback.run_if(resource_changed::<GameObjectives>),
                 play_pending_new_cue,
-                fade_ghost_lines,
             )
                 .chain()
                 .in_set(super::NovaHudSystems),
@@ -117,28 +87,8 @@ impl Plugin for ObjectiveFeedbackPlugin {
     }
 }
 
-/// The ghost stack: an absolute column just below the objectives panel's
-/// anchor, independent of the bcs panel entity (whose children are
-/// replaced wholesale on every rebuild).
-fn spawn_ghost_stack(mut commands: Commands) {
-    commands.spawn((
-        Name::new("ObjectiveGhostsHUD"),
-        ObjectiveGhostsHudMarker,
-        HudTier::Chrome,
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Percent(58.0),
-            right: Val::Px(8.0),
-            width: Val::Px(GHOST_COLUMN_WIDTH_PX),
-            flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(2.0),
-            ..default()
-        },
-    ));
-}
-
 /// Diff the objective ids against the previous frame's list: removals are
-/// completions (sound + ghost line), additions are new postings (sound).
+/// completions, additions are new postings, and each kind gets its cue.
 /// The snapshot starts empty, so a scenario's opening objective plays the
 /// "new" cue once on load - correct, it IS new.
 fn objective_change_feedback(
@@ -147,25 +97,17 @@ fn objective_change_feedback(
     bank: Option<Res<SoundBank<UiSfx>>>,
     settings: Res<ObjectiveFeedbackSettings>,
     mut new_cue: ResMut<NewCueState>,
-    q_stack: Query<Entity, With<ObjectiveGhostsHudMarker>>,
     mut snapshot: Local<Vec<Objective>>,
-    q_ghost_lines: Query<Entity, With<ObjectiveGhostLineMarker>>,
 ) {
     // A transition to an EMPTY list is scenario teardown (death restart,
     // quit to menu - NovaEventWorld.clear() empties the resource), not a
-    // sweep of completions: dying must not play the success chime over
-    // green ghosts of the objectives you failed.
-    // Mid-scenario the list never empties - shakedown's final handler
-    // completes b5 and posts "done" in one action list.
+    // sweep of completions: dying must not play the success chime over the
+    // objectives you failed.
+    // Mid-scenario the list never empties - a chapter's final handler
+    // completes its last beat and posts "done" in one action list.
     if objectives.objectives.is_empty() {
         *snapshot = Vec::new();
         new_cue.pending = None;
-        // Live ghosts die with the scenario too: a line fading over the
-        // menu (or the next scenario's opening) is the same leak class as
-        // a surviving comms line (state-diff-aliases-reset).
-        for ghost in &q_ghost_lines {
-            commands.entity(ghost).try_despawn();
-        }
         return;
     }
 
@@ -173,9 +115,8 @@ fn objective_change_feedback(
         .iter()
         .filter(|old| !objectives.objectives.iter().any(|new| new.id == old.id))
         .collect();
-    // A posting's VISUAL is the objective stack's chip (`objective_stack`);
-    // this module only owns the audio cue for it and the green completion
-    // ghost.
+    // Both VISUALS are the objective stack's chip (`objective_stack`) - the
+    // posting and the completion alike. This module owns the audio only.
     let added = objectives
         .objectives
         .iter()
@@ -219,31 +160,6 @@ fn objective_change_feedback(
         }
     }
 
-    if let Ok(stack) = q_stack.single() {
-        // Completions fade green in the ghost column (the panel row itself
-        // rebuilds silently). Fresh postings no longer ghost here - they are
-        // the objective stack's chip.
-        for objective in &completed {
-            commands.entity(stack).with_children(|parent| {
-                parent.spawn((
-                    Name::new(format!("ObjectiveGhost {}", objective.id)),
-                    ObjectiveGhostLineMarker {
-                        age: 0.0,
-                        base: GHOST_COLOR,
-                    },
-                    Text::new(objective.message.clone()),
-                    TextFont::from_font_size(GHOST_FONT_PX),
-                    TextLayout {
-                        justify: Justify::Left,
-                        linebreak: LineBreak::WordBoundary,
-                    },
-                    TextColor(GHOST_COLOR),
-                    Pickable::IGNORE,
-                ));
-            });
-        }
-    }
-
     *snapshot = objectives.objectives.clone();
 }
 
@@ -271,23 +187,6 @@ fn play_pending_new_cue(
     }
 }
 
-/// Fade each ghost line's alpha with age and despawn it when spent.
-fn fade_ghost_lines(
-    time: Res<Time>,
-    mut commands: Commands,
-    mut q_ghosts: Query<(Entity, &mut ObjectiveGhostLineMarker, &mut TextColor)>,
-) {
-    for (ghost, mut marker, mut color) in &mut q_ghosts {
-        marker.age += time.delta_secs();
-        if marker.age >= GHOST_FADE_SECS {
-            commands.entity(ghost).try_despawn();
-            continue;
-        }
-        let alpha = 1.0 - marker.age / GHOST_FADE_SECS;
-        color.0 = marker.base.with_alpha(alpha);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -298,13 +197,11 @@ mod tests {
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveFeedbackSettings>();
         app.init_resource::<NewCueState>();
-        app.add_systems(Startup, spawn_ghost_stack);
         app.add_systems(
             Update,
             (
                 objective_change_feedback.run_if(resource_changed::<GameObjectives>),
                 play_pending_new_cue,
-                fade_ghost_lines,
             )
                 .chain(),
         );
@@ -396,81 +293,67 @@ mod tests {
         assert_eq!(counts(&app), (1, 2), "the blip plays after the delay");
     }
 
-    /// A completed objective leaves a fading ghost of its message; the
-    /// fade despawns it. The still-active objective leaves no ghost
-    /// (delivery guard: the diff must key on REMOVAL, not any change).
+    /// A completion chimes and a still-active objective does not. Delivery
+    /// guard: the diff must key on REMOVAL, not on any change to the list.
     #[test]
-    fn completing_an_objective_spawns_a_fading_ghost() {
-        use core::time::Duration;
-
-        use bevy::time::TimeUpdateStrategy;
-
-        let mut app = feedback_app();
-        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
-            0.2,
-        )));
+    fn completing_an_objective_chimes_and_the_others_stay_quiet() {
+        let mut app = sfx_app();
 
         app.world_mut().resource_mut::<GameObjectives>().objectives = vec![
             Objective::new("b1", "Burn for Beacon 1"),
             Objective::new("b2", "Find Beacon 2"),
         ];
         app.update();
-        app.update();
-
-        // A fresh posting is the objective stack's chip, NOT a gold ghost line -
-        // so the ghost column stays empty on a posting.
         assert_eq!(
-            ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
+            app.world().resource::<CueCounts>().complete,
             0,
-            "postings no longer ghost gold - they post a chip instead"
+            "posting two objectives is not completing one"
         );
-        assert_eq!(ghosts_by(&mut app, GHOST_COLOR), 0, "no completions yet");
 
         // Complete b1 (remove it), keep b2.
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b2", "Find Beacon 2")];
         app.update();
-
         assert_eq!(
-            ghosts_by(&mut app, GHOST_COLOR),
+            app.world().resource::<CueCounts>().complete,
             1,
-            "the completed objective ghosts green"
-        );
-        let mut q = app
-            .world_mut()
-            .query_filtered::<&Text, With<ObjectiveGhostLineMarker>>();
-        let text = q.single(app.world()).unwrap();
-        assert_eq!(
-            text.0, "Burn for Beacon 1",
-            "the ghost shows the DONE message"
-        );
-
-        // Ride out the fade: the ghost despawns.
-        for _ in 0..20 {
-            app.update();
-        }
-        assert_eq!(
-            ghosts_by(&mut app, GHOST_COLOR),
-            0,
-            "the ghost fades out and despawns"
+            "the completed objective chimes once"
         );
     }
 
-    /// Count live ghost lines by their base color (gold = posting flash,
-    /// green = completion).
-    fn ghosts_by(app: &mut App, base: Color) -> usize {
-        let mut q = app.world_mut().query::<&ObjectiveGhostLineMarker>();
-        q.iter(app.world()).filter(|m| m.base == base).count()
+    /// The completion is the objective stack's chip and nothing else. This
+    /// module drew a second one for a while - a green ghost of the finished
+    /// message, fading down its own column on the right - and it is gone: it
+    /// said what the chip already says, somewhere the player is not looking.
+    /// Nothing here spawns UI.
+    #[test]
+    fn a_completion_draws_nothing_of_its_own() {
+        let mut app = feedback_app();
+
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b1", "Burn for Beacon 1")];
+        app.update();
+        app.world_mut().resource_mut::<GameObjectives>().objectives =
+            vec![Objective::new("b2", "Find Beacon 2")];
+        app.update();
+
+        let mut q = app.world_mut().query::<&Text>();
+        assert_eq!(
+            q.iter(app.world()).count(),
+            0,
+            "objective feedback spawned text of its own - the chip is the only \
+             visual a completion gets"
+        );
     }
 
     /// Scenario teardown empties GameObjectives (death restart, quit to
     /// menu): that transition is a silent reset, NOT a sweep of
-    /// completions - no ghosts (and no chime) for objectives the player
-    /// failed. Delivery guard: a real single completion right after the
-    /// reset still ghosts, proving the snapshot re-armed.
+    /// completions - no chime for objectives the player failed. Delivery
+    /// guard: a real single completion right after the reset still chimes,
+    /// proving the snapshot re-armed.
     #[test]
     fn teardown_to_empty_is_a_silent_reset() {
-        let mut app = feedback_app();
+        let mut app = sfx_app();
 
         app.world_mut().resource_mut::<GameObjectives>().objectives = vec![
             Objective::new("b1", "Burn for Beacon 1"),
@@ -481,22 +364,13 @@ mod tests {
         // Teardown: the whole list empties at once.
         app.world_mut().resource_mut::<GameObjectives>().objectives = Vec::new();
         app.update();
-
-        let total = |app: &mut App| -> usize {
-            let mut q = app
-                .world_mut()
-                .query_filtered::<(), With<ObjectiveGhostLineMarker>>();
-            q.iter(app.world()).count()
-        };
         assert_eq!(
-            total(&mut app),
+            app.world().resource::<CueCounts>().complete,
             0,
-            "dying must not celebrate the failed objectives (postings no longer \
-             ghost - a posting is the objective stack's chip)"
+            "dying must not celebrate the objectives it failed"
         );
 
-        // The restarted run behaves normally: post one (chip, no ghost),
-        // complete it (green ghost).
+        // The restarted run behaves normally: post one, complete it.
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b1", "Burn for Beacon 1")];
         app.update();
@@ -504,17 +378,17 @@ mod tests {
             vec![Objective::new("b2", "Find Beacon 2")];
         app.update();
         assert_eq!(
-            ghosts_by(&mut app, GHOST_COLOR),
+            app.world().resource::<CueCounts>().complete,
             1,
-            "a real completion after the reset still ghosts green"
+            "a real completion after the reset still chimes"
         );
     }
 
     /// A tally swap (complete + re-add of the SAME id in one change) is
-    /// not a completion: same id present before and after means no ghost.
+    /// not a completion: same id present before and after means no chime.
     #[test]
-    fn a_message_swap_of_the_same_id_leaves_no_ghost() {
-        let mut app = feedback_app();
+    fn a_message_swap_of_the_same_id_is_not_a_completion() {
+        let mut app = sfx_app();
 
         app.world_mut().resource_mut::<GameObjectives>().objectives =
             vec![Objective::new("b3", "Crates: 0/3")];
@@ -524,14 +398,9 @@ mod tests {
         app.update();
 
         assert_eq!(
-            ghosts_by(&mut app, GHOST_COLOR),
+            app.world().resource::<CueCounts>().complete,
             0,
             "same-id message swaps are progress, not completion"
-        );
-        assert_eq!(
-            ghosts_by(&mut app, super::super::OBJECTIVE_GOLD),
-            0,
-            "postings no longer make gold ghosts (they post a chip)"
         );
         // The same-id swap is not a fresh posting either way; the chip it
         // re-posts is `objective_stack`'s business (and its own tests').

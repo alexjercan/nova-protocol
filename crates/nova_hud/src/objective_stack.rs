@@ -244,8 +244,9 @@ impl Plugin for ObjectiveStackPlugin {
 /// chips whose objective is gone.
 ///
 /// A removed objective is completed or cleared: its chip leaves rather than
-/// re-posting, because the completion cue is `objective_feedback`'s green ghost
-/// and a chip for an objective that no longer exists would be stale text.
+/// re-posting, because a chip for an objective that no longer exists would be
+/// stale text. The chip going, with `objective_feedback`'s chime under it, IS
+/// the completion cue.
 /// Emptying the feed entirely is scenario teardown, which resets the whole
 /// stack (`state-diff-aliases-reset`, like the comms panel).
 fn post_objective_notifications(

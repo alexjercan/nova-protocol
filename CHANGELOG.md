@@ -65,6 +65,9 @@ does NOT get an entry - and it is the only place they are written down.
   trading fire past the frame edge.
 
 ### Interface & HUD
+- A completed objective no longer ghosts green down the right of the screen.
+  Its chip leaving the top of the stack, under the completion chime, is the
+  whole cue.
 - A railgun carries the same ammo gauge as a turret or a bay, drawn in the
   slug's pierce blue, so a spent shell and its long reload read at a glance.
 - With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
