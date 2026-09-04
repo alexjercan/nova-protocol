@@ -4,6 +4,11 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 const HtmlPartialsPlugin = require("./webpack-partials");
 const CopyPlugin = require("copy-webpack-plugin");
 const { docPage, newsPostPage } = require("./markdown");
+const {
+    discoverComics,
+    comicIndexPage,
+    comicReaderPage,
+} = require("./comic-build");
 const { DOC_SECTIONS } = require("./src/docs-manifest");
 const getPort = require("get-port");
 
@@ -12,6 +17,7 @@ const getPort = require("get-port");
 // the subpath. The Bevy game is published as a sibling of these pages at
 // `<PUBLIC_PATH>play/` (built separately by Trunk); the "Play" links point there.
 const publicPath = process.env.PUBLIC_PATH || "/";
+const COMICS = discoverComics();
 
 // One HtmlWebpackPlugin per page. `filename` with a trailing `index.html` gives
 // clean directory URLs (/news/, /wiki/, ...). `basePath` is read by the
@@ -266,6 +272,7 @@ module.exports = async (env, argv) => {
             index: "./src/index.ts",
             docs: "./src/docs.ts",
             news: "./src/news.ts",
+            story: "./src/story.ts",
         },
         output: {
             path: path.resolve(__dirname, "dist"),
@@ -279,6 +286,8 @@ module.exports = async (env, argv) => {
             page("docs", "src/wiki.html", "wiki/index.html"),
             ...DOC_SECTIONS.flatMap(sectionDocPages),
             page("news", "src/news.html", "news/index.html"),
+            comicIndexPage(COMICS, publicPath),
+            ...COMICS.map((comic) => comicReaderPage(comic, publicPath)),
             ...NEWS_POSTS.map(newsPage),
             ...REDIRECTS.map(redirectPage),
             new CopyPlugin({
@@ -413,6 +422,11 @@ module.exports = async (env, argv) => {
                         to: "/news/" + slug + "/index.html",
                     })),
                     { from: /^\/news/, to: "/news/index.html" },
+                    ...COMICS.map((comic) => ({
+                        from: new RegExp(`^/story/${comic.path}`),
+                        to: `/story/${comic.path}/index.html`,
+                    })),
+                    { from: /^\/story/, to: "/story/index.html" },
                     // Retired sections: the physical redirect stubs under
                     // dist/blog|changelog are served directly; these fallbacks catch
                     // any sub-path that misses a stub and bounce it to the index.

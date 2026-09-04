@@ -32,6 +32,42 @@ Ledger becomes the deliberately different Kenney-GLB showcase mod.
   base block racer instead of adding a campaign-mod dependency.
 - Use the v0.12.0 scenario primitives such as `Sequence` and `once`, not new
   hand-rolled handler cascades.
+- Define the complete mainline story, actors, faction motives, revelations, and
+  ending before authoring later chapters or final dialogue.
+- Keep research summaries, story diagnosis, and the revisable campaign bible
+  under this task. Record techniques and citations, never copied source text.
+- Publish story work from the start under the website's `/story/` section.
+  Its index lists campaigns like the News archive. Each campaign opens a
+  full-screen digital-HUD comic reader. Each responsive page fits completely
+  inside the available screen. Wheel, touch, arrow/Page keys, previous/next
+  controls, and contents links all move by one snapped page rather than
+  scrolling through part of a page. The reader also carries a page counter, a
+  contents drawer, and one Exit Campaign link back to the archive. The ordinary site header and footer stay outside the reader.
+  Keep story separate from the reference
+  wiki, then link accepted lore into campaign-specific wiki pages as the full
+  storyline stabilizes.
+- Treat HTML and SVG as web presentation, not base-mod runtime assets. A future
+  in-game encyclopedia should use campaign-owned lore data rather than parse the
+  website.
+- Give each comic one `web/src/comics/<path>/comic.json`; its directory path is
+  its catalog key and URL, with no global registry or duplicated slug. The JSON
+  owns metadata, chapters, page order, and TypeScript source modules.
+- Author pages through a typed function DSL (`comicPage`, `panel`, `speech`,
+  `svg`, `svgText`, and related helpers). Page modules never name CSS classes.
+  A shared renderer turns their safe node trees into DOM, and a campaign-agnostic
+  `ComicPlayer` owns fitting, playback, controls, contents, deep links, and
+  resize alignment.
+
+## Story design workspace
+
+- [`research/STORY_BIBLE.md`](research/STORY_BIBLE.md): accepted facts, cast,
+  setting, and unresolved decisions.
+- [`research/CAMPAIGN_OUTLINE.md`](research/CAMPAIGN_OUTLINE.md): the complete
+  chapter spine as it develops.
+- [`research/SCENE_DIAGNOSIS.md`](research/SCENE_DIAGNOSIS.md): what the two
+  implemented chapters currently deliver and where they are weak.
+- [`research/INSPIRATION.md`](research/INSPIRATION.md): focused source reviews,
+  techniques, and originality boundaries.
 
 ## Phase 1: campaign design
 
@@ -1046,3 +1082,23 @@ Expanded the regression proof from the two planetoids to every rock that the
 runtime promotes to a well, and included all three salvage objectives. Raised
 the default and First Shift beacon signatures from their 6/9 km ranges to 12 km;
 every prescribed lock leg now has a range proof from its preceding goal.
+
+### 2026-09-04: Public comic player foundation
+
+Added the public Story archive and a full-screen digital-HUD comic reader. Each
+comic now owns one path-indexed `web/src/comics/<path>/comic.json`; the build
+discovers those manifests, validates unique ids, TypeScript page sources and
+cover assets, generates archive cards and campaign routes, and embeds the
+ordered definition in one generic shell.
+
+`ComicPlayer` is campaign-agnostic. It receives rendered page elements and owns
+wheel, touch, keyboard, previous/next, contents, progress and deep-link state.
+It displays exactly one fitted page at a time, so a page never shares the screen
+with either neighbour. Five Nova Protocol page modules exercise the typed
+function DSL and shared renderer, including external SVG assets and safe inline
+SVG primitives. No page module names a CSS class.
+
+Proof: web format, lint, tests and build pass, including path discovery and
+manifest-order tests. The generated cover and First Shift page were inspected at
+1440x900 and 390x844; each fills one reader viewport with no adjacent page
+visible. All bounded preview servers were stopped by recorded PID.

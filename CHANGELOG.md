@@ -209,6 +209,8 @@ does NOT get an entry - and it is the only place they are written down.
   this build reads them as meters.
 
 ### Web & Platform
+- The site gets a spoiler-marked Story archive. Campaigns open as full-screen
+  digital HUD comics with fitted pages, contents, progress, and snapped page controls.
 - The wiki gets a Railgun page - the commit and its one way out, what a slug
   rakes through, the recoil and the tempo - and the dev book gets the railgun's
   charge cycle, its sight and its AI envelope.

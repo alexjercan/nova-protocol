@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Second Shift visual chapter board</title>
+  <desc id="desc">Cutter One searches Meridian wreckage among asteroids as five red search lanes enter the field.</desc>
+  <defs>
+    <radialGradient id="space" cx="45%" cy="50%" r="75%"><stop offset="0" stop-color="#082719"/><stop offset=".6" stop-color="#021008"/><stop offset="1" stop-color="#010604"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#36ff79" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1600" height="900" fill="url(#space)"/><rect width="1600" height="900" fill="url(#grid)"/>
+  <g fill="#26362f" stroke="#19a64f" stroke-opacity=".35" stroke-width="2">
+    <path d="m130 220 90-65 100 40 28 115-105 68-115-42Z"/><path d="m460 570 80-98 130 38 35 105-98 85-130-28Z"/><path d="m925 185 75-60 110 25 34 92-75 73-120-27Z"/><path d="m1180 600 100-76 125 48 20 105-90 74-135-33Z"/><path d="m710 285 55-45 76 20 18 62-52 47-82-18Z"/>
+  </g>
+  <g stroke="#36ff79" stroke-width="4" fill="#071b10">
+    <path d="m290 455 155-45 70 35-165 50Z"/><path d="m570 205 120 24-35 70-138-18Z"/><path d="m690 615 155-50 60 55-175 62Z"/><path d="m1020 455 170-42 55 42-175 55Z"/>
+    <path d="m505 390 250-80 210 95-265 90Z" fill="none" stroke-dasharray="25 16" opacity=".55"/>
+  </g>
+  <g fill="#ffb84a" stroke="#ffb84a" filter="url(#glow)"><circle cx="520" cy="415" r="9"/><circle cx="800" cy="440" r="9"/><circle cx="1110" cy="475" r="9"/></g>
+  <g transform="translate(280 690) rotate(-8)" stroke="#36ff79" stroke-width="3">
+    <path d="m0 42 70-32 150 10 65 45-80 28-145-8Z" fill="#0b301c"/><path d="M8 48-70 70" stroke="#36a3ff" stroke-width="12" filter="url(#glow)"/>
+  </g>
+  <g fill="none" stroke="#ff4e42" stroke-width="4" stroke-dasharray="20 18" opacity=".75">
+    <path d="M1590 100 970 420 320 610"/><path d="M1590 210 1100 470 560 560"/><path d="M1590 330 1180 520 720 390"/><path d="M1590 450 1210 600 820 675"/><path d="M1590 570 1340 680 1010 610"/>
+  </g>
+  <g fill="#ff4e42" filter="url(#glow)"><circle cx="1510" cy="140" r="7"/><circle cx="1510" cy="250" r="7"/><circle cx="1510" cy="365" r="7"/><circle cx="1510" cy="480" r="7"/><circle cx="1510" cy="595" r="7"/></g>
+  <text x="70" y="90" fill="#b9ffc9" font-family="monospace" font-size="27" letter-spacing="10">THE SAME BELT / ONE HOUR LATER</text>
+  <text x="70" y="825" fill="#36ff79" font-family="monospace" font-size="24" letter-spacing="8">THREE RECORDERS</text>
+  <text x="1090" y="825" fill="#ff4e42" font-family="monospace" font-size="24" letter-spacing="8">FIVE SEARCHERS</text>
+</svg>

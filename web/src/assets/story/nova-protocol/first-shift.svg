@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">First Shift visual chapter board</title>
+  <desc id="desc">A small cutter crosses an asteroid field below Meridian while a large angular warship emerges behind a planetoid.</desc>
+  <defs>
+    <radialGradient id="space" cx="52%" cy="40%" r="75%">
+      <stop offset="0" stop-color="#073219"/>
+      <stop offset="0.55" stop-color="#03150b"/>
+      <stop offset="1" stop-color="#010604"/>
+    </radialGradient>
+    <radialGradient id="body" cx="35%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#53615b"/>
+      <stop offset="0.5" stop-color="#202b26"/>
+      <stop offset="1" stop-color="#050907"/>
+    </radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="grid" width="80" height="80" patternUnits="userSpaceOnUse"><path d="M80 0H0V80" fill="none" stroke="#36ff79" stroke-opacity=".035"/></pattern>
+  </defs>
+  <rect width="1600" height="900" fill="url(#space)"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+  <g fill="#b9ffc9" opacity=".45">
+    <circle cx="115" cy="130" r="2"/><circle cx="310" cy="90" r="1.5"/><circle cx="560" cy="160" r="2"/><circle cx="910" cy="95" r="1.5"/><circle cx="1440" cy="170" r="2"/><circle cx="1320" cy="650" r="1.5"/><circle cx="220" cy="720" r="2"/>
+  </g>
+  <circle cx="1290" cy="360" r="255" fill="url(#body)" stroke="#19a64f" stroke-opacity=".35" stroke-width="3"/>
+  <path d="M1170 170c120 40 205 140 235 258" fill="none" stroke="#36ff79" stroke-opacity=".18" stroke-width="3" stroke-dasharray="16 20"/>
+  <g transform="translate(235 295)" stroke="#36ff79" stroke-width="4">
+    <path d="M0 105 170 38h410l170 67-170 67H170Z" fill="#092817"/>
+    <path d="M125 75v60M235 55v100M350 48v114M465 55v100M580 75v60" opacity=".55"/>
+    <rect x="278" y="0" width="190" height="210" fill="#06160d"/>
+    <path d="M300 25h145M300 185h145" stroke="#ffb84a" stroke-width="8"/>
+    <g fill="#ffb84a" stroke="none" filter="url(#glow)"><circle cx="40" cy="105" r="6"/><circle cx="710" cy="105" r="6"/></g>
+  </g>
+  <text x="245" y="535" fill="#19a64f" font-family="monospace" font-size="25" letter-spacing="8">ICV MERIDIAN</text>
+  <g transform="translate(730 610) rotate(-8)" stroke="#36ff79" stroke-width="3">
+    <path d="m0 42 70-32 150 10 65 45-80 28-145-8Z" fill="#0b301c"/>
+    <path d="M65 25 40 0M185 35l25-32"/>
+    <path d="M8 48-70 70" stroke="#36a3ff" stroke-width="12" filter="url(#glow)"/>
+  </g>
+  <text x="735" y="755" fill="#36ff79" font-family="monospace" font-size="22" letter-spacing="7">CUTTER ONE</text>
+  <g transform="translate(1190 280) rotate(-12)" stroke="#ff4e42" stroke-width="4">
+    <path d="M0 70 180 12l230 58-230 58Z" fill="#200b0a"/>
+    <path d="m165 47 245 23-245 23M70 55v30"/>
+    <circle cx="395" cy="70" r="7" fill="#ff4e42" filter="url(#glow)"/>
+  </g>
+  <path d="M1190 350 675 370" stroke="#36a3ff" stroke-width="7" stroke-dasharray="50 18" opacity=".75" filter="url(#glow)"/>
+  <g fill="#ffb84a" filter="url(#glow)"><circle cx="1070" cy="405" r="7"/><circle cx="1030" cy="430" r="7"/><circle cx="990" cy="455" r="7"/><circle cx="950" cy="480" r="7"/></g>
+  <text x="70" y="90" fill="#b9ffc9" font-family="monospace" font-size="27" letter-spacing="10">ROUTINE / RELEASED</text>
+  <text x="965" y="820" fill="#ff4e42" font-family="monospace" font-size="27" letter-spacing="9">NO FLEET CODE</text>
+</svg>

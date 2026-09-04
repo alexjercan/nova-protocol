@@ -1021,6 +1021,29 @@ Adding a post touches three places (mirror an existing post such as
    otherwise the `.post-card__ph` placeholder naming `assets/thumb-news-<version>.png`.
 4. Rebuild and check it: `cd web && npm run ci` (format check, lint, test, build).
 
+### Writing a story comic
+
+Each public comic owns `web/src/comics/<path>/comic.json`. The directory path
+is both its catalog key and `/story/<path>/` URL; there is no global registry or
+`slug` field. The manifest owns the archive metadata, chapters, page order, and
+the relative TypeScript module for every page. Webpack discovers these manifests
+and fails on invalid or duplicate ids, missing page modules, and missing cover
+art.
+
+A page module exports one `ComicPage` built from the typed helpers in
+`web/src/comics/comic-page.ts`. Use `comicPage`, `chapterHeader`, `grid`,
+`panel`, `speech`, `caption`, `svgAsset`, and the safe inline-SVG primitives.
+Do not name reader CSS classes in a page. `comic-renderer.ts` owns DOM and class
+selection; `ComicPlayer` in `story-reader.ts` owns fitted-page playback,
+contents, controls, deep links, and input. Adding a comic therefore needs only
+its directory, manifest, TypeScript page modules, and
+`web/src/assets/story/<path>/` art.
+
+Run `cd web && npm run ci`, then inspect the generated archive and reader at a
+desktop and narrow viewport. A reader displays exactly one complete page; wheel,
+touch, arrow/Page keys, controls, and contents links replace that page rather
+than partially scrolling it.
+
 ## Contributing a change
 
 The everyday loop for landing a change:

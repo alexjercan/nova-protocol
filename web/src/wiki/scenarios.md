@@ -30,6 +30,8 @@ The full construct catalog - every event, filter and action by name, with its fi
 - **Second Shift** - chapter two: the same belt an hour later, and the Meridian is a debris field. Recover three recorders out of the wreck while a five-ship cleanup group sweeps it for the same evidence. They fly real patrol lanes with short eyes, so rock between you and a lane is cover; being seen does not end the run, it costs you the quiet way home.
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (two corvettes dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
+The public [Story](../../story/) archive presents campaigns as digital comics with page controls and a contents display. It contains full spoilers; play the chapters first if you want to meet the warship with Cutter One.
+
 ## Browsing and replaying scenarios
 
 <figure class="figure">

@@ -1,0 +1,46 @@
+{
+    "title": "Nova Protocol",
+    "summary": "An industrial work crew survives the destruction of its carrier and returns for the evidence before a cleanup group can erase it.",
+    "status": "Record incomplete",
+    "cover": "first-shift.svg",
+    "coverAlt": "Cutter One below Meridian as an unidentified warship emerges.",
+    "chapters": [
+        {
+            "id": "first-shift",
+            "title": "Chapter 01 // First Shift",
+            "pages": [
+                {
+                    "id": "cover",
+                    "title": "Cover",
+                    "source": "pages/cover"
+                },
+                {
+                    "id": "released",
+                    "title": "Released",
+                    "source": "pages/released"
+                },
+                {
+                    "id": "no-fleet-code",
+                    "title": "No fleet code",
+                    "source": "pages/no-fleet-code"
+                }
+            ]
+        },
+        {
+            "id": "second-shift",
+            "title": "Chapter 02 // Second Shift",
+            "pages": [
+                {
+                    "id": "the-same-belt",
+                    "title": "The same belt",
+                    "source": "pages/the-same-belt"
+                },
+                {
+                    "id": "the-record",
+                    "title": "The record",
+                    "source": "pages/the-record"
+                }
+            ]
+        }
+    ]
+}
