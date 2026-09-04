@@ -811,3 +811,20 @@ Proof: 18 focused First Shift tests pass, including a pin that the pickup sphere
 encloses the rotating crate with at most 2.1 m tolerance. The salvage example
 compiles, generated content lint reports 0 errors, 0 warnings and 0 findings,
 and `git diff --check` is clean.
+
+### 2026-09-04: First Shift playtest revision, step 7 fixed corridors
+
+Added a conservative corridor check for every GOTO leg with an authored start:
+second crate to TRANSIT 1, TRANSIT 1 to TRANSIT 2, and the last crate to the
+Meridian hold. Each segment must clear both planetoids and every shared-stage
+rock by the worst-case mesh radius, Cutter's 55 m hull sphere, and another 100 m
+of flight margin.
+
+The new check failed on the first leg: it passed 354 m from the nearby plate
+rock against a required 365 m envelope. Moving TRANSIT 1 southwest from
+(-1600, 100, -3600) m to (-1400, 100, -4000) m clears that rock and preserves
+the next corridor. All temporary marks also remain outside both gravity wells.
+The planetoid approach is manual rather than a GOTO. The orbit-to-work leg has
+no fixed start until step 8 gives the full orbit an authored departure angle;
+that integration remains with the orbit revision rather than pretending an
+arbitrary orbit point is a proved route.

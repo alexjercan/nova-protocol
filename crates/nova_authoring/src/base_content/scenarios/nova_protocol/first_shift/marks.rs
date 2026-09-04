@@ -160,13 +160,15 @@ pub(super) const TRIM_ROUTE_CENTRE: Meters3 = Meters3::new(-350.0, 190.0, 900.0)
 /// Wide rear-quarter briefing pose: Cutter and the complete box remain in view.
 pub(super) const CINEMA_TRIM_OFFSET: Meters3 = Meters3::new(450.0, 300.0, 650.0);
 
-/// The first transit mark: the leg LOCK and GOTO are taught on, out west of
-/// the plate in clear space. Sized for the autopilot, which parks 500 m short
-/// of an unsized target, and lit on radar so there is something to lock.
+/// The first transit mark: the leg LOCK and GOTO are taught on, southwest of
+/// the plate in clear space. Its southern offset keeps the direct leg from the
+/// second crate outside the nearby rock's worst-case mesh, Cutter's 55 m hull
+/// sphere, and 100 m of authored flight margin. It is sized for autopilot and
+/// lit on radar so there is something to lock.
 pub(super) const TRANSIT_ONE: TempMark = TempMark {
     id: "transit_mark_one",
     label: "TRANSIT 1",
-    position: Meters3::new(-1_600.0, 100.0, -3_600.0),
+    position: Meters3::new(-1_400.0, 100.0, -4_000.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };

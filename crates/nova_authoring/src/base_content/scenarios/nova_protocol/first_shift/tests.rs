@@ -604,6 +604,52 @@ fn the_hold_frames_the_set_piece_without_standing_in_it() {
     }
 }
 
+/// Every fixed GOTO corridor authored for Cutter clears the complete shared
+/// stage. The direct autopilot has no obstacle avoidance, so the route owns a
+/// conservative 55 m Cutter sphere plus 100 m of flight margin beyond every
+/// worst-case rock mesh.
+#[test]
+fn every_fixed_cutter_goto_corridor_clears_the_stage() {
+    const CUTTER_RADIUS: f32 = 55.0;
+    const FLIGHT_MARGIN: f32 = 100.0;
+    let bodies: Vec<(Meters3, Meters)> = stage::SALVAGE_ROCKS
+        .into_iter()
+        .chain(stage::AMBIENT_ROCKS)
+        .chain([
+            (stage::INSPECTION_POS, stage::INSPECTION_RADIUS),
+            (stage::CONCEALMENT_POS, stage::CONCEALMENT_RADIUS),
+        ])
+        .collect();
+    let legs = [
+        (
+            "second crate to transit 1",
+            CRATE_POSITIONS[1],
+            TRANSIT_ONE.position,
+        ),
+        (
+            "transit 1 to transit 2",
+            TRANSIT_ONE.position,
+            TRANSIT_TWO.position,
+        ),
+        (
+            "last crate to Meridian hold",
+            CRATE_POSITIONS[2],
+            HOME_MARK.position,
+        ),
+    ];
+    for (name, from, to) in legs {
+        for (body, radius) in &bodies {
+            let separation = distance_to_segment(*body, from, to);
+            let required = radius.0 * ASTEROID_GEOMETRIC_FACTOR_MAX + CUTTER_RADIUS + FLIGHT_MARGIN;
+            assert!(
+                separation > required,
+                "Cutter's '{name}' corridor passes {separation:.0} m from the \
+                 body at {body:?}, inside its {required:.0} m flight envelope"
+            );
+        }
+    }
+}
+
 /// Every leg the warship is ordered to fly is FLYABLE. A `MoveShipTo` is a
 /// straight line with no avoidance of its own, so a mark on the far side of a
 /// body is a hull grinding into it - which is how the warship used to die on

@@ -2251,9 +2251,9 @@
                                             id: "transit_mark_one",
                                             name: "TRANSIT 1",
                                             position: (
-                                                -1600.0,
+                                                -1400.0,
                                                 100.0,
-                                                -3600.0,
+                                                -4000.0,
                                             ),
                                             rotation: (
                                                 0.0,
