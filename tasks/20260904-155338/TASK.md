@@ -1,6 +1,6 @@
 # Find the railgun impact spike on a big hull
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 66
 - TAGS: v0.13.0, performance, combat
 
