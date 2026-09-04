@@ -264,6 +264,7 @@ pub(crate) fn event_label(name: EventConfig) -> &'static str {
         EventConfig::OnStopComplete => "On STOP Complete",
         EventConfig::OnOrbitStart => "On Orbit Start",
         EventConfig::OnOrbitStable => "On Orbit Stable",
+        EventConfig::OnOrbitLap => "On Orbit Lap",
         EventConfig::OnOrbitUnstable => "On Orbit Unstable",
         EventConfig::OnOrbitEnd => "On Orbit End",
         EventConfig::OnTravelLockStart => "On Travel Lock",

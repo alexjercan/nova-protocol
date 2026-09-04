@@ -105,7 +105,7 @@ impl FirstShiftScenes {
             rcs: Self::take_exact(&mut events, 5, "RCS"),
             salvage: Self::take_exact(&mut events, 2, "salvage"),
             navigation: Self::take_exact(&mut events, 3, "navigation"),
-            orbit: Self::take_exact(&mut events, 6, "orbit"),
+            orbit: Self::take_exact(&mut events, 5, "orbit"),
             return_to_carrier: Self::take_exact(&mut events, 1, "return"),
             attack_approach: Self::take_exact(&mut events, 3, "attack approach"),
             attack_salvo: Self::take_exact(&mut events, 1, "attack salvo"),
@@ -227,8 +227,10 @@ const BEAT_GOTO: f64 = 7.0;
 const BEAT_TRANSIT: f64 = 8.0;
 /// The crew's detour: fly to the survey body.
 const BEAT_DETOUR: f64 = 9.0;
-/// Hold the ring.
+/// Hold the ring through one complete revolution.
 const BEAT_ORBIT: f64 = 10.0;
+/// The lap is complete; continue to the Meridian-facing departure angle.
+const BEAT_ORBIT_RETURN_VIEW: f64 = 10.5;
 /// Back to the plate, on the Meridian's orders.
 const BEAT_RETURN: f64 = 11.0;
 /// Working the last crate.
@@ -255,10 +257,6 @@ const BEAT_WON: f64 = 17.0;
 const OPEN_FIRST_AT: f64 = 2.0;
 const OPEN_GAP: f64 = 5.0;
 
-/// How long the ring must hold before the detour counts as flown. Long enough
-/// that the orbit is a thing the crew DID rather than a box that ticked, and
-/// long enough to say three lines over while the workload is nothing.
-const ORBIT_HOLD_SECS: f64 = 13.0;
 /// The crew's lines during the hold, from the moment the ring goes stable.
 const ORBIT_TALK_FIRST_AT: f64 = 3.0;
 const ORBIT_TALK_GAP: f64 = 4.5;
@@ -300,7 +298,6 @@ const SEQ_PLUME: &str = "plume";
 const SEQ_EMERGING: &str = "emerging";
 const SEQ_CLOSING: &str = "closing";
 const SEQ_SALVO: &str = "salvo";
-const TIMER_ORBIT_HOLD: &str = "orbit_hold";
 const ORDER_EMERGE: &str = "warship_emerge";
 const ORDER_APPROACH: &str = "warship_approach";
 const ORDER_ALIGN: &str = "warship_align";
@@ -405,6 +402,17 @@ fn approach_ring() -> EventActionConfig {
         position: stage::INSPECTION_POS,
         rotation: Quat::IDENTITY,
         radius: APPROACH_RING_RADIUS,
+    })
+}
+
+/// Invisible near-side gate where Meridian regains direct sight of Cutter.
+fn orbit_return_gate() -> EventActionConfig {
+    EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+        id: ID_ORBIT_RETURN_GATE.to_string(),
+        name: "Orbit Return Gate".to_string(),
+        position: ORBIT_RETURN_GATE_POS,
+        rotation: Quat::IDENTITY,
+        radius: ORBIT_RETURN_GATE_RADIUS,
     })
 }
 
@@ -912,25 +920,42 @@ pub(crate) fn first_shift(
                     ),
                 ],
             },
-            // The hold: stable station-keeping starts the clock and the crew's one
-            // unguarded conversation; losing the ring or ending the orbit cancels
-            // the clock, so only one continuous hold finishes the detour.
-            orbit_watch(EventConfig::OnOrbitStable, true),
-            orbit_watch(EventConfig::OnOrbitUnstable, false),
-            orbit_watch(EventConfig::OnOrbitEnd, false),
-            // And the Meridian, which has been watching the whole thing, sends them
-            // back to the job they left.
+            // Stable station-keeping opens the crew's one unguarded
+            // conversation. Progress itself comes from physical angular travel.
+            orbit_conversation(),
+            // One complete stable revolution arms a near-side gate. Because the
+            // lap began behind the body, Cutter must continue another half-turn
+            // before Meridian has direct sight again.
             ScenarioEventConfig {
                 label: None,
-                name: EventConfig::OnTimerEnd,
+                name: EventConfig::OnOrbitLap,
                 once: true,
-                filters: vec![timer(TIMER_ORBIT_HOLD), number_equals(VAR_BEAT, BEAT_ORBIT)],
+                filters: vec![
+                    cutter_enters(stage::ID_INSPECTION),
+                    number_equals(VAR_BEAT, BEAT_ORBIT),
+                ],
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_ORBIT_RETURN_VIEW)),
+                    orbit_return_gate(),
+                ],
+            },
+            // Meridian calls only after Cutter crosses the facing side of the
+            // orbit, then sends the crew back to the paid work they left.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnEnter,
+                once: true,
+                filters: vec![
+                    cutter_enters(ID_ORBIT_RETURN_GATE),
+                    number_equals(VAR_BEAT, BEAT_ORBIT_RETURN_VIEW),
+                ],
                 actions: vec![
                     set_variable(VAR_BEAT, number(BEAT_RETURN)),
                     complete_objective(OBJ_ORBIT),
                     clear_hint_emphasis("ORBIT"),
                     detach_objective_marker(stage::ID_INSPECTION),
                     despawn_object(ID_APPROACH_RING),
+                    despawn_object(ID_ORBIT_RETURN_GATE),
                     story_message(CONTROL, story::RETURN_CONTROL),
                     coached_beat_setup(
                         BEAT_RETURN,
@@ -1438,15 +1463,18 @@ fn crate_pickup(
     }
 }
 
-/// The orbit hold's clock, and the crew's conversation over it: `start` arms
-/// both, the other two cancel the clock.
-fn orbit_watch(event: EventConfig, start: bool) -> ScenarioEventConfig {
-    let arm = vec![
-        EventActionConfig::TimerStart(TimerStartActionConfig {
-            key: TIMER_ORBIT_HOLD.to_string(),
-            seconds: number(ORBIT_HOLD_SECS),
-        }),
-        sequence(
+/// The crew's conversation starts on the first stable orbit edge. A later
+/// instability restarts lap accumulation in the tracker, but not the dialogue.
+fn orbit_conversation() -> ScenarioEventConfig {
+    ScenarioEventConfig {
+        label: None,
+        name: EventConfig::OnOrbitStable,
+        once: true,
+        filters: vec![
+            cutter_enters(stage::ID_INSPECTION),
+            number_equals(VAR_BEAT, BEAT_ORBIT),
+        ],
+        actions: vec![sequence(
             SEQ_ORBIT_TALK,
             vec![
                 step(
@@ -1462,23 +1490,7 @@ fn orbit_watch(event: EventConfig, start: bool) -> ScenarioEventConfig {
                     vec![story_message(PLAYER, story::ORBIT_PLAYER_LOG)],
                 ),
             ],
-        ),
-    ];
-    ScenarioEventConfig {
-        label: None,
-        name: event,
-        once: false,
-        filters: vec![
-            cutter_enters(stage::ID_INSPECTION),
-            number_equals(VAR_BEAT, BEAT_ORBIT),
-        ],
-        actions: if start {
-            arm
-        } else {
-            vec![EventActionConfig::TimerCancel(TimerCancelActionConfig {
-                key: TIMER_ORBIT_HOLD.to_string(),
-            })]
-        },
+        )],
     }
 }
 

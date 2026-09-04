@@ -26,6 +26,8 @@ pub(super) const ID_CARRIER: &str = "carrier";
 pub(super) const ID_WARSHIP: &str = "warship";
 /// The invisible arrival gate around the inspection planetoid.
 pub(super) const ID_APPROACH_RING: &str = "approach_ring";
+/// Near-side gate that proves Cutter has returned to Meridian's view.
+pub(super) const ID_ORBIT_RETURN_GATE: &str = "orbit_return_gate";
 /// The wreck's automatic beacon, put up in the epilogue.
 pub(super) const ID_DISTRESS: &str = "distress_beacon";
 
@@ -160,48 +162,35 @@ pub(super) const TRIM_ROUTE_CENTRE: Meters3 = Meters3::new(-350.0, 190.0, 900.0)
 /// Wide rear-quarter briefing pose: Cutter and the complete box remain in view.
 pub(super) const CINEMA_TRIM_OFFSET: Meters3 = Meters3::new(450.0, 300.0, 650.0);
 
-/// The first transit mark: the leg LOCK and GOTO are taught on, southwest of
-/// the plate in clear space. Its southern offset keeps the direct leg from the
-/// second crate outside the nearby rock's worst-case mesh, Cutter's 55 m hull
-/// sphere, and 100 m of authored flight margin. It is sized for autopilot and
-/// lit on radar so there is something to lock.
+/// The first transit mark takes the mandatory route around the inspection
+/// body's western flank. Both direct legs retain Cutter's hull clearance and
+/// the authored flight margin instead of asking GOTO to avoid the body.
 pub(super) const TRANSIT_ONE: TempMark = TempMark {
     id: "transit_mark_one",
     label: "TRANSIT 1",
-    position: Meters3::new(-1_400.0, 100.0, -4_000.0),
+    position: Meters3::new(-8_000.0, -1_600.0, -5_000.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
 
-/// The second: the same gesture again with almost nothing said over it, and
-/// the staging point the orbit detour is proposed from. Deliberately OUTSIDE
-/// the inspection planetoid's arrival ring, so the detour is a decision rather
-/// than something that happens on arrival.
-///
-/// And outside the planetoid's GRAVITY, which is the harder constraint. The
-/// beat waits on a real `OnGotoComplete` here, and GOTO finishes by coming to
-/// rest: inside a well the pull never stops, so the arrival never settles and
-/// the shift cannot continue. The well reaches 3.29 km - `soi_radius` is
-/// `sqrt(mu / soi_cutoff_accel)` and owes nothing to the body's radius - and
-/// this mark stands 4.01 km out, 721 m clear of it. That is what moved it
-/// west: at its first position it sat 2.72 km from the centre, in the
-/// unfaded core of the well under a 3.7 m/s^2 pull.
+/// The second mark is 4.00 km from the inspection body's centre, outside its
+/// 3.29 km gravity well and directly behind it from Meridian. Reaching this
+/// fixed visual cover is what makes the crew's optional detour credible.
 pub(super) const TRANSIT_TWO: TempMark = TempMark {
     id: "transit_mark_two",
     label: "TRANSIT 2",
-    position: Meters3::new(-5_200.0, 200.0, -2_600.0),
+    position: Meters3::new(-5_945.0, -565.0, -10_216.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
 
-/// The work site the shift comes back to: back on the plate, in the roomiest
-/// pocket the rock field has on the carrier's side of it. The last crate is
-/// worked from here, and it is far enough clear of the rocks that a player
-/// looking at the belt rather than the panel is not also about to hit one.
+/// The return work site sits below the plate's carrier-side edge. Its descent
+/// keeps the direct leg from the near-side orbit gate under the clutter, while
+/// leaving the last crate 1.09 km away for the final close-work search.
 pub(super) const WORK_SITE: TempMark = TempMark {
     id: "work_site",
     label: "WORK SITE",
-    position: Meters3::new(1_400.0, -100.0, -1_200.0),
+    position: Meters3::new(1_000.0, -750.0, -750.0),
     area: stage::BEACON_AREA_RADIUS,
     lock_signature: Some(TRANSIT_SIGNATURE),
 };
@@ -286,6 +275,11 @@ pub(super) fn crate_object(number: usize) -> ScenarioObjectConfig {
 /// every park point on every mesh seed; the widest orbit ring (1.82 km) is
 /// inside it too, so holding the orbit cannot fall out of the gate.
 pub(super) const APPROACH_RING_RADIUS: Meters = Meters(2_400.0);
+
+/// Point on the Meridian-facing side crossed after a lap that starts in cover.
+/// Its 300 m gate spans the inspection body's 1.36-1.82 km stable orbit band.
+pub(super) const ORBIT_RETURN_GATE_POS: Meters3 = Meters3::new(-3_922.0, -334.0, -5_014.0);
+pub(super) const ORBIT_RETURN_GATE_RADIUS: Meters = Meters(300.0);
 
 // --- the warship -------------------------------------------------------------
 

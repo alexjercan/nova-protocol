@@ -16,6 +16,20 @@ pub(super) struct OrbitEcho {
     pub well_id: String,
     /// Whether stable station-keeping was last reported.
     pub stable: bool,
+    /// Previous unit direction from the well to the ship.
+    pub previous_radial: Option<Vec3>,
+    /// Net angular travel since stability began or the last reported lap.
+    pub angular_travel: f32,
+}
+
+fn orbit_radial(
+    ship: Entity,
+    well: Entity,
+    q_transforms: &Query<&GlobalTransform>,
+) -> Option<Vec3> {
+    let ship_position = q_transforms.get(ship).ok()?.translation();
+    let well_position = q_transforms.get(well).ok()?.translation();
+    (ship_position - well_position).try_normalize()
 }
 
 fn orbit_info(
@@ -55,6 +69,7 @@ pub(super) fn track_orbit_transitions(
         (With<SpaceshipRootMarker>, Without<Autopilot>),
     >,
     q_ids: Query<&EntityId>,
+    q_transforms: Query<&GlobalTransform>,
 ) {
     for (ship, echo, ship_id, ship_type_name) in &q_ended {
         commands.fire::<OnOrbitEndEvent>(orbit_info(&echo.well_id, ship_id, ship_type_name));
@@ -62,7 +77,7 @@ pub(super) fn track_orbit_transitions(
     }
 
     for (ship, autopilot, echo, ship_id, ship_type_name) in &mut q_ships {
-        let AutopilotAction::Orbit { well, .. } = autopilot.action else {
+        let AutopilotAction::Orbit { well, plan } = autopilot.action else {
             if let Some(echo) = echo {
                 commands.fire::<OnOrbitEndEvent>(orbit_info(
                     &echo.well_id,
@@ -89,6 +104,8 @@ pub(super) fn track_orbit_transitions(
                     well,
                     well_id: well_id.0.clone(),
                     stable,
+                    previous_radial: orbit_radial(ship, well, &q_transforms),
+                    angular_travel: 0.0,
                 });
             }
             Some(mut echo) if echo.well != well => {
@@ -109,6 +126,8 @@ pub(super) fn track_orbit_transitions(
                 echo.well = well;
                 echo.well_id = well_id.0.clone();
                 echo.stable = stable;
+                echo.previous_radial = orbit_radial(ship, well, &q_transforms);
+                echo.angular_travel = 0.0;
             }
             Some(mut echo) if echo.stable != stable => {
                 let info = orbit_info(&echo.well_id, ship_id, ship_type_name);
@@ -118,8 +137,32 @@ pub(super) fn track_orbit_transitions(
                     commands.fire::<OnOrbitUnstableEvent>(info);
                 }
                 echo.stable = stable;
+                echo.previous_radial = orbit_radial(ship, well, &q_transforms);
+                echo.angular_travel = 0.0;
             }
-            Some(_) => {}
+            Some(mut echo) => {
+                let radial = orbit_radial(ship, well, &q_transforms);
+                if stable {
+                    if let (Some(previous), Some(current), Some(plan)) =
+                        (echo.previous_radial, radial, plan)
+                    {
+                        let signed_step = plan
+                            .normal
+                            .dot(previous.cross(current))
+                            .atan2(previous.dot(current));
+                        echo.angular_travel += signed_step;
+                        if echo.angular_travel >= std::f32::consts::TAU {
+                            commands.fire::<OnOrbitLapEvent>(orbit_info(
+                                &echo.well_id,
+                                ship_id,
+                                ship_type_name,
+                            ));
+                            echo.angular_travel -= std::f32::consts::TAU;
+                        }
+                    }
+                }
+                echo.previous_radial = radial;
+            }
         }
     }
 }
@@ -739,6 +782,100 @@ mod tests {
             counts(&app),
             (2.0, 3.0, 1.0, 2.0),
             "losing a well ends a stable orbit without an unstable edge"
+        );
+    }
+
+    /// A lap is net angular travel in the planned direction, not elapsed time.
+    #[test]
+    fn orbit_lap_fires_after_one_stable_revolution() {
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::{GameObjectives, SpaceshipRootMarker};
+        use nova_ship::prelude::{Autopilot, AutopilotAction, AutopilotPhase, OrbitPlan};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_orbit_transitions);
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnOrbitLap);
+        handler.add_action(EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: "lap".to_string(),
+            expression: VariableExpressionNode::new_add(
+                VariableTermNode::new_factor(VariableFactorNode::new_name("lap")),
+                VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            ),
+        }));
+        app.world_mut().spawn(handler);
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .insert_variable("lap".to_string(), VariableLiteral::Number(0.0));
+
+        let well = app
+            .world_mut()
+            .spawn((
+                EntityId::new("well"),
+                GlobalTransform::from_translation(Vec3::ZERO),
+            ))
+            .id();
+        let mut autopilot = Autopilot::engage(AutopilotAction::Orbit {
+            well,
+            plan: Some(OrbitPlan {
+                radius: 1.0,
+                normal: Vec3::Z,
+            }),
+        });
+        autopilot.phase = AutopilotPhase::Hold;
+        let ship = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                EntityId::new("ship"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+                GlobalTransform::from_translation(Vec3::X),
+                autopilot,
+            ))
+            .id();
+        app.update();
+        app.update();
+
+        for radial in [Vec3::NEG_Y, Vec3::X] {
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(GlobalTransform::from_translation(radial));
+            app.update();
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<NovaEventWorld>().get_variable("lap"),
+            Some(&VariableLiteral::Number(0.0)),
+            "backtracking and retracing an arc are zero net travel"
+        );
+
+        for radial in [Vec3::Y, Vec3::NEG_X, Vec3::NEG_Y] {
+            app.world_mut()
+                .entity_mut(ship)
+                .insert(GlobalTransform::from_translation(radial));
+            app.update();
+            app.update();
+        }
+        assert_eq!(
+            app.world().resource::<NovaEventWorld>().get_variable("lap"),
+            Some(&VariableLiteral::Number(0.0)),
+            "three quarters of a real orbit do not complete the lap"
+        );
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(GlobalTransform::from_translation(Vec3::X));
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<NovaEventWorld>().get_variable("lap"),
+            Some(&VariableLiteral::Number(1.0))
         );
     }
 

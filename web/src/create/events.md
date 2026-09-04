@@ -30,6 +30,7 @@ The whole vocabulary at a glance:
 | [`OnStopComplete`](#player-maneuver-completion) | `id`, `type_name` | the player's STOP comes to rest |
 | [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
 | [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
+| [`OnOrbitLap`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | one net stable revolution completes |
 | [`OnOrbitUnstable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | stable station-keeping is lost |
 | [`OnOrbitEnd`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | a surviving ship ends ORBIT |
 | [`OnTravelLockStart`](#lock-lifecycle) | `id`, `other_id`, `other_type_name` | the player's travel lock lands |
@@ -508,9 +509,9 @@ ORBIT does not complete as GOTO; use the orbit lifecycle for that maneuver.
 
 ## Orbit lifecycle
 
-Four one-shot edge events describe ORBIT without hidden timing:
-`OnOrbitStart`, `OnOrbitStable`, `OnOrbitUnstable`, `OnOrbitEnd`. All four
-carry `id` = well and `other_id` / `other_type_name` = orbiting ship.
+Five events describe ORBIT without hidden timing: `OnOrbitStart`,
+`OnOrbitStable`, `OnOrbitLap`, `OnOrbitUnstable`, `OnOrbitEnd`. All five carry
+`id` = well and `other_id` / `other_type_name` = orbiting ship.
 
 <details class="explain">
 <summary>Show explanation</summary>
@@ -519,6 +520,9 @@ carry `id` = well and `other_id` / `other_type_name` = orbiting ship.
   aligning or burning toward its ring.
 - `OnOrbitStable`: velocity error enters the autopilot's stable Hold band. It
   can fire again after stability is recovered.
+- `OnOrbitLap`: the ship accumulates one net revolution in the planned travel
+  direction while stable. Losing stability resets partial-lap progress. It
+  fires again for each later complete lap.
 - `OnOrbitUnstable`: velocity error leaves Hold while ORBIT stays engaged.
 - `OnOrbitEnd`: a surviving ship cancels ORBIT, changes verb, loses flight
   capability, loses the well, or switches wells. Ship destruction emits only
@@ -528,7 +532,18 @@ Switching wells queues `OnOrbitEnd` for the old well, then `OnOrbitStart` for
 the new one. Ending a stable orbit emits only `OnOrbitEnd`, not an unstable
 edge first.
 
-A continuous eight-second stable hold uses a timer:
+A mission that requires one physical lap listens directly:
+
+```ron
+(
+    name: OnOrbitLap,
+    once: true,
+    filters: [Entity((id: Some("planetoid"), other_id: Some("player_spaceship")))],
+    actions: [ObjectiveComplete((id: "orbit_once"))],
+),
+```
+
+A continuous eight-second stable hold uses a timer instead:
 
 ```ron
 (

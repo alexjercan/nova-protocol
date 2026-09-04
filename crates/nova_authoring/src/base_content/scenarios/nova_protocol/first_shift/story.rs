@@ -70,15 +70,14 @@ pub(super) const OBJ_TEXT_TRANSIT: &str = "Lock and GOTO to TRANSIT 2.";
 // --- the detour --------------------------------------------------------------
 
 pub(super) const DETOUR_COPILOT: &str =
-    "Skipper. That is the survey body right there, and we have never once flown a ring on \
-     one.";
+    "Survey body's between us and Meridian. They cannot see us back here.";
 pub(super) const DETOUR_ENGINEER: &str =
-    "Computer holds it for you. Half a minute. Nobody has to hear about it.";
+    "Then do one donut. The computer holds the ring and we still make the last pickup.";
 pub(super) const OBJ_TEXT_DETOUR: &str = "Fly to the inspection planetoid.";
 
 pub(super) const ORBIT_COPILOT: &str =
     "That pull you can feel is the body. Lock it and press [O] - the computer finds the ring.";
-pub(super) const OBJ_TEXT_ORBIT: &str = "Press [O] and hold the orbit.";
+pub(super) const OBJ_TEXT_ORBIT: &str = "Press [O] and complete one orbit.";
 
 /// Said while the ring is holding itself and the workload is nothing, which is
 /// the only place in the shift a crew moment fits.

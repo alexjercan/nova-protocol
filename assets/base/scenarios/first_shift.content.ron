@@ -2251,9 +2251,9 @@
                                             id: "transit_mark_one",
                                             name: "TRANSIT 1",
                                             position: (
-                                                -1400.0,
-                                                100.0,
-                                                -4000.0,
+                                                -8000.0,
+                                                -1600.0,
+                                                -5000.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -2386,9 +2386,9 @@
                                             id: "transit_mark_two",
                                             name: "TRANSIT 2",
                                             position: (
-                                                -5200.0,
-                                                200.0,
-                                                -2600.0,
+                                                -5945.0,
+                                                -565.0,
+                                                -10216.0,
                                             ),
                                             rotation: (
                                                 0.0,
@@ -2443,7 +2443,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Skipper. That is the survey body right there, and we have never once flown a ring on one.",
+                        text: "Survey body\'s between us and Meridian. They cannot see us back here.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "transit_mark_two",
@@ -2459,7 +2459,7 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Engineer",
-                                        text: "Computer holds it for you. Half a minute. Nobody has to hear about it.",
+                                        text: "Then do one donut. The computer holds the ring and we still make the last pickup.",
                                     )),
                                 ],
                             ),
@@ -2534,7 +2534,7 @@
                                 actions: [
                                     Objective((
                                         id: "orbit",
-                                        message: "Press [O] and hold the orbit.",
+                                        message: "Press [O] and complete one orbit.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "ORBIT",
@@ -2547,6 +2547,7 @@
             ),
             (
                 name: OnOrbitStable,
+                once: true,
                 filters: [
                     Entity((
                         id: Some("inspection_planetoid"),
@@ -2558,10 +2559,6 @@
                     ))),
                 ],
                 actions: [
-                    TimerStart((
-                        key: "orbit_hold",
-                        seconds: Term(Factor(Literal(Number(13.0)))),
-                    )),
                     Sequence((
                         key: "orbit_talk",
                         steps: [
@@ -2597,51 +2594,52 @@
                 ],
             ),
             (
-                name: OnOrbitUnstable,
-                filters: [
-                    Entity((
-                        id: Some("inspection_planetoid"),
-                        other_id: Some("cutter"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
-                    ))),
-                ],
-                actions: [
-                    TimerCancel((
-                        key: "orbit_hold",
-                    )),
-                ],
-            ),
-            (
-                name: OnOrbitEnd,
-                filters: [
-                    Entity((
-                        id: Some("inspection_planetoid"),
-                        other_id: Some("cutter"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(10.0)))),
-                    ))),
-                ],
-                actions: [
-                    TimerCancel((
-                        key: "orbit_hold",
-                    )),
-                ],
-            ),
-            (
-                name: OnTimerEnd,
+                name: OnOrbitLap,
                 once: true,
                 filters: [
-                    Timer((
-                        key: "orbit_hold",
+                    Entity((
+                        id: Some("inspection_planetoid"),
+                        other_id: Some("cutter"),
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
                         Term(Factor(Literal(Number(10.0)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(10.5)))),
+                    )),
+                    CreateScenarioArea((
+                        id: "orbit_return_gate",
+                        name: "Orbit Return Gate",
+                        position: (
+                            -3922.0,
+                            -334.0,
+                            -5014.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        radius: 300.0,
+                    )),
+                ],
+            ),
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("orbit_return_gate"),
+                        other_id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(10.5)))),
                     ))),
                 ],
                 actions: [
@@ -2660,6 +2658,9 @@
                     )),
                     DespawnScenarioObject((
                         id: "approach_ring",
+                    )),
+                    DespawnScenarioObject((
+                        id: "orbit_return_gate",
                     )),
                     StoryMessage((
                         speaker: "Meridian Control",
@@ -2689,9 +2690,9 @@
                                             id: "work_site",
                                             name: "WORK SITE",
                                             position: (
-                                                1400.0,
-                                                -100.0,
-                                                -1200.0,
+                                                1000.0,
+                                                -750.0,
+                                                -750.0,
                                             ),
                                             rotation: (
                                                 0.0,

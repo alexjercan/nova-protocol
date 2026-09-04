@@ -83,8 +83,8 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
     <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
 </figure>
 
-6. **Take the crew up on it.** Nobody assigned this. The copilot points out the survey body sitting there with a crate still outstanding, and the engineer is not going to talk you out of it. GOTO across.
-7. **Press ORBIT and hold it.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Hold it for about thirteen seconds - long enough for the crew to enjoy it, and for the Meridian to notice.
+6. **Take the crew up on it.** The mandatory route ends behind the survey body, out of Meridian's direct view. With a crate still outstanding, the crew talks you into one donut.
+7. **Press ORBIT and fly a full lap.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Complete one physical revolution. Meridian calls when Cutter comes back around into view, then sends you to the paid work.
 8. **Get back on the plate.** Meridian Control has been watching. The carrier lifts within the hour, the last crate is still out there, and finishing is what the bonus is for. Fly back to the work site.
 
 ### Part 5 - What you cannot stop

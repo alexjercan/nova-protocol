@@ -828,3 +828,28 @@ The planetoid approach is manual rather than a GOTO. The orbit-to-work leg has
 no fixed start until step 8 gives the full orbit an authored departure angle;
 that integration remains with the orbit revision rather than pretending an
 arbitrary orbit point is a proved route.
+
+### 2026-09-04: First Shift playtest revision, step 8
+
+Added reusable `OnOrbitLap` scenario vocabulary. The orbit tracker now sums
+signed radial-angle changes around the maneuver's sticky plane while ORBIT is
+stable, emits once per net revolution, and resets partial progress when
+station-keeping becomes unstable. Backtracking does not count as progress.
+
+First Shift no longer completes the detour on a 13-second timer. Its mandatory
+GOTO route now passes around the inspection body and ends 4.00 km behind it
+from Meridian. Cutter must complete a physical lap, then continue to a fixed
+near-side gate before Meridian calls. The resulting gate-to-work GOTO corridor
+is included in the conservative shared-stage clearance proof. The work site
+moved to preserve that direct corridor.
+
+The standalone orbit preview was rendered at 1280x720 from the new covered
+start: Cutter remained settled 3.99 km from the survey body while the detour
+prompt opened. A synthetic-input attempt did not acquire the off-screen travel
+lock, so the full rendered lap still needs the next hands-on playtest; angular
+completion, event dispatch, cover geometry, departure gating, and route safety
+are covered by focused tests.
+
+Proof: all 294 `nova_scenario` unit tests and all 19 focused First Shift tests
+pass. The affected examples and editor compile, content lint reports 0 errors,
+0 warnings and 0 findings, mdBook builds, and web CI passes.

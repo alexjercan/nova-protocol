@@ -44,14 +44,14 @@ pub mod prelude {
         OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
         OnGotoCompleteEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
-        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnShipOrderCanceledEvent,
-        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
-        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
-        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
-        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
-        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME,
-        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
+        OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
+        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
+        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
+        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
+        OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
+        OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
+        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
         ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
         ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
         SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
@@ -297,6 +297,12 @@ pub struct OnOrbitStartEvent;
 #[event_name("onorbitstable")]
 #[event_info(OrbitEventInfo)]
 pub struct OnOrbitStableEvent;
+
+/// A ship completed one net revolution in stable ORBIT around a well.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onorbitlap")]
+#[event_info(OrbitEventInfo)]
+pub struct OnOrbitLapEvent;
 
 /// A stable ORBIT became unstable while its maneuver remained engaged.
 #[derive(Debug, Clone, EventKind, Reflect)]

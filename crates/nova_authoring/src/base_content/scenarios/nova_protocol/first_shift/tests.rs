@@ -98,7 +98,7 @@ fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
 }
 
 /// The beats in the order the shift runs them.
-const BEATS: [f64; 20] = [
+const BEATS: [f64; 21] = [
     BEAT_LAUNCH,
     BEAT_STOP,
     BEAT_TRIM_LATERAL,
@@ -112,6 +112,7 @@ const BEATS: [f64; 20] = [
     BEAT_TRANSIT,
     BEAT_DETOUR,
     BEAT_ORBIT,
+    BEAT_ORBIT_RETURN_VIEW,
     BEAT_RETURN,
     BEAT_SEARCH,
     BEAT_VANTAGE,
@@ -485,7 +486,9 @@ fn the_field_work_runs_from_the_plate_edge_inward() {
 #[test]
 fn the_orbit_is_a_detour_the_crew_comes_back_from() {
     assert!(
-        BEAT_ORBIT < BEAT_RETURN && BEAT_RETURN < BEAT_SEARCH,
+        BEAT_ORBIT < BEAT_ORBIT_RETURN_VIEW
+            && BEAT_ORBIT_RETURN_VIEW < BEAT_RETURN
+            && BEAT_RETURN < BEAT_SEARCH,
         "the orbit does not sit before the return to the field work"
     );
     assert!(
@@ -495,6 +498,42 @@ fn the_orbit_is_a_detour_the_crew_comes_back_from() {
     );
 
     let config = config();
+    let lap = config
+        .events
+        .iter()
+        .find(|event| matches!(event.name, EventConfig::OnOrbitLap))
+        .expect("the detour waits for physical angular travel");
+    assert_eq!(
+        beat_set_by(lap),
+        Some(BEAT_ORBIT_RETURN_VIEW),
+        "one lap must lead to the return-view beat, not directly end the orbit"
+    );
+    let return_view = config
+        .events
+        .iter()
+        .find(|event| beat_set_by(event) == Some(BEAT_RETURN))
+        .expect("crossing the near-side gate starts the return beat");
+    assert!(matches!(return_view.name, EventConfig::OnEnter));
+
+    let cover = distance_to_segment(
+        stage::INSPECTION_POS,
+        stage::CARRIER_POS,
+        TRANSIT_TWO.position,
+    );
+    assert!(
+        cover < stage::INSPECTION_RADIUS.0 * 3.5,
+        "TRANSIT 2 is visible around even the inspection body's smallest mesh: {cover:.0} m"
+    );
+    let return_view_clearance = distance_to_segment(
+        stage::INSPECTION_POS,
+        stage::CARRIER_POS,
+        ORBIT_RETURN_GATE_POS,
+    );
+    assert!(
+        return_view_clearance > stage::INSPECTION_RADIUS.0 * ASTEROID_GEOMETRIC_FACTOR_MAX,
+        "the return gate is still hidden behind the inspection body"
+    );
+
     let closes_the_return = config
         .events
         .iter()
@@ -630,6 +669,11 @@ fn every_fixed_cutter_goto_corridor_clears_the_stage() {
             "transit 1 to transit 2",
             TRANSIT_ONE.position,
             TRANSIT_TWO.position,
+        ),
+        (
+            "orbit return gate to work site",
+            ORBIT_RETURN_GATE_POS,
+            WORK_SITE.position,
         ),
         (
             "last crate to Meridian hold",

@@ -30,7 +30,7 @@ use nova_scenario::prelude::*;
 
 /// Every non-`OnUpdate` event kind, so the synthetic scenario can pad itself
 /// with handlers that the `OnUpdate` frame must scan past but never name-match.
-const OTHER_EVENTS: [EventConfig; 15] = [
+const OTHER_EVENTS: [EventConfig; 16] = [
     EventConfig::OnStart,
     EventConfig::OnDefeated,
     EventConfig::OnDestroyed,
@@ -40,6 +40,7 @@ const OTHER_EVENTS: [EventConfig; 15] = [
     EventConfig::OnExit,
     EventConfig::OnOrbitStart,
     EventConfig::OnOrbitStable,
+    EventConfig::OnOrbitLap,
     EventConfig::OnOrbitUnstable,
     EventConfig::OnOrbitEnd,
     EventConfig::OnTravelLockStart,

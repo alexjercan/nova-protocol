@@ -743,6 +743,11 @@ the committed `assets/base/scenarios/*.content.ron`, `base.bundle.ron` lists
 them, and `crates/nova_assets/src/merge.rs` merges the parsed RON into
 `GameScenarios` like any mod's. `content_ron_parity` pins builders == RON.
 
+The orbit tracker derives lifecycle edges from live autopilot state. While the
+maneuver is stable, it also sums signed radial-angle changes around the sticky
+orbit plane. Each net revolution fires `OnOrbitLap`; losing stability resets a
+partial lap, so authored lap objectives need no guessed timer.
+
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
