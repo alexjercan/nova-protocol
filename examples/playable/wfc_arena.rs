@@ -1112,7 +1112,7 @@ fn rock_ring(
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep://: this scenario is built at runtime
                 // outside the mod merge, so scheme refs would never rewrite.
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
                 radius: radius.0,
                 texture: AssetRef::from(game_assets.asteroid_texture.clone()),
@@ -1123,6 +1123,7 @@ fn rock_ring(
             }),
         },
         asteroid_radius: Some(radius),
+        asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
         min_separation: Some(separation),
     })
 }
@@ -1355,7 +1356,7 @@ fn planetoid(game_assets: &GameAssets) -> EventActionConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from("base/sounds/destroy_rock.wav")),
             radius: PLANETOID_RADIUS,
             texture: AssetRef::from(game_assets.asteroid_texture.clone()),

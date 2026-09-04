@@ -15,7 +15,7 @@ use nova_modding::prelude::{BundleAsset, CatalogEntry, InstalledCatalog, ModEntr
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig, EventActionConfig,
     ScenarioObjectKind, SectionSource, SpaceshipConfig, SpaceshipController,
-    StoryMessageActionConfig,
+    StoryMessageActionConfig, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
@@ -79,7 +79,7 @@ fn asteroid(app: &mut App, scenario: Entity, id: &str, radius: Meters) -> Entity
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius,
                     texture: default(),
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

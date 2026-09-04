@@ -452,6 +452,83 @@ pub fn lint_scenario(
 ///
 /// Key UNIQUENESS is not decided here - it needs the whole scenario, and it
 /// reads per handler (see the duplicate rules in [`lint_scenario`]).
+/// One spawned rock says what it is made of, and says something real.
+///
+/// There is no default kind and no fallback for an unknown one, so an id this
+/// build does not ship is a body that renders as nothing. Catching it here is
+/// the difference between a message naming the object and a hole in a frame.
+fn check_asteroid_kind(config: &ScenarioObjectConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
+    let ScenarioObjectKind::Asteroid(asteroid) = &config.kind else {
+        return;
+    };
+    if !is_asteroid_kind(&asteroid.material) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "asteroid '{}': '{}' is not a kind - author one of {:?}",
+                config.base.id, asteroid.material, ASTEROID_KINDS
+            ),
+        ));
+    }
+}
+
+/// A scattered asteroid field's kind mix: present, weighted, and made of kinds
+/// that exist.
+///
+/// A mix on a template that is not an asteroid is an error too, not a harmless
+/// no-op: it is an author who believes they said something about their field.
+fn check_scatter_kind_mix(
+    config: &ScatterObjectsConfig,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let field = &config.id_prefix;
+    if !matches!(config.template.kind, ScenarioObjectKind::Asteroid(_)) {
+        if !config.asteroid_kinds.is_empty() {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "ScatterObjects '{field}' authors an asteroid kind mix on a template \
+                     that is not an asteroid, so the mix does nothing"
+                ),
+            ));
+        }
+        return;
+    }
+
+    if config.asteroid_kinds.is_empty() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "ScatterObjects '{field}' scatters asteroids with no `asteroid_kinds` mix - \
+                 a field says what it is made of; author at least one of {ASTEROID_KINDS:?}"
+            ),
+        ));
+        return;
+    }
+
+    for (kind, weight) in &config.asteroid_kinds {
+        if !is_asteroid_kind(kind) {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "ScatterObjects '{field}': '{kind}' is not a kind - \
+                     author one of {ASTEROID_KINDS:?}"
+                ),
+            ));
+        }
+        if *weight == 0 {
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "ScatterObjects '{field}': '{kind}' is weighted 0, so it never appears - \
+                     give it a share or take it out"
+                ),
+            ));
+        }
+    }
+}
+
 fn check_sequence(config: &SequenceActionConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
     if config.key.trim().is_empty() {
         issues.push(LintIssue::error(
@@ -573,6 +650,7 @@ fn check_action(
         EventActionConfig::SpawnScenarioObject(config) => {
             check_object_prototypes(config, scenario, sections, ships, issues);
             check_spawned_arrival_standoff(config, scenario, issues);
+            check_asteroid_kind(config, scenario, issues);
             check_planet(config, scenario, issues);
         }
         EventActionConfig::ScatterObjects(config) => {
@@ -580,6 +658,7 @@ fn check_action(
             // a bad prototype is the same bug one wrapper deeper.
             check_object_prototypes(&config.template, scenario, sections, ships, issues);
             check_spawned_arrival_standoff(&config.template, scenario, issues);
+            check_scatter_kind_mix(config, scenario, issues);
             check_planet(&config.template, scenario, issues);
             // The runtime clamps rather than OOMs, but a clamped field is not
             // the field the author wrote - say so before it ships.
@@ -2213,6 +2292,135 @@ mod tests {
         assert!(issues[0].message.contains("mutually exclusive"));
     }
 
+    /// A rock says what it is made of, and the id has to be real. There is no
+    /// default kind and no fallback, so an unknown one renders as nothing -
+    /// which is exactly the failure a static check should beat the frame to.
+    #[test]
+    fn an_unknown_asteroid_kind_is_a_lint_error() {
+        let rock = |material: &str| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "lone_rock".to_string(),
+                    name: "Lone Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    material: material.to_string(),
+                    destroy_sound: None,
+                    radius: Meters(20.0),
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    mass: None,
+                    invulnerable: false,
+                    seed: None,
+                    lock_signature: None,
+                }),
+            })
+        };
+
+        let bad = scenario(vec![rock("granite")], vec![]);
+        let issues = lint_scenario(
+            &bad,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("'granite' is not a kind")),
+            "an unshipped kind is an error: {issues:?}"
+        );
+
+        let good = scenario(vec![rock(KIND_ICE)], vec![]);
+        let issues = lint_scenario(
+            &good,
+            &sections(&[]),
+            &ships(&[]),
+            &known(&["test_scenario"]),
+        );
+        assert!(
+            errors(&issues).is_empty(),
+            "a shipped kind is fine: {issues:?}"
+        );
+    }
+
+    /// A scattered field says what it is made of too, in a mix that has weight
+    /// and names kinds that exist. All three failures are the same content bug
+    /// wearing different hats: a field nobody decided the composition of.
+    #[test]
+    fn a_scattered_field_must_author_a_real_kind_mix() {
+        let field = |mix: Vec<(String, u32)>| {
+            EventActionConfig::ScatterObjects(ScatterObjectsConfig {
+                id_prefix: "rock_".to_string(),
+                count: 8,
+                seed: 1,
+                region: ScatterRegion::Box {
+                    min: Meters3::new(-100.0, -100.0, -100.0),
+                    max: Meters3::new(100.0, 100.0, 100.0),
+                },
+                template: ScenarioObjectConfig {
+                    base: BaseScenarioObjectConfig {
+                        id: "rock_".to_string(),
+                        name: "Rock".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                    },
+                    kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                        material: KIND_ROCK.to_string(),
+                        destroy_sound: None,
+                        radius: Meters(20.0),
+                        texture: nova_gameplay::prelude::AssetRef::default(),
+                        mass: None,
+                        invulnerable: false,
+                        seed: None,
+                        lock_signature: None,
+                    }),
+                },
+                asteroid_radius: None,
+                asteroid_kinds: mix,
+                min_separation: None,
+            })
+        };
+        let lint_of = |action| {
+            let s = scenario(vec![action], vec![]);
+            lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&["test_scenario"]))
+        };
+
+        let issues = lint_of(field(vec![]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("no `asteroid_kinds` mix")),
+            "a field with no mix is an error: {issues:?}"
+        );
+
+        let issues = lint_of(field(vec![("granite".to_string(), 3)]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("'granite' is not a kind")),
+            "an unshipped kind in the mix is an error: {issues:?}"
+        );
+
+        let issues = lint_of(field(vec![
+            (KIND_ROCK.to_string(), 3),
+            (KIND_METAL.to_string(), 0),
+        ]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|i| i.message.contains("is weighted 0")),
+            "a kind that can never be drawn is an error: {issues:?}"
+        );
+
+        let issues = lint_of(field(vec![
+            (KIND_ROCK.to_string(), 6),
+            (KIND_METAL.to_string(), 1),
+        ]));
+        assert!(errors(&issues).is_empty(), "a real mix is fine: {issues:?}");
+    }
+
     /// F12: `count` is an unvalidated authored u32 driving a spawn loop. The
     /// runtime clamps it, but the author should never get that far - a field
     /// the engine will not honor is a content error.
@@ -2235,6 +2443,7 @@ mod tests {
                     _ => unreachable!(),
                 },
                 asteroid_radius: None,
+                asteroid_kinds: vec![],
                 min_separation: None,
             })],
             vec![],
@@ -2267,6 +2476,7 @@ mod tests {
                     _ => unreachable!(),
                 },
                 asteroid_radius: None,
+                asteroid_kinds: vec![],
                 min_separation: None,
             })],
             vec![

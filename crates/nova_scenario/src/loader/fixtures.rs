@@ -15,7 +15,7 @@ pub(crate) fn spawn_object_action() -> EventActionConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: None,
             radius: Meters(10.0),
             texture: AssetRef::default(),

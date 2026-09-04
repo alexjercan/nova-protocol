@@ -1459,6 +1459,7 @@
                         kind: Asteroid((
                             radius: 80.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: Some(1_450.0),
                             invulnerable: true,
                         )),
@@ -1473,6 +1474,7 @@
                         kind: Asteroid((
                             radius: 90.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: Some(1_450.0),
                             invulnerable: true,
                         )),
@@ -1487,6 +1489,7 @@
                         kind: Asteroid((
                             radius: 80.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: Some(1_450.0),
                             invulnerable: true,
                         )),
@@ -1514,12 +1517,14 @@
                                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                                 radius: 10.0,
                                 texture: "dep://base/textures/asteroid.png",
+                                material: "rock",
                                 mass: None,
                                 invulnerable: false,
                                 lock_signature: None,
                             )),
                         ),
                         asteroid_radius: Some((15.0, 45.0)),
+                        asteroid_kinds: [("rock", 1)],
                     )),
                 ],
             ),

@@ -285,7 +285,8 @@ pub const MAX_SCATTER_COUNT: u32 = 4096;
 /// deterministic seed so the layout is reproducible across loads. Each copy is a
 /// clone of `template` with `base.id = "{id_prefix}{i}"` and a sampled position;
 /// when `asteroid_radius` is set and the template is an asteroid, its radius is
-/// randomized too. This is the declarative form of a procedural asteroid field.
+/// randomized too, and when `asteroid_kinds` is set its kind is drawn from that
+/// mix. This is the declarative form of a procedural asteroid field.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ScatterObjectsConfig {
@@ -306,6 +307,25 @@ pub struct ScatterObjectsConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub asteroid_radius: Option<(Meters, Meters)>,
+    /// If set and `template.kind` is an asteroid, draw each rock's KIND from
+    /// this weighted mix instead of taking the template's `material`.
+    ///
+    /// Weights are relative counts, not percentages, so
+    /// `[("rock", 24), ("carbon", 5), ("metal", 1)]` reads as "mostly rock,
+    /// some carbon, rare metal" and keeps meaning that when a fourth entry is
+    /// added. A field is not one rock: this is what lets a belt have character
+    /// without hand-placing every body. An empty mix, or one whose weights are
+    /// all zero, leaves the template's own `material` alone.
+    ///
+    /// Drawn from a stream of [`Self::seed`]'s own, so a field is the same
+    /// field on every load, and so adding kinds to an existing scatter does not
+    /// move a single rock or change a single radius.
+    ///
+    /// REQUIRED, and empty ONLY for a template that is not an asteroid. A
+    /// scattered asteroid field with no mix is a lint error and refuses to
+    /// spawn: "what is this field made of" has no house answer, and forty rocks
+    /// is the last place to guess one.
+    pub asteroid_kinds: Vec<(String, u32)>,
     /// Minimum centre-to-centre distance between a copy of this
     /// scatter and EVERY body already scattered this scenario - this action's
     /// earlier copies and every earlier scatter's. Uniform sampling puts bodies
@@ -360,6 +380,10 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
         // streams; any fixed value works.
         const SILHOUETTE_SALT: u64 = 0x51E0_0E77_E5EE_D000;
         let mut silhouette_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ SILHOUETTE_SALT);
+        // A THIRD stream, for the same reason: a field that gains a kind mix
+        // must keep every position and every radius it already had.
+        const KIND_SALT: u64 = 0x00C0_DE0F_A57E_401D;
+        let mut kind_rng = rand::rngs::StdRng::seed_from_u64(self.seed ^ KIND_SALT);
         // Always the authored count, never thinned by a graphics-quality
         // tier - scatter is gameplay content (asteroid / debris fields).
         // Bounded, though: `count` is an unvalidated authored u32 driving a
@@ -371,6 +395,21 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
                 self.id_prefix, self.count
             );
         }
+        // An asteroid field says what it is made of or it does not spawn. The
+        // lint catches this in shipped content; a mod's content can reach the
+        // runtime without ever meeting the lint, and a field of forty rocks is
+        // exactly the wrong place to invent a default.
+        if matches!(self.template.kind, ScenarioObjectKind::Asteroid(_))
+            && self.asteroid_kinds.iter().all(|(_, weight)| *weight == 0)
+        {
+            error!(
+                "ScatterObjects: '{}' scatters asteroids with no kind mix; nothing spawned. \
+                 Author `asteroid_kinds` with at least one of {:?} at a nonzero weight.",
+                self.id_prefix, ASTEROID_KINDS
+            );
+            return;
+        }
+
         // Seeded with what earlier scatters placed, so abutting sibling fields
         // (a belt's knots) cannot drop rocks into each other.
         let mut placed: Vec<Meters3> = world.scatter_placements().to_vec();
@@ -382,10 +421,19 @@ impl EventAction<NovaEventWorld> for ScatterObjectsConfig {
             // Drawn per index, before the drop check, so copy N keeps its
             // silhouette even when an earlier copy is dropped by separation.
             let silhouette_seed = silhouette_rng.next_u32();
+            // Drawn per index too, and unconditionally, so copy N keeps its
+            // kind whether or not this scatter is mixed and whether or not an
+            // earlier copy was dropped.
+            let kind_draw = kind_rng.random_range(0.0f32..1.0);
             if let ScenarioObjectKind::Asteroid(asteroid) = &mut object.kind {
                 // An authored template seed means "every copy identical" and
                 // is kept; the default is a stable per-rock silhouette.
                 asteroid.seed = asteroid.seed.or(Some(silhouette_seed));
+                // The mix is the field's answer, so it REPLACES whatever the
+                // template said. The guard above proved it has weight.
+                if let Some(kind) = asteroid_kind_from_mix(&self.asteroid_kinds, kind_draw) {
+                    asteroid.material = kind.to_string();
+                }
             }
             let Some(position) = self.sample_clear_of(&placed, &mut rng) else {
                 dropped += 1;
@@ -640,7 +688,7 @@ mod tests {
             asteroid_scenario_object(
                 &mut entity_commands,
                 AsteroidConfig {
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(10.0),
                     texture: AssetRef::default(),
@@ -845,6 +893,7 @@ mod tests {
                     }),
                 },
                 asteroid_radius: None,
+                asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
                 min_separation,
             };
             let mut rng = rand::rngs::StdRng::seed_from_u64(config.seed);
@@ -918,6 +967,7 @@ mod tests {
                 }),
             },
             asteroid_radius: None,
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
             min_separation: Some(separation),
         };
 
@@ -986,7 +1036,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::from("textures/asteroid.png"),
@@ -997,6 +1047,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
             min_separation: None,
         };
 
@@ -1065,7 +1116,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1076,6 +1127,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
             min_separation: None,
         };
 
@@ -1138,7 +1190,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1149,6 +1201,7 @@ mod tests {
                 }),
             },
             asteroid_radius: None,
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
             min_separation: None,
         };
 
@@ -1188,6 +1241,102 @@ mod tests {
         );
     }
 
+    /// A mixed field is reproducible and actually mixed: the same action gives
+    /// the same id -> kind map on every load, every id in the mix lands on at
+    /// least one rock, and an UNMIXED scatter keeps whatever the template
+    /// authored. The proportions are asserted loosely - a weight is a relative
+    /// count over a draw, not a quota - but the rare kind appearing at all is
+    /// exact, because a mix whose rare kind never shows up is not a mix.
+    #[test]
+    fn scatter_draws_kinds_from_a_weighted_mix() {
+        let config = |mix: Vec<(String, u32)>| ScatterObjectsConfig {
+            id_prefix: "rock_".to_string(),
+            count: 60,
+            seed: 4_711,
+            region: ScatterRegion::Box {
+                min: Meters3::new(-400.0, -50.0, -400.0),
+                max: Meters3::new(400.0, 50.0, 400.0),
+            },
+            template: ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: "rock".to_string(),
+                    name: "Rock".to_string(),
+                    position: Meters3::ZERO,
+                    rotation: Quat::IDENTITY,
+                },
+                kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+                    material: KIND_CARBON.to_string(),
+                    destroy_sound: None,
+                    radius: Meters(20.0),
+                    texture: nova_gameplay::prelude::AssetRef::default(),
+                    mass: None,
+                    invulnerable: false,
+                    seed: None,
+                    lock_signature: None,
+                }),
+            },
+            asteroid_radius: None,
+            asteroid_kinds: mix,
+            min_separation: None,
+        };
+
+        let run = |config: &ScatterObjectsConfig| -> Vec<(String, String)> {
+            let mut world = World::new();
+            world.init_resource::<NovaEventWorld>();
+            world.init_resource::<GameObjectives>();
+            {
+                let mut event_world = world.resource_mut::<NovaEventWorld>();
+                config.action(&mut event_world, &GameEventInfo::default());
+            }
+            drain(&mut world);
+            let mut query =
+                world.query_filtered::<(&EntityId, &AsteroidKind), With<AsteroidMarker>>();
+            let mut kinds: Vec<(String, String)> = query
+                .iter(&world)
+                .map(|(id, kind)| (id.0.clone(), kind.0.clone()))
+                .collect();
+            kinds.sort();
+            kinds
+        };
+
+        let mix = vec![
+            (KIND_ROCK.to_string(), 6),
+            (KIND_ICE.to_string(), 3),
+            (KIND_METAL.to_string(), 1),
+        ];
+        let mixed = config(mix);
+        let first = run(&mixed);
+        assert_eq!(first.len(), 60);
+        assert_eq!(first, run(&mixed), "the id -> kind map is reproducible");
+
+        for wanted in [KIND_ROCK, KIND_METAL, KIND_ICE] {
+            assert!(
+                first.iter().any(|(_, kind)| kind == wanted),
+                "'{wanted}' is in the mix, so some rock is made of it: {first:?}"
+            );
+        }
+        let stone = first.iter().filter(|(_, k)| k == KIND_ROCK).count();
+        assert!(
+            stone > 60 / 4,
+            "six parts in ten is the majority kind, not a garnish: {stone} of 60"
+        );
+
+        // A field with no mix does not fall back to the template and does not
+        // fall back to stone: it does not spawn. The lint refuses this
+        // statically, and this is the runtime holding the same line for content
+        // the lint never saw.
+        let unmixed = run(&config(vec![]));
+        assert!(
+            unmixed.is_empty(),
+            "an asteroid field with no kind mix spawns nothing: {unmixed:?}"
+        );
+        let zeroed = run(&config(vec![(KIND_ROCK.to_string(), 0)]));
+        assert!(
+            zeroed.is_empty(),
+            "a mix that is all zero weight is no mix: {zeroed:?}"
+        );
+    }
+
     /// Scatter is gameplay content, so it spawns the full authored count on
     /// EVERY graphics tier. Regression: even with the cheapest (Low)
     /// [`GraphicsBudget`] inserted and carried into the event world, the field
@@ -1214,7 +1363,7 @@ mod tests {
                     rotation: Quat::IDENTITY,
                 },
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     radius: Meters(20.0),
                     texture: nova_gameplay::prelude::AssetRef::default(),
@@ -1225,6 +1374,7 @@ mod tests {
                 }),
             },
             asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+            asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
             min_separation: None,
         };
 

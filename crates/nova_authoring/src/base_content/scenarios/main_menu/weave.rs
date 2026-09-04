@@ -115,7 +115,7 @@ pub(crate) fn menu_weave(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -126,6 +126,17 @@ pub(crate) fn menu_weave(
             }),
         },
         asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+        // The widest mix in the game, because this backdrop's whole job is to
+        // prove a belt is not one rock: the band fills the frame, the ship
+        // threads THROUGH it, and the camera is close enough to read a
+        // surface. Metal at one part in twenty puts one or two nickel-iron
+        // bodies in a 40-rock band - findable, never common.
+        asteroid_kinds: vec![
+            (KIND_ROCK.to_string(), 12),
+            (KIND_CARBON.to_string(), 4),
+            (KIND_ICE.to_string(), 3),
+            (KIND_METAL.to_string(), 1),
+        ],
         min_separation: Some(Meters(450.0)),
     });
 

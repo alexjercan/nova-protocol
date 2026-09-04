@@ -951,6 +951,7 @@ impl ActionChoice {
                     },
                     template: stock_object(),
                     asteroid_radius: None,
+                    asteroid_kinds: vec![(KIND_ROCK.to_string(), 1)],
                     min_separation: None,
                 })
             }
@@ -1130,7 +1131,7 @@ fn stock_object() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters(30.0),
             texture: AssetRef::from(crate::node::ASTEROID_TEXTURE),
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(crate::node::DESTROY_SOUND)),
             mass: None,
             invulnerable: false,

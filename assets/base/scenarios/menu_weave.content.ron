@@ -377,6 +377,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
+                                material: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -385,6 +386,24 @@
                             10.0,
                             30.0,
                         )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                12,
+                            ),
+                            (
+                                "carbon",
+                                4,
+                            ),
+                            (
+                                "ice",
+                                3,
+                            ),
+                            (
+                                "metal",
+                                1,
+                            ),
+                        ],
                         min_separation: Some(450.0),
                     )),
                     TimerStart((

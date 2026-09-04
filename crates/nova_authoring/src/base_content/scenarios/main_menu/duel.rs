@@ -184,7 +184,7 @@ pub(crate) fn menu_duel(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -195,6 +195,11 @@ pub(crate) fn menu_duel(
             }),
         },
         asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+        // Scenery, and it has to stay scenery: this ring sits far below a
+        // gunfight that owns the frame's light. Stone and dark carbon only -
+        // carbon reads as depth without competing with a muzzle flash, and a
+        // glossy ice body down there would pull the eye off the duel.
+        asteroid_kinds: vec![(KIND_ROCK.to_string(), 7), (KIND_CARBON.to_string(), 3)],
         min_separation: None,
     });
 

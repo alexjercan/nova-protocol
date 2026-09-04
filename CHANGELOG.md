@@ -91,6 +91,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A COMPLETED helm order gives back the `arrival_standoff` it staged, as a
   canceled or interrupted one already did, so tight staging cannot retune every
   later GOTO the hull flies.
+- **(breaking)** An asteroid's `material` names its KIND and is now required:
+  `rock`, `metal`, `ice`, `carbon` or `plain`. A rock without one fails to
+  load, and an id nobody ships is a lint error.
+- `ScatterObjects` takes `asteroid_kinds`, a weighted mix drawn from the
+  scatter's own seed, so one field is mostly rock with a little metal. An
+  asteroid template must author one.
 
 ### Interface & HUD
 - Nova Protocol's campaign comms now give each recurring voice a distinct green
@@ -106,6 +112,9 @@ does NOT get an entry - and it is the only place they are written down.
 - With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
   the bore ringing every section the shot would destroy, dimmed but still there
   through the twelve-second reload.
+- The editor places a rock by KIND. The inspector's Material row is a pick list
+  of the shipped kinds, and the body on the stage is rebuilt in whichever one
+  you pick.
 - The editor's inspector and gallery read and write lengths and speeds in
   meters, the unit the file itself now holds, and a section's own mesh rows
   read in build-grid cells.
@@ -257,6 +266,9 @@ does NOT get an entry - and it is the only place they are written down.
   sound for losing.
 - Four volume sliders - master, interface, world and music - saved with the
   rest of the settings. Music is reserved: nothing routes to it yet.
+- An asteroid wears its kind: rock, metal, ice and carbon each get their own
+  palette, strata and specular over a triplanar surface, so a belt reads as
+  several materials instead of one repeated rock.
 
 ### Performance
 - A collapsing hull measures its pre-cut centre of mass once per frame, not

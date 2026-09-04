@@ -18,6 +18,18 @@
 //! triangles do - which is what makes a carved rock and a pristine one the same
 //! material rather than two that happen to share a texture.
 //!
+//! # The texture, again: one projection still repeats
+//!
+//! Position sampling removed the SEAMS and left the REPEAT. One texture at one
+//! tiling, wrapped by `fract`, restarts about every three units of local space,
+//! and a rock's surface stands three and a half to six units out - so the same
+//! tile lands on one body several times over, and on every body in the field
+//! identically. [`AsteroidSurfaceUniform`] is the answer: a kind palette and a
+//! noise field evaluated in the same local space, plus a per-seed rotation and
+//! offset of the sampling frame. See
+//! [`asteroid_kind`](super::asteroid_kind) for what a kind is and
+//! `assets/shaders/asteroid_surface.wgsl` for what the shader spends.
+//!
 //! # The silhouette: a rock is not a sphere with growths on it
 //!
 //! [`PlanetHeight`](super::asteroid::PlanetHeight) is a planet generator: a
@@ -37,16 +49,19 @@
 use bevy::{
     pbr::{ExtendedMaterial, MaterialExtension},
     prelude::*,
-    render::render_resource::AsBindGroup,
+    render::render_resource::{AsBindGroup, ShaderType},
     shader::ShaderRef,
 };
 use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 
-/// `RockHeight`, `RockHeightNoise`, `AsteroidSurfaceMaterial` and
-/// `AsteroidSurfaceMaterialExt`.
+use super::asteroid_kind::prelude::AsteroidKindLook;
+
+/// `RockHeight`, `RockHeightNoise`, `AsteroidSurfaceMaterial`,
+/// `AsteroidSurfaceMaterialExt` and `AsteroidSurfaceUniform`.
 pub mod prelude {
     pub use super::{
-        AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, RockHeight, RockHeightNoise,
+        AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt, AsteroidSurfaceUniform, RockHeight,
+        RockHeightNoise,
     };
 }
 
@@ -65,24 +80,101 @@ pub const ROCK_TEXTURE_TILING: f32 = 0.35;
 /// line. Nothing here is subtle at this texture scale.
 pub const ROCK_TEXTURE_SHARPNESS: f32 = 4.0;
 
-/// The rock material: a standard PBR material surfaced triplanar-ly.
+/// The rock material: a standard PBR material surfaced triplanar-ly, shaded by
+/// its kind.
 pub type AsteroidSurfaceMaterial = ExtendedMaterial<StandardMaterial, AsteroidSurfaceMaterialExt>;
 
-/// The triplanar extension's own bindings.
-#[derive(Asset, TypePath, AsBindGroup, Debug, Clone, Default)]
-pub struct AsteroidSurfaceMaterialExt {
+/// Everything the rock shader reads about ONE body, in one uniform.
+///
+/// Packed as a single [`ShaderType`] rather than as a list of `#[uniform(100)]`
+/// scalars, and led by a `LinearRgba`, which is what settles the layout: a
+/// colour aligns to 16 bytes, so the struct aligns to 16 and encase rounds its
+/// size to a multiple of 16 as well. That is exactly the constraint the
+/// hand-written `_webgl2_padding` fields used to satisfy on wasm32, so those are
+/// gone - the layout can no longer be broken by adding a knob.
+///
+/// Field order here IS the WGSL struct's field order in
+/// `assets/shaders/asteroid_surface.wgsl`. Keep them in step.
+#[derive(ShaderType, Debug, Clone)]
+pub struct AsteroidSurfaceUniform {
+    /// The dark end of the kind's palette.
+    pub shade: LinearRgba,
+    /// The light end of the kind's palette.
+    pub tint: LinearRgba,
+    /// The colour of the cell walls the Worley layer draws.
+    pub vein: LinearRgba,
     /// Texture repeats per unit of the body's own local space.
-    #[uniform(100)]
     pub tiling: f32,
     /// How hard the three projections cut over to each other.
-    #[uniform(100)]
     pub sharpness: f32,
-    #[cfg(target_arch = "wasm32")]
+    /// Macro-noise cycles per unit of local space.
+    pub macro_scale: f32,
+    /// How far the macro noise's domain is warped before it is read.
+    pub warp: f32,
+    /// How hard the macro noise is pushed away from its midpoint.
+    pub contrast: f32,
+    /// How much of the kind palette replaces the texture's own colour.
+    pub kind_mix: f32,
+    /// How strongly the texture's brightness modulates the palette.
+    pub grain: f32,
+    /// The texture's mean linear luminance, which `grain` is measured against.
+    pub grain_mid: f32,
+    /// How much of the second texture scale is blended in to break the repeat.
+    pub break_up: f32,
+    /// Worley cell cycles per unit of local space.
+    pub vein_scale: f32,
+    /// How strongly the cell walls are painted in `vein`.
+    pub vein_strength: f32,
+    /// Perceptual roughness where the surface is smoothest.
+    pub roughness_low: f32,
+    /// Perceptual roughness where the surface is roughest.
+    pub roughness_high: f32,
+    /// Metallic response.
+    pub metallic: f32,
+    /// This body's own 0..1 draw from its silhouette seed. Rotates and offsets
+    /// the whole sampling frame, so two rocks of the same kind wearing the same
+    /// texture are not the same rock. See [`seed_jitter`].
+    pub jitter: f32,
+}
+
+impl AsteroidSurfaceUniform {
+    /// The uniform a body of this kind wants, at the shared tiling.
+    pub fn new(look: &AsteroidKindLook) -> Self {
+        Self {
+            shade: look.shade,
+            tint: look.tint,
+            vein: look.vein,
+            tiling: ROCK_TEXTURE_TILING,
+            sharpness: ROCK_TEXTURE_SHARPNESS,
+            macro_scale: look.macro_scale,
+            warp: look.warp,
+            contrast: look.contrast,
+            kind_mix: look.kind_mix,
+            grain: look.grain,
+            grain_mid: look.grain_mid,
+            break_up: look.break_up,
+            vein_scale: look.vein_scale,
+            vein_strength: look.vein_strength,
+            roughness_low: look.roughness_low,
+            roughness_high: look.roughness_high,
+            metallic: look.metallic,
+            jitter: 0.0,
+        }
+    }
+
+    /// These parameters jittered for the body with this silhouette seed.
+    pub fn with_seed(mut self, seed: u32) -> Self {
+        self.jitter = seed_jitter(seed);
+        self
+    }
+}
+
+/// The triplanar extension's own bindings.
+#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
+pub struct AsteroidSurfaceMaterialExt {
+    /// The kind shading and the per-body jitter.
     #[uniform(100)]
-    _webgl2_padding_16b1: u32,
-    #[cfg(target_arch = "wasm32")]
-    #[uniform(100)]
-    _webgl2_padding_16b2: u32,
+    pub look: AsteroidSurfaceUniform,
     /// The rock texture, bound HERE rather than as the standard material's
     /// `base_color_texture`: the standard sampler would read it through the
     /// mesh UVs, which is the thing this exists to stop doing.
@@ -92,20 +184,12 @@ pub struct AsteroidSurfaceMaterialExt {
 }
 
 impl AsteroidSurfaceMaterialExt {
-    /// The extension a rock wearing `texture` wants.
-    #[cfg_attr(
-        not(target_arch = "wasm32"),
-        expect(
-            clippy::needless_update,
-            reason = "the webgl2 padding fields exist only on wasm32, and there this update is what fills them"
-        )
-    )]
-    pub fn new(texture: Handle<Image>) -> Self {
+    /// The extension a rock of this kind, wearing `texture`, with this
+    /// silhouette seed, wants.
+    pub fn new(texture: Handle<Image>, look: &AsteroidKindLook, seed: u32) -> Self {
         Self {
-            tiling: ROCK_TEXTURE_TILING,
-            sharpness: ROCK_TEXTURE_SHARPNESS,
+            look: AsteroidSurfaceUniform::new(look).with_seed(seed),
             texture: Some(texture),
-            ..default()
         }
     }
 }
@@ -360,6 +444,26 @@ fn seed_stretch(seed: u32) -> Vec3 {
     };
     let stretch = Vec3::new(next(), next(), next());
     stretch / stretch.max_element()
+}
+
+/// The 0..1 surface jitter a rock with this seed wears.
+///
+/// The shader turns it into a rotation and an offset of the whole sampling
+/// frame, so two rocks of the same kind wearing the same texture sit at
+/// different places in the noise field and in the tile. Without it a field of
+/// one kind is a field of one rock, which is most of what "repetitive" means
+/// when the silhouettes already differ.
+///
+/// The same FNV-1a walk [`seed_stretch`] uses, one step further along, so a
+/// seed's proportions and its surface are drawn from the same stream and
+/// neither can accidentally track the other.
+fn seed_jitter(seed: u32) -> f32 {
+    let mut hash: u32 = 0x811c_9dc5 ^ seed;
+    for _ in 0..4 {
+        hash = hash.wrapping_mul(0x0100_0193);
+        hash ^= hash >> 15;
+    }
+    (hash >> 16) as f32 / 65_536.0
 }
 
 #[cfg(test)]

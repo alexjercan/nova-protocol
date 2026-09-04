@@ -18,6 +18,7 @@ use nova_ship::prelude::*;
 
 use super::{
     asteroid_carve::pristine_rock_mesh,
+    asteroid_kind::prelude::{asteroid_kind_look, AsteroidKind, ASTEROID_KINDS},
     asteroid_surface::prelude::{AsteroidSurfaceMaterial, AsteroidSurfaceMaterialExt},
 };
 
@@ -45,18 +46,25 @@ pub struct AsteroidConfig {
     /// at spawn time (see `insert_asteroid_render`).
     #[reflect(ignore)]
     pub texture: AssetRef<Image>,
-    /// What this rock is MADE of - an open material id looked up in the impact
-    /// table against the damage type that struck it, snapshotted into
-    /// [`SurfaceMaterial`] on the asteroid parent (the audio observers walk up
-    /// from the collider node).
+    /// What this rock is MADE of - one open id with three consumers, and the
+    /// authored half of the asteroid KIND.
     ///
-    /// `None` is [`MATERIAL_ROCK`]. The field exists so a mod can field an ice
-    /// or a metal body, not so every asteroid can restate that it is stone.
-    #[cfg_attr(
-        feature = "serde",
-        serde(default, skip_serializing_if = "Option::is_none")
-    )]
-    pub material: Option<String>,
+    /// It is looked up in the impact table against the damage type that struck
+    /// it, snapshotted into [`SurfaceMaterial`] on the asteroid parent (the
+    /// audio observers walk up from the collider node); it selects the surface
+    /// shading through
+    /// [`asteroid_kind_look`](super::asteroid_kind::asteroid_kind_look), so an
+    /// `ice` body is drawn as ice and not only heard as it; and it is where an
+    /// ore yield attaches when mining exists. One field, because a rock that is
+    /// made of ice is made of ice for every purpose.
+    ///
+    /// REQUIRED, and checked. The base kinds are [`ASTEROID_KINDS`]: `rock`,
+    /// `metal`, `ice`, `carbon` and the `plain` control. There is no default
+    /// and no fallback - a rock that does not say what it is made of fails to
+    /// deserialize, and one that names a kind nobody ships is a lint error and
+    /// a loud refusal at render time. A body this big in the frame does not get
+    /// to be a shrug.
+    pub material: String,
     /// The sound this rock's destruction plays. Authorable asset ref;
     /// AUTHORED-OR-SILENT, snapshotted into [`DestroySound`] on the same
     /// parent. Per-target, unlike the hit voice: a rock breaking up is one
@@ -198,6 +206,11 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
     let unit_extent = mesh_max_vertex_radius(&mesh).max(1.0);
     let radius = config.radius.to_engine();
 
+    // One resolved id for the two components that carry it: what the rock
+    // sounds like and what it is drawn as can never disagree, because there is
+    // nothing for them to disagree about.
+    let kind = config.material.clone();
+
     entity.insert((
         AsteroidMarker,
         EntityTypeName::new(ASTEROID_TYPE_NAME),
@@ -207,12 +220,9 @@ pub fn asteroid_scenario_object(entity: &mut EntityCommands, config: AsteroidCon
         AsteroidTexture(config.texture),
         AsteroidRadius(radius),
         DestroySound(config.destroy_sound.clone()),
-        SurfaceMaterial::new(
-            config
-                .material
-                .clone()
-                .unwrap_or_else(|| MATERIAL_ROCK.to_string()),
-        ),
+        // Nested so the bundle stays inside the 15-element tuple limit; the
+        // pair is one fact about the rock anyway.
+        (AsteroidKind::new(kind.clone()), SurfaceMaterial::new(kind)),
         AsteroidInvulnerable(config.invulnerable),
         AsteroidMass(config.mass),
         AsteroidSeed(seed),
@@ -401,7 +411,7 @@ fn insert_asteroid_render(
     mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,
     asset_server: Res<AssetServer>,
     q_render: Query<(&AsteroidRenderMesh, &ChildOf)>,
-    q_asteroid: Query<&AsteroidTexture, With<AsteroidMarker>>,
+    q_asteroid: Query<(&AsteroidTexture, &AsteroidKind, &AsteroidSeed), With<AsteroidMarker>>,
 ) {
     let entity = add.entity;
     trace!("insert_asteroid_render: entity {:?}", entity);
@@ -414,7 +424,7 @@ fn insert_asteroid_render(
         return;
     };
 
-    let Ok(texture) = q_asteroid.get(*asteroid) else {
+    let Ok((texture, kind, seed)) = q_asteroid.get(*asteroid) else {
         error!(
             "insert_asteroid_render: entity {:?} not found in q_asteroid",
             entity
@@ -428,10 +438,28 @@ fn insert_asteroid_render(
     // through the mesh UVs is exactly what made a rock look quilted and made a
     // carved rock wear a different texture scale from an uncarved one. The
     // standard material keeps its tint, which the extension multiplies into.
+    //
+    // The material is built ONCE per body and the carve path re-applies the
+    // same handle to a remeshed rock and to every piece it throws, so the kind
+    // and the per-body jitter survive being shot at without anything having to
+    // rebuild them.
+    // No house look for an id nobody ships: the lint refuses one statically and
+    // this refuses it again, because a mod loads content the lint never saw.
+    // The rock keeps its collider and gets no mesh, which is as loud as a
+    // content error can be made without taking the scenario down.
+    let Some(look) = asteroid_kind_look(kind) else {
+        error!(
+            "insert_asteroid_render: asteroid {:?} is made of '{}', which is not a kind. \
+             Author one of {:?}.",
+            *asteroid, **kind, ASTEROID_KINDS
+        );
+        return;
+    };
+
     let image = texture.resolve(&asset_server);
     let material = AsteroidSurfaceMaterial {
         base: StandardMaterial::default(),
-        extension: AsteroidSurfaceMaterialExt::new(image),
+        extension: AsteroidSurfaceMaterialExt::new(image, &look, **seed),
     };
 
     commands.entity(entity).insert((
@@ -752,7 +780,7 @@ impl NoiseFn<f64, 3> for PlanetHeightNoise {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::asteroid_kind::prelude::KIND_ROCK, *};
 
     /// A REUSED sampler answers every point the way a fresh one would.
     ///
@@ -1049,7 +1077,7 @@ mod tests {
     /// are in world units - a 200 m rock is 20 of them.
     fn rock(radius: Meters, mass: Option<f32>) -> AsteroidConfig {
         AsteroidConfig {
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: None,
             radius,
             texture: AssetRef::default(),

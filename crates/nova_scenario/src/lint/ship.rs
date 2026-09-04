@@ -865,6 +865,7 @@ mod tests {
                 },
                 template,
                 asteroid_radius: None,
+                asteroid_kinds: vec![],
                 min_separation: None,
             })],
             vec![],

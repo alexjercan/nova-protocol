@@ -311,7 +311,7 @@ fn rock(game_assets: &GameAssets) -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             radius: Meters::from_engine(ROCK_RADIUS),
             texture: game_assets.asteroid_texture.clone().into(),
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: None,
             mass: None,
             invulnerable: false,

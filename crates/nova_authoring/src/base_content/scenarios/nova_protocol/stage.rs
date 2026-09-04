@@ -133,6 +133,29 @@ pub(crate) const AMBIENT_ROCKS: [(Meters3, Meters); 20] = [
     (Meters3::new(7_000.0, -1_600.0, -7_000.0), Meters(58.0)),
 ];
 
+/// What the working field is MADE of, as relative parts.
+///
+/// This is the belt the salvage beat happens in, so it is the one that has to
+/// carry an ore fiction: mostly ordinary stone, a solid minority of dark
+/// carbonaceous bodies, some ice, and metal at one part in twenty. Rare is the
+/// point of the metal - it is the kind a mining system makes valuable, and a
+/// belt where every fourth rock is nickel-iron has nothing left to find.
+pub(crate) const SALVAGE_MIX: [(&str, u32); 4] = [
+    (KIND_ROCK, 12),
+    (KIND_CARBON, 5),
+    (KIND_ICE, 2),
+    (KIND_METAL, 1),
+];
+
+/// What the FAR dressing is made of.
+///
+/// Kilometres out, so hue differences wash out and only the two ends of the
+/// value range survive: stone against near-black carbon, with the odd bright
+/// ice body to keep the far ring from reading as one grey band. No metal - a
+/// metal body strung outside the playable volume is a promise the chapter never
+/// lets the player keep.
+pub(crate) const AMBIENT_MIX: [(&str, u32); 3] = [(KIND_ROCK, 6), (KIND_CARBON, 3), (KIND_ICE, 1)];
+
 /// Scenario ids for the two fixed bodies. Both chapters spawn them under these
 /// names, so a marker, an orbit order or a lock reads the same in either.
 pub(crate) const ID_INSPECTION: &str = "inspection_planetoid";
@@ -182,11 +205,17 @@ pub(crate) fn sized_beacon(
 }
 
 /// One belt rock: collidable, destructible, and carrying no well of its own.
+///
+/// `kind` is what it is made of - the id that decides how it is shaded, and the
+/// one a future ore table reads. Drawn per body from a mix rather than authored
+/// per rock, because the belt is 60 bodies and the interesting fact about it is
+/// the PROPORTION, not which particular rock is ice.
 pub(crate) fn rock(
     id: &str,
     name: &str,
     position: Meters3,
     radius: Meters,
+    kind: &str,
     texture: &AssetRef<Image>,
 ) -> ScenarioObjectConfig {
     ScenarioObjectConfig {
@@ -197,7 +226,7 @@ pub(crate) fn rock(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
+            material: kind.to_string(),
             destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
             radius,
             texture: texture.clone(),
@@ -292,6 +321,7 @@ pub(crate) fn belt(texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
             &format!("Salvage Rock {}", index + 1),
             position,
             radius,
+            asteroid_kind_at(&SALVAGE_MIX, index).expect("the salvage mix has weight"),
             texture,
         ));
     }
@@ -301,6 +331,7 @@ pub(crate) fn belt(texture: &AssetRef<Image>) -> Vec<ScenarioObjectConfig> {
             &format!("Belt Rock {}", index + 1),
             position,
             radius,
+            asteroid_kind_at(&AMBIENT_MIX, index).expect("the ambient mix has weight"),
             texture,
         ));
     }

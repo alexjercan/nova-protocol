@@ -193,6 +193,13 @@ path = "examples/playable/parts_viewer.rs"
 name = "widget_zoo"
 path = "examples/playable/widget_zoo.rs"
 
+# The asteroid KIND lineup (task 20260815-231945): five kinds across three
+# silhouette seeds, every rock spawned through the real scenario path, with the
+# `plain` control column standing in as the before picture.
+[[example]]
+name = "asteroid_kinds"
+path = "examples/playable/asteroid_kinds.rs"
+
 # The compare_* rigs frame art candidates for human judgment (task
 # 20260812-100256), with the owner's eyes on them rather than the website's:
 # number keys re-dress the focus subject and the arrows cycle. Under

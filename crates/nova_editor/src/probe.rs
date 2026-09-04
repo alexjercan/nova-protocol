@@ -484,7 +484,7 @@ mod tests {
     /// off the document here, the same way the panel walks them.
     #[test]
     fn the_probe_reports_the_rows_the_inspector_is_showing() {
-        use nova_scenario::prelude::{AsteroidConfig, ScenarioObjectKind};
+        use nova_scenario::prelude::{AsteroidConfig, ScenarioObjectKind, KIND_ROCK};
 
         use crate::{
             node::{EditorNode, NodeId, ObjectNode, ScenarioNode},
@@ -525,7 +525,7 @@ mod tests {
                     kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                         radius: Meters(70.0),
                         texture: default(),
-                        material: None,
+                        material: KIND_ROCK.to_string(),
                         destroy_sound: None,
                         mass: None,
                         invulnerable: false,

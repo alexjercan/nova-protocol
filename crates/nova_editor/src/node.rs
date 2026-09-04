@@ -348,7 +348,7 @@ impl ObjectChoice {
             ObjectChoice::Asteroid => ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 mass: None,
                 invulnerable: false,
@@ -1331,7 +1331,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,
@@ -1365,7 +1365,7 @@ mod tests {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

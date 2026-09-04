@@ -178,7 +178,7 @@ pub(crate) fn menu_gauntlet(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -189,6 +189,15 @@ pub(crate) fn menu_gauntlet(
             }),
         },
         asteroid_radius: Some((Meters(10.0), Meters(30.0))),
+        // The same dressing job as the duel ring, denser and further from the
+        // key light, so it gets one ice body in twelve: the stand is lit by
+        // tracer and torpedo flash, and one thing down there that catches a
+        // highlight is what stops the depth layer reading as a grey smear.
+        asteroid_kinds: vec![
+            (KIND_ROCK.to_string(), 8),
+            (KIND_CARBON.to_string(), 3),
+            (KIND_ICE.to_string(), 1),
+        ],
         min_separation: None,
     });
 

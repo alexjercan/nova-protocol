@@ -689,7 +689,7 @@ fn planetoid() -> ScenarioObjectConfig {
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             // DIRECT paths, not dep://: the editor's world is built at runtime
             // outside the mod merge, so scheme refs would never rewrite.
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
             radius: Meters::from_engine(PLANETOID_RADIUS),
             texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -952,7 +952,7 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 // DIRECT paths, not dep:// - see `planetoid`.
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from(DESTROY_SOUND)),
                 radius: Meters::from_engine(belt.radius.0),
                 texture: AssetRef::from(ASTEROID_TEXTURE),
@@ -966,6 +966,16 @@ fn belt_scatter(belt: &Belt) -> EventActionConfig {
             Meters::from_engine(belt.radius.0),
             Meters::from_engine(belt.radius.1),
         )),
+        // Mixed, because the sandbox is where a creator meets the editor and
+        // a range of one grey rock teaches that a rock is one grey thing.
+        // Stone-heavy all the same: this is a shooting range, and the kinds
+        // are here to be noticed, not to be the subject.
+        asteroid_kinds: vec![
+            (KIND_ROCK.to_string(), 10),
+            (KIND_CARBON.to_string(), 3),
+            (KIND_ICE.to_string(), 2),
+            (KIND_METAL.to_string(), 1),
+        ],
         min_separation: Some(Meters::from_engine(belt.separation)),
     })
 }

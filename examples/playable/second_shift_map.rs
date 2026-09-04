@@ -507,7 +507,7 @@ fn asteroid(
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
+            material: KIND_ROCK.to_string(),
             destroy_sound: None,
             radius,
             texture: texture.clone().into(),

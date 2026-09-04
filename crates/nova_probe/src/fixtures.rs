@@ -24,6 +24,7 @@ pub mod prelude {
 
 use bevy::prelude::*;
 use nova_core::prelude::*;
+use nova_scenario::prelude::KIND_ROCK;
 
 /// One section slot on a ship built by [`ship`].
 ///
@@ -123,7 +124,7 @@ pub fn asteroid(
         },
         kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
             destroy_sound: Some("base/sounds/destroy_rock.wav".into()),
-            material: None,
+            material: KIND_ROCK.to_string(),
             radius,
             texture: game_assets.asteroid_texture.clone().into(),
             mass: None,

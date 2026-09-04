@@ -1,0 +1,200 @@
+<title>Asteroid Kinds</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<style>
+:root {
+  --space: #03060b;
+  --case-0: #0a0d10;
+  --case-1: #161b20;
+  --case-3: #2f383f;
+  --phosphor: #36ff79;
+  --phosphor-dim: #19a64f;
+  --phosphor-muted: #0d6e35;
+  --amber: #ffb84a;
+  --text: #b9ffc9;
+  --mono: "JetBrains Mono", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--space); color: var(--text);
+  font-family: var(--mono); font-size: 14px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px);
+  opacity: .5;
+}
+.page { max-width: 1180px; margin: 0 auto; padding: 56px 24px 96px; }
+.eyebrow {
+  font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--phosphor-muted); margin: 0 0 20px;
+}
+h1 {
+  font-size: clamp(26px, 4vw, 42px); font-weight: 700; line-height: 1.15;
+  margin: 0 0 24px; color: var(--phosphor);
+  text-shadow: 0 0 12px rgba(54,255,121,.28);
+}
+.thesis {
+  border-left: 2px solid var(--amber); padding: 4px 0 4px 20px;
+  max-width: 66ch; font-size: 16px; line-height: 1.65; color: #d9ffe6; margin: 0 0 40px;
+}
+.thesis b { color: var(--amber); font-weight: 600; }
+h2 {
+  font-size: 12px; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--phosphor-muted); font-weight: 600;
+  margin: 52px 0 14px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(54,255,121,.16);
+}
+p { max-width: 74ch; color: var(--phosphor-dim); }
+p b { color: var(--text); font-weight: 500; }
+figure { margin: 0 0 12px; }
+figure img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--case-3); background: #000;
+  box-shadow: 0 6px 20px -8px rgba(0,0,0,.9);
+}
+figcaption {
+  margin-top: 8px; font-size: 12px; color: var(--phosphor-muted);
+  line-height: 1.5; max-width: 74ch;
+}
+figcaption b { color: var(--amber); font-weight: 600; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 0 0 24px; }
+@media (max-width: 800px) { .pair { grid-template-columns: 1fr; } }
+table { border-collapse: collapse; width: 100%; margin: 0 0 24px; font-size: 13px; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid rgba(54,255,121,.14); }
+th {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--phosphor-muted); font-weight: 600;
+}
+td { color: var(--phosphor-dim); }
+td:first-child { color: var(--text); }
+code {
+  background: var(--case-0); border: 1px solid var(--case-1);
+  padding: 1px 5px; color: var(--amber); font-size: .92em;
+}
+.foot {
+  margin-top: 56px; padding-top: 18px; border-top: 1px solid rgba(54,255,121,.16);
+  font-size: 12px; color: var(--phosphor-muted); max-width: 74ch;
+}
+</style>
+
+<div class="page">
+
+<p class="eyebrow">task 20260815-231945 &middot; asteroid lane &middot; baseline f05298fe</p>
+<h1>Asteroid kinds</h1>
+
+<p class="thesis">
+The rocks looked <b>repetitive</b> because one square texture tiled five to
+eight times across every body, in the same place on every body. They looked
+<b>flat</b> because every rock wore <code>StandardMaterial::default()</code> -
+white, roughness 0.5 everywhere - over a texture whose linear albedo only
+occupies 0.04 to 0.17. Different faults, different fixes.
+</p>
+
+<h2>The before picture, and the after</h2>
+
+<p>
+Same distance, same key light, adjacent bodies in one scene. The
+<code>plain</code> kind on the left is not a fifth rock: it is the control, with
+every kind knob turned off, so it renders exactly as the surface did before this
+change. It stands in the after picture's own lighting so the comparison cannot
+cheat.
+</p>
+
+<div class="pair">
+  <figure>
+    <img src="asteroid-kinds-control-closeup.png" alt="The plain control rock, filling the frame">
+    <figcaption><b>BEFORE.</b> Straight horizontal and vertical edges cross the
+    body where the tile wrap lands, and the same feature repeats at the same
+    size. One flat pale tan, varied only by the key light.</figcaption>
+  </figure>
+  <figure>
+    <img src="asteroid-kinds-rock-closeup.png" alt="The rock kind, filling the frame">
+    <figcaption><b>AFTER.</b> No wrap edges survive the two-scale choice and the
+    per-body frame. Warm tan and cool slate strata run at angles the silhouette
+    did not cause, and the crevice grain is still at full contrast.</figcaption>
+  </figure>
+</div>
+
+<h2>Five kinds, three seeds</h2>
+
+<figure>
+  <img src="asteroid-kinds-grid.png" alt="Five asteroid kinds across three silhouette seeds">
+  <figcaption>Columns are kinds, rows are seeds. Two questions in one frame:
+  does a kind read as its own material, and do two rocks of one kind read as two
+  rocks. Every body was spawned through the real scenario path.</figcaption>
+</figure>
+
+<table>
+  <tr><th>id</th><th>reads as</th><th>roughness</th><th>metallic</th><th>veins</th></tr>
+  <tr><td>rock</td><td>warm tan stone banded with cool slate</td><td>0.70 - 0.96</td><td>0.00</td><td>faint</td></tr>
+  <tr><td>metal</td><td>cold grey-blue with bright cut lines</td><td>0.28 - 0.70</td><td>0.85</td><td>strong</td></tr>
+  <tr><td>ice</td><td>pale blue-white, glossy, bright fracture network</td><td>0.08 - 0.55</td><td>0.00</td><td>strongest</td></tr>
+  <tr><td>carbon</td><td>near-black, faintly warm, matte</td><td>0.88 - 1.00</td><td>0.00</td><td>faint</td></tr>
+  <tr><td>plain</td><td>the control - every knob off</td><td>0.50 flat</td><td>0.00</td><td>none</td></tr>
+</table>
+
+<div class="pair">
+  <figure>
+    <img src="asteroid-kinds-control-vs-rock.png" alt="Control beside rock">
+    <figcaption>Control beside stone. The control reads as an untextured white
+    object sitting among materials.</figcaption>
+  </figure>
+  <figure>
+    <img src="asteroid-kinds-metal-vs-ice.png" alt="Metal beside ice">
+    <figcaption>The harder test: two bright kinds that must separate on specular
+    behaviour and vein character, not on hue.</figcaption>
+  </figure>
+</div>
+
+<h2>A carved rock wears the same surface</h2>
+
+<p>
+The material is sampled by position in the body's own space and never by a UV,
+so a remesh must not change what the rock is made of. This is the same body as
+the after picture above, from the same camera, after five craters cut through
+the real damage path.
+</p>
+
+<figure>
+  <img src="asteroid-kinds-rock-carved.png" alt="The stone rock after five craters">
+  <figcaption>Fresh interior walls carry the strata continuously into each
+  crater. No seam at the cut, no stretching, no reversion to a default
+  material.</figcaption>
+</figure>
+
+<h2>The kind seam, in five lines</h2>
+
+<table>
+  <tr><td>1</td><td>The existing <code>AsteroidConfig::material</code> id IS the kind. <code>None</code> resolves to <code>KIND_ROCK</code>, which is <code>MATERIAL_ROCK</code>, so nothing shipped changes id.</td></tr>
+  <tr><td>2</td><td>The spawned rock carries <code>AsteroidKind(String)</code> beside the <code>SurfaceMaterial</code> the audio observers already read.</td></tr>
+  <tr><td>3</td><td><code>asteroid_kind_look(&amp;str)</code> maps the id to fifteen scalars and three colours. An unknown id falls back to rock.</td></tr>
+  <tr><td>4</td><td>Look plus the body's own seed becomes one uniform. The seed drives only the projection frame, so a kind stays a kind.</td></tr>
+  <tr><td>5</td><td>Ore hangs off the id, not the look. A yield table is <code>kind -&gt; yield</code> and the renderer never learns about it.</td></tr>
+</table>
+
+<h2>What it costs</h2>
+
+<table>
+  <tr><th></th><th>before</th><th>after</th></tr>
+  <tr><td>textureSampleGrad per fragment</td><td>3</td><td>6</td></tr>
+  <tr><td>hash_cell per fragment</td><td>0</td><td>56, or 83 with veins</td></tr>
+  <tr><td>uniform bytes</td><td>16</td><td>112</td></tr>
+  <tr><td>branches</td><td>0</td><td>1, uniform across the draw</td></tr>
+</table>
+
+<p>
+<b>No timing was measured and none is claimed.</b> This lane shared a GPU with a
+second lane, so any millisecond figure would be a fact about contention. The
+table above is countable from the source. Whether it matters on a field of two
+hundred rocks is open, and it needs a quiet box to answer.
+</p>
+
+<p class="foot">
+Reasoning, sources and licences, and the honest list of what was not verified:
+see <code>tasks/20260815-231945/ASTEROID-LOOK.md</code>. Captures shot through
+<code>examples/playable/asteroid_kinds.rs</code> at 1920x1080 under
+<code>NOVA_AUTOPILOT=1 NOVA_CAPTURE=1</code>.
+</p>
+
+</div>

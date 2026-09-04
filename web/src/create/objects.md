@@ -58,10 +58,10 @@ default mass and radar signature together.
 | field | type | default | meaning |
 |---|---|---|---|
 | `radius` | number | required | nominal radius in meters, and the rock's DURABILITY - see below. The true mesh extent reaches up to 6x this (matters for [`min_separation`](../actions/#scatterobjects)) |
-| `texture` | asset ref | required | surface texture (`dep://base/textures/asteroid.png` is the stock rock) |
+| `texture` | asset ref | required | the fine crevice GRAIN the kind modulates, not the rock's colour (`dep://base/textures/asteroid.png` is the stock one) |
 | `invulnerable` | bool | required | `true` = no carving: the rock and its gravity well cannot be destroyed mid-scenario |
 | `mass` | `Option` number | `None` | well STRENGTH (the parameter mu), an engine dial rather than an SI mass - see [Anchor](#anchor). `Some` ALWAYS makes this rock a well. Size it by the reach you want, which is metric: `mass = (soi / 20)^2` for an `soi` in meters, so the campaign planetoid's 27,000 buys 3.29 km. `None` = the global rule (a default mass only if the radius qualifies it as a well: below 50 m a rock stays flat space) |
-| `material` | `Option` string | `None` | what the rock is MADE of, looked up in the [impact table](../impacts/) against the round that hit it. `None` = `"rock"` |
+| `material` | string | required | the rock's KIND: `"rock"`, `"metal"`, `"ice"`, `"carbon"` or `"plain"`. It decides how the rock looks and how a round sounds landing on it - see [below](#what-a-rock-is-made-of). There is no default and no fallback |
 | `destroy_sound` | `Option` asset ref | `None` | played on destruction (`Some("dep://base/sounds/destroy_rock.wav")`); omitted = silent |
 | `lock_signature` | `Option` number | `None` | radar signature override, meters; `None` = the radius (big rocks lock far). Lock range is thirty times the signature, so a 200 m rock is lockable from 6 km |
 | `seed` | `Option` number | `None` | silhouette seed. `Some` pins the generated shape (and the derived geometric extent) across runs; `None` derives one from the object's own `id`, so a rock differs from its neighbours but keeps its shape on every load. [`ScatterObjects`](../actions/#scatterobjects) fills it deterministically from its own seed |
@@ -72,11 +72,41 @@ SpawnScenarioObject((
     kind: Asteroid((
         radius: 200.0,
         texture: "dep://base/textures/asteroid.png",
+        material: "rock",
         mass: Some(45000.0),
         invulnerable: true,
     )),
 )),
 ```
+
+### What a rock is made of
+
+`material` is the rock's KIND, and it is REQUIRED. It answers two questions at
+once: how the body is SHADED, and what the [impact table](../impacts/) plays
+when a round lands on it.
+
+| kind | reads as |
+|---|---|
+| `"rock"` | ordinary stone: warm tan banded with cool slate |
+| `"metal"` | nickel-iron: cold, metallic, bright seams |
+| `"ice"` | water ice: pale blue, glossy, crackled through |
+| `"carbon"` | carbonaceous: near-black and matte |
+| `"plain"` | the control - the texture with nothing done to it |
+
+The kind supplies the palette, the large-scale character and the specular; the
+`texture` supplies the fine crevice grain the kind modulates. They are two
+different questions, so a mod keeps its own rock texture and still picks a kind.
+
+**There is no default and no fallback.** A rock that does not say what it is
+made of fails to load, and one that names a kind nobody ships is a `content
+lint` error and a refusal to render. A body this big in the frame does not get
+to be a shrug.
+
+**Migrating a file written before 0.12.0:** every `Asteroid((..))` needs a
+`material:` line. `material: "rock"` is what the old files were drawn as, so it
+is the mechanical migration; picking a kind per rock is the point of the field.
+A field scattered by [`ScatterObjects`](../actions/#scatterobjects) states its
+kinds once, in `asteroid_kinds`, and the scatter writes them into every copy.
 
 A normal asteroid has no health pool. Hits remove signed geometry and severed
 pieces become debris. When no viable connected solid remains, destruction fires

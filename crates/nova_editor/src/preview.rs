@@ -100,6 +100,43 @@ pub(crate) fn insert_preview_section(
     }
 }
 
+/// The stage's stand-in for a kind's surface: the kind's palette and its
+/// specular, over the authored texture.
+///
+/// Not the shipped shader. A flown rock wears a triplanar
+/// [`AsteroidSurfaceMaterial`] over a noise-carved mesh, and the stage draws a
+/// smooth sphere - but the PALETTE is what tells an ice rock from a carbon one
+/// at a glance, and that is the question the inspector's kind picker asks. A
+/// creator who picks `ice` has to see the rock go pale, or the control is a
+/// text field with extra steps.
+///
+/// [`AsteroidKindLook::kind_mix`] is how far the palette replaces the texture's
+/// own colour, so it is the blend here too: `plain` mixes nothing in and stays
+/// the texture, exactly as it does in the shader.
+///
+/// A kind nobody ships paints MAGENTA, unlit. The lint refuses such a document
+/// and the loader refuses to render it, so a rock that reaches here with an
+/// unknown kind is a file hand-edited past both - and the wrong colour is the
+/// report.
+fn asteroid_preview_material(kind: &str, texture: Handle<Image>) -> StandardMaterial {
+    let Some(look) = asteroid_kind_look(kind) else {
+        return StandardMaterial {
+            base_color: Color::srgb(1.0, 0.0, 1.0),
+            unlit: true,
+            ..default()
+        };
+    };
+    StandardMaterial {
+        base_color_texture: Some(texture),
+        base_color: Color::from(
+            LinearRgba::WHITE.mix(&look.shade.mix(&look.tint, 0.5), look.kind_mix),
+        ),
+        perceptual_roughness: (look.roughness_low + look.roughness_high) * 0.5,
+        metallic: look.metallic,
+        ..default()
+    }
+}
+
 /// Turn `entity` into a preview of `object`: a schematic body at the size the
 /// flown object draws at, and a collider so the pointer can reach it.
 ///
@@ -137,11 +174,9 @@ pub(crate) fn insert_preview_object(
                 .to_engine()
                 .max(MIN_OBJECT_RADIUS);
             let texture = rock.texture.resolve(&art.asset_server);
-            let material = art.materials.add(StandardMaterial {
-                base_color_texture: Some(texture),
-                perceptual_roughness: 1.0,
-                ..default()
-            });
+            let material = art
+                .materials
+                .add(asteroid_preview_material(&rock.material, texture));
             sphere_body(entity, art, radius, material);
         }
         // The one preview that is NOT schematic, because for a planet the
@@ -276,7 +311,7 @@ pub(crate) fn body_is_drawn_from(kind: &ScenarioObjectKind, path: &[PathStep]) -
 fn drawn_fields(kind: &ScenarioObjectKind) -> &'static [&'static str] {
     match kind {
         ScenarioObjectKind::Anchor(_) => &["body_radius"],
-        ScenarioObjectKind::Asteroid(_) => &["radius", "texture"],
+        ScenarioObjectKind::Asteroid(_) => &["radius", "texture", "material"],
         // Every field the surface is generated from, because the editor draws
         // the real surface: a seed change IS a different world.
         ScenarioObjectKind::Planet(_) => &["radius", "planet_type", "seed", "relief", "sea_level"],
@@ -313,12 +348,77 @@ fn hull_extents(sections: &[SpaceshipSectionConfig]) -> Vec3 {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_events::units::prelude::Meters;
     use nova_gameplay::prelude::{
         ControllerSectionMarker, SectionClass, ThrusterSectionMarker, TorpedoSectionMarker,
         TurretSectionMarker,
     };
 
     use super::*;
+
+    /// The point of the kind picker: pick `ice` and the rock on the stage goes
+    /// pale. Two kinds that painted the same sphere would make the control a
+    /// text field with extra steps.
+    #[test]
+    fn every_kind_paints_the_stage_a_different_body() {
+        let painted: Vec<StandardMaterial> = ASTEROID_KINDS
+            .iter()
+            .map(|kind| asteroid_preview_material(kind, Handle::default()))
+            .collect();
+
+        for (index, one) in painted.iter().enumerate() {
+            for other in &painted[index + 1..] {
+                assert!(
+                    one.base_color != other.base_color
+                        || one.perceptual_roughness != other.perceptual_roughness
+                        || one.metallic != other.metallic,
+                    "two kinds paint the same rock"
+                );
+            }
+        }
+    }
+
+    /// `plain` is the absence of a look, in the editor exactly as in the
+    /// shader: the texture, untouched.
+    #[test]
+    fn the_plain_kind_leaves_the_texture_alone() {
+        let plain = asteroid_preview_material(KIND_PLAIN, Handle::default());
+
+        assert_eq!(plain.base_color, Color::WHITE);
+    }
+
+    /// The lint refuses such a document and the loader refuses to render it, so
+    /// a rock that reaches the stage with an unknown kind was hand-edited past
+    /// both. It has to LOOK wrong.
+    #[test]
+    fn a_kind_the_game_does_not_ship_paints_a_refusal() {
+        let unknown = asteroid_preview_material("obsidian", Handle::default());
+
+        assert_eq!(unknown.base_color, Color::srgb(1.0, 0.0, 1.0));
+        assert!(unknown.base_color_texture.is_none());
+    }
+
+    /// The body is rebuilt from the fields the builder READS, and the kind is
+    /// now one of them: a kind changed in the inspector that left the old rock
+    /// standing would read as the picker doing nothing.
+    #[test]
+    fn a_changed_kind_makes_the_rock_stale() {
+        let rock = ScenarioObjectKind::Asteroid(AsteroidConfig {
+            radius: Meters(30.0),
+            texture: default(),
+            material: KIND_ROCK.to_string(),
+            destroy_sound: None,
+            mass: None,
+            invulnerable: false,
+            seed: None,
+            lock_signature: None,
+        });
+
+        assert!(body_is_drawn_from(
+            &rock,
+            &[PathStep::Field("material".to_string())]
+        ));
+    }
 
     fn spawn_preview(world: &mut World, kind: SectionKind) -> Entity {
         let section = SectionConfig {

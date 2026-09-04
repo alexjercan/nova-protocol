@@ -274,6 +274,18 @@ kind in the directory, split across three modules with two plugins, carrying no
    build-grid cell, a collider extent. See
    [Units and scale](architecture.md#units-and-scale).
 
+   An authored field NAMES its value. A config that carries a `String` id has
+   one table that says which ids exist, and an id that table does not know is
+   an error at the earliest point that can see it - a `content lint` error
+   first, a loud refusal on the load path second. It is never resolved to a
+   house answer. An `Option` is right only where absence is a documented
+   OVERRIDE with runtime-derived behavior behind it, and the field's own doc
+   comment says what the absence MEANS: `AsteroidConfig::mass` (absent = the
+   global rule about which radii are wells) and `lock_signature` (absent = the
+   radius) are the shipped precedent. `AsteroidConfig::material` is the
+   counter-example: it is a plain required `String`, because "how is this rock
+   shaded" has no runtime answer to fall back on.
+
    ```rust
    #[derive(Component, Clone, Debug, Reflect)]
    pub struct MineMarker;

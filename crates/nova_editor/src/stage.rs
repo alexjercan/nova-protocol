@@ -458,7 +458,7 @@ fn grid_centre(point: Vec3, step: f32) -> Vec3 {
 mod tests {
     use nova_gameplay::prelude::AssetRef;
     use nova_scenario::prelude::{
-        aimed_light_base, AnchorConfig, AsteroidConfig, BeaconConfig, SalvageCrateConfig,
+        aimed_light_base, AnchorConfig, AsteroidConfig, BeaconConfig, SalvageCrateConfig, KIND_ROCK,
     };
 
     use super::*;
@@ -504,7 +504,7 @@ mod tests {
             trigger_radius(&ScenarioObjectKind::Asteroid(AsteroidConfig {
                 radius: Meters(30.0),
                 texture: AssetRef::from("self://textures/rock.png"),
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: None,
                 mass: None,
                 invulnerable: false,

@@ -206,6 +206,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
+                                material: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -214,6 +215,16 @@
                             10.0,
                             30.0,
                         )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                7,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                        ],
                     )),
                     CreateScenarioArea((
                         id: "duel_arena",

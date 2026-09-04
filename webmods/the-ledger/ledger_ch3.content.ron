@@ -416,6 +416,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -431,6 +432,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,
@@ -868,12 +870,14 @@
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                                 radius: 10.0,
                                 texture: "dep://base/textures/asteroid.png",
+                                material: "rock",
                                 mass: None,
                                 invulnerable: false,
                                 lock_signature: None,
                             )),
                         ),
                         asteroid_radius: Some((15.0, 40.0)),
+                        asteroid_kinds: [("rock", 1)],
                     )),
                     // --- Opening conversation (the Shakedown/ch1 idiom): Vesh
                     // briefs over the scenario clock, one line per BEAT, the

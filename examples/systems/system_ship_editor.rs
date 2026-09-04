@@ -1498,6 +1498,72 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the rock's position went {before} -> {now}");
         })
         .add()
+        // What the rock is MADE of is a PICK LIST, not a box. The ids are a
+        // vocabulary - nobody guesses `carbon` from an empty field - and the
+        // list is also the only control that cannot author a kind the game does
+        // not ship. Picking one has to change the rock ON THE STAGE, or the
+        // whole feature is a text field with extra steps.
+        .click_a_menu_item(
+            "editor: put the camera on the rock",
+            MENU_VIEW,
+            "Frame Selection Item",
+        )
+        .step("editor: the camera came to the rock")
+        .until(the_camera_frames_the_selection())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: shoot the placed rock as stone")
+        .on_enter(|world: &mut World| shoot(world, "editor-rock-kind-rock.png"))
+        .until(shot_written("editor-rock-kind-rock.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("editor: the kind row offers every kind the game ships")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                inspector_reading(world, "Material"),
+                KIND_ROCK,
+                "a rock from the palette is stone until it is told otherwise"
+            );
+            for kind in ASTEROID_KINDS {
+                let option = format!("Inspector Choice Material {kind}");
+                assert!(
+                    named_widget_exists(world, &option),
+                    "the picker is the vocabulary, so every shipped kind is in                      it - `{kind}` is not"
+                );
+            }
+            nova_probe::probe_marker(
+                world,
+                "outcome: the kind is picked from a list, not typed",
+                serde_json::json!({}),
+            );
+        })
+        .add()
+        .click_a_widget("editor: make the rock ice", "Inspector Choice Material ice")
+        .step("editor: the rock says it is ice")
+        .until(the_kind_row_reads(KIND_ICE))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: and the rock on the stage is ice")
+        .on_enter(|world: &mut World| {
+            let look = asteroid_kind_look(KIND_ICE).expect("ice is a kind the game ships");
+            let wanted = LinearRgba::WHITE.mix(&look.shade.mix(&look.tint, 0.5), look.kind_mix);
+            assert!(
+                object_view_wears(world, wanted),
+                "picking a kind rebuilds the body from it: no object on the                  stage is wearing the ice palette"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: the picked kind is the rock on the stage",
+                serde_json::json!({}),
+            );
+            info!("editor: the placed rock is ice, on the stage and in the panel");
+        })
+        .add()
+        .step("editor: shoot the same rock as ice")
+        .on_enter(|world: &mut World| shoot(world, "editor-rock-kind-ice.png"))
+        .until(shot_written("editor-rock-kind-ice.png"))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
         .click_a_menu_item("editor: delete the placed rock", MENU_EDIT, "Delete Item")
         .step("editor: the rock is gone and nothing is marked")
         .until(no_object_named("asteroid"))
@@ -2916,6 +2982,85 @@ fn the_key_row_reads(wanted: &'static str) -> Wait {
 fn the_rocks_height_reads(wanted: &'static str) -> Wait {
     std::sync::Arc::new(move |world: &World| {
         inspector_reading(world, "Position").split(", ").nth(1) == Some(wanted)
+    })
+}
+
+/// How near the camera has to stand to count as framing a node, in world
+/// units. Generous, because framing sizes itself to what it is looking at: the
+/// claim is that the camera CAME, not that it stopped at a particular range.
+#[cfg(feature = "debug")]
+const FRAMED_RANGE: f32 = 200.0;
+
+/// Advance once the camera has come to the marked node, whatever it is.
+///
+/// Framing is what puts a placed object on screen at a size a reader can judge,
+/// and a shot taken before the camera arrived is a picture of where it used to
+/// be.
+#[cfg(feature = "debug")]
+fn the_camera_frames_the_selection() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let probe = world.resource::<EditorProbe>();
+        let Some(marked) = probe.selected_node.clone() else {
+            return false;
+        };
+        let Some(at) = probe
+            .node_positions
+            .iter()
+            .find(|(id, _)| *id == marked)
+            .map(|(_, at)| *at)
+        else {
+            return false;
+        };
+        world
+            .try_query_filtered::<&GlobalTransform, With<Camera3d>>()
+            .is_some_and(|mut cameras| {
+                cameras
+                    .iter(world)
+                    .any(|camera| camera.translation().distance(at) < FRAMED_RANGE)
+            })
+    })
+}
+
+/// Advance once the kind row reads `wanted`.
+#[cfg(feature = "debug")]
+fn the_kind_row_reads(wanted: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| inspector_reading(world, "Material") == wanted)
+}
+
+/// Whether the editor has a widget called `name` at all.
+///
+/// `click_named` WARNS and continues when a widget is missing, so a walk that
+/// only pressed an option would pass with nothing written and nothing offered.
+#[cfg(feature = "debug")]
+fn named_widget_exists(world: &mut World, name: &str) -> bool {
+    world
+        .query::<&Name>()
+        .iter(world)
+        .any(|node_name| node_name.as_str() == name)
+}
+
+/// Whether any object body on the stage is painted `wanted`.
+///
+/// Read off the material the preview actually built, rather than off the
+/// config that was written: the claim is that the picked kind reaches the
+/// SCREEN, and a panel that agreed with the document while the stage kept the
+/// old rock is exactly the bug this beat is here to catch.
+#[cfg(feature = "debug")]
+fn object_view_wears(world: &mut World, wanted: LinearRgba) -> bool {
+    let handles: Vec<Handle<StandardMaterial>> = world
+        .query::<(&Name, &MeshMaterial3d<StandardMaterial>)>()
+        .iter(world)
+        .filter(|(name, _)| name.as_str() == "Object View")
+        .map(|(_, material)| material.0.clone())
+        .collect();
+    let materials = world.resource::<Assets<StandardMaterial>>();
+    handles.iter().any(|handle| {
+        materials.get(handle).is_some_and(|material| {
+            let painted = material.base_color.to_linear();
+            (painted.red - wanted.red).abs() < 0.01
+                && (painted.green - wanted.green).abs() < 0.01
+                && (painted.blue - wanted.blue).abs() < 0.01
+        })
     })
 }
 

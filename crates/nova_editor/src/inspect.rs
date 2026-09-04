@@ -29,6 +29,7 @@ use nova_gameplay::prelude::AssetRef;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
     Names, ScenarioObjectKind, SectionSource, VariableConditionNode, VariableExpressionNode,
+    ASTEROID_KIND_SUMMARIES,
 };
 use nova_ship::prelude::{GameSections, SectionConfig, SectionKind};
 
@@ -656,6 +657,10 @@ const FIRE_RATE: FieldSpec = floored("fire_rate", "/s", 0.05);
 const MUZZLE_SPEED: FieldSpec = floored("muzzle_speed", "m/s", 5.0);
 const BULLET_DAMAGE: FieldSpec = floored("bullet_damage", "hp", 0.5);
 const BULLET_KIND: FieldSpec = plain("bullet_kind");
+/// An asteroid's kind. The row's VOCABULARY is not declared here - see
+/// [`offer_object_vocabularies`] - because a ship section has a `material` too
+/// and this table matches by name at any depth.
+const MATERIAL: FieldSpec = plain("material");
 const AMMO_CAPACITY: FieldSpec = FieldSpec {
     name: "ammo_capacity",
     unit: "rounds",
@@ -787,7 +792,10 @@ const RAILGUN_PICKS: &[FieldSpec] = &[
     SLUG_LIFETIME,
 ];
 const ANCHOR_PICKS: &[FieldSpec] = &[BODY_RADIUS, MASS];
-const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MASS, INVULNERABLE, SEED];
+/// What the rock is MADE of comes second only to how big it is: the kind
+/// decides the whole surface, so a curated panel that showed the radius and hid
+/// the kind would be hiding the thing a builder came to pick.
+const ASTEROID_PICKS: &[FieldSpec] = &[RADIUS, MATERIAL, MASS, INVULNERABLE, SEED];
 /// A planet's first screen. `planet_type` leads because it is the field that
 /// changes everything else about the body; `seed` is second for the same
 /// reason it is on a rock - it picks WHICH world of that kind.
@@ -1760,6 +1768,15 @@ pub(crate) fn choose_field(
     variant: &str,
 ) -> Result<(), String> {
     let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
+    // A VOCABULARY field is a String the editor knows the values of, and the
+    // option text is the value: `ice` in the list is `"ice"` in the file. The
+    // list is the only way to write one, so nothing here has to check that the
+    // name is one the game ships - the picker never offers another.
+    if target.try_downcast_ref::<String>().is_some() {
+        return target
+            .try_apply(&variant.to_string())
+            .map_err(|error| format!("refused: {error}"));
+    }
     let ReflectMut::Enum(_) = target.reflect_mut() else {
         return Err("not a choice".to_string());
     };
@@ -2221,9 +2238,54 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
     let mut rows = vec![name_row(object.name.clone())];
     if let Some(config) = object_config(&object.kind) {
         walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+        offer_object_vocabularies(&object.kind, &mut rows);
     }
     rows.extend(pose_rows(pose));
     rows
+}
+
+/// Turn the text rows whose values the editor KNOWS into pick lists.
+///
+/// Keyed on the object's kind rather than declared in [`DECLARED`], because a
+/// vocabulary belongs to the OBJECT and that table matches by field name at any
+/// depth: a ship section has a `material` too, and it names a paint rather than
+/// a rock.
+///
+/// A picker rather than a text box because the ids are the answer to "what is
+/// this made of" and nobody guesses `carbon` from an empty box. It is also the
+/// only control that cannot author a kind the game does not ship.
+fn offer_object_vocabularies(kind: &ScenarioObjectKind, rows: &mut [InspectorRow]) {
+    let ScenarioObjectKind::Asteroid(_) = kind else {
+        return;
+    };
+    for row in rows {
+        if leaf_name(&row.path) != Some(MATERIAL.name) {
+            continue;
+        }
+        let RowValue::Text(held) = &row.value else {
+            continue;
+        };
+        // An id the game does not ship stays a TEXT row, showing exactly what
+        // the file says. Snapping it to the first option would hide a document
+        // the lint refuses behind a control that looks like it works.
+        let Some(chosen) = ASTEROID_KIND_SUMMARIES
+            .iter()
+            .position(|(id, _)| id == held)
+        else {
+            continue;
+        };
+        row.value = RowValue::Choice {
+            options: ASTEROID_KIND_SUMMARIES
+                .iter()
+                .map(|(id, _)| (*id).to_string())
+                .collect(),
+            hints: ASTEROID_KIND_SUMMARIES
+                .iter()
+                .map(|(_, summary)| (*summary).to_string())
+                .collect(),
+            chosen,
+        };
+    }
 }
 
 /// The rows a handler shows: what it listens for, and whether it retires.

@@ -15,6 +15,8 @@ pub mod area;
 pub mod asteroid;
 /// The signed field behind a carvable rock, and the remesh that follows a hit.
 pub mod asteroid_carve;
+/// What a rock is made of, and the palette and noise knobs that makes it wear.
+pub mod asteroid_kind;
 /// How a rock is textured (triplanar, no UVs) and how its silhouette is shaped.
 pub mod asteroid_surface;
 pub mod beacon;
@@ -41,10 +43,10 @@ pub mod spaceship;
 pub mod prelude {
     pub use super::{
         anchor::prelude::*, area::prelude::*, asteroid::prelude::*, asteroid_carve::prelude::*,
-        asteroid_surface::prelude::*, beacon::prelude::*, light::prelude::*,
-        modification::prelude::*, planet::prelude::*, planet_surface::prelude::*,
-        planet_type::prelude::*, salvage::prelude::*, ship::prelude::*, spaceship::prelude::*,
-        ScenarioObjectsPlugin,
+        asteroid_kind::prelude::*, asteroid_surface::prelude::*, beacon::prelude::*,
+        light::prelude::*, modification::prelude::*, planet::prelude::*,
+        planet_surface::prelude::*, planet_type::prelude::*, salvage::prelude::*, ship::prelude::*,
+        spaceship::prelude::*, ScenarioObjectsPlugin,
     };
 }
 

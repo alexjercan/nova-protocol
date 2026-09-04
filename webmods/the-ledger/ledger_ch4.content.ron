@@ -296,6 +296,7 @@
                 destroy_sound: Some("dep://base/sounds/destroy_rock.wav"),
                             radius: 70.0,
                             texture: "dep://base/textures/asteroid.png",
+                            material: "rock",
                             mass: None,
                             invulnerable: true,
                             lock_signature: None,

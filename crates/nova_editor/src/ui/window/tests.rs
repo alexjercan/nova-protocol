@@ -10,7 +10,7 @@ use bevy::{
 };
 use nova_events::units::prelude::*;
 use nova_scenario::prelude::{
-    AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind,
+    AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind, KIND_ROCK,
 };
 use nova_ui::prelude::TextFieldSubmitted;
 
@@ -100,7 +100,7 @@ fn asteroid(app: &mut App, scenario: Entity) -> Entity {
                 kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                     radius: Meters(30.0),
                     texture: default(),
-                    material: None,
+                    material: KIND_ROCK.to_string(),
                     destroy_sound: None,
                     mass: None,
                     invulnerable: false,

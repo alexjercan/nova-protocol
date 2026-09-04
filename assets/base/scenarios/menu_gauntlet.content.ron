@@ -380,6 +380,7 @@
                             kind: Asteroid((
                                 radius: 10.0,
                                 texture: "self://textures/asteroid.png",
+                                material: "rock",
                                 destroy_sound: Some("self://sounds/destroy_rock.wav"),
                                 invulnerable: false,
                             )),
@@ -388,6 +389,20 @@
                             10.0,
                             30.0,
                         )),
+                        asteroid_kinds: [
+                            (
+                                "rock",
+                                8,
+                            ),
+                            (
+                                "carbon",
+                                3,
+                            ),
+                            (
+                                "ice",
+                                1,
+                            ),
+                        ],
                     )),
                     SpawnScenarioObject((
                         base: (

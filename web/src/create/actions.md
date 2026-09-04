@@ -68,7 +68,7 @@ object and carries its config - the six kinds are the
 ```ron
 SpawnScenarioObject((
     base: (id: "rock_1", name: "Rock", position: (100.0, 0.0, -400.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
+    kind: Asteroid((radius: 50.0, texture: "dep://base/textures/asteroid.png", material: "rock", invulnerable: false)),
 )),
 ```
 
@@ -107,9 +107,10 @@ ScatterObjects((
     region: Box(min: (-1000.0, -200.0, -1000.0), max: (1000.0, 200.0, 1000.0)),
     template: (
         base: (id: "asteroid_", name: "Asteroid", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
-        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", invulnerable: false)),
+        kind: Asteroid((radius: 10.0, texture: "dep://base/textures/asteroid.png", material: "rock", invulnerable: false)),
     ),
     asteroid_radius: Some((10.0, 30.0)),
+    asteroid_kinds: [("rock", 12), ("carbon", 4), ("ice", 3), ("metal", 1)],
     min_separation: Some(320.0),
 )),
 ```
@@ -125,6 +126,7 @@ ScatterObjects((
 | `region` | region | required | sampling volume in meters (below) |
 | `template` | object config | required | the object each copy clones (any kind; same `base`/`kind` shape as `SpawnScenarioObject`) |
 | `asteroid_radius` | `Option` (lo, hi) | `None` | Asteroid templates only: randomize each rock's radius, in meters, in `[lo, hi)` |
+| `asteroid_kinds` | list of (kind, weight) | required on an asteroid template | the field's [KINDS](../objects/#what-a-rock-is-made-of) and how common each one is. Weights are relative COUNTS, not percentages: `[("rock", 12), ("metal", 1)]` is one metal body in thirteen. Empty on any other template |
 | `min_separation` | `Option` number | `None` | minimum centre-to-centre distance in meters against EVERY body scattered so far this scenario, earlier scatters included; 64 placement tries per copy, unplaceable copies are DROPPED, never overlapped |
 
 `region` variants (struct variants - single parens, named fields):
@@ -133,6 +135,11 @@ ScatterObjects((
 |---|---|---|
 | `Box(min: (..), max: (..))` | both required | uniform per axis in `[min, max]` |
 | `Ring(center: (..), inner: .., outer: .., y_min: .., y_max: ..)` | `center` defaults to the origin | horizontal annulus: uniform angle, radius in `[inner, outer]`, y in `[y_min, y_max]` |
+
+`asteroid_kinds` is drawn from the scatter's OWN seed, on a stream of its own:
+adding a kind to a field that already ships moves no rock and changes no
+radius. An asteroid template with no mix, or with every weight at zero, is a
+lint error and spawns nothing - a belt has to say what it is made of.
 
 Set `min_separation` on any field of SOLID bodies: uniform sampling WILL
 nest rocks inside each other, and two overlapping dynamic bodies shove apart

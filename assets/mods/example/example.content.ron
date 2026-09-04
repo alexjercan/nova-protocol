@@ -397,6 +397,25 @@
                     )),
                     // Two destructible targets, textured from THIS mod's own PNG
                     // (`self://textures/rock.png`), not a base texture.
+                    //
+                    // `material` is REQUIRED on every asteroid and it is the
+                    // rock's KIND: what the body is made of, which decides how
+                    // it is shaded, what it sounds like when something hits it,
+                    // and what a mining system would get out of it. The base
+                    // game ships `rock`, `metal`, `ice`, `carbon`, and `plain`
+                    // (the control - the texture with nothing done to it).
+                    //
+                    // There is no default. Leave `material` out and the file
+                    // does not load; name a kind nobody ships and `content
+                    // lint` fails you before it ever runs. That is deliberate:
+                    // a typo that quietly turned into grey stone is a typo you
+                    // would never find.
+                    //
+                    // `texture` stays yours. The kind supplies the palette, the
+                    // large-scale character and the specular; the texture
+                    // supplies the fine crevice grain the kind modulates. They
+                    // answer different questions, so a mod keeps its own rock
+                    // art and still picks a kind for it.
                     SpawnScenarioObject((
                         base: (
                             id: "example_target_1",
@@ -408,6 +427,7 @@
                             // Small size, not hidden health, keeps this tutorial target brief.
                             radius: 2.5,
                             texture: "self://textures/rock.png",
+                            material: "rock",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -423,6 +443,10 @@
                         kind: Asteroid((
                             radius: 3.0,
                             texture: "self://textures/rock.png",
+                            // The same texture, a different kind. Put this one
+                            // beside `example_target_1` in the range and the
+                            // pair is the whole feature in one look.
+                            material: "ice",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -598,6 +622,9 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/rock.png",
+                            // Nickel-iron: the rare one, so the bonus target is
+                            // worth flying out to.
+                            material: "metal",
                             mass: None,
                             invulnerable: false,
                             lock_signature: None,
@@ -720,6 +747,7 @@
                         kind: Asteroid((
                             radius: 180.0,
                             texture: "self://textures/rock.png",
+                            material: "rock",
                             mass: Some(36_000.0),
                             invulnerable: true,
                             lock_signature: None,

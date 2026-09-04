@@ -70,7 +70,7 @@ pub(crate) fn menu_waystation(
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-                material: None,
+                material: KIND_ROCK.to_string(),
                 destroy_sound: Some(AssetRef::from("self://sounds/destroy_rock.wav")),
                 radius: Meters(10.0),
                 texture: asteroid_texture,
@@ -81,6 +81,15 @@ pub(crate) fn menu_waystation(
             }),
         },
         asteroid_radius: Some((Meters(10.0), Meters(25.0))),
+        // A working freight lane, so this one is allowed to say what the lane
+        // is FOR: ice is the propellant and water a waystation exists to move,
+        // at five parts in eighteen, and exactly one metal body in the lane
+        // says the ore is out here without saying it is common.
+        asteroid_kinds: vec![
+            (KIND_ROCK.to_string(), 12),
+            (KIND_ICE.to_string(), 5),
+            (KIND_METAL.to_string(), 1),
+        ],
         min_separation: None,
     });
 

@@ -631,6 +631,15 @@ Four engine facts the object configs do not show:
 - **Nothing supplies a light.** `Light` is an ordinary spawned kind
   (`objects/light.rs`) and the engine adds none of its own, so a scenario that
   authors no `Light` renders black. This catches every new backdrop.
+- **What a rock is MADE of is required, and it decides how it looks.**
+  `AsteroidConfig::material` names a KIND - `rock`, `metal`, `ice`, `carbon`,
+  or the `plain` control - and `objects/asteroid_kind.rs` is the one table that
+  maps a kind to a look. The look is uniform data for a triplanar
+  `ExtendedMaterial` (`objects/asteroid_surface.rs`), so a carved and remeshed
+  rock wears the same surface it did before the hit. There is NO default and no
+  fallback: a config without the field fails to deserialize, an id the table
+  does not know is a `content lint` error and a refusal to render, and
+  `ScatterObjects` writes a kind into every copy from an authored weighted mix.
 - **A rock has no `health` field, and that is not an omission.** What an
   asteroid is made of IS its durability; the mechanism is
   [below](#how-an-asteroid-carves). Its `radius` is `Meters` like every other
@@ -801,5 +810,9 @@ partial lap, so authored lap objectives need no guessed timer.
   `SignedField` - `crates/nova_gameplay/src/mesh/field.rs`; the cost of the
   material itself: `DAMAGE_PER_UNIT_VOLUME` -
   `crates/nova_gameplay/src/integrity/carve.rs`.
+- Asteroid kinds: `AsteroidKind`, `asteroid_kind_look`, `ASTEROID_KINDS` -
+  `crates/nova_scenario/src/objects/asteroid_kind.rs`; the surface they drive:
+  `AsteroidSurfaceMaterial` - `crates/nova_scenario/src/objects/`
+  `asteroid_surface.rs` and `assets/shaders/asteroid_surface.wgsl`.
 - API detail: `cargo doc --open -p nova_scenario` (event engine:
   `-p nova_events`).

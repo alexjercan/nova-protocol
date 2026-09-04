@@ -105,6 +105,7 @@
                         kind: Asteroid((
                             radius: 32.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -128,6 +129,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -151,6 +153,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -174,6 +177,7 @@
                         kind: Asteroid((
                             radius: 26.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -197,6 +201,7 @@
                         kind: Asteroid((
                             radius: 30.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -220,6 +225,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -243,6 +249,7 @@
                         kind: Asteroid((
                             radius: 34.0,
                             texture: "self://textures/asteroid.png",
+                            material: "metal",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -266,6 +273,7 @@
                         kind: Asteroid((
                             radius: 24.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -289,6 +297,7 @@
                         kind: Asteroid((
                             radius: 30.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -312,6 +321,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -335,6 +345,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -358,6 +369,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -381,6 +393,7 @@
                         kind: Asteroid((
                             radius: 28.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -404,6 +417,7 @@
                         kind: Asteroid((
                             radius: 25.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -427,6 +441,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -450,6 +465,7 @@
                         kind: Asteroid((
                             radius: 24.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -473,6 +489,7 @@
                         kind: Asteroid((
                             radius: 30.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -496,6 +513,7 @@
                         kind: Asteroid((
                             radius: 18.0,
                             texture: "self://textures/asteroid.png",
+                            material: "metal",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -519,6 +537,7 @@
                         kind: Asteroid((
                             radius: 28.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -542,6 +561,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -565,6 +585,7 @@
                         kind: Asteroid((
                             radius: 31.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -588,6 +609,7 @@
                         kind: Asteroid((
                             radius: 19.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -611,6 +633,7 @@
                         kind: Asteroid((
                             radius: 26.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -634,6 +657,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -657,6 +681,7 @@
                         kind: Asteroid((
                             radius: 30.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -680,6 +705,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -703,6 +729,7 @@
                         kind: Asteroid((
                             radius: 32.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -726,6 +753,7 @@
                         kind: Asteroid((
                             radius: 24.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -749,6 +777,7 @@
                         kind: Asteroid((
                             radius: 24.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -772,6 +801,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -795,6 +825,7 @@
                         kind: Asteroid((
                             radius: 26.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -818,6 +849,7 @@
                         kind: Asteroid((
                             radius: 18.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -841,6 +873,7 @@
                         kind: Asteroid((
                             radius: 28.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -864,6 +897,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -887,6 +921,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "metal",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -910,6 +945,7 @@
                         kind: Asteroid((
                             radius: 20.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -933,6 +969,7 @@
                         kind: Asteroid((
                             radius: 24.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -956,6 +993,7 @@
                         kind: Asteroid((
                             radius: 18.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -979,6 +1017,7 @@
                         kind: Asteroid((
                             radius: 22.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1002,6 +1041,7 @@
                         kind: Asteroid((
                             radius: 19.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1025,6 +1065,7 @@
                         kind: Asteroid((
                             radius: 55.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1048,6 +1089,7 @@
                         kind: Asteroid((
                             radius: 40.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1071,6 +1113,7 @@
                         kind: Asteroid((
                             radius: 65.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1094,6 +1137,7 @@
                         kind: Asteroid((
                             radius: 35.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1117,6 +1161,7 @@
                         kind: Asteroid((
                             radius: 45.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1140,6 +1185,7 @@
                         kind: Asteroid((
                             radius: 60.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1163,6 +1209,7 @@
                         kind: Asteroid((
                             radius: 38.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1186,6 +1233,7 @@
                         kind: Asteroid((
                             radius: 70.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1209,6 +1257,7 @@
                         kind: Asteroid((
                             radius: 42.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1232,6 +1281,7 @@
                         kind: Asteroid((
                             radius: 55.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1255,6 +1305,7 @@
                         kind: Asteroid((
                             radius: 48.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1278,6 +1329,7 @@
                         kind: Asteroid((
                             radius: 75.0,
                             texture: "self://textures/asteroid.png",
+                            material: "carbon",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1301,6 +1353,7 @@
                         kind: Asteroid((
                             radius: 44.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1324,6 +1377,7 @@
                         kind: Asteroid((
                             radius: 62.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1347,6 +1401,7 @@
                         kind: Asteroid((
                             radius: 40.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1370,6 +1425,7 @@
                         kind: Asteroid((
                             radius: 68.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1393,6 +1449,7 @@
                         kind: Asteroid((
                             radius: 50.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1416,6 +1473,7 @@
                         kind: Asteroid((
                             radius: 72.0,
                             texture: "self://textures/asteroid.png",
+                            material: "ice",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1439,6 +1497,7 @@
                         kind: Asteroid((
                             radius: 46.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
@@ -1462,6 +1521,7 @@
                         kind: Asteroid((
                             radius: 58.0,
                             texture: "self://textures/asteroid.png",
+                            material: "rock",
                             destroy_sound: Some("self://sounds/destroy_rock.wav"),
                             invulnerable: false,
                         )),
