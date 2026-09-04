@@ -1,6 +1,6 @@
 # Enforce vector speed caps for diagonal flight
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 0
 - TAGS: backlog
 
