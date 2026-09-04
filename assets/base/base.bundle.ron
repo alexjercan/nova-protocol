@@ -126,6 +126,14 @@
         // paths (task 20260715-220011).
         "thumbnails/first_shift.png",
         "thumbnails/second_shift.png",
+        // Green CRT portraits for the base campaign's named comms voices.
+        "portraits/automated-beacon.png",
+        "portraits/copilot.png",
+        "portraits/deck-chief.png",
+        "portraits/engineer.png",
+        "portraits/meridian-control.png",
+        "portraits/player.png",
+        "portraits/unknown-channel.png",
         // The base mod's WORLD and AVIONICS sound effects (task 20260717-002228;
         // ownership split in spike 20260717-101524, voices in 20260824-125955).
         // Everything a MOD could reasonably want to differ lives here: the guns

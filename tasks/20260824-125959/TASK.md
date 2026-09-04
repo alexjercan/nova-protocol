@@ -1024,3 +1024,11 @@ phosphor palette candidate and a separate exaggerated shader mock showing bloom,
 green tint, and tube-edge falloff. The clean pixel portrait remains the source;
 the treatment is not baked into runtime content. Both revisions remain readable
 at 48x48 and await visual selection before a shared UI material is designed.
+
+Owner accepted the clean green CRT treatment without the shader mock. Promoted
+that direction into seven distinct campaign portraits: Meridian Control, Deck
+Chief, Copilot, Engineer, the helmeted player, automated beacons and unknown
+channels. Added reproducible 32x32 SVG generation, shipped 512x512 PNGs through
+the base bundle, and attached portraits recursively to First Shift and Second
+Shift story actions. Preview-only speakers retain the HUD fallback. No runtime
+shader was added; the accepted clean pixel treatment remains unblurred at 48x48.

@@ -23,7 +23,7 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use super::{
-    cast::{CARRIER_NAME, CLEANUP_LEADER, CUTTER_NAME, PLAYER},
+    cast::{apply_portraits, CARRIER_NAME, CLEANUP_LEADER, CUTTER_NAME, PLAYER},
     pacing::{self, INSTRUCTION_GAP, REVEAL_GAP},
     ships, stage, SCENARIO_ELAPSED_VAR,
 };
@@ -650,6 +650,7 @@ pub(crate) fn second_shift(
     events.push(evidence_tally(1.0));
     events.push(evidence_tally(2.0));
     events.extend(group.iter().map(relap));
+    apply_portraits(&mut events);
 
     ScenarioConfig {
         description: "Search the Meridian's wreck, and get out before the cleanup group finds you."

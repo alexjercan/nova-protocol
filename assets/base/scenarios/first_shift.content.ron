@@ -1606,6 +1606,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Cutter One, Meridian Control. Bay is clear. You are released.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -1615,6 +1616,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Clamps are open. Drive and thrusters read green.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -1624,6 +1626,7 @@
                                     StoryMessage((
                                         speaker: "Deck Chief",
                                         text: "Plate Seven has three recovery crates waiting. Two manifested. Third one turned up after the break.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
@@ -1633,6 +1636,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Turned up how?",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1642,6 +1646,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Loose in the debris. It\'s marked for recovery.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -1651,6 +1656,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Mass?",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1660,6 +1666,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Unknown.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -1669,6 +1676,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Of course it is.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1678,6 +1686,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Cutter One copies. Three crates off Seven, one unknown.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -1687,6 +1696,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Correct. Meridian gets under way in fifty-six minutes. Don\'t make me come looking for you.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -1696,6 +1706,7 @@
                                     StoryMessage((
                                         speaker: "Copilot - Cabin",
                                         text: "She says that like they\'d leave without us.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -1705,6 +1716,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "They\'d leave without you.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1714,6 +1726,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Cruel.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -1723,6 +1736,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Put us alongside. I\'ll handle the crates.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1738,6 +1752,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Mark ahead, seventeen hundred metres. Easy on the drive - we\'re still inside Meridian\'s paint budget.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -1801,6 +1816,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Good. This is as clear a spot as we\'re going to get. Bring us to a full stop first. I want to clear the handling card.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "work_mark",
@@ -1986,6 +2002,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "What test are you running this time?",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -1995,6 +2012,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Yard replaced the port RCS manifold during scheduled maintenance. Computer says everything is green.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2004,6 +2022,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "And you don\'t believe it.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2013,6 +2032,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "So did Prospector Six before they lost her in the belt.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2022,6 +2042,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Different company. News said pilot error.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2031,6 +2052,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "The flight recorder didn\'t. Port manifold locked open. Nobody aboard survived.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2040,6 +2062,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "All right. Run your box.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2049,6 +2072,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Four marks. Out to A, up to B, across to C, then back down to D. Bring us home without any drift and I\'ll clear the card.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2069,6 +2093,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Let\'s move toward A. When the velocity marker turns violet, we\'re running on RCS.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                     HintEmphasisSet((
                                         verb: "RCS",
@@ -2107,6 +2132,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Good response and no roll. Take us up to B. Let\'s see if the new manifold fights the vertical bank.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_lateral",
@@ -2158,6 +2184,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Still clean. Bring us across to C with the same pressure, then watch the drift when you let go.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_vertical",
@@ -2209,6 +2236,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Port response is even. Bring us down to D and settle where we started.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_return_lateral",
@@ -2260,6 +2288,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Back on the mark. No residual drift. That\'s a clean box.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "trim_mark_return_vertical",
@@ -2276,6 +2305,7 @@
                                     StoryMessage((
                                         speaker: "Deck Chief",
                                         text: "Handling card closed. First manifested crate is on Plate Seven\'s near edge. Bring it in.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
@@ -2348,6 +2378,7 @@
                     StoryMessage((
                         speaker: "Engineer",
                         text: "One secure. Seal is intact and the tag matches. Second mark is deeper in the plate, so keep it slow.",
+                        icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
                         key: "beat_5",
@@ -2421,6 +2452,7 @@
                     StoryMessage((
                         speaker: "Engineer",
                         text: "Two secure. Both manifests are clean.",
+                        icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
                         key: "third_route",
@@ -2431,6 +2463,7 @@
                                     StoryMessage((
                                         speaker: "Deck Chief",
                                         text: "The third crate is outside the plate. Control has laid a route around the survey body.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
@@ -2518,6 +2551,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Transit One locked. One box remains on the maintenance release: guidance and automatic braking. Give the leg to the computer.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     Sequence((
                         key: "beat_7",
@@ -2570,6 +2604,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "First solution is clean. Turnaround, braking, and arrival are all inside limits.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "transit_mark_one",
@@ -2586,6 +2621,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "One more before you sign it?",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2595,6 +2631,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "One more.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2668,6 +2705,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Second arrival clean. Guidance and automatic braking are inside limits. That\'s the maintenance release.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "transit_mark_two",
@@ -2684,6 +2722,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Survey body\'s between us and Meridian. We\'re outside their sightline.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2693,6 +2732,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "One system left to test.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2702,6 +2742,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Orbit hold wasn\'t on the maintenance release.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2711,6 +2752,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Then call it an unscheduled gravity check.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2720,6 +2762,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "It\'s a donut.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2729,6 +2772,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "A documented donut.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2794,6 +2838,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Gravity\'s on the hull. Lock the survey body and give orbit hold to the computer.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     Sequence((
                         key: "beat_10",
@@ -2837,6 +2882,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Look at that. Whole belt turning under us.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2846,6 +2892,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Orbit hold is steady. New manifold isn\'t fighting the correction.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2855,6 +2902,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Put it on the release as a gravity-load check.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2864,6 +2912,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "It\'s going in the log as a donut.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2943,6 +2992,7 @@
                     StoryMessage((
                         speaker: "Meridian Control",
                         text: "Cutter One, Meridian Control. Explain the orbit.",
+                        icon: Some("self://portraits/meridian-control.png"),
                     )),
                     Sequence((
                         key: "return_call",
@@ -2953,6 +3003,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "They can see us again.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -2962,6 +3013,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Cutter One was completing an unscheduled guidance check.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2971,6 +3023,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Your maintenance release was filed six minutes ago.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -2980,6 +3033,7 @@
                                     StoryMessage((
                                         speaker: "Copilot - Cabin",
                                         text: "That was fast.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -2989,6 +3043,7 @@
                                     StoryMessage((
                                         speaker: "Deck Chief",
                                         text: "We get under way inside the hour, and the bonus needs a clean manifest. Get back on the plate and bring me that third crate.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
@@ -3062,6 +3117,7 @@
                     StoryMessage((
                         speaker: "Copilot",
                         text: "Back on the plate. Third crate\'s tag is weak, off to starboard and close in.",
+                        icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "work_site",
@@ -3141,6 +3197,7 @@
                     StoryMessage((
                         speaker: "Engineer",
                         text: "Third crate secure. Tag is valid. Still no manifest.",
+                        icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
                         key: "home_call",
@@ -3151,6 +3208,7 @@
                                     StoryMessage((
                                         speaker: "Copilot - Cabin",
                                         text: "And with minutes to spare.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -3160,6 +3218,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "You don\'t know how many.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -3169,6 +3228,7 @@
                                     StoryMessage((
                                         speaker: "Deck Chief",
                                         text: "Three for three and the sheet is clean. Bring Cutter One to the outer hold and we\'ll walk you in.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
@@ -3291,6 +3351,7 @@
                     StoryMessage((
                         speaker: "Meridian Control",
                         text: "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and no transponder.",
+                        icon: Some("self://portraits/meridian-control.png"),
                     )),
                     Sequence((
                         key: "plume",
@@ -3319,6 +3380,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "No squawk. No running lights. And it\'s still accelerating.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -3343,6 +3405,7 @@
                     StoryMessage((
                         speaker: "You",
                         text: "Control, that\'s an Earth Navy hull, but it isn\'t broadcasting a fleet code. It\'s turning toward you.",
+                        icon: Some("self://portraits/player.png"),
                     )),
                     MoveShipTo((
                         order: "warship_approach",
@@ -3363,6 +3426,7 @@
                                     StoryMessage((
                                         speaker: "Meridian Control",
                                         text: "Unidentified warship, this is Earthworks carrier Meridian. Civilian registry. We are unarmed. Identify yourself.",
+                                        icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
@@ -3387,6 +3451,7 @@
                     StoryMessage((
                         speaker: "Deck Chief",
                         text: "Control, its bow is coming around. Those are rail apertures.",
+                        icon: Some("self://portraits/deck-chief.png"),
                     )),
                     ForceAlign((
                         order: "warship_align",
@@ -3643,6 +3708,7 @@
                                     StoryMessage((
                                         speaker: "Copilot",
                                         text: "Carrier channel is gone.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -3652,6 +3718,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Meridian Control, Cutter One. Respond.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -3661,6 +3728,7 @@
                                     StoryMessage((
                                         speaker: "Engineer",
                                         text: "Wait. I still have one carrier signal. Weak, but it\'s running.",
+                                        icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
                             ),
@@ -3676,6 +3744,7 @@
                                                     StoryMessage((
                                                         speaker: "Automated Beacon",
                                                         text: "ANY VESSEL. ANY VESSEL. THIS IS MERIDIAN. HULL BREACH ALL DECKS. SURVIVORS UNKNOWN.",
+                                                        icon: Some("self://portraits/automated-beacon.png"),
                                                     )),
                                                 ],
                                             ),

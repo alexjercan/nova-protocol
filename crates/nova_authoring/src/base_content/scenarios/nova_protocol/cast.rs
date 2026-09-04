@@ -5,6 +5,10 @@
 //! is about an engineer who loses a ship, so the voices are the people that
 //! ship is made of - a supervisor, a duty channel, and afterwards, nobody.
 
+use bevy::prelude::Image;
+use nova_gameplay::prelude::AssetRef;
+use nova_scenario::prelude::*;
+
 /// The carrier's own name, used in objective and banner text. The ship is a
 /// character in chapter one and a grave in chapter two, so it is named in one
 /// place.
@@ -48,3 +52,68 @@ pub(crate) const BEACON: &str = "Automated Beacon";
 /// The cleanup group's leader in chapter two. It is never named and never
 /// explains itself - the campaign's antagonists are, for now, a channel.
 pub(crate) const CLEANUP_LEADER: &str = "Unknown Channel";
+
+fn portrait(speaker: &str) -> Option<AssetRef<Image>> {
+    let path = match speaker {
+        CONTROL => "self://portraits/meridian-control.png",
+        DECK_CHIEF => "self://portraits/deck-chief.png",
+        COPILOT | COPILOT_CABIN => "self://portraits/copilot.png",
+        ENGINEER => "self://portraits/engineer.png",
+        PLAYER => "self://portraits/player.png",
+        BEACON => "self://portraits/automated-beacon.png",
+        CLEANUP_LEADER => "self://portraits/unknown-channel.png",
+        _ => return None,
+    };
+    Some(AssetRef::from(path))
+}
+
+fn apply_portrait(action: &mut EventActionConfig) {
+    match action {
+        EventActionConfig::StoryMessage(message) if message.icon.is_none() => {
+            message.icon = portrait(&message.speaker);
+        }
+        EventActionConfig::Sequence(sequence) => {
+            for step in &mut sequence.steps {
+                for action in &mut step.actions {
+                    apply_portrait(action);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Attach the base campaign's shared speaker portraits to every nested story
+/// action while leaving unknown and preview-only speakers on the HUD fallback.
+pub(crate) fn apply_portraits(events: &mut [ScenarioEventConfig]) {
+    for event in events {
+        for action in &mut event.actions {
+            apply_portrait(action);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_campaign_voice_has_a_portrait() {
+        for speaker in [
+            CONTROL,
+            DECK_CHIEF,
+            COPILOT,
+            COPILOT_CABIN,
+            ENGINEER,
+            PLAYER,
+            BEACON,
+            CLEANUP_LEADER,
+        ] {
+            assert!(portrait(speaker).is_some(), "'{speaker}' has no portrait");
+        }
+        assert!(
+            portrait("PREVIEW").is_none(),
+            "preview scaffolding must retain the HUD fallback"
+        );
+    }
+}

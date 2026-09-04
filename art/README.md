@@ -46,6 +46,10 @@ adds to the download whether or not the game loads it.
   `examples/screenshots/screenshot_thruster_gallery.rs` (task 20260817-013639). Not
   shipped; anything promoted into the game moves to `assets/` through the
   content builders.
+- `portraits/` - generated SVG sources for the base campaign's green CRT comms
+  portraits. Regenerate the shipped `assets/base/portraits/*.png` files with
+  `scripts/generate-campaign-portraits.py`.
+- `portrait-candidates/` - non-runtime style studies retained for comparison.
 - `texture-candidates/` - texture candidates under evaluation (task
   `20260812-100256`). Loaded from here by the `compare_asteroids` /
   `compare_planets` examples straight off disk, so nothing ships until a

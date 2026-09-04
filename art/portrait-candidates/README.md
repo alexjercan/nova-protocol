@@ -12,8 +12,9 @@ not final character design.
   cyan/amber palette.
 - `industrial-commander-low-poly.*` - flat polygon facets, softer character
   detail, and the same palette.
-- `industrial-commander-crt-green.*` - the selected pixel direction shifted
-  toward green phosphor while preserving a muted amber work uniform.
+- `industrial-commander-crt-green.*` - the accepted pixel direction shifted
+  toward green phosphor while preserving a muted amber work uniform. This
+  became the basis of the generated campaign set under `../portraits/`.
 - `industrial-commander-crt-green-shader-mock.png` - an intentionally visible
   mock of runtime bloom, phosphor tint, and tube-edge falloff over the green
   source. It is a review image, not a proposed baked runtime asset.

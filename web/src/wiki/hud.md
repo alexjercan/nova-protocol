@@ -99,7 +99,7 @@ Scenarios talk to you through a **comms stack**: broad story cards with a distin
 <details class="explain">
 <summary>Show explanation</summary>
 
-Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss. Bursts wait in order instead of silently dropping lines that do not fit the visible stack.
+Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise. Nova Protocol's campaign uses distinct green CRT portraits for Cutter One's crew, Meridian, automated beacons and unknown channels. A card fades in with a soft blip and leaves by timeout or explicit dismiss. Bursts wait in order instead of silently dropping lines that do not fit the visible stack.
 
 An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the larger gold **objective markers**, diamonds and edge chevrons on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
 

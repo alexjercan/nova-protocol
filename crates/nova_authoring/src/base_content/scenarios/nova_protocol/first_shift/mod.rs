@@ -52,8 +52,8 @@ use marks::*;
 
 use super::{
     cast::{
-        BEACON, CARRIER_NAME, CONTROL, COPILOT, COPILOT_CABIN, CUTTER_NAME, DECK_CHIEF, ENGINEER,
-        PLAYER,
+        apply_portraits, BEACON, CARRIER_NAME, CONTROL, COPILOT, COPILOT_CABIN, CUTTER_NAME,
+        DECK_CHIEF, ENGINEER, PLAYER,
     },
     pacing::{self, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
     second_shift::SECOND_SHIFT_SCENARIO_ID,
@@ -1244,7 +1244,8 @@ pub(crate) fn first_shift(
             defeat(story::DEFEAT_NEUTRALIZED, EventConfig::OnNeutralized),
         ],
     };
-    let events = scenes.into_campaign();
+    let mut events = scenes.into_campaign();
+    apply_portraits(&mut events);
 
     ScenarioConfig {
         description: "A routine shift on the rock plate, out of the carrier Meridian.".to_string(),

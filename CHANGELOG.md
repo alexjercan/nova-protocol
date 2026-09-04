@@ -87,6 +87,8 @@ does NOT get an entry - and it is the only place they are written down.
   later GOTO the hull flies.
 
 ### Interface & HUD
+- Nova Protocol's campaign comms now give each recurring voice a distinct green
+  CRT portrait, including Cutter One's crew, Meridian and unknown channels.
 - Comms use screen-relative cards with 20 px message text and distinct speaker
   headers. Objective notifications, world labels, diamonds and edge chevrons
   are larger and clearer over clutter.

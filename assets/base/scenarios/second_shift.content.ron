@@ -2216,6 +2216,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Meridian, cutter one. I have your beacon. I am coming in.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2225,6 +2226,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Meridian, respond.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2234,6 +2236,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "...All right. Recorders, then. Bridge, engineering, the relay - whatever is left of them.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2278,6 +2281,7 @@
                     StoryMessage((
                         speaker: "You",
                         text: "She is all over the plate. Three marks reading on the recorder band - I will take them one at a time.",
+                        icon: Some("self://portraits/player.png"),
                     )),
                     Sequence((
                         key: "beat_2",
@@ -2634,6 +2638,7 @@
                     StoryMessage((
                         speaker: "You",
                         text: "Drives. Five of them, coming around the big body. They are not here for survivors.",
+                        icon: Some("self://portraits/player.png"),
                     )),
                     Sequence((
                         key: "beat_3",
@@ -2723,6 +2728,7 @@
                     StoryMessage((
                         speaker: "Unknown Channel",
                         text: "Contact in the debris. Small hull, no transponder. It has been listening to all of it. Bring it down.",
+                        icon: Some("self://portraits/unknown-channel.png"),
                     )),
                     SetAIEngageRange((
                         ship: "cleanup_picket",
@@ -2795,6 +2801,7 @@
                     StoryMessage((
                         speaker: "You",
                         text: "Clear. They are still turning over rocks back there, and they never saw me.",
+                        icon: Some("self://portraits/player.png"),
                     )),
                     Sequence((
                         key: "outro",
@@ -2805,6 +2812,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Three recordings and a hull that should not exist. Somebody is going to want to hear this. Somebody else is going to want me not to.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -2860,6 +2868,7 @@
                     StoryMessage((
                         speaker: "You",
                         text: "Clear of them. They know there was a witness now - and they know what it looks like.",
+                        icon: Some("self://portraits/player.png"),
                     )),
                     Sequence((
                         key: "outro",
@@ -2870,6 +2879,7 @@
                                     StoryMessage((
                                         speaker: "You",
                                         text: "Three recordings and a hull that should not exist. Somebody is going to want to hear this. Somebody else is going to want me not to.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
