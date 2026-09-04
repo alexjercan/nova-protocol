@@ -1008,3 +1008,13 @@ and transit-segment gravity clearance. The orbit example compiles, and generated
 content lint reports 0 errors, 0 warnings and 0 findings. A rendered scene 05
 start at `/tmp/first-shift-transit2-clear.png` shows the survey body 7.00 km
 away after TRANSIT 2 despawns, rather than filling the beacon's vicinity.
+
+### 2026-09-04: Campaign portrait style candidates
+
+Added two non-runtime studies of the same provisional industrial commander under
+`art/portrait-candidates/`: one hard-pixel CRT treatment and one faceted
+low-poly treatment. Both use close-cropped grey hair, a cyan work headset and an
+amber industrial uniform so the review compares rendering style rather than two
+different character concepts. Editable SVG and 512x512 PNG versions remain in
+source art only; no scenario references or shipped assets were added pending
+owner selection. Both were also inspected at the comms panel's 48x48 size.
