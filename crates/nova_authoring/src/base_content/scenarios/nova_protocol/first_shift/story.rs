@@ -86,18 +86,18 @@ pub(super) const TRIM_COPILOT_CLEAN: &str =
 
 pub(super) const CRATE_CHIEF_FIRST: &str =
     "Handling card closed. First manifested crate is on Plate Seven's near edge. Bring it in.";
-pub(super) const OBJ_TEXT_CRATE_FIRST: &str = "Recover the first crate.";
+pub(super) const OBJ_TEXT_CRATE_FIRST: &str = "Recover the first manifested crate.";
 
-pub(super) const CRATE_ENGINEER_SECOND: &str =
-    "One aboard. Next one is well inside the rocks - fly it on the thrusters and take your \
-     time.";
-pub(super) const OBJ_TEXT_CRATE_SECOND: &str = "Recover the second crate.";
+pub(super) const CRATE_ENGINEER_FIRST_SECURE: &str =
+    "One secure. Seal is intact and the tag matches. Second mark is deeper in the plate, so \
+     keep it slow.";
+pub(super) const OBJ_TEXT_CRATE_SECOND: &str = "Recover the second manifested crate.";
+pub(super) const CRATE_ENGINEER_SECOND_SECURE: &str = "Two secure. Both manifests are clean.";
 
 // --- the targeting computer --------------------------------------------------
 
 pub(super) const LOCK_CHIEF: &str =
-    "Two. The third one drifted clean out of the plate, so we are going the long way round. \
-     Warm the targeting computer and hold your radar on the transit mark - [CTRL].";
+    "The third crate is outside the plate. Control has laid a route around the survey body.";
 pub(super) const OBJ_TEXT_LOCK: &str = "Lock TRANSIT 1 - hold [CTRL].";
 
 pub(super) const GOTO_CHIEF: &str =

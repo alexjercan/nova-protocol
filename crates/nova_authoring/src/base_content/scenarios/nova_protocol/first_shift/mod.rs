@@ -306,6 +306,7 @@ const SALVO_AFTERMATH_AT: f64 = 4.0;
 const SEQ_OPENING: &str = "opening";
 const SEQ_TRIM_BRIEFING: &str = "trim_briefing";
 const SEQ_TRIM_COMPLETE: &str = "trim_complete";
+const SEQ_THIRD_ROUTE: &str = "third_route";
 const SEQ_ORBIT_TALK: &str = "orbit_talk";
 const SEQ_PLUME: &str = "plume";
 const SEQ_EMERGING: &str = "emerging";
@@ -840,8 +841,12 @@ pub(crate) fn first_shift(
                 OBJ_CRATE_FIRST,
                 BEAT_CRATE_SECOND,
                 ENGINEER,
-                story::CRATE_ENGINEER_SECOND,
-                reveal_crate(2, OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
+                story::CRATE_ENGINEER_FIRST_SECURE,
+                beat_setup(
+                    BEAT_CRATE_SECOND,
+                    INSTRUCTION_GAP,
+                    reveal_crate(2, OBJ_CRATE_SECOND, story::OBJ_TEXT_CRATE_SECOND),
+                ),
             ),
             // Two aboard, and the third is out of the plate entirely - which is the
             // errand that needs the targeting computer.
@@ -850,17 +855,26 @@ pub(crate) fn first_shift(
                 BEAT_CRATE_SECOND,
                 OBJ_CRATE_SECOND,
                 BEAT_LOCK,
-                DECK_CHIEF,
-                story::LOCK_CHIEF,
-                [
-                    grant(FlightVerb::Lock),
-                    clear_hint_emphasis("RCS"),
-                    post_objective(OBJ_LOCK, story::OBJ_TEXT_LOCK),
-                    show_hint_emphasis("RADAR"),
-                ]
-                .into_iter()
-                .chain(TRANSIT_ONE.raise())
-                .collect(),
+                ENGINEER,
+                story::CRATE_ENGINEER_SECOND_SECURE,
+                sequence(
+                    SEQ_THIRD_ROUTE,
+                    vec![
+                        open_line(INSTRUCTION_GAP, DECK_CHIEF, story::LOCK_CHIEF),
+                        step(
+                            INSTRUCTION_GAP,
+                            [
+                                grant(FlightVerb::Lock),
+                                clear_hint_emphasis("RCS"),
+                                post_objective(OBJ_LOCK, story::OBJ_TEXT_LOCK),
+                                show_hint_emphasis("RADAR"),
+                            ]
+                            .into_iter()
+                            .chain(TRANSIT_ONE.raise())
+                            .collect(),
+                        ),
+                    ],
+                ),
             ),
         ],
         navigation: vec![
@@ -1496,7 +1510,7 @@ fn crate_pickup(
     next_beat: f64,
     speaker: &str,
     line: &str,
-    setup: Vec<EventActionConfig>,
+    continuation: EventActionConfig,
 ) -> ScenarioEventConfig {
     let id = crate_id(nth);
     ScenarioEventConfig {
@@ -1510,7 +1524,7 @@ fn crate_pickup(
             detach_objective_marker(&id),
             despawn_object(&id),
             story_message(speaker, line),
-            beat_setup(next_beat, INSTRUCTION_GAP, setup),
+            continuation,
         ],
     }
 }

@@ -2306,7 +2306,7 @@
                                     )),
                                     Objective((
                                         id: "crate_first",
-                                        message: "Recover the first crate.",
+                                        message: "Recover the first manifested crate.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_1",
@@ -2347,7 +2347,7 @@
                     )),
                     StoryMessage((
                         speaker: "Engineer",
-                        text: "One aboard. Next one is well inside the rocks - fly it on the thrusters and take your time.",
+                        text: "One secure. Seal is intact and the tag matches. Second mark is deeper in the plate, so keep it slow.",
                     )),
                     Sequence((
                         key: "beat_5",
@@ -2379,7 +2379,7 @@
                                     )),
                                     Objective((
                                         id: "crate_second",
-                                        message: "Recover the second crate.",
+                                        message: "Recover the second manifested crate.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_2",
@@ -2419,12 +2419,21 @@
                         id: "crate_2",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Two. The third one drifted clean out of the plate, so we are going the long way round. Warm the targeting computer and hold your radar on the transit mark - [CTRL].",
+                        speaker: "Engineer",
+                        text: "Two secure. Both manifests are clean.",
                     )),
                     Sequence((
-                        key: "beat_6",
+                        key: "third_route",
                         steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "The third crate is outside the plate. Control has laid a route around the survey body.",
+                                    )),
+                                ],
+                            ),
                             (
                                 after: Some(4.0),
                                 actions: [

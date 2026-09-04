@@ -181,3 +181,18 @@ the copilot asking for a full stop and a handling check, reveals the scheduled
 repair and Prospector Six during the wide four-mark shot, and returns control
 with explicit Shift-plus-mouse guidance. The objective and control dock teach
 the input; the crew explains why the maneuver matters.
+
+## First Shift, scene 3
+
+The first two manifested crates remain unspecified. They are ordinary work
+cargo, not lore objects or plot clues. Dialogue stays sparse because the player
+is flying close to rocks:
+
+- At the first crate, the engineer confirms a sound seal and matching tag, then
+  warns that the second mark is deeper in the plate.
+- At the second crate, the engineer confirms both manifests are clean.
+- The Deck Chief then calls the last object the **third crate**, not a "loose
+  return", and explains that Control laid a route around the survey body.
+
+There is no conversation hold in the plate. Each confirmation follows physical
+contact, and the next objective waits until the short line has had room to land.

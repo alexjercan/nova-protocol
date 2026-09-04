@@ -935,3 +935,17 @@ Proof: all 19 focused First Shift tests pass; generated content lint reports 0
 errors, 0 warnings and 0 findings; web CI passes. A rendered 1280x720 review at
 10, 22, 33 and 39 seconds keeps the full trim box visible throughout the
 conversation and returns to a readable objective, active mark and flight bark.
+
+### 2026-09-04: First Shift dialogue pass, scene 3
+
+Kept both manifested recoveries deliberately ordinary and unspecified. Contact
+with the first gets one short engineer report: sound seal, matching tag, and a
+warning that the next mark lies deeper in the plate. Contact with the second
+confirms both manifests, then gives the Deck Chief a separate line to introduce
+the third crate and Control's route around the survey body. The dialogue remains
+normal flight comms with no conversation hold during close asteroid work.
+
+Proof: all 19 focused First Shift tests pass and generated content lint reports
+0 errors, 0 warnings and 0 findings. A rendered 1280x720 scene-opening review
+keeps the first manifested-crate objective, contact marker, Cutter One and Deck
+Chief handoff readable together over the dense plate.
