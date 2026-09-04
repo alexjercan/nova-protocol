@@ -252,6 +252,12 @@ does NOT get an entry - and it is the only place they are written down.
 - A collapsing hull measures its pre-cut centre of mass once per frame, not
   once per destroyed section. A siege railgun through a capital hull spent
   55 ms of one impact on that walk; now under 1 ms.
+- A frame throws at most 128 carve chips however many craters opened in it. One
+  crater is untouched; a capital hull raked open threw about 10 000 chips and
+  now throws about 2 000.
+- Wreck pieces go physical two dozen a frame instead of all at once, so a hull
+  shedding 700 sections in one instant no longer grows 700 colliders and their
+  contacts on a single frame.
 
 ### Fixes
 - A ship's speed cap governs its TOTAL speed, so turning to a fresh heading and
@@ -264,6 +270,9 @@ does NOT get an entry - and it is the only place they are written down.
   died, and would have twisted the wrong body.
 
 ### Internals & Tooling
+- A `stress_hull_collapse` range fires one siege slug into a 1296-cell hull,
+  asserts the corridor it destroyed and every piece it shed, and records what
+  the collapse frame cost.
 - Ramming and destruction report one line per FRAME - contacts, damage, and
   what died by type - instead of one line per contact and three per section.
   The per-event detail moved to `trace`.

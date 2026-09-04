@@ -318,6 +318,11 @@ What is on disk today, in reading order:
   real content; `stress_point_defense` also reads `NOVA_STRESS_PD_MOUNTS` and
   `NOVA_STRESS_PD_BAYS`, so one build can be swept across scales without
   moving what it asserts.
+  `stress_hull_collapse` is the odd one out: it fires ONE siege slug down the
+  long axis of a 1296-cell hull and asserts the corridor that left it and that
+  every piece it shed went physical, then RECORDS the collapse frame cost and
+  the debris peak instead of capturing frames, because a one-shot walk cannot
+  fill the baseline window.
   The UI idiom: a beat NAMES its target (`click_named` / `hover_named` /
   `ui_node_centre` / `ui_node_rect` in `nova_autopilot::input`) so a layout move
   is survivable and only a rename breaks a run; nothing reaches a widget by

@@ -27,6 +27,22 @@
 //! chunk born inside one has nothing to resolve against; the grace costs it
 //! nothing either way.
 //!
+//! # A crowd of them lands a few at a time
+//!
+//! The grace is a fixed window, so pieces born together come out of it
+//! together. One collapse sheds hundreds of them in a single command flush, and
+//! half a second later every one of those inserts a collider and a dynamic body
+//! on the SAME frame - still stacked where they were bolted, so the solver
+//! meets the whole population as contacts on that frame as well.
+//!
+//! [`land_carved_chunks`] therefore lands at most
+//! [`CHUNK_ACTIVATIONS_PER_FRAME`] of them per frame and leaves the rest for
+//! the next. That does not reduce the work, it spreads it, which is what a
+//! frame-time tail cares about - and it is the safe direction to move in,
+//! because a piece that waits is a piece that stays kinematic and colliderless,
+//! which is what the grace was for in the first place. Nothing may LAND EARLY;
+//! landing late costs only that the piece cannot be flown into yet.
+//!
 //! # Not the same thing as a shard
 //!
 //! [`spew`](super::spew) throws shards: kinematic, colliderless, short-lived,
@@ -67,6 +83,15 @@ pub const CHUNK_MIN_VOLUME: f32 = 1.0;
 /// throws it, short enough that a player cannot see the moment it starts
 /// colliding. See the module docs for why it is not zero.
 pub const CHUNK_GRACE_SECS: f32 = 0.5;
+
+/// The most pieces that may become physical in one frame.
+///
+/// Sized so that a single hit is never delayed at all and a collapse is fully
+/// physical about half a second after its first piece lands: a hull raked by a
+/// siege lance sheds some 700 pieces into one flush, which at this rate is
+/// about thirty frames of landings rather than one. See the module docs for why
+/// waiting is safe and landing early would not be.
+const CHUNK_ACTIVATIONS_PER_FRAME: usize = 24;
 
 /// How long a chunk survives before it despawns.
 ///
@@ -265,18 +290,29 @@ pub fn mesh_bounds(mesh: &Mesh) -> Option<(Vec3, Vec3)> {
     (min.cmple(max).all()).then(|| ((min + max) * 0.5, (max - min) * 0.5))
 }
 
-/// Make a chunk physical once it has drifted clear of the body it came off.
+/// Make chunks physical once they have drifted clear of the body they came
+/// off, at most [`CHUNK_ACTIVATIONS_PER_FRAME`] of them per frame.
 fn land_carved_chunks(
     time: Res<Time>,
     mut commands: Commands,
     mut q_chunks: Query<(Entity, &mut ChunkGrace)>,
 ) {
     let step = time.delta_secs();
+    let mut landed = 0usize;
     for (entity, mut grace) in &mut q_chunks {
         grace.remaining -= step;
         if grace.remaining > 0.0 {
             continue;
         }
+        // Past its grace but past the frame's allowance too, so it drifts one
+        // more frame. It keeps its `ChunkGrace`, and with it the collider it is
+        // owed. Not a `break`: every remaining piece's own clock has to keep
+        // running down, or a queue behind the allowance would hold pieces back
+        // that had not even reached their grace yet.
+        if landed >= CHUNK_ACTIVATIONS_PER_FRAME {
+            continue;
+        }
+        landed += 1;
         trace!("land_carved_chunks: {entity:?} is clear, going dynamic");
         commands
             .entity(entity)
@@ -384,6 +420,59 @@ mod tests {
             app.world().get::<Collider>(chunk).is_some(),
             "a landed chunk is something you can hit"
         );
+    }
+
+    /// How many pieces are physical bodies now.
+    fn physical(app: &mut App) -> usize {
+        app.world_mut()
+            .query_filtered::<(), (With<CarvedChunkMarker>, With<Collider>)>()
+            .iter(app.world())
+            .count()
+    }
+
+    /// THE ceiling. A hull raked by a siege lance sheds hundreds of pieces into
+    /// one command flush, all carrying the same grace, so without a per-frame
+    /// allowance every one of them grows a collider on the same frame and the
+    /// solver meets the lot of them at once.
+    #[test]
+    fn a_crowd_of_pieces_lands_a_few_at_a_time() {
+        let crowd = CHUNK_ACTIVATIONS_PER_FRAME * 3;
+        let mut app = chunk_app();
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                for _ in 0..crowd {
+                    a_chunk(&mut commands);
+                }
+            })
+            .expect("the spawns run");
+
+        // The first manual step reports a delta of zero, then two steps of 0.6
+        // of the window carry every piece past its grace on the same frame.
+        app.update();
+        app.update();
+        app.update();
+        assert_eq!(
+            physical(&mut app),
+            CHUNK_ACTIVATIONS_PER_FRAME,
+            "one frame landed more than its allowance"
+        );
+
+        // And the piece that waited is still safe to wait: the grace's own
+        // contract is that nothing is physical inside the body it came off.
+        let waiting: Vec<RigidBody> = app
+            .world_mut()
+            .query_filtered::<&RigidBody, With<ChunkGrace>>()
+            .iter(app.world())
+            .copied()
+            .collect();
+        assert_eq!(waiting.len(), crowd - CHUNK_ACTIVATIONS_PER_FRAME);
+        for body in waiting {
+            assert_eq!(body, RigidBody::Kinematic, "a waiting piece went physical");
+        }
+
+        app.update();
+        app.update();
+        assert_eq!(physical(&mut app), crowd, "and every piece does land");
     }
 
     /// Chunks are debris, not scenery: a scene that keeps carving rocks must

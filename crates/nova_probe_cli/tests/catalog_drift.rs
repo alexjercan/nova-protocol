@@ -484,6 +484,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "stress_hull_collapse",
+        &[
+            "one siege slug opens exactly its rake corridor",
+            "every corridor cell left the hull",
+            "every wreck piece went physical",
+            "the collapse frame cost is recorded",
+            "the debris the collapse threw is recorded",
+        ],
+    ),
+    (
         "system_headless_pointer",
         &[
             "the pause overlay lays out with no renderer",
@@ -543,7 +553,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 223;
+const SYSTEMS_INVARIANTS: usize = 228;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

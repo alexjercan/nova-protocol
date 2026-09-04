@@ -39,12 +39,6 @@ const TORPEDO_BASE_HEALTH: f32 = 100.0;
 /// blocks (600) because it must stay a weak spot worth shooting at.
 const RAILGUN_BASE_HEALTH: f32 = 180.0;
 
-/// The capital-grade lance's prototype id. The standard lance is named from
-/// `nova_ship`'s catalog ids because the editor sandbox has to reach it; this
-/// one is only ever mounted by authored content, so it stays beside the
-/// builder that writes it.
-pub(crate) const SIEGE_RAILGUN_LANCE_SECTION_ID: &str = "siege_railgun_lance_section";
-
 // Authored per-hit Kinetic damage of the shared PDC, a playtest knob. A
 // point-defense profile: LOW per-hit, HIGH rate (100 rounds/s). At 4.0 the PDC
 // does ~400 DPS, while a 60-HP scavenger section takes 15 rounds (~0.15 s of

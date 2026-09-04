@@ -368,6 +368,10 @@ path = "examples/systems/stress_one_structure.rs"
 name = "stress_many_structures"
 path = "examples/systems/stress_many_structures.rs"
 
+[[example]]
+name = "stress_hull_collapse"
+path = "examples/systems/stress_hull_collapse.rs"
+
 # screenshots/ - the capture producers for the website and the wiki. A gallery
 # a human WORKS is playable/; a row a human only looks at is here.
 #

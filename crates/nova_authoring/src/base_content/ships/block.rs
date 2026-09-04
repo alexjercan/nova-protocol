@@ -19,11 +19,9 @@ use std::collections::HashSet;
 
 use bevy::prelude::*;
 use nova_scenario::prelude::{SectionSource, SpaceshipSectionConfig};
+use nova_ship::prelude::SIEGE_RAILGUN_LANCE_SECTION_ID;
 
-use crate::base_content::{
-    sections,
-    styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID},
-};
+use crate::base_content::styles::{ARMOURED_STYLE_ID, INDUSTRIAL_STYLE_ID, SALVAGE_STYLE_ID};
 
 /// The plain structural cell every block hull is mostly made of.
 const HULL: &str = "reinforced_hull_section";
@@ -41,7 +39,7 @@ const SIEGE_TORPEDO: &str = "heavy_torpedo_section";
 /// stolen warship's two spinal guns. A separate PROTOTYPE rather than a
 /// per-spawn override, so the standard lance every other ship carries is
 /// untouched and the heavy one is a thing you can see in the catalog.
-const SIEGE_RAILGUN: &str = sections::SIEGE_RAILGUN_LANCE_SECTION_ID;
+const SIEGE_RAILGUN: &str = SIEGE_RAILGUN_LANCE_SECTION_ID;
 
 /// How far a turret drops into its own cell to put its socket on the plate
 /// below: the mount's one link point sits a quarter cell under its centre.

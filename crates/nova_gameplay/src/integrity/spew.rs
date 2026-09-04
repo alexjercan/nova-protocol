@@ -40,6 +40,22 @@
 //! mod that wants a puff, sparks, or no debris at all replaces this observer
 //! rather than patching the carve.
 //!
+//! # What one FRAME may throw
+//!
+//! One carve's worth of chips is never the problem: seven cubes off a crater is
+//! what a hit looks like. A capital hull opening is a different event - a siege
+//! lance rakes a corridor and hundreds of craters announce themselves in ONE
+//! command flush, each asking for its clamped maximum, and the frame that has
+//! to create them pays for every one at once and then carries them for
+//! [`SHARD_LIFETIME_SECS`].
+//!
+//! So the ceiling is on the frame and not on the carve
+//! ([`SHARDS_PER_FRAME`]). Under it nothing is touched, which is every hit in
+//! an ordinary firefight; over it the craters that arrive late in the frame go
+//! unchipped. That is the right thing to drop: a frame over the budget is one
+//! in which hundreds of craters opened together, it is already throwing real
+//! severed geometry, and nobody can count chips in it.
+//!
 //! # The body says what it is made of
 //!
 //! A rock and a hull announce a carve identically, so for as long as one look
@@ -233,6 +249,41 @@ const SPEW_SPIN: f32 = 7.0;
 /// How long a shard lives. Long enough to be seen leaving and to sell the
 /// direction, short enough that a long fight leaves no litter.
 const SHARD_LIFETIME_SECS: f32 = 2.5;
+
+/// The most chips any ONE frame may create, however many craters opened in it.
+///
+/// Clear of what a firefight throws and well under what a collapse asks for.
+/// The widest single carve in the catalog is rock at its ceiling, twelve chips,
+/// so eight simultaneous craters of the worst kind still throw everything they
+/// would have; a capital hull raked by a siege lance opens craters in the
+/// thousands over one collapse and asked for some 10 000 chips before this
+/// existed.
+const SHARDS_PER_FRAME: usize = 128;
+
+/// What is left of this frame's chip allowance.
+///
+/// A FRAME and not a fixed step: several fixed steps can flush into one frame,
+/// and it is the frame that has to create the entities and draw them.
+#[derive(Resource)]
+struct ShardBudget {
+    left: usize,
+}
+
+impl Default for ShardBudget {
+    fn default() -> Self {
+        Self {
+            left: SHARDS_PER_FRAME,
+        }
+    }
+}
+
+/// Hand the frame its chip allowance back.
+///
+/// In `First`, so a carve announced from `FixedUpdate` draws on the same
+/// allowance as one announced from `Update`.
+fn open_the_shard_budget(mut budget: ResMut<ShardBudget>) {
+    budget.left = SHARDS_PER_FRAME;
+}
 
 /// Marks a shard thrown by a carve, so a range can count them.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
@@ -430,7 +481,9 @@ impl Plugin for CarveSpewPlugin {
         app.register_type::<CarveShardMarker>();
         app.register_type::<CarveDebris>();
         app.init_resource::<DebrisLooks>();
+        app.init_resource::<ShardBudget>();
         app.add_observer(spew_carved_material);
+        app.add_systems(First, open_the_shard_budget);
         app.add_systems(Update, cool_carve_shards);
     }
 }
@@ -439,6 +492,7 @@ fn spew_carved_material(
     spew: On<CarveSpew>,
     mut commands: Commands,
     mut looks: ResMut<DebrisLooks>,
+    mut budget: ResMut<ShardBudget>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     q_body: Query<&GlobalTransform>,
@@ -468,6 +522,18 @@ fn spew_carved_material(
     let debris = q_debris.get(spew.entity).copied().unwrap_or_default();
     let look = debris.shape(look);
 
+    // Drawn before anything is minted, so a frame already at its ceiling costs
+    // this observer nothing beyond the lookups above.
+    let count = look.count(spew.radius).min(budget.left);
+    if count == 0 {
+        trace!(
+            "spew_carved_material: {:?} goes unchipped, the frame's chips are spent",
+            spew.entity
+        );
+        return;
+    }
+    budget.left -= count;
+
     let assets = looks
         .0
         .entry(debris)
@@ -476,7 +542,6 @@ fn spew_carved_material(
     let material = assets.ramp[0].clone();
     let cools = assets.ramp.len() > 1;
 
-    let count = look.count(spew.radius);
     trace!(
         "spew_carved_material: {count} {debris:?} shard(s) off {:?} at {} ({:?})",
         spew.entity,
@@ -777,6 +842,67 @@ mod tests {
         for temp in lifetimes {
             assert!(temp.is_some(), "a shard must despawn itself");
         }
+    }
+
+    /// Announce `craters` carves into one frame, the way a command flush does,
+    /// and report how many chips stand in the world afterwards.
+    ///
+    /// Every crater here is wide enough to want the ceiling, so the only thing
+    /// that can hold the count down is the frame's own allowance.
+    fn rake_one_frame(app: &mut App, craters: usize) -> usize {
+        let hull = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
+        for nth in 0..craters {
+            app.world_mut().trigger(CarveSpew {
+                entity: hull,
+                at: Vec3::X * (3.0 + nth as f32),
+                radius: 2.0,
+                kind: DamageType::Kinetic,
+            });
+        }
+        app.update();
+        shards(app).len()
+    }
+
+    /// A lone crater is untouched by the budget, and that is the point of
+    /// putting the ceiling on the frame: what one hit throws is what a hit
+    /// looks like, whatever else is happening.
+    #[test]
+    fn one_carve_still_throws_everything_its_crater_is_worth() {
+        for (kind, look) in THROWING {
+            let mut app = spew_app();
+            assert_eq!(
+                carve(&mut app, kind, 100.0).len(),
+                look.most,
+                "{kind:?} lost chips off a crater nothing was competing with"
+            );
+            assert!(
+                look.most <= SHARDS_PER_FRAME,
+                "{kind:?} cannot spend a whole frame on one crater"
+            );
+        }
+    }
+
+    /// THE ceiling. Hundreds of craters announcing themselves in one command
+    /// flush is what a capital hull coming apart does, and the frame that has
+    /// to create their chips is the one that cannot afford them.
+    #[test]
+    fn one_frame_cannot_be_made_to_throw_more_than_its_budget() {
+        let mut app = spew_app();
+        let thrown = rake_one_frame(&mut app, 200);
+        assert_eq!(thrown, SHARDS_PER_FRAME);
+    }
+
+    /// And the allowance comes back: a long fight is a sequence of frames, so
+    /// nothing here starves a firefight of debris.
+    #[test]
+    fn the_next_frame_gets_its_chips_back() {
+        let mut app = spew_app();
+        assert_eq!(rake_one_frame(&mut app, 200), SHARDS_PER_FRAME);
+        assert_eq!(
+            rake_one_frame(&mut app, 200),
+            SHARDS_PER_FRAME * 2,
+            "the second frame threw nothing of its own"
+        );
     }
 
     /// The same hit throws the same debris twice, which is what a re-run
