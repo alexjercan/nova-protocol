@@ -882,3 +882,13 @@ Rendered review:
 Proof: all 238 `nova_hud` unit tests pass, including screen-relative card,
 distinct text-scale, lossless queue, live objective-chip layout, and chevron
 alignment checks. mdBook builds and web CI passes.
+
+### 2026-09-04: STOP prompt wording correction
+
+Corrected First Shift's STOP bark and objective from "hold [X]" to "press
+[X]". STOP is a toggle, so the old story text could make a player keep the key
+down and conclude that the maneuver was not working. The getting-started guide
+now says to press X once and let STOP finish.
+
+Proof: all 19 focused First Shift tests pass, generated content lint reports 0
+errors, 0 warnings and 0 findings, and web CI passes.

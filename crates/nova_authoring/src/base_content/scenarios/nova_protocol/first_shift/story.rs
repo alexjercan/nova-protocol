@@ -24,8 +24,8 @@ pub(super) const OBJ_TEXT_BURN: &str = "Burn to the work mark.";
 // --- the thrusters -----------------------------------------------------------
 
 pub(super) const TRIM_COPILOT_STOP: &str =
-    "Mark made. Take the way off her - hold [X] until we are stopped.";
-pub(super) const OBJ_TEXT_STOP: &str = "Hold [X] until Cutter comes to rest.";
+    "Mark made. Take the way off her - press [X] and let STOP bring us to rest.";
+pub(super) const OBJ_TEXT_STOP: &str = "Press [X] and let STOP bring Cutter to rest.";
 pub(super) const TRIM_COPILOT_TEACH: &str =
     "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the \
      ball on the tape goes violet while you are on them. Short taps - she keeps whatever you \

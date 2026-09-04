@@ -1684,7 +1684,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Mark made. Take the way off her - hold [X] until we are stopped.",
+                        text: "Mark made. Take the way off her - press [X] and let STOP bring us to rest.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "work_mark",
@@ -1700,7 +1700,7 @@
                                 actions: [
                                     Objective((
                                         id: "stop",
-                                        message: "Hold [X] until Cutter comes to rest.",
+                                        message: "Press [X] and let STOP bring Cutter to rest.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "STOP",

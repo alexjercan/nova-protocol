@@ -49,7 +49,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 
 ### Part 1 - Burn, then trim
 
-1. **Burn to the work mark, then stop.** Hold <kbd>W</kbd> to burn. On arrival, hold <kbd>X</kbd> until STOP has brought Cutter fully to rest; the next lesson waits for the physical maneuver to finish. A gentle 150 m/s manual-flight cap remains active for the whole shift.
+1. **Burn to the work mark, then stop.** Hold <kbd>W</kbd> to burn. On arrival, press <kbd>X</kbd> once and let STOP bring Cutter fully to rest; the next lesson waits for the physical maneuver to finish. A gentle 150 m/s manual-flight cap remains active for the whole shift.
 2. **Fly the four-mark trim box.** Your fine thrusters unlock here, in open space, with nothing to hit. The camera first shows all four marks together, then returns control and highlights only the current corner. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and RCS runs out at 100 m/s in any direction. Fly across to A, up to B, back across to C, then down to D where you started.
 
 ### Part 2 - The plate
