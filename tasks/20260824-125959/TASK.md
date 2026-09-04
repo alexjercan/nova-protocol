@@ -949,3 +949,20 @@ Proof: all 19 focused First Shift tests pass and generated content lint reports
 0 errors, 0 warnings and 0 findings. A rendered 1280x720 scene-opening review
 keeps the first manifested-crate objective, contact marker, Cutter One and Deck
 Chief handoff readable together over the dense plate.
+
+### 2026-09-04: First Shift dialogue pass, scene 4
+
+Made both safe transit legs the guidance half of Cutter One's post-maintenance
+release. TRANSIT 1 now checks turnaround, automatic braking and physical
+arrival. The engineer asks whether one solution is enough; the copilot requires
+the complete lock-and-GOTO operation again at TRANSIT 2. Its arrival closes the
+maintenance release before the crew notices its visual cover behind the survey
+body.
+
+The exchange remains ordinary comms over low-workload autopilot travel. Control
+laid the marks on the real route to the third crate, so no extra training leg or
+conversation hold interrupts the assigned work.
+
+Proof: all 19 focused First Shift tests pass; the standalone navigation scene
+compiles with debug features; generated content lint reports 0 errors, 0
+warnings and 0 findings; web CI passes.

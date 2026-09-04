@@ -268,6 +268,11 @@ const TRIM_SHORT_GAP: f64 = 2.5;
 const TRIM_NORMAL_GAP: f64 = 4.0;
 const TRIM_LONG_GAP: f64 = 5.5;
 
+/// Quiet navigation-leg dialogue can breathe without competing with manual
+/// flight. The engineer's question gets a full beat; the answer is immediate.
+const TRANSIT_NORMAL_GAP: f64 = 4.0;
+const TRANSIT_REPLY_GAP: f64 = 2.5;
+
 /// The crew's lines during the hold, from the moment the ring goes stable.
 const ORBIT_TALK_FIRST_AT: f64 = 3.0;
 const ORBIT_TALK_GAP: f64 = 4.5;
@@ -307,6 +312,8 @@ const SEQ_OPENING: &str = "opening";
 const SEQ_TRIM_BRIEFING: &str = "trim_briefing";
 const SEQ_TRIM_COMPLETE: &str = "trim_complete";
 const SEQ_THIRD_ROUTE: &str = "third_route";
+const SEQ_SECOND_TRANSIT: &str = "second_transit";
+const SEQ_DETOUR_BRIEFING: &str = "detour_briefing";
 const SEQ_ORBIT_TALK: &str = "orbit_talk";
 const SEQ_PLUME: &str = "plume";
 const SEQ_EMERGING: &str = "emerging";
@@ -889,7 +896,7 @@ pub(crate) fn first_shift(
                     set_variable(VAR_BEAT, number(BEAT_GOTO)),
                     complete_objective(OBJ_LOCK),
                     clear_hint_emphasis("RADAR"),
-                    story_message(DECK_CHIEF, story::GOTO_CHIEF),
+                    story_message(COPILOT, story::GOTO_COPILOT),
                     beat_setup(
                         BEAT_GOTO,
                         INSTRUCTION_GAP,
@@ -916,17 +923,27 @@ pub(crate) fn first_shift(
                     set_variable(VAR_BEAT, number(BEAT_TRANSIT)),
                     complete_objective(OBJ_GOTO),
                     clear_hint_emphasis("GOTO"),
-                    story_message(DECK_CHIEF, story::TRANSIT_CHIEF_AGAIN),
+                    story_message(COPILOT, story::TRANSIT_COPILOT_CLEAN),
                 ]
                 .into_iter()
                 .chain(TRANSIT_ONE.clear())
-                .chain([beat_setup(
-                    BEAT_TRANSIT,
-                    INSTRUCTION_GAP,
-                    [post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT)]
-                        .into_iter()
-                        .chain(TRANSIT_TWO.raise())
-                        .collect(),
+                .chain([sequence(
+                    SEQ_SECOND_TRANSIT,
+                    vec![
+                        open_line(
+                            TRANSIT_NORMAL_GAP,
+                            ENGINEER,
+                            story::TRANSIT_ENGINEER_ONE_MORE,
+                        ),
+                        open_line(TRANSIT_REPLY_GAP, COPILOT, story::TRANSIT_COPILOT_ONE_MORE),
+                        step(
+                            INSTRUCTION_GAP,
+                            [post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT)]
+                                .into_iter()
+                                .chain(TRANSIT_TWO.raise())
+                                .collect(),
+                        ),
+                    ],
                 )])
                 .collect(),
             },
@@ -944,19 +961,24 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_DETOUR)),
                     complete_objective(OBJ_TRANSIT),
-                    story_message(COPILOT, story::DETOUR_COPILOT),
+                    story_message(COPILOT, story::TRANSIT_COPILOT_RELEASE),
                 ]
                 .into_iter()
                 .chain(TRANSIT_TWO.clear())
-                .chain([coached_beat_setup(
-                    BEAT_DETOUR,
-                    ENGINEER,
-                    story::DETOUR_ENGINEER,
+                .chain([sequence(
+                    SEQ_DETOUR_BRIEFING,
                     vec![
-                        grant(FlightVerb::Orbit),
-                        approach_ring(),
-                        post_objective(OBJ_DETOUR, story::OBJ_TEXT_DETOUR),
-                        attach_objective_marker(stage::ID_INSPECTION, "SURVEY BODY"),
+                        open_line(TRANSIT_NORMAL_GAP, COPILOT, story::DETOUR_COPILOT),
+                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER),
+                        step(
+                            INSTRUCTION_GAP,
+                            vec![
+                                grant(FlightVerb::Orbit),
+                                approach_ring(),
+                                post_objective(OBJ_DETOUR, story::OBJ_TEXT_DETOUR),
+                                attach_objective_marker(stage::ID_INSPECTION, "SURVEY BODY"),
+                            ],
+                        ),
                     ],
                 )])
                 .collect(),

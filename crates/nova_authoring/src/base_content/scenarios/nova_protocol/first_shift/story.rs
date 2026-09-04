@@ -100,12 +100,20 @@ pub(super) const LOCK_CHIEF: &str =
     "The third crate is outside the plate. Control has laid a route around the survey body.";
 pub(super) const OBJ_TEXT_LOCK: &str = "Lock TRANSIT 1 - hold [CTRL].";
 
-pub(super) const GOTO_CHIEF: &str =
-    "Locked. Now hand her to the computer - [G]. It flies the leg, you watch the belt.";
-pub(super) const OBJ_TEXT_GOTO: &str = "Press [G] and let the computer fly.";
+pub(super) const GOTO_COPILOT: &str =
+    "Transit One locked. One box remains on the maintenance release: guidance and automatic \
+     braking. Give the leg to the computer.";
+pub(super) const OBJ_TEXT_GOTO: &str = "Press [G] and let the computer fly to TRANSIT 1.";
 
-pub(super) const TRANSIT_CHIEF_AGAIN: &str = "Second mark is up. Same again.";
-pub(super) const OBJ_TEXT_TRANSIT: &str = "Lock and GOTO to TRANSIT 2.";
+pub(super) const TRANSIT_COPILOT_CLEAN: &str =
+    "First solution is clean. Turnaround, braking, and arrival are all inside limits.";
+pub(super) const TRANSIT_ENGINEER_ONE_MORE: &str = "One more before you sign it?";
+pub(super) const TRANSIT_COPILOT_ONE_MORE: &str = "One more.";
+pub(super) const OBJ_TEXT_TRANSIT: &str = "Lock TRANSIT 2 and press [G].";
+
+pub(super) const TRANSIT_COPILOT_RELEASE: &str =
+    "Second arrival clean. Guidance and automatic braking are inside limits. That's the \
+     maintenance release.";
 
 // --- the detour --------------------------------------------------------------
 

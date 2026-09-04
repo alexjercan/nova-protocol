@@ -196,3 +196,20 @@ is flying close to rocks:
 
 There is no conversation hold in the plate. Each confirmation follows physical
 contact, and the next objective waits until the short line has had room to land.
+
+## First Shift, scene 4
+
+The two transit legs are useful work and the final part of Cutter One's
+post-maintenance release:
+
+- Radar acquires TRANSIT 1 before the computer can receive the route.
+- GOTO flies the first leg and proves turnaround, braking, and physical arrival.
+- The engineer asks whether one clean solution is enough. The copilot requires a
+  second.
+- TRANSIT 2 repeats the complete lock-and-GOTO operation.
+- Its arrival closes guidance and automatic braking on the maintenance release.
+
+This is not another arbitrary exercise. Control laid both marks on the safe
+route to the third crate, so the crew verifies the repaired cutter while doing
+the assigned work. Dialogue remains normal flight comms because the autopilot
+owns the low-workload legs; there is no camera or control hold.

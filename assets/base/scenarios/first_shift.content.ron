@@ -2516,8 +2516,8 @@
                         verb: "RADAR",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Locked. Now hand her to the computer - [G]. It flies the leg, you watch the belt.",
+                        speaker: "Copilot",
+                        text: "Transit One locked. One box remains on the maintenance release: guidance and automatic braking. Give the leg to the computer.",
                     )),
                     Sequence((
                         key: "beat_7",
@@ -2532,7 +2532,7 @@
                                     )),
                                     Objective((
                                         id: "goto",
-                                        message: "Press [G] and let the computer fly.",
+                                        message: "Press [G] and let the computer fly to TRANSIT 1.",
                                     )),
                                     HintEmphasisSet((
                                         verb: "GOTO",
@@ -2568,8 +2568,8 @@
                         verb: "GOTO",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Second mark is up. Same again.",
+                        speaker: "Copilot",
+                        text: "First solution is clean. Turnaround, braking, and arrival are all inside limits.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "transit_mark_one",
@@ -2578,14 +2578,32 @@
                         id: "transit_mark_one",
                     )),
                     Sequence((
-                        key: "beat_8",
+                        key: "second_transit",
                         steps: [
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "One more before you sign it?",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "One more.",
+                                    )),
+                                ],
+                            ),
                             (
                                 after: Some(4.0),
                                 actions: [
                                     Objective((
                                         id: "transit",
-                                        message: "Lock and GOTO to TRANSIT 2.",
+                                        message: "Lock TRANSIT 2 and press [G].",
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -2649,7 +2667,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Survey body\'s between us and Meridian. They cannot see us back here.",
+                        text: "Second arrival clean. Guidance and automatic braking are inside limits. That\'s the maintenance release.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "transit_mark_two",
@@ -2658,10 +2676,19 @@
                         id: "transit_mark_two",
                     )),
                     Sequence((
-                        key: "beat_9",
+                        key: "detour_briefing",
                         steps: [
                             (
-                                after: Some(8.399999618530273),
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Survey body\'s between us and Meridian. They cannot see us back here.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
                                 actions: [
                                     StoryMessage((
                                         speaker: "Engineer",
