@@ -23,6 +23,10 @@ Global `~/AGENTS.md` applies. This file defines project-specific instructions.
 ## Conventions
 
 - Prefer correct, simple, maintainable changes over compatibility machinery.
+  A format change stops the old way from working, and mods migrate.
+- Author content explicitly. A missing required field or an unrecognized id is
+  an error at lint, then at load. Reserve `Option` for an override whose
+  documentation states what the absence means.
 - Run Rust and Cargo through `nix develop --command ...` or inside the shell.
 - Use the pinned nightly toolchain and `rustfmt.toml`.
 - Use `#[expect(<lint>, reason = "...")]`, not bare `#[allow]`.
