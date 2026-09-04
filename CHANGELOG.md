@@ -253,9 +253,9 @@ does NOT get an entry - and it is the only place they are written down.
 - New `railgun_wake_bench` example: the slug's ionized wake at three speeds
   under three lifetime policies, every knob live and in slow motion, driving
   the weapon's own tuning.
-- New `first_shift_setpiece` example: the campaign's attack beat on its
-  authored marks, firing the real salvo, so a death-shot pose is judged in a
-  rendered frame and the set piece can be recorded.
+- New `first_shift_setpiece` example: the campaign's attack beat on its complete
+  shared map, firing the real salvo, so a death-shot pose can be judged and
+  recorded in rendered frames.
 - `loop_vfx_range` parks a lance above the shooter and fires it over the
   target once per pass, so the cycle measures the wake; `NOVA_VFX_RANGE_BARE_SLUG=1`
   runs the same cycle with a bare slug.

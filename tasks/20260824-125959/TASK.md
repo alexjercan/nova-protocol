@@ -692,8 +692,11 @@ The warship is 109.7 degrees from Meridian at the lens and cannot enter the
 The camera review is now reproducible in
 `examples/playable/first_shift_setpiece.rs`. Its CLI accepts an offset,
 resolution, capture switch and label, runs the real three-ship salvo on the
-authored marks, and writes default captures under `target/shots/`. Rendered
-reviews at 1280x720 and 1920x1080 accepted the shipped pose.
+authored marks, and writes default captures under `target/shots/`. It and the
+spatial map bench now assemble the same complete belt from
+`examples/playable/shared/first_shift_stage.rs`, including both planetoids, the
+40-rock salvage plate and all 20 ambient rocks. Rendered reviews at 1280x720
+and 1920x1080 accepted the shipped pose.
 
 The route audit also found TRANSIT 2 inside the inspection planetoid's gravity
 well: it was 2.72 km from the centre against a 3.29 km sphere of influence, so
@@ -707,4 +710,6 @@ Proof: 16 focused First Shift structural tests pass; both probe catalog gates
 pass after restoring the three `system_turn_limit` outcome slugs omitted on
 master; `content gen` and `content lint` report 0 errors, 0 warnings and 0
 findings; `git diff --check` is clean; rendered 1280x720 and 1920x1080 captures
-were inspected from the set-piece bench.
+were inspected from the set-piece bench. The shared-map revision compiles both
+examples, loads all 65 scene objects in a rendered run, clads all three ships,
+and writes all four 1280x720 beat captures.

@@ -178,22 +178,6 @@ fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot)
             APPROACH_POS,
             Color::srgb(0.75, 0.35, 1.0),
         )),
-        spawn(asteroid(
-            "inspection_planetoid",
-            "Inspection Planetoid",
-            stage::INSPECTION_POS,
-            stage::INSPECTION_RADIUS,
-            Some(27_000.0),
-            &game_assets.asteroid_texture,
-        )),
-        spawn(asteroid(
-            "concealment_planetoid",
-            "Concealment Planetoid",
-            stage::CONCEALMENT_POS,
-            stage::CONCEALMENT_RADIUS,
-            Some(20_000.0),
-            &game_assets.asteroid_texture,
-        )),
         spawn(beacon(
             "emergence_marker",
             "5 HIDDEN WARSHIP",
@@ -202,28 +186,13 @@ fn map_scenario(game_assets: &GameAssets, sections: &GameSections, pilot: Pilot)
         )),
     ];
 
-    for (index, (position, radius)) in stage::SALVAGE_ROCKS.into_iter().enumerate() {
-        actions.push(spawn(asteroid(
-            &format!("salvage_rock_{index}"),
-            &format!("Salvage Rock {}", index + 1),
-            position,
-            radius,
-            None,
-            &game_assets.asteroid_texture,
-        )));
-    }
+    actions.extend(
+        stage::belt(&game_assets.asteroid_texture)
+            .into_iter()
+            .map(spawn),
+    );
     for (index, position) in CRATE_POSITIONS.into_iter().enumerate() {
         actions.push(spawn(crate_object(index + 1, position)));
-    }
-    for (index, (position, radius)) in stage::AMBIENT_ROCKS.into_iter().enumerate() {
-        actions.push(spawn(asteroid(
-            &format!("ambient_rock_{index}"),
-            &format!("Ambient Rock {}", index + 1),
-            position,
-            radius,
-            None,
-            &game_assets.asteroid_texture,
-        )));
     }
 
     actions.extend(pilot_objectives(pilot));
@@ -424,34 +393,6 @@ fn facing(from: Meters3, target: Meters3) -> Quat {
     Transform::from_translation(from.to_engine())
         .looking_at(target.to_engine(), Vec3::Y)
         .rotation
-}
-
-fn asteroid(
-    id: &str,
-    name: &str,
-    position: Meters3,
-    radius: Meters,
-    mass: Option<f32>,
-    texture: &Handle<Image>,
-) -> ScenarioObjectConfig {
-    ScenarioObjectConfig {
-        base: BaseScenarioObjectConfig {
-            id: id.to_string(),
-            name: name.to_string(),
-            position,
-            rotation: Quat::IDENTITY,
-        },
-        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
-            material: None,
-            destroy_sound: None,
-            radius,
-            texture: texture.clone().into(),
-            mass,
-            invulnerable: true,
-            seed: None,
-            lock_signature: None,
-        }),
-    }
 }
 
 fn crate_object(index: usize, position: Meters3) -> ScenarioObjectConfig {

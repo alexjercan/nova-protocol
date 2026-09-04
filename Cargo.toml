@@ -118,7 +118,7 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
-# The same opening's attack beat with nothing but the beat in it: three ships on
+# The opening's attack beat on the complete shared map: three block ships on
 # their authored marks and the real salvo, so a death-shot camera offset can be
 # judged in a rendered frame and the set piece can be recorded.
 [[example]]

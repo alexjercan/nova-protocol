@@ -1,12 +1,16 @@
-//! Fixed landmarks and asteroid layout shared by both First Shift map benches.
+//! Fixed landmarks and complete belt assembly shared by First Shift scene
+//! examples and both chapter map benches.
 
+use bevy::prelude::*;
 use nova_protocol::prelude::*;
 
 pub const CARRIER_POS: Meters3 = Meters3::new(-1_000.0, 0.0, 2_500.0);
 pub const INSPECTION_POS: Meters3 = Meters3::new(-4_500.0, -400.0, -6_500.0);
 pub const CONCEALMENT_POS: Meters3 = Meters3::new(4_500.0, 300.0, -6_500.0);
 pub const INSPECTION_RADIUS: Meters = Meters(200.0);
+pub const INSPECTION_MASS: f32 = 27_000.0;
 pub const CONCEALMENT_RADIUS: Meters = Meters(500.0);
+pub const CONCEALMENT_MASS: f32 = 20_000.0;
 
 /// A broad plate of small rocks between the carrier and both planetoids. The
 /// former banana's narrow tail is gone; its curved bowl is filled so the cutter
@@ -77,3 +81,89 @@ pub const AMBIENT_ROCKS: [(Meters3, Meters); 20] = [
     (Meters3::new(9_000.0, 1_200.0, -6_000.0), Meters(46.0)),
     (Meters3::new(7_000.0, -1_600.0, -7_000.0), Meters(58.0)),
 ];
+
+fn asteroid(
+    id: &str,
+    name: &str,
+    position: Meters3,
+    radius: Meters,
+    mass: Option<f32>,
+    invulnerable: bool,
+    texture: &Handle<Image>,
+) -> ScenarioObjectConfig {
+    ScenarioObjectConfig {
+        base: BaseScenarioObjectConfig {
+            id: id.to_string(),
+            name: name.to_string(),
+            position,
+            rotation: Quat::IDENTITY,
+        },
+        kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
+            material: None,
+            destroy_sound: None,
+            radius,
+            texture: texture.clone().into(),
+            mass,
+            invulnerable,
+            seed: None,
+            lock_signature: None,
+        }),
+    }
+}
+
+/// Build the complete fixed belt used by both First Shift chapters.
+pub fn belt(texture: &Handle<Image>) -> Vec<ScenarioObjectConfig> {
+    let mut objects = vec![
+        asteroid(
+            "inspection_planetoid",
+            "Inspection Planetoid",
+            INSPECTION_POS,
+            INSPECTION_RADIUS,
+            Some(INSPECTION_MASS),
+            true,
+            texture,
+        ),
+        asteroid(
+            "concealment_planetoid",
+            "Concealment Planetoid",
+            CONCEALMENT_POS,
+            CONCEALMENT_RADIUS,
+            Some(CONCEALMENT_MASS),
+            true,
+            texture,
+        ),
+    ];
+    objects.extend(
+        SALVAGE_ROCKS
+            .into_iter()
+            .enumerate()
+            .map(|(index, (position, radius))| {
+                asteroid(
+                    &format!("salvage_rock_{index}"),
+                    &format!("Salvage Rock {}", index + 1),
+                    position,
+                    radius,
+                    None,
+                    false,
+                    texture,
+                )
+            }),
+    );
+    objects.extend(
+        AMBIENT_ROCKS
+            .into_iter()
+            .enumerate()
+            .map(|(index, (position, radius))| {
+                asteroid(
+                    &format!("ambient_rock_{index}"),
+                    &format!("Belt Rock {}", index + 1),
+                    position,
+                    radius,
+                    None,
+                    false,
+                    texture,
+                )
+            }),
+    );
+    objects
+}

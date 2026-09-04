@@ -17,11 +17,14 @@
 //! cutter at a controlled edge and leaves the torpedo lane readable is a
 //! question for a rendered frame. `--offset` asks it of a new pose.
 //!
-//! The belt is not staged. At these three marks the nearest rock plate falls
-//! more than 60 degrees off the shot's axis, so the frame is ships and sky.
+//! This is the complete First Shift stage, not a three-ship void. Both
+//! planetoids, the 40-rock salvage plate and all 20 ambient belt rocks surround
+//! the three promoted block ships on their authored marks. The attack framing
+//! remains clean because the nearest rock plate falls more than 60 degrees off
+//! the shot's axis. After the camera hands itself back, fly Cutter through the
+//! same map used by both shipped chapters.
 //!
-//! Watch it, or fly the wreck afterwards - the camera hands itself back at the
-//! end:
+//! Watch it, or fly the map and wreck afterwards:
 //! ```text
 //! cargo run --example first_shift_setpiece --features debug
 //! cargo run --example first_shift_setpiece --features debug -- --offset 600,20,-360
@@ -35,10 +38,6 @@
 //!     --resolution 1920x1080 --capture --label shipped
 //! ```
 
-#[expect(
-    dead_code,
-    reason = "the shared stage module also carries both map benches' asteroid layout"
-)]
 #[path = "shared/first_shift_stage.rs"]
 mod stage;
 
@@ -287,7 +286,8 @@ fn sequence(cli: &Cli) -> Vec<SequenceStepConfig> {
 }
 
 fn scenario(assets: &GameAssets, cli: &Cli) -> ScenarioConfig {
-    let objects = vec![
+    let mut objects = stage::belt(&assets.asteroid_texture);
+    objects.extend([
         ship(
             "cutter",
             "Cutter",
@@ -309,7 +309,7 @@ fn scenario(assets: &GameAssets, cli: &Cli) -> ScenarioConfig {
             "block_warship",
             facing(WARSHIP_POS, stage::CARRIER_POS),
         ),
-    ];
+    ]);
 
     ScenarioConfig {
         description: "First Shift's destruction set piece, staged for the camera".to_string(),
