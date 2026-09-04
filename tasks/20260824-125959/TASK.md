@@ -966,3 +966,24 @@ conversation hold interrupts the assigned work.
 Proof: all 19 focused First Shift tests pass; the standalone navigation scene
 compiles with debug features; generated content lint reports 0 errors, 0
 warnings and 0 findings; web CI passes.
+
+### 2026-09-04: First Shift dialogue pass, scenes 5-9
+
+Carried the established workplace voice through the remaining scenes. The orbit
+is now explicitly an unscheduled gravity check that everyone calls a donut. The
+stable lap verifies the new manifold under correction, and Meridian catches the
+crew after the maintenance release was already filed. The third crate remains
+an ordinary unmanifested recovery before the final call home.
+
+The attack approach identifies a dark Earth Navy hull with no fleet code and
+names Meridian as an unarmed Earthworks carrier. The Deck Chief recognizes its
+bow rail apertures as the hull aligns. Scene 8 remains narratively silent through
+weapons launch, impacts, destruction and departure. Scene 9 gives each surviving
+crew voice one restrained beat before the automatic distress beacon answers.
+
+Proof: all 19 focused First Shift tests pass; scenes 05-09 compile with debug
+features; generated content lint reports 0 errors, 0 warnings and 0 findings;
+web CI passes. Rendered 1280x720 captures under `/tmp/first-shift-story-05.png`
+through `09.png` verify each preview, with additional scene 07 captures for the
+Earth Navy identification and Earthworks challenge. Scene 08 remains free of
+narrative cards.

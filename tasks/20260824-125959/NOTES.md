@@ -213,3 +213,46 @@ This is not another arbitrary exercise. Control laid both marks on the safe
 route to the third crate, so the crew verifies the repaired cutter while doing
 the assigned work. Dialogue remains normal flight comms because the autopilot
 owns the low-workload legs; there is no camera or control hold.
+
+## First Shift, scenes 5-9
+
+### Scene 5: orbit
+
+The completed guidance release gives the engineer an excuse to test its one
+omitted mode. Behind the survey body, outside Meridian's direct sightline, the
+engineer calls ORBIT an unscheduled gravity check. The player calls it a donut;
+the engineer calls it a documented donut.
+
+During the stable physical lap, the crew confirms that the new manifold is not
+fighting the correction. As Cutter One returns into view, Meridian asks for an
+explanation and reveals that the maintenance release was filed six minutes
+ago. The Deck Chief sends the crew back for the third crate. All of this remains
+normal comms because orbit hold owns the maneuver.
+
+### Scene 6: return
+
+The third crate has a valid tag but still no manifest. Nothing inside it is
+specified and it does not become a mystery. The copilot claims they have minutes
+to spare, the engineer challenges that claim, and the Deck Chief gives the last
+ordinary order: bring Cutter One to Meridian's outer hold.
+
+### Scene 7: attack approach
+
+Meridian Control sees a drive plume without a transponder. The copilot adds that
+it has no squawk or running lights and is still accelerating. Cutter One
+identifies an Earth Navy hull that broadcasts no fleet code. Meridian identifies
+itself as an unarmed Earthworks carrier and receives no answer. The Deck Chief's
+last warning is that the warship's bow and rail apertures are coming onto the
+carrier.
+
+### Scene 8: attack salvo
+
+No narrative dialogue. The physical launch, railgun strike, torpedo impacts,
+Meridian's destruction, and the warship's departure remain silent.
+
+### Scene 9: aftermath
+
+The copilot reports the carrier channel gone. The player calls Meridian Control
+and receives no human answer. The engineer finds one weak automatic signal;
+Meridian's distress beacon then speaks for the wreck and hands the campaign to
+Second Shift.

@@ -315,6 +315,9 @@ const SEQ_THIRD_ROUTE: &str = "third_route";
 const SEQ_SECOND_TRANSIT: &str = "second_transit";
 const SEQ_DETOUR_BRIEFING: &str = "detour_briefing";
 const SEQ_ORBIT_TALK: &str = "orbit_talk";
+const SEQ_RETURN_CALL: &str = "return_call";
+const SEQ_HOME_CALL: &str = "home_call";
+const SEQ_AFTER_VOICES: &str = "after_voices";
 const SEQ_PLUME: &str = "plume";
 const SEQ_EMERGING: &str = "emerging";
 const SEQ_CLOSING: &str = "closing";
@@ -465,28 +468,6 @@ fn beat_key(beat: f64) -> String {
 /// is finished before the panel changes.
 fn beat_setup(beat: f64, delay: f64, actions: Vec<EventActionConfig>) -> EventActionConfig {
     pacing::beat_later(&beat_key(beat), delay, actions)
-}
-
-/// The same, with one more line in between: the transition's line lands and
-/// fades, a coaching line follows, and the panel changes an instruction gap
-/// after that.
-///
-/// What a lesson needs when the control it teaches is not the one just used -
-/// the reveal and the instruction are two different thoughts, and stacking them
-/// on one card is how the old script asked a player to read during a maneuver.
-fn coached_beat_setup(
-    beat: f64,
-    speaker: &str,
-    line: &str,
-    actions: Vec<EventActionConfig>,
-) -> EventActionConfig {
-    sequence(
-        &beat_key(beat),
-        vec![
-            step(REVEAL_GAP, vec![story_message(speaker, line)]),
-            step(INSTRUCTION_GAP, actions),
-        ],
-    )
 }
 
 /// A handler that answers one of the warship's helm orders. The whole set piece
@@ -969,7 +950,15 @@ pub(crate) fn first_shift(
                     SEQ_DETOUR_BRIEFING,
                     vec![
                         open_line(TRANSIT_NORMAL_GAP, COPILOT, story::DETOUR_COPILOT),
-                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER),
+                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER_TEST),
+                        open_line(TRANSIT_REPLY_GAP, COPILOT, story::DETOUR_COPILOT_NOT_LISTED),
+                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER_GRAVITY),
+                        open_line(TRANSIT_REPLY_GAP, PLAYER, story::DETOUR_PLAYER_DONUT),
+                        open_line(
+                            TRANSIT_REPLY_GAP,
+                            ENGINEER,
+                            story::DETOUR_ENGINEER_DOCUMENTED,
+                        ),
                         step(
                             INSTRUCTION_GAP,
                             vec![
@@ -1045,14 +1034,26 @@ pub(crate) fn first_shift(
                     despawn_object(ID_APPROACH_RING),
                     despawn_object(ID_ORBIT_RETURN_GATE),
                     story_message(CONTROL, story::RETURN_CONTROL),
-                    coached_beat_setup(
-                        BEAT_RETURN,
-                        DECK_CHIEF,
-                        story::RETURN_CHIEF,
-                        [post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN)]
-                            .into_iter()
-                            .chain(WORK_SITE.raise())
-                            .collect(),
+                    sequence(
+                        SEQ_RETURN_CALL,
+                        vec![
+                            open_line(TRANSIT_REPLY_GAP, ENGINEER, story::RETURN_ENGINEER_VISIBLE),
+                            open_line(TRANSIT_REPLY_GAP, PLAYER, story::RETURN_PLAYER_CHECK),
+                            open_line(TRANSIT_NORMAL_GAP, CONTROL, story::RETURN_CONTROL_FILED),
+                            open_line(
+                                TRANSIT_NORMAL_GAP,
+                                COPILOT_CABIN,
+                                story::RETURN_COPILOT_FAST,
+                            ),
+                            open_line(TRANSIT_REPLY_GAP, DECK_CHIEF, story::RETURN_CHIEF),
+                            step(
+                                REVEAL_GAP,
+                                [post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN)]
+                                    .into_iter()
+                                    .chain(WORK_SITE.raise())
+                                    .collect(),
+                            ),
+                        ],
                     ),
                 ],
             },
@@ -1101,14 +1102,21 @@ pub(crate) fn first_shift(
                     complete_objective(OBJ_SEARCH),
                     detach_objective_marker(&crate_id(3)),
                     despawn_object(&crate_id(3)),
-                    story_message(DECK_CHIEF, story::HOME_CHIEF),
-                    beat_setup(
-                        BEAT_VANTAGE,
-                        INSTRUCTION_GAP,
-                        [post_objective(OBJ_HOME, story::OBJ_TEXT_HOME)]
-                            .into_iter()
-                            .chain(HOME_MARK.raise())
-                            .collect(),
+                    story_message(ENGINEER, story::HOME_ENGINEER_SECURE),
+                    sequence(
+                        SEQ_HOME_CALL,
+                        vec![
+                            open_line(TRANSIT_NORMAL_GAP, COPILOT_CABIN, story::HOME_COPILOT_TIME),
+                            open_line(TRANSIT_REPLY_GAP, ENGINEER, story::HOME_ENGINEER_TIME),
+                            open_line(TRANSIT_REPLY_GAP, DECK_CHIEF, story::HOME_CHIEF),
+                            step(
+                                TRIM_LONG_GAP,
+                                [post_objective(OBJ_HOME, story::OBJ_TEXT_HOME)]
+                                    .into_iter()
+                                    .chain(HOME_MARK.raise())
+                                    .collect(),
+                            ),
+                        ],
                     ),
                 ],
             },
@@ -1214,17 +1222,21 @@ pub(crate) fn first_shift(
                 name: EventConfig::OnUpdate,
                 once: true,
                 filters: vec![number_equals(VAR_BEAT, BEAT_DISTRESS)],
-                actions: pacing::open_outro(
-                    VAR_BEAT,
-                    BEAT_OUTRO,
-                    outro(),
-                    vec![
-                        complete_objective(OBJ_SILENCE),
-                        spawn_object(stage::beacon(ID_DISTRESS, CARRIER_NAME, stage::CARRIER_POS)),
-                        attach_objective_marker(ID_DISTRESS, CARRIER_NAME),
-                        story_message(PLAYER, story::AFTER_PLAYER_CARRIER_SIGNAL),
-                    ],
-                ),
+                actions: vec![
+                    set_variable(VAR_BEAT, number(BEAT_OUTRO)),
+                    complete_objective(OBJ_SILENCE),
+                    spawn_object(stage::beacon(ID_DISTRESS, CARRIER_NAME, stage::CARRIER_POS)),
+                    attach_objective_marker(ID_DISTRESS, CARRIER_NAME),
+                    sequence(
+                        SEQ_AFTER_VOICES,
+                        vec![
+                            open_line(TRANSIT_REPLY_GAP, COPILOT, story::AFTER_COPILOT_CHANNEL),
+                            open_line(TRANSIT_NORMAL_GAP, PLAYER, story::AFTER_PLAYER_CALL),
+                            open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::AFTER_ENGINEER_SIGNAL),
+                            step(TRANSIT_NORMAL_GAP, vec![outro()]),
+                        ],
+                    ),
+                ],
             },
         ],
         global: vec![
@@ -1427,13 +1439,27 @@ fn with_end_message(
     events
 }
 
+fn sequence_mut<'a>(
+    actions: &'a mut [EventActionConfig],
+    key: &str,
+) -> Option<&'a mut SequenceActionConfig> {
+    for action in actions {
+        if let EventActionConfig::Sequence(sequence) = action {
+            if sequence.key == key {
+                return Some(sequence);
+            }
+            for step in &mut sequence.steps {
+                if let Some(found) = sequence_mut(&mut step.actions, key) {
+                    return Some(found);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn append_to_sequence(actions: &mut [EventActionConfig], key: &str, action: EventActionConfig) {
-    let sequence = actions
-        .iter_mut()
-        .find_map(|candidate| match candidate {
-            EventActionConfig::Sequence(sequence) if sequence.key == key => Some(sequence),
-            _ => None,
-        })
+    let sequence = sequence_mut(actions, key)
         .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
     sequence
         .steps
@@ -1448,12 +1474,7 @@ fn replace_outcome_with_end(
     key: &str,
     action: EventActionConfig,
 ) {
-    let sequence = actions
-        .iter_mut()
-        .find_map(|candidate| match candidate {
-            EventActionConfig::Sequence(sequence) if sequence.key == key => Some(sequence),
-            _ => None,
-        })
+    let sequence = sequence_mut(actions, key)
         .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
     let final_actions = &mut sequence
         .steps
@@ -1571,7 +1592,11 @@ fn orbit_conversation() -> ScenarioEventConfig {
                 ),
                 step(
                     ORBIT_TALK_GAP,
-                    vec![story_message(COPILOT, story::ORBIT_COPILOT_LOG)],
+                    vec![story_message(COPILOT, story::ORBIT_COPILOT_STEADY)],
+                ),
+                step(
+                    ORBIT_TALK_GAP,
+                    vec![story_message(ENGINEER, story::ORBIT_ENGINEER_LOG)],
                 ),
                 step(
                     ORBIT_TALK_GAP,

@@ -2683,7 +2683,7 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Copilot",
-                                        text: "Survey body\'s between us and Meridian. They cannot see us back here.",
+                                        text: "Survey body\'s between us and Meridian. We\'re outside their sightline.",
                                     )),
                                 ],
                             ),
@@ -2692,7 +2692,43 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Engineer",
-                                        text: "Then do one donut. The computer holds the ring and we still make the last pickup.",
+                                        text: "One system left to test.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Orbit hold wasn\'t on the maintenance release.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Then call it an unscheduled gravity check.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "It\'s a donut.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "A documented donut.",
                                     )),
                                 ],
                             ),
@@ -2757,7 +2793,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "That pull you can feel is the body. Lock it and press [O] - the computer finds the ring.",
+                        text: "Gravity\'s on the hull. Lock the survey body and give orbit hold to the computer.",
                     )),
                     Sequence((
                         key: "beat_10",
@@ -2809,7 +2845,16 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Copilot",
-                                        text: "Put it in the log as a sensor check.",
+                                        text: "Orbit hold is steady. New manifold isn\'t fighting the correction.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Put it on the release as a gravity-load check.",
                                     )),
                                 ],
                             ),
@@ -2818,7 +2863,7 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "You",
-                                        text: "It is going in the log as nothing.",
+                                        text: "It\'s going in the log as a donut.",
                                     )),
                                 ],
                             ),
@@ -2897,22 +2942,58 @@
                     )),
                     StoryMessage((
                         speaker: "Meridian Control",
-                        text: "Cutter one, Meridian Control. We have you flying rings on the survey body. That is not on today\'s sheet.",
+                        text: "Cutter One, Meridian Control. Explain the orbit.",
                     )),
                     Sequence((
-                        key: "beat_11",
+                        key: "return_call",
                         steps: [
                             (
-                                after: Some(8.399999618530273),
+                                after: Some(2.5),
                                 actions: [
                                     StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "We lift within the hour and the bonus is on a clean manifest. Get back on the plate and find me that third crate.",
+                                        speaker: "Engineer",
+                                        text: "They can see us again.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "Cutter One was completing an unscheduled guidance check.",
                                     )),
                                 ],
                             ),
                             (
                                 after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Meridian Control",
+                                        text: "Your maintenance release was filed six minutes ago.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot - Cabin",
+                                        text: "That was fast.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "We get under way inside the hour, and the bonus needs a clean manifest. Get back on the plate and bring me that third crate.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(8.399999618530273),
                                 actions: [
                                     Objective((
                                         id: "return",
@@ -2980,7 +3061,7 @@
                     )),
                     StoryMessage((
                         speaker: "Copilot",
-                        text: "Signal is weak. It is somewhere off to starboard, close in.",
+                        text: "Back on the plate. Third crate\'s tag is weak, off to starboard and close in.",
                     )),
                     ObjectiveMarkerDetach((
                         target_id: "work_site",
@@ -3058,14 +3139,41 @@
                         id: "crate_3",
                     )),
                     StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Three for three and the sheet is clean. Bring her home - hold on the outer mark and we will walk you in.",
+                        speaker: "Engineer",
+                        text: "Third crate secure. Tag is valid. Still no manifest.",
                     )),
                     Sequence((
-                        key: "beat_13",
+                        key: "home_call",
                         steps: [
                             (
                                 after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot - Cabin",
+                                        text: "And with minutes to spare.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "You don\'t know how many.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "Three for three and the sheet is clean. Bring Cutter One to the outer hold and we\'ll walk you in.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.5),
                                 actions: [
                                     Objective((
                                         id: "home",
@@ -3182,7 +3290,7 @@
                     )),
                     StoryMessage((
                         speaker: "Meridian Control",
-                        text: "Cutter one, stay on the mark. We have a drive plume off the large body and no transponder on it.",
+                        text: "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and no transponder.",
                     )),
                     Sequence((
                         key: "plume",
@@ -3210,7 +3318,7 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Copilot",
-                                        text: "It is not squawking. It is not slowing either.",
+                                        text: "No squawk. No running lights. And it\'s still accelerating.",
                                     )),
                                 ],
                             ),
@@ -3234,7 +3342,7 @@
                 actions: [
                     StoryMessage((
                         speaker: "You",
-                        text: "Control, that is a fleet hull. Earth military. It is coming round on you.",
+                        text: "Control, that\'s an Earth Navy hull, but it isn\'t broadcasting a fleet code. It\'s turning toward you.",
                     )),
                     MoveShipTo((
                         order: "warship_approach",
@@ -3254,7 +3362,7 @@
                                 actions: [
                                     StoryMessage((
                                         speaker: "Meridian Control",
-                                        text: "Unidentified vessel, this is a civil industrial hull. We are unarmed. Respond.",
+                                        text: "Unidentified warship, this is Earthworks carrier Meridian. Civilian registry. We are unarmed. Identify yourself.",
                                     )),
                                 ],
                             ),
@@ -3278,7 +3386,7 @@
                 actions: [
                     StoryMessage((
                         speaker: "Deck Chief",
-                        text: "It is turning, Control. It is putting its whole side on us.",
+                        text: "Control, its bow is coming around. Those are rail apertures.",
                     )),
                     ForceAlign((
                         order: "warship_align",
@@ -3526,40 +3634,73 @@
                         target_id: "distress_beacon",
                         label: "Meridian",
                     )),
-                    StoryMessage((
-                        speaker: "You",
-                        text: "There is a carrier signal in there. Weak, but it is running.",
-                    )),
                     Sequence((
-                        key: "outro",
+                        key: "after_voices",
                         steps: [
                             (
-                                after: Some(4.0),
+                                after: Some(2.5),
                                 actions: [
                                     StoryMessage((
-                                        speaker: "Automated Beacon",
-                                        text: "ANY VESSEL. ANY VESSEL. THIS IS MERIDIAN. HULL BREACH ALL DECKS. SURVIVORS UNKNOWN.",
+                                        speaker: "Copilot",
+                                        text: "Carrier channel is gone.",
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(5.0),
+                                after: Some(4.0),
                                 actions: [
-                                    VariableSet((
-                                        key: "beat",
-                                        expression: Term(Factor(Literal(Number(17.0)))),
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "Meridian Control, Cutter One. Respond.",
                                     )),
-                                    Objective((
-                                        id: "done",
-                                        message: "First shift complete. The beacon is still running.",
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Wait. I still have one carrier signal. Weak, but it\'s running.",
                                     )),
-                                    Outcome((
-                                        outcome: Victory,
-                                        message: Some("The Meridian is gone. Something in the wreck is still transmitting."),
-                                    )),
-                                    NextScenario((
-                                        scenario_id: "second_shift",
-                                        linger: true,
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    Sequence((
+                                        key: "outro",
+                                        steps: [
+                                            (
+                                                after: Some(4.0),
+                                                actions: [
+                                                    StoryMessage((
+                                                        speaker: "Automated Beacon",
+                                                        text: "ANY VESSEL. ANY VESSEL. THIS IS MERIDIAN. HULL BREACH ALL DECKS. SURVIVORS UNKNOWN.",
+                                                    )),
+                                                ],
+                                            ),
+                                            (
+                                                after: Some(5.0),
+                                                actions: [
+                                                    VariableSet((
+                                                        key: "beat",
+                                                        expression: Term(Factor(Literal(Number(17.0)))),
+                                                    )),
+                                                    Objective((
+                                                        id: "done",
+                                                        message: "First shift complete. The beacon is still running.",
+                                                    )),
+                                                    Outcome((
+                                                        outcome: Victory,
+                                                        message: Some("The Meridian is gone. Something in the wreck is still transmitting."),
+                                                    )),
+                                                    NextScenario((
+                                                        scenario_id: "second_shift",
+                                                        linger: true,
+                                                    )),
+                                                ],
+                                            ),
+                                        ],
                                     )),
                                 ],
                             ),

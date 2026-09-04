@@ -83,16 +83,16 @@ You open on the flank of the industrial carrier **Meridian**, held in an exterio
     <figcaption class="figure__caption">Press ORBIT near a gravity well and the ship flies itself into a clean circle.</figcaption>
 </figure>
 
-6. **Take the crew up on it.** The mandatory route ends behind the survey body, out of Meridian's direct view. With a crate still outstanding, the crew talks you into one donut.
-7. **Press ORBIT and fly a full lap.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Complete one physical revolution. Meridian calls when Cutter comes back around into view, then sends you to the paid work.
-8. **Get back on the plate.** Meridian Control has been watching. The carrier lifts within the hour, the last crate is still out there, and finishing is what the bonus is for. Fly back to the work site.
+6. **Take the crew up on it.** The mandatory route ends behind the survey body, out of Meridian's direct view. The engineer proposes an "unscheduled gravity check" for the one autopilot mode omitted from the maintenance release. Everybody knows it is a donut.
+7. **Press ORBIT and fly a full lap.** Press <kbd>O</kbd> and the ship parks itself into a clean circle around the well. Complete one physical revolution while the crew checks that the replaced manifold is not fighting the orbit corrections.
+8. **Get back on the plate.** Meridian sees Cutter One return around the body and asks for an explanation. The maintenance release was already filed, the carrier gets under way inside the hour, and the third crate is still outstanding. Fly back to the work site.
 
 ### Part 5 - What you cannot stop
 
-9. **Collect the last crate, then run home.** The sheet is clean and the chief calls you in. Hold on the outer mark three kilometres off the Meridian - the last GOTO of the shift, and the only thing the rest of the chapter is waiting for.
-10. **A warship comes out from behind the large planetoid.** It crosses into plain sight, closes to a firing position, turns its whole hull onto your carrier, walks six siege torpedoes out of its bays and fires both railguns together. The silent destruction cuts from the railgun strike to your view of the torpedo impacts, holds that view while the warship starts away, then settles on the wreck.
-11. **The staged shots hold your controls.** The camera takes seven authored shots, including the RCS briefing. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. Control returns after the RCS briefing. Once the warship appears, the terminal cinematic holds control through the aftermath and scenario teardown. The script never flies Cutter for you.
-12. **Keep the channel open.** Nobody answers. What finally does is an automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
+9. **Collect the last crate, then run home.** Its tag is valid but it still has no manifest. With all three aboard, the chief calls Cutter One to the outer hold three kilometres off Meridian - the last GOTO of the shift and the only thing the rest of the chapter waits for.
+10. **A warship comes out from behind the large planetoid.** Its transponder and running lights are dark. Cutter One identifies an Earth Navy hull without a fleet code; Meridian identifies itself as an unarmed Earthworks carrier and gets no answer. The warship closes, brings its bow-mounted railguns onto the carrier, walks six siege torpedoes out of its bays and fires both railguns together. The silent destruction cuts from the railgun strike to your view of the torpedo impacts, holds that view while the warship starts away, then settles on the wreck.
+11. **The staged shots hold your controls.** The camera takes seven authored shots, including the opening and RCS briefing. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. Control returns after the two conversation holds. Once the warship appears, the terminal cinematic holds control through the aftermath and scenario teardown. The script never flies Cutter for you.
+12. **Keep the channel open.** The crew calls Meridian and gets no human answer. What finally responds is a weak automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
 
 (Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)
 

@@ -118,66 +118,83 @@ pub(super) const TRANSIT_COPILOT_RELEASE: &str =
 // --- the detour --------------------------------------------------------------
 
 pub(super) const DETOUR_COPILOT: &str =
-    "Survey body's between us and Meridian. They cannot see us back here.";
-pub(super) const DETOUR_ENGINEER: &str =
-    "Then do one donut. The computer holds the ring and we still make the last pickup.";
+    "Survey body's between us and Meridian. We're outside their sightline.";
+pub(super) const DETOUR_ENGINEER_TEST: &str = "One system left to test.";
+pub(super) const DETOUR_COPILOT_NOT_LISTED: &str = "Orbit hold wasn't on the maintenance release.";
+pub(super) const DETOUR_ENGINEER_GRAVITY: &str = "Then call it an unscheduled gravity check.";
+pub(super) const DETOUR_PLAYER_DONUT: &str = "It's a donut.";
+pub(super) const DETOUR_ENGINEER_DOCUMENTED: &str = "A documented donut.";
 pub(super) const OBJ_TEXT_DETOUR: &str = "Fly to the inspection planetoid.";
 
 pub(super) const ORBIT_COPILOT: &str =
-    "That pull you can feel is the body. Lock it and press [O] - the computer finds the ring.";
+    "Gravity's on the hull. Lock the survey body and give orbit hold to the computer.";
 pub(super) const OBJ_TEXT_ORBIT: &str = "Press [O] and complete one orbit.";
 
 /// Said while the ring is holding itself and the workload is nothing, which is
 /// the only place in the shift a crew moment fits.
 pub(super) const ORBIT_ENGINEER_VIEW: &str = "Look at that. Whole belt turning under us.";
-pub(super) const ORBIT_COPILOT_LOG: &str = "Put it in the log as a sensor check.";
-pub(super) const ORBIT_PLAYER_LOG: &str = "It is going in the log as nothing.";
+pub(super) const ORBIT_COPILOT_STEADY: &str =
+    "Orbit hold is steady. New manifold isn't fighting the correction.";
+pub(super) const ORBIT_ENGINEER_LOG: &str = "Put it on the release as a gravity-load check.";
+pub(super) const ORBIT_PLAYER_LOG: &str = "It's going in the log as a donut.";
 
 // --- back to work ------------------------------------------------------------
 
-pub(super) const RETURN_CONTROL: &str =
-    "Cutter one, Meridian Control. We have you flying rings on the survey body. That is not \
-     on today's sheet.";
+pub(super) const RETURN_CONTROL: &str = "Cutter One, Meridian Control. Explain the orbit.";
+pub(super) const RETURN_ENGINEER_VISIBLE: &str = "They can see us again.";
+pub(super) const RETURN_PLAYER_CHECK: &str =
+    "Cutter One was completing an unscheduled guidance check.";
+pub(super) const RETURN_CONTROL_FILED: &str = "Your maintenance release was filed six minutes ago.";
+pub(super) const RETURN_COPILOT_FAST: &str = "That was fast.";
 pub(super) const RETURN_CHIEF: &str =
-    "We lift within the hour and the bonus is on a clean manifest. Get back on the plate and \
-     find me that third crate.";
+    "We get under way inside the hour, and the bonus needs a clean manifest. Get back on the \
+     plate and bring me that third crate.";
 pub(super) const OBJ_TEXT_RETURN: &str = "Lock and GOTO back to the work site.";
 
 pub(super) const SEARCH_COPILOT: &str =
-    "Signal is weak. It is somewhere off to starboard, close in.";
+    "Back on the plate. Third crate's tag is weak, off to starboard and close in.";
 pub(super) const OBJ_TEXT_SEARCH: &str = "Recover the last crate.";
 
 // --- the run home ------------------------------------------------------------
 
+pub(super) const HOME_ENGINEER_SECURE: &str =
+    "Third crate secure. Tag is valid. Still no manifest.";
 pub(super) const HOME_CHIEF: &str =
-    "Three for three and the sheet is clean. Bring her home - hold on the outer \
-     mark and we will walk you in.";
+    "Three for three and the sheet is clean. Bring Cutter One to the outer hold and we'll \
+     walk you in.";
+pub(super) const HOME_COPILOT_TIME: &str = "And with minutes to spare.";
+pub(super) const HOME_ENGINEER_TIME: &str = "You don't know how many.";
 pub(super) const OBJ_TEXT_HOME: &str = "Lock and GOTO to the Meridian outer hold.";
 
 // --- the attack --------------------------------------------------------------
 
 pub(super) const ATTACK_CONTROL_PLUME: &str =
-    "Cutter one, stay on the mark. We have a drive plume off the large body and no \
-     transponder on it.";
+    "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and \
+     no transponder.";
 pub(super) const OBJ_TEXT_WITNESS: &str = "Hold the mark. Do not close.";
 
-pub(super) const ATTACK_COPILOT_SILENT: &str = "It is not squawking. It is not slowing either.";
+pub(super) const ATTACK_COPILOT_SILENT: &str =
+    "No squawk. No running lights. And it's still accelerating.";
 
 pub(super) const ATTACK_PLAYER_MILITARY: &str =
-    "Control, that is a fleet hull. Earth military. It is coming round on you.";
+    "Control, that's an Earth Navy hull, but it isn't broadcasting a fleet code. It's turning \
+     toward you.";
 
 pub(super) const ATTACK_CONTROL_CHALLENGE: &str =
-    "Unidentified vessel, this is a civil industrial hull. We are unarmed. Respond.";
+    "Unidentified warship, this is Earthworks carrier Meridian. Civilian registry. We are \
+     unarmed. Identify yourself.";
 
 pub(super) const ATTACK_CHIEF_TURNING: &str =
-    "It is turning, Control. It is putting its whole side on us.";
+    "Control, its bow is coming around. Those are rail apertures.";
 
 // --- the silence -------------------------------------------------------------
 
 pub(super) const OBJ_TEXT_SILENCE: &str = "Hold position and keep the channel open.";
 
-pub(super) const AFTER_PLAYER_CARRIER_SIGNAL: &str =
-    "There is a carrier signal in there. Weak, but it is running.";
+pub(super) const AFTER_COPILOT_CHANNEL: &str = "Carrier channel is gone.";
+pub(super) const AFTER_PLAYER_CALL: &str = "Meridian Control, Cutter One. Respond.";
+pub(super) const AFTER_ENGINEER_SIGNAL: &str =
+    "Wait. I still have one carrier signal. Weak, but it's running.";
 
 pub(super) const OUTRO_BEACON: &str =
     "ANY VESSEL. ANY VESSEL. THIS IS MERIDIAN. HULL BREACH ALL DECKS. SURVIVORS UNKNOWN.";
