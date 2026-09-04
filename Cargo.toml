@@ -118,12 +118,11 @@ path = "examples/playable/first_shift_ships.rs"
 name = "first_shift_map"
 path = "examples/playable/first_shift_map.rs"
 
-# The opening's attack beat on the complete shared map: three block ships on
-# their authored marks and the real salvo, so a death-shot camera offset can be
-# judged in a rendered frame and the set piece can be recorded.
+# The opening's attack scene on the complete shared map: three block ships,
+# mainline lights and camera cuts, the real salvo, stills and a rail-hit loop.
 [[example]]
-name = "first_shift_setpiece"
-path = "examples/playable/first_shift_setpiece.rs"
+name = "first_shift_attack"
+path = "examples/playable/first_shift_attack.rs"
 
 # The sequel layout bench: the returning cutter approaches a long carrier
 # wreck field while five cleanup searchers wait behind the large planetoid.

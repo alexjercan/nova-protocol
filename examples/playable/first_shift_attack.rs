@@ -1,4 +1,4 @@
-//! first_shift_setpiece: the Meridian's last minute, staged for the lens.
+//! first_shift_attack: the Meridian's last minute on the shipped stage.
 //!
 //! First Shift's attack beat with nothing but the beat in it. The three ships
 //! stand on their authored marks - the cutter on MERIDIAN HOLD, the Meridian in
@@ -26,16 +26,23 @@
 //!
 //! Watch it, or fly the map and wreck afterwards:
 //! ```text
-//! cargo run --example first_shift_setpiece --features debug
-//! cargo run --example first_shift_setpiece --features debug -- --offset 600,20,-360
+//! cargo run --example first_shift_attack --features debug
+//! cargo run --example first_shift_attack --features debug -- --offset 600,20,-360
 //! ```
 //!
 //! Shoot it. `--capture` adds four stills - the torpedo run, the first impacts,
 //! the kill and the wreck - which stage under `NOVA_CAPTURE_DIR` when that is
 //! set and under `target/shots/` when it is not:
 //! ```text
-//! DISPLAY=:99 cargo run --example first_shift_setpiece --features debug -- \
+//! DISPLAY=:99 cargo run --example first_shift_attack --features debug -- \
 //!     --resolution 1920x1080 --capture --label shipped
+//! ```
+//!
+//! Record the impact-camera railgun hits as a 720p30 VP9 loop. The same
+//! harness walk is an unrecorded smoke when `NOVA_CAPTURE` is omitted:
+//! ```text
+//! NOVA_CAPTURE_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
+//!     cargo run --example first_shift_attack --features debug
 //! ```
 
 #[path = "shared/first_shift_stage.rs"]
@@ -54,14 +61,22 @@ const CUTTER_POS: Meters3 = Meters3::new(2_000.0, -600.0, 2_400.0);
 /// `WARSHIP_FIRING_POS` in the same file.
 const WARSHIP_POS: Meters3 = Meters3::new(3_700.0, 150.0, -2_200.0);
 
-/// The shipped death-shot offset from the cutter, in world axes. Mirrors
-/// `CINEMA_DEATH_OFFSET`.
-const SHIPPED_OFFSET: &str = "440,25,-235";
+/// The shipped salvo camera offsets in world axes. These mirror the three
+/// poses in First Shift's `salvo` sequence.
+const TUBES_OFFSET: Meters3 = Meters3::new(150.0, 90.0, -300.0);
+const IMPACT_OFFSET: Meters3 = Meters3::new(-285.0, 175.0, 595.0);
+const SHIPPED_DEATH_OFFSET: &str = "440,25,-235";
 
 /// Where relative captures go when `NOVA_CAPTURE_DIR` names nowhere. A relative
 /// `Screenshot` path resolves against the process working directory otherwise,
 /// which for `cargo run` is the repository root.
 const DEFAULT_CAPTURE_DIR: &str = "target/shots";
+
+/// Scenario latch around the railgun impact window.
+const RAILGUN_LOOP_WINDOW: &str = "railgun_loop_window";
+/// The webm stem written by the loop recorder.
+#[cfg(feature = "debug")]
+const RAILGUN_LOOP_NAME: &str = "first-shift-railgun-hits";
 
 const BAYS: [&str; 6] = [
     "bay_port_forward",
@@ -73,34 +88,32 @@ const BAYS: [&str; 6] = [
 ];
 const LANCES: [&str; 2] = ["railgun_port", "railgun_starboard"];
 
-/// Seconds from the first tube. The gaps between the shots are the authored
-/// cadence; the times after them were read off this bench's own trace, which
-/// prints the live ship and torpedo count once a second.
-///
-/// A slug crosses the 6.6 km lane in under half a second and a torpedo needs
-/// about sixteen, so the lances land first and alone, the camera poses at 10 s
-/// with six torpedoes still in the air, and the carrier comes apart when they
-/// arrive. The exact second of a hit moves a little with the frame rate; the
-/// trace is how a beat gets re-timed rather than guessed.
+/// Absolute seconds from the first tube. These are the cumulative timings of
+/// First Shift's shipped sequence, including its dialogue-only gaps. Keeping
+/// those silent gaps here makes every camera cut and weapon action happen on
+/// the same beat as mainline.
 const BAY_GAP: f64 = 1.0;
+const RAILGUN_LOOP_START_AT: f64 = 7.0;
+const IMPACT_CAMERA_AT: f64 = 7.5;
 const FIRST_LANCE_AT: f64 = 8.0;
 const SECOND_LANCE_AT: f64 = 9.5;
-const POSE_AT: f64 = 10.0;
+const RAILGUN_LOOP_END_AT: f64 = 12.0;
+const DEATH_CAMERA_AT: f64 = 20.0;
+const RELEASE_AT: f64 = 28.0;
 const BEATS: [(f64, &str); 4] = [
     (14.0, "run"),
     (17.0, "impact"),
     (21.0, "kill"),
-    (28.0, "wreck"),
+    (29.0, "wreck"),
 ];
-const RELEASE_AT: f64 = 31.0;
 
 #[derive(Parser, Resource)]
-#[command(name = "first_shift_setpiece")]
+#[command(name = "first_shift_attack")]
 #[command(version = "1.0.0")]
-#[command(about = "The First Shift destruction set piece, staged for camera review", long_about = None)]
+#[command(about = "The First Shift attack scene on its shipped map", long_about = None)]
 struct Cli {
     /// Death-shot offset from the cutter, in meters on world axes: `X,Y,Z`.
-    #[arg(long, value_name = "X,Y,Z", default_value = SHIPPED_OFFSET, value_parser = parse_offset)]
+    #[arg(long, value_name = "X,Y,Z", default_value = SHIPPED_DEATH_OFFSET, value_parser = parse_offset)]
     offset: Meters3,
 
     /// Window size, `WIDTHxHEIGHT`. Framing is a function of aspect ratio.
@@ -112,7 +125,7 @@ struct Cli {
     capture: bool,
 
     /// Leading name for the captured files, so two poses do not overwrite.
-    #[arg(long, default_value = "setpiece")]
+    #[arg(long, default_value = "attack")]
     label: String,
 }
 
@@ -147,12 +160,41 @@ fn parse_resolution(raw: &str) -> Result<UVec2, String> {
 
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
-    let mut app = AppBuilder::new().with_game_plugins(setpiece_plugin).build();
+    let mut app = AppBuilder::new().with_game_plugins(attack_plugin).build();
     app.insert_resource(cli);
+
+    #[cfg(feature = "debug")]
+    {
+        app.add_plugins(LoopCapturePlugin::default());
+        app.add_plugins(
+            nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
+                .step("load the attack scene")
+                .enter(GameStates::Loading)
+                .until(player_ship_present())
+                .deadline(60.0)
+                .add()
+                .step("wait for the railgun window")
+                .until(scenario_variable_is(RAILGUN_LOOP_WINDOW, 1.0))
+                .deadline(30.0)
+                .add()
+                .step("open the railgun loop")
+                .on_enter(|world| loop_start(world, RAILGUN_LOOP_NAME))
+                .until(scenario_variable_is(RAILGUN_LOOP_WINDOW, 0.0))
+                .deadline(10.0)
+                .add()
+                .step("close the railgun loop")
+                .on_enter(|world| loop_end(world, RAILGUN_LOOP_NAME))
+                .until(loop_written(RAILGUN_LOOP_NAME))
+                .deadline(60.0)
+                .add(),
+        );
+        app.add_systems(Startup, (force_capture_resolution, hide_dev_overlays));
+    }
+
     app.run()
 }
 
-fn setpiece_plugin(app: &mut App) {
+fn attack_plugin(app: &mut App) {
     app.add_systems(OnEnter(GameAssetsStates::Loaded), load);
     app.add_systems(Update, (size_window, trace));
 }
@@ -168,6 +210,11 @@ fn size_window(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
 ) {
     if *done {
+        return;
+    }
+    #[cfg(feature = "debug")]
+    if capturing() {
+        *done = true;
         return;
     }
     let Ok(mut window) = windows.single_mut() else {
@@ -226,13 +273,21 @@ fn lance(id: &str) -> EventActionConfig {
     })
 }
 
-fn pose(offset: Meters3) -> EventActionConfig {
+fn set_number(key: &str, value: f64) -> EventActionConfig {
+    EventActionConfig::VariableSet(VariableSetActionConfig {
+        key: key.to_string(),
+        expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+            VariableFactorNode::new_literal(VariableLiteral::Number(value)),
+        )),
+    })
+}
+
+fn film(anchor: &str, offset: Meters3, look_at: CameraLookAtConfig) -> EventActionConfig {
     EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
-        anchor: "cutter".to_string(),
+        anchor: anchor.to_string(),
         offset,
         frame: CameraOffsetFrame::World,
-        // A POINT, not the carrier object: the aim has to outlive the target.
-        look_at: CameraLookAtConfig::Point(stage::CARRIER_POS),
+        look_at,
     })
 }
 
@@ -259,16 +314,56 @@ fn sequence(cli: &Cli) -> Vec<SequenceStepConfig> {
         .enumerate()
         .map(|(index, bay)| (index as f64 * BAY_GAP, vec![torpedo(bay)]))
         .collect();
-    beats.push((FIRST_LANCE_AT, vec![lance(LANCES[0])]));
-    beats.push((SECOND_LANCE_AT, vec![lance(LANCES[1])]));
-    beats.push((POSE_AT, vec![pose(cli.offset)]));
+    beats[0].1.splice(
+        0..0,
+        [
+            EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig),
+            film(
+                "warship",
+                TUBES_OFFSET,
+                CameraLookAtConfig::Object("carrier".to_string()),
+            ),
+        ],
+    );
+    beats.extend([
+        (
+            RAILGUN_LOOP_START_AT,
+            vec![set_number(RAILGUN_LOOP_WINDOW, 1.0)],
+        ),
+        (
+            IMPACT_CAMERA_AT,
+            vec![film(
+                "carrier",
+                IMPACT_OFFSET,
+                CameraLookAtConfig::Object("warship".to_string()),
+            )],
+        ),
+        (FIRST_LANCE_AT, vec![lance(LANCES[0])]),
+        (SECOND_LANCE_AT, vec![lance(LANCES[1])]),
+        (
+            RAILGUN_LOOP_END_AT,
+            vec![set_number(RAILGUN_LOOP_WINDOW, 0.0)],
+        ),
+        (
+            DEATH_CAMERA_AT,
+            vec![film(
+                "cutter",
+                cli.offset,
+                CameraLookAtConfig::Point(stage::CARRIER_POS),
+            )],
+        ),
+        (
+            RELEASE_AT,
+            vec![
+                EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig),
+                EventActionConfig::ResumePlayerControl(ResumePlayerControlActionConfig),
+            ],
+        ),
+    ]);
     if cli.capture {
         beats.extend(BEATS.map(|(at, beat)| (at, vec![capture(cli, beat)])));
     }
-    beats.push((
-        RELEASE_AT,
-        vec![EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig)],
-    ));
+    beats.sort_by(|left, right| left.0.total_cmp(&right.0));
 
     let mut previous = 0.0;
     beats
@@ -287,6 +382,9 @@ fn sequence(cli: &Cli) -> Vec<SequenceStepConfig> {
 
 fn scenario(assets: &GameAssets, cli: &Cli) -> ScenarioConfig {
     let mut objects = stage::belt(&assets.asteroid_texture);
+    objects.extend(
+        ThreePointRig::around("first_shift", Meters3::new(0.0, 0.0, -2_000.0), 25.0).objects(),
+    );
     objects.extend([
         ship(
             "cutter",
@@ -312,7 +410,7 @@ fn scenario(assets: &GameAssets, cli: &Cli) -> ScenarioConfig {
     ]);
 
     ScenarioConfig {
-        description: "First Shift's destruction set piece, staged for the camera".to_string(),
+        description: "First Shift's attack scene on its complete shipped stage".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
             name: EventConfig::OnStart,
@@ -321,15 +419,18 @@ fn scenario(assets: &GameAssets, cli: &Cli) -> ScenarioConfig {
             actions: objects
                 .into_iter()
                 .map(EventActionConfig::SpawnScenarioObject)
-                .chain([EventActionConfig::Sequence(SequenceActionConfig {
-                    key: "salvo".to_string(),
-                    steps: sequence(cli),
-                })])
+                .chain([
+                    set_number(RAILGUN_LOOP_WINDOW, 0.0),
+                    EventActionConfig::Sequence(SequenceActionConfig {
+                        key: "salvo".to_string(),
+                        steps: sequence(cli),
+                    }),
+                ])
                 .collect(),
         }],
         ..ScenarioConfig::new(
-            "setpiece_frame".to_string(),
-            "Set Piece Framing".to_string(),
+            "first_shift_attack".to_string(),
+            "First Shift Attack".to_string(),
             assets.cubemap.clone().into(),
         )
     }
@@ -356,7 +457,7 @@ fn trace(
     trace.next = now + 1.0;
     let alive: Vec<&str> = ships.iter().map(|id| id.0.as_str()).collect();
     info!(
-        "setpiece t={now:6.1}s ships={alive:?} torpedoes={}",
+        "attack t={now:6.1}s ships={alive:?} torpedoes={}",
         torpedoes.iter().count()
     );
 }
