@@ -892,3 +892,26 @@ now says to press X once and let STOP finish.
 
 Proof: all 19 focused First Shift tests pass, generated content lint reports 0
 errors, 0 warnings and 0 findings, and web CI passes.
+
+### 2026-09-04: First Shift dialogue pass, scene 1
+
+Replaced the three-line departure scaffold with the owner-reviewed Cutter One
+briefing. The experienced crew receives three Plate Seven recoveries: two
+manifested crates and one loose, unweighed return. Meridian's departure clock
+and cabin-channel banter establish the carrier as both workplace and home
+before the ordinary shift begins.
+
+The opening now uses an explicit Cutter-relative conversation hold. Player and
+camera authority remain suspended while Cutter One sits against Meridian in the
+establishing frame, then return together when the work mark and first flight
+bark appear. Long briefing lines use four-second spacing, normal replies three,
+and short exchanges two, rather than making every line wait five seconds.
+
+The campaign notes record the approved post-maintenance spine: the four-way RCS
+box checks repaired translation, later GOTO work checks integrated guidance and
+braking, and the unauthorized orbit extends that checkout under gravity.
+
+Proof: all 19 focused First Shift tests pass and generated content lint reports
+0 errors, 0 warnings and 0 findings. A rendered 1280x720 review at 10, 25 and 43
+seconds keeps Cutter One, Meridian and up to three dialogue cards readable
+through the full conversation.

@@ -1586,6 +1586,17 @@
                         key: "beat",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
+                    SuspendPlayerControl(()),
+                    SetCameraAnchor((
+                        anchor: "cutter",
+                        offset: (
+                            -180.0,
+                            80.0,
+                            260.0,
+                        ),
+                        frame: World,
+                        look_at: Object("carrier"),
+                    )),
                     Sequence((
                         key: "opening",
                         steps: [
@@ -1593,35 +1604,140 @@
                                 after: Some(2.0),
                                 actions: [
                                     StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Cutter one, you are clear of the bay. Take her out slow.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(5.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "You",
-                                        text: "Clear of the bay. Board is green.",
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(5.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Work mark is lit ahead of you. Burn for it and mind your brakes - the Meridian is a big thing to reverse into.",
+                                        speaker: "Meridian Control",
+                                        text: "Cutter One, Meridian Control. Bay is clear. You are released.",
                                     )),
                                 ],
                             ),
                             (
                                 after: Some(4.0),
                                 actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Clamps are open. Drive and thrusters read green.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Deck Chief",
+                                        text: "Plate Seven has three recovery crates waiting. Two manifested. Third one turned up after the break.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Turned up how?",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Meridian Control",
+                                        text: "Loose in the debris. It\'s marked for recovery.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Mass?",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Meridian Control",
+                                        text: "Unknown.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Of course it is.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "You",
+                                        text: "Cutter One copies. Three crates off Seven, one unknown.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Meridian Control",
+                                        text: "Correct. Meridian gets under way in fifty-six minutes. Don\'t make me come looking for you.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot - Cabin",
+                                        text: "She says that like they\'d leave without us.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "They\'d leave without you.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Cruel.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.0),
+                                actions: [
+                                    StoryMessage((
+                                        speaker: "Engineer",
+                                        text: "Put us alongside. I\'ll handle the crates.",
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    ReleaseCamera(()),
+                                    ResumePlayerControl(()),
                                     Objective((
                                         id: "burn",
                                         message: "Burn to the work mark.",
+                                    )),
+                                    StoryMessage((
+                                        speaker: "Copilot",
+                                        text: "Mark ahead, seventeen hundred metres. Easy on the drive - we\'re still inside Meridian\'s paint budget.",
                                     )),
                                     SpawnScenarioObject((
                                         base: (

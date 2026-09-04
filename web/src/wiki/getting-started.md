@@ -45,7 +45,7 @@ That is the whole core loop: burn, lock, GOTO, shoot. First Shift walks you thro
 
 ## First Shift, beat by beat
 
-You open on the flank of the industrial carrier **Meridian**, undocked and drifting, while the Deck Chief clears you for an ordinary day's work on the rock plate. You are the cutter's captain and you have a crew: the copilot in the seat beside you and the engineer down the back are the other two voices. The chief's lines carry the story; each objective arrives as a short amber notification a beat later, and one gold marker at a time keeps the current target in view.
+You open on the flank of the industrial carrier **Meridian**, held in an exterior view while its work circuit briefs three recoveries on Plate Seven. You command **Cutter One**, an industrial cutter with an experienced copilot beside you and an engineer at the cargo rig. Two crates are manifested; the third is an unweighed loose recovery. Meridian gets under way in fifty-six minutes. The camera returns with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view.
 
 ### Part 1 - Burn, then trim
 

@@ -25,12 +25,12 @@
 //! completion event rather than a guessed delay, so it stages identically at
 //! any frame rate.
 //!
-//! The camera is four anchored shots and no more: the cutter as the warship
-//! comes out from cover, the warship as its tubes open, the Meridian for the
-//! guns, and the cutter again for the kill. It is handed back twice - once
-//! across the long middle leg, so the approach is the player's own view, and
-//! once before the aftermath - and it never touches the helm, so the player can
-//! fly out of their own set piece at any point in it.
+//! The opening owns a Cutter-relative establishing shot while the crew briefs
+//! the shift, then returns the chase camera with the helm. The RCS briefing has
+//! its own safe conversation hold. The terminal set piece uses four attack
+//! views: Cutter for the reveal, the warship for launch, Meridian for the guns,
+//! and Cutter for the kill and aftermath. That final sequence never returns
+//! camera or player authority before teardown.
 //!
 //! Script shape follows the mainline convention: one `beat` counter gates every
 //! handler, and an objective posts a beat LATER than the line that introduces
@@ -51,7 +51,10 @@ mod tests;
 use marks::*;
 
 use super::{
-    cast::{BEACON, CARRIER_NAME, CONTROL, COPILOT, CUTTER_NAME, DECK_CHIEF, ENGINEER, PLAYER},
+    cast::{
+        BEACON, CARRIER_NAME, CONTROL, COPILOT, COPILOT_CABIN, CUTTER_NAME, DECK_CHIEF, ENGINEER,
+        PLAYER,
+    },
     pacing::{self, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
     second_shift::SECOND_SHIFT_SCENARIO_ID,
     ships, stage, SCENARIO_ELAPSED_VAR,
@@ -255,7 +258,9 @@ const BEAT_WON: f64 = 17.0;
 /// speed cap makes the drift diegetic: the cutter idles out of the bay while
 /// the chief runs the board.
 const OPEN_FIRST_AT: f64 = 2.0;
-const OPEN_GAP: f64 = 5.0;
+const OPEN_NORMAL_GAP: f64 = 4.0;
+const OPEN_SHORT_GAP: f64 = 2.0;
+const OPEN_REPLY_GAP: f64 = 3.0;
 
 /// The crew's lines during the hold, from the moment the ring goes stable.
 const ORBIT_TALK_FIRST_AT: f64 = 3.0;
@@ -576,9 +581,9 @@ pub(crate) fn first_shift(
 
     let scenes = FirstShiftScenes {
         departure: vec![
-            // The world, the counter, and the three lines that start the shift. No
-            // objective while the chief talks: the panel stays empty until she
-            // sends the cutter off.
+            // The world, the counter, and the launch briefing. No objective
+            // competes with the conversation. Cutter One and Meridian hold the
+            // establishing frame until the crew hands the helm to the player.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnStart,
@@ -589,18 +594,40 @@ pub(crate) fn first_shift(
                     .map(EventActionConfig::SpawnScenarioObject)
                     .chain([
                         set_variable(VAR_BEAT, number(BEAT_LAUNCH)),
+                        suspend_player_control(),
+                        film(ID_CUTTER, CINEMA_OPEN_OFFSET, at(ID_CARRIER)),
                         sequence(
                             SEQ_OPENING,
                             vec![
-                                open_line(OPEN_FIRST_AT, DECK_CHIEF, story::OPEN_CHIEF_CLEAR),
-                                open_line(OPEN_GAP, PLAYER, story::OPEN_PLAYER_GREEN),
-                                open_line(OPEN_GAP, DECK_CHIEF, story::OPEN_CHIEF_BURN),
+                                open_line(OPEN_FIRST_AT, CONTROL, story::OPEN_CONTROL_CLEAR),
+                                open_line(OPEN_NORMAL_GAP, COPILOT, story::OPEN_COPILOT_GREEN),
+                                open_line(OPEN_NORMAL_GAP, DECK_CHIEF, story::OPEN_CHIEF_MANIFEST),
+                                open_line(OPEN_REPLY_GAP, ENGINEER, story::OPEN_ENGINEER_FOUND),
+                                open_line(OPEN_REPLY_GAP, CONTROL, story::OPEN_CONTROL_LOOSE),
+                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_MASS),
+                                open_line(OPEN_SHORT_GAP, CONTROL, story::OPEN_CONTROL_UNKNOWN),
+                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_EXPECTED),
+                                open_line(OPEN_REPLY_GAP, PLAYER, story::OPEN_PLAYER_COPY),
+                                open_line(OPEN_NORMAL_GAP, CONTROL, story::OPEN_CONTROL_DEADLINE),
+                                open_line(
+                                    OPEN_NORMAL_GAP,
+                                    COPILOT_CABIN,
+                                    story::OPEN_COPILOT_PRIVATE,
+                                ),
+                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_LEAVE),
+                                open_line(OPEN_SHORT_GAP, COPILOT, story::OPEN_COPILOT_CRUEL),
+                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_RIG),
                                 step(
                                     INSTRUCTION_GAP,
-                                    [post_objective(OBJ_BURN, story::OBJ_TEXT_BURN)]
-                                        .into_iter()
-                                        .chain(WORK_MARK.raise())
-                                        .collect(),
+                                    [
+                                        release_camera(),
+                                        resume_player_control(),
+                                        post_objective(OBJ_BURN, story::OBJ_TEXT_BURN),
+                                        story_message(COPILOT, story::OPEN_COPILOT_MARK),
+                                    ]
+                                    .into_iter()
+                                    .chain(WORK_MARK.raise())
+                                    .collect(),
                                 ),
                             ],
                         ),

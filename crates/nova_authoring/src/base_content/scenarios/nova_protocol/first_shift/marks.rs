@@ -37,6 +37,11 @@ pub(super) const ID_DISTRESS: &str = "distress_beacon";
 /// fills the mirror.
 pub(super) const CUTTER_START_POS: Meters3 = Meters3::new(-1_100.0, 0.0, 2_500.0);
 
+/// Opening conversation view. Cutter One sits between the lens and Meridian,
+/// close enough to read as one of the carrier's workboats while both hulls stay
+/// visible during the briefing.
+pub(super) const CINEMA_OPEN_OFFSET: Meters3 = Meters3::new(-180.0, 80.0, 260.0);
+
 /// Soft manual-speed cap for the whole shift: close work stays controllable
 /// without silently changing the helm after the first lesson. GOTO plans its
 /// own speed independently.

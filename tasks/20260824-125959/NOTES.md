@@ -159,6 +159,12 @@ Recommended setup:
   right, up, left, and down.
 - STOP must first remove main-drive motion so the crew can distinguish drift
   from bad trim.
+- The later GOTO legs close out the repaired cutter's guidance and automatic
+  braking checks while also carrying the crew toward real work.
+- ORBIT is not on the handling card. Once GOTO behaves correctly, the crew uses
+  the planetoid as an unauthorized chance to test whether the integrated
+  guidance and RCS hold a ring under gravity. This gives the "donut" both a
+  technical excuse and a playful motive.
 - The senior team is assigned because Plate Seven is difficult work and the
   third recovery is poorly characterized. The check is due to the ship's
   maintenance state, not the crew's inexperience.

@@ -737,9 +737,9 @@ fn distance_to_segment(point: Meters3, from: Meters3, to: Meters3) -> f32 {
     (point - (from + leg * along)).length().0
 }
 
-/// The RCS briefing returns to gameplay. The attack does not: Cutter frames
-/// the approach, the warship frames launch, Meridian frames the lances, and
-/// Cutter frames both the torpedo kill and aftermath until teardown.
+/// The opening and RCS briefing return to gameplay. The attack does not:
+/// Cutter frames the approach, the warship frames launch, Meridian frames the
+/// lances, and Cutter frames both the torpedo kill and aftermath until teardown.
 #[test]
 fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
     let config = config();
@@ -765,17 +765,18 @@ fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
         vec![
             ID_CUTTER.to_string(),
             ID_CUTTER.to_string(),
+            ID_CUTTER.to_string(),
             ID_WARSHIP.to_string(),
             ID_CARRIER.to_string(),
             ID_CUTTER.to_string(),
             ID_CUTTER.to_string(),
         ],
-        "the shot list must run RCS, approach, launch, rail impact, torpedo \
-         impact, aftermath without an intermediate departure angle"
+        "the shot list must run opening, RCS, approach, launch, rail impact, \
+         torpedo impact, aftermath without an intermediate departure angle"
     );
     assert_eq!(
-        released, 1,
-        "only the RCS lesson returns to gameplay; the attack stays cinematic"
+        released, 2,
+        "the opening and RCS lesson return to gameplay; the attack stays cinematic"
     );
 
     // Inside the salvo chain, each weapon and movement runs under its shot.
@@ -926,7 +927,7 @@ fn the_script_never_flies_the_cutter_for_the_player() {
 }
 
 #[test]
-fn only_the_training_cinematic_returns_control_before_teardown() {
+fn only_the_conversation_holds_return_control_before_teardown() {
     let config = config();
     let actions = all_actions(&config);
     let suspended = actions
@@ -943,13 +944,16 @@ fn only_the_training_cinematic_returns_control_before_teardown() {
         .count();
 
     assert_eq!(
-        suspended, 2,
-        "RCS briefing and attack entry each own one control interval"
+        suspended, 3,
+        "opening, RCS briefing and attack entry each own one control interval"
     );
-    assert_eq!(resumed, 1, "only the RCS briefing returns player control");
     assert_eq!(
-        released, 1,
-        "only the RCS briefing returns the chase camera"
+        resumed, 2,
+        "the opening and RCS briefing each return player control"
+    );
+    assert_eq!(
+        released, 2,
+        "the opening and RCS briefing each return the chase camera"
     );
 }
 

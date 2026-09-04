@@ -12,12 +12,28 @@
 
 // --- the launch --------------------------------------------------------------
 
-pub(super) const OPEN_CHIEF_CLEAR: &str =
-    "Cutter one, you are clear of the bay. Take her out slow.";
-pub(super) const OPEN_PLAYER_GREEN: &str = "Clear of the bay. Board is green.";
-pub(super) const OPEN_CHIEF_BURN: &str =
-    "Work mark is lit ahead of you. Burn for it and mind your brakes - the Meridian is a big \
-     thing to reverse into.";
+pub(super) const OPEN_CONTROL_CLEAR: &str =
+    "Cutter One, Meridian Control. Bay is clear. You are released.";
+pub(super) const OPEN_COPILOT_GREEN: &str = "Clamps are open. Drive and thrusters read green.";
+pub(super) const OPEN_CHIEF_MANIFEST: &str =
+    "Plate Seven has three recovery crates waiting. Two manifested. Third one turned up after \
+     the break.";
+pub(super) const OPEN_ENGINEER_FOUND: &str = "Turned up how?";
+pub(super) const OPEN_CONTROL_LOOSE: &str = "Loose in the debris. It's marked for recovery.";
+pub(super) const OPEN_ENGINEER_MASS: &str = "Mass?";
+pub(super) const OPEN_CONTROL_UNKNOWN: &str = "Unknown.";
+pub(super) const OPEN_ENGINEER_EXPECTED: &str = "Of course it is.";
+pub(super) const OPEN_PLAYER_COPY: &str = "Cutter One copies. Three crates off Seven, one unknown.";
+pub(super) const OPEN_CONTROL_DEADLINE: &str =
+    "Correct. Meridian gets under way in fifty-six minutes. Don't make me come looking for \
+     you.";
+pub(super) const OPEN_COPILOT_PRIVATE: &str = "She says that like they'd leave without us.";
+pub(super) const OPEN_ENGINEER_LEAVE: &str = "They'd leave without you.";
+pub(super) const OPEN_COPILOT_CRUEL: &str = "Cruel.";
+pub(super) const OPEN_ENGINEER_RIG: &str = "Put us alongside. I'll handle the crates.";
+pub(super) const OPEN_COPILOT_MARK: &str =
+    "Mark ahead, seventeen hundred metres. Easy on the drive - we're still inside Meridian's \
+     paint budget.";
 
 pub(super) const OBJ_TEXT_BURN: &str = "Burn to the work mark.";
 

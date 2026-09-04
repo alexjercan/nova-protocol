@@ -33,6 +33,10 @@ pub(crate) const CUTTER_NAME: &str = "Cutter";
 /// the one who suggests the thing nobody put on the work sheet.
 pub(crate) const COPILOT: &str = "Copilot";
 
+/// The copilot on the cutter's private crew channel rather than the Meridian
+/// work circuit.
+pub(crate) const COPILOT_CABIN: &str = "Copilot - Cabin";
+
 /// Down the back with the crates. Says what the crew is thinking and is never
 /// on the record.
 pub(crate) const ENGINEER: &str = "Engineer";
