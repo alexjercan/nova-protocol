@@ -95,8 +95,7 @@ const LANCES: [&str; 2] = ["railgun_port", "railgun_starboard"];
 const BAY_GAP: f64 = 1.0;
 const RAILGUN_LOOP_START_AT: f64 = 7.0;
 const IMPACT_CAMERA_AT: f64 = 7.5;
-const FIRST_LANCE_AT: f64 = 8.0;
-const SECOND_LANCE_AT: f64 = 9.5;
+const LANCES_AT: f64 = 8.0;
 const RAILGUN_LOOP_END_AT: f64 = 12.0;
 const DEATH_CAMERA_AT: f64 = 20.0;
 const RELEASE_AT: f64 = 28.0;
@@ -338,8 +337,10 @@ fn sequence(cli: &Cli) -> Vec<SequenceStepConfig> {
                 CameraLookAtConfig::Object("warship".to_string()),
             )],
         ),
-        (FIRST_LANCE_AT, vec![lance(LANCES[0])]),
-        (SECOND_LANCE_AT, vec![lance(LANCES[1])]),
+        (
+            LANCES_AT,
+            LANCES.iter().map(|railgun| lance(railgun)).collect(),
+        ),
         (
             RAILGUN_LOOP_END_AT,
             vec![set_number(RAILGUN_LOOP_WINDOW, 0.0)],

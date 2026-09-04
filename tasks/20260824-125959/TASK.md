@@ -701,7 +701,11 @@ cadence and player-control suspension, so its review follows mainline rather
 than the earlier abbreviated sequence. Its harness can also record the two
 railgun hits and their damage tail as `first-shift-railgun-hits.webm`, with the
 recording window keyed to scenario variables inside that same attack sequence.
-Rendered reviews at 1280x720 and 1920x1080 accepted the shipped pose.
+Both spinal railguns now fire in the same action step in mainline and the scene:
+the second hit no longer lands after the first hit's debris has hidden its
+impact. The former inter-shot time remains as quiet room before dialogue, so
+the later camera and story cadence does not move. Rendered reviews at 1280x720
+and 1920x1080 accepted the shipped pose.
 
 The route audit also found TRANSIT 2 inside the inspection planetoid's gravity
 well: it was 2.72 km from the centre against a 3.29 km sphere of influence, so

@@ -569,6 +569,27 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
         .expect("the salvo never launches");
     let first_lance = step_with(&|action| matches!(action, EventActionConfig::ForceRailgunFire(_)))
         .expect("the salvo never fires a lance");
+    let lance_steps: Vec<Vec<&str>> = salvo
+        .steps
+        .iter()
+        .filter_map(|step| {
+            let sections: Vec<&str> = step
+                .actions
+                .iter()
+                .filter_map(|action| match action {
+                    EventActionConfig::ForceRailgunFire(fire) => Some(fire.section.as_str()),
+                    _ => None,
+                })
+                .collect();
+            (!sections.is_empty()).then_some(sections)
+        })
+        .collect();
+    assert_eq!(
+        lance_steps,
+        vec![ships::BLOCK_WARSHIP_RAILGUN_IDS.to_vec()],
+        "both spinal lances must fire in one step so neither hit is hidden by \
+         debris from the other"
+    );
     assert!(
         on_warship <= first_bay,
         "the bays open at step {first_bay} and the camera reaches the warship at \

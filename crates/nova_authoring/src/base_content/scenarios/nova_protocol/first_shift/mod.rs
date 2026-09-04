@@ -187,9 +187,10 @@ const APPROACH_CHALLENGE_AT: f64 = 18.0;
 const SALVO_BAY_GAP: f64 = 1.0;
 const SALVO_TUBES_CALL_AT: f64 = 1.5;
 const SALVO_CUT_TO_CARRIER_AT: f64 = 1.0;
-const SALVO_FIRST_LANCE_AT: f64 = 0.5;
-const SALVO_SECOND_LANCE_AT: f64 = 1.5;
-const SALVO_LAST_WORDS_AT: f64 = 2.0;
+const SALVO_LANCES_AT: f64 = 0.5;
+// Leave the paired impact room before dialogue resumes, while keeping the
+// following camera cadence on its authored beat.
+const SALVO_LAST_WORDS_AT: f64 = 3.5;
 const SALVO_POD_CALL_AT: f64 = 4.5;
 const SALVO_CUT_TO_CUTTER_AT: f64 = 4.0;
 /// The camera comes home here - after the last torpedo has arrived, and before
@@ -1060,8 +1061,8 @@ fn orbit_watch(event: EventConfig, start: bool) -> ScenarioEventConfig {
 /// 1. Tight on the WARSHIP, down its own firing line, while six bays walk open
 ///    and six torpedoes leave straight away from the camera.
 /// 2. One line from the cockpit, which is the only thing said over the guns.
-/// 3. Cut to the MERIDIAN. The two lances land first (a slug crosses 6.6 km in
-///    under half a second), then the torpedoes arrive out of the same axis over
+/// 3. Cut to the MERIDIAN. Both lances fire together and land first (a slug
+///    crosses 6.6 km in under half a second), then the torpedoes arrive over
 ///    the following seconds. Nothing is said over an impact.
 /// 4. Cut back to the CUTTER, over its shoulder and three and a half
 ///    kilometres off, for the last torpedoes and the kill - which is where the
@@ -1097,12 +1098,11 @@ fn salvo() -> EventActionConfig {
             vec![film(ID_CARRIER, CINEMA_IMPACT_OFFSET, at(ID_WARSHIP))],
         ),
         step(
-            SALVO_FIRST_LANCE_AT,
-            vec![fire_railgun(ships::BLOCK_WARSHIP_RAILGUN_IDS[0])],
-        ),
-        step(
-            SALVO_SECOND_LANCE_AT,
-            vec![fire_railgun(ships::BLOCK_WARSHIP_RAILGUN_IDS[1])],
+            SALVO_LANCES_AT,
+            ships::BLOCK_WARSHIP_RAILGUN_IDS
+                .iter()
+                .map(|railgun| fire_railgun(railgun))
+                .collect(),
         ),
         step(
             SALVO_LAST_WORDS_AT,

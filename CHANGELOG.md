@@ -66,8 +66,8 @@ does NOT get an entry - and it is the only place they are written down.
   Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
 - First Shift opens New Game: a crewed cutter's shift that teaches the helm one
-  verb at a time, an orbit the crew talks you into, and a warship that kills
-  your carrier while you can only watch.
+  verb at a time, an orbit the crew talks you into, and a warship whose paired
+  railguns kill your carrier while you can only watch.
 - Second Shift returns to the same belt an hour later. Recover three recorders
   out of the wreck while a five-ship cleanup group sweeps it; being seen costs
   you the quiet route home, not the run.

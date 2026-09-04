@@ -3004,11 +3004,6 @@
                                         ship: "warship",
                                         section: "railgun_port",
                                     )),
-                                ],
-                            ),
-                            (
-                                after: Some(1.5),
-                                actions: [
                                     ForceRailgunFire((
                                         ship: "warship",
                                         section: "railgun_starboard",
@@ -3016,7 +3011,7 @@
                                 ],
                             ),
                             (
-                                after: Some(2.0),
+                                after: Some(3.5),
                                 actions: [
                                     StoryMessage((
                                         speaker: "Deck Chief",
