@@ -1018,3 +1018,9 @@ amber industrial uniform so the review compares rendering style rather than two
 different character concepts. Editable SVG and 512x512 PNG versions remain in
 source art only; no scenario references or shipped assets were added pending
 owner selection. Both were also inspected at the comms panel's 48x48 size.
+
+Owner selected the CRT direction for another pass. Added a cleaner green
+phosphor palette candidate and a separate exaggerated shader mock showing bloom,
+green tint, and tube-edge falloff. The clean pixel portrait remains the source;
+the treatment is not baked into runtime content. Both revisions remain readable
+at 48x48 and await visual selection before a shared UI material is designed.
