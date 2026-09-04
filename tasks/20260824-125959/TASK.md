@@ -4,6 +4,8 @@
 - PRIORITY: 68
 - TAGS: v0.13.0,content,scenario
 
+Detailed implementation plan: [PLAN_01.md](PLAN_01.md).
+
 Promoted 2026-08-31 from ideation into v0.13.0. Rescoped by owner direction:
 the built-in campaign gets a new story and a block-ship identity, while The
 Ledger becomes the deliberately different Kenney-GLB showcase mod.
@@ -211,6 +213,86 @@ Replace broad all-mount scripted fire with section-addressed actions:
   scripted movement, held physical alignment, explicit armed non-combatants,
   exact section selection, missing references, wrong section classes, normal
   weapon gates, and one-shot retirement in tests.
+
+## First Shift playtest revision
+
+Approved 2026-09-04 after the first full cinematic playtest:
+
+- Track arrival-standoff consolidation separately in task `20260904-084733`.
+  That work starts with code review and design evidence. Do not add another
+  independent standoff knob before the current global, per-ship, per-order,
+  target-radius, and gravity-parking paths are reconciled.
+- Track total-vector speed-limit correctness separately in task
+  `20260904-084734`. Manual flight and RCS must not exceed their stated limits
+  through diagonal motion, while braking from an overspeed state remains
+  available.
+- Keep Cutter's manual-flight limiter at 150 m/s for the whole chapter. Do not
+  remove it silently after the launch lesson. GOTO keeps its independent flight
+  planning.
+- Add a player-autopilot completion event. A GOTO target remains alive until the
+  maneuver has genuinely settled; only then does the scenario remove its marker
+  and despawn it. Use the same completion seam to make the STOP lesson wait for
+  a real stop instead of an elapsed dialogue delay. Manual RCS marks can still
+  complete on their precise physical intersections.
+- Add explicit `SuspendPlayerControl` and `ResumePlayerControl` scenario
+  actions. Cinematic camera actions remain camera-only. Suspension disables
+  gameplay flight, mouse steering, stance, and weapon input, clears held intent,
+  and leaves pause/menu input available. First Shift pairs suspension with every
+  active cinematic pose and restores input with camera authority.
+- Stationary, gravity-safe cinematic staging is a content-author responsibility,
+  not a global engine restriction. First Shift starts its destruction cinematic
+  only after Cutter has settled at its clear outer hold. Add scenario proof for
+  that contract.
+- Keep possible scripted Player helm orders as follow-up architecture:
+  `MoveShipTo`, `StopShip`, and related shared orders may accept a Player ship
+  only while player control is suspended, and scripted authority must retire
+  before control resumes. Do not let an order compete with live player input.
+- Replace the close front Cutter shot that hides the event. Frame Meridian from
+  a wider Cutter-relative rear or side-quarter view, keeping Cutter in the
+  foreground and the destruction readable. Return the normal chase camera
+  before the distress aftermath.
+- Rework the RCS exercise into four or five precise beacons in open space. Spawn
+  the route together during a safe Cutter-relative briefing pose so the player
+  can identify it before control returns. Keep only the current step as the
+  active objective, preserve tight intersections, and despawn each completed
+  mark.
+- Keep salvage collection precise. Tune its pickup volume toward visible
+  contact with the crate rather than enlarging it, while retaining reliable
+  sensor overlap and avoiding an accidental destructive collision lesson.
+- Move every prescribed GOTO route clear of asteroid clutter. Add conservative
+  segment-clearance tests using authored worst-case rock geometry, Cutter size,
+  and a safety margin. This is scenario correctness; generic pathfinding and
+  obstacle avoidance remain separate work.
+- Route mandatory work behind the small planetoid relative to Meridian. The
+  crew believes it has slipped out of sight and talks the captain into doing a
+  donut. Complete a real orbit lap instead of ending after the current 13-second
+  timer, then have Meridian catch the crew as Cutter comes back into view and
+  order it to finish the paid asteroid work before departure. Until player lock
+  and radio occlusion exist, describe this as visual cover and do not teach
+  sensor degradation as a shipped mechanic.
+- Make comms approximately half the viewport wide with substantially larger
+  body text, a distinct speaker header, larger spacing and icons, and readable
+  objective notifications and world-marker labels. Do not impose a mainline
+  two-card engine limit; instead author First Shift so only one or two cards are
+  normally active.
+- Do not make every story message cinematic. Important conversations belong
+  mainly at the opening and ending and use explicit safe conversation holds.
+  Mid-scenario lines are short and sparse. Orbit dialogue remains ordinary
+  comms because Cutter is moving in a gravity well. The destruction remains a
+  full set piece with player input suspended.
+
+Implementation order:
+
+1. Add reliable player maneuver completion and fix GOTO target retirement and
+   the STOP lesson.
+2. Add player-control suspension and apply it to the cinematic.
+3. Replace the close Cutter shot and verify the destruction composition.
+4. Rebuild the RCS route with four or five visible precise marks and retain the
+   150 m/s manual limiter.
+5. Validate and repair every direct GOTO corridor and tighten crate contact.
+6. Replace the orbit timer with a real lap and stage the visual-cover joke.
+7. Enlarge comms, objectives, and world markers, then revise dialogue placement.
+8. Run a full human pacing and handling pass before final dialogue is authored.
 
 ## Phase 2: built-in block fleet
 
