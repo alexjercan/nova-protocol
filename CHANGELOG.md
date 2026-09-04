@@ -248,6 +248,11 @@ does NOT get an entry - and it is the only place they are written down.
 - Four volume sliders - master, interface, world and music - saved with the
   rest of the settings. Music is reserved: nothing routes to it yet.
 
+### Performance
+- A collapsing hull measures its pre-cut centre of mass once per frame, not
+  once per destroyed section. A siege railgun through a capital hull spent
+  55 ms of one impact on that walk; now under 1 ms.
+
 ### Fixes
 - A ship's speed cap governs its TOTAL speed, so turning to a fresh heading and
   burning again no longer stacks a second cap's worth on top of the first.

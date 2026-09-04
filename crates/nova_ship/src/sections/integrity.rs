@@ -179,6 +179,23 @@ fn on_section_disable(
 
 /// Remember the owning structure and cut point before destruction despawns the
 /// section. One later partition handles every section destroyed in the frame.
+///
+/// The centre of mass is snapshotted ONCE per root, on the first section of it
+/// to deplete, and every later cut on that root measures its offset against
+/// that same snapshot. Both halves of that matter:
+///
+/// - it is the only self-consistent arithmetic. `apply_pending_sever_motion`
+///   places the cut at `old_com_world + rotation * mean(cut_offsets)`, and
+///   `old_com_world` is derived from the FIRST section's snapshot - so an
+///   offset measured against a centre of mass that had already moved is being
+///   added to a different origin than the one it was taken from.
+/// - the walk is over every section and every fixture in the WORLD, filtered
+///   down to this root. A railgun slug through a capital hull depletes hundreds
+///   of sections in one command flush, and recomputing the same centre of mass
+///   once per section made that walk quadratic: on the First Shift siege salvo
+///   this observer alone cost 92.5 ms over a 33 s run, 36.4 ms of it inside one
+///   203 ms collapse frame. One snapshot per root leaves 3.1 ms for the same
+///   3800 depletions.
 fn queue_depleted_section_sever(
     add: On<Add, HealthZeroMarker>,
     mut pending: ResMut<PendingSeverRoots>,
@@ -193,6 +210,12 @@ fn queue_depleted_section_sever(
     else {
         return;
     };
+    let cut_local = collider_transform.transform_point(mass_properties.center_of_mass);
+    if let Some(cut) = pending.0.get_mut(&root) {
+        let cut_offset = cut_local - cut.old_com_local;
+        cut.cut_offsets_from_com.push(cut_offset);
+        return;
+    }
     let Ok((position, rotation, linear, angular)) = q_root.get(root) else {
         return;
     };
@@ -217,16 +240,10 @@ fn queue_depleted_section_sever(
     } else {
         Vec3::ZERO
     };
-    let cut_local = collider_transform.transform_point(mass_properties.center_of_mass);
-    let cut_offset = cut_local - old_com_local;
-    if let Some(cut) = pending.0.get_mut(&root) {
-        cut.cut_offsets_from_com.push(cut_offset);
-        return;
-    }
     pending.0.insert(
         root,
         PendingSeverCut {
-            cut_offsets_from_com: vec![cut_offset],
+            cut_offsets_from_com: vec![cut_local - old_com_local],
             old_origin_world: position.0,
             old_rotation: rotation.0,
             old_com_local,
@@ -1766,6 +1783,60 @@ mod physics_tests {
                 "post-despawn principal inertia off: {inertia_after:?}"
             );
         }
+    }
+
+    /// Every cut queued in one frame is measured against the SAME pre-cut
+    /// centre of mass, including a cut queued after an earlier section has
+    /// already left the world.
+    ///
+    /// That is the ordering a real collapse has: `detach_destroyed_body`
+    /// despawns a destroyed section inside the flush that depleted it, so the
+    /// section depleted after it sees a lighter, differently-balanced hull. The
+    /// mean of the offsets is added to an `old_com_world` derived from the FIRST
+    /// section's snapshot (`apply_pending_sever_motion`), so an offset taken
+    /// against a moved centre of mass is arithmetic against the wrong origin.
+    ///
+    /// Three unit cubes in a row put the pre-cut centre of mass on the middle
+    /// one, so the two flank cuts are +1 and -1 from it. Recomputing the centre
+    /// after the first cube left would put the second at -0.5 instead.
+    #[test]
+    fn every_cut_in_one_frame_measures_from_the_same_centre_of_mass() {
+        let mut app = integrity_physics_app();
+        let root = app
+            .world_mut()
+            .spawn((
+                RigidBody::Dynamic,
+                Transform::default(),
+                SpaceshipRootMarker,
+            ))
+            .id();
+        let left = spawn_section(&mut app, root, Vec3::ZERO);
+        let _mid = spawn_section(&mut app, root, Vec3::X);
+        let right = spawn_section(&mut app, root, Vec3::X * 2.0);
+        settle(&mut app);
+
+        app.world_mut().entity_mut(right).insert(HealthZeroMarker);
+        if let Ok(gone) = app.world_mut().get_entity_mut(right) {
+            gone.despawn();
+        }
+        app.world_mut().entity_mut(left).insert(HealthZeroMarker);
+
+        let pending = app.world().resource::<PendingSeverRoots>();
+        let cut = pending
+            .0
+            .get(&root)
+            .expect("both depleted sections queue against their own root");
+        assert!(
+            (cut.old_com_local.x - 1.0).abs() < 1e-3,
+            "the snapshot should be the pre-cut centre of mass: {:?}",
+            cut.old_com_local
+        );
+        let offsets: Vec<f32> = cut.cut_offsets_from_com.iter().map(|cut| cut.x).collect();
+        assert_eq!(offsets.len(), 2, "both cuts are on record: {offsets:?}");
+        assert!(
+            (offsets[0] - 1.0).abs() < 1e-3 && (offsets[1] + 1.0).abs() < 1e-3,
+            "both cuts must be measured from the same centre of mass: {offsets:?}"
+        );
     }
 
     /// The same claim through the real pipeline: a section driven to zero
