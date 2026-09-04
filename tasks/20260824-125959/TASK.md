@@ -904,8 +904,8 @@ before the ordinary shift begins.
 The opening now uses an explicit Cutter-relative conversation hold. Player and
 camera authority remain suspended while Cutter One sits against Meridian in the
 establishing frame, then return together when the work mark and first flight
-bark appear. Long briefing lines use four-second spacing, normal replies three,
-and short exchanges two, rather than making every line wait five seconds.
+bark appear. The two dense briefing lines get six seconds to land, ordinary
+lines four, normal replies three, and terse exchanges two.
 
 The campaign notes record the approved post-maintenance spine: the four-way RCS
 box checks repaired translation, later GOTO work checks integrated guidance and

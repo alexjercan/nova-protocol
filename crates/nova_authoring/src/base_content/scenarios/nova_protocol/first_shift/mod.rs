@@ -253,11 +253,10 @@ const BEAT_WON: f64 = 17.0;
 
 // --- timing ------------------------------------------------------------------
 
-/// The opening's first line, and the gap between the two that follow it. Three
-/// short lines at this gap put at most two cards on the panel at once, and the
-/// speed cap makes the drift diegetic: the cutter idles out of the bay while
-/// the chief runs the board.
+/// Conversational timing for the opening. Briefing lines get room to land;
+/// ordinary exchanges move faster, and terse replies answer almost at once.
 const OPEN_FIRST_AT: f64 = 2.0;
+const OPEN_LONG_GAP: f64 = 6.0;
 const OPEN_NORMAL_GAP: f64 = 4.0;
 const OPEN_SHORT_GAP: f64 = 2.0;
 const OPEN_REPLY_GAP: f64 = 3.0;
@@ -602,7 +601,7 @@ pub(crate) fn first_shift(
                                 open_line(OPEN_FIRST_AT, CONTROL, story::OPEN_CONTROL_CLEAR),
                                 open_line(OPEN_NORMAL_GAP, COPILOT, story::OPEN_COPILOT_GREEN),
                                 open_line(OPEN_NORMAL_GAP, DECK_CHIEF, story::OPEN_CHIEF_MANIFEST),
-                                open_line(OPEN_REPLY_GAP, ENGINEER, story::OPEN_ENGINEER_FOUND),
+                                open_line(OPEN_LONG_GAP, ENGINEER, story::OPEN_ENGINEER_FOUND),
                                 open_line(OPEN_REPLY_GAP, CONTROL, story::OPEN_CONTROL_LOOSE),
                                 open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_MASS),
                                 open_line(OPEN_SHORT_GAP, CONTROL, story::OPEN_CONTROL_UNKNOWN),
@@ -610,7 +609,7 @@ pub(crate) fn first_shift(
                                 open_line(OPEN_REPLY_GAP, PLAYER, story::OPEN_PLAYER_COPY),
                                 open_line(OPEN_NORMAL_GAP, CONTROL, story::OPEN_CONTROL_DEADLINE),
                                 open_line(
-                                    OPEN_NORMAL_GAP,
+                                    OPEN_LONG_GAP,
                                     COPILOT_CABIN,
                                     story::OPEN_COPILOT_PRIVATE,
                                 ),

@@ -1628,7 +1628,7 @@
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(6.0),
                                 actions: [
                                     StoryMessage((
                                         speaker: "Engineer",
@@ -1691,7 +1691,7 @@
                                 ],
                             ),
                             (
-                                after: Some(4.0),
+                                after: Some(6.0),
                                 actions: [
                                     StoryMessage((
                                         speaker: "Copilot - Cabin",
