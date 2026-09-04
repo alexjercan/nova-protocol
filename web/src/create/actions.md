@@ -275,8 +275,8 @@ ObjectiveMarkerDetach((target_id: "beacon_1")),
 ### StoryMessage
 
 A speaker-attributed line for the HUD comms stack (bottom-left, arrival
-order, ~8 s hold each, at most three visible). One line per beat is the
-style; the queue is the safety net.
+order, ~8 s hold each, at most three visible). Pending lines wait without being
+dropped. One line per beat is still the style; the queue is the safety net.
 
 ```ron
 StoryMessage((speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
@@ -287,7 +287,7 @@ StoryMessage((speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell:
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `speaker` | string | required | the `SPEAKER >` prefix |
+| `speaker` | string | required | the distinct uppercase speaker header |
 | `text` | string | required | the line |
 | `dwell` | `Option` number | `None` | per-line hold override in seconds, clamped to [3, 30] (lint warns outside); `Some(12.0)` |
 | `icon` | `Option` asset ref | `None` | speaker portrait (`Some("self://icons/okono.png")`); omitted = the cockpit fallback tile |

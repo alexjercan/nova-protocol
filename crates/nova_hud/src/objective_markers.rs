@@ -25,23 +25,23 @@ pub mod prelude {
 }
 
 /// The chip floats above its target so the label never sits on the mesh.
-const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -28.0);
+const CHIP_OFFSET: Vec2 = Vec2::new(0.0, -36.0);
 
 /// Inset (px) from the viewport edges while clamped; the shared HUD frame.
 const EDGE_MARGIN_PX: f32 = 30.0;
 
 /// Chevron stroke geometry, the edge-indicator arrow language at chip scale.
-const ARROW_PX: f32 = 16.0;
-const STROKE_LEN_PX: f32 = 11.0;
-const STROKE_THICK_PX: f32 = 2.0;
+const ARROW_PX: f32 = 22.0;
+const STROKE_LEN_PX: f32 = 15.0;
+const STROKE_THICK_PX: f32 = 2.5;
 
 /// Diamond glyph: a square border rotated 45 degrees, sitting left of the
 /// label - the marker's identity mark, always visible (the chevron only
 /// shows while edge-clamped).
-const DIAMOND_PX: f32 = 8.0;
-const DIAMOND_BORDER_PX: f32 = 1.5;
+const DIAMOND_PX: f32 = 12.0;
+const DIAMOND_BORDER_PX: f32 = 2.0;
 
-const LABEL_FONT_PX: f32 = 12.0;
+const LABEL_FONT_PX: f32 = 16.0;
 
 /// Alpha breath of the whole chip: slow and shallow - noticeable in
 /// peripheral vision, not a strobe.
@@ -135,7 +135,7 @@ fn objective_marker_label() -> impl Bundle {
             linebreak: LineBreak::NoWrap,
             ..default()
         },
-        // The LABEL does not breathe: 12 px gold at 0.7 alpha over a bright
+        // The LABEL does not breathe: translucent gold over a bright
         // planetoid was unreadable.
         // Constant full gold + a tight dark shadow for contrast; the diamond and
         // chevron carry the motion.

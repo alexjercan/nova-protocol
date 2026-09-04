@@ -7,8 +7,8 @@
 //! several lines can be visible at once, newest at the bottom, older cards
 //! pushed up and fading. Per-line dwell still defaults
 //! to [`COMMS_DWELL_SECS`] and clamps to
-//! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. Pending overflow drops
-//! oldest, but the full transcript stays in [`StoryFeed`] for the NOVA OS log.
+//! [`COMMS_DWELL_MIN_SECS`]..[`COMMS_DWELL_MAX_SECS`]. A bounded visible
+//! window paces bursts without dropping the pending transcript.
 //!
 //! Scenario teardown clears the event world, the sync writes an empty feed,
 //! and the panel resets instantly - queue dropped, fades cancelled, hidden -
@@ -71,8 +71,6 @@ pub const COMMS_MIN_SECS: f32 = 4.0;
 pub const COMMS_DWELL_MIN_SECS: f32 = 3.0;
 /// Upper clamp on an authored per-line comms dwell, in seconds.
 pub const COMMS_DWELL_MAX_SECS: f32 = 30.0;
-/// Pending lines beyond this drop OLDEST-first.
-const COMMS_QUEUE_CAP: usize = 4;
 /// Visible cards in the bottom-left stack.
 const COMMS_VISIBLE_CAP: usize = 3;
 /// Fade timings (s): quick in, gentler out. `COMMS_FADE_OUT_SECS` is `pub` so
@@ -98,26 +96,28 @@ const COMMS_ARRIVAL_SECS: f32 = 0.9;
 /// Comms blip volume, under the objective cues (0.30/0.38) - chatter, not
 /// a milestone.
 const COMMS_BLIP_VOLUME: f32 = 0.22;
-/// Panel width: wide enough for a spoken line to wrap comfortably, narrow
-/// enough to stay a corner element (the objectives column is 280).
-/// Capped tight per demo 2 (`.comms`, `max-width: 320px`): a comms card is a
-/// two-line transmission, not a paragraph, and a narrow card keeps the
-/// bottom-left corner free of the wall of text this HUD pass is retiring.
-const COMMS_PANEL_WIDTH_PX: f32 = 320.0;
+/// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
+/// from turning a transmission into one long subtitle line.
+const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
+const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
 /// The comms body text - demo 2's `.msg` pale blue, legible against the blue
 /// chip without competing with the speaker accent.
 const COMMS_BODY: Color = Color::srgb_u8(0xcf, 0xe6, 0xff);
 
 /// Square speaker icon size inside a comms card.
-const COMMS_ICON_SIZE_PX: f32 = 30.0;
-/// Comms line font size (px), matching the objectives' body scale.
-const COMMS_FONT_SIZE_PX: f32 = 14.0;
+const COMMS_ICON_SIZE_PX: f32 = 48.0;
+/// Speaker header and message body sizes.
+const COMMS_SPEAKER_FONT_SIZE_PX: f32 = 14.0;
+const COMMS_BODY_FONT_SIZE_PX: f32 = 20.0;
 
 #[derive(Component)]
 struct CommsPanelMarker;
 
 #[derive(Component)]
 struct CommsTextMarker;
+
+#[derive(Component)]
+struct CommsSpeakerMarker;
 
 #[derive(Component)]
 struct CommsCardMarker;
@@ -212,16 +212,17 @@ fn spawn_comms_panel(mut commands: Commands) {
             position_type: PositionType::Absolute,
             left: Val::Px(16.0),
             bottom: Val::Px(48.0),
-            width: Val::Px(COMMS_PANEL_WIDTH_PX),
+            width: Val::Percent(COMMS_PANEL_WIDTH_PERCENT),
+            max_width: Val::Px(COMMS_PANEL_MAX_WIDTH_PX),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(6.0),
+            row_gap: Val::Px(10.0),
             ..default()
         },
     ));
 }
 
-/// Feed changes drive the queue: new entries enqueue (capped drop-oldest);
-/// an EMPTIED feed (scenario teardown) resets everything instantly - the
+/// Feed changes drive the lossless pending queue; an EMPTIED feed (scenario
+/// teardown) resets everything instantly - the
 /// leaked-line pin.
 fn enqueue_new_lines(
     feed: Res<StoryFeed>,
@@ -245,11 +246,6 @@ fn enqueue_new_lines(
         queue.pending.push_back(line.clone());
     }
     queue.seen = feed.0.len();
-    while queue.pending.len() > COMMS_QUEUE_CAP {
-        // Oldest pending drops first: better to lose stale backlog than the
-        // line that just fired (the log keeps everything).
-        queue.pending.pop_front();
-    }
 }
 
 /// Tick visible cards, apply controls, and promote pending lines into open
@@ -321,10 +317,10 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
         HudEmphasis::popped_at_age(COMMS_ARRIVAL_PEAK, COMMS_ARRIVAL_SECS, line.age_secs),
         Node {
             width: Val::Percent(100.0),
-            min_height: Val::Px(46.0),
-            padding: UiRect::all(Val::Px(8.0)),
+            min_height: Val::Px(76.0),
+            padding: UiRect::all(Val::Px(14.0)),
             border: UiRect::all(Val::Px(1.0)),
-            column_gap: Val::Px(8.0),
+            column_gap: Val::Px(12.0),
             align_items: AlignItems::FlexStart,
             ..default()
         },
@@ -347,23 +343,27 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                 Node {
                     flex_grow: 1.0,
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(2.0),
+                    row_gap: Val::Px(6.0),
                     ..default()
                 },
-                children![(
-                    CommsTextMarker,
-                    Text::new(format!(
-                        "{} > {}",
-                        line.line.speaker.to_uppercase(),
-                        line.line.text
-                    )),
-                    TextFont::from_font_size(COMMS_FONT_SIZE_PX),
-                    TextColor(COMMS_BODY.with_alpha(COMMS_BODY.alpha() * alpha)),
-                    TextLayout {
-                        linebreak: LineBreak::WordBoundary,
-                        ..default()
-                    },
-                )]
+                children![
+                    (
+                        CommsSpeakerMarker,
+                        Text::new(line.line.speaker.to_uppercase()),
+                        TextFont::from_font_size(COMMS_SPEAKER_FONT_SIZE_PX),
+                        TextColor(theme::BLUE.with_alpha(alpha)),
+                    ),
+                    (
+                        CommsTextMarker,
+                        Text::new(line.line.text.clone()),
+                        TextFont::from_font_size(COMMS_BODY_FONT_SIZE_PX),
+                        TextColor(COMMS_BODY.with_alpha(COMMS_BODY.alpha() * alpha)),
+                        TextLayout {
+                            linebreak: LineBreak::WordBoundary,
+                            ..default()
+                        },
+                    )
+                ]
             )
         ],
     )
@@ -477,6 +477,44 @@ mod tests {
             .collect()
     }
 
+    fn visible_speakers(app: &mut App) -> Vec<String> {
+        app.world_mut()
+            .query_filtered::<&Text, With<CommsSpeakerMarker>>()
+            .iter(app.world())
+            .map(|text| text.0.clone())
+            .collect()
+    }
+
+    #[test]
+    fn the_panel_is_screen_relative_and_the_message_has_two_text_scales() {
+        let mut app = comms_app();
+        app.update();
+        let panel = app
+            .world_mut()
+            .query_filtered::<&Node, With<CommsPanelMarker>>()
+            .single(app.world())
+            .unwrap();
+        assert_eq!(panel.width, Val::Percent(COMMS_PANEL_WIDTH_PERCENT));
+        assert_eq!(panel.max_width, Val::Px(COMMS_PANEL_MAX_WIDTH_PX));
+
+        push_line(&mut app, "Meridian Control", "Return to the plate.", None);
+        app.update();
+        let speaker_size = app
+            .world_mut()
+            .query_filtered::<&TextFont, With<CommsSpeakerMarker>>()
+            .single(app.world())
+            .unwrap()
+            .font_size;
+        let body_size = app
+            .world_mut()
+            .query_filtered::<&TextFont, With<CommsTextMarker>>()
+            .single(app.world())
+            .unwrap()
+            .font_size;
+        assert_eq!(speaker_size, FontSize::Px(COMMS_SPEAKER_FONT_SIZE_PX));
+        assert_eq!(body_size, FontSize::Px(COMMS_BODY_FONT_SIZE_PX));
+    }
+
     #[test]
     fn a_burst_stacks_visible_lines_newest_at_bottom() {
         let mut app = comms_app();
@@ -489,11 +527,16 @@ mod tests {
         assert_eq!(
             visible_texts(&mut app),
             vec![
-                "ALPHA > First.".to_string(),
-                "BRAVO > Second.".to_string(),
-                "RELAY > Third.".to_string(),
+                "First.".to_string(),
+                "Second.".to_string(),
+                "Third.".to_string(),
             ],
             "child order is top-to-bottom, so newest is the bottom card"
+        );
+        assert_eq!(
+            visible_speakers(&mut app),
+            vec!["ALPHA", "BRAVO", "RELAY"],
+            "speaker attribution has its own header instead of prefixing the body"
         );
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
     }
@@ -520,9 +563,7 @@ mod tests {
         let mut seen_last_line = false;
         for _ in 0..80 {
             app.update();
-            seen_last_line |= visible_texts(&mut app)
-                .iter()
-                .any(|text| text == "ALPHA > Line 5.");
+            seen_last_line |= visible_texts(&mut app).iter().any(|text| text == "Line 5.");
         }
         assert!(
             seen_last_line,
@@ -575,7 +616,7 @@ mod tests {
         app.update();
         assert_eq!(
             visible_texts(&mut app),
-            vec!["ALPHA > First.".to_string(), "ALPHA > Second.".to_string(),],
+            vec!["First.".to_string(), "Second.".to_string()],
             "arrival order: the burst's FIRST line shows first"
         );
         assert_eq!(panel_visibility(&mut app), Visibility::Inherited);
@@ -633,11 +674,11 @@ mod tests {
         );
     }
 
-    /// Pending lines beyond the cap drop OLDEST first: after a 6-line
-    /// dump, the first displayed line is the one showing, and the queue
-    /// kept only the newest four of the rest.
+    /// Bursts larger than the visible window remain lossless in the pending
+    /// queue. Creator-authored dialogue must not disappear because it arrived
+    /// in one frame.
     #[test]
-    fn the_pending_queue_drops_oldest_past_the_cap() {
+    fn the_pending_queue_keeps_every_line_past_the_visible_window() {
         let mut app = comms_app();
         app.update();
         for i in 0..6 {
@@ -645,15 +686,12 @@ mod tests {
         }
         app.update();
         app.update();
-        // The whole dump enqueues in one frame, the pending cap trims to 4
-        // BEFORE visible promotion (lines 0-1, the oldest, drop), then the
-        // stack shows lines 2-4 and keeps line 5 pending.
         assert_eq!(
             visible_texts(&mut app),
             vec![
-                "ALPHA > Line 2.".to_string(),
-                "ALPHA > Line 3.".to_string(),
-                "ALPHA > Line 4.".to_string(),
+                "Line 0.".to_string(),
+                "Line 1.".to_string(),
+                "Line 2.".to_string(),
             ],
         );
         let pending: Vec<String> = app
@@ -665,8 +703,8 @@ mod tests {
             .collect();
         assert_eq!(
             pending,
-            vec!["Line 5."],
-            "drop-oldest keeps the newest lines of a one-frame dump"
+            vec!["Line 3.", "Line 4.", "Line 5."],
+            "every line outside the visible window remains pending"
         );
     }
 

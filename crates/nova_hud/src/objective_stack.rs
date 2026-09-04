@@ -85,10 +85,10 @@ const STACK_TOP_PX: f32 = 96.0;
 /// Iosevka font has no diamond glyph and renders it as tofu (seen on the
 /// lifeline walk). This is the same trick `objective_markers`
 /// already uses for the same mark.
-const DIAMOND_PX: f32 = 7.0;
-const DIAMOND_BORDER_PX: f32 = 1.5;
+const DIAMOND_PX: f32 = 11.0;
+const DIAMOND_BORDER_PX: f32 = 2.0;
 
-const CHIP_FONT_PX: f32 = 13.0;
+const CHIP_FONT_PX: f32 = 17.0;
 /// The TAB keycap's HEIGHT on the stack's footer, sized like the dock's
 /// keycaps: the width follows the cap's own aspect (`KeyCap`), which matters
 /// here more than anywhere - Tab is one of the WIDE caps.
@@ -389,13 +389,16 @@ fn novaos_key_label(bindings: Option<&InputBindings>) -> String {
 /// Range stays the world-anchored marker chip's job, which HAS the target.
 fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
     let alpha = shown.alpha();
+    let mut node = chip_node();
+    node.max_width = Val::Percent(80.0);
+    node.padding = UiRect::axes(Val::Px(12.0), Val::Px(7.0));
     (
         Name::new("ObjectiveStackChip"),
         ObjectiveStackChip(shown.id.clone()),
         // The posting pop, seeded from the chip's age so a rebuilt node keeps
         // playing the same one-shot.
         HudEmphasis::popped_at_age(CHIP_POP_SCALE, CHIP_POP_SECS, shown.age_secs),
-        chip_node(),
+        node,
         // NOT `chip_paint(ChipTone::Amber)`: that bundle already carries a
         // BackgroundColor + BorderColor, and a second pair in the same bundle
         // is a duplicate-component panic at spawn. The fade needs alpha-scaled
@@ -434,7 +437,7 @@ fn objective_chip(shown: &ObjectiveNotification) -> impl Bundle {
                 Text::new(shown.message.to_uppercase()),
                 TextFont::from_font_size(CHIP_FONT_PX),
                 TextLayout {
-                    linebreak: LineBreak::NoWrap,
+                    linebreak: LineBreak::WordBoundary,
                     ..default()
                 },
                 TextColor(chip_alpha(alpha)),

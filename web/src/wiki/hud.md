@@ -94,14 +94,14 @@ The corner inset renders a live, magnified 3D view of your combat lock through a
 
 ## Comms and objectives
 
-Scenarios talk to you through a **comms stack**: speaker-attributed story cards (`OKONO > Strip it clean.`) that rise from the bottom-left like a chat transcript, and a newly posted **objective** arrives the same way in the **objective stack** at the top of the screen - a column of amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.
+Scenarios talk to you through a **comms stack**: broad story cards with a distinct speaker header above larger message text. They rise from the bottom-left like a chat transcript. A newly posted **objective** arrives in the **objective stack** at the top of the screen - a column of larger amber chips, newest on top. Both are notifications, not standing lists: each leaves once it has been read, so a quiet cockpit stays quiet.
 
 <details class="explain">
 <summary>Show explanation</summary>
 
-Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss.
+Several comms cards can stay visible at once; newest sits at the bottom, older lines push upward and fade. Each card has a large speaker icon slot, using authored scenario art when supplied and a cockpit placeholder otherwise, fades in with a soft blip, and leaves by timeout or explicit dismiss. Bursts wait in order instead of silently dropping lines that do not fit the visible stack.
 
-An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the gold **objective markers** on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
+An objective chip carries the objective itself behind a diamond; it pops the moment its objective posts and then breathes quietly, and it is read either after its dwell or the instant you open [NOVA OS](../nova-os/). For the standing list, type `objectives` in NOVA OS (or `log` for the combined comms/objective event history); in flight, the larger gold **objective markers**, diamonds and edge chevrons on the targets themselves are the lasting "go here" cue. A **completed** objective chimes and its chip goes with it. Everything clears with the scenario rather than lingering over the menu.
 
 </details>
 

@@ -86,6 +86,9 @@ does NOT get an entry - and it is the only place they are written down.
   later GOTO the hull flies.
 
 ### Interface & HUD
+- Comms use screen-relative cards with 20 px message text and distinct speaker
+  headers. Objective notifications, world labels, diamonds and edge chevrons
+  are larger and clearer over clutter.
 - A completed objective no longer ghosts green down the right of the screen.
   Its chip leaving the top of the stack, under the completion chime, is the
   whole cue.

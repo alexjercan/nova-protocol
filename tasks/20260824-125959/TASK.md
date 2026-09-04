@@ -853,3 +853,32 @@ are covered by focused tests.
 Proof: all 294 `nova_scenario` unit tests and all 19 focused First Shift tests
 pass. The affected examples and editor compile, content lint reports 0 errors,
 0 warnings and 0 findings, mdBook builds, and web CI passes.
+
+### 2026-09-04: First Shift playtest revision, step 9
+
+Rebuilt the comms card as a screen-relative subtitle panel: 48% of the viewport
+with a 960 px ultrawide ceiling, 20 px message text, a separate 14 px speaker
+header, 48 px portrait, and larger spacing and padding. The visible stack still
+paces three cards, but its pending queue is now lossless; a creator-authored
+burst no longer silently drops old lines.
+
+Raised posted objective text from 13 px to 17 px. Raised world-objective labels
+from 12 px to 16 px, their diamond from 8 px to 12 px, and their edge chevron
+from 16 px to 22 px. Objective notifications can wrap inside 80% of the
+viewport instead of forcing one unbounded line.
+
+Rendered review:
+
+- `/tmp/comms-window-1280x720.png`: one broad card remains clear over Meridian
+  and uses two lines without covering the flight centre.
+- `/tmp/comms-window-1920x1080.png`: the same line has comfortable subtitle
+  width and remains anchored to the lower-left safe area.
+- `/tmp/comms-window-1920x720.png`: at a 2.67:1 ultrawide ratio the card remains
+  bounded rather than stretching across the display.
+- `/tmp/objective-window-1280x720.png` and
+  `/tmp/objective-window-1920x1080.png`: both the posted objective and the
+  CRATE world marker remain legible over dense, bright asteroid clutter.
+
+Proof: all 238 `nova_hud` unit tests pass, including screen-relative card,
+distinct text-scale, lossless queue, live objective-chip layout, and chevron
+alignment checks. mdBook builds and web CI passes.

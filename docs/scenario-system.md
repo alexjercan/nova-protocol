@@ -345,10 +345,10 @@ position and has the same answer.
 ### Story pacing is a QUEUE, not a slot
 
 `StoryMessage` writes into a bottom-left comms stack rather than a
-latest-wins line: arrival order, a bounded number of cards visible with a
-bounded backlog behind them, oldest dropped when the backlog overflows, and the
-whole log kept in the feed. That is why a burst of lines is survivable - but
-one line per beat is still the style, and the queue is the safety net.
+latest-wins line: arrival order, a bounded number of cards visible, and a
+lossless pending queue behind them. The whole log stays in the feed too. That
+is why a burst of lines is survivable - but one line per beat is still the
+style, and the queue is the safety net.
 
 Two consequences for anything that fires story lines:
 
