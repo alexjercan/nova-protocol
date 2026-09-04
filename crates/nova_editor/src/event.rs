@@ -260,6 +260,8 @@ pub(crate) fn event_label(name: EventConfig) -> &'static str {
         EventConfig::OnTimerEnd => "On Timer End",
         EventConfig::OnEnter => "On Enter",
         EventConfig::OnExit => "On Exit",
+        EventConfig::OnGotoComplete => "On GOTO Complete",
+        EventConfig::OnStopComplete => "On STOP Complete",
         EventConfig::OnOrbitStart => "On Orbit Start",
         EventConfig::OnOrbitStable => "On Orbit Stable",
         EventConfig::OnOrbitUnstable => "On Orbit Unstable",
@@ -585,6 +587,8 @@ fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
         EventActionConfig::SetCamera(config) => Some(config),
         EventActionConfig::SetCameraAnchor(config) => Some(config),
         EventActionConfig::ReleaseCamera(config) => Some(config),
+        EventActionConfig::SuspendPlayerControl(config) => Some(config),
+        EventActionConfig::ResumePlayerControl(config) => Some(config),
         EventActionConfig::Screenshot(config) => Some(config),
         EventActionConfig::SetSkybox(config) => Some(config),
         EventActionConfig::Outcome(config) => Some(config),
@@ -631,6 +635,8 @@ fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialRef
         EventActionConfig::SetCamera(config) => Some(config),
         EventActionConfig::SetCameraAnchor(config) => Some(config),
         EventActionConfig::ReleaseCamera(config) => Some(config),
+        EventActionConfig::SuspendPlayerControl(config) => Some(config),
+        EventActionConfig::ResumePlayerControl(config) => Some(config),
         EventActionConfig::Screenshot(config) => Some(config),
         EventActionConfig::SetSkybox(config) => Some(config),
         EventActionConfig::Outcome(config) => Some(config),
@@ -682,6 +688,10 @@ pub(crate) enum ActionChoice {
     SetCameraAnchor,
     /// Hand the camera back to the player's chase rig.
     ReleaseCamera,
+    /// Block human gameplay input.
+    SuspendPlayerControl,
+    /// Restore human gameplay input.
+    ResumePlayerControl,
     /// Capture the window.
     Screenshot,
     /// Cap a ship's manual speed.
@@ -734,7 +744,7 @@ pub(crate) enum ActionChoice {
 
 impl ActionChoice {
     /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 40] = [
+    pub(crate) const ALL: [ActionChoice; 42] = [
         ActionChoice::Objective,
         ActionChoice::ObjectiveComplete,
         ActionChoice::ObjectiveMarkerAttach,
@@ -751,6 +761,8 @@ impl ActionChoice {
         ActionChoice::SetCamera,
         ActionChoice::SetCameraAnchor,
         ActionChoice::ReleaseCamera,
+        ActionChoice::SuspendPlayerControl,
+        ActionChoice::ResumePlayerControl,
         ActionChoice::Screenshot,
         ActionChoice::SetSpeedCap,
         ActionChoice::SetControllerVerb,
@@ -796,6 +808,8 @@ impl ActionChoice {
             ActionChoice::SetCamera => "Set Camera",
             ActionChoice::SetCameraAnchor => "Anchor Camera",
             ActionChoice::ReleaseCamera => "Release Camera",
+            ActionChoice::SuspendPlayerControl => "Suspend Player Control",
+            ActionChoice::ResumePlayerControl => "Resume Player Control",
             ActionChoice::Screenshot => "Screenshot",
             ActionChoice::SetSpeedCap => "Set Speed Cap",
             ActionChoice::SetControllerVerb => "Set Flight Verb",
@@ -842,6 +856,8 @@ impl ActionChoice {
             ActionChoice::SetCamera => "camera",
             ActionChoice::SetCameraAnchor => "anchor",
             ActionChoice::ReleaseCamera => "release",
+            ActionChoice::SuspendPlayerControl => "suspend",
+            ActionChoice::ResumePlayerControl => "resume",
             ActionChoice::Screenshot => "shot",
             ActionChoice::SetSpeedCap => "cap",
             ActionChoice::SetControllerVerb => "verb",
@@ -969,6 +985,12 @@ impl ActionChoice {
             }
             ActionChoice::ReleaseCamera => {
                 EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig)
+            }
+            ActionChoice::SuspendPlayerControl => {
+                EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig)
+            }
+            ActionChoice::ResumePlayerControl => {
+                EventActionConfig::ResumePlayerControl(ResumePlayerControlActionConfig)
             }
             ActionChoice::Screenshot => EventActionConfig::Screenshot(ScreenshotActionConfig {
                 path: "shot.png".to_string(),
@@ -1157,6 +1179,8 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
             EventActionConfig::SetCamera(_) => ActionChoice::SetCamera,
             EventActionConfig::SetCameraAnchor(_) => ActionChoice::SetCameraAnchor,
             EventActionConfig::ReleaseCamera(_) => ActionChoice::ReleaseCamera,
+            EventActionConfig::SuspendPlayerControl(_) => ActionChoice::SuspendPlayerControl,
+            EventActionConfig::ResumePlayerControl(_) => ActionChoice::ResumePlayerControl,
             EventActionConfig::Screenshot(_) => ActionChoice::Screenshot,
             EventActionConfig::SetSkybox(_) => ActionChoice::SetSkybox,
             EventActionConfig::Outcome(_) => ActionChoice::Outcome,

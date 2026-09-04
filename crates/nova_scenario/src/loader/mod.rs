@@ -45,7 +45,8 @@ use lifecycle::{
 };
 use preload::register_scenario_preload;
 use trackers::{
-    track_orbit_transitions, track_player_locks, track_ship_order_reports, LockEcho, OrbitEcho,
+    track_orbit_transitions, track_player_autopilot_completions, track_player_locks,
+    track_ship_order_reports, LockEcho, OrbitEcho,
 };
 pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 
@@ -579,6 +580,16 @@ impl Plugin for ScenarioLoaderPlugin {
         app.add_systems(
             FixedUpdate,
             track_orbit_transitions
+                .after(NovaFlightSystems)
+                .run_if(scenario_is_live),
+        );
+
+        // Successful player STOP/GOTO edges come directly from the flight
+        // completion condition. Reading them after the flight set preserves
+        // the target entity until its scenario handler can retire it.
+        app.add_systems(
+            FixedUpdate,
+            track_player_autopilot_completions
                 .after(NovaFlightSystems)
                 .run_if(scenario_is_live),
         );

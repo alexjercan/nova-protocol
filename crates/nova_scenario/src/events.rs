@@ -39,6 +39,10 @@ pub enum EventConfig {
     OnEnter,
     /// Fires when a body leaves an area/zone (`id` = the area, other = the body).
     OnExit,
+    /// The player's GOTO maneuver reached its target and came to rest.
+    OnGotoComplete,
+    /// The player's STOP maneuver brought the ship to rest.
+    OnStopComplete,
     /// An ORBIT maneuver engaged for a well.
     OnOrbitStart,
     /// An ORBIT maneuver entered stable station-keeping.
@@ -90,6 +94,8 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
             EventConfig::OnTimerEnd => EventHandler::new::<OnTimerEndEvent>(),
             EventConfig::OnEnter => EventHandler::new::<OnEnterEvent>(),
             EventConfig::OnExit => EventHandler::new::<OnExitEvent>(),
+            EventConfig::OnGotoComplete => EventHandler::new::<OnGotoCompleteEvent>(),
+            EventConfig::OnStopComplete => EventHandler::new::<OnStopCompleteEvent>(),
             EventConfig::OnOrbitStart => EventHandler::new::<OnOrbitStartEvent>(),
             EventConfig::OnOrbitStable => EventHandler::new::<OnOrbitStableEvent>(),
             EventConfig::OnOrbitUnstable => EventHandler::new::<OnOrbitUnstableEvent>(),
@@ -112,6 +118,15 @@ impl From<EventConfig> for EventHandler<NovaEventWorld> {
 #[cfg(all(test, feature = "serde"))]
 mod tests {
     use super::*;
+
+    #[test]
+    fn player_maneuver_completions_round_trip_through_authored_ron() {
+        for event in [EventConfig::OnGotoComplete, EventConfig::OnStopComplete] {
+            let ron = ron::to_string(&event).expect("the event serializes");
+            let back: EventConfig = ron::from_str(&ron).expect("the event deserializes");
+            assert_eq!(format!("{back:?}"), format!("{event:?}"));
+        }
+    }
 
     #[test]
     fn on_defeated_round_trips_through_authored_ron() {

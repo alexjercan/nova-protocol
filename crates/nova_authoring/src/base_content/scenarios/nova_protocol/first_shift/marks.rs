@@ -35,10 +35,10 @@ pub(super) const ID_DISTRESS: &str = "distress_beacon";
 /// fills the mirror.
 pub(super) const CUTTER_START_POS: Meters3 = Meters3::new(-1_100.0, 0.0, 2_500.0);
 
-/// Soft manual-speed cap for the launch leg: a missed brake in the first
-/// minute should not send a new pilot out of the belt. Released once a
-/// controlled leg is proven.
-pub(super) const CUTTER_SPEED_CAP: MetersPerSecond = MetersPerSecond(250.0);
+/// Soft manual-speed cap for the whole shift: close work stays controllable
+/// without silently changing the helm after the first lesson. GOTO plans its
+/// own speed independently.
+pub(super) const CUTTER_SPEED_CAP: MetersPerSecond = MetersPerSecond(150.0);
 
 // --- temporary marks ---------------------------------------------------------
 

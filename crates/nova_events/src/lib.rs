@@ -42,18 +42,20 @@ pub mod prelude {
         units::prelude::*,
         EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
         OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
-        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo,
-        OnOrbitEndEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnTimerEndEvent,
-        OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent, OnUpdateEvent,
-        OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
-        BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
-        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME,
-        SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME,
-        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
+        OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
+        OnGotoCompleteEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
+        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnShipOrderCanceledEvent,
+        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
+        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
+        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
+        OnStartEvent, OnStartEventInfo, OnStopCompleteEvent, OnStopCompleteEventInfo,
+        OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind, ANCHOR_TYPE_NAME,
+        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
+        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
+        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME,
+        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -243,6 +245,45 @@ pub struct OnExitEventInfo {
     /// Type name of the leaving entity.
     #[serde(rename = "other_type_name")]
     pub other_type_name: String,
+}
+
+/// The player's GOTO maneuver reached its target and came to rest.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("ongotocomplete")]
+#[event_info(OnGotoCompleteEventInfo)]
+pub struct OnGotoCompleteEvent;
+
+/// Payload for [`OnGotoCompleteEvent`]: the destination (`id`) and player ship
+/// (`other_id` / `other_type_name`). This matches lock and area pair events so
+/// the ordinary entity-pair filter can address both sides.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnGotoCompleteEventInfo {
+    /// Scenario id of the reached GOTO target.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Scenario id of the player ship that arrived.
+    #[serde(rename = "other_id")]
+    pub other_id: String,
+    /// Type name of the player ship.
+    #[serde(rename = "other_type_name")]
+    pub other_type_name: String,
+}
+
+/// The player's STOP maneuver brought the ship to rest.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onstopcomplete")]
+#[event_info(OnStopCompleteEventInfo)]
+pub struct OnStopCompleteEvent;
+
+/// Payload for [`OnStopCompleteEvent`], naming the player ship that stopped.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct OnStopCompleteEventInfo {
+    /// Scenario id of the player ship.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// Type name of the player ship.
+    #[serde(rename = "type_name")]
+    pub type_name: String,
 }
 
 /// An ORBIT maneuver started around a well.

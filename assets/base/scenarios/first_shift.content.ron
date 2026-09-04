@@ -36,7 +36,7 @@
                         kind: Spaceship((
                             hull: Prototype("block_cutter"),
                             controller: Player((
-                                speed_cap: Some(250.0),
+                                speed_cap: Some(150.0),
                             )),
                             modifications: [
                                 (
@@ -1677,13 +1677,10 @@
                 actions: [
                     VariableSet((
                         key: "beat",
-                        expression: Term(Factor(Literal(Number(2.0)))),
+                        expression: Term(Factor(Literal(Number(1.5)))),
                     )),
                     ObjectiveComplete((
                         id: "burn",
-                    )),
-                    SetSpeedCap((
-                        id: "cutter",
                     )),
                     StoryMessage((
                         speaker: "Copilot",
@@ -1696,17 +1693,54 @@
                         id: "work_mark",
                     )),
                     Sequence((
-                        key: "beat_2",
+                        key: "beat_1.5",
                         steps: [
                             (
-                                after: Some(8.399999618530273),
+                                after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the ball on the tape goes violet while you are on them. Short taps - she keeps whatever you give her.",
+                                    Objective((
+                                        id: "stop",
+                                        message: "Hold [X] until Cutter comes to rest.",
+                                    )),
+                                    HintEmphasisSet((
+                                        verb: "STOP",
                                     )),
                                 ],
                             ),
+                        ],
+                    )),
+                ],
+            ),
+            (
+                name: OnStopComplete,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("cutter"),
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(1.5)))),
+                    ))),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(2.0)))),
+                    )),
+                    ObjectiveComplete((
+                        id: "stop",
+                    )),
+                    HintEmphasisClear((
+                        verb: "STOP",
+                    )),
+                    StoryMessage((
+                        speaker: "Copilot",
+                        text: "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the ball on the tape goes violet while you are on them. Short taps - she keeps whatever you give her.",
+                    )),
+                    Sequence((
+                        key: "beat_2",
+                        steps: [
                             (
                                 after: Some(4.0),
                                 actions: [
@@ -2129,7 +2163,7 @@
                 ],
             ),
             (
-                name: OnEnter,
+                name: OnGotoComplete,
                 once: true,
                 filters: [
                     Entity((
@@ -2170,7 +2204,7 @@
                                 actions: [
                                     Objective((
                                         id: "transit",
-                                        message: "Fly to TRANSIT 2.",
+                                        message: "Lock and GOTO to TRANSIT 2.",
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -2212,7 +2246,7 @@
                 ],
             ),
             (
-                name: OnEnter,
+                name: OnGotoComplete,
                 once: true,
                 filters: [
                     Entity((
@@ -2473,7 +2507,7 @@
                                 actions: [
                                     Objective((
                                         id: "return",
-                                        message: "Return to the work site on the plate.",
+                                        message: "Lock and GOTO back to the work site.",
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -2515,7 +2549,7 @@
                 ],
             ),
             (
-                name: OnEnter,
+                name: OnGotoComplete,
                 once: true,
                 filters: [
                     Entity((
@@ -2626,7 +2660,7 @@
                                 actions: [
                                     Objective((
                                         id: "home",
-                                        message: "Return to the Meridian and hold on the outer mark.",
+                                        message: "Lock and GOTO to the Meridian outer hold.",
                                     )),
                                     SpawnScenarioObject((
                                         base: (
@@ -2668,7 +2702,7 @@
                 ],
             ),
             (
-                name: OnEnter,
+                name: OnGotoComplete,
                 once: true,
                 filters: [
                     Entity((
@@ -2726,6 +2760,7 @@
                         ),
                         arrival_standoff: Some(200.0),
                     )),
+                    SuspendPlayerControl(()),
                     SetCameraAnchor((
                         anchor: "cutter",
                         offset: (
@@ -2789,6 +2824,7 @@
                 ],
                 actions: [
                     ReleaseCamera(()),
+                    ResumePlayerControl(()),
                     StoryMessage((
                         speaker: "You",
                         text: "Control, that is a fleet hull. Earth military. It is coming round on you.",
@@ -2869,6 +2905,7 @@
                             (
                                 after: Some(0.0),
                                 actions: [
+                                    SuspendPlayerControl(()),
                                     SetCameraAnchor((
                                         anchor: "warship",
                                         offset: (
@@ -3015,6 +3052,7 @@
                                 after: Some(8.0),
                                 actions: [
                                     ReleaseCamera(()),
+                                    ResumePlayerControl(()),
                                 ],
                             ),
                             (

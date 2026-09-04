@@ -323,11 +323,12 @@ pub(super) fn on_flight_burn_input(
     mut commands: Commands,
     ship: Single<(Entity, &mut FlightIntent, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    // pause overlay or a cinematic owns control. Releases stay ungated so held
+    // keys clear cleanly during either transition.
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -381,11 +382,9 @@ pub(super) fn on_autopilot_stop_input(
     ship: Single<(Entity, Option<&Autopilot>), With<PlayerSpaceshipMarker>>,
     q_verbs: ControllerVerbQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -418,11 +417,9 @@ pub(super) fn on_autopilot_goto_input(
     ship: Single<(Entity, Option<&Autopilot>, Option<&TravelLock>), With<PlayerSpaceshipMarker>>,
     q_verbs: ControllerVerbQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -469,11 +466,9 @@ pub(super) fn on_autopilot_orbit_input(
     ship: Single<(Entity, Option<&Autopilot>, Option<&DominantWell>), With<PlayerSpaceshipMarker>>,
     q_verbs: ControllerVerbQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -524,11 +519,9 @@ pub(super) fn on_autopilot_off_input(
     mut commands: Commands,
     ship: Single<(Entity, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -549,8 +542,9 @@ pub(super) fn on_rcs_modifier_start(
     ship: Single<Entity, With<PlayerSpaceshipMarker>>,
     q_verbs: ControllerVerbQuery,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
     let entity = *ship;
@@ -593,8 +587,9 @@ pub(super) fn on_rcs_aim(
     fire: On<Fire<RcsAimInput>>,
     ship: Single<(&mut RcsIntent, Has<RcsActive>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
     let (mut intent, active) = ship.into_inner();

@@ -79,6 +79,7 @@ pub(super) fn autopilot_system(
             // velocity here so RCS trims a fast orbit by a sub-cap delta; zero
             // (or absent) everywhere else.
             Option<&mut RcsReference>,
+            Has<PlayerSpaceshipMarker>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -158,6 +159,7 @@ pub(super) fn autopilot_system(
         rcs_cap_override,
         rcs_intent,
         rcs_reference,
+        is_player,
     ) in &mut q_ship
     {
         let has_telemetry = prev_telemetry.is_some();
@@ -800,6 +802,11 @@ pub(super) fn autopilot_system(
                 }
             }
             debug!("autopilot_system: ship {ship:?} maneuver complete, disengaging");
+            if is_player {
+                commands.entity(ship).insert(PlayerAutopilotCompleted {
+                    action: autopilot.action,
+                });
+            }
             commands.entity(ship).remove::<Autopilot>();
             continue;
         }

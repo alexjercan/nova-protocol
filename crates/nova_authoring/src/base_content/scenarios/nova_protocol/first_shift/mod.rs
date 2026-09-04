@@ -75,6 +75,7 @@ pub(super) const HOME_HOLD_POS: Meters3 = HOME_MARK.position;
 // One gesture, or one errand, each.
 
 const OBJ_BURN: &str = "burn";
+const OBJ_STOP: &str = "stop";
 const OBJ_TRIM_LATERAL: &str = "trim_lateral";
 const OBJ_TRIM_VERTICAL: &str = "trim_vertical";
 const OBJ_CRATE_FIRST: &str = "crate_first";
@@ -100,6 +101,8 @@ const VAR_BEAT: &str = "beat";
 
 /// Hand-fly to the work mark.
 const BEAT_LAUNCH: f64 = 1.0;
+/// Come to a real stop before the RCS briefing.
+const BEAT_STOP: f64 = 1.5;
 /// First RCS translation, across.
 const BEAT_TRIM_LATERAL: f64 = 2.0;
 /// Second RCS translation, up.
@@ -320,6 +323,11 @@ fn cutter_enters(area: &str) -> EventFilterConfig {
     entity_pair(area, ID_CUTTER)
 }
 
+/// A player GOTO completion at `target` by the cutter.
+fn cutter_completes_goto(target: &str) -> EventFilterConfig {
+    entity_pair(target, ID_CUTTER)
+}
+
 /// One line of the opening conversation, `after` seconds behind the previous.
 fn open_line(after: f64, speaker: &str, line: &str) -> SequenceStepConfig {
     step(after, vec![story_message(speaker, line)])
@@ -413,9 +421,8 @@ fn grant(verb: FlightVerb) -> EventActionConfig {
 
 /// One shot: hang the camera off `anchor` and point it at `look_at`.
 ///
-/// Camera authority only. Nothing here touches the helm, so the player can fly
-/// out of their own set piece if they want to - and the shift never has to take
-/// the stick away to keep the composition.
+/// Camera authority only. The beat explicitly suspends control before the
+/// first shot and restores it when [`release_camera`] hands the view back.
 fn film(anchor: &str, offset: Meters3, look_at: CameraLookAtConfig) -> EventActionConfig {
     EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
         anchor: anchor.to_string(),
@@ -436,6 +443,14 @@ fn at(id: &str) -> CameraLookAtConfig {
 /// Give the camera back to the cutter's own chase rig.
 fn release_camera() -> EventActionConfig {
     EventActionConfig::ReleaseCamera(ReleaseCameraActionConfig)
+}
+
+fn suspend_player_control() -> EventActionConfig {
+    EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig)
+}
+
+fn resume_player_control() -> EventActionConfig {
+    EventActionConfig::ResumePlayerControl(ResumePlayerControlActionConfig)
 }
 
 // --- the shift ---------------------------------------------------------------
@@ -483,40 +498,57 @@ pub(crate) fn first_shift(
                 ])
                 .collect(),
         },
-        // The mark is made. The governor comes off, and the thrusters are
-        // taught HERE, in open space, where a mistake costs nothing - not on
-        // the plate, which is where the old script first asked for them.
+        // The mark is made. STOP must finish before the thrusters are taught
+        // HERE, in open space, where a mistake costs nothing - not on the
+        // plate, which is where the old script first asked for them. The 150
+        // m/s manual governor stays for the whole shift.
         ScenarioEventConfig {
             label: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![WORK_MARK.entered(), number_equals(VAR_BEAT, BEAT_LAUNCH)],
             actions: [
-                set_variable(VAR_BEAT, number(BEAT_TRIM_LATERAL)),
+                set_variable(VAR_BEAT, number(BEAT_STOP)),
                 complete_objective(OBJ_BURN),
-                // The training governor releases once a controlled leg is proven.
-                EventActionConfig::SetSpeedCap(SetSpeedCapActionConfig {
-                    id: ID_CUTTER.to_string(),
-                    cap: None,
-                }),
                 story_message(COPILOT, story::TRIM_COPILOT_STOP),
             ]
             .into_iter()
             .chain(WORK_MARK.clear())
-            .chain([coached_beat_setup(
-                BEAT_TRIM_LATERAL,
-                COPILOT,
-                story::TRIM_COPILOT_TEACH,
-                [
-                    grant(FlightVerb::Rcs),
-                    post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
-                    show_hint_emphasis("RCS"),
-                ]
-                .into_iter()
-                .chain(TRIM_LATERAL.raise())
-                .collect(),
+            .chain([beat_setup(
+                BEAT_STOP,
+                INSTRUCTION_GAP,
+                vec![
+                    post_objective(OBJ_STOP, story::OBJ_TEXT_STOP),
+                    show_hint_emphasis("STOP"),
+                ],
             )])
             .collect(),
+        },
+        // STOP is a physical gate, not an elapsed dialogue gap. Only once the
+        // autopilot reports rest does the RCS lesson open.
+        ScenarioEventConfig {
+            label: None,
+            name: EventConfig::OnStopComplete,
+            once: true,
+            filters: vec![entity(ID_CUTTER), number_equals(VAR_BEAT, BEAT_STOP)],
+            actions: vec![
+                set_variable(VAR_BEAT, number(BEAT_TRIM_LATERAL)),
+                complete_objective(OBJ_STOP),
+                clear_hint_emphasis("STOP"),
+                story_message(COPILOT, story::TRIM_COPILOT_TEACH),
+                beat_setup(
+                    BEAT_TRIM_LATERAL,
+                    INSTRUCTION_GAP,
+                    [
+                        grant(FlightVerb::Rcs),
+                        post_objective(OBJ_TRIM_LATERAL, story::OBJ_TEXT_TRIM_LATERAL),
+                        show_hint_emphasis("RCS"),
+                    ]
+                    .into_iter()
+                    .chain(TRIM_LATERAL.raise())
+                    .collect(),
+                ),
+            ],
         },
         // The second axis. Same gesture, almost nothing said over it.
         ScenarioEventConfig {
@@ -627,12 +659,16 @@ pub(crate) fn first_shift(
             ],
         },
         // The repeat: the same two keys with four words over them, so the
-        // gesture is practised once before it matters.
+        // gesture is practised once before it matters. Completion waits for
+        // the autopilot to settle before the target is retired.
         ScenarioEventConfig {
             label: None,
-            name: EventConfig::OnEnter,
+            name: EventConfig::OnGotoComplete,
             once: true,
-            filters: vec![TRANSIT_ONE.entered(), number_equals(VAR_BEAT, BEAT_GOTO)],
+            filters: vec![
+                cutter_completes_goto(TRANSIT_ONE.id),
+                number_equals(VAR_BEAT, BEAT_GOTO),
+            ],
             actions: [
                 set_variable(VAR_BEAT, number(BEAT_TRANSIT)),
                 complete_objective(OBJ_GOTO),
@@ -656,9 +692,12 @@ pub(crate) fn first_shift(
         // which is what makes the Meridian's answer to it land.
         ScenarioEventConfig {
             label: None,
-            name: EventConfig::OnEnter,
+            name: EventConfig::OnGotoComplete,
             once: true,
-            filters: vec![TRANSIT_TWO.entered(), number_equals(VAR_BEAT, BEAT_TRANSIT)],
+            filters: vec![
+                cutter_completes_goto(TRANSIT_TWO.id),
+                number_equals(VAR_BEAT, BEAT_TRANSIT),
+            ],
             actions: [
                 set_variable(VAR_BEAT, number(BEAT_DETOUR)),
                 complete_objective(OBJ_TRANSIT),
@@ -734,12 +773,16 @@ pub(crate) fn first_shift(
             ],
         },
         // Back on the plate, parked at the work site: the return completes on
-        // ARRIVING at the job, not on leaving the body it was flown from.
+        // GOTO's physical settle edge, not on crossing the mark or leaving the
+        // body it was flown from.
         ScenarioEventConfig {
             label: None,
-            name: EventConfig::OnEnter,
+            name: EventConfig::OnGotoComplete,
             once: true,
-            filters: vec![WORK_SITE.entered(), number_equals(VAR_BEAT, BEAT_RETURN)],
+            filters: vec![
+                cutter_completes_goto(WORK_SITE.id),
+                number_equals(VAR_BEAT, BEAT_RETURN),
+            ],
             actions: [
                 set_variable(VAR_BEAT, number(BEAT_SEARCH)),
                 complete_objective(OBJ_RETURN),
@@ -783,7 +826,7 @@ pub(crate) fn first_shift(
                 ),
             ],
         },
-        // Parked on the outer mark, three kilometres off the Meridian, with the
+        // GOTO has come to rest at the outer mark, three kilometres off the Meridian, with the
         // whole belt on the other side of the canopy. THAT is what the attack
         // waits for: the player is where the shot is, holding station, and not
         // about to hit anything.
@@ -796,9 +839,12 @@ pub(crate) fn first_shift(
         // filming it would spend that whole leg on the chase rig.
         ScenarioEventConfig {
             label: None,
-            name: EventConfig::OnEnter,
+            name: EventConfig::OnGotoComplete,
             once: true,
-            filters: vec![HOME_MARK.entered(), number_equals(VAR_BEAT, BEAT_VANTAGE)],
+            filters: vec![
+                cutter_completes_goto(HOME_MARK.id),
+                number_equals(VAR_BEAT, BEAT_VANTAGE),
+            ],
             actions: [
                 set_variable(VAR_BEAT, number(BEAT_ATTACK)),
                 complete_objective(OBJ_HOME),
@@ -808,6 +854,7 @@ pub(crate) fn first_shift(
             .chain([
                 spawn_object(warship()),
                 move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
+                suspend_player_control(),
                 film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
                 story_message(CONTROL, story::ATTACK_CONTROL_PLUME),
                 pacing::beat_later(
@@ -838,6 +885,7 @@ pub(crate) fn first_shift(
             ORDER_EMERGE,
             vec![
                 release_camera(),
+                resume_player_control(),
                 story_message(PLAYER, story::ATTACK_PLAYER_MILITARY),
                 move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
                 // Halfway through the second leg. The Meridian tries talking to
@@ -1019,6 +1067,7 @@ fn salvo() -> EventActionConfig {
     let mut steps = vec![step(
         0.0,
         vec![
+            suspend_player_control(),
             film(ID_WARSHIP, CINEMA_TUBES_OFFSET, at(ID_CARRIER)),
             fire_bay(bays[0]),
         ],
@@ -1063,7 +1112,10 @@ fn salvo() -> EventActionConfig {
         ),
         // The wreck has stopped moving by now. The camera goes back to the
         // cutter's own rig - the aftermath is the player's view, not a shot.
-        step(SALVO_RELEASE_AT, vec![release_camera()]),
+        step(
+            SALVO_RELEASE_AT,
+            vec![release_camera(), resume_player_control()],
+        ),
         step(
             SALVO_EXIT_AT,
             vec![

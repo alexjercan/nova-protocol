@@ -15,6 +15,7 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_input::prelude::*;
 
+pub(crate) mod control;
 pub mod flight_rig;
 mod hints;
 pub mod intent;
@@ -22,6 +23,7 @@ pub mod intent;
 pub(crate) mod test_support;
 mod weapons;
 
+use control::player_control_is_suspended;
 use flight_rig::{
     on_autopilot_goto_input, on_autopilot_off_input, on_autopilot_orbit_input,
     on_autopilot_stop_input, on_flight_burn_input, on_flight_burn_input_completed,
@@ -43,6 +45,7 @@ use weapons::{
 
 pub(crate) use self::flight_rig::FlightInputMarker;
 pub use self::{
+    control::{resume_player_control, suspend_player_control, PlayerControlSuspended},
     hints::{FlightVerbHints, VerbHint},
     weapons::{
         SectionInputBindingChanged, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
@@ -55,9 +58,10 @@ use crate::input::bindings::flight_bindings;
 /// `SpaceshipPlayerInputPlugin`.
 pub mod prelude {
     pub use super::{
-        FlightVerbHints, SectionInputBindingChanged, SpaceshipPlayerInputPlugin,
-        SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
-        SpaceshipTurretInputBinding, VerbHint,
+        resume_player_control, suspend_player_control, FlightVerbHints, PlayerControlSuspended,
+        SectionInputBindingChanged, SpaceshipPlayerInputPlugin, SpaceshipRailgunInputBinding,
+        SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
+        VerbHint,
     };
 }
 
@@ -74,9 +78,11 @@ pub mod prelude {
 fn sync_flight_context(
     player: Query<(), With<nova_gameplay::markers::PlayerSpaceshipMarker>>,
     pause: Option<Res<State<nova_gameplay::PauseStates>>>,
+    control: Option<Res<PlayerControlSuspended>>,
     mut active: ResMut<ActiveContexts>,
 ) {
-    let frozen = pause.is_some_and(|state| state.get().is_frozen());
+    let frozen =
+        pause.is_some_and(|state| state.get().is_frozen()) || player_control_is_suspended(control);
     ActiveContexts::sync(
         &mut active,
         ActionContext::Flight,
@@ -94,6 +100,8 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         trace!("SpaceshipPlayerInputPlugin: build");
 
         app.register_input_actions(flight_bindings());
+        app.init_resource::<PlayerControlSuspended>();
+        app.register_type::<PlayerControlSuspended>();
         app.add_systems(PreUpdate, sync_flight_context);
         app.add_message::<SectionInputBindingChanged>();
         app.add_input_context::<FlightInputMarker>();
@@ -210,5 +218,28 @@ mod context_tests {
         app.world_mut().entity_mut(player).despawn();
         app.update();
         assert!(!flight_is_live(&app), "the rig despawns with the marker");
+    }
+
+    #[test]
+    fn cinematic_suspension_lowers_only_the_flight_context() {
+        let mut app = rig();
+        app.world_mut().spawn(PlayerSpaceshipMarker);
+        app.update();
+        assert!(flight_is_live(&app));
+
+        app.world_mut()
+            .insert_resource(PlayerControlSuspended(true));
+        app.update();
+        let active = app.world().resource::<ActiveContexts>();
+        assert!(!active.is_live(ActionContext::Flight));
+        assert!(
+            active.is_live(ActionContext::Always),
+            "pause, menu, and explicit always-live cinematic controls remain available"
+        );
+
+        app.world_mut()
+            .insert_resource(PlayerControlSuspended(false));
+        app.update();
+        assert!(flight_is_live(&app));
     }
 }

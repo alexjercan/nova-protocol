@@ -12,6 +12,9 @@ use crate::prelude::*;
 fn goto_arrives_at_standoff_and_disengages() {
     let mut app = flight_app();
     let (ship, _, _) = spawn_ship(&mut app);
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(PlayerSpaceshipMarker);
     let target = app
         .world_mut()
         .spawn((
@@ -51,6 +54,13 @@ fn goto_arrives_at_standoff_and_disengages() {
         "should arrive near the {standoff}u standoff, got {distance}"
     );
     assert!(speed < 0.5, "should arrive at rest, got {speed}");
+    assert_eq!(
+        app.world().get::<PlayerAutopilotCompleted>(ship),
+        Some(&PlayerAutopilotCompleted {
+            action: AutopilotAction::Goto { target },
+        }),
+        "a successful player GOTO reports its physical completion"
+    );
 }
 
 #[test]

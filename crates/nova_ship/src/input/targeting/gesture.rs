@@ -39,6 +39,7 @@ pub(super) fn on_radar_start(
     _: On<Start<RadarHoldInput>>,
     mut commands: Commands,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
     mut denied: MessageWriter<RadarDenied>,
     q_controllers: Query<
         (&ChildOf, Option<&WithheldVerbs>),
@@ -52,7 +53,9 @@ pub(super) fn on_radar_start(
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys clear cleanly
     // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen()
+        || crate::input::player::control::player_control_is_suspended(control)
+    {
         return;
     }
     for ship in &q_ship {
@@ -134,6 +137,7 @@ pub(super) fn on_lock_clear_tap(
     _: On<Fire<RadarClearInput>>,
     mut commands: Commands,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
     mut toasts: MessageWriter<LockClearedToast>,
     mut q_ship: Query<
         (
@@ -146,7 +150,9 @@ pub(super) fn on_lock_clear_tap(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen()
+        || crate::input::player::control::player_control_is_suspended(control)
+    {
         return;
     }
     for (ship, raised, mut travel, mut combat, autopilot) in &mut q_ship {

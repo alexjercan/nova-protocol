@@ -139,11 +139,14 @@ pub(super) fn on_rotation_input(
     >,
     q_rcs: Query<(), (With<PlayerSpaceshipMarker>, With<RcsActive>)>,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the
     // pause overlay is up. Releases stay ungated so held keys
     // clear cleanly during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen()
+        || crate::input::player::control::player_control_is_suspended(control)
+    {
         return;
     }
 
@@ -197,15 +200,17 @@ pub(super) fn derive_control_mode_and_raised(
     mut mode: ResMut<SpaceshipCameraControlMode>,
     q_combat: Query<&TriggerState, With<Action<CombatInput>>>,
     q_free_look: Query<&TriggerState, With<Action<FreeLookInput>>>,
+    control: Option<Res<PlayerControlSuspended>>,
     mut q_ship: Query<
         (Entity, Option<&mut WeaponsRaised>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
-    let combat_held = action_held(&q_combat);
+    let suspended = crate::input::player::control::player_control_is_suspended(control);
+    let combat_held = !suspended && action_held(&q_combat);
     let next = if combat_held {
         SpaceshipCameraControlMode::Turret
-    } else if action_held(&q_free_look) {
+    } else if !suspended && action_held(&q_free_look) {
         SpaceshipCameraControlMode::FreeLook
     } else {
         SpaceshipCameraControlMode::Normal

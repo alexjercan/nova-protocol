@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the TWENTY-ONE event kinds below, written bare (they are unit variants):
+the TWENTY-THREE event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -26,6 +26,8 @@ The whole vocabulary at a glance:
 | [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons, or the flight computer it had |
 | [`OnEnter`](#onenter) | `id`, `other_id`, `other_type_name` | a body enters a trigger area |
 | [`OnExit`](#onexit) | `id`, `other_id`, `other_type_name` | a body leaves a trigger area |
+| [`OnGotoComplete`](#player-maneuver-completion) | `id`, `other_id`, `other_type_name` | the player's GOTO reaches its target and stops |
+| [`OnStopComplete`](#player-maneuver-completion) | `id`, `type_name` | the player's STOP comes to rest |
 | [`OnOrbitStart`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | an ORBIT maneuver starts |
 | [`OnOrbitStable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | ORBIT enters stable station-keeping |
 | [`OnOrbitUnstable`](#orbit-lifecycle) | `id`, `other_id`, `other_type_name` | stable station-keeping is lost |
@@ -462,6 +464,47 @@ Use `other_type_name: Some("spaceship")` instead of `other_id` when every ship
 leaving the area should match.
 
 </details>
+
+## Player maneuver completion
+
+`OnGotoComplete` and `OnStopComplete` report successful terminal conditions
+from the player's real autopilot. They do not fire when manual input cancels a
+maneuver, a target disappears, or the ship loses the ability to continue.
+Scripted and AI ship orders use the separate
+[`OnShipOrderComplete`](#onshipordercomplete) lifecycle.
+
+`OnGotoComplete` carries the reached target as `id` and the player ship as
+`other_id` / `other_type_name`. The target still exists while the handler runs,
+so this is the safe event on which to remove a temporary navigation beacon:
+
+```ron
+(
+    name: OnGotoComplete,
+    once: true,
+    filters: [Entity((
+        id: Some("transit_mark"),
+        other_id: Some("cutter"),
+    ))],
+    actions: [
+        ObjectiveComplete((id: "transit")),
+        DespawnScenarioObject((id: "transit_mark")),
+    ],
+),
+```
+
+`OnStopComplete` carries the stopped player ship as `id` / `type_name`:
+
+```ron
+(
+    name: OnStopComplete,
+    once: true,
+    filters: [Entity((id: Some("cutter")))],
+    actions: [ObjectiveComplete((id: "come_to_rest"))],
+),
+```
+
+A GOTO that reaches a gravity well and transitions directly into a viable
+ORBIT does not complete as GOTO; use the orbit lifecycle for that maneuver.
 
 ## Orbit lifecycle
 

@@ -154,6 +154,18 @@ impl Autopilot {
     }
 }
 
+/// A player autopilot maneuver reached its physical completion condition.
+///
+/// The scenario layer turns this physics edge into authored GOTO and STOP
+/// events. Cancellation, target loss, and capability loss do not report
+/// completion.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(Component)]
+pub struct PlayerAutopilotCompleted {
+    /// The completed maneuver, including GOTO's target entity.
+    pub action: AutopilotAction,
+}
+
 /// The autopilot's goal.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 pub enum AutopilotAction {

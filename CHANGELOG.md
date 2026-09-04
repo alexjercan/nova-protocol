@@ -58,6 +58,10 @@ does NOT get an entry - and it is the only place they are written down.
   lights the hulls it passes; Low draws neither.
 
 ### Scenarios & Objectives
+- First Shift now suspends flight, look, stance, and weapon input during staged
+  shots, then restores control with the camera and on scenario teardown.
+- First Shift waits for physical STOP and GOTO completion before advancing or
+  removing a nav mark, and keeps Cutter's manual limit at 150 m/s.
 - **(breaking)** The campaign is two new chapters, First Shift and Second
   Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
@@ -126,6 +130,10 @@ does NOT get an entry - and it is the only place they are written down.
   campaign's stolen warship carries one.
 
 ### Modding & Mod Portal
+- `SuspendPlayerControl` and `ResumePlayerControl` give cinematics explicit,
+  teardown-safe authority without coupling control to camera actions.
+- `OnGotoComplete` and `OnStopComplete` let scenarios react when the player's
+  real autopilot reaches its target or comes to rest.
 - **(breaking)** Content is authored in meters: a 300 m blast is
   `blast_radius: 300`. Every world distance and speed is x10. Build-grid
   geometry - colliders, links, mounts, part poses - stays in cells.

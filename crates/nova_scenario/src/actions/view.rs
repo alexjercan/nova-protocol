@@ -181,6 +181,38 @@ impl EventAction<NovaEventWorld> for SetCameraAnchorActionConfig {
     }
 }
 
+/// Block human gameplay input and clear held ship intent while a cinematic or
+/// another authored beat owns control.
+///
+/// Camera-independent by design: content explicitly pairs this with camera
+/// actions where required.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SuspendPlayerControlActionConfig;
+
+impl EventAction<NovaEventWorld> for SuspendPlayerControlActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!("SuspendPlayerControl: blocking human gameplay input");
+        world.push_command(move |commands| {
+            commands.queue(suspend_player_control);
+        });
+    }
+}
+
+/// Restore human gameplay input after an explicit suspension.
+#[derive(Clone, Debug, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ResumePlayerControlActionConfig;
+
+impl EventAction<NovaEventWorld> for ResumePlayerControlActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        debug!("ResumePlayerControl: restoring human gameplay input");
+        world.push_command(move |commands| {
+            commands.queue(resume_player_control);
+        });
+    }
+}
+
 /// Hand the scenario camera back to whatever rig owns it - the player's chase
 /// camera during a run, the free-fly rig without a player ship.
 ///
@@ -959,6 +991,43 @@ mod tests {
         }
     }
 
+    #[test]
+    fn suspend_and_resume_actions_drive_player_control_independently_of_the_camera() {
+        use nova_events::prelude::EventWorld;
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+        let camera = world
+            .spawn((
+                ScenarioCameraMarker,
+                ScriptedCameraPose {
+                    position: Meters3::ZERO,
+                    look_at: Meters3::new(0.0, 0.0, -1.0),
+                },
+            ))
+            .id();
+
+        for _ in 0..2 {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            SuspendPlayerControlActionConfig.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(&mut world);
+        }
+        assert!(world.resource::<PlayerControlSuspended>().is_suspended());
+        assert!(
+            world.get::<ScriptedCameraPose>(camera).is_some(),
+            "control authority must not change camera authority"
+        );
+
+        for _ in 0..2 {
+            let mut event_world = world.resource_mut::<NovaEventWorld>();
+            ResumePlayerControlActionConfig.action(&mut event_world, &GameEventInfo::default());
+            NovaEventWorld::state_to_world_system(&mut world);
+        }
+        assert!(!world.resource::<PlayerControlSuspended>().is_suspended());
+        assert!(world.get::<ScriptedCameraPose>(camera).is_some());
+    }
+
     #[cfg(feature = "serde")]
     #[test]
     fn release_camera_round_trips_through_ron() {
@@ -966,6 +1035,22 @@ mod tests {
             .expect("serialize");
         let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
         assert!(matches!(back, EventActionConfig::ReleaseCamera(_)));
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn player_control_actions_round_trip_through_ron() {
+        for action in [
+            EventActionConfig::SuspendPlayerControl(SuspendPlayerControlActionConfig),
+            EventActionConfig::ResumePlayerControl(ResumePlayerControlActionConfig),
+        ] {
+            let ron = ron::to_string(&action).expect("serialize");
+            let back: EventActionConfig = ron::from_str(&ron).expect("deserialize");
+            assert_eq!(
+                std::mem::discriminant(&back),
+                std::mem::discriminant(&action)
+            );
+        }
     }
 
     #[cfg(feature = "serde")]

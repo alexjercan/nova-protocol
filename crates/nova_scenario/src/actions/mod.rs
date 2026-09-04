@@ -41,13 +41,14 @@ pub mod prelude {
         ObjectiveCompleteActionConfig, ObjectiveMarkerAttachActionConfig,
         ObjectiveMarkerDetachActionConfig, OrbitShipActionConfig, OutcomeActionConfig,
         PatrolShipActionConfig, PendingSkyboxSwap, RefillAmmoActionConfig,
-        ReleaseCameraActionConfig, ScatterObjectsConfig, ScatterRegion, ScenarioAreaConfig,
-        ScenarioObjectConfig, ScenarioObjectKind, ScenarioOutcomeKind, ScreenshotActionConfig,
-        SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SetAIEngageRangeActionConfig,
-        SetAILeashActionConfig, SetAIPointDefenseRangeActionConfig, SetAllegianceActionConfig,
-        SetCameraActionConfig, SetCameraAnchorActionConfig, SetControllerVerbActionConfig,
-        SetInfiniteAmmoActionConfig, SetSkyboxActionConfig, SetSpeedCapActionConfig,
-        StopShipActionConfig, StoryMessageActionConfig, TimerCancelActionConfig,
+        ReleaseCameraActionConfig, ResumePlayerControlActionConfig, ScatterObjectsConfig,
+        ScatterRegion, ScenarioAreaConfig, ScenarioObjectConfig, ScenarioObjectKind,
+        ScenarioOutcomeKind, ScreenshotActionConfig, SequenceActionConfig, SequenceGateConfig,
+        SequenceStepConfig, SetAIEngageRangeActionConfig, SetAILeashActionConfig,
+        SetAIPointDefenseRangeActionConfig, SetAllegianceActionConfig, SetCameraActionConfig,
+        SetCameraAnchorActionConfig, SetControllerVerbActionConfig, SetInfiniteAmmoActionConfig,
+        SetSkyboxActionConfig, SetSpeedCapActionConfig, StopShipActionConfig,
+        StoryMessageActionConfig, SuspendPlayerControlActionConfig, TimerCancelActionConfig,
         TimerStartActionConfig, VariableSetActionConfig, CAPTURE_DIR_ENV, MAX_SCATTER_COUNT,
         NEXT_SCENARIO_DELAY_MAX_SECS, NEXT_SCENARIO_DELAY_WARN_SECS, OUTCOME_AUTO_ADVANCE_MAX_SECS,
     };
@@ -127,6 +128,10 @@ pub enum EventActionConfig {
     SetCameraAnchor(SetCameraAnchorActionConfig),
     /// Hand the scenario camera back to the player's chase rig.
     ReleaseCamera(ReleaseCameraActionConfig),
+    /// Block human gameplay input and clear held ship intent.
+    SuspendPlayerControl(SuspendPlayerControlActionConfig),
+    /// Restore human gameplay input after an explicit suspension.
+    ResumePlayerControl(ResumePlayerControlActionConfig),
     /// Capture the primary window to a PNG (photo mode).
     Screenshot(ScreenshotActionConfig),
     /// Swap the scenario's skybox cubemap mid-scenario (modding hook).
@@ -245,6 +250,12 @@ impl EventAction<NovaEventWorld> for EventActionConfig {
                 config.action(world, info);
             }
             EventActionConfig::ReleaseCamera(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::SuspendPlayerControl(config) => {
+                config.action(world, info);
+            }
+            EventActionConfig::ResumePlayerControl(config) => {
                 config.action(world, info);
             }
             EventActionConfig::Screenshot(config) => {
@@ -395,6 +406,8 @@ impl EventActionConfig {
             | EventActionConfig::SetCamera(_)
             | EventActionConfig::SetCameraAnchor(_)
             | EventActionConfig::ReleaseCamera(_)
+            | EventActionConfig::SuspendPlayerControl(_)
+            | EventActionConfig::ResumePlayerControl(_)
             | EventActionConfig::Screenshot(_)
             | EventActionConfig::SetSkybox(_)
             | EventActionConfig::Outcome(_)

@@ -95,4 +95,3 @@ new dial is added; the target contributes size, never a margin.
 Keep the investigation, evidence, alternatives, recommendation, and migration impact in this task before implementation. Prefer removing redundant controls over adding another independent knob.
 
 If implementation is approved, add focused behavior tests for every target category and update creator/autopilot documentation. Do not fold pathfinding or obstacle avoidance into this task.
-

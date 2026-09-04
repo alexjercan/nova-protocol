@@ -25,6 +25,7 @@ pub(super) const OBJ_TEXT_BURN: &str = "Burn to the work mark.";
 
 pub(super) const TRIM_COPILOT_STOP: &str =
     "Mark made. Take the way off her - hold [X] until we are stopped.";
+pub(super) const OBJ_TEXT_STOP: &str = "Hold [X] until Cutter comes to rest.";
 pub(super) const TRIM_COPILOT_TEACH: &str =
     "Thrusters next. Hold [SHIFT] and move the mouse: she slides without turning, and the \
      ball on the tape goes violet while you are on them. Short taps - she keeps whatever you \
@@ -58,7 +59,7 @@ pub(super) const GOTO_CHIEF: &str =
 pub(super) const OBJ_TEXT_GOTO: &str = "Press [G] and let the computer fly.";
 
 pub(super) const TRANSIT_CHIEF_AGAIN: &str = "Second mark is up. Same again.";
-pub(super) const OBJ_TEXT_TRANSIT: &str = "Fly to TRANSIT 2.";
+pub(super) const OBJ_TEXT_TRANSIT: &str = "Lock and GOTO to TRANSIT 2.";
 
 // --- the detour --------------------------------------------------------------
 
@@ -87,7 +88,7 @@ pub(super) const RETURN_CONTROL: &str =
 pub(super) const RETURN_CHIEF: &str =
     "We lift within the hour and the bonus is on a clean manifest. Get back on the plate and \
      find me that third crate.";
-pub(super) const OBJ_TEXT_RETURN: &str = "Return to the work site on the plate.";
+pub(super) const OBJ_TEXT_RETURN: &str = "Lock and GOTO back to the work site.";
 
 pub(super) const SEARCH_COPILOT: &str =
     "Signal is weak. It is somewhere off to starboard, close in.";
@@ -98,7 +99,7 @@ pub(super) const OBJ_TEXT_SEARCH: &str = "Recover the last crate.";
 pub(super) const HOME_CHIEF: &str =
     "Three for three and the sheet is clean. Bring her home - hold on the outer \
      mark and we will walk you in.";
-pub(super) const OBJ_TEXT_HOME: &str = "Return to the Meridian and hold on the outer mark.";
+pub(super) const OBJ_TEXT_HOME: &str = "Lock and GOTO to the Meridian outer hold.";
 
 // --- the attack --------------------------------------------------------------
 

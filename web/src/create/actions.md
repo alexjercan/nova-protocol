@@ -45,6 +45,8 @@ never panics a scenario). All 38 at a glance:
 | [`SetCamera`](#setcamera) | [camera](#camera-photo-mode) | pin the scenario camera at a pose |
 | [`SetCameraAnchor`](#setcameraanchor) | [camera](#camera-photo-mode) | ride the camera on an object, framing what you name |
 | [`ReleaseCamera`](#releasecamera) | [camera](#camera-photo-mode) | hand the camera back to the player's chase rig |
+| [`SuspendPlayerControl`](#suspendplayercontrol) | [camera](#camera-photo-mode) | block human gameplay input and clear held intent |
+| [`ResumePlayerControl`](#resumeplayercontrol) | [camera](#camera-photo-mode) | restore human gameplay input |
 | [`Screenshot`](#screenshot) | [camera](#camera-photo-mode) | capture the primary window to a PNG |
 | [`SetSkybox`](#setskybox) | [camera](#camera-photo-mode) | swap the scenario's skybox mid-scenario |
 
@@ -1189,11 +1191,13 @@ object dies mid-shot; `look_at: Point` is fixed world space and survives
 whatever was standing there. Frame something that is about to be destroyed with
 `Point`, not `Object`.
 
-Camera authority only. It never steers or stops the ship it rides, so the
-player keeps the helm through the whole shot. Like `SetCamera` it drops
-free-fly control and re-enforces the pose every frame; unlike `SetCamera` there
-is something to hand back to, so pair it with [`ReleaseCamera`](#releasecamera).
-An anchor id that names nothing warns and leaves the camera alone.
+Camera authority only. It never steers or stops the ship it rides and does not
+change player input authority. Like `SetCamera` it drops free-fly control and
+re-enforces the pose every frame; unlike `SetCamera` there is something to hand
+back to, so pair it with [`ReleaseCamera`](#releasecamera). Pair a staged shot
+that must own gameplay input with [`SuspendPlayerControl`](#suspendplayercontrol)
+and explicitly resume when the shot returns control. An anchor id that names
+nothing warns and leaves the camera alone.
 
 </details>
 
@@ -1214,7 +1218,48 @@ No fields. Takes off both [`SetCamera`](#setcamera)'s fixed pose and
 never stopped solving underneath, so the shot ends and the player is looking
 out of their own ship again - there is no restore pose to author.
 
-Harmless when nothing is pinned.
+Harmless when nothing is pinned. This is camera-only: it does not implicitly
+resume player control.
+
+</details>
+
+### SuspendPlayerControl
+
+Block human flight, look, targeting, combat-stance, and weapon input while the
+simulation and scripted scene continue.
+
+```ron
+SuspendPlayerControl(()),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+No fields. The action immediately clears held burn, RCS, rotation, radar,
+combat stance, thruster, turret, torpedo, and railgun intent so an input pressed
+before the cut cannot remain latched. Pause, menu, and an explicitly always-live
+cinematic-skip binding remain available. Physics, timers, AI, scripted ships,
+weapons already in flight, and camera actions continue.
+
+Repeated suspension is harmless. Scenario teardown always restores control,
+but authored content should still pair each interval with
+[`ResumePlayerControl`](#resumeplayercontrol).
+
+</details>
+
+### ResumePlayerControl
+
+Restore human gameplay input after an explicit suspension.
+
+```ron
+ResumePlayerControl(()),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+No fields. Repeated resume is harmless. This is input-only: pair it with
+[`ReleaseCamera`](#releasecamera) when returning both view and control.
 
 </details>
 

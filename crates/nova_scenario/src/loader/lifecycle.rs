@@ -58,6 +58,7 @@ fn teardown_scenario_entities(
     cheats: Option<&mut RunCheats>,
 ) {
     world.clear();
+    commands.queue(resume_player_control);
     // The objectives HUD mirror dies with the scenario too (same reset class as
     // the event world / emphasis / outcome above). The panel rides the player
     // ship, so it is despawned and rebuilt EMPTY on every (re)load, and bcs
@@ -956,6 +957,26 @@ mod tests {
         assert!(
             app.world().get_entity(scoped).is_err(),
             "the scoped sweep still runs (the teardown grew a param, not a fork)"
+        );
+    }
+
+    #[test]
+    fn teardown_always_restores_player_control() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<CurrentScenario>();
+        app.insert_resource(PlayerControlSuspended(true));
+        app.add_observer(unload_scenario);
+
+        app.world_mut().trigger(UnloadScenario);
+        app.update();
+
+        assert!(
+            !app.world()
+                .resource::<PlayerControlSuspended>()
+                .is_suspended(),
+            "a scenario must not leak cinematic authority into the menu or next run"
         );
     }
 

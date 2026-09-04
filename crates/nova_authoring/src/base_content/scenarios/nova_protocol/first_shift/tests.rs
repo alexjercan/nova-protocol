@@ -26,8 +26,9 @@ fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
 }
 
 /// The beats in the order the shift runs them.
-const BEATS: [f64; 17] = [
+const BEATS: [f64; 18] = [
     BEAT_LAUNCH,
+    BEAT_STOP,
     BEAT_TRIM_LATERAL,
     BEAT_TRIM_VERTICAL,
     BEAT_CRATE_FIRST,
@@ -257,6 +258,44 @@ fn the_thrusters_are_taught_in_open_space_before_the_plate() {
     );
 }
 
+/// STOP is a physical tutorial step and the manual governor stays visible in
+/// its behavior for the full shift. An elapsed delay must not grant RCS while
+/// Cutter is still drifting.
+#[test]
+fn the_rcs_lesson_waits_for_stop_and_keeps_the_manual_governor() {
+    let config = config();
+    let cutter = spawned_ship(&config, ID_CUTTER).expect("the shift spawns no cutter");
+    let ScenarioObjectKind::Spaceship(ship) = cutter.kind else {
+        panic!("Cutter is not a spaceship");
+    };
+    assert!(
+        matches!(ship.controller, SpaceshipController::Player(PlayerControllerConfig {
+            speed_cap: Some(cap), ..
+        }) if cap == CUTTER_SPEED_CAP),
+        "Cutter does not retain the authored manual speed cap"
+    );
+    assert!(
+        !all_actions(&config).iter().any(
+            |action| matches!(action, EventActionConfig::SetSpeedCap(cap)
+                if cap.id == ID_CUTTER && cap.cap.is_none())
+        ),
+        "First Shift silently removes Cutter's manual governor"
+    );
+
+    let stop = config
+        .events
+        .iter()
+        .find(|event| {
+            matches!(event.name, EventConfig::OnStopComplete) && beat_of(event) == Some(BEAT_STOP)
+        })
+        .expect("no physical STOP completion opens the RCS lesson");
+    assert_eq!(
+        beat_set_by(stop),
+        Some(BEAT_TRIM_LATERAL),
+        "STOP completion does not advance to the first RCS translation"
+    );
+}
+
 /// The plate itself gets HARDER. The first crate sits on the open edge where a
 /// mistake costs nothing and the second is well inside the rocks, so the field
 /// teaches itself in the right order.
@@ -317,18 +356,18 @@ fn the_orbit_is_a_detour_the_crew_comes_back_from() {
         })
         .expect("nothing completes the return to the field work");
     assert!(
-        matches!(closes_the_return.name, EventConfig::OnEnter),
-        "the return completes on {:?} - it must complete on ARRIVING at the \
-         work site, not on leaving the planetoid",
+        matches!(closes_the_return.name, EventConfig::OnGotoComplete),
+        "the return completes on {:?} - it must wait for GOTO to settle at the \
+         work site, not merely cross its trigger",
         closes_the_return.name
     );
-    let gate = format!("{:?}", WORK_SITE.entered());
+    let gate = format!("{:?}", cutter_completes_goto(WORK_SITE.id));
     assert!(
         closes_the_return
             .filters
             .iter()
             .any(|filter| format!("{filter:?}") == gate),
-        "the return completes on entering something other than the work site"
+        "the return completes after GOTO settles at something other than the work site"
     );
 }
 
@@ -355,18 +394,18 @@ fn the_attack_waits_for_the_cutter_to_reach_the_hold() {
         "the warship comes out at the wrong beat - it must wait for the run home"
     );
     assert!(
-        matches!(opens.name, EventConfig::OnEnter),
-        "the warship comes out on {:?} rather than on the player reaching the \
-         hold",
+        matches!(opens.name, EventConfig::OnGotoComplete),
+        "the warship comes out on {:?} rather than after the player settles at \
+         the hold",
         opens.name
     );
-    let gate = format!("{:?}", HOME_MARK.entered());
+    let gate = format!("{:?}", cutter_completes_goto(HOME_MARK.id));
     assert!(
         opens
             .filters
             .iter()
             .any(|filter| format!("{filter:?}") == gate),
-        "the warship comes out on entering something other than the hold"
+        "the warship comes out after GOTO settles at something other than the hold"
     );
     assert!(
         BEAT_SEARCH < BEAT_VANTAGE && BEAT_VANTAGE < BEAT_ATTACK,
@@ -585,12 +624,10 @@ fn the_cinematic_runs_its_shots_in_order_and_hands_the_camera_back() {
     );
 }
 
-/// Camera authority is not helm authority. Nothing in the chapter steers or
-/// stops the cutter: the player flies their own ship through the whole set
-/// piece, and the composition is bought by putting the work where the shot
-/// wants it rather than by taking the controls away.
+/// Cinematic suspension blocks the human controls but never installs a
+/// scripted order on Cutter: when control returns, its helm is still its own.
 #[test]
-fn the_shift_never_takes_the_helm_off_the_player() {
+fn the_script_never_flies_the_cutter_for_the_player() {
     for action in all_actions(&config()) {
         let commanded = match &action {
             EventActionConfig::MoveShipTo(order) => Some(&order.ship),
@@ -606,6 +643,34 @@ fn the_shift_never_takes_the_helm_off_the_player() {
             "the script flies the player's ship for them: {action:?}"
         );
     }
+}
+
+#[test]
+fn every_anchored_cinematic_interval_restores_player_control() {
+    let config = config();
+    let actions = all_actions(&config);
+    let suspended = actions
+        .iter()
+        .filter(|action| matches!(action, EventActionConfig::SuspendPlayerControl(_)))
+        .count();
+    let resumed = actions
+        .iter()
+        .filter(|action| matches!(action, EventActionConfig::ResumePlayerControl(_)))
+        .count();
+    let released = actions
+        .iter()
+        .filter(|action| matches!(action, EventActionConfig::ReleaseCamera(_)))
+        .count();
+
+    assert_eq!(
+        suspended, 2,
+        "entry and salvo each own one control interval"
+    );
+    assert_eq!(resumed, suspended, "every suspension must have a resume");
+    assert_eq!(
+        resumed, released,
+        "control returns whenever the anchored camera is handed back"
+    );
 }
 
 /// The cutter is unarmed and stays that way, and the helm verbs it starts

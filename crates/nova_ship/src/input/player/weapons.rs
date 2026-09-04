@@ -83,11 +83,11 @@ pub(super) fn on_thruster_input(
     mut commands: Commands,
     mut q_input: Query<(&mut ThrusterSectionInput, Option<&ChildOf>), With<ThrusterInputMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    // Observers bypass system-set gating; block presses while an overlay or
+    // cinematic owns input. Releases stay live so held intent still clears.
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -178,11 +178,9 @@ pub(super) fn on_turret_input(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -277,11 +275,9 @@ pub(super) fn on_torpedo_input(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 
@@ -379,11 +375,9 @@ pub(super) fn on_railgun_input(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
 

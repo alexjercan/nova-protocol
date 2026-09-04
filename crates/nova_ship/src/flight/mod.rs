@@ -70,7 +70,7 @@ pub use self::{
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightIntent, FlightSettings, FlightSpeedCap, ManeuverTelemetry,
-        OrbitPlan, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
+        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsReference, RcsSpeedCap,
     },
 };
 
@@ -82,9 +82,10 @@ pub mod prelude {
         retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
         AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightIntent, FlightSettings,
         FlightSpeedCap, ManeuverTelemetry, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder,
-        ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome,
-        ShipOrderReport, ShipOrderReported, ShipOrderReports, SuspendedArrivalStandoff,
+        PlayerAutopilotCompleted, RcsActive, RcsIntent, RcsSpeedCap, ScriptedAlign,
+        ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
+        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
+        ShipOrderReports, SuspendedArrivalStandoff,
     };
 }
 
@@ -117,6 +118,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<AutopilotPhase>()
             .register_type::<OrbitPlan>()
             .register_type::<ManeuverTelemetry>()
+            .register_type::<PlayerAutopilotCompleted>()
             .register_type::<BodyRadius>()
             .register_type::<FlightSpeedCap>()
             .register_type::<FlightArrivalStandoff>()

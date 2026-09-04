@@ -49,7 +49,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 
 ### Part 1 - Burn, then trim
 
-1. **Burn to the work mark.** Hold <kbd>W</kbd> to burn, tap <kbd>X</kbd> to STOP. A gentle 250 m/s cap holds you in while the chief is still talking, and lifts the moment you park on the mark.
+1. **Burn to the work mark, then stop.** Hold <kbd>W</kbd> to burn. On arrival, hold <kbd>X</kbd> until STOP has brought Cutter fully to rest; the next lesson waits for the physical maneuver to finish. A gentle 150 m/s manual-flight cap remains active for the whole shift.
 2. **Trim across, then up.** Your fine thrusters unlock here, in open space, with nothing to hit. Hold <kbd>Shift</kbd> and move the mouse to translate without turning the ship - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and the RCS runs out at 100 m/s in any direction, however long you hold it. Two short marks, one across and one straight up.
 
 ### Part 2 - The plate
@@ -69,7 +69,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 </figure>
 
 4. **Lock the transit mark.** Your targeting computer comes online. Hold <kbd>Ctrl</kbd> on the mark out west until the white NAV lock sticks - holding <kbd>Ctrl</kbd> sweeps and live-locks whatever your look ray is on.
-5. **Press GOTO.** With the mark locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the mark. Then the chief gives you a second one and says almost nothing about it - the same two keys, on your own.
+5. **Press GOTO.** With the mark locked, press <kbd>G</kbd> and let the computer fly the leg. It burns over, flips, and coasts to a stop just off the mark. The temporary mark remains until the maneuver has settled. Then the chief gives you a second one and says almost nothing about it - the same two keys, on your own.
 
 ### Part 4 - The detour
 
@@ -91,7 +91,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 
 9. **Collect the last crate, then run home.** The sheet is clean and the chief calls you in. Hold on the outer mark three kilometres off the Meridian - the last GOTO of the shift, and the only thing the rest of the chapter is waiting for.
 10. **A warship comes out from behind the large planetoid.** It crosses into plain sight, closes to a firing position, turns its whole hull onto your carrier, walks six siege torpedoes out of its bays and puts two railgun slugs after them. It takes over a minute to arrive and there is nothing here to win. The game means it.
-11. **You keep the stick the whole way.** The camera takes four shots and hands itself back twice - your own view across the warship's long middle leg, and again before the aftermath. Nothing ever steers your ship for you: you can fly out of the set piece at any point in it.
+11. **The staged shots hold your controls.** The camera takes four shots across two short cinematic intervals. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. The camera and controls return for the warship's long middle leg and again before the aftermath. The script never flies Cutter for you.
 12. **Keep the channel open.** Nobody answers. What finally does is an automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
 
 (Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)

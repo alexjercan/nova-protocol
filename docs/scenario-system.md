@@ -139,9 +139,10 @@ Events carry identity, not payload-by-position: entities wear
 same filter shape - a subject `id` plus an `other_id` / `other_type_name`.
 Which entity is the subject is per-event (area against body, well against ship,
 target against locker), which is why the filter is one struct rather than one
-per event. Lock and orbit lifecycle events are one-shot EDGES with no hidden
-timer behind them: a target switch queues end-old then start-new, and a
-scenario that needs a continuous hold composes the edges with a keyed timer.
+per event. Lock, orbit, and player STOP/GOTO completion events are one-shot
+EDGES with no hidden timer behind them: a target switch queues end-old then
+start-new, a successful GOTO reports only after physical settle, and a scenario
+that needs a continuous hold composes the edges with a keyed timer.
 
 Filters read and never mutate; they take `&NovaEventWorld` and the fired
 `GameEventInfo` and return a bool, and every filter on a handler must pass.
@@ -189,11 +190,19 @@ difference is engine behaviour rather than authored syntax:
   for the other never drops the camera. Losing the anchor entity releases the
   override rather than freezing the shot, and a `look_at` entity that dies
   falls back to the anchor. It is camera authority ONLY: it issues no helm
-  order, so a cinematic never quietly flies the player's ship.
+  order and does not change input authority.
   `ReleaseCamera` removes both pose kinds. There is nothing to restore because
   the scenario camera IS the player's chase camera - the chase sync keeps
   writing in `CameraAuthoritySystems::Solve` the whole time the override is up,
   so dropping the override hands the view straight back.
+- **`SuspendPlayerControl`** sets the shared `PlayerControlSuspended` gate and
+  immediately clears held burn, RCS, rotation, radar, combat stance, and weapon
+  intent. Player input observers also read that gate because observers bypass
+  system-set run conditions. `ResumePlayerControl` lowers it. Both are
+  idempotent, and scenario teardown always resumes control. The flight context
+  is lowered while suspended; `Always` remains live for pause, menu, and an
+  explicitly always-live cinematic-skip binding. Physics, timers, AI, scripted
+  orders, and the cinematic do not use the player gate.
 - **`SetSkybox`** installs DEFERRED. The skybox setup observer reads the image
   immediately and would panic on a handle that has not loaded, so the action
   only tags the scenario camera with `PendingSkyboxSwap` and

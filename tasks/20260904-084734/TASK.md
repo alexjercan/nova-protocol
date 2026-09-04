@@ -46,4 +46,3 @@ Add focused tests for:
 - No regression to existing RCS acceleration-budget tests.
 
 Run only affected `nova_ship` tests, formatting, documentation checks, and `git diff --check` unless the review finds a broader dependency.
-

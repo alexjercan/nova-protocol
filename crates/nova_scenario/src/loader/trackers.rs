@@ -161,6 +161,46 @@ fn lock_transition(
     (ended, started)
 }
 
+/// Turn physical player-autopilot completions into authored GOTO and STOP
+/// events. The flight layer reports only successful terminal conditions, so a
+/// canceled maneuver, lost target, or disabled ship cannot satisfy a scenario
+/// continuation.
+pub(super) fn track_player_autopilot_completions(
+    q_ships: Query<
+        (
+            Entity,
+            &PlayerAutopilotCompleted,
+            &EntityId,
+            &EntityTypeName,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
+    q_ids: Query<&EntityId>,
+    mut commands: Commands,
+) {
+    for (ship, completion, ship_id, ship_type_name) in &q_ships {
+        match completion.action {
+            AutopilotAction::Stop => {
+                commands.fire::<OnStopCompleteEvent>(OnStopCompleteEventInfo {
+                    id: ship_id.0.clone(),
+                    type_name: ship_type_name.0.clone(),
+                });
+            }
+            AutopilotAction::Goto { target } => {
+                if let Ok(target_id) = q_ids.get(target) {
+                    commands.fire::<OnGotoCompleteEvent>(OnGotoCompleteEventInfo {
+                        id: target_id.0.clone(),
+                        other_id: ship_id.0.clone(),
+                        other_type_name: ship_type_name.0.clone(),
+                    });
+                }
+            }
+            AutopilotAction::GotoPos { .. } | AutopilotAction::Orbit { .. } => {}
+        }
+        commands.entity(ship).remove::<PlayerAutopilotCompleted>();
+    }
+}
+
 fn lock_info(
     target_id: String,
     ship_id: &EntityId,
@@ -301,6 +341,88 @@ pub(super) fn track_ship_order_reports(
 mod tests {
     use super::*;
     use crate::prelude::*;
+
+    /// Successful player completions preserve both sides of a GOTO and name a
+    /// STOP by its ship. Scenario handlers can therefore retire a target only
+    /// after the physical maneuver has stopped using it.
+    #[test]
+    fn player_autopilot_completions_fire_targeted_goto_and_stop_events() {
+        use nova_events::prelude::{EventHandler, GameEventsPlugin};
+        use nova_gameplay::prelude::GameObjectives;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_player_autopilot_completions);
+
+        let set_seen = |key: &str| {
+            EventActionConfig::VariableSet(VariableSetActionConfig {
+                key: key.to_string(),
+                expression: VariableExpressionNode::new_term(VariableTermNode::new_factor(
+                    VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
+                )),
+            })
+        };
+        let mut goto = EventHandler::<NovaEventWorld>::from(EventConfig::OnGotoComplete);
+        goto.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("mark".to_string()),
+            other_id: Some("cutter".to_string()),
+            ..default()
+        }));
+        goto.add_action(set_seen("goto_seen"));
+        app.world_mut().spawn(goto);
+
+        let mut stop = EventHandler::<NovaEventWorld>::from(EventConfig::OnStopComplete);
+        stop.add_filter(EventFilterConfig::Entity(EntityFilterConfig {
+            id: Some("cutter".to_string()),
+            ..default()
+        }));
+        stop.add_action(set_seen("stop_seen"));
+        app.world_mut().spawn(stop);
+
+        for key in ["goto_seen", "stop_seen"] {
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .insert_variable(key.to_string(), VariableLiteral::Number(0.0));
+        }
+
+        let cutter = app
+            .world_mut()
+            .spawn((
+                PlayerSpaceshipMarker,
+                EntityId::new("cutter"),
+                EntityTypeName::new(SPACESHIP_TYPE_NAME),
+            ))
+            .id();
+        let mark = app.world_mut().spawn(EntityId::new("mark")).id();
+        app.update();
+
+        app.world_mut()
+            .entity_mut(cutter)
+            .insert(PlayerAutopilotCompleted {
+                action: AutopilotAction::Goto { target: mark },
+            });
+        app.update();
+        app.update();
+        app.world_mut()
+            .entity_mut(cutter)
+            .insert(PlayerAutopilotCompleted {
+                action: AutopilotAction::Stop,
+            });
+        app.update();
+        app.update();
+
+        let value = |key| {
+            app.world()
+                .resource::<NovaEventWorld>()
+                .get_variable(key)
+                .cloned()
+        };
+        assert_eq!(value("goto_seen"), Some(VariableLiteral::Number(1.0)));
+        assert_eq!(value("stop_seen"), Some(VariableLiteral::Number(1.0)));
+    }
 
     /// Each queued outcome fires ONCE, under its own key, as its own event
     /// kind. The `ShipOrder` filter is what a waiting beat matches it with, so

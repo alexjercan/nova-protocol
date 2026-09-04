@@ -21,7 +21,7 @@ Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothin
 
 ## Manual flight
 
-You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by training legs like First Shift's 250 m/s starter governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, so a held throttle levels off instead of accelerating forever. The cap is on your TOTAL speed, not on the heading you happen to be pointing, so turning and burning again spends the same one allowance. A burn that would slow you down is never capped.
+You point the hull by mouse or stick - the controller section turns the ship toward your aim - and hold <kbd>W</kbd> (or the burn trigger) for an analog main-drive burn. The main drive is the sum of the thrusters that point forward; inputs spool up and down smoothly rather than snapping. A ship can carry an optional soft **speed cap** (used by First Shift's persistent 150 m/s manual-flight governor - `m/s` is meters per second; see the [glossary](../glossary/)): the burn tapers to zero over the last stretch before the cap, so a held throttle levels off instead of accelerating forever. The cap is on your total speed, not on the heading you happen to be pointing, so turning and burning again spends the same allowance. A burn that would slow you down is never capped. GOTO plans its own flight independently.
 
 ## The hull decides the handling
 

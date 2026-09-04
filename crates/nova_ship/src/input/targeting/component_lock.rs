@@ -245,11 +245,11 @@ pub(crate) fn on_component_cycle_next(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen()
+        || crate::input::player::control::player_control_is_suspended(control)
+    {
         return;
     }
     for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
@@ -281,11 +281,11 @@ pub(super) fn on_component_cycle_prev(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
 ) {
-    // Observers bypass system-set gating; freeze intent changes while the
-    // pause overlay is up. Releases stay ungated so held keys clear cleanly
-    // during a pause.
-    if pause.get().is_frozen() {
+    if pause.get().is_frozen()
+        || crate::input::player::control::player_control_is_suspended(control)
+    {
         return;
     }
     for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
