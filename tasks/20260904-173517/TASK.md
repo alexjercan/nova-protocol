@@ -1,9 +1,8 @@
 # Budget the debris a collapse throws
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 67
 - TAGS: v0.13.0, performance
-
 
 ## Report
 
