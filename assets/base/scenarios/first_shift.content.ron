@@ -2103,7 +2103,7 @@
                                         ),
                                         kind: SalvageCrate((
                                             size: 15.0,
-                                            area_radius: 80.0,
+                                            area_radius: 15.0,
                                             pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                                         )),
                                     )),
@@ -2176,7 +2176,7 @@
                                         ),
                                         kind: SalvageCrate((
                                             size: 15.0,
-                                            area_radius: 80.0,
+                                            area_radius: 15.0,
                                             pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                                         )),
                                     )),
@@ -2778,7 +2778,7 @@
                                         ),
                                         kind: SalvageCrate((
                                             size: 15.0,
-                                            area_radius: 80.0,
+                                            area_radius: 15.0,
                                             pickup_sound: Some("self://sounds/salvage_pickup.wav"),
                                         )),
                                     )),

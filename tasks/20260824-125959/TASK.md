@@ -791,3 +791,23 @@ control-authority and preview-capability pins. Scenes 07-09 compile. Content
 lint reports 0 errors, 0 warnings and 0 findings. A rendered five-still review
 confirmed there is no camera cut between Cutter's torpedo and aftermath views;
 the 575,077-byte rail-hit loop and complete 34.5-second walk both exit cleanly.
+
+### 2026-09-04: First Shift playtest revision, step 6
+
+Reduced each maintenance crate's pickup radius from 80 m to 15 m. The visible
+15 m tumbling cube has a 13 m half-diagonal, leaving 2 m of sensor tolerance.
+Cutter already contributes its compound section colliders to the overlap, so
+the crate sensor no longer adds another ship-sized standoff. The sensor remains
+non-solid, so pickup does not require or cause a destructive physical impact.
+
+Moved the standalone salvage preview to a 70 m abeam fixture. A rendered
+1920x1080 review showed the complete crate and Cutter side by side before
+contact. Driving the real Shift-plus-mouse RCS input laterally completed the
+first crate objective and revealed the second; no scripted repositioning or
+example-side scenario transition was used. The three crate centres remain
+clear of every worst-case plate rock.
+
+Proof: 18 focused First Shift tests pass, including a pin that the pickup sphere
+encloses the rotating crate with at most 2.1 m tolerance. The salvage example
+compiles, generated content lint reports 0 errors, 0 warnings and 0 findings,
+and `git diff --check` is clean.

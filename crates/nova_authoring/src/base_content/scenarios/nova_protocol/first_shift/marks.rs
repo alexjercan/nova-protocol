@@ -247,9 +247,12 @@ pub(super) const CRATE_POSITIONS: [Meters3; 3] = [
     Meters3::new(1_800.0, -120.0, -1_400.0),
 ];
 
-/// Crate pickup radius: tight enough to require flying AT the crate, which is
-/// the whole reason the thrusters are taught first.
-pub(super) const CRATE_AREA_RADIUS: Meters = Meters(80.0);
+/// Visible crate edge and its pickup envelope. The 15 m sphere encloses the
+/// tumbling box's 13 m half-diagonal with 2 m of contact tolerance. Cutter's
+/// compound section colliders supply the ship side of the overlap, so this is
+/// a crate envelope rather than another whole-hull standoff.
+pub(super) const CRATE_SIZE: Meters = Meters(15.0);
+pub(super) const CRATE_AREA_RADIUS: Meters = Meters(15.0);
 
 /// One crate, by index into [`CRATE_POSITIONS`] (1-based, as the objective
 /// text counts them).
@@ -267,7 +270,7 @@ pub(super) fn crate_object(number: usize) -> ScenarioObjectConfig {
             rotation: Quat::IDENTITY,
         },
         kind: ScenarioObjectKind::SalvageCrate(SalvageCrateConfig {
-            size: Meters(15.0),
+            size: CRATE_SIZE,
             area_radius: CRATE_AREA_RADIUS,
             pickup_sound: Some(AssetRef::from("self://sounds/salvage_pickup.wav")),
         }),

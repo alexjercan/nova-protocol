@@ -444,6 +444,14 @@ fn the_rcs_briefing_shows_the_complete_four_mark_box_before_control_returns() {
 /// teaches itself in the right order.
 #[test]
 fn the_field_work_runs_from_the_plate_edge_inward() {
+    let visible_half_diagonal = CRATE_SIZE.0 * 3.0_f32.sqrt() / 2.0;
+    let contact_tolerance = CRATE_AREA_RADIUS.0 - visible_half_diagonal;
+    assert!(
+        (0.0..=2.1).contains(&contact_tolerance),
+        "the pickup sphere leaves {contact_tolerance:.1} m beyond the tumbling \
+         crate; it must enclose the visible box without collecting at a distance"
+    );
+
     let clearance = |position: Meters3| {
         stage::SALVAGE_ROCKS
             .into_iter()

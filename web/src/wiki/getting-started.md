@@ -54,7 +54,7 @@ You open on the flank of the industrial carrier **Meridian**, undocked and drift
 
 ### Part 2 - The plate
 
-3. **Recover the crates, one at a time.** The first sits on the plate's open edge where the rocks are sparse; the second is well inside them, where they are not. Fly through a crate to collect it. The next one is not shown until the one before it is aboard.
+3. **Recover the crates, one at a time.** The first sits on the plate's open edge where the rocks are sparse; the second is well inside them, where they are not. Use RCS to bring Cutter visibly alongside the tumbling box; collection happens at close contact, not at the edge of its marker. The next crate is not shown until the one before it is aboard.
 
 ### Part 3 - Lock and let the computer fly
 

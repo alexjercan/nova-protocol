@@ -62,6 +62,8 @@ does NOT get an entry - and it is the only place they are written down.
   Its silent kill cuts through launch and rail hits, then holds Cutter through torpedo impacts and aftermath.
 - First Shift waits for physical STOP and GOTO completion, frames all four RCS
   marks before flight resumes, and keeps Cutter's manual limit at 150 m/s.
+- First Shift salvage crates collect only at visible contact: their pickup
+  radius shrank from 80 m to the 15 m crate envelope.
 - **(breaking)** The campaign is two new chapters, First Shift and Second
   Shift; `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
