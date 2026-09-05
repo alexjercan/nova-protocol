@@ -142,10 +142,10 @@ pub fn sequence_gate_handlers(actions: &[EventActionConfig]) -> Vec<EventHandler
     let mut handlers = Vec::new();
     for action in actions {
         action.walk(&mut |action| {
-            let EventActionConfig::Sequence(config) = action else {
+            let Some((key, steps)) = action.step_chain() else {
                 return;
             };
-            for (index, step) in config.steps.iter().enumerate() {
+            for (index, step) in steps.iter().enumerate() {
                 let Some(gate) = step.until.as_ref() else {
                     continue;
                 };
@@ -154,7 +154,7 @@ pub fn sequence_gate_handlers(actions: &[EventActionConfig]) -> Vec<EventHandler
                     handler.add_filter(filter.clone());
                 }
                 handler.add_action(SequenceGateAction {
-                    key: config.key.clone(),
+                    key: key.to_string(),
                     step: index,
                 });
                 handlers.push(handler);
@@ -171,12 +171,23 @@ pub fn sequence_gate_handlers(actions: &[EventActionConfig]) -> Vec<EventHandler
 /// A step's actions run with a DEFAULT `GameEventInfo`: no action reads the
 /// event payload, and a step is a scenario beat rather than a reaction to one
 /// entity.
-pub fn advance_scenario_sequences(mut world: ResMut<NovaEventWorld>) {
+pub fn advance_scenario_sequences(mut commands: Commands, mut world: ResMut<NovaEventWorld>) {
     let now = world.scenario_elapsed();
     while let Some(actions) = world.take_ready_sequence_step(now) {
         for action in &actions {
             action.action(&mut world, &GameEventInfo::default());
         }
+    }
+    // A scene's ending is announced AFTER its beats have run, and a skip is
+    // announced before the finish it shares: the handler that catches the
+    // world up runs before the handler that gives the camera back.
+    for ending in world.drain_cinematic_endings() {
+        if ending.skipped {
+            commands.fire::<OnCinematicSkippedEvent>(CinematicEventInfo {
+                key: ending.key.clone(),
+            });
+        }
+        commands.fire::<OnCinematicFinishedEvent>(CinematicEventInfo { key: ending.key });
     }
 }
 

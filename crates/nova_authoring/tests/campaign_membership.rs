@@ -34,7 +34,7 @@ fn merged_campaign_resolves_members_in_play_order() {
         .expect("the base Nova Protocol campaign registers");
     assert_eq!(
         campaign.scenarios,
-        vec!["first_shift", "second_shift"],
+        vec!["first_shift"],
         "members resolve in the campaign's declared play order"
     );
 

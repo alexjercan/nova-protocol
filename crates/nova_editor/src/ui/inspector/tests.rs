@@ -14,8 +14,8 @@ use nova_gameplay::prelude::Allegiance;
 use nova_modding::prelude::{BundleAsset, CatalogEntry, InstalledCatalog, ModEntry, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig, EventActionConfig,
-    ScenarioObjectKind, SectionSource, SpaceshipConfig, SpaceshipController,
-    StoryMessageActionConfig, KIND_ROCK,
+    NarrativeCueActionConfig, ScenarioObjectKind, SectionSource, SpaceshipConfig,
+    SpaceshipController, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, MuzzleConfig, SectionConfig, SectionKind, ThrusterSectionConfig,
@@ -25,8 +25,8 @@ use nova_ship::prelude::{
 use super::*;
 use crate::{
     event::{
-        ActionChoice, ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice, FilterKind,
-        FilterNode,
+        ActionChoice, ActionChoiceExt, ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice,
+        FilterKind, FilterNode,
     },
     node::{EditorNode, NextChildOrdinal, ScenarioNode},
 };
@@ -1637,7 +1637,8 @@ fn a_file_row_offers_the_bundles_files_and_marks_one_they_do_not_ship() {
         .spawn((
             EditorNode,
             ActionNode {
-                kind: ActionKind::Leaf(EventActionConfig::StoryMessage(StoryMessageActionConfig {
+                kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                    channel: nova_scenario::prelude::NarrativeChannelConfig::Comms,
                     speaker: "Alpha".to_string(),
                     text: "Strip it clean.".to_string(),
                     dwell: None,

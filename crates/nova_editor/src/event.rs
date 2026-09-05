@@ -91,6 +91,8 @@ pub(crate) enum FilterKind {
     Timer(TimerFilterConfig),
     /// Match a scripted ship order's completion by key, ship or kind.
     ShipOrder(ShipOrderFilterConfig),
+    /// Match a cinematic event by the scene's key.
+    Cinematic(CinematicFilterConfig),
     /// Invert the one filter inside it.
     Not,
     /// Pass when both filters inside it pass.
@@ -179,6 +181,10 @@ pub(crate) enum ActionKind {
     Leaf(EventActionConfig),
     /// A `Sequence`: the key lives here, the steps are children.
     Sequence(SequenceHead),
+    /// A `Cinematic`: the key and the skip flag live here, the beats are
+    /// children. The same node shape as a sequence, because a scene IS one -
+    /// what the wrapper adds is the ending, and the ending is a handler.
+    Cinematic(CinematicHead),
     /// A `VariableSet`: the key lives here, the value is a child expression.
     VariableSet(VariableSetHead),
 }
@@ -188,6 +194,17 @@ pub(crate) enum ActionKind {
 pub(crate) struct SequenceHead {
     /// Scenario-local key the engine files the cursor under.
     pub(crate) key: String,
+}
+
+/// A cinematic's own fields, minus the beats.
+#[derive(Component, Debug, Clone, Default, Reflect)]
+pub(crate) struct CinematicHead {
+    /// Scenario-local key the engine files the cursor under, and the key both
+    /// cinematic events report.
+    #[reflect(@Names::Cinematic)]
+    pub(crate) key: String,
+    /// Whether the player may leave the scene early.
+    pub(crate) skippable: bool,
 }
 
 /// A variable set's own field, minus the expression.
@@ -251,32 +268,7 @@ pub(crate) fn handler_text(event: &EventNode) -> String {
 /// into a hand-written mod is the string the row shows, so the panel teaches
 /// the format rather than a second vocabulary for it.
 pub(crate) fn event_label(name: EventConfig) -> &'static str {
-    match name {
-        EventConfig::OnStart => "On Start",
-        EventConfig::OnDefeated => "On Defeated",
-        EventConfig::OnDestroyed => "On Destroyed",
-        EventConfig::OnNeutralized => "On Neutralized",
-        EventConfig::OnUpdate => "On Update",
-        EventConfig::OnTimerEnd => "On Timer End",
-        EventConfig::OnEnter => "On Enter",
-        EventConfig::OnExit => "On Exit",
-        EventConfig::OnGotoComplete => "On GOTO Complete",
-        EventConfig::OnStopComplete => "On STOP Complete",
-        EventConfig::OnOrbitStart => "On Orbit Start",
-        EventConfig::OnOrbitStable => "On Orbit Stable",
-        EventConfig::OnOrbitLap => "On Orbit Lap",
-        EventConfig::OnOrbitUnstable => "On Orbit Unstable",
-        EventConfig::OnOrbitEnd => "On Orbit End",
-        EventConfig::OnTravelLockStart => "On Travel Lock",
-        EventConfig::OnTravelLockEnd => "On Travel Unlock",
-        EventConfig::OnCombatLockStart => "On Combat Lock",
-        EventConfig::OnCombatLockEnd => "On Combat Unlock",
-        EventConfig::OnShipOrderComplete => "On Ship Order Complete",
-        EventConfig::OnShipOrderInterrupted => "On Ship Order Interrupted",
-        EventConfig::OnShipOrderResumed => "On Ship Order Resumed",
-        EventConfig::OnShipOrderCanceled => "On Ship Order Canceled",
-        EventConfig::OnShipOrderFailed => "On Ship Order Failed",
-    }
+    name.label()
 }
 
 /// The filter kinds the editor can add, in the order a menu lists them.
@@ -290,6 +282,8 @@ pub(crate) enum FilterChoice {
     Timer,
     /// Match a scripted ship order's completion.
     ShipOrder,
+    /// Match a cinematic by key.
+    Cinematic,
     /// Invert one filter.
     Not,
     /// Both.
@@ -300,11 +294,12 @@ pub(crate) enum FilterChoice {
 
 impl FilterChoice {
     /// Every filter a handler can be given.
-    pub(crate) const ALL: [FilterChoice; 7] = [
+    pub(crate) const ALL: [FilterChoice; 8] = [
         FilterChoice::Entity,
         FilterChoice::Expression,
         FilterChoice::Timer,
         FilterChoice::ShipOrder,
+        FilterChoice::Cinematic,
         FilterChoice::Not,
         FilterChoice::And,
         FilterChoice::Or,
@@ -317,6 +312,7 @@ impl FilterChoice {
             FilterChoice::Expression => "Expression",
             FilterChoice::Timer => "Timer",
             FilterChoice::ShipOrder => "Ship Order",
+            FilterChoice::Cinematic => "Cinematic",
             FilterChoice::Not => "Not",
             FilterChoice::And => "And",
             FilterChoice::Or => "Or",
@@ -330,6 +326,7 @@ impl FilterChoice {
             FilterChoice::Expression => "expression",
             FilterChoice::Timer => "timer",
             FilterChoice::ShipOrder => "order",
+            FilterChoice::Cinematic => "scene",
             FilterChoice::Not => "not",
             FilterChoice::And => "and",
             FilterChoice::Or => "or",
@@ -342,7 +339,8 @@ impl FilterChoice {
             FilterChoice::Entity
             | FilterChoice::Expression
             | FilterChoice::Timer
-            | FilterChoice::ShipOrder => 0,
+            | FilterChoice::ShipOrder
+            | FilterChoice::Cinematic => 0,
             FilterChoice::Not => 1,
             FilterChoice::And | FilterChoice::Or => 2,
         }
@@ -357,6 +355,9 @@ impl FilterChoice {
             FilterChoice::Expression => FilterKind::Expression,
             FilterChoice::Timer => FilterKind::Timer(TimerFilterConfig { key: String::new() }),
             FilterChoice::ShipOrder => FilterKind::ShipOrder(ShipOrderFilterConfig::default()),
+            FilterChoice::Cinematic => {
+                FilterKind::Cinematic(CinematicFilterConfig { key: String::new() })
+            }
             FilterChoice::Not => FilterKind::Not,
             FilterChoice::And => FilterKind::And,
             FilterChoice::Or => FilterKind::Or,
@@ -503,6 +504,7 @@ pub(crate) fn filter_choice(kind: &FilterKind) -> FilterChoice {
         FilterKind::Expression => FilterChoice::Expression,
         FilterKind::Timer(_) => FilterChoice::Timer,
         FilterKind::ShipOrder(_) => FilterChoice::ShipOrder,
+        FilterKind::Cinematic(_) => FilterChoice::Cinematic,
         FilterKind::Not => FilterChoice::Not,
         FilterKind::And => FilterChoice::And,
         FilterKind::Or => FilterChoice::Or,
@@ -516,6 +518,7 @@ pub(crate) fn filter_config(kind: &FilterKind) -> Option<&dyn PartialReflect> {
         FilterKind::Entity(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
         FilterKind::ShipOrder(config) => Some(config),
+        FilterKind::Cinematic(config) => Some(config),
         FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
@@ -526,6 +529,7 @@ pub(crate) fn filter_config_mut(kind: &mut FilterKind) -> Option<&mut dyn Partia
         FilterKind::Entity(config) => Some(config),
         FilterKind::Timer(config) => Some(config),
         FilterKind::ShipOrder(config) => Some(config),
+        FilterKind::Cinematic(config) => Some(config),
         FilterKind::Expression | FilterKind::Not | FilterKind::And | FilterKind::Or => None,
     }
 }
@@ -537,8 +541,9 @@ pub(crate) fn filter_config_mut(kind: &mut FilterKind) -> Option<&mut dyn Partia
 pub(crate) fn action_config(kind: &ActionKind) -> Option<&dyn PartialReflect> {
     match kind {
         ActionKind::Sequence(head) => Some(head),
+        ActionKind::Cinematic(head) => Some(head),
         ActionKind::VariableSet(head) => Some(head),
-        ActionKind::Leaf(action) => leaf_config(action),
+        ActionKind::Leaf(action) => action.payload(),
     }
 }
 
@@ -546,352 +551,40 @@ pub(crate) fn action_config(kind: &ActionKind) -> Option<&dyn PartialReflect> {
 pub(crate) fn action_config_mut(kind: &mut ActionKind) -> Option<&mut dyn PartialReflect> {
     match kind {
         ActionKind::Sequence(head) => Some(head),
+        ActionKind::Cinematic(head) => Some(head),
         ActionKind::VariableSet(head) => Some(head),
-        ActionKind::Leaf(action) => leaf_config_mut(action),
+        ActionKind::Leaf(action) => action.payload_mut(),
     }
 }
 
-/// The payload of every action arm but `Sequence`.
-fn leaf_config(action: &EventActionConfig) -> Option<&dyn PartialReflect> {
-    match action {
-        EventActionConfig::DebugMessage(config) => Some(config),
-        EventActionConfig::VariableSet(config) => Some(config),
-        EventActionConfig::TimerStart(config) => Some(config),
-        EventActionConfig::TimerCancel(config) => Some(config),
-        EventActionConfig::Objective(config) => Some(config),
-        EventActionConfig::ObjectiveComplete(config) => Some(config),
-        EventActionConfig::ObjectiveMarkerAttach(config) => Some(config),
-        EventActionConfig::ObjectiveMarkerDetach(config) => Some(config),
-        EventActionConfig::HintEmphasisSet(config) => Some(config),
-        EventActionConfig::HintEmphasisClear(config) => Some(config),
-        EventActionConfig::SpawnScenarioObject(config) => Some(config),
-        EventActionConfig::ScatterObjects(config) => Some(config),
-        EventActionConfig::DespawnScenarioObject(config) => Some(config),
-        EventActionConfig::SetSpeedCap(config) => Some(config),
-        EventActionConfig::SetControllerVerb(config) => Some(config),
-        EventActionConfig::SetAllegiance(config) => Some(config),
-        EventActionConfig::MoveShipTo(config) => Some(config),
-        EventActionConfig::ForceAlign(config) => Some(config),
-        EventActionConfig::StopShip(config) => Some(config),
-        EventActionConfig::PatrolShip(config) => Some(config),
-        EventActionConfig::OrbitShip(config) => Some(config),
-        EventActionConfig::ClearShipOrder(config) => Some(config),
-        EventActionConfig::SetAILeash(config) => Some(config),
-        EventActionConfig::SetAIEngageRange(config) => Some(config),
-        EventActionConfig::SetAIPointDefenseRange(config) => Some(config),
-        EventActionConfig::ForceRailgunFire(config) => Some(config),
-        EventActionConfig::ForceTorpedoFire(config) => Some(config),
-        EventActionConfig::SetInfiniteAmmo(config) => Some(config),
-        EventActionConfig::RefillAmmo(config) => Some(config),
-        EventActionConfig::CreateScenarioArea(config) => Some(config),
-        EventActionConfig::NextScenario(config) => Some(config),
-        EventActionConfig::SetCamera(config) => Some(config),
-        EventActionConfig::SetCameraAnchor(config) => Some(config),
-        EventActionConfig::ReleaseCamera(config) => Some(config),
-        EventActionConfig::SuspendPlayerControl(config) => Some(config),
-        EventActionConfig::ResumePlayerControl(config) => Some(config),
-        EventActionConfig::Screenshot(config) => Some(config),
-        EventActionConfig::SetSkybox(config) => Some(config),
-        EventActionConfig::Outcome(config) => Some(config),
-        EventActionConfig::StoryMessage(config) => Some(config),
-        EventActionConfig::HudReadout(config) => Some(config),
-        EventActionConfig::Sequence(_) => None,
-    }
-}
-
-/// The same payload, for writing.
-fn leaf_config_mut(action: &mut EventActionConfig) -> Option<&mut dyn PartialReflect> {
-    match action {
-        EventActionConfig::DebugMessage(config) => Some(config),
-        EventActionConfig::VariableSet(config) => Some(config),
-        EventActionConfig::TimerStart(config) => Some(config),
-        EventActionConfig::TimerCancel(config) => Some(config),
-        EventActionConfig::Objective(config) => Some(config),
-        EventActionConfig::ObjectiveComplete(config) => Some(config),
-        EventActionConfig::ObjectiveMarkerAttach(config) => Some(config),
-        EventActionConfig::ObjectiveMarkerDetach(config) => Some(config),
-        EventActionConfig::HintEmphasisSet(config) => Some(config),
-        EventActionConfig::HintEmphasisClear(config) => Some(config),
-        EventActionConfig::SpawnScenarioObject(config) => Some(config),
-        EventActionConfig::ScatterObjects(config) => Some(config),
-        EventActionConfig::DespawnScenarioObject(config) => Some(config),
-        EventActionConfig::SetSpeedCap(config) => Some(config),
-        EventActionConfig::SetControllerVerb(config) => Some(config),
-        EventActionConfig::SetAllegiance(config) => Some(config),
-        EventActionConfig::MoveShipTo(config) => Some(config),
-        EventActionConfig::ForceAlign(config) => Some(config),
-        EventActionConfig::StopShip(config) => Some(config),
-        EventActionConfig::PatrolShip(config) => Some(config),
-        EventActionConfig::OrbitShip(config) => Some(config),
-        EventActionConfig::ClearShipOrder(config) => Some(config),
-        EventActionConfig::SetAILeash(config) => Some(config),
-        EventActionConfig::SetAIEngageRange(config) => Some(config),
-        EventActionConfig::SetAIPointDefenseRange(config) => Some(config),
-        EventActionConfig::ForceRailgunFire(config) => Some(config),
-        EventActionConfig::ForceTorpedoFire(config) => Some(config),
-        EventActionConfig::SetInfiniteAmmo(config) => Some(config),
-        EventActionConfig::RefillAmmo(config) => Some(config),
-        EventActionConfig::CreateScenarioArea(config) => Some(config),
-        EventActionConfig::NextScenario(config) => Some(config),
-        EventActionConfig::SetCamera(config) => Some(config),
-        EventActionConfig::SetCameraAnchor(config) => Some(config),
-        EventActionConfig::ReleaseCamera(config) => Some(config),
-        EventActionConfig::SuspendPlayerControl(config) => Some(config),
-        EventActionConfig::ResumePlayerControl(config) => Some(config),
-        EventActionConfig::Screenshot(config) => Some(config),
-        EventActionConfig::SetSkybox(config) => Some(config),
-        EventActionConfig::Outcome(config) => Some(config),
-        EventActionConfig::StoryMessage(config) => Some(config),
-        EventActionConfig::HudReadout(config) => Some(config),
-        EventActionConfig::Sequence(_) => None,
-    }
-}
-
-/// The action kinds the editor can add, grouped by what they touch and
-/// ordered the way a menu lists them: the mission surface first (what a player
-/// is told to do), then the world, then the ships in it, then the run's own
-/// flow, and the authoring aids last.
+/// The action kinds the editor can add, in the order the table declares them:
+/// the mission surface first (what a player is told to do), then the world,
+/// then the ships in it, then the run's own flow, and the authoring aids last.
 ///
-/// EVERY arm of [`EventActionConfig`] is here. An action the menu skipped
-/// would be one a hand-written mod can hold and the editor would silently drop
-/// on the next save.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
-pub(crate) enum ActionChoice {
-    /// Post an objective on the HUD.
-    Objective,
-    /// Complete one.
-    ObjectiveComplete,
-    /// Put the gold marker chip on an object.
-    ObjectiveMarkerAttach,
-    /// Take it off.
-    ObjectiveMarkerDetach,
-    /// A speaker-attributed comms line.
-    StoryMessage,
-    /// Bind a HUD readout to a variable.
-    HudReadout,
-    /// Pulse a keybind chip gold.
-    HintEmphasisSet,
-    /// Stop pulsing it.
-    HintEmphasisClear,
-    /// Spawn one object.
-    SpawnScenarioObject,
-    /// Spawn a seeded field of them.
-    ScatterObjects,
-    /// Despawn one by id.
-    DespawnScenarioObject,
-    /// Create a sensor sphere that drives `OnEnter`/`OnExit`.
-    CreateScenarioArea,
-    /// Swap the sky.
-    SetSkybox,
-    /// Pose the scenario camera.
-    SetCamera,
-    /// Anchor the scenario camera to an object and hold a pose relative to it.
-    SetCameraAnchor,
-    /// Hand the camera back to the player's chase rig.
-    ReleaseCamera,
-    /// Block human gameplay input.
-    SuspendPlayerControl,
-    /// Restore human gameplay input.
-    ResumePlayerControl,
-    /// Capture the window.
-    Screenshot,
-    /// Cap a ship's manual speed.
-    SetSpeedCap,
-    /// Enable or disable one of a ship's flight verbs.
-    SetControllerVerb,
-    /// Change which side a ship is on.
-    SetAllegiance,
-    /// Fly a scripted ship to a point and report when it arrives.
-    MoveShipTo,
-    /// Turn a scripted ship's nose onto a point and hold it there.
-    ForceAlign,
-    /// Bring a scripted ship to rest.
-    StopShip,
-    /// Send a ship once round an authored route.
-    PatrolShip,
-    /// Put a ship into a station-keeping orbit.
-    OrbitShip,
-    /// Cancel whatever helm order a scripted ship is under.
-    ClearShipOrder,
-    /// Tether an AI ship to a patch of space, or untether it.
-    SetAILeash,
-    /// Retune how far an AI ship leaves its routine to fight.
-    SetAIEngageRange,
-    /// Retune how close a torpedo comes before an AI ship shoots it down.
-    SetAIPointDefenseRange,
-    /// Fire one named railgun.
-    ForceRailgunFire,
-    /// Fire one named torpedo bay at a target.
-    ForceTorpedoFire,
-    /// Take a ship's magazines away, or give them back.
-    SetInfiniteAmmo,
-    /// Refill a ship's magazines, or one section's.
-    RefillAmmo,
-    /// Declare the scenario won or lost.
-    Outcome,
-    /// Queue a switch to another scenario.
-    NextScenario,
-    /// Start an ordered beat chain.
-    Sequence,
-    /// Start or restart a timer.
-    TimerStart,
-    /// Cancel one.
-    TimerCancel,
-    /// Evaluate an expression into a variable.
-    VariableSet,
-    /// Log a line.
-    DebugMessage,
+/// The list, the labels and the id stems are the scenario crate's own table
+/// ([`ActionTag`]), not a copy: an action the menu skipped would be one a
+/// hand-written mod can hold and the editor would silently drop on the next
+/// save, and a second list is exactly how that happens.
+pub(crate) type ActionChoice = ActionTag;
+
+/// What the editor adds to the scenario crate's action table: the value a
+/// freshly added action starts life as.
+///
+/// An inherent method is not available on a type this crate does not own, and
+/// the default belongs here rather than in the engine: it is authoring policy,
+/// not vocabulary.
+pub(crate) trait ActionChoiceExt {
+    /// A fresh action of this kind.
+    fn stock(self) -> ActionKind;
 }
 
-impl ActionChoice {
-    /// Every action a handler can be given.
-    pub(crate) const ALL: [ActionChoice; 42] = [
-        ActionChoice::Objective,
-        ActionChoice::ObjectiveComplete,
-        ActionChoice::ObjectiveMarkerAttach,
-        ActionChoice::ObjectiveMarkerDetach,
-        ActionChoice::StoryMessage,
-        ActionChoice::HudReadout,
-        ActionChoice::HintEmphasisSet,
-        ActionChoice::HintEmphasisClear,
-        ActionChoice::SpawnScenarioObject,
-        ActionChoice::ScatterObjects,
-        ActionChoice::DespawnScenarioObject,
-        ActionChoice::CreateScenarioArea,
-        ActionChoice::SetSkybox,
-        ActionChoice::SetCamera,
-        ActionChoice::SetCameraAnchor,
-        ActionChoice::ReleaseCamera,
-        ActionChoice::SuspendPlayerControl,
-        ActionChoice::ResumePlayerControl,
-        ActionChoice::Screenshot,
-        ActionChoice::SetSpeedCap,
-        ActionChoice::SetControllerVerb,
-        ActionChoice::SetAllegiance,
-        ActionChoice::MoveShipTo,
-        ActionChoice::ForceAlign,
-        ActionChoice::StopShip,
-        ActionChoice::PatrolShip,
-        ActionChoice::OrbitShip,
-        ActionChoice::ClearShipOrder,
-        ActionChoice::SetAILeash,
-        ActionChoice::SetAIEngageRange,
-        ActionChoice::SetAIPointDefenseRange,
-        ActionChoice::ForceRailgunFire,
-        ActionChoice::ForceTorpedoFire,
-        ActionChoice::SetInfiniteAmmo,
-        ActionChoice::RefillAmmo,
-        ActionChoice::Outcome,
-        ActionChoice::NextScenario,
-        ActionChoice::Sequence,
-        ActionChoice::TimerStart,
-        ActionChoice::TimerCancel,
-        ActionChoice::VariableSet,
-        ActionChoice::DebugMessage,
-    ];
-
-    /// The row label.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            ActionChoice::Objective => "Objective",
-            ActionChoice::ObjectiveComplete => "Objective Complete",
-            ActionChoice::ObjectiveMarkerAttach => "Marker Attach",
-            ActionChoice::ObjectiveMarkerDetach => "Marker Detach",
-            ActionChoice::StoryMessage => "Story Message",
-            ActionChoice::HudReadout => "HUD Readout",
-            ActionChoice::HintEmphasisSet => "Hint Emphasis",
-            ActionChoice::HintEmphasisClear => "Hint Clear",
-            ActionChoice::SpawnScenarioObject => "Spawn Object",
-            ActionChoice::ScatterObjects => "Scatter Objects",
-            ActionChoice::DespawnScenarioObject => "Despawn Object",
-            ActionChoice::CreateScenarioArea => "Create Area",
-            ActionChoice::SetSkybox => "Set Skybox",
-            ActionChoice::SetCamera => "Set Camera",
-            ActionChoice::SetCameraAnchor => "Anchor Camera",
-            ActionChoice::ReleaseCamera => "Release Camera",
-            ActionChoice::SuspendPlayerControl => "Suspend Player Control",
-            ActionChoice::ResumePlayerControl => "Resume Player Control",
-            ActionChoice::Screenshot => "Screenshot",
-            ActionChoice::SetSpeedCap => "Set Speed Cap",
-            ActionChoice::SetControllerVerb => "Set Flight Verb",
-            ActionChoice::SetAllegiance => "Set Allegiance",
-            ActionChoice::MoveShipTo => "Move Ship To",
-            ActionChoice::ForceAlign => "Force Align",
-            ActionChoice::StopShip => "Stop Ship",
-            ActionChoice::PatrolShip => "Patrol Ship",
-            ActionChoice::OrbitShip => "Orbit Ship",
-            ActionChoice::ClearShipOrder => "Clear Ship Order",
-            ActionChoice::SetAILeash => "Set AI Leash",
-            ActionChoice::SetAIEngageRange => "Set AI Engage Range",
-            ActionChoice::SetAIPointDefenseRange => "Set AI PD Range",
-            ActionChoice::ForceRailgunFire => "Railgun Fire",
-            ActionChoice::ForceTorpedoFire => "Torpedo Fire",
-            ActionChoice::SetInfiniteAmmo => "Set Infinite Ammo",
-            ActionChoice::RefillAmmo => "Refill Ammo",
-            ActionChoice::Outcome => "Outcome",
-            ActionChoice::NextScenario => "Next Scenario",
-            ActionChoice::Sequence => "Sequence",
-            ActionChoice::TimerStart => "Timer Start",
-            ActionChoice::TimerCancel => "Timer Cancel",
-            ActionChoice::VariableSet => "Variable Set",
-            ActionChoice::DebugMessage => "Debug Message",
-        }
-    }
-
-    /// The stem a minted id is named after.
-    pub(crate) fn stem(self) -> &'static str {
-        match self {
-            ActionChoice::Objective => "objective",
-            ActionChoice::ObjectiveComplete => "complete",
-            ActionChoice::ObjectiveMarkerAttach => "marker",
-            ActionChoice::ObjectiveMarkerDetach => "unmarker",
-            ActionChoice::StoryMessage => "story",
-            ActionChoice::HudReadout => "readout",
-            ActionChoice::HintEmphasisSet => "hint",
-            ActionChoice::HintEmphasisClear => "unhint",
-            ActionChoice::SpawnScenarioObject => "spawn",
-            ActionChoice::ScatterObjects => "scatter",
-            ActionChoice::DespawnScenarioObject => "despawn",
-            ActionChoice::CreateScenarioArea => "area",
-            ActionChoice::SetSkybox => "sky",
-            ActionChoice::SetCamera => "camera",
-            ActionChoice::SetCameraAnchor => "anchor",
-            ActionChoice::ReleaseCamera => "release",
-            ActionChoice::SuspendPlayerControl => "suspend",
-            ActionChoice::ResumePlayerControl => "resume",
-            ActionChoice::Screenshot => "shot",
-            ActionChoice::SetSpeedCap => "cap",
-            ActionChoice::SetControllerVerb => "verb",
-            ActionChoice::SetAllegiance => "allegiance",
-            ActionChoice::MoveShipTo => "move",
-            ActionChoice::ForceAlign => "align",
-            ActionChoice::StopShip => "stop",
-            ActionChoice::PatrolShip => "patrol",
-            ActionChoice::OrbitShip => "orbit",
-            ActionChoice::ClearShipOrder => "unorder",
-            ActionChoice::SetAILeash => "leash",
-            ActionChoice::SetAIEngageRange => "engage",
-            ActionChoice::SetAIPointDefenseRange => "pd",
-            ActionChoice::ForceRailgunFire => "railgun",
-            ActionChoice::ForceTorpedoFire => "torpedo",
-            ActionChoice::SetInfiniteAmmo => "unlimited",
-            ActionChoice::RefillAmmo => "refill",
-            ActionChoice::Outcome => "outcome",
-            ActionChoice::NextScenario => "next",
-            ActionChoice::Sequence => "sequence",
-            ActionChoice::TimerStart => "timer",
-            ActionChoice::TimerCancel => "untimer",
-            ActionChoice::VariableSet => "set",
-            ActionChoice::DebugMessage => "debug",
-        }
-    }
-
+impl ActionChoiceExt for ActionChoice {
     /// A fresh action of this kind.
     ///
     /// Every id field is EMPTY. A stock action that arrived naming
     /// `player_spaceship` would look authored, and a builder who never opened
     /// its panel would ship a handler pointed at a ship they never chose.
-    pub(crate) fn stock(self) -> ActionKind {
+    fn stock(self) -> ActionKind {
         let action = match self {
             ActionChoice::Objective => {
                 EventActionConfig::Objective(ObjectiveActionConfig::new("", "A new objective"))
@@ -912,8 +605,9 @@ impl ActionChoice {
                     target_id: String::new(),
                 })
             }
-            ActionChoice::StoryMessage => {
-                EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            ActionChoice::NarrativeCue => {
+                EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                    channel: NarrativeChannelConfig::Comms,
                     speaker: String::new(),
                     text: String::new(),
                     dwell: None,
@@ -974,11 +668,13 @@ impl ActionChoice {
                 brightness: None,
             }),
             ActionChoice::SetCamera => EventActionConfig::SetCamera(SetCameraActionConfig {
+                blend: None,
                 position: Meters3::new(0.0, 400.0, 1200.0),
                 look_at: Meters3::ZERO,
             }),
             ActionChoice::SetCameraAnchor => {
                 EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+                    blend: None,
                     anchor: String::new(),
                     offset: Meters3::new(0.0, 40.0, 120.0),
                     frame: CameraOffsetFrame::Local,
@@ -1098,6 +794,17 @@ impl ActionChoice {
             // The one arm whose steps are children, so the node holds the head
             // and the caller adds a first step beside it.
             ActionChoice::Sequence => return ActionKind::Sequence(SequenceHead::default()),
+            ActionChoice::Cinematic => return ActionKind::Cinematic(CinematicHead::default()),
+            ActionChoice::CancelCinematic => {
+                EventActionConfig::CancelCinematic(CancelCinematicActionConfig {
+                    key: String::new(),
+                })
+            }
+            ActionChoice::PlaySound => EventActionConfig::PlaySound(PlaySoundActionConfig {
+                sound: AssetRef::default(),
+                route: SoundRouteConfig::default(),
+                volume: None,
+            }),
             ActionChoice::TimerStart => EventActionConfig::TimerStart(TimerStartActionConfig {
                 key: String::new(),
                 seconds: number(10.0),
@@ -1145,52 +852,9 @@ fn stock_object() -> ScenarioObjectConfig {
 pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
     match kind {
         ActionKind::Sequence(_) => ActionChoice::Sequence,
+        ActionKind::Cinematic(_) => ActionChoice::Cinematic,
         ActionKind::VariableSet(_) => ActionChoice::VariableSet,
-        ActionKind::Leaf(action) => match action {
-            EventActionConfig::DebugMessage(_) => ActionChoice::DebugMessage,
-            EventActionConfig::VariableSet(_) => ActionChoice::VariableSet,
-            EventActionConfig::TimerStart(_) => ActionChoice::TimerStart,
-            EventActionConfig::TimerCancel(_) => ActionChoice::TimerCancel,
-            EventActionConfig::Objective(_) => ActionChoice::Objective,
-            EventActionConfig::ObjectiveComplete(_) => ActionChoice::ObjectiveComplete,
-            EventActionConfig::ObjectiveMarkerAttach(_) => ActionChoice::ObjectiveMarkerAttach,
-            EventActionConfig::ObjectiveMarkerDetach(_) => ActionChoice::ObjectiveMarkerDetach,
-            EventActionConfig::HintEmphasisSet(_) => ActionChoice::HintEmphasisSet,
-            EventActionConfig::HintEmphasisClear(_) => ActionChoice::HintEmphasisClear,
-            EventActionConfig::SpawnScenarioObject(_) => ActionChoice::SpawnScenarioObject,
-            EventActionConfig::ScatterObjects(_) => ActionChoice::ScatterObjects,
-            EventActionConfig::DespawnScenarioObject(_) => ActionChoice::DespawnScenarioObject,
-            EventActionConfig::SetSpeedCap(_) => ActionChoice::SetSpeedCap,
-            EventActionConfig::SetControllerVerb(_) => ActionChoice::SetControllerVerb,
-            EventActionConfig::SetAllegiance(_) => ActionChoice::SetAllegiance,
-            EventActionConfig::MoveShipTo(_) => ActionChoice::MoveShipTo,
-            EventActionConfig::ForceAlign(_) => ActionChoice::ForceAlign,
-            EventActionConfig::StopShip(_) => ActionChoice::StopShip,
-            EventActionConfig::PatrolShip(_) => ActionChoice::PatrolShip,
-            EventActionConfig::OrbitShip(_) => ActionChoice::OrbitShip,
-            EventActionConfig::ClearShipOrder(_) => ActionChoice::ClearShipOrder,
-            EventActionConfig::SetAILeash(_) => ActionChoice::SetAILeash,
-            EventActionConfig::SetAIEngageRange(_) => ActionChoice::SetAIEngageRange,
-            EventActionConfig::SetAIPointDefenseRange(_) => ActionChoice::SetAIPointDefenseRange,
-            EventActionConfig::ForceRailgunFire(_) => ActionChoice::ForceRailgunFire,
-            EventActionConfig::ForceTorpedoFire(_) => ActionChoice::ForceTorpedoFire,
-            EventActionConfig::SetInfiniteAmmo(_) => ActionChoice::SetInfiniteAmmo,
-            EventActionConfig::RefillAmmo(_) => ActionChoice::RefillAmmo,
-            EventActionConfig::CreateScenarioArea(_) => ActionChoice::CreateScenarioArea,
-            EventActionConfig::NextScenario(_) => ActionChoice::NextScenario,
-            EventActionConfig::SetCamera(_) => ActionChoice::SetCamera,
-            EventActionConfig::SetCameraAnchor(_) => ActionChoice::SetCameraAnchor,
-            EventActionConfig::ReleaseCamera(_) => ActionChoice::ReleaseCamera,
-            EventActionConfig::SuspendPlayerControl(_) => ActionChoice::SuspendPlayerControl,
-            EventActionConfig::ResumePlayerControl(_) => ActionChoice::ResumePlayerControl,
-            EventActionConfig::Screenshot(_) => ActionChoice::Screenshot,
-            EventActionConfig::SetSkybox(_) => ActionChoice::SetSkybox,
-            EventActionConfig::Outcome(_) => ActionChoice::Outcome,
-            EventActionConfig::StoryMessage(_) => ActionChoice::StoryMessage,
-            EventActionConfig::HudReadout(_) => ActionChoice::HudReadout,
-            // Unreachable: a lifted `Sequence` becomes `ActionKind::Sequence`.
-            EventActionConfig::Sequence(_) => ActionChoice::Sequence,
-        },
+        ActionKind::Leaf(action) => action.tag(),
     }
 }
 
@@ -1297,6 +961,7 @@ fn lift_filter(
         }
         EventFilterConfig::Timer(config) => (FilterKind::Timer(config), Vec::new(), None),
         EventFilterConfig::ShipOrder(config) => (FilterKind::ShipOrder(config), Vec::new(), None),
+        EventFilterConfig::Cinematic(config) => (FilterKind::Cinematic(config), Vec::new(), None),
         EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
             (FilterKind::Not, vec![*inner], None)
         }
@@ -1448,6 +1113,14 @@ fn lift_action(
     let (kind, steps, value) = match action {
         EventActionConfig::Sequence(config) => (
             ActionKind::Sequence(SequenceHead { key: config.key }),
+            config.steps,
+            None,
+        ),
+        EventActionConfig::Cinematic(config) => (
+            ActionKind::Cinematic(CinematicHead {
+                key: config.key,
+                skippable: config.skippable,
+            }),
             config.steps,
             None,
         ),
@@ -1778,6 +1451,7 @@ impl ScriptNodes<'_, '_> {
             )),
             FilterKind::Timer(config) => EventFilterConfig::Timer(config.clone()),
             FilterKind::ShipOrder(config) => EventFilterConfig::ShipOrder(config.clone()),
+            FilterKind::Cinematic(config) => EventFilterConfig::Cinematic(config.clone()),
             // A combinator with an operand missing is DROPPED rather than
             // guessed at: `Not` of nothing is not `Not` of anything, and a
             // half-built one that lowered to its own inner filter would invert
@@ -1904,6 +1578,15 @@ impl ScriptNodes<'_, '_> {
                     .filter_map(|step| self.lower_step(step))
                     .collect(),
             }),
+            ActionKind::Cinematic(head) => EventActionConfig::Cinematic(CinematicActionConfig {
+                key: head.key.clone(),
+                skippable: head.skippable,
+                steps: self
+                    .steps_of(node)
+                    .into_iter()
+                    .filter_map(|step| self.lower_step(step))
+                    .collect(),
+            }),
         })
     }
 
@@ -2016,6 +1699,9 @@ pub(crate) struct NamedIds {
     pub(crate) objectives: Vec<String>,
     /// Other scenarios, by registered id.
     pub(crate) scenarios: Vec<String>,
+    /// Cinematic keys, declared by a `Cinematic` head and referenced by the
+    /// filter that catches its ending.
+    pub(crate) cinematics: Vec<String>,
 }
 
 /// What one handler names.
@@ -2029,7 +1715,7 @@ pub(crate) fn named_ids(event: &ScenarioEventConfig) -> NamedIds {
             if let EventActionConfig::ScatterObjects(scatter) = action {
                 ids.prefixes.push(scatter.id_prefix.clone());
             }
-            if let Some(config) = leaf_config(action) {
+            if let Some(config) = action.payload() {
                 collect(config, &mut ids);
             }
         });
@@ -2044,6 +1730,7 @@ fn walk_filter_names(filter: &EventFilterConfig, ids: &mut NamedIds) {
         EventFilterConfig::Entity(config) => collect(config, ids),
         EventFilterConfig::Timer(config) => collect(config, ids),
         EventFilterConfig::ShipOrder(config) => collect(config, ids),
+        EventFilterConfig::Cinematic(config) => collect(config, ids),
         EventFilterConfig::Expression(_) => {}
         EventFilterConfig::Conditional(conditional) => match conditional {
             ConditionalFilterConfig::Not(inner) => walk_filter_names(inner, ids),
@@ -2069,6 +1756,7 @@ fn collect(config: &dyn PartialReflect, ids: &mut NamedIds) {
             Names::Timer => ids.timers.push(text.to_string()),
             Names::Objective => ids.objectives.push(text.to_string()),
             Names::Scenario => ids.scenarios.push(text.to_string()),
+            Names::Cinematic => ids.cinematics.push(text.to_string()),
             // An order key and a section id are not document-wide names: the
             // key is minted by the helm action that installs the order, and
             // the section id only means anything inside the ship named beside
@@ -2424,10 +2112,15 @@ fn action_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
     (script.event(node).is_some() || script.step(node).is_some()).then_some(node)
 }
 
-/// `node` itself, if it is the sequence a beat would join.
+/// `node` itself, if it is the beat chain a step would join. A cinematic holds
+/// steps the same way a sequence does, so Add > Step lands in either.
 fn sequence_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
     let action = script.action(node)?;
-    matches!(action.kind, ActionKind::Sequence(_)).then_some(node)
+    matches!(
+        action.kind,
+        ActionKind::Sequence(_) | ActionKind::Cinematic(_)
+    )
+    .then_some(node)
 }
 
 /// `node` itself, if it is a beat still waiting for nothing.

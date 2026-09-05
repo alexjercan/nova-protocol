@@ -7,9 +7,9 @@ use bevy::{ecs::system::RunSystemOnce, reflect::Typed};
 use nova_gameplay::prelude::Allegiance;
 use nova_scenario::prelude::{
     AIControllerConfig, AnchorConfig, AsteroidConfig, BeaconConfig, EntityFilterConfig,
-    EventActionConfig, EventConfig, LightConfig, Names, ScenarioAreaConfig, ScenarioObjectKind,
-    SectionSource, ShipSource, SpaceshipConfig, SpaceshipController, StoryMessageActionConfig,
-    TimerFilterConfig, ASTEROID_KINDS, KIND_ICE, KIND_ROCK,
+    EventActionConfig, EventConfig, LightConfig, Names, NarrativeCueActionConfig,
+    ScenarioAreaConfig, ScenarioObjectKind, SectionSource, ShipSource, SpaceshipConfig,
+    SpaceshipController, TimerFilterConfig, ASTEROID_KINDS, KIND_ICE, KIND_ROCK,
 };
 use nova_ship::prelude::{
     BaseSectionConfig, GameSections, MuzzleConfig, RailgunSectionConfig, SectionConfig,
@@ -20,9 +20,9 @@ use nova_ship::prelude::{
 use super::*;
 use crate::{
     event::{
-        action_config_mut, expr_config_mut, ActionChoice, ActionKind, ActionNode, EventNode,
-        ExprChoice, ExpressionNode, FilterChoice, FilterKind, FilterNode, ScriptNode, SequenceHead,
-        StepNode,
+        action_config_mut, expr_config_mut, ActionChoice, ActionChoiceExt, ActionKind, ActionNode,
+        EventNode, ExprChoice, ExpressionNode, FilterChoice, FilterKind, FilterNode, ScriptNode,
+        SequenceHead, StepNode,
     },
     node::{
         EditorNode, NextChildOrdinal, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipDriver,
@@ -1545,7 +1545,7 @@ fn an_action_is_switched_to_any_other_kind_from_its_own_row() {
 #[test]
 fn a_row_explains_itself_from_the_config_that_declares_it() {
     let rows = action_rows(&ActionNode {
-        kind: ActionChoice::StoryMessage.stock(),
+        kind: ActionChoice::NarrativeCue.stock(),
     });
 
     assert!(
@@ -1872,7 +1872,8 @@ fn an_id_nothing_spawns_does_not_resolve() {
 #[test]
 fn a_row_that_names_a_file_says_what_kind_of_file() {
     let action = ActionNode {
-        kind: ActionKind::Leaf(EventActionConfig::StoryMessage(StoryMessageActionConfig {
+        kind: ActionKind::Leaf(EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+            channel: nova_scenario::prelude::NarrativeChannelConfig::Comms,
             speaker: "Alpha".to_string(),
             text: "Strip it clean.".to_string(),
             dwell: None,
@@ -2128,4 +2129,28 @@ fn a_length_drags_in_the_unit_it_is_shown_in() {
     nudge_field(&mut config, &path, false, rule, 20.0).expect("a radius scrubs");
 
     assert_eq!(config.radius, Meters(40.0), "twenty pixels is ten meters");
+}
+
+/// Every action carries the sentence a builder reads beside it in the picker,
+/// and the sentence comes off the action's own table row. A row added with no
+/// doc comment would list a bare name in a menu forty-odd entries long - the
+/// exact thing the hint column exists to stop.
+#[test]
+fn every_action_and_filter_offers_the_sentence_it_was_documented_with() {
+    for choice in ActionChoice::ALL {
+        let hint = variant_hint(&choice);
+        assert!(
+            !hint.trim().is_empty(),
+            "{} is offered with nothing beside it; document its table row",
+            choice.label()
+        );
+    }
+    for choice in FilterChoice::ALL {
+        let hint = variant_hint(&choice);
+        assert!(
+            !hint.trim().is_empty(),
+            "the {} filter is offered with nothing beside it",
+            choice.label()
+        );
+    }
 }

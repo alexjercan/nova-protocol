@@ -11,16 +11,10 @@ use super::*;
 fn mainline_scenarios() -> Vec<(&'static str, ScenarioConfig)> {
     let tex = || AssetRef::<Image>::default();
     let portraits = crate::base_content::assets::BaseContentAssets::from_paths().portraits;
-    vec![
-        (
-            first_shift::FIRST_SHIFT_SCENARIO_ID,
-            first_shift::first_shift(tex(), tex(), &portraits),
-        ),
-        (
-            second_shift::SECOND_SHIFT_SCENARIO_ID,
-            second_shift::second_shift(tex(), tex(), &portraits),
-        ),
-    ]
+    vec![(
+        first_shift::FIRST_SHIFT_SCENARIO_ID,
+        first_shift::first_shift(tex(), tex(), &portraits),
+    )]
 }
 
 fn has_action(event: &ScenarioEventConfig, pred: impl Fn(&EventActionConfig) -> bool) -> bool {
@@ -30,7 +24,7 @@ fn has_action(event: &ScenarioEventConfig, pred: impl Fn(&EventActionConfig) -> 
 /// Owner pacing pass: an objective must never appear in the same frame as a
 /// conversation line. Every objective posts a beat AFTER the story line
 /// that introduces it, so the exhaustive rule is: nothing that runs in one
-/// frame posts both a StoryMessage and an Objective. This is the regression
+/// frame posts both a NarrativeCue and an Objective. This is the regression
 /// pin for the whole "objectives-appear-during-conversations" complaint across
 /// the mainline.
 #[test]
@@ -40,7 +34,7 @@ fn no_mainline_handler_posts_an_objective_alongside_a_conversation() {
             for group in event.action_groups() {
                 let has_story = group
                     .iter()
-                    .any(|a| matches!(a, EventActionConfig::StoryMessage(_)));
+                    .any(|a| matches!(a, EventActionConfig::NarrativeCue(_)));
                 let has_objective = group
                     .iter()
                     .any(|a| matches!(a, EventActionConfig::Objective(_)));
@@ -110,10 +104,8 @@ fn opening_objectives_are_deferred_past_frame_one() {
     // The opening objective ids: the first goal each scenario posts after
     // its dispatch/conversation. Kept explicit so the test pins the exact
     // beat the owner playtest flagged, not whatever else posts objectives.
-    let opening_objectives: &[(&str, &[&str])] = &[
-        (first_shift::FIRST_SHIFT_SCENARIO_ID, &["burn"]),
-        (second_shift::SECOND_SHIFT_SCENARIO_ID, &["approach"]),
-    ];
+    let opening_objectives: &[(&str, &[&str])] =
+        &[(first_shift::FIRST_SHIFT_SCENARIO_ID, &["burn"])];
     for (name, config) in mainline_scenarios() {
         let ids = opening_objectives
             .iter()
@@ -125,10 +117,10 @@ fn opening_objectives_are_deferred_past_frame_one() {
             let mut deferred = 0_usize;
             for action in config.events.iter().flat_map(|event| event.actions.iter()) {
                 action.walk(&mut |action| {
-                    let EventActionConfig::Sequence(chain) = action else {
+                    let Some((_, steps)) = action.step_chain() else {
                         return;
                     };
-                    for (index, step) in chain.steps.iter().enumerate() {
+                    for (index, step) in steps.iter().enumerate() {
                         if !step
                             .actions
                             .iter()

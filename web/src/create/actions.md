@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 38 at a glance:
+never panics a scenario). All 45 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -15,11 +15,14 @@ never panics a scenario). All 38 at a glance:
 | [`ObjectiveComplete`](#objectivecomplete) | [mission](#mission-story) | complete and remove the HUD objective with an id |
 | [`ObjectiveMarkerAttach`](#objectivemarkerattach) | [mission](#mission-story) | pin the gold HUD marker chip on a scoped object |
 | [`ObjectiveMarkerDetach`](#objectivemarkerdetach) | [mission](#mission-story) | remove that marker |
-| [`StoryMessage`](#storymessage) | [mission](#mission-story) | queue a speaker-attributed comms line |
+| [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line on a named channel: comms, crew, or guard |
 | [`HudReadout`](#hudreadout) | [mission](#mission-story) | bind a live HUD readout to a scenario variable |
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
+| [`PlaySound`](#playsound) | [sound](#sound) | play one authored cue, heard in the cockpit |
 | [`Sequence`](#sequence) | [pacing](#pacing) | run an ordered list of beats, each behind its own delay or gate |
+| [`Cinematic`](#cinematic) | [pacing](#pacing) | run the same chain as a SCENE the player is allowed to leave |
+| [`CancelCinematic`](#cancelcinematic) | [pacing](#pacing) | end a running scene from the scenario rather than the player |
 | [`Outcome`](#outcome) | [flow](#flow-outcomes-transitions) | show the VICTORY / DEFEAT banner and freeze the sim behind it |
 | [`NextScenario`](#nextscenario) | [flow](#flow-outcomes-transitions) | queue a switch to another scenario by id |
 | [`SetSpeedCap`](#setspeedcap) | [ship state](#ship-state) | install, update or remove the soft manual-speed governor |
@@ -205,7 +208,7 @@ separate `CreateScenarioArea` needed for those.
 ### Objective
 
 Post a HUD objective. Objectives state goals; comms lines
-([`StoryMessage`](#storymessage)) carry voice.
+([`NarrativeCue`](#narrativecue)) carry voice.
 
 ```ron
 Objective((id: "destroy_asteroids", message: "Objective: Destroy 5 asteroids!")),
@@ -279,14 +282,16 @@ ObjectiveMarkerDetach((target_id: "beacon_1")),
 
 </details>
 
-### StoryMessage
+### NarrativeCue
 
-A speaker-attributed line for the HUD comms stack (bottom-left, arrival
-order, ~8 s hold each, at most three visible). Pending lines wait without being
-dropped. One line per beat is still the style; the queue is the safety net.
+Speak one line into the HUD comms stack (bottom-left, arrival order, ~8 s hold
+each, at most three visible). Pending lines wait without being dropped. One
+line per beat is still the style; the queue is the safety net.
 
 ```ron
-StoryMessage((speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
+NarrativeCue((channel: Comms, speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell: Some(12.0))),
+NarrativeCue((channel: Crew, speaker: "Copilot", text: "You heard the man.")),
+NarrativeCue((channel: Guard, speaker: "Unknown Signal", text: "- state registry and -")),
 ```
 
 <details class="explain">
@@ -294,10 +299,28 @@ StoryMessage((speaker: "Foreman Okono", text: "Strip it clean, Kestrel.", dwell:
 
 | field | type | default | meaning |
 |---|---|---|---|
+| `channel` | `Comms` \| `Crew` \| `Guard` | required | where the line is heard; see below |
 | `speaker` | string | required | the distinct uppercase speaker header |
 | `text` | string | required | the line |
 | `dwell` | `Option` number | `None` | per-line hold override in seconds, clamped to [3, 30] (lint warns outside); `Some(12.0)` |
 | `icon` | `Option` asset ref | `None` | speaker portrait (`Some("self://icons/okono.png")`); omitted = the cockpit fallback tile |
+
+**Channels.** Not a faction and not a speaker: the same person reaches the
+cockpit down two different channels and the difference matters. Control on the
+work channel is talking TO you; the same desk read over the guard channel is
+something you overheard.
+
+| channel | drawn | tagged | means |
+|---|---|---|---|
+| `Comms` | incoming-transmission blue | no | the work channel: traffic addressed to this ship |
+| `Crew` | phosphor green | no | inside the hull, off the radio - a voice in the room |
+| `Guard` | amber, at 70% strength | `GUARD` | everybody's channel, nobody's conversation - a fragment the cockpit caught |
+
+The channel is REQUIRED on every cue. A line whose channel was guessed is a
+line drawn in the wrong voice, and the wrong voice is the whole difference
+between being called and overhearing. Only `Guard` carries a tag: the work
+channel is what the panel IS and the crew are in the room, so tagging either
+would label every line to distinguish it from nothing.
 
 Scenario-scoped: teardown clears the log.
 
@@ -373,6 +396,41 @@ HintEmphasisClear((verb: "RADAR")),
 
 </details>
 
+## Sound
+
+### PlaySound
+
+Play one authored one-shot. Sound that BELONGS to something in the world - a
+crate's pickup ding, a hull coming apart - is authored on that object and
+played where it happens. This is the other kind: the cue a scene needs and
+nothing in the world produces.
+
+```ron
+PlaySound((sound: "self://sounds/warn_lock.wav", route: Interface)),
+PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull, volume: Some(0.4))),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `sound` | asset ref | required | the clip, resolved like any other content sound ref |
+| `route` | `Interface` \| `Hull` | required | where it is heard |
+| `volume` | `Option` number | `None` | gain; omitted is full volume, `Some(0.4)` sits a cue UNDER a comms line |
+
+`Interface` is UI chrome - a prompt, a stinger, a chapter tone - scaled by the
+interface track. `Hull` is structure-borne through the player's own ship,
+something they feel rather than hear, scaled by the world track. The route is
+authored because those are different cues and neither is the safe guess.
+
+Non-positional on purpose. An exterior cue is attenuated and panned by where it
+happened, and a beat has no position to give one; a cue authored here is heard
+in the cockpit, which is where the player is. Author the positional kind on the
+object that makes it.
+
+</details>
+
 ## Pacing
 
 ### Sequence
@@ -387,7 +445,8 @@ Sequence((
         (
             after: Some(2.0),
             actions: [
-                StoryMessage((
+                NarrativeCue((
+                    channel: Comms,
                     speaker: "Capt. Halloran",
                     text: "Kestrel, you are cleared to burn.",
                 )),
@@ -469,6 +528,100 @@ a step runs when its wait ends and only a handler can re-check.
 
 </details>
 
+### Cinematic
+
+Run the same beat chain as a SCENE - one the player is allowed to walk out of.
+Mechanically a [`Sequence`](#sequence) with a different contract: a sequence is
+scenario logic and always runs to its end; a scene takes the camera and the
+controls away, and a player who has seen it once must be able to get them back.
+
+```ron
+Cinematic((
+    key: "strike_approach",
+    skippable: true,
+    steps: [
+        (
+            after: Some(0.0),
+            actions: [
+                SuspendPlayerControl(()),
+                SetCameraAnchor((anchor: "cutter", offset: (440.0, 25.0, -235.0), frame: World, look_at: Object("warship"))),
+            ],
+        ),
+        (
+            after: Some(14.0),
+            actions: [
+                NarrativeCue((channel: Guard, speaker: "Unknown Signal", text: "- vessel this net -")),
+            ],
+        ),
+    ],
+)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `key` | string | required | scenario-local scene key; the cursor is filed under it and both cinematic events report it |
+| `skippable` | bool | required | whether the player may leave early |
+| `steps` | list | required | the beats, in order - the same `after` / `until` / `deadline` / `actions` a `Sequence` step has |
+
+**The two ends are EVENTS, not fields.** A scene does not carry an on-finish
+action list; it REPORTS, and the handlers that answer live beside it:
+
+- [`OnCinematicFinished`](../events/#cinematic-endings) fires on every path
+  out - the last beat, a skip, a `CancelCinematic`, a blown step deadline. What
+  the scene owes the player back (camera released, control returned, the
+  objective it was covering) is authored there, ONCE, so no path can forget it.
+- [`OnCinematicSkipped`](../events/#cinematic-endings) fires first on a skip,
+  and carries only the catch-up: what the beats that never played would have
+  left behind - the actors spawned, moved or destroyed, the variables latched.
+
+Filter both with [`Cinematic((key: "..."))`](../filters/#cinematic), or a
+scenario with two scenes answers the wrong one. A filter naming a key no
+`Cinematic` plays is a lint Warn.
+
+`skippable` is authored on every scene because a scene that cannot be left is a
+real decision - three seconds long, or the first time only - and not the kind of
+thing that should happen because a field was left out.
+
+**A skip cancels the CURSOR.** It never runs the remaining steps at speed: a
+step chain is not a list of world edits, it holds camera moves, comms lines and
+shots the player has just said they do not want. Whatever the world still needs
+belongs in the skipped handler.
+
+The skip binding is held off for the first 0.75 s of the scene. The player is
+very often still holding the button that got them here, and without the hold-off
+a scene ends on the frame it opens and reads as a bug.
+
+**Nested chains outlive the skip.** A `Sequence` started inside a scene has its
+own cursor, and cancelling the scene does not cancel it. A line that must not
+survive a skip belongs in the scene's own steps, not in a chain the scene
+started.
+
+</details>
+
+### CancelCinematic
+
+End a running scene now, from the scenario rather than from the player.
+
+```ron
+CancelCinematic((key: "strike_approach")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `key` | string | required | the scene to end; a key no `Cinematic` plays is a lint Warn |
+
+The scene still reports [`OnCinematicFinished`](../events/#cinematic-endings),
+so whatever it took is given back. It does NOT report a skip: nobody asked to
+leave. Cancelling a key that is not running is a quiet no-op.
+
+</details>
+
 ## Flow: outcomes & transitions
 
 ### Outcome
@@ -479,7 +632,7 @@ exactly like the pause menu until it clears.
 
 ```ron
 Outcome((outcome: Defeat, message: Some("The cutter is lost."))),
-NextScenario((scenario_id: "second_shift", linger: true)),
+NextScenario((scenario_id: "the_wreck", linger: true)),
 ```
 
 <details class="explain">
@@ -506,7 +659,7 @@ Queue a switch to another scenario by id - a hard cut, a delayed cut, or a
 modal hold behind the outcome overlay.
 
 ```ron
-NextScenario((scenario_id: "second_shift", linger: true)),
+NextScenario((scenario_id: "the_wreck", linger: true)),
 ```
 
 <details class="explain">
@@ -564,7 +717,7 @@ MANUAL burn reads it; the autopilot plans its own deceleration.
 ### SetControllerVerb
 
 Grant or withhold one flight verb on a scoped ship's controller - the
-tutorial-progression primitive (First Shift starts with `Goto` withheld
+tutorial-progression primitive (An Ordinary Shift starts with `Goto` withheld
 and grants it when the player first locks the planetoid).
 
 ```ron
@@ -1150,6 +1303,8 @@ re-enforced every frame).
 
 ```ron
 SetCamera((position: (0.0, 300.0, 800.0), look_at: (0.0, 0.0, 0.0))),
+// The same pose as a MOVE rather than a cut.
+SetCamera((position: (0.0, 300.0, 800.0), look_at: (0.0, 0.0, 0.0), blend: Some((seconds: 4.0)))),
 ```
 
 <details class="explain">
@@ -1159,6 +1314,15 @@ SetCamera((position: (0.0, 300.0, 800.0), look_at: (0.0, 0.0, 0.0))),
 |---|---|---|---|
 | `position` | 3-tuple | required | world camera position, meters |
 | `look_at` | 3-tuple | required | world point to face, meters (up is +Y) |
+| `blend` | `Option` blend | `None` | omitted is a CUT; `Some((seconds: 4.0))` moves the camera there over four seconds |
+
+**Blends.** A blend rides on top of the pose, so a blend onto an anchored shot
+keeps tracking its subject all the way in. `seconds` is how long the move takes;
+`easing` is how those seconds are spent - omitted is `Smooth`, and `Linear` is
+the special case that wants to look like a rig on a rail
+(`Some((seconds: 4.0, easing: Linear))`). A pose authored as a cut also REMOVES
+any blend still running, or the cut would be swallowed by the move it was meant
+to interrupt.
 
 Part of the screenshot/photo surface; no scenario camera present is a warn
 no-op.
@@ -1187,6 +1351,7 @@ SetCameraAnchor((anchor: "cutter", offset: (-165.0, 30.0, 70.0), look_at: Object
 | `offset` | 3-tuple | required | where the camera sits relative to it, meters |
 | `frame` | `Local` \| `World` | `Local` | whether `offset` turns with the anchor's hull or stays on world axes |
 | `look_at` | `Anchor` \| `Point((x,y,z))` \| `Object("id")` | `Anchor` | what the shot faces |
+| `blend` | `Option` blend | `None` | omitted is a CUT; see [`SetCamera`](#setcamera) for the move
 
 `Local` composes the same shot whatever heading the anchor is on - an
 over-the-shoulder chase. `World` composes the same shot whatever the anchor is

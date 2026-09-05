@@ -67,9 +67,10 @@ pub(crate) fn profile(scenario: &ScenarioConfig) -> WakeProfile {
         }
         let mut proven = true;
         for action in &event.actions {
-            action.walk(&mut |action| match action {
-                EventActionConfig::Sequence(config) => {
-                    for gate in config.steps.iter().filter_map(|step| step.until.as_ref()) {
+            action.walk(&mut |action| {
+                // A beat's own gate is a handler too, whichever chain holds it.
+                if let Some((_, steps)) = action.step_chain() {
+                    for gate in steps.iter().filter_map(|step| step.until.as_ref()) {
                         if matches!(gate.name, EventConfig::OnUpdate)
                             && !collect_handler(
                                 &gate.filters,
@@ -89,10 +90,11 @@ pub(crate) fn profile(scenario: &ScenarioConfig) -> WakeProfile {
                 // the only thing that could stop them. Without this a counter
                 // advanced from an OnUpdate handler freezes the moment nothing
                 // else in the scenario writes.
-                EventActionConfig::VariableSet(config) if on_update => {
-                    vars.insert(config.key.clone());
+                if let EventActionConfig::VariableSet(config) = action {
+                    if on_update {
+                        vars.insert(config.key.clone());
+                    }
                 }
-                _ => {}
             });
         }
         if !proven {
@@ -172,11 +174,13 @@ fn collect_filter(
             let right = collect_filter(right, clock, sampled, vars, times);
             left && right
         }
-        // Entity, Timer and ShipOrder filters read the fired event, not the
-        // world. None of them says anything about when the answer could change.
+        // Entity, Timer, ShipOrder and Cinematic filters read the fired event,
+        // not the world. None of them says anything about when the answer
+        // could change.
         EventFilterConfig::Entity(_)
         | EventFilterConfig::Timer(_)
-        | EventFilterConfig::ShipOrder(_) => false,
+        | EventFilterConfig::ShipOrder(_)
+        | EventFilterConfig::Cinematic(_) => false,
     }
 }
 

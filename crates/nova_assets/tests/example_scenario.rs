@@ -418,7 +418,6 @@ fn catalog_loads_and_base_only_merges_by_default() {
         "menu_gauntlet",
         "menu_waystation",
         "menu_weave",
-        "second_shift",
     ] {
         assert!(
             scenarios.contains_key(built_in),

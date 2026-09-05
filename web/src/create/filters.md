@@ -2,15 +2,16 @@
 
 A filter gates a handler: when its event fires, EVERY entry in the handler's
 `filters` list must pass (logical AND) before the actions run. An empty (or
-omitted) list always passes. There are exactly five filter kinds - `Entity` matches
-entity payloads, `Timer` matches a timer key, `ShipOrder` matches a helm
-order's outcome, `Expression` tests scenario variables, and `Conditional`
-combines other filters with boolean logic.
+omitted) list always passes. There are exactly six filter kinds - `Entity` matches
+entity payloads, `Timer` matches a timer key, `Cinematic` matches a scene key,
+`ShipOrder` matches a helm order's outcome, `Expression` tests scenario
+variables, and `Conditional` combines other filters with boolean logic.
 
 | filter | tests | typical use |
 |---|---|---|
 | [`Entity`](#entity) | who the event is about | "this beacon, entered by the player" |
 | [`Timer`](#timer) | a timer event key | "the orbit hold timer ended" |
+| [`Cinematic`](#cinematic) | a scene key | "the strike approach is the scene that ended" |
 | [`ShipOrder`](#shiporder) | one helm order's outcome | "the warship reached its firing position" |
 | [`Expression`](#expression) | a variable condition | "the counter is past 4 and the flag is unset" |
 | [`Conditional`](#conditional) | other filters, combined | "NOT the player", "picket A down OR picket B down" |
@@ -81,6 +82,30 @@ Timer((key: "orbit_hold"))
 
 Timer keys are scenario-local strings. This filter observes the event that
 already ended; it does not test whether a timer is currently running.
+
+</details>
+
+## Cinematic
+
+Match the `cinematic` key carried by
+[`OnCinematicFinished` and `OnCinematicSkipped`](../events/#cinematic-endings).
+It fails closed on every other event because those events carry no scene key.
+
+```ron
+Cinematic((key: "strike_approach"))
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | matches |
+|---|---|---|---|
+| `key` | string | required | the scene's authored key, exactly |
+
+Scene keys are scenario-local strings. A scenario that plays two scenes and
+leaves this filter off answers whichever one ends first, so put it on every
+cinematic handler. A key no [`Cinematic`](../actions/#cinematic) action in the
+scenario plays is a lint Warn, and an empty key is a lint Error.
 
 </details>
 

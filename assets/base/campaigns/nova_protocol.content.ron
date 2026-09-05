@@ -4,7 +4,6 @@
         name: "Nova Protocol",
         scenarios: [
             "first_shift",
-            "second_shift",
         ],
     )),
 ]

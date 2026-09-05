@@ -210,7 +210,7 @@ This is enough for a complete first scenario.
 Edit the existing `example_arena` before adding new mechanics:
 
 1. Change the scenario `name` and `description`.
-2. Change the `StoryMessage` speaker and text in `OnStart`.
+2. Change the `NarrativeCue` speaker and text in `OnStart`.
 3. Change the `Objective` message.
 4. Change the two asteroid names, positions, or radii. A rock's radius is its
    durability and it is cubic, so raise it in small steps - see [sizing a rock
@@ -220,7 +220,8 @@ Edit the existing `example_arena` before adding new mechanics:
 For example:
 
 ```ron
-StoryMessage((
+NarrativeCue((
+    channel: Comms,
     speaker: "Harbor Master",
     text: "Two wrecks block the lane. Clear them before the convoy arrives.",
 )),

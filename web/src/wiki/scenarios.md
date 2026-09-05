@@ -18,7 +18,7 @@ created by an action rather than spawned as objects.
 
 ## Objectives: events, filters, actions
 
-Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [First Shift](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
+Objectives are wired with a three-layer reactive system. An **event** fires under a named condition, a **filter** gates whether it applies, and an **action** runs when both match - all reading and writing typed **variables** (numbers, strings, booleans) with arithmetic and comparisons. This is the vocabulary [An Ordinary Shift](../getting-started/) is built from - each beat is an event handler that grants the next verb, posts the next objective, and moves a beat counter forward.
 
 What that buys you as a player is that a scenario reacts. Fly into a marked volume and something answers; neutralize the right ship and the objective completes on its own; a won chapter plays a short outro of comms beats over the live world before any victory screen appears, so the moment lands before the overlay does.
 
@@ -26,11 +26,10 @@ The full construct catalog - every event, filter and action by name, with its fi
 
 ## The shipped scenarios
 
-- **First Shift** - the New Game opening: a crewed cutter goes out of the carrier Meridian for an ordinary day on the rock plate, and it teaches one gesture per beat (burn, fine thrusters in open space, salvage, radar lock, GOTO, and an ORBIT the crew talks you into on the way to the last crate). Then, with the job finally finished, a warship comes out from behind a planetoid and destroys the carrier while you watch from abeam, unarmed. Winning continues straight into Second Shift.
-- **Second Shift** - chapter two: the same belt an hour later, and the Meridian is a debris field. Recover three recorders out of the wreck while a five-ship cleanup group sweeps it for the same evidence. They fly real patrol lanes with short eyes, so rock between you and a lane is cover; being seen does not end the run, it costs you the quiet way home.
+- **An Ordinary Shift** - the New Game opening: a crewed cutter goes out of the carrier Meridian for an ordinary day on the rock plate, and it teaches one gesture per beat (burn, fine thrusters in open space, salvage, radar lock, GOTO, and an ORBIT the crew talks you into on the way to the last crate). Underneath the work, the crew is arguing about the rotation home and a stranger keeps clipping the guard channel. Then, with the job finally finished, a warship comes out from behind a planetoid and destroys the carrier while you watch from abeam, unarmed. It plays as two scenes: the approach, which you may skip once you have seen it, and the salvo, which you may not.
 - **Menu backdrops** - the living scenes behind the menus, a rotating CAROUSEL: each scene plays its act and hands off to the next. **Torpedo Gauntlet** (a corvette's PDC turrets swat torpedoes streaming in from both flanks until its hard magazines run dry and the stand falls), **Asteroid Weave** (an AI ship threading a dense rock band on real patrol waypoints, hugging its nav beacons), **Duel Cycle** (two corvettes dogfight through the open center; a siege torpedo erases the winner), and **Waystation Traffic** (a hauler convoy circling a freight stop under amber dock lights). Menu entry starts the ring at a random scene. All of it is the real simulation, not a cutscene. Mods can ship their own by flagging a scenario `menu_backdrop`.
 
-The public [Story](../../story/) archive presents campaigns as digital comics with page controls and a contents display. It contains full spoilers; play the chapters first if you want to meet the warship with Cutter One.
+The public [Story](../../story/) archive presents campaigns as digital comics with page controls and a contents display. It contains full spoilers; play the chapter first if you want to meet the warship with Cutter One.
 
 ## Browsing and replaying scenarios
 

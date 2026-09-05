@@ -92,7 +92,7 @@ const SCENARIO_RON: &str = r#"[
                 ],
                 actions: [
                     VariableSet((key: "open_step", expression: Term(Factor(Literal(Number(1.0)))))),
-                    StoryMessage((speaker: "Speaker One", text: "Stand by.")),
+                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Stand by.")),
                 ],
             ),
             (
@@ -145,7 +145,7 @@ const SCENARIO_RON: &str = r#"[
                 ],
                 actions: [
                     VariableSet((key: "speed_warned", expression: Term(Factor(Literal(Number(1.0)))))),
-                    StoryMessage((speaker: "Speaker One", text: "Ease off.")),
+                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Ease off.")),
                 ],
             ),
             (

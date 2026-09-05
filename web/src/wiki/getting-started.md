@@ -1,15 +1,15 @@
 # Your first flight
 
-Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, First Shift beat by beat, and where to go next.
+Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario - an asteroid field with gravity wells, salvage, and hostile ships. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, An Ordinary Shift beat by beat, and where to go next.
 
 ## Launch and start
 
-The game boots into a main menu. **New Game** drops you into **First Shift** - the campaign opening, flown in a ready-made maintenance cutter, so there is nothing to build first. The other doors can wait.
+The game boots into a main menu. **New Game** drops you into **An Ordinary Shift** - the campaign opening, flown in a ready-made maintenance cutter, so there is nothing to build first. The other doors can wait.
 
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 
-- **New Game** - drops you into **First Shift**, the campaign opening, flown in a ready-made ship, so there is nothing to build first.
+- **New Game** - drops you into **An Ordinary Shift**, the campaign opening, flown in a ready-made ship, so there is nothing to build first.
 - **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
 - **Scenarios** - opens the complete scenario picker.
 - **Mods** - opens the installed-mod and online-catalog browser.
@@ -25,12 +25,12 @@ The game boots into a main menu. **New Game** drops you into **First Shift** - t
         <span class="figure__placeholder-name">assets/tutorial-menu.png</span>
         <span class="figure__placeholder-note">The main menu with its live ambient backdrop (an AI ship flying a thruster orbit) and the New Game / Sandbox / Scenarios / Mods / Settings / Exit options.</span>
     </div>
-    <figcaption class="figure__caption">The game boots into a main menu; New Game starts First Shift.</figcaption>
+    <figcaption class="figure__caption">The game boots into a main menu; New Game starts An Ordinary Shift.</figcaption>
 </figure>
 
 In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.
 
-Pick **New Game**. First Shift teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.
+Pick **New Game**. An Ordinary Shift teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes the instant the gesture lands.
 
 ## The first two minutes
 
@@ -41,9 +41,9 @@ Distances read in meters and kilometers and speeds in meters per second (`m/s`);
 - **GOTO.** With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. Any manual input hands the ship straight back to you.
 - **Raise weapons and fire.** Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now "hot". Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.
 
-That is the whole core loop: burn, lock, GOTO, shoot. First Shift walks you through the flying half of it - the cutter it hands you carries no gun, so the last gesture waits for a ship that does (the [sandbox](#the-sandbox) range, or a scenario that arms you).
+That is the whole core loop: burn, lock, GOTO, shoot. An Ordinary Shift walks you through the flying half of it - the cutter it hands you carries no gun, so the last gesture waits for a ship that does (the [sandbox](#the-sandbox) range, or a scenario that arms you).
 
-## First Shift, beat by beat
+## An Ordinary Shift, beat by beat
 
 You open on the flank of the industrial carrier **Meridian**, held in an exterior view while its work circuit briefs three recoveries on Plate Seven. You command **Cutter One**, an industrial cutter with an experienced copilot beside you and an engineer at the cargo rig. Two crates are manifested; the third is an unweighed loose recovery. Meridian gets under way in fifty-six minutes. The camera returns with the helm, each objective arrives as a short amber notification, and one gold marker at a time keeps the current target in view.
 
@@ -91,8 +91,8 @@ You open on the flank of the industrial carrier **Meridian**, held in an exterio
 
 9. **Collect the last crate, then run home.** Its tag is valid but it still has no manifest. With all three aboard, the chief calls Cutter One to the outer hold three kilometres off Meridian - the last GOTO of the shift and the only thing the rest of the chapter waits for.
 10. **A warship comes out from behind the large planetoid.** Its transponder and running lights are dark. Cutter One identifies an Earth Navy hull without a fleet code; Meridian identifies itself as an unarmed Earthworks carrier and gets no answer. The warship closes, brings its bow-mounted railguns onto the carrier, walks six siege torpedoes out of its bays and fires both railguns together. The silent destruction cuts from the railgun strike to your view of the torpedo impacts, holds that view while the warship starts away, then settles on the wreck.
-11. **The staged shots hold your controls.** The camera takes seven authored shots, including the opening and RCS briefing. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. Control returns after the two conversation holds. Once the warship appears, the terminal cinematic holds control through the aftermath and scenario teardown. The script never flies Cutter for you.
-12. **Keep the channel open.** The crew calls Meridian and gets no human answer. What finally responds is a weak automated distress beacon, and that is the hand-off: the victory screen continues straight into **Second Shift**, where you go back to the same belt for what is left of the ship.
+11. **The staged shots hold your controls.** The camera takes eight authored shots, including the opening and RCS briefing. Flight, look, stance, and weapon input pause while a shot owns the view; pause and menu controls still work. Control returns after the two conversation holds. The strike itself plays as two scenes: the **approach**, which you may leave early once you have watched it, and the **salvo**, which you may not - and the ending is the same either way. The script never flies Cutter for you.
+12. **Keep the channel open.** The crew calls Meridian and gets no human answer. What finally responds is a weak automated distress beacon. The victory banner names the four hundred and twelve people who were aboard, and the beacon is still transmitting when it comes up.
 
 (Tap <kbd>Ctrl</kbd> to clear a nav lock at any time.)
 

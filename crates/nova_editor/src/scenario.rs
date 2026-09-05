@@ -1016,7 +1016,8 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
             id: picket.id.to_string(),
             allegiance: Allegiance::Enemy,
         }),
-        EventActionConfig::StoryMessage(StoryMessageActionConfig {
+        EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+            channel: NarrativeChannelConfig::Comms,
             speaker: picket.callsign.to_string(),
             text: "Contact acknowledged. Weapons free.".to_string(),
             dwell: None,
@@ -1090,7 +1091,8 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
         })],
         actions: vec![
             EventActionConfig::SetSkybox(SetSkyboxActionConfig::new(beacon.cubemap)),
-            EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: beacon.label.to_string(),
                 text: beacon.line.to_string(),
                 dwell: None,
@@ -1248,7 +1250,8 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
                     "sandbox_free_flight",
                     "Free flight: press F1 to return to the editor",
                 )),
-                EventActionConfig::StoryMessage(StoryMessageActionConfig {
+                EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                    channel: NarrativeChannelConfig::Comms,
                     speaker: "Range Control".to_string(),
                     text: "Range is yours. Hulks to port, live pickets deeper in - they wake if \
                            you paint them or crowd them. F1 puts you back on the build deck."

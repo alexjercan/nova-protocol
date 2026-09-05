@@ -364,6 +364,7 @@ fn push_story_line(app: &mut App, speaker: &str, text: &str) {
         .resource_mut::<StoryFeed>()
         .0
         .push(StoryLine {
+            channel: NarrativeChannel::Comms,
             speaker: speaker.to_string(),
             text: text.to_string(),
             dwell: None,

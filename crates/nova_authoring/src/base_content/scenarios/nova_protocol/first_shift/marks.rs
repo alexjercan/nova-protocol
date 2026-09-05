@@ -435,3 +435,13 @@ pub(super) const CINEMA_IMPACT_OFFSET: Meters3 = Meters3::new(-285.0, 175.0, 595
 /// object aim falls back to the anchor when its target dies, which would swing
 /// the lens onto the cutter on exactly that frame.
 pub(super) const CINEMA_DEATH_OFFSET: Meters3 = Meters3::new(440.0, 25.0, -235.0);
+
+/// Where the scene settles once there is nothing left to watch: the same
+/// over-the-shoulder pulled back to nine hundred metres and lifted, so the
+/// cutter reads as a small thing alone in a big empty piece of sky.
+///
+/// The strike BLENDS to it rather than cutting, over
+/// [`WRECK_BLEND_SECONDS`](super::WRECK_BLEND_SECONDS). It is the one camera
+/// move in the chapter that is a move: every other change of pose in the set
+/// piece is a cut, because a cut is an edit and this is the shot holding.
+pub(super) const CINEMA_WRECK_OFFSET: Meters3 = Meters3::new(790.0, 120.0, -420.0);

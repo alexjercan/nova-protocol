@@ -395,6 +395,14 @@ pub fn scenario_bindings() -> Vec<ActionBinding> {
             .context(ActionContext::Flight)
             .keyboard([InputSource::Keyboard(KeyCode::Enter)])
             .gamepad([InputSource::Gamepad(GamepadButton::DPadDown)]),
+        // One gesture read two ways: Advance past the beat you are on, and
+        // leave the scene playing beats at you. Registered AFTER the action it
+        // follows, which is how a rebind carries it along.
+        ActionBinding::new(CINEMATIC_SKIP_ACTION, "SCENARIO", "Skip Scene")
+            .follows("scenario_advance")
+            .context(ActionContext::Flight)
+            .keyboard([InputSource::Keyboard(KeyCode::Enter)])
+            .gamepad([InputSource::Gamepad(GamepadButton::DPadDown)]),
     ]
 }
 
@@ -1415,7 +1423,8 @@ mod tests {
         // Scenario A's line is on screen (simulate the synced state).
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1425,6 +1434,7 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
+                channel: NarrativeChannel::Comms,
                 speaker: "Alpha".to_string(),
                 text: "alpha".to_string(),
                 dwell: None,
@@ -1449,7 +1459,8 @@ mod tests {
         );
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Speaker One".to_string(),
                 text: "beta".to_string(),
                 dwell: None,

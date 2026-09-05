@@ -40,17 +40,47 @@ impl EventAction<NovaEventWorld> for ObjectiveActionConfig {
     }
 }
 
-/// One speaker-attributed story line for the HUD comms panel. Appends to the
-/// event world's story log; the log is scenario-scoped (cleared at teardown
+/// Where a [`NarrativeCueActionConfig`] is heard from. Mirrors nova_hud's
+/// [`NarrativeChannel`] at sync time (the HUD cannot depend on nova_scenario),
+/// the same split as [`HudReadoutFormatConfig`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum NarrativeChannelConfig {
+    /// The work channel: traffic addressed to this ship.
+    #[default]
+    Comms,
+    /// Inside the hull, off the radio - the crew talking to each other.
+    Crew,
+    /// The guard channel: everybody's channel, nobody's conversation. Drawn
+    /// weak, so a fragment reads as something the cockpit caught.
+    Guard,
+}
+
+impl From<NarrativeChannelConfig> for NarrativeChannel {
+    fn from(value: NarrativeChannelConfig) -> Self {
+        match value {
+            NarrativeChannelConfig::Comms => NarrativeChannel::Comms,
+            NarrativeChannelConfig::Crew => NarrativeChannel::Crew,
+            NarrativeChannelConfig::Guard => NarrativeChannel::Guard,
+        }
+    }
+}
+
+/// One speaker-attributed narrative cue for the HUD comms panel. Appends to
+/// the event world's story log; the log is scenario-scoped (cleared at teardown
 /// with the rest of the event world), so a line can never leak into the next
-/// scenario or the menu. RON: `StoryMessage((speaker: "Alpha", text:
-/// "Strip it clean."))`. Optionally add `dwell: Some(12.0)` for a longer hold
-/// and `icon: Some("self://icons/alpha.png")` for a speaker image. Strict RON
-/// uses `Some`; omit the field for the HUD fallback icon.
+/// scenario or the menu. RON: `NarrativeCue((channel: Comms, speaker: "Alpha",
+/// text: "Strip it clean."))`. Optionally add `dwell: Some(12.0)` for a longer
+/// hold and `icon: Some("self://icons/alpha.png")` for a speaker image. Strict
+/// RON uses `Some`; omit the field for the HUD fallback icon.
 #[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct StoryMessageActionConfig {
-    /// Who says it (the panel renders it as the line's prefix).
+pub struct NarrativeCueActionConfig {
+    /// Where the line is heard: the work channel, the cabin, or the guard
+    /// channel. Authored on every cue, because a line whose channel was
+    /// guessed is a line drawn in the wrong voice.
+    pub channel: NarrativeChannelConfig,
+    /// Who says it (the panel renders it as the line's header).
     pub speaker: String,
     /// The line itself.
     pub text: String,
@@ -73,16 +103,16 @@ pub struct StoryMessageActionConfig {
     pub icon: Option<AssetRef<Image>>,
 }
 
-impl EventAction<NovaEventWorld> for StoryMessageActionConfig {
+impl EventAction<NovaEventWorld> for NarrativeCueActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        world.push_story_message(self.clone());
+        world.push_narrative_cue(self.clone());
     }
 }
 
 /// How a [`HudReadoutActionConfig`] renders its bound variable on the HUD. Maps
 /// one-to-one onto nova_gameplay's `HudReadoutFormat` at sync time (the HUD
 /// cannot depend on nova_scenario, so the enum is mirrored, the same split as
-/// `StoryMessageActionConfig` -> `StoryLine`). The `Config` suffix is what keeps
+/// `NarrativeCueActionConfig` -> `StoryLine`). The `Config` suffix is what keeps
 /// the two halves distinguishable: nova_core globs both crates' preludes, so a
 /// shared name would be an ambiguous glob re-export and force the sync to reach
 /// for the render enum by its full path.
@@ -391,66 +421,67 @@ mod tests {
     use super::*;
 
     /// The authored RON shape parses and round-trips - the exact syntax the
-    /// authoring guide documents: `StoryMessage((speaker:..., text:...))`, with
+    /// authoring guide documents: `NarrativeCue((channel: Comms, speaker:..., text:...))`, with
     /// `dwell` OMITTED defaulting to None and the documented strict-RON `dwell:
     /// Some(12.0)` parsing.
     #[cfg(feature = "serde")]
     #[test]
-    fn story_message_ron_round_trips() {
-        let authored = r#"StoryMessage((speaker: "Alpha", text: "Quota's quota."))"#;
+    fn a_cue_round_trips_through_authored_ron() {
+        let authored =
+            r#"NarrativeCue((channel: Comms, speaker: "Alpha", text: "Quota's quota."))"#;
         let parsed: EventActionConfig = ron::from_str(authored).expect("authored RON parses");
-        let EventActionConfig::StoryMessage(config) = &parsed else {
-            panic!("parsed the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(config) = &parsed else {
+            panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(config.speaker, "Alpha");
         assert_eq!(config.text, "Quota's quota.");
         assert_eq!(config.dwell, None, "omitted dwell defaults to None");
 
-        let with_dwell = r#"StoryMessage((speaker: "Alpha", text: "Slowly.", dwell: Some(12.0)))"#;
+        let with_dwell = r#"NarrativeCue((channel: Comms, speaker: "Alpha", text: "Slowly.", dwell: Some(12.0)))"#;
         let parsed_dwell: EventActionConfig =
             ron::from_str(with_dwell).expect("the documented dwell syntax parses");
-        let EventActionConfig::StoryMessage(config_dwell) = &parsed_dwell else {
-            panic!("parsed the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(config_dwell) = &parsed_dwell else {
+            panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(config_dwell.dwell, Some(12.0));
 
         let ron = ron::to_string(&parsed).expect("serializes");
         let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
-        let EventActionConfig::StoryMessage(again) = back else {
-            panic!("round-tripped the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(again) = back else {
+            panic!("round-tripped the NarrativeCue variant");
         };
         assert_eq!(&again, config);
     }
 
-    /// StoryMessage icons are optional authorable image refs: omitted stays
+    /// NarrativeCue icons are optional authorable image refs: omitted stays
     /// `None` for back-compat, while strict RON `Some("self://...")` /
     /// `Some("dep://...")` round-trip as AssetRef paths.
     #[cfg(feature = "serde")]
     #[test]
-    fn story_message_icon_ron_round_trips() {
-        let legacy = r#"StoryMessage((speaker: "Alpha", text: "Quota's quota."))"#;
+    fn a_cue_icon_round_trips_through_authored_ron() {
+        let legacy = r#"NarrativeCue((channel: Comms, speaker: "Alpha", text: "Quota's quota."))"#;
         let parsed: EventActionConfig = ron::from_str(legacy).expect("legacy RON parses");
-        let EventActionConfig::StoryMessage(config) = &parsed else {
-            panic!("parsed the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(config) = &parsed else {
+            panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(config.icon, None, "omitted icon defaults to None");
 
-        let with_self = r#"StoryMessage((speaker: "Alpha", text: "Face.", icon: Some("self://icons/alpha.png")))"#;
+        let with_self = r#"NarrativeCue((channel: Comms, speaker: "Alpha", text: "Face.", icon: Some("self://icons/alpha.png")))"#;
         let parsed_self: EventActionConfig =
             ron::from_str(with_self).expect("self icon syntax parses");
-        let EventActionConfig::StoryMessage(config_self) = &parsed_self else {
-            panic!("parsed the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(config_self) = &parsed_self else {
+            panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(
             config_self.icon.as_ref().and_then(|icon| icon.path()),
             Some("self://icons/alpha.png")
         );
 
-        let with_dep = r#"StoryMessage((speaker: "Relay", text: "Shared.", icon: Some("dep://base/icons/comms.png")))"#;
+        let with_dep = r#"NarrativeCue((channel: Comms, speaker: "Relay", text: "Shared.", icon: Some("dep://base/icons/comms.png")))"#;
         let parsed_dep: EventActionConfig =
             ron::from_str(with_dep).expect("dep icon syntax parses");
-        let EventActionConfig::StoryMessage(config_dep) = &parsed_dep else {
-            panic!("parsed the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(config_dep) = &parsed_dep else {
+            panic!("parsed the NarrativeCue variant");
         };
         assert_eq!(
             config_dep.icon.as_ref().and_then(|icon| icon.path()),
@@ -463,8 +494,8 @@ mod tests {
             "ron: {ron}"
         );
         let back: EventActionConfig = ron::from_str(&ron).expect("round-trips");
-        let EventActionConfig::StoryMessage(again) = back else {
-            panic!("round-tripped the StoryMessage variant");
+        let EventActionConfig::NarrativeCue(again) = back else {
+            panic!("round-tripped the NarrativeCue variant");
         };
         assert_eq!(again, *config_self);
     }
@@ -690,5 +721,47 @@ mod tests {
         clear.action(&mut event_world, &GameEventInfo::default());
         NovaEventWorld::state_to_world_system(&mut world);
         assert!(!world.resource::<HintEmphasis>().contains("GOTO"));
+    }
+
+    /// The channel is authored on every cue. Guessing it would put a cabin
+    /// aside on the work channel or a guard-channel fragment in the voice of
+    /// traffic addressed to this ship - and the fragment IS the beat.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn a_cue_that_names_no_channel_is_refused() {
+        let missing = r#"NarrativeCue((speaker: "Alpha", text: "Quota's quota."))"#;
+        assert!(
+            ron::from_str::<EventActionConfig>(missing).is_err(),
+            "a cue with no channel must fail to load, not pick one"
+        );
+    }
+
+    /// Every channel is authorable by the name it is written under, and the
+    /// three are distinct rows rather than one field the panel styles by
+    /// speaker string.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn every_channel_is_authorable_by_name() {
+        for (name, expected) in [
+            ("Comms", NarrativeChannelConfig::Comms),
+            ("Crew", NarrativeChannelConfig::Crew),
+            ("Guard", NarrativeChannelConfig::Guard),
+        ] {
+            let authored =
+                format!(r#"NarrativeCue((channel: {name}, speaker: "Alpha", text: "..."))"#);
+            let parsed: EventActionConfig = ron::from_str(&authored).expect("the channel parses");
+            let EventActionConfig::NarrativeCue(config) = &parsed else {
+                panic!("NarrativeCue variant");
+            };
+            assert_eq!(config.channel, expected);
+        }
+
+        assert!(
+            ron::from_str::<EventActionConfig>(
+                r#"NarrativeCue((channel: Tower, speaker: "Alpha", text: "..."))"#
+            )
+            .is_err(),
+            "a channel no row declares is an error at load, not a fallback"
+        );
     }
 }

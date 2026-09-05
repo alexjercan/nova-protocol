@@ -96,6 +96,9 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
         (
             tick_scenario_clock,
             sample_scenario_queries.run_if(scenario_reads_an_entity_query),
+            // Ahead of the driver, so a skip taken this frame is announced
+            // this frame rather than after one more beat has played.
+            skip_cinematic_on_request.run_if(a_player_can_answer),
             advance_scenario_sequences,
             tick_scenario_timers,
             fire_on_update.run_if(scenario_pulse_is_due),

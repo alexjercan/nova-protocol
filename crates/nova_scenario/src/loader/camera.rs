@@ -109,6 +109,62 @@ impl ScriptedCameraTransform {
     }
 }
 
+/// How a [`ScriptedCameraBlend`] spends its seconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum CameraEasing {
+    /// Constant rate. A move that starts and stops abruptly, which is what a
+    /// camera ON A RAIL looks like - a crane, a dolly, a rig being pushed.
+    Linear,
+    /// Slow at both ends. What a cut between two compositions wants, and the
+    /// default, because a blend exists to stop being a cut.
+    #[default]
+    Smooth,
+}
+
+impl CameraEasing {
+    /// Shape a normalized `0..=1` progress.
+    fn apply(self, t: f32) -> f32 {
+        match self {
+            CameraEasing::Linear => t,
+            CameraEasing::Smooth => t * t * (3.0 - 2.0 * t),
+        }
+    }
+}
+
+/// A camera move in progress: where the camera was when the new pose landed,
+/// and how long it has to get there.
+///
+/// The blend rides ON TOP of whichever override is pinned - a fixed pose or a
+/// live anchor - so a blend onto a moving subject keeps re-solving its
+/// destination while it travels. Removed the frame it completes, so the
+/// steady state is the plain override and nothing pays for a finished move.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct ScriptedCameraBlend {
+    /// Where the camera was when the move started. Filled on the first frame
+    /// from the live Transform rather than authored: the camera may be
+    /// anywhere, including part-way through an earlier blend.
+    pub from: Option<Transform>,
+    /// Seconds the move takes.
+    pub seconds: f32,
+    /// How the seconds are spent.
+    pub easing: CameraEasing,
+    /// Seconds elapsed.
+    pub elapsed: f32,
+}
+
+impl ScriptedCameraBlend {
+    /// A move of `seconds` on `easing`, not yet started.
+    pub fn new(seconds: f32, easing: CameraEasing) -> Self {
+        Self {
+            from: None,
+            seconds,
+            easing,
+            elapsed: 0.0,
+        }
+    }
+}
+
 /// Below this the eye and its target are the same point and `looking_at` has
 /// no direction to build a rotation from, so the solve is skipped and last
 /// frame's rotation stands. Only a degenerate authored offset reaches it.
@@ -170,10 +226,38 @@ pub(super) fn track_scripted_camera_anchor(
 /// [`CameraAuthoritySystems::Override`] so it wins the frame's last write to the
 /// camera Transform, shake offset included.
 pub(super) fn enforce_scripted_camera_pose(
-    mut cameras: Query<(&mut Transform, &ScriptedCameraTransform)>,
+    time: Res<Time>,
+    mut commands: Commands,
+    mut cameras: Query<(
+        Entity,
+        &mut Transform,
+        &ScriptedCameraTransform,
+        Option<&mut ScriptedCameraBlend>,
+    )>,
 ) {
-    for (mut transform, derived) in &mut cameras {
-        *transform = **derived;
+    for (camera, mut transform, derived, blend) in &mut cameras {
+        let Some(mut blend) = blend else {
+            *transform = **derived;
+            continue;
+        };
+        // The start pose is read on the first enforced frame, not at insert:
+        // that is the last moment the camera is still where it was, and it is
+        // the same answer whether the move began from a free rig, a fixed pose
+        // or the middle of an earlier blend.
+        let from = *blend.from.get_or_insert(*transform);
+        blend.elapsed += time.delta_secs();
+        let progress = if blend.seconds > 0.0 {
+            (blend.elapsed / blend.seconds).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let eased = blend.easing.apply(progress);
+        transform.translation = from.translation.lerp(derived.translation, eased);
+        transform.rotation = from.rotation.slerp(derived.rotation, eased);
+        transform.scale = derived.scale;
+        if progress >= 1.0 {
+            commands.entity(camera).try_remove::<ScriptedCameraBlend>();
+        }
     }
 }
 
@@ -215,7 +299,8 @@ fn release_scripted_camera(camera: Entity, commands: &mut Commands, still_held: 
     // try_remove: the release may be part of the camera's own despawn.
     commands
         .entity(camera)
-        .try_remove::<ScriptedCameraTransform>();
+        .try_remove::<ScriptedCameraTransform>()
+        .try_remove::<ScriptedCameraBlend>();
 }
 
 /// Register the scripted-camera layer's systems and observers.
@@ -254,6 +339,10 @@ mod tests {
     /// layer is transform arithmetic.
     fn camera_app() -> App {
         let mut app = App::new();
+        // A hand-driven clock rather than `TimePlugin`: the blend spends
+        // seconds, and a test that asserts where the camera got to needs to
+        // say exactly how many have passed.
+        app.init_resource::<Time>();
         app.add_systems(
             PostUpdate,
             (
@@ -268,6 +357,22 @@ mod tests {
         app.add_observer(drop_scripted_camera_transform);
         app.add_observer(drop_scripted_camera_anchor);
         app
+    }
+
+    /// Put `seconds` on the clock, then run the frame that spends them.
+    fn tick(app: &mut App, seconds: f32) {
+        app.world_mut()
+            .resource_mut::<Time>()
+            .advance_by(std::time::Duration::from_secs_f32(seconds));
+        app.update();
+    }
+
+    /// Where the override actually left the camera this frame.
+    fn camera_at(app: &App, camera: Entity) -> Vec3 {
+        app.world()
+            .get::<Transform>(camera)
+            .expect("the camera has a transform")
+            .translation
     }
 
     /// A subject the camera can frame, at `position` facing `-Z`.
@@ -594,5 +699,189 @@ mod tests {
             app.world().get::<Transform>(camera).unwrap().translation,
             Meters3::new(0.0, 0.0, 100.0).to_engine()
         );
+    }
+
+    /// A blend is the difference between a cut and a move: the camera has to
+    /// be found BETWEEN the two poses while it runs, and exactly on the new
+    /// one when it ends.
+    #[test]
+    fn a_blend_walks_the_camera_to_the_new_pose_instead_of_cutting() {
+        let mut app = camera_app();
+        let eye = Meters3::new(0.0, 100.0, 0.0);
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                ScriptedCameraPose {
+                    position: eye,
+                    look_at: Meters3::ZERO,
+                },
+                ScriptedCameraBlend::new(1.0, CameraEasing::Linear),
+            ))
+            .id();
+
+        tick(&mut app, 0.5);
+        let midway = camera_at(&app, camera);
+        assert!(
+            (midway - eye.to_engine() * 0.5).length() < 1e-4,
+            "half the seconds put the camera half way, not at the pose: {midway:?}"
+        );
+
+        tick(&mut app, 0.5);
+        assert!(
+            (camera_at(&app, camera) - eye.to_engine()).length() < 1e-4,
+            "the move ends ON the authored pose"
+        );
+        assert!(
+            app.world().get::<ScriptedCameraBlend>(camera).is_none(),
+            "a finished move is taken off the camera, so the steady state is \
+             the plain override"
+        );
+    }
+
+    /// The start pose is read on the first enforced frame, from wherever the
+    /// camera actually is. A blend authored onto a camera the player has been
+    /// flying must not snap to some remembered origin first.
+    #[test]
+    fn a_blend_starts_from_wherever_the_camera_already_was() {
+        let mut app = camera_app();
+        let eye = Meters3::new(0.0, 100.0, 0.0);
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::from_xyz(40.0, 0.0, 0.0),
+                ScriptedCameraPose {
+                    position: eye,
+                    look_at: Meters3::ZERO,
+                },
+                ScriptedCameraBlend::new(1.0, CameraEasing::Linear),
+            ))
+            .id();
+
+        tick(&mut app, 0.5);
+        let midway = camera_at(&app, camera);
+        let expected = Vec3::new(40.0, 0.0, 0.0).lerp(eye.to_engine(), 0.5);
+        assert!(
+            (midway - expected).length() < 1e-4,
+            "the move started from the free pose, not from the origin: {midway:?}"
+        );
+    }
+
+    /// `Smooth` is the default because a blend exists to stop being a cut: it
+    /// has to leave slower than the rail-like `Linear` it shares a duration
+    /// with.
+    #[test]
+    fn smooth_easing_leaves_slower_than_linear() {
+        let eye = Meters3::new(0.0, 100.0, 0.0);
+        let travelled = |easing| {
+            let mut app = camera_app();
+            let camera = app
+                .world_mut()
+                .spawn((
+                    Transform::default(),
+                    ScriptedCameraPose {
+                        position: eye,
+                        look_at: Meters3::ZERO,
+                    },
+                    ScriptedCameraBlend::new(1.0, easing),
+                ))
+                .id();
+            tick(&mut app, 0.25);
+            camera_at(&app, camera).length()
+        };
+
+        assert!(
+            travelled(CameraEasing::Smooth) < travelled(CameraEasing::Linear),
+            "the eased quarter is shorter than the linear one"
+        );
+        assert_eq!(
+            CameraEasing::default(),
+            CameraEasing::Smooth,
+            "an authored blend that says nothing about easing is a move, not a rail"
+        );
+    }
+
+    /// A blend of no seconds is a cut, and must not divide by its duration.
+    #[test]
+    fn a_blend_of_no_seconds_lands_on_the_first_frame() {
+        let mut app = camera_app();
+        let eye = Meters3::new(0.0, 100.0, 0.0);
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                ScriptedCameraPose {
+                    position: eye,
+                    look_at: Meters3::ZERO,
+                },
+                ScriptedCameraBlend::new(0.0, CameraEasing::Smooth),
+            ))
+            .id();
+
+        tick(&mut app, 0.016);
+        assert!((camera_at(&app, camera) - eye.to_engine()).length() < 1e-4);
+        assert!(app.world().get::<ScriptedCameraBlend>(camera).is_none());
+    }
+
+    /// A blend onto a live anchor keeps re-solving its destination while it
+    /// travels, so a scene can move the camera onto a ship that is moving.
+    #[test]
+    fn a_blend_chases_an_anchor_that_moves_while_it_runs() {
+        let mut app = camera_app();
+        let ship = subject(&mut app, Vec3::ZERO);
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                ScriptedCameraAnchor {
+                    anchor: ship,
+                    offset: Meters3::new(0.0, 0.0, 100.0),
+                    frame: CameraOffsetFrame::World,
+                    look_at: ScriptedCameraLookAt::Anchor,
+                },
+                ScriptedCameraBlend::new(1.0, CameraEasing::Linear),
+            ))
+            .id();
+        tick(&mut app, 0.5);
+
+        let moved = Vec3::new(0.0, 0.0, 500.0);
+        app.world_mut().entity_mut(ship).insert((
+            Transform::from_translation(moved),
+            GlobalTransform::from_translation(moved),
+        ));
+        tick(&mut app, 0.5);
+
+        let solved = moved + Meters3::new(0.0, 0.0, 100.0).to_engine();
+        assert!(
+            (camera_at(&app, camera) - solved).length() < 1e-3,
+            "the move landed on the anchor's CURRENT solve, not the one it started for"
+        );
+    }
+
+    /// Handing the camera back drops the move with the pose. A blend left on a
+    /// released camera would fight whatever rig took it over.
+    #[test]
+    fn releasing_the_camera_drops_a_move_in_flight() {
+        let mut app = camera_app();
+        let camera = app
+            .world_mut()
+            .spawn((
+                Transform::default(),
+                ScriptedCameraPose {
+                    position: Meters3::new(0.0, 100.0, 0.0),
+                    look_at: Meters3::ZERO,
+                },
+                ScriptedCameraBlend::new(10.0, CameraEasing::Smooth),
+            ))
+            .id();
+        tick(&mut app, 0.5);
+
+        app.world_mut()
+            .entity_mut(camera)
+            .remove::<ScriptedCameraPose>();
+        tick(&mut app, 0.5);
+
+        assert!(app.world().get::<ScriptedCameraBlend>(camera).is_none());
+        assert!(app.world().get::<ScriptedCameraTransform>(camera).is_none());
     }
 }

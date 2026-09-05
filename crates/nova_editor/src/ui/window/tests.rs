@@ -17,7 +17,7 @@ use nova_ui::prelude::TextFieldSubmitted;
 use super::*;
 use crate::{
     config::SelectedNode,
-    event::{ActionChoice, ActionNode, FilterKind, FilterNode},
+    event::{ActionChoice, ActionChoiceExt, ActionNode, FilterKind, FilterNode},
     node::{
         EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
         ScenarioNode,
@@ -554,7 +554,7 @@ fn a_long_choice_lists_what_each_option_does() {
         .spawn((
             EditorNode,
             ActionNode {
-                kind: ActionChoice::StoryMessage.stock(),
+                kind: ActionChoice::NarrativeCue.stock(),
             },
             NodeId("action_1".to_string()),
             ChildOf(scenario),

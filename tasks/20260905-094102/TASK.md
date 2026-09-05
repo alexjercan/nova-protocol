@@ -232,3 +232,67 @@ The drafted pages, the manifest and the generator vocabulary (Cutter One, the
 warship, skiffs, barges, the cabin, three faces) are committed as a proof of
 concept, labelled so in the manifest, the closing frame and the changelog. The
 pages are replaced when act one is redrawn.
+
+### 2026-09-05: The vocabulary, and scenario one rebuilt on it
+
+The owner asked for the actions and mod capabilities to be inventoried first,
+then refactored, then extended - with no backwards compatibility, because the
+campaign and The Ledger are both throwaway proofs. `VOCABULARY.md` is the
+inventory, taken at `3af5d051`.
+
+The refactor: a `scenario_actions!` TABLE in
+`crates/nova_scenario/src/actions/registry.rs` now generates the enum arm, the
+dispatch, the tag, the RON name, the menu label, the minted-id stem, the
+injection class and the reflected payload accessor from one row. Adding an
+action was fifteen edits, nine of them exhaustive matches over the same enum in
+two crates; it is now the row, the payload struct, the editor's stock value,
+the lint and the docs. `step_chain` and `step_chain_mut` are the single
+accessors every nesting reader goes through, so a second nesting arm cannot be
+honoured by one reader and missed by the others.
+
+What the story asked for, and now exists:
+
+- `Cinematic` - a beat chain the player may leave. It reports
+  `OnCinematicFinished` on every path out and `OnCinematicSkipped` first on a
+  skip; a `Cinematic` filter matches an ending by scene key. `CancelCinematic`
+  ends one from the scenario. A skip cancels the cursor and never replays the
+  beats at speed.
+- `NarrativeCue` replaces `StoryMessage`, and every line authors a `channel`:
+  `Comms`, `Crew` or `Guard`. Only `Guard` is tagged and drawn weak, because
+  what the tag marks is a line the ship was not sent.
+- `PlaySound` - one authored cue on the `Interface` or `Hull` route, for the
+  sound a scene needs and nothing in the world produces.
+- `SetCamera` and `SetCameraAnchor` take a `blend`, so a shot can be a move.
+
+Scenario one was then rebuilt from `STORY.md` rather than from the old code.
+Second Shift was scrapped: the campaign is one chapter, `first_shift`, named
+"An Ordinary Shift". The strike is two scenes - `strike_approach` (skippable,
+75 s of a ship getting closer) and `strike_salvo` (not skippable, 25 s, the
+chapter's point). One skip cancels the whole strike, because the skip handler
+advances the beat past the gate that would start the salvo, and both endings
+share `strike_aftermath()` so they leave the identical camera.
+
+The story material went into the shift's existing dead air: the plaque and the
+banner at launch, the first guard-channel fragment in the RCS briefing,
+junk ownership at the crate hand-off, section nine on the transit legs, the
+rotation argument over the orbit, the second fragment on the run home, and the
+clause itself during the strike. The guard voice speaks three times in authored
+order - two rehearsals, then the sentence - and a test holds that.
+
+Nested `Sequence` cursors are NOT cancelled by a cinematic skip, so mid-leg
+dialogue had to move inline into the cinematic chain. The second helm leg
+measures 33 s live and carries 23 s of lines, which is why the challenge moved
+from 18 s to 14 s.
+
+Verified: `cargo check --workspace --all-targets` clean; nova_authoring lib,
+nova_scenario lib and the affected nova_assets integration tests green;
+`content lint` 0 errors, 0 warnings; both strike examples RUN headless under
+Xvfb with no panics - the approach plays its two helm legs, the guard clause
+and the lock warning, and the salvo plays its torpedoes, its paired railguns
+and the wreck shot. The web suite could not run in this worktree (no
+`web/node_modules`); the two dependency-free tests pass and every anchor added
+to the docs resolves.
+
+The Ledger needed nothing but the rename, which it already carries; it lints
+and maps clean. A copy installed under `~/.local/share/nova-protocol/mods/`
+predates the rename and refuses to load, which is the migration working.

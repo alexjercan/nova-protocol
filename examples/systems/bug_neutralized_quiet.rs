@@ -316,6 +316,7 @@ fn range_scenario(game_assets: &GameAssets, sections: &GameSections) -> Scenario
     events[0]
         .actions
         .push(EventActionConfig::SetCamera(SetCameraActionConfig {
+            blend: None,
             position: Meters3::new(2_200.0, 900.0, 1_600.0),
             look_at: Meters3::ZERO,
         }));

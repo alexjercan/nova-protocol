@@ -31,12 +31,59 @@ pub struct SetCameraActionConfig {
     pub position: Meters3,
     /// World-space point the camera looks at (up is +Y).
     pub look_at: Meters3,
+    /// How the camera travels to the new pose. Omit for a CUT - the pose is
+    /// taken on the frame the action runs, which is what a photo-mode beat and
+    /// a hard scene change both want.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub blend: Option<CameraBlendConfig>,
+}
+
+/// A camera move rather than a cut: how long the camera takes to reach the
+/// pose the same action sets, and how it spends that time.
+///
+/// Rides on top of the pose, so a blend onto an anchored shot keeps tracking
+/// its subject all the way in.
+#[derive(Clone, Copy, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CameraBlendConfig {
+    /// Seconds the move takes.
+    pub seconds: f32,
+    /// How the seconds are spent. Omitted is [`CameraEasing::Smooth`]: a blend
+    /// exists to stop being a cut, and `Linear` is the special case that wants
+    /// to look like a rig on a rail.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub easing: CameraEasing,
+}
+
+impl From<CameraBlendConfig> for ScriptedCameraBlend {
+    fn from(value: CameraBlendConfig) -> Self {
+        ScriptedCameraBlend::new(value.seconds, value.easing)
+    }
+}
+
+/// Insert or clear the blend that goes with a pose the same action just set.
+///
+/// A pose authored as a CUT must also REMOVE any blend still running, or the
+/// cut would be swallowed by the move it was meant to interrupt.
+fn apply_camera_blend(entity: &mut EntityWorldMut, blend: Option<CameraBlendConfig>) {
+    match blend {
+        Some(blend) => {
+            entity.insert(ScriptedCameraBlend::from(blend));
+        }
+        None => {
+            entity.remove::<ScriptedCameraBlend>();
+        }
+    }
 }
 
 impl EventAction<NovaEventWorld> for SetCameraActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         let position = self.position;
         let look_at = self.look_at;
+        let blend = self.blend;
         debug!("SetCamera: position {:?} look_at {:?}", position, look_at);
 
         world.push_command(move |commands| {
@@ -57,6 +104,7 @@ impl EventAction<NovaEventWorld> for SetCameraActionConfig {
                     // enforcer applies it after the WASD sync every frame.
                     entity.remove::<WASDCameraController>();
                     entity.insert(ScriptedCameraPose { position, look_at });
+                    apply_camera_blend(&mut entity, blend);
                 }
             });
         });
@@ -106,6 +154,12 @@ pub struct SetCameraAnchorActionConfig {
     /// What the camera looks at.
     #[cfg_attr(feature = "serde", serde(default))]
     pub look_at: CameraLookAtConfig,
+    /// How the camera travels to the new shot. Omit for a CUT.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub blend: Option<CameraBlendConfig>,
 }
 
 /// Resolve one scoped scenario id to its entity.
@@ -129,6 +183,7 @@ impl EventAction<NovaEventWorld> for SetCameraAnchorActionConfig {
         let offset = self.offset;
         let frame = self.frame;
         let look_at = self.look_at.clone();
+        let blend = self.blend;
         debug!(
             "SetCameraAnchor: '{}' offset {:?} ({:?}) look_at {:?}",
             anchor_id, offset, frame, look_at
@@ -176,6 +231,7 @@ impl EventAction<NovaEventWorld> for SetCameraAnchorActionConfig {
                         frame,
                         look_at,
                     });
+                    apply_camera_blend(&mut entity, blend);
                 }
             });
         });
@@ -730,6 +786,7 @@ mod tests {
             .id();
 
         let action = SetCameraActionConfig {
+            blend: None,
             position: Meters3::new(50.0, 60.0, 70.0),
             look_at: Meters3::ZERO,
         };
@@ -781,6 +838,7 @@ mod tests {
             .id();
 
         let action = SetCameraAnchorActionConfig {
+            blend: None,
             anchor: "cutter".to_string(),
             offset: Meters3::new(0.0, 45.0, 180.0),
             frame: CameraOffsetFrame::World,
@@ -824,6 +882,7 @@ mod tests {
             .id();
 
         let action = SetCameraAnchorActionConfig {
+            blend: None,
             anchor: "ghost".to_string(),
             offset: Meters3::new(0.0, 45.0, 180.0),
             frame: CameraOffsetFrame::World,
@@ -896,6 +955,7 @@ mod tests {
         let bystander = world.spawn(Transform::default()).id();
 
         let action = SetCameraActionConfig {
+            blend: None,
             position: Meters3::new(1.0, 1.0, 1.0),
             look_at: Meters3::ZERO,
         };
@@ -955,6 +1015,7 @@ mod tests {
     #[test]
     fn set_camera_config_round_trips_through_ron() {
         let config = SetCameraActionConfig {
+            blend: None,
             position: Meters3::new(10.0, 20.0, 30.0),
             look_at: Meters3::new(-10.0, 0.0, 50.0),
         };
@@ -976,6 +1037,7 @@ mod tests {
             CameraLookAtConfig::Object("carrier".to_string()),
         ] {
             let action = EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+                blend: None,
                 anchor: "cutter".to_string(),
                 offset: Meters3::new(0.0, 45.0, 180.0),
                 frame: CameraOffsetFrame::World,
@@ -1080,5 +1142,119 @@ mod tests {
             }
             other => panic!("expected SetSkybox, got {other:?}"),
         }
+    }
+
+    /// A blend is a property of the CUT, not of the camera: an authored
+    /// `blend` puts a move on it, and the next pose that says nothing takes
+    /// the move off. Otherwise a scene's one slow push would make every later
+    /// cut in the scene slow too.
+    #[test]
+    fn a_blend_rides_the_cut_that_authored_it_and_no_later_one() {
+        use nova_events::prelude::EventWorld;
+
+        use crate::prelude::{ScenarioCameraMarker, ScriptedCameraBlend};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let camera = world
+            .spawn((ScenarioCameraMarker, Transform::default()))
+            .id();
+
+        let pushed = SetCameraActionConfig {
+            blend: Some(CameraBlendConfig {
+                seconds: 3.0,
+                easing: CameraEasing::Linear,
+            }),
+            position: Meters3::new(50.0, 60.0, 70.0),
+            look_at: Meters3::ZERO,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        pushed.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let blend = world
+            .get::<ScriptedCameraBlend>(camera)
+            .expect("the authored move is on the camera");
+        assert_eq!(blend.seconds, 3.0);
+        assert!(matches!(blend.easing, CameraEasing::Linear));
+        assert!(
+            blend.from.is_none(),
+            "the start pose is read by the enforcer"
+        );
+
+        let cut = SetCameraActionConfig {
+            blend: None,
+            position: Meters3::new(0.0, 500.0, 0.0),
+            look_at: Meters3::ZERO,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        cut.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        assert!(
+            world.get::<ScriptedCameraBlend>(camera).is_none(),
+            "a cut is a cut, even when it follows a move"
+        );
+    }
+
+    /// The anchored pose carries a move the same way, so a scene can push onto
+    /// a ship that is already flying.
+    #[test]
+    fn an_anchored_cut_carries_its_move_too() {
+        use nova_events::prelude::EventWorld;
+
+        use crate::prelude::{ScenarioCameraMarker, ScriptedCameraBlend};
+
+        let mut world = World::new();
+        world.init_resource::<NovaEventWorld>();
+        world.init_resource::<GameObjectives>();
+
+        let camera = world
+            .spawn((ScenarioCameraMarker, Transform::default()))
+            .id();
+        world.spawn((ScenarioScopedMarker, EntityId("cutter".to_string())));
+
+        let action = SetCameraAnchorActionConfig {
+            blend: Some(CameraBlendConfig {
+                seconds: 1.5,
+                easing: CameraEasing::Smooth,
+            }),
+            anchor: "cutter".to_string(),
+            offset: Meters3::new(0.0, 45.0, 180.0),
+            frame: CameraOffsetFrame::World,
+            look_at: CameraLookAtConfig::Anchor,
+        };
+        let mut event_world = world.resource_mut::<NovaEventWorld>();
+        action.action(&mut event_world, &GameEventInfo::default());
+        NovaEventWorld::state_to_world_system(&mut world);
+
+        let blend = world
+            .get::<ScriptedCameraBlend>(camera)
+            .expect("the anchored move is on the camera");
+        assert_eq!(blend.seconds, 1.5);
+    }
+
+    /// A blend that says nothing about easing is a move, and the RON shape
+    /// authors write omits it.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn an_authored_blend_defaults_to_the_smooth_move() {
+        let authored = r#"SetCamera((blend: Some((seconds: 2.0)), position: (0.0, 100.0, 0.0), look_at: (0.0, 0.0, 0.0)))"#;
+        let parsed: EventActionConfig = ron::from_str(authored).expect("the blend parses");
+        let EventActionConfig::SetCamera(config) = &parsed else {
+            panic!("SetCamera variant");
+        };
+        let blend = config.blend.expect("the blend is present");
+        assert_eq!(blend.seconds, 2.0);
+        assert!(matches!(blend.easing, CameraEasing::Smooth));
+
+        let cut = r#"SetCamera((position: (0.0, 100.0, 0.0), look_at: (0.0, 0.0, 0.0)))"#;
+        let parsed: EventActionConfig = ron::from_str(cut).expect("a cut parses without a blend");
+        let EventActionConfig::SetCamera(config) = &parsed else {
+            panic!("SetCamera variant");
+        };
+        assert!(config.blend.is_none(), "an omitted blend is a cut");
     }
 }

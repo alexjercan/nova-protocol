@@ -31,8 +31,8 @@ mod wake;
 
 use camera::register_scripted_camera;
 pub use camera::{
-    CameraOffsetFrame, ScriptedCameraAnchor, ScriptedCameraLookAt, ScriptedCameraPose,
-    ScriptedCameraTransform,
+    CameraEasing, CameraOffsetFrame, ScriptedCameraAnchor, ScriptedCameraBlend,
+    ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
 };
 use clock::register_clock_and_pulse;
 #[cfg(any(test, feature = "test-support"))]
@@ -55,13 +55,13 @@ pub(crate) use wake::{configure_scenario_shape, WakeProfile};
 /// scenario registry resources, load/unload triggers, and markers into scope.
 pub mod prelude {
     pub use super::{
-        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CameraOffsetFrame,
-        CampaignConfig, CampaignId, ContentIssues, CurrentScenario, GameCampaigns, GameScenarios,
-        LoadScenario, NewGameStart, ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig,
-        ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin, ScenarioScopedMarker,
-        ScenarioStartFailure, ScenarioStartFailureReport, ScriptedCameraAnchor,
-        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
-        ORBIT_LAP_GRACE_SECS,
+        lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live, CameraEasing,
+        CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues, CurrentScenario,
+        GameCampaigns, GameScenarios, LoadScenario, NewGameStart, ScenarioCameraMarker,
+        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
+        ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
+        ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose,
+        ScriptedCameraTransform, UnloadScenario, ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -454,8 +454,8 @@ impl ScenarioEventConfig {
         let mut groups: Vec<Vec<&EventActionConfig>> = vec![self.actions.iter().collect()];
         for action in &self.actions {
             action.walk(&mut |action| {
-                if let EventActionConfig::Sequence(config) = action {
-                    for (index, step) in config.steps.iter().enumerate() {
+                if let Some((_, steps)) = action.step_chain() {
+                    for (index, step) in steps.iter().enumerate() {
                         // The FIRST step always opens a group: it is a frame
                         // after the handler however short its delay.
                         match groups.last_mut() {

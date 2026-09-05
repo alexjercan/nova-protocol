@@ -48,7 +48,7 @@ fleet - the Racer, CargoB and CargoA parts, ships and GLB meshes under
 unlike the block-built base game; guns, sounds and skyboxes are still base's
 by `dep://base/`. Every fight, gate, pickup and branch
 uses shipped scenario vocabulary - act-gated handlers, expression-guarded
-OnEnter sequencing, per-id OnDestroyed counting, StoryMessage comms beats
+OnEnter sequencing, per-id OnDestroyed counting, NarrativeCue comms beats
 (with `dwell` holds), Outcome + NextScenario chaining. Pacing is authored
 too: each chapter opens with a clock-paced briefing conversation, objectives
 lazy-post only once the briefing hands off, and `beat_gate` clock stamps

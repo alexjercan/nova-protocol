@@ -1571,11 +1571,12 @@ fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
         };
         let choice = action_choice(&action.kind);
         let ordinal = ordinal_of(script, node);
-        // A sequence's KEY in the trail: it is what a gate elsewhere in the
+        // A beat chain's KEY in the trail: it is what a gate elsewhere in the
         // script names to talk to this chain, so it is the one thing that
-        // tells two sequences apart.
+        // tells two of them apart.
         let trail = match &action.kind {
             ActionKind::Sequence(head) => head.key.clone(),
+            ActionKind::Cinematic(head) => head.key.clone(),
             ActionKind::Leaf(_) | ActionKind::VariableSet(_) => ordinal,
         };
         // A variable set READS AS ITS ASSIGNMENT, for the reason an expression
@@ -1590,7 +1591,7 @@ fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec
             depth,
             &tree_lead(
                 open,
-                if choice == ActionChoice::Sequence {
+                if matches!(choice, ActionChoice::Sequence | ActionChoice::Cinematic) {
                     SEQUENCE
                 } else {
                     ACTION

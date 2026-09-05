@@ -68,15 +68,17 @@ does NOT get an entry - and it is the only place they are written down.
 - A `Planet` must author `invulnerable: true`. A destructible one is a lint
   error and refuses to load: nothing carves a planet, so it would sit there
   taking hits and never break.
-- **(breaking)** The campaign is First Shift and Second Shift;
+- **(breaking)** The campaign is one chapter, An Ordinary Shift;
   `shakedown_run`, `broadside`, `broadside_gunship`, `lifeline` and
   `final_tally` are gone. Retarget a mod that named one.
-- First Shift opens New Game: an Earthworks crew flies three recoveries under
-  a 150 m/s limit, sneaks a planetoid lap out of Meridian's sight, and watches
-  an Earth Navy warship kill the carrier.
-- Second Shift returns to the same belt an hour later. Recover three recorders
-  out of the wreck while a five-ship cleanup group sweeps it; being seen costs
-  you the quiet route home, not the run.
+- An Ordinary Shift opens New Game: an Earthworks crew flies three recoveries
+  under a 150 m/s cap, sneaks a planetoid lap out of Meridian's sight, and
+  watches a warship kill the carrier with 412 aboard.
+- The crew argue the rotation home while they work, and a stranger clips the
+  guard channel twice before the sentence that matters arrives.
+- The strike plays as two scenes: an approach you may leave once you have seen
+  it, and a salvo you may not. Skipping lands on the same wreck and the same
+  camera the played scene does.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's
@@ -98,6 +100,8 @@ does NOT get an entry - and it is the only place they are written down.
 ### Interface & HUD
 - Nova Protocol's campaign comms now give each recurring voice a distinct green
   CRT portrait, including Cutter One's crew, Meridian and unknown channels.
+- A comms card is drawn in its channel: work traffic in transmission blue, the
+  crew in phosphor, and a guard-channel catch faint, amber and tagged GUARD.
 - Comms use screen-relative cards with 20 px text and distinct speaker headers.
   A new line fades in without growing across the screen edge or the transcript,
   and objective guidance reads over clutter.
@@ -204,6 +208,20 @@ does NOT get an entry - and it is the only place they are written down.
 - `SetCameraAnchor` rides the camera on an object at a local or world offset,
   facing a point or another object, so a cinematic keeps the player's ship in
   frame; `ReleaseCamera` hands the view back.
+- `SetCamera` and `SetCameraAnchor` take an optional `blend`: seconds and an
+  easing turn a cut into a move that keeps tracking its anchor. Omitted is
+  still a cut, and a cut cancels a running blend.
+- `Cinematic` plays a beat chain as a scene the player may leave, reporting
+  `OnCinematicFinished` on every path out and `OnCinematicSkipped` first on a
+  skip. `CancelCinematic` ends one early.
+- A `Cinematic` filter matches an ending by its scene key, so a scenario with
+  two scenes answers the right one. An unplayed key warns at lint.
+- **(breaking)** `StoryMessage` is `NarrativeCue`, and every line authors a
+  `channel`: `Comms` for traffic sent to you, `Crew` for the cabin, `Guard` for
+  what you overheard. Rename it and add the field.
+- `PlaySound` plays one authored cue in the cockpit, on the `Interface` or
+  `Hull` route, with an optional gain. Positional sound stays on the object
+  that makes it.
 - `content lint` checks a helm order's ship and key, an empty patrol route, an
   orbit's well, an AI constraint's ship, and a forced shot's section id and
   class.
@@ -295,6 +313,9 @@ does NOT get an entry - and it is the only place they are written down.
   died, and would have twisted the wrong body.
 
 ### Internals & Tooling
+- One TABLE declares the action vocabulary. A row generates the enum arm, the
+  dispatch, the RON name, the menu label, the minted-id stem and the injection
+  class, so a new action is five edits instead of fifteen.
 - A `stress_hull_collapse` range fires one siege slug into a 1296-cell hull,
   asserts the corridor it destroyed and every piece it shed, and records what
   the collapse frame cost.

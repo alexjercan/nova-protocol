@@ -1,4 +1,4 @@
-//! first_shift_07_attack_approach: the production reveal, approach, and alignment scene.
+//! first_shift_07_strike_approach: the production reveal, approach, and alignment scene.
 
 #[path = "shared/first_shift_scene.rs"]
 mod preview;
@@ -15,5 +15,5 @@ const POSES: &[ShipPose] = &[ShipPose {
 }];
 
 fn main() -> bevy::app::AppExit {
-    preview::run(FirstShiftScene::AttackApproach, POSES)
+    preview::run(FirstShiftScene::StrikeApproach, POSES)
 }

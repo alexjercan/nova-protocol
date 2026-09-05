@@ -4,16 +4,19 @@
 //! nodes. Keep story policy, scenario ids, pacing, and object design in the
 //! owning scenario module.
 
+use bevy::prelude::AudioSource;
+use nova_gameplay::prelude::AssetRef;
 use nova_scenario::prelude::*;
 
 /// Glob-import surface for generic scenario authoring constructors.
 pub mod prelude {
     pub use super::{
-        attach_objective_marker, clear_hint_emphasis, complete_objective, despawn_object,
-        detach_objective_marker, entity, entity_pair, increment_variable, number, number_equals,
-        number_greater_than, number_less_than, post_objective, scenario_elapsed_watch, sequence,
-        set_number, set_variable, show_hint_emphasis, spawn_object, start_timer, step,
-        story_message, timer, until_step, variable,
+        attach_objective_marker, cinematic, clear_hint_emphasis, comms, complete_objective, crew,
+        cue, despawn_object, detach_objective_marker, entity, entity_pair, guard,
+        increment_variable, number, number_equals, number_greater_than, number_less_than,
+        play_sound, post_objective, scenario_elapsed_watch, scene, sequence, set_number,
+        set_variable, show_hint_emphasis, spawn_object, start_timer, step, timer, until_step,
+        variable,
     };
 }
 
@@ -161,13 +164,67 @@ pub fn clear_hint_emphasis(verb: impl Into<String>) -> EventActionConfig {
     EventActionConfig::HintEmphasisClear(HintEmphasisClearActionConfig::new(&verb))
 }
 
-/// Build a speaker-attributed story message with default dwell and no icon.
-pub fn story_message(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
-    EventActionConfig::StoryMessage(StoryMessageActionConfig {
+/// Build a speaker-attributed narrative cue with default dwell and no icon.
+pub fn cue(
+    channel: NarrativeChannelConfig,
+    speaker: impl Into<String>,
+    text: impl Into<String>,
+) -> EventActionConfig {
+    EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+        channel,
         speaker: speaker.into(),
         text: text.into(),
         dwell: None,
         icon: None,
+    })
+}
+
+/// A line on the work channel: the traffic a shift is paid to answer.
+pub fn comms(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
+    cue(NarrativeChannelConfig::Comms, speaker, text)
+}
+
+/// A line spoken inside the cutter, heard by nobody else.
+pub fn crew(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
+    cue(NarrativeChannelConfig::Crew, speaker, text)
+}
+
+/// A line bleeding off the Fleet guard channel: never addressed to the cutter,
+/// and heard in fragments.
+pub fn guard(speaker: impl Into<String>, text: impl Into<String>) -> EventActionConfig {
+    cue(NarrativeChannelConfig::Guard, speaker, text)
+}
+
+/// Build a keyed cinematic action: a beat chain the player may walk out of.
+///
+/// The scene's post-state is NOT authored here. It goes on the
+/// `OnCinematicFinished` handler [`scene`] matches, because a skipped scene
+/// and a scene that ran to its end owe the player the same camera, the same
+/// controls and the same objective.
+pub fn cinematic(
+    key: impl Into<String>,
+    skippable: bool,
+    steps: Vec<SequenceStepConfig>,
+) -> EventActionConfig {
+    EventActionConfig::Cinematic(CinematicActionConfig {
+        key: key.into(),
+        skippable,
+        steps,
+    })
+}
+
+/// Match a cinematic event by the scene's key, for an `OnCinematicFinished` or
+/// `OnCinematicSkipped` handler.
+pub fn scene(key: impl Into<String>) -> EventFilterConfig {
+    EventFilterConfig::Cinematic(CinematicFilterConfig { key: key.into() })
+}
+
+/// Play one authored sound at full volume.
+pub fn play_sound(sound: AssetRef<AudioSource>, route: SoundRouteConfig) -> EventActionConfig {
+    EventActionConfig::PlaySound(PlaySoundActionConfig {
+        sound,
+        route,
+        volume: None,
     })
 }
 

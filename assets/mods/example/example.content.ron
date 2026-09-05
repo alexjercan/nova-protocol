@@ -9,7 +9,7 @@
 //   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
 //   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
 //   3. ADD a playable scenario  - `example_arena` (mod-shipped skybox + rocks,
-//                                  a StoryMessage comms beat, an objective, a
+//                                  a NarrativeCue comms beat, an objective, a
 //                                  win check, and Victory/Defeat Outcomes)
 //   4. ADD a menu backdrop      - `example_menu` (a menu_backdrop scene: mods
 //                                  can ship main-menu ambience)
@@ -306,10 +306,11 @@
                     DebugMessage((
                         message: "Example arena loaded from the example mod's overlaid bundle.",
                     )),
-                    // StoryMessage appends a line to the comms panel (speaker +
+                    // NarrativeCue appends a line to the comms panel (speaker +
                     // text). The story log is scenario-scoped: it clears at
                     // teardown, so a line never leaks into the next scenario.
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Range Control",
                         text: "Welcome to the range. Two derelicts on the board - clear them at your leisure.",
                     )),
@@ -585,7 +586,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Range Control",
                         text: "Clock's running. Put your reticle on a derelict and hold the trigger.",
                     )),
@@ -608,7 +610,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Range Control",
                         text: "Late contact drifting onto the range - bonus target if you want it.",
                     )),

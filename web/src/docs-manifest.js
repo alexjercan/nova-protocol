@@ -640,12 +640,13 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: twenty-four event kinds, payloads, lifecycle edges, and dispatch order.",
+            "Everything that can fire a scenario handler: twenty-six event kinds, payloads, lifecycle edges, and dispatch order.",
         related: ["filters", "actions", "scenarios"],
         headings: [
             "OnStart",
             "OnUpdate",
             "OnTimerEnd",
+            "Cinematic endings",
             "Ship order lifecycle",
             "OnShipOrderComplete",
             "OnShipOrderInterrupted",
@@ -679,11 +680,12 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "The five scenario filter kinds: Entity, Timer, ShipOrder, Expression, and Conditional, with payload and fail-closed rules.",
+            "The six scenario filter kinds: Entity, Timer, Cinematic, ShipOrder, Expression, and Conditional, with payload and fail-closed rules.",
         related: ["events", "expressions", "author-a-scenario"],
         headings: [
             "Entity",
             "Timer",
+            "Cinematic",
             "ShipOrder",
             "Expression",
             "Conditional",
@@ -699,7 +701,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "All 42 actions a scenario handler can run, grouped by spawning, mission, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
+            "All 45 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -710,11 +712,14 @@ const CREATE_PAGES = [
             "ObjectiveComplete",
             "ObjectiveMarkerAttach",
             "ObjectiveMarkerDetach",
-            "StoryMessage",
+            "NarrativeCue",
             "HudReadout",
             "HintEmphasisSet",
             "HintEmphasisClear",
+            "PlaySound",
             "Sequence",
+            "Cinematic",
+            "CancelCinematic",
             "Outcome",
             "NextScenario",
             "SetSpeedCap",

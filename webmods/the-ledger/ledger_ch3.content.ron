@@ -896,7 +896,8 @@
                             (
                                 after: Some(2.0),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "Broker Vesh",
                                         text: "New voice on the channel. Vesh. I run this stretch of belt - and right now I run the only clean way to my yard.",
                                         dwell: Some(7.0),
@@ -906,7 +907,8 @@
                             (
                                 after: Some(9.0),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "You",
                                         text: "Copy, Vesh. I\'ve got a box that half the belt wants. What\'s the way in?",
                                     )),
@@ -915,7 +917,8 @@
                             (
                                 after: Some(9.0),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "Broker Vesh",
                                         text: "Run dark through the channel to my yard. I\'ll drop nav beacons - follow them in order. Two Magpie pickets sit the flanks of the narrows, running cold. Stay off their scopes, keep your lock stowed, and they\'ll never know you passed.",
                                         dwell: Some(10.0),
@@ -925,7 +928,8 @@
                             (
                                 after: Some(10.0),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "You",
                                         text: "Going dark. Bring up your first drop.",
                                     )),
@@ -973,7 +977,8 @@
                         key: "gate",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Drop one. Keep your burn low, the channel listens.",
                     )),
@@ -991,7 +996,8 @@
                                         key: "pinch_warn_said",
                                         expression: Term(Factor(Literal(Number(1.0)))),
                                     )),
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "Broker Vesh",
                                         text: "Channel narrows here - two old wrecks the size of houses, and the gap between them is barely a lane. Thread it slow: the gap is the one lane the picket scopes don\'t cover. Swing wide around the wrecks and you\'re in their laps.",
                                         dwell: Some(10.0),
@@ -1022,7 +1028,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Clean through. Steady hands, Kestrel. The line opens up ahead - close on drop two.",
                         dwell: Some(6.0),
@@ -1069,7 +1076,8 @@
                         id: "channel_magpie_2",
                         allegiance: Enemy,
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "They\'ve made you - you\'re inside their watch and both pickets are going hot. Run or fight, but the line is still the line, Kestrel.",
                         dwell: Some(7.0),
@@ -1106,7 +1114,8 @@
                         id: "channel_magpie_2",
                         allegiance: Enemy,
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "They\'ve made you - you\'re inside their watch and both pickets are going hot. Run or fight, but the line is still the line, Kestrel.",
                         dwell: Some(7.0),
@@ -1145,7 +1154,8 @@
                         id: "channel_magpie_2",
                         allegiance: Enemy,
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "You painted them, Kestrel - lock light travels both ways. Both pickets going hot. Run or fight, but the line is still the line.",
                         dwell: Some(7.0),
@@ -1182,7 +1192,8 @@
                         id: "channel_magpie_2",
                         allegiance: Enemy,
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "You painted them, Kestrel - lock light travels both ways. Both pickets going hot. Run or fight, but the line is still the line.",
                         dwell: Some(7.0),
@@ -1236,7 +1247,8 @@
                         key: "speed_warned",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Ease off, Kestrel - you\'re burning too hot. A hull sings at speed and this channel carries every note. Throttle down and run dark, or those pickets will hear you coming.",
                         dwell: Some(7.0),
@@ -1309,7 +1321,8 @@
                         key: "overspeed",
                         seconds: Term(Factor(Literal(Number(3.5)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "That burn again - they\'re turning to look. Kill your speed NOW, Kestrel, or they\'ll have a lock before you clear the lane.",
                         dwell: Some(5.0),
@@ -1397,7 +1410,8 @@
                         id: "channel_magpie_2",
                         allegiance: Enemy,
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Too hot too long - that\'s torn it. They heard that burn and both pickets are lighting up. Run or fight, but the line is still the line, Kestrel.",
                         dwell: Some(7.0),
@@ -1468,7 +1482,8 @@
                         key: "mid_beat",
                         seconds: Term(Factor(Literal(Number(5.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Drop two. Halfway, Kestrel - hold the line and keep your burn low.",
                     )),
@@ -1492,7 +1507,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Both pickets still cold on my board. Whatever you\'re doing, keep doing it - drop three, then the yard.",
                         dwell: Some(7.0),
@@ -1514,7 +1530,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Don\'t chase them if they run. The box is the job, not the kill. Hold the line to drop three.",
                         dwell: Some(7.0),
@@ -1548,7 +1565,8 @@
                         key: "final_beat",
                         seconds: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Drop three. The yard lights are on for you. Last leg.",
                     )),
@@ -1571,7 +1589,8 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "That\'s the last of the rocks behind you. Bring her into the yard slow - I\'ll have the lights on.",
                         dwell: Some(6.0),
@@ -1619,7 +1638,7 @@
             // The yard, CLEAN path (spotted == 0): the stealth payoff. Vesh's
             // "nothing on their scopes" line lands FIRST as a comms beat and
             // the Victory overlay follows a beat later (the ch2b
-            // deferred-victory idiom - a StoryMessage beside an Outcome is
+            // deferred-victory idiom - a NarrativeCue beside an Outcome is
             // never read). act stamps 2 here: the run is over, so a
             // post-arrival death or paint changes nothing.
             (
@@ -1647,13 +1666,14 @@
                     ObjectiveComplete((
                         id: "obj_gates",
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Nothing on their scopes, Kestrel. Nice and quiet - the pickets never even stirred. Bring her in.",
                         dwell: Some(6.0),
                     )),
                     // The overlay, a beat behind the payoff line (a
-                    // StoryMessage beside an Outcome is never read). The chain
+                    // NarrativeCue beside an Outcome is never read). The chain
                     // belongs to this arrival, so the fight path - which
                     // declared its own Victory above - can never reach it.
                     Sequence((

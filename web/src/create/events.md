@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the TWENTY-THREE event kinds below, written bare (they are unit variants):
+the TWENTY-SIX event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -21,6 +21,8 @@ The whole vocabulary at a glance:
 | [`OnStart`](#onstart) | none | once, right after the scenario loads |
 | [`OnUpdate`](#onupdate) | none | every frame while live, unpaused and fully spawned |
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
+| [`OnCinematicFinished`](#cinematic-endings) | `cinematic` | a scene ends, by ANY path |
+| [`OnCinematicSkipped`](#cinematic-endings) | `cinematic` | the player leaves a scene early |
 | [`OnDefeated`](#ondefeated) | `id`, `type_name` | a ship is neutralized or directly destroyed |
 | [`OnDestroyed`](#ondestroyed) | `id`, `type_name` | a scenario object is physically destroyed |
 | [`OnNeutralized`](#onneutralized) | `id`, `type_name` | an armed ship loses ALL weapons, or the flight computer it had |
@@ -45,7 +47,9 @@ The whole vocabulary at a glance:
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
-party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter, and the five
+party. `OnTimerEnd` instead carries `key`, matched by a `Timer` filter; the two
+cinematic endings carry `cinematic`, matched by a
+[`Cinematic`](../filters/#cinematic) filter; and the five
 ship-order events carry `order` / `kind` for a
 [`ShipOrder`](../filters/#shiporder) filter beside the ship's own `id` /
 `type_name` - the same four fields on all five, so one filter matches
@@ -114,7 +118,8 @@ happens one time - then the only filter left is the one about the game:
         ))),
     ],
     actions: [
-        StoryMessage((
+        NarrativeCue((
+            channel: Comms,
             speaker: "Control",
             text: "Ten seconds elapsed.",
         )),
@@ -137,7 +142,7 @@ Fires exactly once when a keyed scenario timer reaches its deadline. Payload:
 (
     name: OnTimerEnd,
     filters: [Timer((key: "briefing_delay"))],
-    actions: [StoryMessage((speaker: "Control", text: "Proceed."))],
+    actions: [NarrativeCue((channel: Comms, speaker: "Control", text: "Proceed."))],
 ),
 ```
 
@@ -149,6 +154,54 @@ Timer-end events queue before that frame's `OnUpdate` pulse.
 Start or restart the delay with [`TimerStart`](../actions/#timerstart). Cancel
 it with [`TimerCancel`](../actions/#timercancel). Timers use live, unpaused
 scenario time and clear on retry or teardown.
+
+</details>
+
+## Cinematic endings
+
+A [`Cinematic`](../actions/#cinematic) does not carry an on-finish action list.
+It REPORTS its ending, and the handlers that answer live beside it. Payload:
+`cinematic` is the scene's authored key - match it with a
+[`Cinematic`](../filters/#cinematic) filter.
+
+```ron
+// Every path out: give back what the scene took.
+(
+    name: OnCinematicFinished,
+    filters: [Cinematic((key: "strike_approach"))],
+    actions: [
+        ReleaseCamera(()),
+        ResumePlayerControl(()),
+    ],
+),
+// Only the skip: what the beats that never played would have left behind.
+(
+    name: OnCinematicSkipped,
+    filters: [Cinematic((key: "strike_approach"))],
+    actions: [
+        DespawnScenarioObject((target_id: "warship")),
+        VariableSet((key: "beat", expression: Term(Factor(Literal(Number(6.0)))))),
+    ],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+`OnCinematicFinished` fires on EVERY way out of the scene - its last beat ran,
+the player skipped it, a [`CancelCinematic`](../actions/#cancelcinematic)
+stopped it, or one of its steps blew its deadline. Author the post-state there,
+once, and no path can forget it.
+
+`OnCinematicSkipped` fires FIRST on a skip, immediately before that scene's
+`OnCinematicFinished`. It carries only the catch-up: the actors the unplayed
+beats would have spawned, moved or destroyed, and the variables they would have
+latched. It is not a second copy of the scene - a skip means the player asked
+not to watch, so nothing presentational belongs here.
+
+Always filter by key. A scenario with two scenes and an unfiltered handler
+answers whichever one ends first. A `Cinematic` filter naming a key no scene
+plays is a lint Warn.
 
 </details>
 
@@ -218,7 +271,7 @@ only one whose `order_interruption` policy says so (see
 (
     name: OnShipOrderInterrupted,
     filters: [ShipOrder((ship: Some("picket")))],
-    actions: [StoryMessage((speaker: "Picket", text: "Contact. Breaking off."))],
+    actions: [NarrativeCue((channel: Comms, speaker: "Picket", text: "Contact. Breaking off."))],
 ),
 ```
 
@@ -356,7 +409,7 @@ world. Payload: `id`, `type_name` of the neutralized ship; no other party.
     filters: [Entity((id: Some("derelict_gunship")))],
     actions: [
         ObjectiveComplete((id: "disarm_gunship")),
-        StoryMessage((speaker: "Control", text: "Guns down. The wreck is yours.")),
+        NarrativeCue((channel: Comms, speaker: "Control", text: "Guns down. The wreck is yours.")),
     ],
 ),
 ```

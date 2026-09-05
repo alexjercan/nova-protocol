@@ -82,7 +82,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "choice", expression: Term(Factor(Literal(Number(1.0)))))),
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(2.0)))))),
                     SetSkybox((cubemap: "dep://base/textures/cubemap_alt.png")),
-                    StoryMessage((speaker: "Speaker One", text: "Something is closing on you.")),
+                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Something is closing on you.")),
                     SpawnScenarioObject((
                         base: (id: "spaceship_2", name: "Ship Two", position: (0.0, 300.0, -2600.0), rotation: (0.0, 0.0, 0.0, 1.0)),
                         kind: Spaceship((
@@ -105,7 +105,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "choice", expression: Term(Factor(Literal(Number(2.0)))))),
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(3.0)))))),
                     VariableSet((key: "close_gate", expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))))),
-                    StoryMessage((speaker: "Speaker One", text: "Nothing left to chase.")),
+                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Nothing left to chase.")),
                 ],
             ),
             (

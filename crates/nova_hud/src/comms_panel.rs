@@ -1,7 +1,7 @@
 //! The comms panel: the HUD surface for SPEAKER-ATTRIBUTED story text - the
 //! story-campaign vocabulary objectives cannot carry.
 //!
-//! Data path: a scenario's `StoryMessage` action appends to the event world's
+//! Data path: a scenario's `NarrativeCue` action appends to the event world's
 //! story log (nova_scenario), whose sync copies it into [`StoryFeed`] here
 //! (write-on-diff). The panel presents that feed as a bottom-left chat stack:
 //! several lines can be visible at once, newest at the bottom, older cards
@@ -26,12 +26,69 @@ use nova_ui::{hud::ChipTone, theme};
 
 use super::{HudSelfDrivenVisibility, HudTier};
 
-/// The `StoryFeed` queue, `StoryLine`, and the comms dwell and fade timing constants.
+/// The `StoryFeed` queue, `StoryLine`, `NarrativeChannel`, and the comms dwell
+/// and fade timing constants.
 pub mod prelude {
     pub use super::{
-        StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS, COMMS_DWELL_SECS,
-        COMMS_FADE_OUT_SECS, COMMS_MIN_SECS,
+        NarrativeChannel, StoryFeed, StoryLine, COMMS_DWELL_MAX_SECS, COMMS_DWELL_MIN_SECS,
+        COMMS_DWELL_SECS, COMMS_FADE_OUT_SECS, COMMS_MIN_SECS,
     };
+}
+
+/// Where a narrative cue is heard from, which is what the card's treatment
+/// says before a word of it is read.
+///
+/// Not a faction and not a speaker: the same person reaches the cockpit down
+/// two different channels and the difference matters. Meridian Control on the
+/// work channel is addressed to you; the same desk read over the guard channel
+/// is something you are overhearing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NarrativeChannel {
+    /// The work channel: traffic addressed to this ship. The HUD's own
+    /// incoming-transmission blue.
+    #[default]
+    Comms,
+    /// Inside the hull, off the radio entirely - the crew talking to each
+    /// other. Phosphor: a voice in the room, not a transmission.
+    Crew,
+    /// The guard channel: everybody's channel, nobody's conversation. Amber
+    /// and weak, so a fragment reads as something the cockpit CAUGHT rather
+    /// than something it was sent.
+    Guard,
+}
+
+impl NarrativeChannel {
+    /// The chip family this channel's card is drawn in.
+    pub fn tone(self) -> ChipTone {
+        match self {
+            NarrativeChannel::Comms => ChipTone::Comms,
+            NarrativeChannel::Crew => ChipTone::Phosphor,
+            NarrativeChannel::Guard => ChipTone::Amber,
+        }
+    }
+
+    /// The channel name shown beside the speaker, or `None` when the channel
+    /// needs no saying.
+    ///
+    /// Only the guard channel is tagged. The work channel is what this panel
+    /// IS, and the crew are in the room; tagging either would put a label on
+    /// every line to distinguish it from nothing. What the tag marks is a line
+    /// the ship was not sent.
+    pub fn tag(self) -> Option<&'static str> {
+        match self {
+            NarrativeChannel::Comms | NarrativeChannel::Crew => None,
+            NarrativeChannel::Guard => Some("GUARD"),
+        }
+    }
+
+    /// How strongly the card is drawn: a guard-channel catch is faint, and a
+    /// line the ship was sent is not.
+    pub fn signal_strength(self) -> f32 {
+        match self {
+            NarrativeChannel::Guard => 0.7,
+            _ => 1.0,
+        }
+    }
 }
 
 /// One speaker-attributed story line, as delivered to the HUD.
@@ -46,6 +103,8 @@ pub struct StoryLine {
     pub dwell: Option<f32>,
     /// Optional speaker icon image. `None` renders the HUD fallback tile.
     pub icon: Option<AssetRef<Image>>,
+    /// Where the line was heard, which picks the card's tone and tag.
+    pub channel: NarrativeChannel,
 }
 
 /// The loaded scenario's story-message log, in delivery order. Written by
@@ -294,7 +353,15 @@ fn sync_comms_cards(
 }
 
 fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> impl Bundle {
-    let alpha = line.alpha();
+    let channel = line.line.channel;
+    let tone = channel.tone();
+    // The fade and the channel's own strength multiply: a guard-channel catch
+    // is faint for the whole of its dwell, not only while it is fading.
+    let alpha = line.alpha() * channel.signal_strength();
+    let header = match channel.tag() {
+        Some(tag) => format!("{} / {tag}", line.line.speaker.to_uppercase()),
+        None => line.line.speaker.to_uppercase(),
+    };
     (
         CommsCardMarker,
         Node {
@@ -306,21 +373,15 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
             align_items: AlignItems::FlexStart,
             ..default()
         },
-        // The card is the COMMS member of the HUD chip family: blue border and
-        // the family's translucent slab, so an incoming transmission is
-        // instantly distinguishable from a flight readout (demo 2 `.comms`).
-        BorderColor::all(
-            ChipTone::Comms
-                .border()
-                .with_alpha(ChipTone::Comms.border().alpha() * alpha),
-        ),
-        BackgroundColor(
-            ChipTone::Comms
-                .fill()
-                .with_alpha(ChipTone::Comms.fill().alpha() * alpha),
-        ),
+        // The card is a member of the HUD chip family, in the tone its CHANNEL
+        // picks: blue for the work channel, phosphor for the crew, amber for
+        // the guard channel. That is what makes an incoming transmission
+        // instantly distinguishable from a flight readout (demo 2 `.comms`) -
+        // and one channel from another.
+        BorderColor::all(tone.border().with_alpha(tone.border().alpha() * alpha)),
+        BackgroundColor(tone.fill().with_alpha(tone.fill().alpha() * alpha)),
         children![
-            comms_icon(&line.line, alpha, asset_server),
+            comms_icon(&line.line, tone, alpha, asset_server),
             (
                 Node {
                     flex_grow: 1.0,
@@ -331,9 +392,9 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
                 children![
                     (
                         CommsSpeakerMarker,
-                        Text::new(line.line.speaker.to_uppercase()),
+                        Text::new(header),
                         TextFont::from_font_size(COMMS_SPEAKER_FONT_SIZE_PX),
-                        TextColor(theme::BLUE.with_alpha(alpha)),
+                        TextColor(tone.text().with_alpha(alpha)),
                     ),
                     (
                         CommsTextMarker,
@@ -351,7 +412,12 @@ fn comms_card(line: &VisibleCommsLine, asset_server: Option<&AssetServer>) -> im
     )
 }
 
-fn comms_icon(line: &StoryLine, alpha: f32, asset_server: Option<&AssetServer>) -> impl Bundle {
+fn comms_icon(
+    line: &StoryLine,
+    tone: ChipTone,
+    alpha: f32,
+    asset_server: Option<&AssetServer>,
+) -> impl Bundle {
     let node = Node {
         width: Val::Px(COMMS_ICON_SIZE_PX),
         height: Val::Px(COMMS_ICON_SIZE_PX),
@@ -373,7 +439,7 @@ fn comms_icon(line: &StoryLine, alpha: f32, asset_server: Option<&AssetServer>) 
                     .unwrap_or_default(),
             )
             .with_color(Color::WHITE.with_alpha(alpha)),
-            BorderColor::all(theme::BLUE.with_alpha(alpha)),
+            BorderColor::all(tone.text().with_alpha(alpha)),
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
             children![],
         ),
@@ -384,7 +450,7 @@ fn comms_icon(line: &StoryLine, alpha: f32, asset_server: Option<&AssetServer>) 
             node,
             ImageNode::default(),
             BorderColor::all(theme::PHOSPHOR_MUTED.with_alpha(alpha)),
-            BackgroundColor(theme::BLUE.with_alpha(0.18 * alpha)),
+            BackgroundColor(tone.text().with_alpha(0.18 * alpha)),
             children![],
         ),
     }
@@ -442,11 +508,34 @@ mod tests {
             .resource_mut::<StoryFeed>()
             .0
             .push(StoryLine {
+                channel: NarrativeChannel::Comms,
                 speaker: speaker.to_string(),
                 text: text.to_string(),
                 dwell,
                 icon,
             });
+    }
+
+    fn push_channel_line(app: &mut App, channel: NarrativeChannel, speaker: &str) {
+        app.world_mut()
+            .resource_mut::<StoryFeed>()
+            .0
+            .push(StoryLine {
+                channel,
+                speaker: speaker.to_string(),
+                text: "Say again.".to_string(),
+                dwell: None,
+                icon: None,
+            });
+    }
+
+    /// The border alpha of each drawn card, in stack order.
+    fn card_border_alphas(app: &mut App) -> Vec<f32> {
+        app.world_mut()
+            .query_filtered::<&BorderColor, With<CommsCardMarker>>()
+            .iter(app.world())
+            .map(|border| border.top.alpha())
+            .collect()
     }
 
     fn panel_visibility(app: &mut App) -> Visibility {
@@ -752,5 +841,85 @@ mod tests {
         // scale is what would push it over the screen edge. Asserting only the
         // scale passes on a panel that has no emphasis driver at all.
         assert_eq!(found, vec![(Vec2::ONE, false), (Vec2::ONE, false)]);
+    }
+
+    /// The channel is what the card is drawn in. Two lines from the same desk
+    /// on two channels have to read as two different things: one addressed to
+    /// this ship, one caught off the guard channel. The header carries the
+    /// channel, and the crew - who are in the room, not on a radio - carry no
+    /// channel at all.
+    #[test]
+    fn each_channel_draws_its_own_header() {
+        let mut app = comms_app();
+        app.update();
+
+        push_channel_line(&mut app, NarrativeChannel::Comms, "Meridian Control");
+        push_channel_line(&mut app, NarrativeChannel::Crew, "Copilot");
+        push_channel_line(&mut app, NarrativeChannel::Guard, "Meridian Control");
+        app.update();
+
+        assert_eq!(
+            visible_speakers(&mut app),
+            vec![
+                "MERIDIAN CONTROL".to_string(),
+                "COPILOT".to_string(),
+                "MERIDIAN CONTROL / GUARD".to_string(),
+            ],
+            "only the line this ship was NOT sent names its channel"
+        );
+    }
+
+    /// A guard-channel line is something the cockpit CAUGHT. It is drawn weak
+    /// for its whole dwell, not only while it fades - that is what makes a
+    /// fragment read as a fragment.
+    #[test]
+    fn a_guard_channel_line_is_drawn_fainter_than_one_sent_to_this_ship() {
+        let mut app = comms_app();
+        app.update();
+
+        push_channel_line(&mut app, NarrativeChannel::Comms, "Meridian Control");
+        push_channel_line(&mut app, NarrativeChannel::Guard, "Meridian Control");
+        // Past the fade-in and well short of the dwell, where both cards are
+        // at their steady strength and only the channel separates them.
+        for _ in 0..3 {
+            app.update();
+        }
+
+        let alphas = card_border_alphas(&mut app);
+        assert_eq!(alphas.len(), 2);
+        // The two cards are the same age, so they share a fade factor; what
+        // separates them is the channel's own strength. Read the fade off the
+        // comms card rather than assuming the frame it was measured on.
+        let fade = alphas[0] / ChipTone::Comms.border().alpha();
+        let full_amber = ChipTone::Amber.border().alpha() * fade;
+        assert!(
+            (alphas[1] - full_amber * NarrativeChannel::Guard.signal_strength()).abs() < 1e-4,
+            "the guard card is drawn at its channel's strength: {alphas:?}"
+        );
+        assert!(
+            alphas[1] < full_amber,
+            "a guard-channel catch is weaker than a full-strength amber card"
+        );
+    }
+
+    /// The three channels are three visibly different cards. A channel that
+    /// shared a tone with another would be a channel the player cannot tell
+    /// apart at a glance, which is the whole reason the field exists.
+    #[test]
+    fn no_two_channels_share_a_tone() {
+        let tones: Vec<ChipTone> = [
+            NarrativeChannel::Comms,
+            NarrativeChannel::Crew,
+            NarrativeChannel::Guard,
+        ]
+        .into_iter()
+        .map(NarrativeChannel::tone)
+        .collect();
+        for (index, tone) in tones.iter().enumerate() {
+            assert!(
+                !tones[index + 1..].contains(tone),
+                "two channels are drawn in {tone:?}"
+            );
+        }
     }
 }

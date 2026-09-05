@@ -1,5 +1,5 @@
-//! first_shift_08_attack_salvo: First Shift's production salvo on its production
-//! map, with preview-only ship poses and capture controls.
+//! first_shift_08_strike_salvo: An Ordinary Shift's production salvo on its
+//! production map, with preview-only ship poses and capture controls.
 //!
 //! The map, ships, dialogue, weapon actions, lighting, camera cuts, and timing
 //! come from `nova_authoring::first_shift_scene`, the same scene fragment used
@@ -7,15 +7,15 @@
 //! optional capture instrumentation.
 //!
 //! ```text
-//! cargo run --example first_shift_08_attack_salvo --features debug
-//! cargo run --example first_shift_08_attack_salvo --features debug -- \
+//! cargo run --example first_shift_08_strike_salvo --features debug
+//! cargo run --example first_shift_08_strike_salvo --features debug -- \
 //!     --offset 600,20,-360
 //! ```
 //!
 //! Record the paired railgun impacts:
 //! ```text
 //! NOVA_CAPTURE_DIR=target/loop-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
-//!     cargo run --example first_shift_08_attack_salvo --features debug
+//!     cargo run --example first_shift_08_strike_salvo --features debug
 //! ```
 
 use bevy::{prelude::*, window::PrimaryWindow};
@@ -57,7 +57,7 @@ const STILL_BEATS: [(f64, &str); 5] = [
 ];
 
 #[derive(Parser, Resource)]
-#[command(name = "first_shift_08_attack_salvo")]
+#[command(name = "first_shift_08_strike_salvo")]
 struct Cli {
     /// Preview override for the production death-shot offset, in meters.
     #[arg(long, value_name = "X,Y,Z", default_value = SHIPPED_DEATH_OFFSET, value_parser = parse_offset)]
@@ -161,7 +161,7 @@ fn attack_plugin(app: &mut App) {
 
 fn load(mut commands: Commands, assets: Res<GameAssets>, cli: Res<Cli>) {
     let mut scene = first_shift_scene(
-        FirstShiftScene::AttackSalvo,
+        FirstShiftScene::StrikeSalvo,
         assets.cubemap.clone().into(),
         assets.asteroid_texture.clone().into(),
         &CampaignPortraits::from_game_assets(&assets),
@@ -219,7 +219,7 @@ fn place_ship(scenario: &mut ScenarioConfig, id: &str, position: Meters3, rotati
             return;
         }
     }
-    panic!("first_shift_08_attack_salvo: production scene did not spawn '{id}'");
+    panic!("first_shift_08_strike_salvo: production scene did not spawn '{id}'");
 }
 
 fn facing(from: Meters3, to: Meters3) -> Quat {
@@ -249,17 +249,17 @@ fn capture(cli: &Cli, beat: &str) -> EventActionConfig {
 }
 
 fn instrument_salvo(scenario: &mut ScenarioConfig, cli: &Cli) {
-    let sequence = scenario
+    let scene = scenario
         .events
         .iter_mut()
         .flat_map(|event| event.actions.iter_mut())
         .find_map(|action| match action {
-            EventActionConfig::Sequence(sequence) if sequence.key == "salvo" => Some(sequence),
+            EventActionConfig::Cinematic(scene) if scene.key == "strike_salvo" => Some(scene),
             _ => None,
         })
-        .expect("production AttackSalvo scene has no salvo sequence");
+        .expect("production StrikeSalvo scene has no salvo cinematic");
 
-    for step in &mut sequence.steps {
+    for step in &mut scene.steps {
         for action in &mut step.actions {
             if let EventActionConfig::SetCameraAnchor(shot) = action {
                 if shot.anchor == "cutter" && matches!(shot.look_at, CameraLookAtConfig::Point(_)) {
@@ -270,7 +270,7 @@ fn instrument_salvo(scenario: &mut ScenarioConfig, cli: &Cli) {
     }
 
     let mut at = 0.0;
-    let mut timeline: Vec<(f64, usize, SequenceStepConfig)> = sequence
+    let mut timeline: Vec<(f64, usize, SequenceStepConfig)> = scene
         .steps
         .drain(..)
         .enumerate()
@@ -306,7 +306,7 @@ fn instrument_salvo(scenario: &mut ScenarioConfig, cli: &Cli) {
             .then_with(|| left.1.cmp(&right.1))
     });
     let mut previous = 0.0;
-    sequence.steps = timeline
+    scene.steps = timeline
         .into_iter()
         .map(|(at, _, mut step)| {
             step.after = Some(at - previous);

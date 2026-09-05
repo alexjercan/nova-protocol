@@ -17,6 +17,7 @@ struct Declared {
     set_vars: HashSet<String>,
     timer_keys: HashSet<String>,
     order_keys: HashSet<String>,
+    cinematic_keys: HashSet<String>,
     objective_ids: HashSet<String>,
     completed_objectives: HashSet<String>,
     /// The ships this scenario spawns BY NAME, so a check can ask what one of
@@ -139,18 +140,18 @@ pub fn lint_scenario(
         for action in &event.actions {
             action.walk(&mut |action| {
                 collect_declared(action, &mut declared);
+                if let Some((key, steps)) = action.step_chain() {
+                    check_step_chain(action.tag().label(), key, steps, id, &mut issues);
+                    if !key.trim().is_empty() {
+                        event_sequences.push(key.to_string());
+                    }
+                }
                 match action {
                     EventActionConfig::SpawnScenarioObject(config) => {
                         event_spawns.push(config.base.id.clone());
                     }
                     EventActionConfig::CreateScenarioArea(config) => {
                         event_spawns.push(config.id.clone());
-                    }
-                    EventActionConfig::Sequence(config) => {
-                        check_sequence(config, id, &mut issues);
-                        if !config.key.trim().is_empty() {
-                            event_sequences.push(config.key.clone());
-                        }
                     }
                     _ => {}
                 }
@@ -283,19 +284,19 @@ pub fn lint_scenario(
 
     // The beat-sheet convention, mechanized: (a) one story line per beat - a
     // multi-line handler reads as one burst even through the paced queue; (b) a
-    // StoryMessage beside an Outcome is a DEAD line - the overlay pauses the
+    // NarrativeCue beside an Outcome is a DEAD line - the overlay pauses the
     // comms queue and the chained teardown drops it unread. Fold it into the
     // overlay message or move it to an earlier beat.
     for group in scenario.events.iter().flat_map(|e| e.action_groups()) {
         let story_lines = group
             .iter()
-            .filter(|a| matches!(a, EventActionConfig::StoryMessage(_)))
+            .filter(|a| matches!(a, EventActionConfig::NarrativeCue(_)))
             .count();
         if story_lines > 1 {
             issues.push(LintIssue::warn(
                 id,
                 format!(
-                    "{story_lines} StoryMessages in one handler: space beats with the \
+                    "{story_lines} NarrativeCues in one handler: space beats with the \
                      scenario clock (one line per beat; the comms queue is the safety \
                      net, not the style)"
                 ),
@@ -308,7 +309,7 @@ pub fn lint_scenario(
         {
             issues.push(LintIssue::warn(
                 id,
-                "a StoryMessage beside an Outcome is never read (frozen behind the \
+                "a NarrativeCue beside an Outcome is never read (frozen behind the \
                  overlay, dropped by the chained teardown) - fold it into the \
                  overlay's message or move it to an earlier beat"
                     .to_string(),
@@ -529,27 +530,34 @@ fn check_scatter_kind_mix(
     }
 }
 
-fn check_sequence(config: &SequenceActionConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
-    if config.key.trim().is_empty() {
+/// Check one keyed beat chain - a `Sequence` or a `Cinematic`. `kind` is the
+/// action's own label, so a finding names the thing the author wrote.
+fn check_step_chain(
+    kind: &str,
+    key: &str,
+    steps: &[SequenceStepConfig],
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    if key.trim().is_empty() {
         issues.push(LintIssue::error(
             scenario,
-            "Sequence has an empty key".to_string(),
+            format!("{kind} has an empty key"),
         ));
     }
-    if config.steps.is_empty() {
+    if steps.is_empty() {
         issues.push(LintIssue::error(
             scenario,
-            format!("Sequence '{}' has no steps", config.key),
+            format!("{kind} '{key}' has no steps"),
         ));
     }
-    for (index, step) in config.steps.iter().enumerate() {
+    for (index, step) in steps.iter().enumerate() {
         if step.until.is_some() && step.deadline.is_none() {
             issues.push(LintIssue::error(
                 scenario,
                 format!(
-                    "Sequence '{}' step {index} waits for an event with no deadline; \
-                     a gate that never opens is a silent soft-lock",
-                    config.key
+                    "{kind} '{key}' step {index} waits for an event with no deadline; \
+                     a gate that never opens is a silent soft-lock"
                 ),
             ));
         }
@@ -559,9 +567,8 @@ fn check_sequence(config: &SequenceActionConfig, scenario: &str, issues: &mut Ve
                     issues.push(LintIssue::error(
                         scenario,
                         format!(
-                            "Sequence '{}' step {index} has a {name} of {secs}s; \
-                             it must be a finite, non-negative number of seconds",
-                            config.key
+                            "{kind} '{key}' step {index} has a {name} of {secs}s; \
+                             it must be a finite, non-negative number of seconds"
                         ),
                     ));
                 }
@@ -571,9 +578,8 @@ fn check_sequence(config: &SequenceActionConfig, scenario: &str, issues: &mut Ve
             issues.push(LintIssue::warn(
                 scenario,
                 format!(
-                    "Sequence '{}' step {index} has a deadline but nothing to wait \
-                     for; the deadline is dead unless the step has an `until` gate",
-                    config.key
+                    "{kind} '{key}' step {index} has a deadline but nothing to wait \
+                     for; the deadline is dead unless the step has an `until` gate"
                 ),
             ));
         }
@@ -620,6 +626,9 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         }
         EventActionConfig::OrbitShip(config) => {
             declared.order_keys.insert(config.order.clone());
+        }
+        EventActionConfig::Cinematic(config) => {
+            declared.cinematic_keys.insert(config.key.clone());
         }
         EventActionConfig::Objective(config) => {
             declared.objective_ids.insert(config.id.clone());
@@ -728,7 +737,24 @@ fn check_action(
                 ));
             }
         }
-        EventActionConfig::StoryMessage(config) => {
+        EventActionConfig::CancelCinematic(config) => {
+            if config.key.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "CancelCinematic has an empty key".to_string(),
+                ));
+            } else if !declared.cinematic_keys.contains(&config.key) {
+                issues.push(LintIssue::warn(
+                    scenario,
+                    format!(
+                        "CancelCinematic ends scene '{}', which no Cinematic action \
+                         in this scenario plays",
+                        config.key
+                    ),
+                ));
+            }
+        }
+        EventActionConfig::NarrativeCue(config) => {
             // The panel clamps silently; an authored dwell outside the
             // documented range is an authoring slip worth a nudge.
             if let Some(dwell) = config.dwell {
@@ -737,7 +763,7 @@ fn check_action(
                     issues.push(LintIssue::warn(
                         scenario,
                         format!(
-                            "StoryMessage dwell {dwell}s is outside the [3, 30]s range \
+                            "NarrativeCue dwell {dwell}s is outside the [3, 30]s range \
                              and will be clamped by the comms panel"
                         ),
                     ));
@@ -1486,6 +1512,26 @@ fn check_filter(
                 check_target(ship, "ShipOrder filter", scenario, satisfiable, issues);
             }
         }
+        EventFilterConfig::Cinematic(config) => {
+            // A cinematic filter that names no scene is the one shape that
+            // cannot work: both events carry a key, so an empty one matches
+            // nothing and the restore handler never runs.
+            if config.key.trim().is_empty() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    "Cinematic filter has an empty key".to_string(),
+                ));
+            } else if !declared.cinematic_keys.contains(&config.key) {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "Cinematic filter waits for scene '{}', which no \
+                         Cinematic action in this scenario plays",
+                        config.key
+                    ),
+                ));
+            }
+        }
         EventFilterConfig::Conditional(config) => match config {
             ConditionalFilterConfig::Not(inner) => {
                 check_filter(inner, scenario, satisfiable, declared, used_vars, issues);
@@ -1826,6 +1872,7 @@ mod tests {
 
         let mut posed = scenario(
             vec![EventActionConfig::SetCamera(SetCameraActionConfig {
+                blend: None,
                 position: Meters3::new(0.0, 900.0, 3_000.0),
                 look_at: Meters3::ZERO,
             })],
@@ -2600,7 +2647,8 @@ mod tests {
     #[test]
     fn beat_sheet_arms_warn() {
         let line = |text: &str| {
-            EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: text.to_string(),
                 dwell: None,
@@ -2688,12 +2736,13 @@ mod tests {
         );
     }
 
-    /// StoryMessage dwell range: out-of-range warns, in-range and omitted stay
+    /// NarrativeCue dwell range: out-of-range warns, in-range and omitted stay
     /// clean.
     #[test]
     fn story_dwell_out_of_range_warns() {
         let line = |dwell| {
-            EventActionConfig::StoryMessage(StoryMessageActionConfig {
+            EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "test".to_string(),
                 dwell,
@@ -2860,7 +2909,8 @@ mod tests {
     }
 
     fn story(text: &str) -> EventActionConfig {
-        EventActionConfig::StoryMessage(StoryMessageActionConfig {
+        EventActionConfig::NarrativeCue(NarrativeCueActionConfig {
+            channel: NarrativeChannelConfig::Comms,
             speaker: "Control".to_string(),
             text: text.to_string(),
             dwell: None,
@@ -3011,7 +3061,7 @@ mod tests {
         );
         let issues = lint_scenario(&paced, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
-            !issues.iter().any(|i| i.message.contains("StoryMessages")),
+            !issues.iter().any(|i| i.message.contains("NarrativeCues")),
             "clock-spaced steps are one line per beat: {issues:?}"
         );
 
@@ -3027,7 +3077,7 @@ mod tests {
         );
         let issues = lint_scenario(&burst, &sections(&[]), &ships(&[]), &known(&[]));
         assert!(
-            issues.iter().any(|i| i.message.contains("StoryMessages")),
+            issues.iter().any(|i| i.message.contains("NarrativeCues")),
             "two lines inside ONE step are still a burst: {issues:?}"
         );
     }
@@ -3171,6 +3221,133 @@ mod tests {
                 .iter()
                 .any(|i| i.message.contains("hand-rolled delay")),
             "a value-gated milestone is a legitimate OnUpdate: {issues:?}"
+        );
+    }
+
+    /// A scene is held to the same shape as a sequence, and the finding names
+    /// what the author actually wrote. A `Cinematic` reported as a `Sequence`
+    /// sends them looking for an action that is not in the file.
+    #[test]
+    fn a_scene_is_linted_as_a_beat_chain_under_its_own_name() {
+        let s = scenario(
+            vec![EventActionConfig::Cinematic(CinematicActionConfig {
+                key: "strike".to_string(),
+                skippable: true,
+                steps: vec![SequenceStepConfig {
+                    until: Some(SequenceGateConfig {
+                        name: EventConfig::OnEnter,
+                        filters: vec![],
+                    }),
+                    deadline: None,
+                    actions: vec![],
+                    ..Default::default()
+                }],
+            })],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues).iter().any(|issue| {
+                issue.message.contains("Cinematic")
+                    && issue.message.contains("strike")
+                    && issue.message.contains("soft-lock")
+            }),
+            "a gate with no deadline strands the camera and must error: {issues:?}"
+        );
+    }
+
+    /// An empty scene is two errors, not a scene that ends on the frame it
+    /// takes the camera.
+    #[test]
+    fn a_scene_with_no_key_and_no_beats_errors_twice() {
+        let s = scenario(
+            vec![EventActionConfig::Cinematic(CinematicActionConfig {
+                key: String::new(),
+                skippable: false,
+                steps: vec![],
+            })],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert_eq!(
+            errors(&issues)
+                .iter()
+                .filter(|issue| issue.message.contains("Cinematic"))
+                .count(),
+            2,
+            "the empty key and the empty chain each error: {issues:?}"
+        );
+    }
+
+    /// The restore handler is the whole contract: it is where the camera and
+    /// the controls come back. A key typo would leave it dead, so a filter
+    /// naming a scene nothing plays is an error, not a warning.
+    #[test]
+    fn a_scene_filter_must_name_a_scene_the_scenario_plays() {
+        let filter = |key: &str| {
+            vec![EventFilterConfig::Cinematic(CinematicFilterConfig {
+                key: key.to_string(),
+            })]
+        };
+        let plays = |key: &str| {
+            vec![EventActionConfig::Cinematic(CinematicActionConfig {
+                key: key.to_string(),
+                skippable: true,
+                steps: vec![SequenceStepConfig {
+                    after: Some(1.0),
+                    ..Default::default()
+                }],
+            })]
+        };
+
+        let typo = scenario(plays("strike"), filter("strke"));
+        let issues = lint_scenario(&typo, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("Cinematic filter")
+                    && issue.message.contains("strke")),
+            "a scene-key typo is an impossible event and must error: {issues:?}"
+        );
+
+        let matched = scenario(plays("strike"), filter("strike"));
+        let issues = lint_scenario(&matched, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            !errors(&issues)
+                .iter()
+                .any(|issue| issue.message.contains("Cinematic filter")),
+            "a filter naming a scene the scenario plays is clean: {issues:?}"
+        );
+    }
+
+    /// Ending a scene nobody plays is the `TimerCancel` slip in another
+    /// vocabulary: harmless at runtime, and always either a typo or a leftover.
+    #[test]
+    fn cancelling_a_scene_the_scenario_never_plays_warns() {
+        let s = scenario(
+            vec![
+                EventActionConfig::Cinematic(CinematicActionConfig {
+                    key: "strike".to_string(),
+                    skippable: true,
+                    steps: vec![SequenceStepConfig {
+                        after: Some(1.0),
+                        ..Default::default()
+                    }],
+                }),
+                EventActionConfig::CancelCinematic(CancelCinematicActionConfig {
+                    key: "strke".to_string(),
+                }),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(&s, &sections(&[]), &ships(&[]), &known(&[]));
+        assert!(
+            issues.iter().any(|issue| {
+                issue.severity == LintSeverity::Warn
+                    && issue.message.contains("CancelCinematic")
+                    && issue.message.contains("strke")
+            }),
+            "an unmatched CancelCinematic key must warn: {issues:?}"
         );
     }
 }

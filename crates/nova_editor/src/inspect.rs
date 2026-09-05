@@ -2504,6 +2504,7 @@ pub(crate) struct DocumentNames {
     timers: Vec<String>,
     objectives: Vec<String>,
     scenarios: Vec<String>,
+    cinematics: Vec<String>,
 }
 
 impl DocumentNames {
@@ -2518,6 +2519,7 @@ impl DocumentNames {
             Names::Timer => self.timers.clone(),
             Names::Objective => self.objectives.clone(),
             Names::Scenario => self.scenarios.clone(),
+            Names::Cinematic => self.cinematics.clone(),
             // Nothing to offer: an order key is minted where the order is
             // installed, and a section id lives inside the hull the config
             // names beside it, which this document-wide list cannot see.
@@ -2572,6 +2574,7 @@ impl DocumentIds<'_, '_> {
             timers: ids.timers,
             objectives: ids.objectives,
             scenarios: ids.scenarios,
+            cinematics: ids.cinematics,
         };
         names.objects.extend(
             objects_of(scenario, &self.objects)

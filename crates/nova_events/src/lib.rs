@@ -40,8 +40,9 @@ pub mod prelude {
         },
         scale::LOAD_LIMIT,
         units::prelude::*,
-        EntityId, EntityTypeName, LockEventInfo, OnCombatLockEndEvent, OnCombatLockStartEvent,
-        OnDefeatedEvent, OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
+        CinematicEventInfo, EntityId, EntityTypeName, LockEventInfo, OnCinematicFinishedEvent,
+        OnCinematicSkippedEvent, OnCombatLockEndEvent, OnCombatLockStartEvent, OnDefeatedEvent,
+        OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnEnterEvent,
         OnEnterEventInfo, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
         OnGotoCompleteEventInfo, OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent,
         OnOrbitLapEvent, OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent,
@@ -51,11 +52,11 @@ pub mod prelude {
         OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStopCompleteEvent,
         OnStopCompleteEventInfo, OnTimerEndEvent, OnTimerEndEventInfo, OnTravelLockEndEvent,
         OnTravelLockStartEvent, OnUpdateEvent, OnUpdateEventInfo, OrbitEventInfo, ShipOrderKind,
-        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, ENTITY_ID_COMPONENT_NAME,
-        ENTITY_OTHER_ID_COMPONENT_NAME, ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME,
-        ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME, PLANET_TYPE_NAME,
-        SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME,
-        SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
+        ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CINEMATIC_KEY_FIELD_NAME,
+        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME, LIGHT_TYPE_NAME,
+        PLANET_TYPE_NAME, SALVAGE_CRATE_TYPE_NAME, SHIP_ORDER_FIELD_NAME,
+        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, TIMER_KEY_FIELD_NAME,
     };
 }
 
@@ -82,6 +83,8 @@ pub const ENTITY_OTHER_ID_COMPONENT_NAME: &str = "other_id";
 pub const ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME: &str = "other_type_name";
 /// Field name for a timer event's scenario-local key.
 pub const TIMER_KEY_FIELD_NAME: &str = "key";
+/// Field name for a cinematic event's scenario-local key.
+pub const CINEMATIC_KEY_FIELD_NAME: &str = "key";
 /// Field name for a completed ship order's authored key.
 pub const SHIP_ORDER_FIELD_NAME: &str = "order";
 /// Field name for a completed ship order's [`ShipOrderKind`].
@@ -129,6 +132,35 @@ pub struct OnTimerEndEvent;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
 pub struct OnTimerEndEventInfo {
     /// Scenario-local key of the timer that ended.
+    pub key: String,
+}
+
+/// Event kind fired once when a scenario cinematic ends for ANY reason
+/// (`oncinematicfinished`): its last beat ran, the player skipped it, a
+/// `CancelCinematic` stopped it, or a step blew its deadline.
+///
+/// The scene's post-state - camera released, control returned, the objective
+/// the scene was hiding - is authored against this one event, so it lands on
+/// every path out of the scene rather than only the patient one.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("oncinematicfinished")]
+#[event_info(CinematicEventInfo)]
+pub struct OnCinematicFinishedEvent;
+
+/// Event kind fired when the player skips a cinematic (`oncinematicskipped`),
+/// immediately before its [`OnCinematicFinishedEvent`].
+///
+/// Carries only what the skip has to CATCH UP: the world the unplayed beats
+/// would have left behind. Everything both paths share belongs on the finish.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("oncinematicskipped")]
+#[event_info(CinematicEventInfo)]
+pub struct OnCinematicSkippedEvent;
+
+/// Payload for [`OnCinematicFinishedEvent`] and [`OnCinematicSkippedEvent`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct CinematicEventInfo {
+    /// Scenario-local key of the cinematic that ended.
     pub key: String,
 }
 

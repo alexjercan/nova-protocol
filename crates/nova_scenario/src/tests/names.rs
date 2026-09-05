@@ -53,6 +53,6 @@ fn a_string_that_names_nothing_in_the_world_carries_no_attribute() {
     // The message of a debug line and the text of a story line are prose, and
     // an offer to complete them against the scenario's ids would be wrong.
     assert_eq!(names::<DebugMessageActionConfig>("message"), None);
-    assert_eq!(names::<StoryMessageActionConfig>("text"), None);
-    assert_eq!(names::<StoryMessageActionConfig>("speaker"), None);
+    assert_eq!(names::<NarrativeCueActionConfig>("text"), None);
+    assert_eq!(names::<NarrativeCueActionConfig>("speaker"), None);
 }

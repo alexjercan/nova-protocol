@@ -15,8 +15,8 @@ use crate::prelude::*;
 /// scenario filter config types into scope.
 pub mod prelude {
     pub use super::{
-        ConditionalFilterConfig, EntityFilterConfig, EventFilterConfig, ExpressionFilterConfig,
-        ShipOrderFilterConfig, TimerFilterConfig,
+        CinematicFilterConfig, ConditionalFilterConfig, EntityFilterConfig, EventFilterConfig,
+        ExpressionFilterConfig, ShipOrderFilterConfig, TimerFilterConfig,
     };
 }
 
@@ -35,6 +35,8 @@ pub enum EventFilterConfig {
     Timer(TimerFilterConfig),
     /// Match a completed scripted ship order by its key, ship, and kind.
     ShipOrder(ShipOrderFilterConfig),
+    /// Match a cinematic event by the scene's key.
+    Cinematic(CinematicFilterConfig),
 }
 
 impl EventFilter<NovaEventWorld> for EventFilterConfig {
@@ -45,6 +47,7 @@ impl EventFilter<NovaEventWorld> for EventFilterConfig {
             EventFilterConfig::Expression(config) => config.filter(world, info),
             EventFilterConfig::Timer(config) => config.filter(world, info),
             EventFilterConfig::ShipOrder(config) => config.filter(world, info),
+            EventFilterConfig::Cinematic(config) => config.filter(world, info),
         }
     }
 }
@@ -162,6 +165,28 @@ impl EventFilter<NovaEventWorld> for TimerFilterConfig {
         info.data
             .as_ref()
             .and_then(|data| data.get(TIMER_KEY_FIELD_NAME))
+            .and_then(|value| value.as_str())
+            .is_some_and(|key| key == self.key)
+    }
+}
+
+/// Match a cinematic event by the scene's authored key.
+///
+/// Both cinematic events carry a key and nothing else, so a scenario running
+/// two scenes tells their endings apart the way it tells two timers apart.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CinematicFilterConfig {
+    /// Scenario-local cinematic key to match.
+    #[reflect(@Names::Cinematic)]
+    pub key: String,
+}
+
+impl EventFilter<NovaEventWorld> for CinematicFilterConfig {
+    fn filter(&self, _: &NovaEventWorld, info: &GameEventInfo) -> bool {
+        info.data
+            .as_ref()
+            .and_then(|data| data.get(CINEMATIC_KEY_FIELD_NAME))
             .and_then(|value| value.as_str())
             .is_some_and(|key| key == self.key)
     }
@@ -523,5 +548,60 @@ mod tests {
             Some(2.0),
             "each matching event must re-evaluate the expression against the current value"
         );
+    }
+
+    /// Fire the ending of one scene, exactly as the sequence driver does.
+    fn end_cinematic(app: &mut App, key: &str) {
+        let info = CinematicEventInfo {
+            key: key.to_string(),
+        };
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands.fire::<OnCinematicFinishedEvent>(info.clone());
+            })
+            .expect("fire OnCinematicFinished");
+        app.update();
+        app.update();
+    }
+
+    /// Two scenes in one scenario tell their endings apart by key, the way two
+    /// timers do. What a scene owes the player - the camera back, the controls
+    /// back - is authored on its own finish, so a handler that answered for
+    /// the other scene's ending would hand the camera back in the middle of
+    /// this one.
+    #[test]
+    fn a_cinematic_filter_answers_only_for_the_scene_it_names() {
+        let mut app = dispatch_app();
+        set_number(&mut app, "restored", 0.0);
+
+        let mut handler = EventHandler::<NovaEventWorld>::from(EventConfig::OnCinematicFinished);
+        handler.add_filter(EventFilterConfig::Cinematic(CinematicFilterConfig {
+            key: "strike".to_string(),
+        }));
+        handler.add_action(set_action("restored", num_expr(1.0)));
+        app.world_mut().spawn(handler);
+
+        end_cinematic(&mut app, "quiet");
+        assert_eq!(
+            number(&app, "restored"),
+            Some(0.0),
+            "another scene's ending is not this handler's"
+        );
+
+        end_cinematic(&mut app, "strike");
+        assert_eq!(number(&app, "restored"), Some(1.0));
+    }
+
+    /// Fail closed, like every other filter here: an event with no key to read
+    /// is a MISMATCH, never a wildcard. A scene-restore handler that fired on
+    /// a payload it could not identify would take the camera off a scene that
+    /// is still playing.
+    #[test]
+    fn a_cinematic_filter_with_no_key_to_read_does_not_match() {
+        let world = NovaEventWorld::default();
+        let filter = CinematicFilterConfig {
+            key: "strike".to_string(),
+        };
+        assert!(!filter.filter(&world, &GameEventInfo::default()));
     }
 }

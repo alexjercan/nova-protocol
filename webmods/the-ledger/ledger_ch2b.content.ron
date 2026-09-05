@@ -933,7 +933,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Two more burns on the scope, south-west lane - reinforced hulls. They really want that box, Kestrel.",
                         dwell: Some(7.0),
@@ -957,7 +958,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "You",
                         text: "Heavier this time. Same plan - I keep them off the Mule. Hold her steady.",
                     )),
@@ -1018,7 +1020,8 @@
                         key: "teach_sent",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Same play as before: they'll come to you, not the Mule. Meet them on the far side of the rocks and make the big one work for every shot.",
                     )),
@@ -1049,7 +1052,8 @@
                         key: "kills",
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Crowbar's gun just went quiet. That's the one that mattered.",
                     )),
@@ -1079,7 +1083,8 @@
                         key: "kills",
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Kettle Black's cracked. Hull like that and it still wasn't enough.",
                     )),
@@ -1109,13 +1114,14 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "That's the lane clear and the Mule's whole. The box is officially trouble now, Kestrel - and Vesh is the only one who'll touch it.",
                         dwell: Some(6.0),
                     )),
                     // Breather: the lane-clear lands as a COMMS line first and
-                    // the Victory overlay follows a beat later. A StoryMessage
+                    // the Victory overlay follows a beat later. A NarrativeCue
                     // beside the Outcome would be frozen behind the overlay
                     // (lint arm), so the overlay rides a chain step instead.
                     Sequence((

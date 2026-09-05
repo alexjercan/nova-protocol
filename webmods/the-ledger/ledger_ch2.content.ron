@@ -963,7 +963,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Kestrel, the Mule's inbound for the pickup - and so are the Magpies. Two contacts burning in from the east lane, light hulls.",
                         dwell: Some(7.0),
@@ -987,7 +988,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "You",
                         text: "I see them. Keep the Mule on my line, Okono - I'll take them off her.",
                     )),
@@ -1049,7 +1051,8 @@
                         key: "teach_sent",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "They only have eyes for you, not the Mule - so drag their fire wide of her, and keep a rock between you when the tracers come.",
                     )),
@@ -1080,7 +1083,8 @@
                         key: "kills",
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Sixpence is scrap. Don't cheer yet.",
                     )),
@@ -1110,7 +1114,8 @@
                         key: "kills",
                         expression: Add(Factor(Name("kills")), Term(Factor(Literal(Number(1.0))))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Tinfoil King's down. The Mule's still breathing.",
                     )),
@@ -1142,13 +1147,14 @@
                     ObjectiveComplete((
                         id: "obj_escort",
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Wave one's scrap and the Mule's still with us. Breathe, Kestrel - the scope already shows two more burns coming.",
                         dwell: Some(6.0),
                     )),
                     // Breather: the win lands as a COMMS line first and the
-                    // Victory overlay follows a beat later. A StoryMessage
+                    // Victory overlay follows a beat later. A NarrativeCue
                     // beside the Outcome would be frozen behind the overlay
                     // (lint arm), so the overlay rides a chain step instead.
                     Sequence((

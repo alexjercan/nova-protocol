@@ -104,7 +104,8 @@
                         key: "choice",
                         expression: Term(Factor(Literal(Number(0.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Here's the arithmetic, Kestrel: my buyer pays enough to clear your debt twice. Or you burn the box and nobody owns what's inside. Berth or buoy. Pick.",
                     )),
@@ -361,7 +362,8 @@
                         key: "act",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "Docking clamps on, transferring now - wait. Kestrel, that's a military burn painting you, closing fast. My buyer did NOT send a gunship. You've got maybe ten seconds before it's in range. MOVE.",
                     )),
@@ -532,7 +534,7 @@
             // with the choice, so no death window ever opens on this path - the
             // player-death Defeat handler (act < 3) can never fire here. The
             // terminal Victory lands a beat later on the `outro` chain (the
-            // burn line plays first, then the overlay), so no StoryMessage sits
+            // burn line plays first, then the overlay), so no NarrativeCue sits
             // beside an Outcome. NO auditor spawn - this is the SAFE-BUT-BROKE escape as
             // shipped (owner playtest question 1: bittersweet vs clean tone). ---
             (
@@ -562,14 +564,15 @@
                     ObjectiveComplete((
                         id: "obj_ch4_recap",
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Broker Vesh",
                         text: "You cooked a fortune, Kestrel. The buoy's got it - nothing left in that flash but slag and static. No box, no buyer, nobody chasing a thing that no longer exists. Take us home. Quiet.",
                     )),
                     // The terminal Victory overlay follows a beat later. It is
                     // a DISTINCT no-fight message with no NextScenario - the
                     // burn ending is terminal, only the SELL/fight win chains
-                    // onward to the ch5 raid - and no StoryMessage may sit
+                    // onward to the ch5 raid - and no NarrativeCue may sit
                     // beside an Outcome (lint arm), so it rides a chain step.
                     Sequence((
                         key: "outro",

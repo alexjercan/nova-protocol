@@ -91,6 +91,57 @@ struct SequenceRun {
     /// Set when a deadline expired. A stopped run never advances again and
     /// keeps its key, so the failure cannot be papered over by a restart.
     stopped: bool,
+    /// Set when this run is a SCENE rather than scenario logic: how it may be
+    /// left, and whether it has reported its ending yet. `None` for a plain
+    /// `Sequence`.
+    cinematic: Option<CinematicRun>,
+}
+
+/// The part of a running [`SequenceRun`] that makes it a cinematic.
+struct CinematicRun {
+    /// Whether the skip binding may end this scene.
+    skippable: bool,
+    /// Scenario clock when the scene started, for the skip hold-off.
+    armed_at: f64,
+    /// Whether the ending has been reported. A scene reports exactly one, so
+    /// a cancel that races the last beat cannot fire the events twice.
+    ended: bool,
+}
+
+/// A cinematic that ended this frame, waiting for the driver to announce it.
+pub(crate) struct CinematicEnding {
+    /// The scene's authored key.
+    pub key: String,
+    /// Whether the player asked to leave. A skip announces itself BEFORE the
+    /// finish, so the catch-up handler runs before the restore.
+    pub skipped: bool,
+}
+
+impl SequenceRun {
+    /// Whether the skip binding may end this run right now.
+    fn is_skippable_at(&self, now: f64) -> bool {
+        !self.stopped
+            && self.step < self.steps.len()
+            && self.cinematic.as_ref().is_some_and(|scene| {
+                scene.skippable
+                    && !scene.ended
+                    && now - scene.armed_at >= CINEMATIC_SKIP_ARM_SECONDS
+            })
+    }
+
+    /// Claim this run's one ending, or `None` if it is not a scene or has
+    /// already reported.
+    fn end_cinematic(&mut self, skipped: bool) -> Option<CinematicEnding> {
+        let scene = self.cinematic.as_mut()?;
+        if scene.ended {
+            return None;
+        }
+        scene.ended = true;
+        Some(CinematicEnding {
+            key: self.key.clone(),
+            skipped,
+        })
+    }
 }
 
 /// What a stuck step was waiting for, for the deadline log line.
@@ -114,7 +165,7 @@ pub struct NovaEventWorld {
     objectives: Vec<ObjectiveActionConfig>,
     /// The scenario's story-message log, in delivery order. Append-only within
     /// a scenario; cleared at teardown with the rest of the event world.
-    story_messages: Vec<StoryMessageActionConfig>,
+    story_messages: Vec<NarrativeCueActionConfig>,
     /// The scenario's active HUD readouts, in authored order. Upserted/cleared
     /// by slot via the `HudReadout` action; the sync copies each one's CURRENT
     /// bound-variable value into the HUD's [`HudReadouts`] resource every
@@ -136,6 +187,11 @@ pub struct NovaEventWorld {
     /// map is not deterministic - two sequences whose beats land on one frame
     /// must land in the same order on every run.
     sequences: Vec<SequenceRun>,
+    /// Cinematic endings the driver has not announced yet. Held rather than
+    /// fired on the spot because the world has no `Commands`, and because a
+    /// scene can end from three places (the last beat, the skip binding, a
+    /// cancel action) that must all announce it the same way.
+    cinematic_endings: Vec<CinematicEnding>,
     /// Every position a `ScatterObjects` action has placed this scenario, in
     /// placement order. Separation is a property of the FIELD, not of one
     /// action: a belt is authored as sibling scatters whose regions abut, and a
@@ -212,8 +268,22 @@ impl EventWorld for NovaEventWorld {
                         text: m.text.clone(),
                         dwell: m.dwell,
                         icon: m.icon.clone(),
+                        channel: m.channel.into(),
                     })
                     .collect();
+            }
+        }
+
+        // Tell the HUD whether a scene the player may leave is playing, and
+        // which action leaves it. Write-on-diff for the same reason the
+        // objectives are: this runs every frame.
+        let skippable = world
+            .resource::<Self>()
+            .skippable_cinematic()
+            .map(|_| CINEMATIC_SKIP_ACTION.to_string());
+        if let Some(mut prompt) = world.get_resource_mut::<CinematicPrompt>() {
+            if prompt.skip_action != skippable {
+                prompt.skip_action = skippable;
             }
         }
 
@@ -415,6 +485,7 @@ impl NovaEventWorld {
         self.scenario_elapsed = 0.0;
         self.timers.clear();
         self.sequences.clear();
+        self.cinematic_endings.clear();
         self.scatter_placements.clear();
         self.next_scenario = None;
         self.next_scenario_delay = None;
@@ -442,8 +513,9 @@ impl NovaEventWorld {
         self.queued_commands.push_back(Box::new(f));
     }
 
-    /// Append a story line for the comms panel (see `StoryMessageActionConfig`).
-    pub fn push_story_message(&mut self, message: StoryMessageActionConfig) {
+    /// Append a narrative cue for the comms panel (see
+    /// `NarrativeCueActionConfig`).
+    pub fn push_narrative_cue(&mut self, message: NarrativeCueActionConfig) {
         self.story_messages.push(message);
     }
 
@@ -566,6 +638,34 @@ impl NovaEventWorld {
     /// state, so a restart would replay beats the player has already seen. A
     /// finished run is pruned, so the same key may be started again later.
     pub(crate) fn start_sequence(&mut self, key: String, steps: Arc<Vec<SequenceStepConfig>>) {
+        self.start_run(key, steps, None);
+    }
+
+    /// Start a keyed cinematic: the same cursor, plus the ending it owes.
+    pub(crate) fn start_cinematic(
+        &mut self,
+        key: String,
+        steps: Arc<Vec<SequenceStepConfig>>,
+        skippable: bool,
+    ) {
+        let armed_at = self.scenario_elapsed;
+        self.start_run(
+            key,
+            steps,
+            Some(CinematicRun {
+                skippable,
+                armed_at,
+                ended: false,
+            }),
+        );
+    }
+
+    fn start_run(
+        &mut self,
+        key: String,
+        steps: Arc<Vec<SequenceStepConfig>>,
+        cinematic: Option<CinematicRun>,
+    ) {
         self.prune_finished_sequences();
         if self.sequences.iter().any(|run| run.key == key) {
             error!("sequence '{key}' is already running; ignoring the restart");
@@ -578,7 +678,55 @@ impl NovaEventWorld {
             since: self.scenario_elapsed,
             gate_open: false,
             stopped: false,
+            cinematic,
         });
+    }
+
+    /// End the live skippable scene, as the player asked. `false` when no
+    /// scene is asking to be left - a stray press, or one inside the hold-off.
+    pub(crate) fn skip_cinematic(&mut self) -> bool {
+        let now = self.scenario_elapsed;
+        let Some(run) = self
+            .sequences
+            .iter_mut()
+            .find(|run| run.is_skippable_at(now))
+        else {
+            return false;
+        };
+        run.step = run.steps.len();
+        let ending = run.end_cinematic(true);
+        let skipped = ending.is_some();
+        self.cinematic_endings.extend(ending);
+        skipped
+    }
+
+    /// End a named scene from the scenario. Announces a finish, never a skip.
+    pub(crate) fn cancel_cinematic(&mut self, key: &str) {
+        let Some(run) = self
+            .sequences
+            .iter_mut()
+            .find(|run| run.key == key && run.cinematic.is_some())
+        else {
+            error!("CancelCinematic: no cinematic '{key}' is running");
+            return;
+        };
+        run.step = run.steps.len();
+        let ending = run.end_cinematic(false);
+        self.cinematic_endings.extend(ending);
+    }
+
+    /// The key of the scene the player may leave right now, for the HUD prompt.
+    pub fn skippable_cinematic(&self) -> Option<&str> {
+        let now = self.scenario_elapsed;
+        self.sequences
+            .iter()
+            .find(|run| run.is_skippable_at(now))
+            .map(|run| run.key.as_str())
+    }
+
+    /// Take the endings the driver has yet to announce.
+    pub(crate) fn drain_cinematic_endings(&mut self) -> Vec<CinematicEnding> {
+        std::mem::take(&mut self.cinematic_endings)
     }
 
     /// Open the `until` gate of one step, from the handler the loader spawned
@@ -607,6 +755,8 @@ impl NovaEventWorld {
     /// this in a loop, so a run of zero-delay steps resolves within one frame.
     pub(crate) fn take_ready_sequence_step(&mut self, now: f64) -> Option<Vec<EventActionConfig>> {
         self.prune_finished_sequences();
+        let mut endings = Vec::new();
+        let mut ready = None;
         for run in &mut self.sequences {
             if run.stopped {
                 continue;
@@ -622,7 +772,11 @@ impl NovaEventWorld {
                 run.step += 1;
                 run.since = now;
                 run.gate_open = false;
-                return Some(actions);
+                if run.step >= run.steps.len() {
+                    endings.extend(run.end_cinematic(false));
+                }
+                ready = Some(actions);
+                break;
             }
             // A step that can never finish is a soft-lock, which is the worst
             // thing a scenario can ship. Stop the run and SAY SO rather than
@@ -637,9 +791,13 @@ impl NovaEventWorld {
                     describe_step_gate(step),
                 );
                 run.stopped = true;
+                // A stuck scene is the author's bug, but the camera and the
+                // controls it took are the PLAYER's. The ending still fires.
+                endings.extend(run.end_cinematic(false));
             }
         }
-        None
+        self.cinematic_endings.append(&mut endings);
+        ready
     }
 
     /// Drop runs that reached the end of their step list, freeing the key. A
@@ -1140,7 +1298,8 @@ mod tests {
 
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "Strip it clean.".to_string(),
                 dwell: None,
@@ -1176,7 +1335,8 @@ mod tests {
         bare.add_systems(Update, NovaEventWorld::state_to_world_system);
         bare.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "No HUD here.".to_string(),
                 dwell: None,
@@ -1195,7 +1355,8 @@ mod tests {
         app.add_systems(Update, NovaEventWorld::state_to_world_system);
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "Read this slowly.".to_string(),
                 dwell: Some(12.0),
@@ -1224,7 +1385,8 @@ mod tests {
         app.add_systems(Update, NovaEventWorld::state_to_world_system);
         app.world_mut()
             .resource_mut::<NovaEventWorld>()
-            .push_story_message(StoryMessageActionConfig {
+            .push_narrative_cue(NarrativeCueActionConfig {
+                channel: NarrativeChannelConfig::Comms,
                 speaker: "Alpha".to_string(),
                 text: "Look at me.".to_string(),
                 dwell: None,
@@ -1299,6 +1461,101 @@ mod tests {
             after_second,
             after_first + 1,
             "a real objective change lands exactly one rebuild"
+        );
+    }
+
+    /// The channel rides the sync. It is what the panel draws the card in -
+    /// tone, tag and signal strength - so a line that lost its channel on the
+    /// way to the HUD is a line in the wrong voice.
+    #[test]
+    fn story_sync_carries_the_authored_channel() {
+        let mut app = App::new();
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<StoryFeed>();
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+
+        let authored = [
+            (NarrativeChannelConfig::Comms, NarrativeChannel::Comms),
+            (NarrativeChannelConfig::Crew, NarrativeChannel::Crew),
+            (NarrativeChannelConfig::Guard, NarrativeChannel::Guard),
+        ];
+        for (config, _) in authored {
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .push_narrative_cue(NarrativeCueActionConfig {
+                    channel: config,
+                    speaker: "Alpha".to_string(),
+                    text: "Say again.".to_string(),
+                    dwell: None,
+                    icon: None,
+                });
+        }
+        for _ in 0..5 {
+            app.update();
+        }
+
+        let feed = app.world().resource::<StoryFeed>();
+        assert_eq!(feed.0.len(), authored.len());
+        for (line, (_, expected)) in feed.0.iter().zip(authored) {
+            assert_eq!(line.channel, expected);
+        }
+    }
+
+    /// The HUD is told the skip is live only while a scene is offering it, and
+    /// which action leaves the scene. A prompt left up after the scene ended
+    /// offers the player a key that does nothing.
+    #[test]
+    fn the_skip_prompt_follows_the_scene_that_offers_it() {
+        let mut app = App::new();
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.init_resource::<CinematicPrompt>();
+        app.add_systems(Update, NovaEventWorld::state_to_world_system);
+
+        {
+            let mut world = app.world_mut().resource_mut::<NovaEventWorld>();
+            world.start_cinematic(
+                "strike".to_string(),
+                Arc::new(vec![SequenceStepConfig {
+                    after: Some(30.0),
+                    ..default()
+                }]),
+                true,
+            );
+        }
+        app.update();
+        assert!(
+            app.world()
+                .resource::<CinematicPrompt>()
+                .skip_action
+                .is_none(),
+            "the hold-off has not passed, so nothing is offered yet"
+        );
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .advance_scenario_elapsed(CINEMATIC_SKIP_ARM_SECONDS);
+        app.update();
+        assert_eq!(
+            app.world()
+                .resource::<CinematicPrompt>()
+                .skip_action
+                .as_deref(),
+            Some(CINEMATIC_SKIP_ACTION),
+            "the prompt names the action, so the HUD can print the live binding"
+        );
+
+        app.world_mut()
+            .resource_mut::<NovaEventWorld>()
+            .skip_cinematic();
+        app.update();
+        assert!(
+            app.world()
+                .resource::<CinematicPrompt>()
+                .skip_action
+                .is_none(),
+            "the offer goes with the scene"
         );
     }
 }

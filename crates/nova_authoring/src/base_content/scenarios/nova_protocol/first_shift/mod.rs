@@ -52,11 +52,10 @@ use marks::*;
 
 use super::{
     cast::{
-        apply_portraits, BEACON, CARRIER_NAME, CONTROL, COPILOT, COPILOT_CABIN, CUTTER_NAME,
-        DECK_CHIEF, ENGINEER, PLAYER,
+        apply_portraits, BEACON, BRANDT, CARRIER_NAME, CUTTER_NAME, DEMIR, GUARD_VOICE, HALLORAN,
+        OKORO, PLAYER,
     },
     pacing::{self, INSTRUCTION_GAP, MID_GAP, REVEAL_GAP},
-    second_shift::SECOND_SHIFT_SCENARIO_ID,
     ships, stage, CampaignPortraits, SCENARIO_ELAPSED_VAR,
 };
 use crate::scenario_helpers::prelude::*;
@@ -79,10 +78,11 @@ pub enum FirstShiftScene {
     Orbit,
     /// Final crate and call home.
     Return,
-    /// Warship emergence, approach, and alignment.
-    AttackApproach,
+    /// The reveal, the two approach legs, and the turn onto the carrier: the
+    /// scene the player is allowed to walk out of.
+    StrikeApproach,
     /// The aligned warship's complete weapon and camera sequence.
-    AttackSalvo,
+    StrikeSalvo,
     /// Silence and the first distress signal.
     Aftermath,
 }
@@ -94,8 +94,8 @@ struct FirstShiftScenes {
     navigation: Vec<ScenarioEventConfig>,
     orbit: Vec<ScenarioEventConfig>,
     return_to_carrier: Vec<ScenarioEventConfig>,
-    attack_approach: Vec<ScenarioEventConfig>,
-    attack_salvo: Vec<ScenarioEventConfig>,
+    strike_approach: Vec<ScenarioEventConfig>,
+    strike_salvo: Vec<ScenarioEventConfig>,
     aftermath: Vec<ScenarioEventConfig>,
     global: Vec<ScenarioEventConfig>,
 }
@@ -110,8 +110,8 @@ impl FirstShiftScenes {
             navigation: Self::take_exact(&mut events, 3, "navigation"),
             orbit: Self::take_exact(&mut events, 5, "orbit"),
             return_to_carrier: Self::take_exact(&mut events, 1, "return"),
-            attack_approach: Self::take_exact(&mut events, 3, "attack approach"),
-            attack_salvo: Self::take_exact(&mut events, 1, "attack salvo"),
+            strike_approach: Self::take_exact(&mut events, 2, "strike approach"),
+            strike_salvo: Self::take_exact(&mut events, 2, "strike salvo"),
             aftermath: Self::take_exact(&mut events, 1, "aftermath"),
             global: Self::take_exact(&mut events, 2, "global handlers"),
         };
@@ -144,8 +144,8 @@ impl FirstShiftScenes {
             .chain(self.navigation)
             .chain(self.orbit)
             .chain(self.return_to_carrier)
-            .chain(self.attack_approach)
-            .chain(self.attack_salvo)
+            .chain(self.strike_approach)
+            .chain(self.strike_salvo)
             .chain(self.aftermath)
             .chain(self.global)
             .collect()
@@ -159,21 +159,12 @@ impl FirstShiftScenes {
             FirstShiftScene::Navigation => std::mem::take(&mut self.navigation),
             FirstShiftScene::Orbit => std::mem::take(&mut self.orbit),
             FirstShiftScene::Return => std::mem::take(&mut self.return_to_carrier),
-            FirstShiftScene::AttackApproach => std::mem::take(&mut self.attack_approach),
-            FirstShiftScene::AttackSalvo => std::mem::take(&mut self.attack_salvo),
+            FirstShiftScene::StrikeApproach => std::mem::take(&mut self.strike_approach),
+            FirstShiftScene::StrikeSalvo => std::mem::take(&mut self.strike_salvo),
             FirstShiftScene::Aftermath => std::mem::take(&mut self.aftermath),
         }
     }
 }
-
-/// Where the chapter leaves the player: the outer mark off the Meridian's
-/// quarter that the set piece is composed from and the cutter is still sitting
-/// on when the credits line lands.
-///
-/// Exported for chapter two, which opens on the same coordinates. It is the ONE
-/// number the two chapters share; everything else about this chapter's staging
-/// stays inside it.
-pub(super) const HOME_HOLD_POS: Meters3 = HOME_MARK.position;
 
 // --- objectives --------------------------------------------------------------
 //
@@ -290,7 +281,32 @@ const ORBIT_TALK_GAP: f64 = 4.5;
 /// numbers below are. Only these two assume a flight time. If the warship's
 /// thrust or mass changes, they are the only values to re-measure.
 const APPROACH_SILENT_AT: f64 = 20.0;
-const APPROACH_CHALLENGE_AT: f64 = 18.0;
+const APPROACH_CHALLENGE_AT: f64 = 14.0;
+
+/// The clause on the guard channel and the two seconds of the cockpit not
+/// understanding it, measured from the challenge that goes unanswered.
+///
+/// These sit inside the second leg with the gate that ends it, so the budget
+/// is the one number that matters: 14 + 4 + 2.5 + 2.5 is 23 s of a 33 s leg,
+/// and the ten seconds left over are what stops a fast run from reaching the
+/// gate before the crew has finished talking.
+const GUARD_CLAUSE_AT: f64 = 4.0;
+const GUARD_REACTION_GAP: f64 = 2.5;
+
+/// Backstops on the scene's three helm gates, at roughly three times the
+/// measured leg. A blown deadline stops the chain, which ends the scene, which
+/// runs the handler that gives the player their ship back - so the worst a
+/// mis-measured leg can do is cut the set piece short.
+const APPROACH_LEG_DEADLINE: f64 = 100.0;
+const ALIGN_DEADLINE: f64 = 30.0;
+
+/// How long the camera takes to fall back off the kill and onto the wreck.
+pub(super) const WRECK_BLEND_SECONDS: f32 = 4.0;
+
+/// How long the camera takes to leave the chase rig for the wide shot the RCS
+/// box is briefed under. Short: it is a pull-back before a lesson, not a
+/// reveal.
+const TRIM_BLEND_SECONDS: f32 = 1.5;
 
 /// The salvo's own cadence, timed against the measured ordnance run.
 ///
@@ -318,10 +334,12 @@ const SEQ_ORBIT_TALK: &str = "orbit_talk";
 const SEQ_RETURN_CALL: &str = "return_call";
 const SEQ_HOME_CALL: &str = "home_call";
 const SEQ_AFTER_VOICES: &str = "after_voices";
-const SEQ_PLUME: &str = "plume";
-const SEQ_EMERGING: &str = "emerging";
-const SEQ_CLOSING: &str = "closing";
-const SEQ_SALVO: &str = "salvo";
+/// The two halves of the strike, as cinematic keys. They are separate scenes
+/// because they answer the skip differently: the approach is a minute and a
+/// quarter of a ship getting closer and a player may leave it, the salvo is
+/// twenty-five seconds and is the chapter.
+const SCENE_APPROACH: &str = "strike_approach";
+const SCENE_SALVO: &str = "strike_salvo";
 const ORDER_EMERGE: &str = "warship_emerge";
 const ORDER_APPROACH: &str = "warship_approach";
 const ORDER_ALIGN: &str = "warship_align";
@@ -459,9 +477,21 @@ fn cutter_completes_goto(target: &str) -> EventFilterConfig {
     entity_pair(target, ID_CUTTER)
 }
 
-/// One line of the opening conversation, `after` seconds behind the previous.
+/// One line on the work channel, `after` seconds behind the previous.
 fn open_line(after: f64, speaker: &str, line: &str) -> SequenceStepConfig {
-    step(after, vec![story_message(speaker, line)])
+    step(after, vec![comms(speaker, line)])
+}
+
+/// The same, said inside the cutter. Nothing on the Meridian hears it, which
+/// is why the crew's half of the shift lives here.
+fn crew_line(after: f64, speaker: &str, line: &str) -> SequenceStepConfig {
+    step(after, vec![crew(speaker, line)])
+}
+
+/// A fragment off the guard channel: never addressed to this ship, never a
+/// whole sentence, and always ignored - until the last one.
+fn guard_line(after: f64, line: &str) -> SequenceStepConfig {
+    step(after, vec![guard(GUARD_VOICE, line)])
 }
 
 /// The sequence key a beat's delayed half runs on. One per beat, and the beat
@@ -475,25 +505,6 @@ fn beat_key(beat: f64) -> String {
 /// is finished before the panel changes.
 fn beat_setup(beat: f64, delay: f64, actions: Vec<EventActionConfig>) -> EventActionConfig {
     pacing::beat_later(&beat_key(beat), delay, actions)
-}
-
-/// A handler that answers one of the warship's helm orders. The whole set piece
-/// is a chain of these: no step guesses how long the one before it takes.
-fn on_order(order: &str, actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
-    ScenarioEventConfig {
-        label: None,
-        name: EventConfig::OnShipOrderComplete,
-        once: true,
-        filters: vec![
-            EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
-                order: Some(order.to_string()),
-                ship: Some(ID_WARSHIP.to_string()),
-                kind: None,
-            }),
-            number_equals(VAR_BEAT, BEAT_ATTACK),
-        ],
-        actions,
-    }
 }
 
 fn move_warship(order: &str, position: Meters3) -> EventActionConfig {
@@ -534,6 +545,7 @@ fn grant(verb: FlightVerb) -> EventActionConfig {
 /// first shot and restores it when [`release_camera`] hands the view back.
 fn film(anchor: &str, offset: Meters3, look_at: CameraLookAtConfig) -> EventActionConfig {
     EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+        blend: None,
         anchor: anchor.to_string(),
         offset,
         // World axes: two of the three anchors are free to turn, and a
@@ -542,6 +554,52 @@ fn film(anchor: &str, offset: Meters3, look_at: CameraLookAtConfig) -> EventActi
         frame: CameraOffsetFrame::World,
         look_at,
     })
+}
+
+/// The same shot, reached as a MOVE rather than a cut.
+fn film_blend(
+    anchor: &str,
+    offset: Meters3,
+    look_at: CameraLookAtConfig,
+    seconds: f32,
+) -> EventActionConfig {
+    EventActionConfig::SetCameraAnchor(SetCameraAnchorActionConfig {
+        blend: Some(CameraBlendConfig {
+            seconds,
+            easing: CameraEasing::Smooth,
+        }),
+        anchor: anchor.to_string(),
+        offset,
+        frame: CameraOffsetFrame::World,
+        look_at,
+    })
+}
+
+/// One of the base bundle's own clips, on the interface track.
+fn cue_sound(name: &str) -> EventActionConfig {
+    play_sound(
+        AssetRef::from(format!("self://sounds/{name}.wav")),
+        SoundRouteConfig::Interface,
+    )
+}
+
+/// A helm gate: hold the scene here until the warship reports `order` done.
+fn warship_finishes(
+    order: &str,
+    deadline: f64,
+    actions: Vec<EventActionConfig>,
+) -> SequenceStepConfig {
+    until_step(
+        0.0,
+        EventConfig::OnShipOrderComplete,
+        vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
+            order: Some(order.to_string()),
+            ship: Some(ID_WARSHIP.to_string()),
+            kind: None,
+        })],
+        deadline,
+        actions,
+    )
 }
 
 /// Look at `id`, tracked while it lives.
@@ -604,27 +662,27 @@ pub(crate) fn first_shift(
                         sequence(
                             SEQ_OPENING,
                             vec![
-                                open_line(OPEN_FIRST_AT, CONTROL, story::OPEN_CONTROL_CLEAR),
-                                open_line(OPEN_NORMAL_GAP, COPILOT, story::OPEN_COPILOT_GREEN),
-                                open_line(OPEN_NORMAL_GAP, DECK_CHIEF, story::OPEN_CHIEF_MANIFEST),
-                                open_line(OPEN_LONG_GAP, ENGINEER, story::OPEN_ENGINEER_FOUND),
-                                open_line(OPEN_REPLY_GAP, CONTROL, story::OPEN_CONTROL_LOOSE),
-                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_MASS),
-                                open_line(OPEN_SHORT_GAP, CONTROL, story::OPEN_CONTROL_UNKNOWN),
-                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_EXPECTED),
-                                open_line(OPEN_REPLY_GAP, PLAYER, story::OPEN_PLAYER_COPY),
-                                open_line(OPEN_NORMAL_GAP, CONTROL, story::OPEN_CONTROL_DEADLINE),
-                                open_line(
-                                    OPEN_LONG_GAP,
-                                    COPILOT_CABIN,
-                                    story::OPEN_COPILOT_PRIVATE,
-                                ),
-                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_LEAVE),
-                                open_line(OPEN_SHORT_GAP, COPILOT, story::OPEN_COPILOT_CRUEL),
-                                open_line(OPEN_SHORT_GAP, ENGINEER, story::OPEN_ENGINEER_RIG),
+                                open_line(OPEN_FIRST_AT, DEMIR, story::OPEN_CONTROL_CLEAR),
+                                open_line(OPEN_NORMAL_GAP, HALLORAN, story::OPEN_COPILOT_GREEN),
+                                // The cabin, on the way out of the bay. Whatever
+                                // the reader knows about the plaque, the crew
+                                // treat it as four years old and say nothing that
+                                // explains it.
+                                crew_line(OPEN_LONG_GAP, OKORO, story::OPEN_ENGINEER_PLAQUE),
+                                crew_line(OPEN_REPLY_GAP, PLAYER, story::OPEN_PLAYER_EVERY_SHIFT),
+                                crew_line(OPEN_REPLY_GAP, OKORO, story::OPEN_ENGINEER_TAUGHT),
+                                crew_line(OPEN_NORMAL_GAP, HALLORAN, story::OPEN_COPILOT_BANNER),
+                                open_line(OPEN_LONG_GAP, BRANDT, story::OPEN_CHIEF_CARD),
+                                open_line(OPEN_NORMAL_GAP, DEMIR, story::OPEN_CONTROL_SHEET),
+                                open_line(OPEN_LONG_GAP, PLAYER, story::OPEN_PLAYER_COPY),
+                                open_line(OPEN_NORMAL_GAP, DEMIR, story::OPEN_CONTROL_DEADLINE),
+                                crew_line(OPEN_LONG_GAP, HALLORAN, story::OPEN_COPILOT_PRIVATE),
+                                crew_line(OPEN_SHORT_GAP, OKORO, story::OPEN_ENGINEER_LEAVE),
+                                crew_line(OPEN_SHORT_GAP, HALLORAN, story::OPEN_COPILOT_CRUEL),
+                                crew_line(OPEN_SHORT_GAP, OKORO, story::OPEN_ENGINEER_RIG),
                                 step(
                                     INSTRUCTION_GAP,
-                                    vec![story_message(COPILOT, story::OPEN_COPILOT_MARK)],
+                                    vec![comms(HALLORAN, story::OPEN_COPILOT_MARK)],
                                 ),
                                 step(
                                     INSTRUCTION_GAP,
@@ -654,7 +712,7 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_STOP)),
                     complete_objective(OBJ_BURN),
-                    story_message(COPILOT, story::TRIM_COPILOT_STOP),
+                    comms(HALLORAN, story::TRIM_COPILOT_STOP),
                 ]
                 .into_iter()
                 .chain(WORK_MARK.clear())
@@ -688,24 +746,34 @@ pub(crate) fn first_shift(
                     complete_objective(OBJ_STOP),
                     clear_hint_emphasis("STOP"),
                     suspend_player_control(),
-                    film(ID_CUTTER, CINEMA_TRIM_OFFSET, point(TRIM_ROUTE_CENTRE)),
+                    film_blend(
+                        ID_CUTTER,
+                        CINEMA_TRIM_OFFSET,
+                        point(TRIM_ROUTE_CENTRE),
+                        TRIM_BLEND_SECONDS,
+                    ),
                 ]
                 .into_iter()
                 .chain(TRIM_ROUTE.map(TempMark::spawn))
                 .chain([sequence(
                     SEQ_TRIM_BRIEFING,
                     vec![
-                        open_line(TRIM_FIRST_AT, ENGINEER, story::TRIM_ENGINEER_WHAT_TEST),
-                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_MAINTENANCE),
-                        open_line(TRIM_LONG_GAP, ENGINEER, story::TRIM_ENGINEER_DOUBT),
-                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_PROSPECTOR),
-                        open_line(TRIM_NORMAL_GAP, ENGINEER, story::TRIM_ENGINEER_NEWS),
-                        open_line(TRIM_NORMAL_GAP, COPILOT, story::TRIM_COPILOT_RECORDER),
-                        open_line(TRIM_LONG_GAP, ENGINEER, story::TRIM_ENGINEER_RUN_IT),
-                        open_line(TRIM_SHORT_GAP, COPILOT, story::TRIM_COPILOT_BOX),
+                        crew_line(TRIM_FIRST_AT, OKORO, story::TRIM_ENGINEER_WHAT_TEST),
+                        open_line(TRIM_SHORT_GAP, HALLORAN, story::TRIM_COPILOT_MAINTENANCE),
+                        crew_line(TRIM_LONG_GAP, OKORO, story::TRIM_ENGINEER_DOUBT),
+                        crew_line(TRIM_SHORT_GAP, HALLORAN, story::TRIM_COPILOT_YARD),
+                        // The shift's first guard fragment, in the one stretch
+                        // with nothing to fly. The crew name it, dismiss it, and
+                        // go back to the card - which is the habit the strike
+                        // spends one word on.
+                        guard_line(TRIM_LONG_GAP, story::TRIM_GUARD_CHALLENGE),
+                        crew_line(TRIM_SHORT_GAP, OKORO, story::TRIM_ENGINEER_GUARD),
+                        crew_line(TRIM_SHORT_GAP, HALLORAN, story::TRIM_COPILOT_FLEET),
+                        crew_line(TRIM_NORMAL_GAP, OKORO, story::TRIM_ENGINEER_RUN_IT),
+                        open_line(TRIM_SHORT_GAP, HALLORAN, story::TRIM_COPILOT_BOX),
                         step(
                             TRIM_LONG_GAP,
-                            vec![story_message(COPILOT, story::TRIM_COPILOT_FIRST_MARK)],
+                            vec![comms(HALLORAN, story::TRIM_COPILOT_FIRST_MARK)],
                         ),
                         step(
                             INSTRUCTION_GAP,
@@ -736,7 +804,7 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_TRIM_VERTICAL)),
                     complete_objective(OBJ_TRIM_LATERAL),
-                    story_message(COPILOT, story::TRIM_COPILOT_SECOND_AXIS),
+                    comms(HALLORAN, story::TRIM_COPILOT_SECOND_AXIS),
                 ]
                 .into_iter()
                 .chain(TRIM_LATERAL.clear_gated())
@@ -763,7 +831,7 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_LATERAL)),
                     complete_objective(OBJ_TRIM_VERTICAL),
-                    story_message(COPILOT, story::TRIM_COPILOT_BACK_ACROSS),
+                    comms(HALLORAN, story::TRIM_COPILOT_BACK_ACROSS),
                 ]
                 .into_iter()
                 .chain(TRIM_VERTICAL.clear_gated())
@@ -793,7 +861,7 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_TRIM_RETURN_VERTICAL)),
                     complete_objective(OBJ_TRIM_RETURN_LATERAL),
-                    story_message(COPILOT, story::TRIM_COPILOT_CLOSE_BOX),
+                    comms(HALLORAN, story::TRIM_COPILOT_CLOSE_BOX),
                 ]
                 .into_iter()
                 .chain(TRIM_RETURN_LATERAL.clear_gated())
@@ -825,14 +893,14 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_CRATE_FIRST)),
                     complete_objective(OBJ_TRIM_RETURN_VERTICAL),
-                    story_message(COPILOT, story::TRIM_COPILOT_CLEAN),
+                    comms(HALLORAN, story::TRIM_COPILOT_CLEAN),
                 ]
                 .into_iter()
                 .chain(TRIM_RETURN_VERTICAL.clear_gated())
                 .chain([sequence(
                     SEQ_TRIM_COMPLETE,
                     vec![
-                        open_line(TRIM_NORMAL_GAP, DECK_CHIEF, story::CRATE_CHIEF_FIRST),
+                        open_line(TRIM_NORMAL_GAP, BRANDT, story::CRATE_CHIEF_FIRST),
                         step(
                             INSTRUCTION_GAP,
                             reveal_crate(1, OBJ_CRATE_FIRST, story::OBJ_TEXT_CRATE_FIRST),
@@ -851,7 +919,7 @@ pub(crate) fn first_shift(
                 BEAT_CRATE_FIRST,
                 OBJ_CRATE_FIRST,
                 BEAT_CRATE_SECOND,
-                ENGINEER,
+                OKORO,
                 story::CRATE_ENGINEER_FIRST_SECURE,
                 beat_setup(
                     BEAT_CRATE_SECOND,
@@ -866,12 +934,17 @@ pub(crate) fn first_shift(
                 BEAT_CRATE_SECOND,
                 OBJ_CRATE_SECOND,
                 BEAT_LOCK,
-                ENGINEER,
+                OKORO,
                 story::CRATE_ENGINEER_SECOND_SECURE,
                 sequence(
                     SEQ_THIRD_ROUTE,
                     vec![
-                        open_line(INSTRUCTION_GAP, DECK_CHIEF, story::LOCK_CHIEF),
+                        // Two tags aboard and neither has an owner. The junk
+                        // site's whole point, said as small talk over a full
+                        // hold.
+                        crew_line(TRANSIT_REPLY_GAP, HALLORAN, story::CRATE_COPILOT_OWNED),
+                        crew_line(TRANSIT_REPLY_GAP, OKORO, story::CRATE_ENGINEER_NOBODY),
+                        open_line(TRANSIT_NORMAL_GAP, BRANDT, story::LOCK_CHIEF),
                         step(
                             INSTRUCTION_GAP,
                             [
@@ -900,7 +973,7 @@ pub(crate) fn first_shift(
                     set_variable(VAR_BEAT, number(BEAT_GOTO)),
                     complete_objective(OBJ_LOCK),
                     clear_hint_emphasis("RADAR"),
-                    story_message(COPILOT, story::GOTO_COPILOT),
+                    comms(HALLORAN, story::GOTO_COPILOT),
                     beat_setup(
                         BEAT_GOTO,
                         INSTRUCTION_GAP,
@@ -927,19 +1000,15 @@ pub(crate) fn first_shift(
                     set_variable(VAR_BEAT, number(BEAT_TRANSIT)),
                     complete_objective(OBJ_GOTO),
                     clear_hint_emphasis("GOTO"),
-                    story_message(COPILOT, story::TRANSIT_COPILOT_CLEAN),
+                    comms(HALLORAN, story::TRANSIT_COPILOT_CLEAN),
                 ]
                 .into_iter()
                 .chain(TRANSIT_ONE.clear())
                 .chain([sequence(
                     SEQ_SECOND_TRANSIT,
                     vec![
-                        open_line(
-                            TRANSIT_NORMAL_GAP,
-                            ENGINEER,
-                            story::TRANSIT_ENGINEER_ONE_MORE,
-                        ),
-                        open_line(TRANSIT_REPLY_GAP, COPILOT, story::TRANSIT_COPILOT_ONE_MORE),
+                        crew_line(TRANSIT_NORMAL_GAP, OKORO, story::TRANSIT_ENGINEER_ONE_MORE),
+                        crew_line(TRANSIT_REPLY_GAP, HALLORAN, story::TRANSIT_COPILOT_ONE_MORE),
                         step(
                             INSTRUCTION_GAP,
                             [post_objective(OBJ_TRANSIT, story::OBJ_TEXT_TRANSIT)]
@@ -965,23 +1034,30 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_DETOUR)),
                     complete_objective(OBJ_TRANSIT),
-                    story_message(COPILOT, story::TRANSIT_COPILOT_RELEASE),
+                    comms(HALLORAN, story::TRANSIT_COPILOT_RELEASE),
                 ]
                 .into_iter()
                 .chain(TRANSIT_TWO.clear())
                 .chain([sequence(
                     SEQ_DETOUR_BRIEFING,
                     vec![
-                        open_line(TRANSIT_NORMAL_GAP, COPILOT, story::DETOUR_COPILOT),
-                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER_TEST),
-                        open_line(TRANSIT_REPLY_GAP, COPILOT, story::DETOUR_COPILOT_NOT_LISTED),
-                        open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::DETOUR_ENGINEER_GRAVITY),
-                        open_line(TRANSIT_REPLY_GAP, PLAYER, story::DETOUR_PLAYER_DONUT),
-                        open_line(
+                        // The card is closed, so the deck asks for the other
+                        // signature. Section nine is a joke on the radio and it
+                        // stays one; what it costs is settled two beats later,
+                        // in the cabin, over the orbit.
+                        open_line(TRANSIT_NORMAL_GAP, BRANDT, story::TRANSIT_CHIEF_RENEWAL),
+                        open_line(TRANSIT_REPLY_GAP, PLAYER, story::TRANSIT_PLAYER_NINE),
+                        open_line(TRANSIT_REPLY_GAP, BRANDT, story::TRANSIT_CHIEF_NINE),
+                        crew_line(TRANSIT_NORMAL_GAP, HALLORAN, story::DETOUR_COPILOT),
+                        crew_line(TRANSIT_NORMAL_GAP, OKORO, story::DETOUR_ENGINEER_TEST),
+                        crew_line(
                             TRANSIT_REPLY_GAP,
-                            ENGINEER,
-                            story::DETOUR_ENGINEER_DOCUMENTED,
+                            HALLORAN,
+                            story::DETOUR_COPILOT_NOT_LISTED,
                         ),
+                        crew_line(TRANSIT_NORMAL_GAP, OKORO, story::DETOUR_ENGINEER_GRAVITY),
+                        crew_line(TRANSIT_REPLY_GAP, PLAYER, story::DETOUR_PLAYER_DONUT),
+                        crew_line(TRANSIT_REPLY_GAP, OKORO, story::DETOUR_ENGINEER_DOCUMENTED),
                         step(
                             INSTRUCTION_GAP,
                             vec![
@@ -1009,7 +1085,7 @@ pub(crate) fn first_shift(
                 actions: vec![
                     set_variable(VAR_BEAT, number(BEAT_ORBIT)),
                     complete_objective(OBJ_DETOUR),
-                    story_message(COPILOT, story::ORBIT_COPILOT),
+                    comms(HALLORAN, story::ORBIT_COPILOT),
                     beat_setup(
                         BEAT_ORBIT,
                         MID_GAP,
@@ -1056,19 +1132,15 @@ pub(crate) fn first_shift(
                     detach_objective_marker(stage::ID_INSPECTION),
                     despawn_object(ID_APPROACH_RING),
                     despawn_object(ID_ORBIT_RETURN_GATE),
-                    story_message(CONTROL, story::RETURN_CONTROL),
+                    comms(DEMIR, story::RETURN_CONTROL),
                     sequence(
                         SEQ_RETURN_CALL,
                         vec![
-                            open_line(TRANSIT_REPLY_GAP, ENGINEER, story::RETURN_ENGINEER_VISIBLE),
+                            crew_line(TRANSIT_REPLY_GAP, OKORO, story::RETURN_ENGINEER_VISIBLE),
                             open_line(TRANSIT_REPLY_GAP, PLAYER, story::RETURN_PLAYER_CHECK),
-                            open_line(TRANSIT_NORMAL_GAP, CONTROL, story::RETURN_CONTROL_FILED),
-                            open_line(
-                                TRANSIT_NORMAL_GAP,
-                                COPILOT_CABIN,
-                                story::RETURN_COPILOT_FAST,
-                            ),
-                            open_line(TRANSIT_REPLY_GAP, DECK_CHIEF, story::RETURN_CHIEF),
+                            open_line(TRANSIT_NORMAL_GAP, DEMIR, story::RETURN_CONTROL_FILED),
+                            crew_line(TRANSIT_NORMAL_GAP, HALLORAN, story::RETURN_COPILOT_FAST),
+                            open_line(TRANSIT_REPLY_GAP, BRANDT, story::RETURN_CHIEF),
                             step(
                                 REVEAL_GAP,
                                 [post_objective(OBJ_RETURN, story::OBJ_TEXT_RETURN)]
@@ -1094,7 +1166,7 @@ pub(crate) fn first_shift(
                 actions: [
                     set_variable(VAR_BEAT, number(BEAT_SEARCH)),
                     complete_objective(OBJ_RETURN),
-                    story_message(COPILOT, story::SEARCH_COPILOT),
+                    comms(HALLORAN, story::SEARCH_COPILOT),
                 ]
                 .into_iter()
                 .chain(WORK_SITE.clear())
@@ -1125,13 +1197,20 @@ pub(crate) fn first_shift(
                     complete_objective(OBJ_SEARCH),
                     detach_objective_marker(crate_id(3)),
                     despawn_object(crate_id(3)),
-                    story_message(ENGINEER, story::HOME_ENGINEER_SECURE),
+                    comms(OKORO, story::HOME_ENGINEER_SECURE),
                     sequence(
                         SEQ_HOME_CALL,
                         vec![
-                            open_line(TRANSIT_NORMAL_GAP, COPILOT_CABIN, story::HOME_COPILOT_TIME),
-                            open_line(TRANSIT_REPLY_GAP, ENGINEER, story::HOME_ENGINEER_TIME),
-                            open_line(TRANSIT_REPLY_GAP, DECK_CHIEF, story::HOME_CHIEF),
+                            crew_line(TRANSIT_NORMAL_GAP, HALLORAN, story::HOME_COPILOT_TIME),
+                            crew_line(TRANSIT_REPLY_GAP, OKORO, story::HOME_ENGINEER_TIME),
+                            open_line(TRANSIT_REPLY_GAP, BRANDT, story::HOME_CHIEF),
+                            // The last time the guard channel is ignored. It is
+                            // the second and last fragment of the shift, and it
+                            // sits deliberately close to the strike so the third
+                            // one arrives on a trained reflex.
+                            guard_line(TRANSIT_NORMAL_GAP, story::HOME_GUARD_TRAFFIC),
+                            crew_line(TRANSIT_REPLY_GAP, HALLORAN, story::HOME_COPILOT_STILL),
+                            crew_line(TRANSIT_REPLY_GAP, PLAYER, story::HOME_PLAYER_NOT_OURS),
                             step(
                                 TRIM_LONG_GAP,
                                 [post_objective(OBJ_HOME, story::OBJ_TEXT_HOME)]
@@ -1144,18 +1223,19 @@ pub(crate) fn first_shift(
                 ],
             },
         ],
-        attack_approach: vec![
-            // GOTO has come to rest at the outer mark, three kilometres off the Meridian, with the
-            // whole belt on the other side of the canopy. THAT is what the attack
-            // waits for: the player is where the shot is, holding station, and not
-            // about to hit anything.
+        strike_approach: vec![
+            // GOTO has come to rest at the outer mark, three kilometres off the
+            // Meridian, with the whole belt on the other side of the canopy.
+            // THAT is what the strike waits for: the player is where the shot
+            // is, holding station, and not about to hit anything.
             //
-            // The camera comes on in the SAME frame the warship starts moving,
-            // because the entrance is the shot and the first leg is thirty-four
-            // measured seconds long: the player's own hull in the near ground, a
-            // plume nobody can identify yet down the middle of the frame, and one
-            // line from Control over it. Waiting for the ship to ARRIVE before
-            // filming it would spend that whole leg on the chase rig.
+            // Everything after this point is ONE scene. The approach is a
+            // `Cinematic` rather than a `Sequence` because it takes the camera
+            // and the controls away for a minute and a quarter of a ship
+            // getting closer, and a player who has watched it once has to be
+            // able to leave. What the scene owes them back is authored on the
+            // two handlers that answer it, never inside the chain, so a skip
+            // and a full run end in the same place.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnGotoComplete,
@@ -1172,70 +1252,55 @@ pub(crate) fn first_shift(
                 .chain(HOME_MARK.clear())
                 .chain([
                     spawn_object(warship()),
-                    move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
                     suspend_player_control(),
-                    film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
-                    story_message(CONTROL, story::ATTACK_CONTROL_PLUME),
-                    pacing::beat_later(
-                        SEQ_PLUME,
-                        REVEAL_GAP,
-                        vec![
-                            post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
-                            attach_objective_marker(ID_WARSHIP, "UNKNOWN"),
-                        ],
-                    ),
-                    // Halfway through the first leg, with nothing to do but watch
-                    // it grow.
-                    sequence(
-                        SEQ_EMERGING,
-                        vec![step(
-                            APPROACH_SILENT_AT,
-                            vec![story_message(COPILOT, story::ATTACK_COPILOT_SILENT)],
-                        )],
-                    ),
+                    approach_scene(),
                 ])
                 .collect(),
             },
-            // It is out from behind the body and close enough to read a hull off.
-            // The Cutter shot holds through the second leg. Control stays suspended:
-            // there is nothing useful to fly during a staged approach, and the
-            // destruction sequence follows without returning to gameplay.
-            on_order(
-                ORDER_EMERGE,
-                vec![
-                    story_message(PLAYER, story::ATTACK_PLAYER_MILITARY),
-                    move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
-                    // Halfway through the second leg. The Meridian tries talking to
-                    // it, which is the last thing anybody tries.
-                    sequence(
-                        SEQ_CLOSING,
-                        vec![step(
-                            APPROACH_CHALLENGE_AT,
-                            vec![story_message(CONTROL, story::ATTACK_CONTROL_CHALLENGE)],
-                        )],
-                    ),
-                ],
-            ),
-            // On its firing mark. Now it turns, and the turn takes six seconds that
-            // the deck chief spends narrating it.
-            on_order(
-                ORDER_APPROACH,
-                vec![
-                    story_message(DECK_CHIEF, story::ATTACK_CHIEF_TURNING),
-                    EventActionConfig::ForceAlign(ForceAlignActionConfig {
-                        order: ORDER_ALIGN.to_string(),
-                        ship: ID_WARSHIP.to_string(),
-                        look_at: stage::CARRIER_POS,
-                        tolerance_degrees: WARSHIP_ALIGN_TOLERANCE,
-                    }),
-                ],
-            ),
+            // The player left. Give them the end of the scene and nothing else:
+            // the warship went, the Meridian is a wreck, and the beat is the
+            // one the salvo would have set. This runs BEFORE the finished
+            // handler below, whose beat gate then refuses - which is how one
+            // skip cancels the whole strike rather than only its first half.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnCinematicSkipped,
+                once: true,
+                filters: vec![scene(SCENE_APPROACH), number_equals(VAR_BEAT, BEAT_ATTACK)],
+                actions: [
+                    despawn_object(ID_WARSHIP),
+                    // The carrier is gone rather than destroyed. A skip is a
+                    // request not to watch it die, and there is no honest way
+                    // to show the debris of a kill that never played.
+                    despawn_object(ID_CARRIER),
+                ]
+                .into_iter()
+                .chain(strike_aftermath())
+                .collect(),
+            },
         ],
-        attack_salvo: vec![
-            // The bore is on the Meridian and the alignment HOLDS it there, so
-            // every gun below fires down the same line. Nothing is said into the
-            // gap: the next voice is the cockpit, over open tubes.
-            on_order(ORDER_ALIGN, vec![salvo()]),
+        strike_salvo: vec![
+            // The approach ran to its end, so the guns follow. The salvo is its
+            // own scene and is NOT skippable: it is twenty-five seconds long,
+            // it is what the chapter is, and the player has already been given
+            // one chance to leave.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnCinematicFinished,
+                once: true,
+                filters: vec![scene(SCENE_APPROACH), number_equals(VAR_BEAT, BEAT_ATTACK)],
+                actions: vec![salvo_scene()],
+            },
+            // Whatever ended the salvo, this is the picture it leaves: the
+            // cutter, the empty hold where the Meridian was, and the objective
+            // that says to keep the channel open.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnCinematicFinished,
+                once: true,
+                filters: vec![scene(SCENE_SALVO), number_equals(VAR_BEAT, BEAT_ATTACK)],
+                actions: strike_aftermath(),
+            },
         ],
         aftermath: vec![
             // The distress act: the warship is a plume on the horizon and the wreck
@@ -1253,10 +1318,17 @@ pub(crate) fn first_shift(
                     sequence(
                         SEQ_AFTER_VOICES,
                         vec![
-                            open_line(TRANSIT_REPLY_GAP, COPILOT, story::AFTER_COPILOT_CHANNEL),
+                            crew_line(TRANSIT_REPLY_GAP, HALLORAN, story::AFTER_COPILOT_CHANNEL),
                             open_line(TRANSIT_NORMAL_GAP, PLAYER, story::AFTER_PLAYER_CALL),
-                            open_line(TRANSIT_NORMAL_GAP, ENGINEER, story::AFTER_ENGINEER_SIGNAL),
-                            step(TRANSIT_NORMAL_GAP, vec![outro()]),
+                            crew_line(TRANSIT_NORMAL_GAP, OKORO, story::AFTER_ENGINEER_SIGNAL),
+                            // The warship is already a plume. Its boats are not,
+                            // and they are why the next chapter opens hiding.
+                            crew_line(TRANSIT_NORMAL_GAP, HALLORAN, story::AFTER_COPILOT_BOATS),
+                            crew_line(TRANSIT_REPLY_GAP, PLAYER, story::AFTER_PLAYER_DARK),
+                            // The hull alarm under the beacon: the only thing
+                            // still transmitting out here is the wreck, and the
+                            // crew have just agreed not to.
+                            step(TRANSIT_NORMAL_GAP, vec![cue_sound("warn_hull"), outro()]),
                         ],
                     ),
                 ],
@@ -1271,13 +1343,15 @@ pub(crate) fn first_shift(
     apply_portraits(portraits, &mut events);
 
     ScenarioConfig {
-        description: "A routine shift on the rock plate, out of the carrier Meridian.".to_string(),
+        description: "Tag the hulls, pull the cache, and be back aboard the Meridian inside the \
+             hour."
+            .to_string(),
         thumbnail: Some(AssetRef::from("self://thumbnails/first_shift.png")),
         watches: vec![scenario_elapsed_watch(SCENARIO_ELAPSED_VAR)],
         events,
         ..ScenarioConfig::new(
             FIRST_SHIFT_SCENARIO_ID.to_string(),
-            "First Shift".to_string(),
+            "An Ordinary Shift".to_string(),
             cubemap,
         )
     }
@@ -1388,33 +1462,39 @@ pub fn first_shift_scene(
                 with_end_message(scenes.take(scene), scene),
             )
         }
-        FirstShiftScene::AttackApproach => {
+        FirstShiftScene::StrikeApproach => {
             start_actions.push(post_objective(OBJ_HOME, story::OBJ_TEXT_HOME));
             start_actions.extend(HOME_MARK.raise());
             let mut handlers = scenes.take(scene);
             let entry = handlers.remove(0).actions;
-            let mut end = scenes
-                .attack_salvo
+            // The preview ends where the scene does, on either path: the skip
+            // handler stays so a reviewer can walk out of the shot, and the
+            // handler that would start the salvo says so instead.
+            for handler in &mut handlers {
+                handler.actions.push(scene_end_message(scene));
+            }
+            let mut finished = scenes
+                .strike_salvo
                 .first()
-                .expect("attack salvo scene is empty")
+                .expect("strike salvo scene is empty")
                 .clone();
-            end.actions = vec![scene_end_message(scene)];
-            handlers.push(end);
+            finished.actions = vec![scene_end_message(scene)];
+            handlers.push(finished);
             (entry, handlers)
         }
-        FirstShiftScene::AttackSalvo => {
+        FirstShiftScene::StrikeSalvo => {
             start_actions.extend([
                 suspend_player_control(),
                 spawn_object(warship()),
                 post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
                 attach_objective_marker(ID_WARSHIP, "WARSHIP"),
             ]);
-            let mut entry = scenes
-                .take(scene)
-                .pop()
-                .expect("attack salvo scene is empty")
+            let mut scene_handlers = scenes.take(scene).into_iter();
+            let mut entry = scene_handlers
+                .next()
+                .expect("strike salvo scene is empty")
                 .actions;
-            append_to_sequence(&mut entry, SEQ_SALVO, scene_end_message(scene));
+            append_to_chain(&mut entry, SCENE_SALVO, scene_end_message(scene));
             (entry, Vec::new())
         }
         FirstShiftScene::Aftermath => {
@@ -1453,8 +1533,8 @@ fn preview_control_grants(scene: FirstShiftScene) -> Vec<EventActionConfig> {
         scene,
         FirstShiftScene::Orbit
             | FirstShiftScene::Return
-            | FirstShiftScene::AttackApproach
-            | FirstShiftScene::AttackSalvo
+            | FirstShiftScene::StrikeApproach
+            | FirstShiftScene::StrikeSalvo
             | FirstShiftScene::Aftermath
     ) {
         grants.extend([grant(FlightVerb::Goto), grant(FlightVerb::Orbit)]);
@@ -1474,32 +1554,37 @@ fn with_end_message(
     events
 }
 
-fn sequence_mut<'a>(
+/// The keyed beat chain named `key`, wherever it is nested. Reads a
+/// `Cinematic` on the same terms as a `Sequence`, because the preview builder
+/// does not care which of the two a scene was authored as.
+fn chain_mut<'a>(
     actions: &'a mut [EventActionConfig],
     key: &str,
-) -> Option<&'a mut SequenceActionConfig> {
+) -> Option<&'a mut Vec<SequenceStepConfig>> {
     for action in actions {
-        if let EventActionConfig::Sequence(sequence) = action {
-            if sequence.key == key {
-                return Some(sequence);
-            }
-            for step in &mut sequence.steps {
-                if let Some(found) = sequence_mut(&mut step.actions, key) {
-                    return Some(found);
-                }
+        let named = action
+            .step_chain()
+            .is_some_and(|(chain_key, _)| chain_key == key);
+        let Some(steps) = action.step_chain_mut() else {
+            continue;
+        };
+        if named {
+            return Some(steps);
+        }
+        for step in steps {
+            if let Some(found) = chain_mut(&mut step.actions, key) {
+                return Some(found);
             }
         }
     }
     None
 }
 
-fn append_to_sequence(actions: &mut [EventActionConfig], key: &str, action: EventActionConfig) {
-    let sequence = sequence_mut(actions, key)
-        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
-    sequence
-        .steps
+fn append_to_chain(actions: &mut [EventActionConfig], key: &str, action: EventActionConfig) {
+    chain_mut(actions, key)
+        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' chain"))
         .last_mut()
-        .expect("First Shift sequence is empty")
+        .expect("First Shift chain is empty")
         .actions
         .push(action);
 }
@@ -1509,10 +1594,8 @@ fn replace_outcome_with_end(
     key: &str,
     action: EventActionConfig,
 ) {
-    let sequence = sequence_mut(actions, key)
-        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' sequence"));
-    let final_actions = &mut sequence
-        .steps
+    let final_actions = &mut chain_mut(actions, key)
+        .unwrap_or_else(|| panic!("First Shift scene has no '{key}' chain"))
         .last_mut()
         .expect("First Shift sequence is empty")
         .actions;
@@ -1526,7 +1609,7 @@ fn replace_outcome_with_end(
 }
 
 fn scene_end_message(scene: FirstShiftScene) -> EventActionConfig {
-    story_message(
+    comms(
         "PREVIEW",
         format!("Here is where {} would end.", scene_name(scene)),
     )
@@ -1540,8 +1623,8 @@ fn scene_id(scene: FirstShiftScene) -> &'static str {
         FirstShiftScene::Navigation => "first_shift_04_navigation",
         FirstShiftScene::Orbit => "first_shift_05_orbit",
         FirstShiftScene::Return => "first_shift_06_return",
-        FirstShiftScene::AttackApproach => "first_shift_07_attack_approach",
-        FirstShiftScene::AttackSalvo => "first_shift_08_attack_salvo",
+        FirstShiftScene::StrikeApproach => "first_shift_07_strike_approach",
+        FirstShiftScene::StrikeSalvo => "first_shift_08_strike_salvo",
         FirstShiftScene::Aftermath => "first_shift_09_aftermath",
     }
 }
@@ -1554,8 +1637,8 @@ fn scene_name(scene: FirstShiftScene) -> &'static str {
         FirstShiftScene::Navigation => "First Shift 04 - Navigation",
         FirstShiftScene::Orbit => "First Shift 05 - Orbit",
         FirstShiftScene::Return => "First Shift 06 - Return",
-        FirstShiftScene::AttackApproach => "First Shift 07 - Attack Approach",
-        FirstShiftScene::AttackSalvo => "First Shift 08 - Attack Salvo",
+        FirstShiftScene::StrikeApproach => "First Shift 07 - Strike Approach",
+        FirstShiftScene::StrikeSalvo => "First Shift 08 - Strike Salvo",
         FirstShiftScene::Aftermath => "First Shift 09 - Aftermath",
     }
 }
@@ -1596,7 +1679,7 @@ fn crate_pickup(
             complete_objective(objective),
             detach_objective_marker(&id),
             despawn_object(&id),
-            story_message(speaker, line),
+            comms(speaker, line),
             continuation,
         ],
     }
@@ -1604,6 +1687,11 @@ fn crate_pickup(
 
 /// The crew's conversation starts on the first stable orbit edge. A later
 /// instability restarts lap accumulation in the tracker, but not the dialogue.
+///
+/// It is the shift's only unguarded stretch, so it carries the thing the shift
+/// is actually about: the captain still believes in rotation, and the two
+/// people who have flown with them for four years stopped years ago and say so
+/// without arguing about it.
 fn orbit_conversation() -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
@@ -1616,33 +1704,123 @@ fn orbit_conversation() -> ScenarioEventConfig {
         actions: vec![sequence(
             SEQ_ORBIT_TALK,
             vec![
-                step(
-                    ORBIT_TALK_FIRST_AT,
-                    vec![story_message(ENGINEER, story::ORBIT_ENGINEER_VIEW)],
-                ),
-                step(
-                    ORBIT_TALK_GAP,
-                    vec![story_message(COPILOT, story::ORBIT_COPILOT_STEADY)],
-                ),
-                step(
-                    ORBIT_TALK_GAP,
-                    vec![story_message(ENGINEER, story::ORBIT_ENGINEER_LOG)],
-                ),
-                step(
-                    ORBIT_TALK_GAP,
-                    vec![story_message(PLAYER, story::ORBIT_PLAYER_LOG)],
-                ),
+                crew_line(ORBIT_TALK_FIRST_AT, OKORO, story::ORBIT_ENGINEER_VIEW),
+                crew_line(ORBIT_TALK_GAP, HALLORAN, story::ORBIT_COPILOT_THIRD),
+                crew_line(ORBIT_TALK_GAP, PLAYER, story::ORBIT_PLAYER_LAST),
+                crew_line(ORBIT_TALK_GAP, OKORO, story::ORBIT_ENGINEER_SAID),
+                crew_line(ORBIT_TALK_GAP, PLAYER, story::ORBIT_PLAYER_MEANT),
+                crew_line(ORBIT_TALK_GAP, HALLORAN, story::ORBIT_COPILOT_NOBODY),
+                crew_line(ORBIT_TALK_GAP, PLAYER, story::ORBIT_PLAYER_FIRST),
+                crew_line(ORBIT_TALK_GAP, HALLORAN, story::ORBIT_COPILOT_SURE),
             ],
         )],
     }
 }
 
-/// The carrier kill as one silent cinematic chain.
+/// The strike's first half: the reveal, the two approach legs, the challenge
+/// nobody answers, and the turn onto the carrier.
+///
+/// Every stage hangs off the PREVIOUS one's real completion event rather than
+/// a guessed delay, so it stages identically at any frame rate. The lines that
+/// land mid-leg are the only authored timings, and they are budgeted against a
+/// measured run (see [`APPROACH_CHALLENGE_AT`]).
+///
+/// The scene is skippable. What a skip owes the player is on the handler that
+/// answers [`EventConfig::OnCinematicSkipped`], not here: a chain that has
+/// been cancelled cannot clean up after itself.
+fn approach_scene() -> EventActionConfig {
+    cinematic(
+        SCENE_APPROACH,
+        true,
+        vec![
+            // The camera comes on in the SAME frame the warship starts moving,
+            // because the entrance is the shot: the player's own hull in the
+            // near ground, a plume nobody can identify yet down the middle of
+            // the frame, and one line from Control over it.
+            step(
+                0.0,
+                vec![
+                    film(ID_CUTTER, CINEMA_ENTRY_OFFSET, at(ID_WARSHIP)),
+                    comms(DEMIR, story::ATTACK_CONTROL_PLUME),
+                    move_warship(ORDER_EMERGE, WARSHIP_EMERGE_POS),
+                ],
+            ),
+            step(
+                REVEAL_GAP,
+                vec![
+                    post_objective(OBJ_WITNESS, story::OBJ_TEXT_WITNESS),
+                    attach_objective_marker(ID_WARSHIP, "UNKNOWN"),
+                ],
+            ),
+            // Halfway through the first leg, with nothing to do but watch it
+            // grow.
+            crew_line(
+                APPROACH_SILENT_AT - REVEAL_GAP,
+                HALLORAN,
+                story::ATTACK_COPILOT_SILENT,
+            ),
+            // Out from behind the body and close enough to read a hull off.
+            warship_finishes(
+                ORDER_EMERGE,
+                APPROACH_LEG_DEADLINE,
+                vec![
+                    comms(PLAYER, story::ATTACK_PLAYER_MILITARY),
+                    move_warship(ORDER_APPROACH, WARSHIP_FIRING_POS),
+                ],
+            ),
+            // The Meridian tries talking to it, which is the last thing anybody
+            // tries.
+            open_line(
+                APPROACH_CHALLENGE_AT,
+                DEMIR,
+                story::ATTACK_CONTROL_CHALLENGE,
+            ),
+            // And the guard channel answers - not the Meridian, and not in a
+            // sentence. The crew have spent the whole shift learning that this
+            // channel is somebody else's noise, and they spend four seconds
+            // being right about that.
+            guard_line(GUARD_CLAUSE_AT, story::ATTACK_GUARD_CLAUSE),
+            crew_line(GUARD_REACTION_GAP, OKORO, story::ATTACK_ENGINEER_AGAIN),
+            crew_line(
+                GUARD_REACTION_GAP,
+                HALLORAN,
+                story::ATTACK_COPILOT_NOT_CONTROL,
+            ),
+            // On its firing mark. The turn takes six seconds that the deck
+            // chief spends narrating it, over the cutter's own lock warning.
+            warship_finishes(
+                ORDER_APPROACH,
+                APPROACH_LEG_DEADLINE,
+                vec![
+                    comms(BRANDT, story::ATTACK_CHIEF_TURNING),
+                    cue_sound("warn_lock"),
+                    EventActionConfig::ForceAlign(ForceAlignActionConfig {
+                        order: ORDER_ALIGN.to_string(),
+                        ship: ID_WARSHIP.to_string(),
+                        look_at: stage::CARRIER_POS,
+                        tolerance_degrees: WARSHIP_ALIGN_TOLERANCE,
+                    }),
+                ],
+            ),
+            // The scene ends when the bore is on the Meridian and not before.
+            // The step carries nothing: what follows is a different scene,
+            // started by the handler that answers this one's ending.
+            warship_finishes(ORDER_ALIGN, ALIGN_DEADLINE, vec![]),
+        ],
+    )
+}
+
+/// The carrier kill as one silent scene.
 ///
 /// The tubes launch under the warship shot. Meridian owns the railgun impact
-/// shot. Cutter owns the torpedo impacts, destruction, and aftermath while the
-/// warship starts outbound. Control remains suspended until scenario teardown.
-fn salvo() -> EventActionConfig {
+/// shot. Cutter owns the torpedo impacts, the destruction and the warship
+/// leaving. There is no dialogue in it.
+///
+/// NOT skippable, and that is a decision rather than an omission: it is
+/// twenty-five seconds long, it is the reason the chapter exists, and the
+/// player was already offered the door through the whole minute and a quarter
+/// in front of it.
+fn salvo_scene() -> EventActionConfig {
     let bays = ships::BLOCK_WARSHIP_BAY_IDS;
     let mut steps = vec![step(
         0.0,
@@ -1691,20 +1869,32 @@ fn salvo() -> EventActionConfig {
                 arrival_standoff: None,
             })],
         ),
-        // Once its departure reads, return to Cutter and the wreck. This is the
-        // aftermath composition, not a return to player camera or control.
-        step(
-            SALVO_AFTERMATH_AT,
-            vec![
-                film(ID_CUTTER, CINEMA_DEATH_OFFSET, point(stage::CARRIER_POS)),
-                complete_objective(OBJ_WITNESS),
-                detach_objective_marker(ID_WARSHIP),
-                post_objective(OBJ_SILENCE, story::OBJ_TEXT_SILENCE),
-                set_variable(VAR_BEAT, number(BEAT_DISTRESS)),
-            ],
-        ),
+        // Once its departure reads, the scene is over.
+        step(SALVO_AFTERMATH_AT, vec![]),
     ]);
-    sequence(SEQ_SALVO, steps)
+    cinematic(SCENE_SALVO, false, steps)
+}
+
+/// What the strike owes the player however it ended: the shot that holds on
+/// the empty hold, the objective that says to keep listening, and the beat the
+/// epilogue waits on.
+///
+/// Authored ONCE and run from both endings, because a skipped strike and a
+/// watched strike leave the same cutter in the same sky. Camera and control
+/// are deliberately NOT returned: the chapter closes on this composition.
+fn strike_aftermath() -> Vec<EventActionConfig> {
+    vec![
+        film_blend(
+            ID_CUTTER,
+            CINEMA_WRECK_OFFSET,
+            point(stage::CARRIER_POS),
+            WRECK_BLEND_SECONDS,
+        ),
+        complete_objective(OBJ_WITNESS),
+        detach_objective_marker(ID_WARSHIP),
+        post_objective(OBJ_SILENCE, story::OBJ_TEXT_SILENCE),
+        set_variable(VAR_BEAT, number(BEAT_DISTRESS)),
+    ]
 }
 
 /// The epilogue: the tease line, then the banner and the hand-off to chapter
@@ -1717,7 +1907,10 @@ fn outro() -> EventActionConfig {
         story::OUTRO_BEACON,
         story::OUTRO_BANNER,
         vec![post_objective(OBJ_DONE, story::OBJ_TEXT_DONE)],
-        Some(SECOND_SHIFT_SCENARIO_ID.to_string()),
+        // Nothing follows yet. Beat three is the forty hours, and until it is
+        // built the chapter ends on the wreck rather than handing off to a
+        // scenario that would contradict the story when it arrives.
+        None,
     )
 }
 

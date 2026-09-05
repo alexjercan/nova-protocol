@@ -345,7 +345,7 @@ position and has the same answer.
 
 ### Story pacing is a QUEUE, not a slot
 
-`StoryMessage` writes into a bottom-left comms stack rather than a
+`NarrativeCue` writes into a bottom-left comms stack rather than a
 latest-wins line: arrival order, a bounded number of cards visible, and a
 lossless pending queue behind them. The whole log stays in the feed too. That
 is why a burst of lines is survivable - but one line per beat is still the

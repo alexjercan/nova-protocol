@@ -132,30 +132,8 @@ pub(crate) fn outro_sequence(
     sequence(
         OUTRO_SEQUENCE,
         vec![
-            step(OUTRO_TEASE_AFTER, vec![story_message(tease_speaker, tease)]),
+            step(OUTRO_TEASE_AFTER, vec![comms(tease_speaker, tease)]),
             step(OUTRO_BANNER_AFTER, banner_actions),
         ],
     )
-}
-
-/// The actions a winning handler runs to CLOSE the fight and open the outro:
-/// move to the epilogue act, say what just happened, and start the outro chain.
-///
-/// `epilogue_act` must sit outside every defeat gate (the mainline gates read
-/// `act < 2` or `act == 1`), so the win is locked the instant it lands and a
-/// death during the outro declares nothing.
-///
-/// `outro` is the scenario's [`outro_sequence`], built once and shared by every
-/// win variant - only one of them can ever fire, so they can all start the same
-/// cursor.
-pub(crate) fn open_outro(
-    act_var: &str,
-    epilogue_act: f64,
-    outro: EventActionConfig,
-    mut actions: Vec<EventActionConfig>,
-) -> Vec<EventActionConfig> {
-    let mut all = vec![set_variable(act_var, number(epilogue_act))];
-    all.append(&mut actions);
-    all.push(outro);
-    all
 }

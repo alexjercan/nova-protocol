@@ -1,8 +1,8 @@
 [
     Scenario((
         id: "first_shift",
-        name: "First Shift",
-        description: "A routine shift on the rock plate, out of the carrier Meridian.",
+        name: "An Ordinary Shift",
+        description: "Tag the hulls, pull the cache, and be back aboard the Meridian inside the hour.",
         cubemap: "self://textures/cubemap.png",
         thumbnail: Some("self://thumbnails/first_shift.png"),
         watches: [
@@ -20,7 +20,7 @@
                     SpawnScenarioObject((
                         base: (
                             id: "cutter",
-                            name: "Cutter",
+                            name: "Cutter One",
                             position: (
                                 -1100.0,
                                 0.0,
@@ -1664,9 +1664,10 @@
                             (
                                 after: Some(2.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
-                                        text: "Cutter One, Meridian Control. Bay is clear. You are released.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
+                                        text: "Cutter One, Meridian Control. Boat bay is clear. You are released.",
                                         icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
@@ -1674,79 +1675,87 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Halloran",
                                         text: "Clamps are open. Drive and thrusters read green.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
                             (
+                                after: Some(6.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "You stopped at the plaque again.",
+                                        icon: Some("self://portraits/engineer.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "You",
+                                        text: "I stop at it every shift.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(3.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "Brandt taught him to fit boats. Then he taught me, same deck.",
+                                        icon: Some("self://portraits/engineer.png"),
+                                    )),
+                                ],
+                            ),
+                            (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Plate Seven has three recovery crates waiting. Two manifested. Third one turned up after the break.",
-                                        icon: Some("self://portraits/deck-chief.png"),
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "A banner the length of the bay, and one plaque under it. Nobody ever hangs those the other way round.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
                             (
                                 after: Some(6.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Turned up how?",
-                                        icon: Some("self://portraits/engineer.png"),
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "Cutter One, deck. You\'re flying a re-qualification card today - the yard had your port thrusters open.",
+                                        icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(3.0),
+                                after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
-                                        text: "Loose in the debris. It\'s marked for recovery.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
+                                        text: "Work sheet after that: tag the hulls on Plate Seven, then pull the cache logged off the far side of the survey body.",
                                         icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
                             ),
                             (
-                                after: Some(2.0),
+                                after: Some(6.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Mass?",
-                                        icon: Some("self://portraits/engineer.png"),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(2.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
-                                        text: "Unknown.",
-                                        icon: Some("self://portraits/meridian-control.png"),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(2.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Of course it is.",
-                                        icon: Some("self://portraits/engineer.png"),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(3.0),
-                                actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "You",
-                                        text: "Cutter One copies. Three crates off Seven, one unknown.",
+                                        text: "Cutter One copies. Card, two hulls, one cache.",
                                         icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
@@ -1754,8 +1763,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
                                         text: "Correct. Meridian gets under way in fifty-six minutes. Don\'t make me come looking for you.",
                                         icon: Some("self://portraits/meridian-control.png"),
                                     )),
@@ -1764,8 +1774,9 @@
                             (
                                 after: Some(6.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot - Cabin",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "She says that like they\'d leave without us.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -1774,8 +1785,9 @@
                             (
                                 after: Some(2.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "They\'d leave without you.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -1784,8 +1796,9 @@
                             (
                                 after: Some(2.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "Cruel.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -1794,9 +1807,10 @@
                             (
                                 after: Some(2.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Put us alongside. I\'ll handle the crates.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "Put us alongside. I\'ll handle the tags.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -1804,8 +1818,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Halloran",
                                         text: "Mark ahead, seventeen hundred metres. Easy on the drive - we\'re still inside Meridian\'s paint budget.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -1879,9 +1894,10 @@
                     ObjectiveComplete((
                         id: "burn",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
-                        text: "Good. This is as clear a spot as we\'re going to get. Bring us to a full stop first. I want to clear the handling card.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
+                        text: "Good. This is as clear a spot as we\'re going to get. Bring us to a full stop first. The card starts from rest.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
@@ -1950,6 +1966,10 @@
                             -350.0,
                             190.0,
                             900.0,
+                        )),
+                        blend: Some((
+                            seconds: 1.5,
+                            easing: Smooth,
                         )),
                     )),
                     SpawnScenarioObject((
@@ -2070,9 +2090,10 @@
                             (
                                 after: Some(1.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "What test are you running this time?",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "What are we doing?",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -2080,9 +2101,10 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Yard replaced the port RCS manifold during scheduled maintenance. Computer says everything is green.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Halloran",
+                                        text: "Port RCS manifold came out of the yard four days ago. The card says I fly a box on it before it counts as flown.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -2090,9 +2112,10 @@
                             (
                                 after: Some(5.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "And you don\'t believe it.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "And the yard says it\'s fine.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -2100,9 +2123,43 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "So did Prospector Six before they lost her in the belt.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "The yard says everything is fine. The yard is on a bonus.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(5.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Guard,
+                                        speaker: "Unknown Signal",
+                                        text: "- vessel this net - state registry and -",
+                                        icon: Some("self://portraits/unknown-channel.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "Guard channel again.",
+                                        icon: Some("self://portraits/engineer.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Fleet\'s always looking for something. Let them look.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -2110,29 +2167,10 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Different company. News said pilot error.",
-                                        icon: Some("self://portraits/engineer.png"),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(4.0),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "The flight recorder didn\'t. Port manifold locked open. Nobody aboard survived.",
-                                        icon: Some("self://portraits/copilot.png"),
-                                    )),
-                                ],
-                            ),
-                            (
-                                after: Some(5.5),
-                                actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "All right. Run your box.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "Fly your box.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -2140,9 +2178,10 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Four marks. Out to A, up to B, across to C, then back down to D. Bring us home without any drift and I\'ll clear the card.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Halloran",
+                                        text: "Four marks. Out to A, up to B, across to C, then back down to D. Bring us home without any drift and the card closes.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -2150,8 +2189,9 @@
                             (
                                 after: Some(5.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Halloran",
                                         text: "Let\'s move toward A. When the velocity marker turns violet, we\'re running on RCS.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -2221,8 +2261,9 @@
                     ObjectiveComplete((
                         id: "trim_lateral",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "Good response and no roll. Take us up to B. Let\'s see if the new manifold fights the vertical bank.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -2292,8 +2333,9 @@
                     ObjectiveComplete((
                         id: "trim_vertical",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "Still clean. Bring us across to C with the same pressure, then watch the drift when you let go.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -2363,8 +2405,9 @@
                     ObjectiveComplete((
                         id: "trim_return_lateral",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "Port response is even. Bring us down to D and settle where we started.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -2434,8 +2477,9 @@
                     ObjectiveComplete((
                         id: "trim_return_vertical",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "Back on the mark. No residual drift. That\'s a clean box.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -2454,9 +2498,10 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "Handling card closed. First manifested crate is on Plate Seven\'s near edge. Bring it in.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "Thruster box is closed. First hull tag is on Plate Seven\'s near edge. Bring it in.",
                                         icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
@@ -2488,7 +2533,7 @@
                                     )),
                                     Objective((
                                         id: "crate_first",
-                                        message: "Recover the first manifested crate.",
+                                        message: "Recover the first hull tag.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_1",
@@ -2527,9 +2572,10 @@
                     DespawnScenarioObject((
                         id: "crate_1",
                     )),
-                    StoryMessage((
-                        speaker: "Engineer",
-                        text: "One secure. Seal is intact and the tag matches. Second mark is deeper in the plate, so keep it slow.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Okoro",
+                        text: "One aboard. Tag reads, but there\'s no owner on it. Second one\'s deeper in the plate, so keep it slow.",
                         icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
@@ -2562,7 +2608,7 @@
                                     )),
                                     Objective((
                                         id: "crate_second",
-                                        message: "Recover the second manifested crate.",
+                                        message: "Recover the second hull tag.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_2",
@@ -2601,20 +2647,44 @@
                     DespawnScenarioObject((
                         id: "crate_2",
                     )),
-                    StoryMessage((
-                        speaker: "Engineer",
-                        text: "Two secure. Both manifests are clean.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Okoro",
+                        text: "Two aboard. No name on that one either.",
                         icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
                         key: "third_route",
                         steps: [
                             (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Somebody owned all this. Whole outfit, out here, for years.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "And now it\'s a plate number.",
+                                        icon: Some("self://portraits/engineer.png"),
+                                    )),
+                                ],
+                            ),
+                            (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "The third crate is outside the plate. Control has laid a route around the survey body.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "The cache is outside the plate. Control has laid a route around the survey body.",
                                         icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
@@ -2700,9 +2770,10 @@
                     HintEmphasisClear((
                         verb: "RADAR",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
-                        text: "Transit One locked. One box remains on the maintenance release: guidance and automatic braking. Give the leg to the computer.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
+                        text: "Transit One locked. Last box on the card is guidance and automatic braking. Give the leg to the computer.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
                     Sequence((
@@ -2753,8 +2824,9 @@
                     HintEmphasisClear((
                         verb: "GOTO",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "First solution is clean. Turnaround, braking, and arrival are all inside limits.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -2770,9 +2842,10 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "One more before you sign it?",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "One more before she signs it off?",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -2780,8 +2853,9 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "One more.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -2854,9 +2928,10 @@
                     ObjectiveComplete((
                         id: "transit",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
-                        text: "Second arrival clean. Guidance and automatic braking are inside limits. That\'s the maintenance release.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
+                        text: "Second arrival clean. Guidance and automatic braking inside limits. Deck, Cutter One is re-qualified.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
@@ -2871,8 +2946,42 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "Logged. And your renewal is still on my desk - nine days now.",
+                                        icon: Some("self://portraits/deck-chief.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "You",
+                                        text: "Section nine again.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "Section nine again. Six days and it signs itself. Come down and do it properly.",
+                                        icon: Some("self://portraits/deck-chief.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "Survey body\'s between us and Meridian. We\'re outside their sightline.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -2881,8 +2990,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "One system left to test.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -2891,9 +3001,10 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Orbit hold wasn\'t on the maintenance release.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Orbit hold wasn\'t on the card.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -2901,8 +3012,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "Then call it an unscheduled gravity check.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -2911,7 +3023,8 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Crew,
                                         speaker: "You",
                                         text: "It\'s a donut.",
                                         icon: Some("self://portraits/player.png"),
@@ -2921,8 +3034,9 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "A documented donut.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -2987,8 +3101,9 @@
                     ObjectiveComplete((
                         id: "detour",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
                         text: "Gravity\'s on the hull. Lock the survey body and give orbit hold to the computer.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
@@ -3031,8 +3146,9 @@
                             (
                                 after: Some(3.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "Look at that. Whole belt turning under us.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -3041,9 +3157,10 @@
                             (
                                 after: Some(4.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Orbit hold is steady. New manifold isn\'t fighting the correction.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "That renewal is your third.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -3051,9 +3168,21 @@
                             (
                                 after: Some(4.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
-                                        text: "Put it on the release as a gravity-load check.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "You",
+                                        text: "My third and my last. I\'m on the rotation list.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "You said that about the second.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
                                 ],
@@ -3061,10 +3190,44 @@
                             (
                                 after: Some(4.5),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Crew,
                                         speaker: "You",
-                                        text: "It\'s going in the log as a donut.",
+                                        text: "I meant it about the second.",
                                         icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Nobody has rotated off this ship since I signed. Not one name.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "You",
+                                        text: "Then I\'ll be the first. Somebody has to be.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Sure.",
+                                        icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
@@ -3141,8 +3304,9 @@
                     DespawnScenarioObject((
                         id: "orbit_return_gate",
                     )),
-                    StoryMessage((
-                        speaker: "Meridian Control",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Demir",
                         text: "Cutter One, Meridian Control. Explain the orbit.",
                         icon: Some("self://portraits/meridian-control.png"),
                     )),
@@ -3152,8 +3316,9 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "They can see us again.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -3162,7 +3327,8 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "You",
                                         text: "Cutter One was completing an unscheduled guidance check.",
                                         icon: Some("self://portraits/player.png"),
@@ -3172,9 +3338,10 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
-                                        text: "Your maintenance release was filed six minutes ago.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
+                                        text: "Your card was closed six minutes ago.",
                                         icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
@@ -3182,8 +3349,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot - Cabin",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "That was fast.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -3192,9 +3360,10 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
-                                        text: "We get under way inside the hour, and the bonus needs a clean manifest. Get back on the plate and bring me that third crate.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "We get under way inside the hour, and the bonus needs a clean sheet. Get back on the plate and bring me that cache.",
                                         icon: Some("self://portraits/deck-chief.png"),
                                     )),
                                 ],
@@ -3266,9 +3435,10 @@
                     ObjectiveComplete((
                         id: "return",
                     )),
-                    StoryMessage((
-                        speaker: "Copilot",
-                        text: "Back on the plate. Third crate\'s tag is weak, off to starboard and close in.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Halloran",
+                        text: "Back on the plate. Cache tag is weak, off to starboard and close in.",
                         icon: Some("self://portraits/copilot.png"),
                     )),
                     ObjectiveMarkerDetach((
@@ -3307,7 +3477,7 @@
                                     )),
                                     Objective((
                                         id: "search",
-                                        message: "Recover the last crate.",
+                                        message: "Recover the cache.",
                                     )),
                                     ObjectiveMarkerAttach((
                                         target_id: "crate_3",
@@ -3346,9 +3516,10 @@
                     DespawnScenarioObject((
                         id: "crate_3",
                     )),
-                    StoryMessage((
-                        speaker: "Engineer",
-                        text: "Third crate secure. Tag is valid. Still no manifest.",
+                    NarrativeCue((
+                        channel: Comms,
+                        speaker: "Okoro",
+                        text: "Cache is aboard. Seal\'s intact. No name on this one either.",
                         icon: Some("self://portraits/engineer.png"),
                     )),
                     Sequence((
@@ -3357,8 +3528,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot - Cabin",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "And with minutes to spare.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
@@ -3367,8 +3539,9 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "You don\'t know how many.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -3377,10 +3550,44 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Deck Chief",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
                                         text: "Three for three and the sheet is clean. Bring Cutter One to the outer hold and we\'ll walk you in.",
                                         icon: Some("self://portraits/deck-chief.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Guard,
+                                        speaker: "Unknown Signal",
+                                        text: "- any vessel this net - Saturn traffic - respond -",
+                                        icon: Some("self://portraits/unknown-channel.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Still at it.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "You",
+                                        text: "Not our net. Take us home.",
+                                        icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
                             ),
@@ -3479,35 +3686,42 @@
                             allegiance: Some(Enemy),
                         )),
                     )),
-                    MoveShipTo((
-                        order: "warship_emerge",
-                        ship: "warship",
-                        position: (
-                            7600.0,
-                            300.0,
-                            -3200.0,
-                        ),
-                        arrival_standoff: Some(200.0),
-                    )),
                     SuspendPlayerControl(()),
-                    SetCameraAnchor((
-                        anchor: "cutter",
-                        offset: (
-                            -100.0,
-                            25.0,
-                            185.0,
-                        ),
-                        frame: World,
-                        look_at: Object("warship"),
-                    )),
-                    StoryMessage((
-                        speaker: "Meridian Control",
-                        text: "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and no transponder.",
-                        icon: Some("self://portraits/meridian-control.png"),
-                    )),
-                    Sequence((
-                        key: "plume",
+                    Cinematic((
+                        key: "strike_approach",
+                        skippable: true,
                         steps: [
+                            (
+                                after: Some(0.0),
+                                actions: [
+                                    SetCameraAnchor((
+                                        anchor: "cutter",
+                                        offset: (
+                                            -100.0,
+                                            25.0,
+                                            185.0,
+                                        ),
+                                        frame: World,
+                                        look_at: Object("warship"),
+                                    )),
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
+                                        text: "Cutter One, hold at the outer mark. We have a drive plume clearing the large body and no transponder.",
+                                        icon: Some("self://portraits/meridian-control.png"),
+                                    )),
+                                    MoveShipTo((
+                                        order: "warship_emerge",
+                                        ship: "warship",
+                                        position: (
+                                            7600.0,
+                                            300.0,
+                                            -3200.0,
+                                        ),
+                                        arrival_standoff: Some(200.0),
+                                    )),
+                                ],
+                            ),
                             (
                                 after: Some(8.399999618530273),
                                 actions: [
@@ -3521,78 +3735,150 @@
                                     )),
                                 ],
                             ),
-                        ],
-                    )),
-                    Sequence((
-                        key: "emerging",
-                        steps: [
                             (
-                                after: Some(20.0),
+                                after: Some(11.600000381469727),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
                                         text: "No squawk. No running lights. And it\'s still accelerating.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
                             ),
-                        ],
-                    )),
-                ],
-            ),
-            (
-                name: OnShipOrderComplete,
-                once: true,
-                filters: [
-                    ShipOrder((
-                        order: Some("warship_emerge"),
-                        ship: Some("warship"),
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(14.0)))),
-                    ))),
-                ],
-                actions: [
-                    StoryMessage((
-                        speaker: "You",
-                        text: "Control, that\'s an Earth Navy hull, but it isn\'t broadcasting a fleet code. It\'s turning toward you.",
-                        icon: Some("self://portraits/player.png"),
-                    )),
-                    MoveShipTo((
-                        order: "warship_approach",
-                        ship: "warship",
-                        position: (
-                            3700.0,
-                            150.0,
-                            -2200.0,
-                        ),
-                        arrival_standoff: Some(200.0),
-                    )),
-                    Sequence((
-                        key: "closing",
-                        steps: [
                             (
-                                after: Some(18.0),
+                                after: Some(0.0),
+                                until: Some((
+                                    name: OnShipOrderComplete,
+                                    filters: [
+                                        ShipOrder((
+                                            order: Some("warship_emerge"),
+                                            ship: Some("warship"),
+                                        )),
+                                    ],
+                                )),
+                                deadline: Some(100.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Meridian Control",
-                                        text: "Unidentified warship, this is Earthworks carrier Meridian. Civilian registry. We are unarmed. Identify yourself.",
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "You",
+                                        text: "Control, that\'s a Fleet hull, and it isn\'t broadcasting a fleet code. It\'s turning toward you.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                    MoveShipTo((
+                                        order: "warship_approach",
+                                        ship: "warship",
+                                        position: (
+                                            3700.0,
+                                            150.0,
+                                            -2200.0,
+                                        ),
+                                        arrival_standoff: Some(200.0),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(14.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Demir",
+                                        text: "Unidentified warship, this is Earthworks carrier Meridian. Civilian registry, four hundred and twelve aboard. We are unarmed. Identify yourself.",
                                         icon: Some("self://portraits/meridian-control.png"),
                                     )),
                                 ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Guard,
+                                        speaker: "Unknown Signal",
+                                        text: "- roster -",
+                                        icon: Some("self://portraits/unknown-channel.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
+                                        text: "Say again?",
+                                        icon: Some("self://portraits/engineer.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "That\'s not Control. That\'s coming off the guard channel.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(0.0),
+                                until: Some((
+                                    name: OnShipOrderComplete,
+                                    filters: [
+                                        ShipOrder((
+                                            order: Some("warship_approach"),
+                                            ship: Some("warship"),
+                                        )),
+                                    ],
+                                )),
+                                deadline: Some(100.0),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Comms,
+                                        speaker: "Brandt",
+                                        text: "Control, its bow is coming around. Those are rail apertures.",
+                                        icon: Some("self://portraits/deck-chief.png"),
+                                    )),
+                                    PlaySound((
+                                        sound: "self://sounds/warn_lock.wav",
+                                        route: Interface,
+                                    )),
+                                    ForceAlign((
+                                        order: "warship_align",
+                                        ship: "warship",
+                                        look_at: (
+                                            -1000.0,
+                                            0.0,
+                                            2500.0,
+                                        ),
+                                        tolerance_degrees: 2.0,
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(0.0),
+                                until: Some((
+                                    name: OnShipOrderComplete,
+                                    filters: [
+                                        ShipOrder((
+                                            order: Some("warship_align"),
+                                            ship: Some("warship"),
+                                        )),
+                                    ],
+                                )),
+                                deadline: Some(30.0),
                             ),
                         ],
                     )),
                 ],
             ),
             (
-                name: OnShipOrderComplete,
+                name: OnCinematicSkipped,
                 once: true,
                 filters: [
-                    ShipOrder((
-                        order: Some("warship_approach"),
-                        ship: Some("warship"),
+                    Cinematic((
+                        key: "strike_approach",
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -3600,30 +3886,52 @@
                     ))),
                 ],
                 actions: [
-                    StoryMessage((
-                        speaker: "Deck Chief",
-                        text: "Control, its bow is coming around. Those are rail apertures.",
-                        icon: Some("self://portraits/deck-chief.png"),
+                    DespawnScenarioObject((
+                        id: "warship",
                     )),
-                    ForceAlign((
-                        order: "warship_align",
-                        ship: "warship",
-                        look_at: (
+                    DespawnScenarioObject((
+                        id: "carrier",
+                    )),
+                    SetCameraAnchor((
+                        anchor: "cutter",
+                        offset: (
+                            790.0,
+                            120.0,
+                            -420.0,
+                        ),
+                        frame: World,
+                        look_at: Point((
                             -1000.0,
                             0.0,
                             2500.0,
-                        ),
-                        tolerance_degrees: 2.0,
+                        )),
+                        blend: Some((
+                            seconds: 4.0,
+                            easing: Smooth,
+                        )),
+                    )),
+                    ObjectiveComplete((
+                        id: "witness",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "warship",
+                    )),
+                    Objective((
+                        id: "silence",
+                        message: "Hold position and keep the channel open.",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(15.0)))),
                     )),
                 ],
             ),
             (
-                name: OnShipOrderComplete,
+                name: OnCinematicFinished,
                 once: true,
                 filters: [
-                    ShipOrder((
-                        order: Some("warship_align"),
-                        ship: Some("warship"),
+                    Cinematic((
+                        key: "strike_approach",
                     )),
                     Expression((Equal(
                         Term(Factor(Name("beat"))),
@@ -3631,8 +3939,9 @@
                     ))),
                 ],
                 actions: [
-                    Sequence((
-                        key: "salvo",
+                    Cinematic((
+                        key: "strike_salvo",
+                        skippable: false,
                         steps: [
                             (
                                 after: Some(0.0),
@@ -3767,38 +4076,55 @@
                             ),
                             (
                                 after: Some(4.0),
-                                actions: [
-                                    SetCameraAnchor((
-                                        anchor: "cutter",
-                                        offset: (
-                                            440.0,
-                                            25.0,
-                                            -235.0,
-                                        ),
-                                        frame: World,
-                                        look_at: Point((
-                                            -1000.0,
-                                            0.0,
-                                            2500.0,
-                                        )),
-                                    )),
-                                    ObjectiveComplete((
-                                        id: "witness",
-                                    )),
-                                    ObjectiveMarkerDetach((
-                                        target_id: "warship",
-                                    )),
-                                    Objective((
-                                        id: "silence",
-                                        message: "Hold position and keep the channel open.",
-                                    )),
-                                    VariableSet((
-                                        key: "beat",
-                                        expression: Term(Factor(Literal(Number(15.0)))),
-                                    )),
-                                ],
                             ),
                         ],
+                    )),
+                ],
+            ),
+            (
+                name: OnCinematicFinished,
+                once: true,
+                filters: [
+                    Cinematic((
+                        key: "strike_salvo",
+                    )),
+                    Expression((Equal(
+                        Term(Factor(Name("beat"))),
+                        Term(Factor(Literal(Number(14.0)))),
+                    ))),
+                ],
+                actions: [
+                    SetCameraAnchor((
+                        anchor: "cutter",
+                        offset: (
+                            790.0,
+                            120.0,
+                            -420.0,
+                        ),
+                        frame: World,
+                        look_at: Point((
+                            -1000.0,
+                            0.0,
+                            2500.0,
+                        )),
+                        blend: Some((
+                            seconds: 4.0,
+                            easing: Smooth,
+                        )),
+                    )),
+                    ObjectiveComplete((
+                        id: "witness",
+                    )),
+                    ObjectiveMarkerDetach((
+                        target_id: "warship",
+                    )),
+                    Objective((
+                        id: "silence",
+                        message: "Hold position and keep the channel open.",
+                    )),
+                    VariableSet((
+                        key: "beat",
+                        expression: Term(Factor(Literal(Number(15.0)))),
                     )),
                 ],
             ),
@@ -3857,9 +4183,10 @@
                             (
                                 after: Some(2.5),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Copilot",
-                                        text: "Carrier channel is gone.",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "Carrier channel\'s gone.",
                                         icon: Some("self://portraits/copilot.png"),
                                     )),
                                 ],
@@ -3867,9 +4194,10 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
+                                    NarrativeCue((
+                                        channel: Comms,
                                         speaker: "You",
-                                        text: "Meridian Control, Cutter One. Respond.",
+                                        text: "Meridian Control, Cutter One. Demir, respond.",
                                         icon: Some("self://portraits/player.png"),
                                     )),
                                 ],
@@ -3877,8 +4205,9 @@
                             (
                                 after: Some(4.0),
                                 actions: [
-                                    StoryMessage((
-                                        speaker: "Engineer",
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Okoro",
                                         text: "Wait. I still have one carrier signal. Weak, but it\'s running.",
                                         icon: Some("self://portraits/engineer.png"),
                                     )),
@@ -3887,13 +4216,40 @@
                             (
                                 after: Some(4.0),
                                 actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "Halloran",
+                                        text: "And small craft. Four of them, out of the warship and into the field.",
+                                        icon: Some("self://portraits/copilot.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(2.5),
+                                actions: [
+                                    NarrativeCue((
+                                        channel: Crew,
+                                        speaker: "You",
+                                        text: "Then we go dark and we go into the junk.",
+                                        icon: Some("self://portraits/player.png"),
+                                    )),
+                                ],
+                            ),
+                            (
+                                after: Some(4.0),
+                                actions: [
+                                    PlaySound((
+                                        sound: "self://sounds/warn_hull.wav",
+                                        route: Interface,
+                                    )),
                                     Sequence((
                                         key: "outro",
                                         steps: [
                                             (
                                                 after: Some(4.0),
                                                 actions: [
-                                                    StoryMessage((
+                                                    NarrativeCue((
+                                                        channel: Comms,
                                                         speaker: "Automated Beacon",
                                                         text: "ANY VESSEL. ANY VESSEL. THIS IS MERIDIAN. HULL BREACH ALL DECKS. SURVIVORS UNKNOWN.",
                                                         icon: Some("self://portraits/automated-beacon.png"),
@@ -3909,15 +4265,11 @@
                                                     )),
                                                     Objective((
                                                         id: "done",
-                                                        message: "First shift complete. The beacon is still running.",
+                                                        message: "The shift is over. The beacon is still running.",
                                                     )),
                                                     Outcome((
                                                         outcome: Victory,
-                                                        message: Some("The Meridian is gone. Something in the wreck is still transmitting."),
-                                                    )),
-                                                    NextScenario((
-                                                        scenario_id: "second_shift",
-                                                        linger: true,
+                                                        message: Some("The Meridian is gone with four hundred and twelve aboard. Something in the wreck is still transmitting."),
                                                     )),
                                                 ],
                                             ),

@@ -148,22 +148,16 @@ name = "first_shift_06_return"
 path = "examples/playable/first_shift_06_return.rs"
 
 [[example]]
-name = "first_shift_07_attack_approach"
-path = "examples/playable/first_shift_07_attack_approach.rs"
+name = "first_shift_07_strike_approach"
+path = "examples/playable/first_shift_07_strike_approach.rs"
 
 [[example]]
-name = "first_shift_08_attack_salvo"
-path = "examples/playable/first_shift_08_attack_salvo.rs"
+name = "first_shift_08_strike_salvo"
+path = "examples/playable/first_shift_08_strike_salvo.rs"
 
 [[example]]
 name = "first_shift_09_aftermath"
 path = "examples/playable/first_shift_09_aftermath.rs"
-
-# The sequel layout bench: the returning cutter approaches a long carrier
-# wreck field while five cleanup searchers wait behind the large planetoid.
-[[example]]
-name = "second_shift_map"
-path = "examples/playable/second_shift_map.rs"
 
 # The railgun slug's ionized wake at three speeds (2.5, 7.5 and the shipped
 # 15 km/s) under three lifetime policies, with dark hull plates for the moving

@@ -23,15 +23,17 @@ use nova_scenario::prelude::*;
 
 const FIRST_SHIFT_RON: &str =
     include_str!("../../../assets/base/scenarios/first_shift.content.ron");
-const SECOND_SHIFT_RON: &str =
-    include_str!("../../../assets/base/scenarios/second_shift.content.ron");
 
 /// The beat each chapter's defeat gate sits below: `BEAT_OUTRO` in the
 /// authored script. Spelled out here rather than imported, because the point
 /// of the test is that the RON carries the gate - importing the constant would
 /// let a script that dropped the guard still pass.
-const FIRST_SHIFT_OUTRO: f64 = 10.0;
-const SECOND_SHIFT_OUTRO: f64 = 5.0;
+const FIRST_SHIFT_OUTRO: f64 = 16.0;
+
+/// The id the chapter's own defeat gates name. Also spelled out rather than
+/// imported: a script that renamed the player's hull and left the gates
+/// pointing at the old id would still pass against a constant.
+const FIRST_SHIFT_PLAYER: &str = "cutter";
 
 fn scenario_from(ron: &str) -> ScenarioConfig {
     let items: Vec<nova_modding::prelude::Content> =
@@ -117,7 +119,7 @@ fn queued_scenario(app: &App) -> Option<String> {
 }
 
 /// A live beat, the epilogue beat, and what a neutralize means in each.
-fn player_neutralize_case(ron: &str, id: &str, live_beat: f64, outro_beat: f64) {
+fn player_neutralize_case(ron: &str, id: &str, ship: &str, live_beat: f64, outro_beat: f64) {
     let scenario = scenario_from(ron);
 
     // On a live beat: an immediate Defeat with the chapter queued for retry.
@@ -131,7 +133,7 @@ fn player_neutralize_case(ron: &str, id: &str, live_beat: f64, outro_beat: f64) 
         "{id}: nothing declares on its own"
     );
 
-    neutralize(&mut app, "player_spaceship");
+    neutralize(&mut app, ship);
     assert_eq!(
         outcome_kind(&app),
         Some(ScenarioOutcomeKind::Defeat),
@@ -149,7 +151,7 @@ fn player_neutralize_case(ron: &str, id: &str, live_beat: f64, outro_beat: f64) 
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
     seed_var(&mut app, "beat", outro_beat);
-    neutralize(&mut app, "player_spaceship");
+    neutralize(&mut app, ship);
     assert_eq!(
         outcome_kind(&app),
         None,
@@ -159,26 +161,27 @@ fn player_neutralize_case(ron: &str, id: &str, live_beat: f64, outro_beat: f64) 
 
 #[test]
 fn a_first_shift_player_neutralize_is_a_gated_terminal_defeat() {
-    player_neutralize_case(FIRST_SHIFT_RON, "first_shift", 2.0, FIRST_SHIFT_OUTRO);
+    player_neutralize_case(
+        FIRST_SHIFT_RON,
+        "first_shift",
+        FIRST_SHIFT_PLAYER,
+        2.0,
+        FIRST_SHIFT_OUTRO,
+    );
 }
 
+/// The carrier dying is the chapter, not a loss condition, and the warship
+/// leaving is not a win. Only the player's id is wired to an outcome: the
+/// strike kills the biggest ship on the board, and a scenario that read that
+/// as the player's defeat would end the chapter on the beat it exists for.
 #[test]
-fn a_second_shift_player_neutralize_is_a_gated_terminal_defeat() {
-    player_neutralize_case(SECOND_SHIFT_RON, "second_shift", 2.0, SECOND_SHIFT_OUTRO);
-}
-
-/// The wreck field is 28 dead hulls and a cleanup group flies through it. None
-/// of that may declare anything: only the player's id is wired to an outcome,
-/// so a fragment being shot apart or a searcher being neutralized is scenery.
-#[test]
-fn nothing_but_the_player_can_end_the_second_shift() {
-    let scenario = scenario_from(SECOND_SHIFT_RON);
+fn nothing_but_the_player_can_end_an_ordinary_shift() {
+    let scenario = scenario_from(FIRST_SHIFT_RON);
     let mut app = slice_app();
     register_non_start_handlers(&mut app, &scenario);
-    seed_var(&mut app, "beat", 3.0);
-    seed_var(&mut app, "seen", 0.0);
+    seed_var(&mut app, "beat", 14.0);
 
-    for bystander in ["wreck_0", "wreck_13", "cleanup_picket", "cleanup_leader"] {
+    for bystander in ["carrier", "warship"] {
         neutralize(&mut app, bystander);
         assert_eq!(
             outcome_kind(&app),

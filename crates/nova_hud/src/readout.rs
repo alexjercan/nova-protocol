@@ -36,7 +36,7 @@ pub mod prelude {
 
 /// How a [`HudReadoutEntry`] value renders as text. The scenario-side
 /// `HudReadoutFormatConfig` maps onto this, the same nova_scenario -> nova_hud
-/// split as `StoryMessageActionConfig` -> `StoryLine` (the HUD cannot depend on
+/// split as `NarrativeCueActionConfig` -> `StoryLine` (the HUD cannot depend on
 /// nova_scenario).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HudReadoutFormat {

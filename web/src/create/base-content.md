@@ -133,15 +133,14 @@ launchable by id.
 
 | id | display name | hidden | what it is |
 |---|---|---|---|
-| `first_shift` | First Shift | no | the New Game opening: a salvage shift, and what ends it |
-| `second_shift` | Second Shift | no | chapter 2: search the wreck, leave before the cleanup group finds you |
+| `first_shift` | An Ordinary Shift | no | the New Game opening: a salvage shift, and what ends it |
 | `menu_waystation` | Waystation Traffic | yes | menu backdrop: hauler convoy (carousel: hands off to the gauntlet) |
 | `menu_gauntlet` | Torpedo Gauntlet | yes | menu backdrop: a doomed point-defense stand (hands off to the weave) |
 | `menu_weave` | Asteroid Weave | yes | menu backdrop: waypoint run through a dense rock band (hands off to the duel) |
 | `menu_duel` | Duel Cycle | yes | menu backdrop: a duel ended by a siege torpedo (hands off to the waystation) |
 
-One campaign ships: `nova_protocol` ("Nova Protocol"), members
-`first_shift`, `second_shift` in play order. There are no other content kinds - a content file holds
+One campaign ships: `nova_protocol` ("Nova Protocol"), whose one member is
+`first_shift`. There are no other content kinds - a content file holds
 `Section`, `Scenario`, `Campaign`, `Ship`, and `Style` items only; factions
 are not content. The base ship ids are tabled in
 [Ships](../ships/#base-ships), the style ids [above](#skin-styles).
@@ -226,12 +225,12 @@ base bundle resources, and are NOT dep-referenceable.)
 
 ### Images (6)
 
-- `textures/cubemap.png` - the stock skybox, and the sky both campaign chapters
-  are flown under
+- `textures/cubemap.png` - the stock skybox, and the sky the campaign is flown
+  under
 - `textures/cubemap_alt.png` - the alternate skybox: a `SetSkybox` swap target
   and what the editor sandbox loads
 - `textures/asteroid.png` - the asteroid surface texture
-- `thumbnails/first_shift.png`, `thumbnails/second_shift.png` - the picker plates
+- `thumbnails/first_shift.png` - the picker plate
 - `banner.png` - the base mod's banner
 
 Skybox `.png.meta` sidecars (the cube reinterpret) ride along with their

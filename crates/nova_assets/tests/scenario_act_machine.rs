@@ -122,7 +122,7 @@ const SCENARIO_RON: &str = r#"[
             ),
             // The win ARMS on the last condition and speaks; the overlay is a
             // separate handler a beat later, so no Outcome shares a frame with
-            // a StoryMessage.
+            // a NarrativeCue.
             (
                 name: OnUpdate,
                 filters: [
@@ -134,7 +134,7 @@ const SCENARIO_RON: &str = r#"[
                     VariableSet((key: "act", expression: Term(Factor(Literal(Number(2.0)))))),
                     VariableSet((key: "win_gate", expression: Add(Factor(Name("scenario_elapsed")), Term(Factor(Literal(Number(3.0))))))),
                     ObjectiveComplete((id: "objective_1")),
-                    StoryMessage((speaker: "Speaker One", text: "Field is clear.")),
+                    NarrativeCue((channel: Comms, speaker: "Speaker One", text: "Field is clear.")),
                 ],
             ),
             (

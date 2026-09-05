@@ -17,7 +17,7 @@ binary assets it ships).
 - **A playable scenario** - `example_arena`: spawns a player ship from base
   prototypes plus this mod's own sections, two destructible targets, an
   objective, and a win check. Ends in a Victory or Defeat `Outcome`, with a
-  `StoryMessage` comms beat at the open and the clear.
+  `NarrativeCue` comms beat at the open and the clear.
 - **Timed beats on the scenario clock** - the arena gates a comms nudge
   (25s) and a bonus drifting target (45s) on the engine's reserved
   `scenario_elapsed` variable: threshold filter + a seeded one-shot flag,

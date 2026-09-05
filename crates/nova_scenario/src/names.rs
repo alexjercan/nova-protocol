@@ -62,6 +62,8 @@ pub enum Names {
     /// Declared by the helm action that installs the order and referenced by
     /// the `ShipOrder` filter that waits for it.
     Order,
+    /// A cinematic, by the key the `Cinematic` action filed its cursor under.
+    Cinematic,
     /// One section of a ship, by its authored section id. Scoped to the ship
     /// the same config names, unlike every other variant here.
     Section,

@@ -825,12 +825,14 @@ mod tests {
             cubemap: "self://textures/sky.png",
             events: [
                 ( name: OnStart, filters: [], actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Alpha",
                         text: "Own icon.",
                         icon: Some("self://icons/alpha.png"),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Relay",
                         text: "Shared icon.",
                         icon: Some("dep://base/icons/comms.png"),
@@ -861,18 +863,18 @@ mod tests {
         };
         assert!(
             resource_ref_violations(&content, &scope).is_empty(),
-            "StoryMessage icon refs use the normal resource-ref gate"
+            "NarrativeCue icon refs use the normal resource-ref gate"
         );
 
         let Content::Scenario(cfg) = rewrite_refs(&content, &scope) else {
             panic!("still a scenario");
         };
         let actions = &cfg.events[0].actions;
-        let EventActionConfig::StoryMessage(own) = &actions[0] else {
-            panic!("first action is StoryMessage");
+        let EventActionConfig::NarrativeCue(own) = &actions[0] else {
+            panic!("first action is NarrativeCue");
         };
-        let EventActionConfig::StoryMessage(shared) = &actions[1] else {
-            panic!("second action is StoryMessage");
+        let EventActionConfig::NarrativeCue(shared) = &actions[1] else {
+            panic!("second action is NarrativeCue");
         };
         assert_eq!(
             own.icon.as_ref().and_then(|icon| icon.path()),
@@ -904,8 +906,8 @@ mod tests {
         let Content::Scenario(cfg) = rewrite_refs(&content, &missing_scope) else {
             panic!("still a scenario");
         };
-        let EventActionConfig::StoryMessage(own) = &cfg.events[0].actions[0] else {
-            panic!("first action is StoryMessage");
+        let EventActionConfig::NarrativeCue(own) = &cfg.events[0].actions[0] else {
+            panic!("first action is NarrativeCue");
         };
         assert_eq!(
             own.icon.as_ref().and_then(|icon| icon.path()),

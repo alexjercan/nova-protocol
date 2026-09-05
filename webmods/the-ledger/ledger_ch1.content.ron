@@ -580,7 +580,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(1.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Kestrel, the Ceres Matron's yours. She died out here three weeks back - reactor scrammed, crew lifted off, and nobody's been back since.",
                         dwell: Some(7.0),
@@ -604,7 +605,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(2.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "You",
                         text: "Copy, Okono. She's a big one. What's Mesa Verde want off her?",
                     )),
@@ -627,7 +629,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(3.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Three containers on the manifest, that's the whole contract. Strip it clean and we call it a shift. Quota's quota.",
                         dwell: Some(7.0),
@@ -651,7 +654,8 @@
                         key: "open_step",
                         expression: Term(Factor(Literal(Number(4.0)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "You",
                         text: "Understood. Working the wreck line now.",
                     )),
@@ -812,7 +816,8 @@
                     Timer((key: "ack1")),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "MV-1 on the hook. Two to go.",
                     )),
@@ -825,7 +830,8 @@
                     Timer((key: "ack2")),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "MV-2 logged. Keep it moving, the Matron isn't getting any deader.",
                     )),
@@ -838,7 +844,8 @@
                     Timer((key: "ack3")),
                 ],
                 actions: [
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "MV-3. That's the manifest done.",
                     )),
@@ -890,7 +897,8 @@
                         key: "beat",
                         seconds: Term(Factor(Literal(Number(3.5)))),
                     )),
-                    StoryMessage((
+                    NarrativeCue((
+                        channel: Comms,
                         speaker: "Foreman Okono",
                         text: "Hold up. Scope's showing a fourth return, deep in the stern... that container is not on any manifest I've ever filed.",
                         dwell: Some(8.0),

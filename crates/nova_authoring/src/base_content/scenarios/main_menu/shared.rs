@@ -56,6 +56,7 @@ pub(super) const MENU_PLANETOID_SEED: u32 = 7;
 /// at their own `SetCamera`.
 pub(super) fn backdrop_camera(position: Meters3) -> EventActionConfig {
     EventActionConfig::SetCamera(SetCameraActionConfig {
+        blend: None,
         position,
         look_at: Meters3::ZERO,
     })
