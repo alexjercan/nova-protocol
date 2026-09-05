@@ -100,6 +100,18 @@ ECS world. The plan also inventories the events, filters, actions, queries,
 objects, narration changes, and skip-safe cinematic contract expected by the
 story.
 
+### 2026-09-05: Story review 02
+
+[`REVIEW02.md`](REVIEW02.md) checks the revised story against Review 01. Most of
+the original issues are resolved. It records nine remaining questions, with
+the life-support timeline and Calloway bad ending resolved during review.
+
+Cutter One now needs only stored breathing capacity for short shifts. Bringing
+the tender's regenerative life-support plant online ends the forty-hour clock
+before the two-day trip to the Roost. In the bad ending, the crew hands the
+recorder to Parallax before Calloway sends them toward Datum and kills the
+witnesses.
+
 ### 2026-09-05: Review 01 folded into the story
 
 `REVIEW01.md` found the backbone sound and the joints stated, not caused. Three
