@@ -68,13 +68,13 @@ Naming scheme, so a name tells its group at once:
 | Azimuth | EWI's second carrier, arriving in days with 400 workers and the replacement stations. Pell's intended second target. | EWI |
 | Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
-| Kettle (tbd) | A dead Brightwater tender in the junk. The crew revives it: drive, two debris PDCs. The crew's ship from beat 5 on. | Brightwater, then the crew |
-| Resolute, renamed Severance (tbd) | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
+| Kettle (tbd) | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 5 on. | Scrap, then the crew |
+| Resolute, renamed Severance | The Fleet warship the Scavengers stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. | Scavengers |
 | Scavenger skiffs | Small scrap-built pirate ships. Sweep, pick, herd. | Scavengers |
 | Vigilant (tbd) | Marsh's ship, hunting Resolute. | Earth Fleet |
 | The Shelter | Kestrel's largest station. Died four years ago. EWI cleared the rock and built its Saturn headquarters on it, with the system relay. Workers still call it the Shelter. | Kestrel, now EWI |
 | The Roost | One of a dozen small dead Kestrel stations scattered around Saturn. The Scavengers' village. EWI never cared which one; Fleet cannot find it. | Kestrel, now Scavengers |
-| The Brightwater site (tbd) | The opening location. Brightwater was a small ice miner EWI finished last quarter, the Kestrel way minus the bomb. Dead hulls and junk on a ring moonlet. Meridian arrives to clear it. | EWI |
+| The junk site | The opening location. A ring moonlet under dead hulls and scrap nobody can name, left by the small miners EWI finished over the years. Meridian arrives to clear it for the new stations. | EWI |
 | Saturn | The system. Rings and shepherd moonlets are the plate and the shadows. Water ice is the monopoly's product: whoever owns the ice owns outer-system traffic. | |
 
 ## Timeline
@@ -84,9 +84,8 @@ Naming scheme, so a name tells its group at once:
 | Four years ago | EWI's Board orders the Shelter finished. Calloway, commanding Meridian, sets a Fleet-surplus demolition charge on the adjacent claim, "for the ice". It kills the Shelter and EWI's own tender crew placing it. The desk orders no rescue and reports a Kestrel reactor failure. Pell refuses, takes a tender and volunteers, goes dark. Nobody searches. |
 | Weeks later | Kestrel folds. Survivors are bought (EWI contracts, settlements, silence clauses) or vanish. Halloran signs with EWI. The captain arrives from Earth into Cutter One's seat. The crew forms. |
 | The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there. Calloway is promoted to the desk. The Scavengers scrape. |
-| Last quarter | EWI finishes Brightwater. |
 | Weeks ago | The Scavengers steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt. EWI is not told. |
-| Today, T+0 | Meridian arrives at the Brightwater site. Routine shift. The strike. |
+| Today, T+0 | Meridian arrives at the junk site. Routine shift. The strike. |
 | T+0 to T+40h | Air. Survival in the junk, the module, the run, the midpoint. |
 | T+2 to T+5 days | The Roost. The argument. Azimuth's arrival. The climax at the Shelter. |
 
@@ -109,7 +108,7 @@ reader believes the hero is dead, the same as the crew.
 
 ### Act one: the job
 
-1. **An ordinary shift.** Meridian at the Brightwater site. Dead hulls, junk,
+1. **An ordinary shift.** Meridian at the junk site. Dead hulls, scrap,
    the banner. Cutter One: the captain, Halloran, Okoro, four years together.
    The plaque for Pell in the boat bay, walked past for two years. The
    renewal clause as a joke about section nine. Re-qualification card after
@@ -123,9 +122,10 @@ reader believes the hero is dead, the same as the crew.
 
 ### Act two, first half: forty hours
 
-3. **Shelter in the junk.** The Kettle, a dead Brightwater tender. Okoro
-   pressurises it and, over the next shifts, brings back its drive and its
-   two debris PDCs. Salvage runs into the wreck for air, cells, and the
+3. **Shelter in the junk.** The Kettle, a dead tender hull in the junk, owner
+   unknown. Okoro pressurises it and grafts Cutter One's cockpit and drive
+   onto its frame. Over the next shifts the crew feeds it piece by piece from
+   the field: a cell bank, then two debris PDCs off a wrecked tug. Salvage runs into the wreck for air, cells, and the
    recorder module, which also holds Meridian's log archive. Distress to the
    desk. Calloway, warm: recovery in nine days, hold position, costs against
    remaining term. Air is forty hours. Nobody on the crew is surprised.
@@ -213,6 +213,10 @@ Never a speech. Only habits and paperwork:
 
 - Small-ship radio is local. A carrier or a station relay reaches the system.
   This is why the Shelter matters and why nobody hears the crew.
+- The crew's ship is built from what they find. The Kettle starts as Cutter
+  One grafted onto a scrap hull and grows piece by piece: cells, PDCs, drive.
+  Every upgrade is scavenged. This is the game's progression and the story's
+  texture.
 - Cutter One is unarmed. The Kettle has two debris PDCs. Severance is a
   warship. Parallax is a security ship: less than a warship, more than a
   tender.
