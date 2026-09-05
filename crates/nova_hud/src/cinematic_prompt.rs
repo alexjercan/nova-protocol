@@ -9,10 +9,17 @@
 //! HUD to its cinematic level, and a skip prompt hidden by the very thing it
 //! is offering to skip is worse than no prompt: an untagged widget is not
 //! HUD-managed, so it survives the level and drives its own visibility.
+//!
+//! Being outside the HUD's management is also why it has to place itself. The
+//! bottom-centre column belongs to the keybind dock; the prompt measures the
+//! dock every frame and rides above it, so the two never print through each
+//! other (see `keep_the_prompt_clear_of_the_dock`).
 
 use bevy::prelude::*;
 use nova_input::prelude::InputBindings;
 use nova_ui::{hud::ChipTone, theme};
+
+use super::keybind_dock::prelude::{KeybindDockMarker, DOCK_BOTTOM_PX};
 
 /// The `CinematicPrompt` resource.
 pub mod prelude {
@@ -40,8 +47,12 @@ struct CinematicPromptMarker;
 #[derive(Component, Debug)]
 struct CinematicPromptText;
 
-/// Bottom-centre, above the comms stack.
+/// Bottom-centre, above the comms stack, when the bottom of the screen is
+/// otherwise empty.
 const PROMPT_BOTTOM_PX: f32 = 18.0;
+
+/// The clearance left between the keybind dock and the prompt riding above it.
+const PROMPT_DOCK_GAP_PX: f32 = 10.0;
 
 /// The skip prompt.
 pub struct CinematicPromptPlugin;
@@ -50,7 +61,11 @@ impl Plugin for CinematicPromptPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CinematicPrompt>();
         app.add_systems(Startup, spawn_cinematic_prompt);
-        app.add_systems(Update, sync_cinematic_prompt.in_set(super::NovaHudSystems));
+        app.add_systems(
+            Update,
+            (sync_cinematic_prompt, keep_the_prompt_clear_of_the_dock)
+                .in_set(super::NovaHudSystems),
+        );
     }
 }
 
@@ -115,6 +130,38 @@ fn sync_cinematic_prompt(
         let wanted = format!("{}  SKIP SCENE", label.to_uppercase());
         if text.0 != wanted {
             text.0 = wanted;
+        }
+    }
+}
+
+/// Ride above the keybind dock rather than through it.
+///
+/// Both surfaces are bottom-centre and the dock is the taller of the two, so a
+/// prompt parked on its own floor prints straight over the verb chips. The
+/// dock's height is MEASURED, not assumed: the row is as tall as the keycap
+/// pictures in it, and a dock that is hidden or has no available verb to show
+/// measures zero, which drops the prompt back to the floor.
+///
+/// One frame stale by construction - it reads the last layout pass. That is
+/// invisible here, because control is suspended for the scene the prompt is
+/// offering to leave, so the dock's contents are not changing under it.
+fn keep_the_prompt_clear_of_the_dock(
+    q_dock: Query<(&ComputedNode, &InheritedVisibility), With<KeybindDockMarker>>,
+    mut q_row: Query<&mut Node, With<CinematicPromptMarker>>,
+) {
+    let dock = q_dock
+        .iter()
+        .filter(|(_, visible)| visible.get())
+        .map(|(node, _)| node.size().y * node.inverse_scale_factor)
+        .fold(0.0_f32, f32::max);
+    let bottom = Val::Px(if dock > 0.0 {
+        DOCK_BOTTOM_PX + dock + PROMPT_DOCK_GAP_PX
+    } else {
+        PROMPT_BOTTOM_PX
+    });
+    for mut node in &mut q_row {
+        if node.bottom != bottom {
+            node.bottom = bottom;
         }
     }
 }
@@ -228,5 +275,79 @@ mod tests {
         app.update();
         offer(&mut app, Some("no_such_action"));
         assert_eq!(prompt_visibility(&mut app), Visibility::Hidden);
+    }
+
+    /// A dock of a given LOGICAL height, as the last layout pass would have
+    /// left it: `ComputedNode` measures in physical pixels and carries the
+    /// inverse scale factor that converts them back.
+    fn spawn_dock(app: &mut App, logical_height: f32, scale: f32, visible: bool) -> Entity {
+        let mut computed = ComputedNode::default();
+        computed.size = Vec2::new(320.0, logical_height * scale);
+        computed.inverse_scale_factor = 1.0 / scale;
+        app.world_mut()
+            .spawn((
+                KeybindDockMarker,
+                computed,
+                if visible {
+                    InheritedVisibility::VISIBLE
+                } else {
+                    InheritedVisibility::HIDDEN
+                },
+            ))
+            .id()
+    }
+
+    fn prompt_bottom(app: &mut App) -> Val {
+        app.world_mut()
+            .query_filtered::<&Node, With<CinematicPromptMarker>>()
+            .single(app.world())
+            .expect("the prompt row exists")
+            .bottom
+    }
+
+    /// The prompt and the keybind dock want the same strip of screen. The
+    /// prompt gives way: it sits a clearance above the dock's measured top,
+    /// whatever the display scale.
+    #[test]
+    fn the_prompt_rides_above_the_keybind_dock() {
+        let mut app = prompt_app();
+        app.add_systems(Update, keep_the_prompt_clear_of_the_dock);
+        app.update();
+        assert_eq!(
+            prompt_bottom(&mut app),
+            Val::Px(PROMPT_BOTTOM_PX),
+            "no dock, so the prompt keeps its own floor"
+        );
+
+        spawn_dock(&mut app, 44.0, 2.0, true);
+        app.update();
+        assert_eq!(
+            prompt_bottom(&mut app),
+            Val::Px(DOCK_BOTTOM_PX + 44.0 + PROMPT_DOCK_GAP_PX),
+            "the prompt prints through the verb chips"
+        );
+    }
+
+    /// A dock that is not on screen is not in the way. Bevy lays a hidden node
+    /// out anyway, so its size alone would leave the prompt floating over an
+    /// empty strip.
+    #[test]
+    fn a_dock_that_is_not_showing_does_not_push_the_prompt() {
+        let mut app = prompt_app();
+        app.add_systems(Update, keep_the_prompt_clear_of_the_dock);
+        spawn_dock(&mut app, 44.0, 1.0, false);
+        app.update();
+        assert_eq!(prompt_bottom(&mut app), Val::Px(PROMPT_BOTTOM_PX));
+    }
+
+    /// An empty dock measures zero: every verb is `Display::None`, so the row
+    /// collapses and the prompt takes the floor back.
+    #[test]
+    fn an_empty_dock_gives_the_floor_back() {
+        let mut app = prompt_app();
+        app.add_systems(Update, keep_the_prompt_clear_of_the_dock);
+        spawn_dock(&mut app, 0.0, 1.0, true);
+        app.update();
+        assert_eq!(prompt_bottom(&mut app), Val::Px(PROMPT_BOTTOM_PX));
     }
 }

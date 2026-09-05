@@ -78,6 +78,8 @@ does NOT get an entry - and it is the only place they are written down.
   guard channel twice before the sentence that matters arrives.
 - The strike plays as two scenes, an approach and a salvo, and neither can be
   skipped. The chapter closes on the wreck rather than handing the camera back.
+- The skip prompt rides above the keybind dock instead of printing through the
+  verb chips, and drops back to the floor when the dock has nothing to show.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's

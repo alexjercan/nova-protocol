@@ -35,12 +35,12 @@ use super::{
     situation::prelude::*, NovaHudAssets, OBJECTIVE_GOLD,
 };
 
-/// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS` and
-/// `KeybindDockPlugin`.
+/// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS`,
+/// `DOCK_BOTTOM_PX` and `KeybindDockPlugin`.
 pub mod prelude {
     pub use super::{
         keybind_dock_hud, verb_cues_hud, DockChip, DockChipState, HintEmphasis, KeybindDockMarker,
-        KeybindDockPlugin, VerbCuesHudMarker, DOCK_VERBS,
+        KeybindDockPlugin, VerbCuesHudMarker, DOCK_BOTTOM_PX, DOCK_VERBS,
     };
 }
 
@@ -60,6 +60,13 @@ const CHIP_TEXT_PX: f32 = 11.0;
 
 /// The cue sits below its object so it reads as a caption, not a lock.
 const CUE_OFFSET: Vec2 = Vec2::new(0.0, 48.0);
+
+/// How far off the bottom of the screen the dock row sits.
+///
+/// Public because the dock is the floor of the bottom-centre column: anything
+/// else that wants that spot stacks ON it, measuring the row's live height
+/// rather than assuming one (see `cinematic_prompt`).
+pub const DOCK_BOTTOM_PX: f32 = 14.0;
 
 /// The verb names, in dock display order (left to right). The component-cycle
 /// chip documents the wheel gesture: plain scroll steps the component
@@ -296,7 +303,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
         KeybindDockMarker,
         Node {
             position_type: PositionType::Absolute,
-            bottom: Val::Px(14.0),
+            bottom: Val::Px(DOCK_BOTTOM_PX),
             left: Val::Px(0.0),
             width: Val::Percent(100.0),
             justify_content: JustifyContent::Center,
