@@ -92,7 +92,9 @@ speaks through.
 
 - Content: find the tender hull, graft Cutter One onto it, salvage air, cells,
   two debris PDCs and the recorder module; Calloway's nine days; the recorder
-  beacons when unseated.
+  beacons when unseated. The clock escalates: breathing stores for the next
+  shift, the cell bank, power and seal the hull, the regenerative life-support
+  plant online, then the recorder and the guns without the air deadline.
 - Exists: areas, timers, variables, Objective chain, StoryMessage with
   portrait, Outcome Defeat at zero air.
 - New: `HudMeter` for air; `Prop` and `Pickup` with `OnCollected` for cells,
@@ -132,9 +134,9 @@ speaks through.
 ### 6. Recovery (gameplay)
 
 - Content: Parallax early on the approach, module first and crew second,
-  rotation offered by name; refuse and dive into the junk, or hand over and
-  fly the GOTO to a Defeat; Parallax fires to disable; Rotation follows,
-  holds fire, gives the Kestrel word and a heading.
+  rotation offered by name; refuse and dive into the junk, or pass the module to
+  a picket by canister and fly the GOTO to a Defeat; Parallax fires to disable;
+  Rotation follows, holds fire, gives the Kestrel word and a heading.
 - Exists: MoveShipTo and ForceAlign for Parallax's intercept, two areas as
   the choice, Outcome Defeat with a message for the bad ending, SetAllegiance
   Neutral to make Rotation hold fire, MoveShipTo to bring Rotation alongside,
@@ -206,17 +208,18 @@ speaks through.
 
 ### 9. The plan (cutscene)
 
-- Content: Datum, the relay, Meridian's open roster and code, Nova first,
-  Severance second, Pell's knowledge of Vigilant.
+- Content: Datum, the relay, Cutter One's code on Meridian's open roster,
+  Nova first, Severance second, Pell's knowledge of Vigilant.
 - Exists: Sequence, camera.
 - New: `HudBanner` for a mission title card; nothing else.
 - Cast: Pell, Solberg, the crew.
 
 ### 10a. Datum approach (gameplay)
 
-- Content: in under Meridian's code through the turret envelope; kill control
-  nodes and sensor masts before the code stops matching; pickets launch when
-  it does; dock at the relay; signal Severance.
+- Content: in as Cutter One on Meridian's open roster through the turret
+  envelope; kill control nodes and sensor masts before the desk strikes the
+  boat from the roster; pickets launch when it does; dock at the relay; signal
+  Severance.
 - Exists: Datum as Neutral until a timer or trigger flips it to Enemy, which
   is the code stopping to match; spawn and AI for pickets; OnEnter plus the
   speed query as the docking stand-in; MoveShipTo for Severance's arrival.
@@ -487,9 +490,11 @@ evidence for the next slice.
 ### Increment A: Forty Hours (beat 3)
 
 Content: the tender, the graft, air, cells, two PDCs, the module, Calloway's
-nine days. Features: campaign journal and Continue, campaign variables before
-OnStart, HudMeter, Prop and Pickup with OnCollected, the Wreck body,
-ReplaceShipHull and InstallShipSection, SetInteractable, entity-exists query.
+nine days. The air clock runs until the tender's regenerative life-support plant
+comes online on the salvaged cell bank. Features: campaign journal and Continue,
+campaign variables before OnStart, HudMeter, Prop and Pickup with OnCollected,
+the Wreck body, ReplaceShipHull and InstallShipSection, SetInteractable, entity-
+exists query.
 
 ### Increment B: The Archive (beat 4, and the strike's cinematic)
 
@@ -516,11 +521,12 @@ rail, Pell and Solberg portraits, OnDetected only if needed.
 
 ### Increment E: Datum (beats 10a, 10b, 11)
 
-Content: the approach under Meridian's code, the dock, the broadcast, the
-duel, Calloway's turn, the boats, extraction, minute zero. Features:
-TurretBattery, SetSectionEnabled, section queries, docking or its stand-in,
-spawn at object, SetObjectInvulnerable, DestroyScenarioObject, AttackShip,
-ObjectiveProgress, group counts for the boats, Vigilant, System cards.
+Content: the approach as Cutter One on Meridian's open roster, the dock, the
+broadcast, the duel, Calloway's turn, the boats, extraction, minute zero.
+Features: TurretBattery, SetSectionEnabled, section queries, docking or its
+stand-in, spawn at object, SetObjectInvulnerable, DestroyScenarioObject,
+AttackShip, ObjectiveProgress, group counts for the boats, Vigilant, System
+cards.
 
 ### Last: the opening
 

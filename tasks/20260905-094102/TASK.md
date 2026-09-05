@@ -177,3 +177,33 @@ reader's crop.
 
 Verified with `npm run ci` and headless screenshots of every page at 1400x900
 and four pages at 420x820.
+
+### 2026-09-05: Review 02 folded into the story
+
+The owner accepted the agent's answers to the nine questions in `REVIEW02.md`
+and they are now in `STORY.md` and `GAMEPLAY_PLAN.md`:
+
+- The sixty knew Meridian was the target. Meridian was the ship that did it;
+  Azimuth is the Shelter again with them in Calloway's seat. They refuse in
+  the open, Rotation's pilot first, and Solberg gives the refusal its words.
+  A few stay with Pell, and a few is not a crew.
+- The module tells Pell the Shelter was ordered, which he never knew. It turns
+  his revenge from the ship to the man. He wants Calloway to hear it, and he
+  puts Severance in front of the tower for the people in it, not the record.
+- The Board's Earth desk orders Azimuth on to the site after Datum. Its
+  captain answers once, "Azimuth holds station," and not again.
+- Datum's credential is Cutter One's transponder, a Meridian work boat on the
+  open roster, riding in Nova Protocol's cockpit. The recorder is evidence
+  only.
+- Certified recorders sign every entry; the relay carries the signed record
+  and every receiving recorder appends it, so every copy verifies.
+- Cutter One is a short-shift boat with stored air. The forty-hour clock ends
+  when the tender's regenerative life-support plant runs on the salvaged cell
+  bank. The salvage chapter escalates in that order.
+- The bad ending passes the module to a Parallax picket by canister, then the
+  GOTO, then the shot.
+- Small-ship radio reaches only a big antenna pointed at it, and Datum's
+  always is. The crew can reach the desk; the desk owns the relay.
+
+The comic stays as shipped: the owner accepted it as a proof of concept, with
+small text alignment issues noted for later.

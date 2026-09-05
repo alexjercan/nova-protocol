@@ -111,9 +111,15 @@ Weeks ago they stole Resolute from Fleet and renamed it Severance. Until then
 they were a joke.
 
 The Kites are not one mind. Sixty of the village crew Severance, and Pell
-cannot fly it without them. They came to the junk site to strip a wreck, not
-to find proof, and they learn what the crew carries from Calloway's guns. They
-will not crew for Azimuth.
+cannot fly it without them. They knew the target. The strike was planned, and
+every one of the sixty has Meridian's name on something: the ship that carried
+the charge, the ship that read "no recovery" over their heads, the ship that
+left them on the Shelter. Meridian was revenge on the ship that did it. They
+came to the junk site to strip a wreck, not to find proof, and they learn what
+the crew carries from Calloway's guns. Azimuth is four hundred renewed workers
+on the approach lane: the Shelter again, with the sixty in Calloway's seat.
+The module is what makes them see it. They will not crew for Azimuth. A few
+still follow Pell, and a few is not a crew.
 
 EWI, Fleet and the press call them Scavengers. They call themselves the Kites.
 A kite is a hawk that lives on what it finds. The name is Kestrel's way, a
@@ -226,14 +232,20 @@ his next target is the next carrier.
 
 He learns about the archive at the Roost, when Okoro plays the module in his
 village and he hears his own refusal from four years ago with the sixty
-listening. His answer is the theme's line: everyone knew, nobody did anything,
-he did. He takes Datum because the sixty will not crew for Azimuth, because he
-cannot fly Severance alone, and because Datum still gives him Calloway. He
-knows the broadcast hands Vigilant the fix. He goes anyway.
+listening. He also hears the Board's order, and he never knew it existed. For
+four years his grievance was the no-rescue. The module tells him the Shelter
+was ordered, and by whom. It does not make him a theorist. It turns his
+revenge from the ship to the man. His answer is the theme's line: everyone
+knew, nobody did anything, he did. He takes Datum because the sixty will not
+crew for Azimuth, because he cannot fly Severance alone, and because Datum
+still gives him Calloway. He does not care whether the broadcast finishes for
+its own sake. He wants Calloway to hear it. He knows the broadcast hands
+Vigilant the fix. He goes anyway.
 
 His last act is the tender for strangers. When Calloway turns Parallax on the
-relay tower, Pell puts Severance between them and drives it in. He tells his
-deck to obey Okoro. A few stay with him by choice. He never apologises for
+relay tower, Pell puts Severance between them and drives it in, for the people
+in the tower and not for the record. He tells his deck to obey Okoro. A few
+stay with him by choice. He never apologises for
 Meridian. He dies in the same minute as Calloway, in the light of the rock
 they both wanted, and not for the same reason.
 
@@ -268,10 +280,13 @@ Pell's second. Runs the Roost while Pell flies. One of the Kestrel hands Pell's
 tender pulled out of the Shelter four years ago. The village is Solberg's and
 the ship is Pell's.
 
-Solberg is the one who tells Halloran she signed, and the one who answers for
-the sixty at the argument: they will not crew for Azimuth. Solberg's voice
-runs the Roost defense. After Datum, Solberg is what the Kites have: most of
-the sixty back in the boats, the authenticated original, and a cause.
+Solberg is the one who tells Halloran she signed, and the one who gives the
+sixty's refusal its words at the argument: they will not crew for Azimuth.
+Solberg does not command the ship's crew and does not decide for them. The
+sixty refuse in the open, Rotation's pilot first, and Solberg says what it
+means. Solberg's voice runs the Roost defense. After Datum, Solberg is what
+the Kites have: most of the sixty back in the boats, the module with the whole
+archive, and a cause.
 
 ### Yusra Demir
 
@@ -339,8 +354,9 @@ Datum holds the system relay. Whatever plays from Datum, every carrier crew,
 every bought survivor and every Fleet picket hears, and every recorder at
 Saturn keeps. Its turrets are the only fixed guns at Saturn, run from control
 nodes and sensor masts a small ship can kill, and its automation admits any
-hull squawking a code on an open EWI roster. Meridian's code is still open.
-Calloway's desk is here. Nova Protocol comes in under a dead ship's name and
+hull squawking a code on an open EWI roster. Meridian's roster is still open,
+and Cutter One is on it. Calloway's desk is here. Nova Protocol comes in under
+its own code, a work boat of a dead ship whose roster nobody closed, and
 silences the guns. Parallax and Severance die under them. Calloway fires on
 the relay tower and Pell puts his ship in the way. The proof plays from the
 rock it is about.
@@ -396,8 +412,10 @@ EWI's second carrier, days out on the approach lane with four hundred workers
 and the replacement installations for the cleared site. It is the thing that
 turns a dead miner's claim into a company site under the banner. Pell's
 intended second target. The crew shadows it from the Roost and hears its
-people. Its recorder holds the broadcast. Afterwards it holds station and does
-not proceed to the site. The banner ship stops expanding.
+people. Its recorder holds the broadcast. Afterwards the Board's Earth desk
+orders it on to the site in the same dead language, costs against remaining
+term. Its captain answers once, "Azimuth holds station," and does not answer
+again. The banner ship stops expanding.
 
 ### Parallax
 
@@ -411,26 +429,33 @@ Severance in it.
 
 ### Cutter One
 
-The crew's unarmed cutter. The tutorial ship: GOTO beacons, tagging, retrieval.
-Its cockpit and drive go onto the tender's frame in the third beat.
+The crew's unarmed cutter, a Meridian work boat. The tutorial ship: GOTO
+beacons, tagging, retrieval. A short-shift boat: it comes home to Meridian
+after twelve hours, so it carries stored oxygen and carbon-dioxide scrubbing,
+not a life-support plant. Its emergency stores give three people about forty
+hours. Its cockpit carries its transponder, on Meridian's roster. Cockpit and
+drive go onto the tender's frame in the third beat.
 
 ### Nova Protocol
 
 The crew's ship. A dead tender hull in the junk, owner unknown. Okoro grafts
 Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then
 piece by piece from the field: a cell bank, two debris PDCs off a wrecked tug.
-At the Roost the Kites give it real parts: a drive, a third PDC, a sensor mast.
+The tender hull is big enough for a regenerative life-support plant, dead for
+want of power. The cell bank starts it. Once Okoro has it running, the
+forty-hour clock ends and the two-day trip to the Roost becomes possible. At
+the Roost the Kites give it real parts: a drive, a third PDC, a sensor mast.
 Every upgrade is scavenged. This is the game's progression and the story's
 texture. It has room for a handful of Kites, which is how the crew goes into
 Datum with help.
 
-The name goes on before the seal holds. The Nova Protocol is the company's
-term for a closed roster, under section nine of the EWI contract. The crew
-names its ship the Kites' way, with the company's own word for what is being
-done to them, before it has met a Kite. Nova Protocol flies to Datum under
-Meridian's code, kills the turret control, holds the dock while the module
-plays, covers Severance's boats into the junk, and ends at the Roost, off the
-roster.
+The name goes on before the seal holds. The Nova Protocol is the company's term
+for a closed roster, under section nine of the EWI contract. The crew names its
+ship the Kites' way, with the company's own word for what is being done to them,
+before it has met a Kite. Nova Protocol flies to Datum as Cutter One, a boat on
+Meridian's open roster, kills the turret control, holds the dock while the
+module plays, covers Severance's boats into the junk, and ends at the Roost, off
+the roster.
 
 ### Severance, was Resolute
 
@@ -498,7 +523,7 @@ A name tells its group at once:
 | The next three years | EWI clears the Shelter's rock and builds its Saturn headquarters there, named Datum. Calloway is promoted to the desk. The Kites scrape. |
 | Weeks ago | The Kites steal Resolute from Fleet. Fleet keeps the loss secret and begins a quiet hunt by transmissions. EWI is not told. |
 | Today, T+0 | Meridian arrives at the junk site. Routine shift. The strike. |
-| T+0 to T+40h | Air. Survival in the junk, the module, the run, the midpoint. The recorder beacons and Calloway comes himself. |
+| T+0 to T+40h | Air, until the tender's life-support plant runs. Survival in the junk, the module, the run, the midpoint. The recorder beacons and Calloway comes himself. |
 | T+2 to T+4 days | The Roost. The module in the village. The refit at the Nest. The Azimuth shadow. The argument. |
 | T+4 to T+6 days | Parallax's pickets find the Roost. The plan. Datum. Minute zero. The run to the Roost. |
 
@@ -619,10 +644,17 @@ debris PDCs off a wrecked tug. Salvage runs into the wreck for air, cells, and
 the recorder module, which also holds Meridian's long archive. The recorder
 beacons when it leaves its seat. The desk knows within the hour.
 
-Distress to the desk. Calloway, warm: recovery in nine days, hold position,
-costs against remaining term. Air is forty hours. Hold position is the Nova
-Protocol said kindly, and it would have worked. Nobody on the crew is
-surprised.
+The clock escalates. Cutter One's stores give three people forty hours, and
+the tender's regenerative life-support plant is dead for want of power. First
+breathing stores for the next shift, then the cell bank, then power and seal
+the hull, then the plant online. The forty hours end there, and the search for
+the recorder and the guns goes on without them.
+
+Distress to the desk. A small ship's signal reaches a big antenna pointed at
+it, and Datum's always is. Nothing else at Saturn listens to the junk.
+Calloway, warm: recovery in nine days, hold position, costs against remaining
+term. Air is forty hours. Hold position is the Nova Protocol said kindly, and
+it would have worked. Nobody on the crew is surprised.
 
 #### 4. The module
 
@@ -666,10 +698,13 @@ The skiffs learned who the crew were from Calloway's guns. The crew learn who
 the skiffs are from the fact that they stop shooting. The skiff's name, in
 company letters on scrap: Rotation.
 
-The other choice is game only. Hand the module over and fly the GOTO to the
-station. Parallax fires on the approach. Game over, the record buried. A short,
-early bad ending that teaches the player what the company is. The comic does
-not show it.
+The other choice is game only. A Parallax picket comes alongside and the
+module goes across in a transfer canister. Calloway confirms rotation for all
+three and gives them the GOTO to Datum. Once Parallax has the only copy it has
+no reason to keep the crew's ship whole: it fires on the approach, kills the
+witnesses, and files the loss under section nine. Game over, the record
+buried. A short, early bad ending that teaches the player what the company is.
+The comic does not show it.
 
 ### Act two, second half: the other side
 
@@ -683,14 +718,18 @@ on his own ground, his first page. Okoro's reunion.
 Pell says what he did and why. He had a warship and the company was in front
 of it, so he read them their own clause and fired. He is not sorry and he
 knows it was wrong. "I had to." 412 includes Brandt. Okoro says nothing. A
-thought bubble only the reader gets: so he was willing to kill me too. Pell's
-clock: Fleet will take the ship back within weeks, so he hits Azimuth within
-days. Sixty of the village crew Severance.
+thought bubble only the reader gets: so he was willing to kill me too. The
+sixty knew the target and waited in the shadow with him. Every one of them
+has Meridian's name on something, and one of them says so. Pell's clock:
+Fleet will take the ship back within weeks, so he hits Azimuth within days.
+Sixty of the village crew Severance.
 
 The Kites did not know what the tender carried. Okoro plays the module in the
 village, and Pell hears his own refusal from four years ago with the sixty
-listening. His answer is the theme's line: everyone knew, nobody did anything,
-he did. Halloran's homecoming lands the same night. The village is the people
+listening, and before it the Board's order, which he never knew was there. His
+answer is the theme's line: everyone knew, nobody did anything, he did. What
+the sixty hear is a man who went out for strangers. What Pell hears is a name.
+Halloran's homecoming lands the same night. The village is the people
 who did not sign, and she signed. Solberg says it. Her answer: yes, and she
 has brought the thing that voids every signature.
 
@@ -707,10 +746,14 @@ it. Pell is right about the company and wrong about the carrier.
 Halloran does not argue with Pell. She talks over him to the sixty who crew
 his ship, and she has heard Azimuth's people, so the line is not abstract:
 Azimuth is four hundred of us and Calloway is one. Okoro: the man who took a
-tender for strangers, where is he. Pell does not answer. Solberg answers for
-the sixty: they will not crew for Azimuth. Pell cannot fly Severance alone.
-Datum still gives him Calloway, so he takes Datum. The captain decides for the
-crew: Calloway and the truth, on the crew's terms. No fork here.
+tender for strangers, where is he. Pell does not answer. The sixty do, in the
+open. Rotation's pilot first, who flew the shadow and heard them: Meridian was
+ours. Azimuth is the Shelter. Then the rest, one after another, until the ones
+still standing with Pell are a few, and a few is not a crew. Solberg gives it
+its words: they will not crew for Azimuth. Pell cannot fly Severance alone.
+Datum still gives him Calloway, so he takes Datum: "Play your record. I want
+him to hear it." The captain decides for the crew: Calloway and the truth, on
+the crew's terms. No fork here.
 
 Between this beat and the next, the game plays the Roost defense: Parallax's
 pickets follow Rotation's track home and the village fights them off with the
@@ -727,23 +770,26 @@ recorder at Saturn keeps it. Calloway will be there: it is headquarters, and
 he is the one man who cannot let it play.
 
 Meridian's roster is still open. Calloway has not filed section nine, because
-a closed roster puts 412 on the desk's books before he has the module. So
-Datum's automation still admits Meridian's code, and the recorder carries it.
-Nova Protocol goes in first under a dead ship's name, kills the turret control
-and the sensor masts, and docks at the relay with a handful of Kites aboard.
+a closed roster puts 412 on the desk's books before he has the module. Cutter
+One is a Meridian work boat on that roster, and its cockpit, with its
+transponder, is Nova Protocol's cockpit. On paper the crew is not dead, so
+Datum's automation admits them. Nova Protocol goes in first under its own
+code, a boat of a dead ship whose roster nobody closed, kills the turret
+control and the sensor masts, and docks at the relay with a handful of Kites
+aboard.
 Then Severance comes in for the extraction and for Calloway. Pell knows the
 broadcast hands Vigilant the fix. He goes anyway.
 
 #### 10. Datum
 
-The approach. Nova Protocol under Meridian's code through the turret envelope.
-Control nodes and sensor masts die before the code stops matching, and Datum's
-pickets launch when it does. Dock at the relay. Signal Severance.
+The approach. Nova Protocol as Cutter One through the turret envelope. Control
+nodes and sensor masts die before the desk strikes the boat from the roster,
+and Datum's pickets launch when it does. Dock at the relay. Signal Severance.
 
 Inside, unseen. Halloran, Okoro and the Kites go in with the module. The
 captain stays at the helm: the ship is the way out. Halloran plays the module.
 What she said once to nobody, said to everyone. Okoro takes the relay console
-and Datum's channels.
+and Datum's channels and feeds them the signed record, not a recording of it.
 
 The duel. The captain holds the dock against pickets while the module plays.
 Parallax comes back at speed. Severance meets it under the turrets Nova
@@ -778,13 +824,18 @@ officer are heroes, with the rotation home to prove it. The press prints all
 of it.
 
 What the account cannot touch: every recorder at Saturn holds the broadcast,
-Azimuth's, the pickets', Vigilant's own, append-only and impossible to purge
-without grounding the ship. The rule that kept the crime keeps the proof.
-Azimuth holds station and does not proceed to the cleared site. The banner
-ship stops expanding. The Board is named and untouched.
+Azimuth's, the pickets', Vigilant's own, signed by Meridian's certified
+recorder, append-only and impossible to purge without grounding the ship.
+Every copy verifies on its own. The rule that kept the crime keeps the proof.
+The Board's Earth desk, through the relay Vigilant now holds, orders Azimuth
+on to the cleared site in the same dead language, costs against remaining
+term. The crew hears it on the run. Azimuth's captain answers once, "Azimuth
+holds station," and does not answer again. The banner ship stops expanding.
+The Board is named and untouched.
 
 The Kites have lost their ship and their leader and kept most of the sixty,
-the authenticated original, and a cause. Solberg has the village. The crew
+the module with the whole archive, of which only the last hours played, and a
+cause. Solberg has the village. The crew
 does not stay for any of it. Nova Protocol undocks while Vigilant is still
 decelerating and is gone into the ring junk before the account is written. The
 praise and the rotation home go out to a channel nobody answers. Last page:
@@ -816,7 +867,7 @@ contradict a page, and every event on a page happens in the game.
 | 8 | cutscene | The argument. The sixty refuse. Datum. |
 | R3 | gameplay, game only | The Roost defense: Parallax's pickets follow Rotation home. Fight beside the skiffs, Solberg on the radio. |
 | 9 | cutscene | The plan. |
-| 10a | gameplay | The approach under Meridian's code. Kill turret control and sensor masts. Dock. Signal Severance. |
+| 10a | gameplay | The approach as Cutter One, on Meridian's open roster. Kill turret control and sensor masts. Dock. Signal Severance. |
 | 10b | gameplay | Hold the dock while the module plays. The duel. Calloway turns on the tower. Cover the boats. Extract. |
 | 11 | cutscene | Minute zero. The run to the Roost. |
 
@@ -866,8 +917,11 @@ Never a speech. Only habits and paperwork:
 
 ## Rules of the world
 
-- Small-ship radio is local. A carrier or a station relay reaches the system.
-  This is why Datum matters and why nobody hears the crew.
+- Small-ship radio is local. A small ship's signal reaches a big antenna
+  pointed at it, and Datum's always is: that is what a desk is. Nothing else
+  at Saturn listens to the junk. A carrier or a station relay reaches the
+  system. The crew can reach the desk, and the desk owns the relay. This is
+  why Datum matters and why nobody else hears the crew.
 - Cutter One is unarmed. Nova Protocol has two debris PDCs, three after the
   Roost. Severance is a warship. Parallax is a security ship: less than a
   warship, more than a tender. EWI's small craft are pickets, the Kites' are
@@ -883,15 +937,25 @@ Never a speech. Only habits and paperwork:
   his clock. The broadcast from Datum is Vigilant's fix.
 - Kestrel's dead stations are scattered and unregistered. Nobody knows which
   one the Kites live in, until Parallax's pickets follow Rotation home.
-- Forty hours of air for three people sets the clock of act two.
+- Cutter One is a short-shift boat with stored air, not a life-support plant.
+  Forty hours for three people sets the clock of act two. The clock ends when
+  the tender's regenerative life-support plant runs on the salvaged cell bank,
+  and the two-day trip to the Roost needs it.
 - The recorder is tamper-evident, append-only and required for certification.
-  It beacons when unseated. It holds the last hours and the ship's long
-  archive. Every recorder that receives the broadcast keeps it.
+  It signs every entry. It beacons when unseated, on the certified channel the
+  desk must monitor. It holds the last hours and the ship's long archive. A
+  relay carries the signed record, and every recorder that receives it appends
+  it, so every copy verifies on its own. The recorder is evidence and nothing
+  else: it opens no doors.
 - A closed roster puts the loss on the desk's books. Meridian's stays open
-  until Calloway has the module, so its code still opens Datum.
+  until Calloway has the module. Cutter One is a Meridian boat on that roster,
+  and its transponder rides in Nova Protocol's cockpit, so Datum admits the
+  crew as company survivors of a ship whose roster nobody closed.
 - Datum's automation admits any hull on an open EWI roster. Its turrets run
   from control nodes and sensor masts a small ship can kill.
-- Sixty crew Severance. Pell cannot fly it alone.
+- Sixty crew Severance. Pell cannot fly it alone. They knew the target at
+  Meridian, and they refuse Azimuth in the open. A few stay with him, and a
+  few is not a crew.
 - Nova Protocol carries a handful of Kites to Datum. The captain never leaves
   the helm.
 - Consumables, PDC ammunition, docking and the fuel clock are scenario
@@ -907,6 +971,17 @@ recorder rules, Meridian's open roster as the key to Datum, Fleet's hunt by
 transmissions, what the broadcast changes, the fate of the sixty, and the
 Roost missions. Its scale decision, a full-length first campaign that ends at
 Datum, stands.
+
+`REVIEW02.md` checked that revision on 2026-09-05 and left nine questions.
+Their answers are folded in above: the sixty knew Meridian was the target and
+refuse Azimuth in the open, with Solberg giving the refusal its words; the
+module tells Pell the Shelter was ordered and turns his revenge from the ship
+to the man; Azimuth refuses a heard order, once; Cutter One's transponder on
+Meridian's open roster is Datum's credential, not the recorder; certified
+recorders sign every entry and every relayed copy verifies; the forty-hour
+clock ends when the tender's life-support plant runs; the bad ending hands the
+module across by canister before the GOTO; and a small ship reaches only the
+antenna pointed at it.
 
 ## Open decisions
 
