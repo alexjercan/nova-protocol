@@ -3689,7 +3689,7 @@
                     SuspendPlayerControl(()),
                     Cinematic((
                         key: "strike_approach",
-                        skippable: true,
+                        skippable: false,
                         steps: [
                             (
                                 after: Some(0.0),
@@ -3870,59 +3870,6 @@
                                 deadline: Some(30.0),
                             ),
                         ],
-                    )),
-                ],
-            ),
-            (
-                name: OnCinematicSkipped,
-                once: true,
-                filters: [
-                    Cinematic((
-                        key: "strike_approach",
-                    )),
-                    Expression((Equal(
-                        Term(Factor(Name("beat"))),
-                        Term(Factor(Literal(Number(14.0)))),
-                    ))),
-                ],
-                actions: [
-                    DespawnScenarioObject((
-                        id: "warship",
-                    )),
-                    DespawnScenarioObject((
-                        id: "carrier",
-                    )),
-                    SetCameraAnchor((
-                        anchor: "cutter",
-                        offset: (
-                            790.0,
-                            120.0,
-                            -420.0,
-                        ),
-                        frame: World,
-                        look_at: Point((
-                            -1000.0,
-                            0.0,
-                            2500.0,
-                        )),
-                        blend: Some((
-                            seconds: 4.0,
-                            easing: Smooth,
-                        )),
-                    )),
-                    ObjectiveComplete((
-                        id: "witness",
-                    )),
-                    ObjectiveMarkerDetach((
-                        target_id: "warship",
-                    )),
-                    Objective((
-                        id: "silence",
-                        message: "Hold position and keep the channel open.",
-                    )),
-                    VariableSet((
-                        key: "beat",
-                        expression: Term(Factor(Literal(Number(15.0)))),
                     )),
                 ],
             ),

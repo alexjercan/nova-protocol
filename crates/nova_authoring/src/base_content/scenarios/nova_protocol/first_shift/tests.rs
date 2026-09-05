@@ -102,27 +102,6 @@ fn all_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
     actions_of(config.events.iter())
 }
 
-/// The actions on the path a player who watches everything takes: the whole
-/// script minus the catch-up the skip handler owns.
-fn played_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
-    actions_of(
-        config
-            .events
-            .iter()
-            .filter(|event| event.name != EventConfig::OnCinematicSkipped),
-    )
-}
-
-/// The other path: what a skipped scene leaves behind.
-fn skip_actions(config: &ScenarioConfig) -> Vec<EventActionConfig> {
-    actions_of(
-        config
-            .events
-            .iter()
-            .filter(|event| event.name == EventConfig::OnCinematicSkipped),
-    )
-}
-
 fn actions_of<'a>(events: impl Iterator<Item = &'a ScenarioEventConfig>) -> Vec<EventActionConfig> {
     let mut found = Vec::new();
     for action in events.flat_map(|event| event.actions.iter()) {
@@ -891,15 +870,14 @@ fn distance_to_segment(point: Meters3, from: Meters3, to: Meters3) -> f32 {
 /// Cutter frames the approach, the warship frames launch, Meridian frames the
 /// lances, and Cutter frames both the torpedo kill and aftermath until teardown.
 ///
-/// The shot list is the PLAYED path. The skip handler owns the other one and
-/// is asserted against it below, because a scene the player walks out of has
-/// to leave the camera exactly where a scene they watched would have.
+/// There is ONE path through the strike, because neither of its scenes is
+/// skippable, so this list is the whole shot list the player sees.
 #[test]
 fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
     let config = config();
     let mut shots: Vec<String> = Vec::new();
     let mut released = 0_usize;
-    for action in played_actions(&config) {
+    for action in all_actions(&config) {
         match action {
             EventActionConfig::SetCameraAnchor(shot) => {
                 assert!(
@@ -933,17 +911,7 @@ fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
         "the opening and RCS lesson return to gameplay; the strike stays cinematic"
     );
 
-    let skipped: Vec<SetCameraAnchorActionConfig> = skip_actions(&config)
-        .into_iter()
-        .filter_map(|action| match action {
-            EventActionConfig::SetCameraAnchor(shot) => Some(shot),
-            _ => None,
-        })
-        .collect();
-    let [skipped_shot] = &skipped[..] else {
-        panic!("the skip leaves {} shots, not one", skipped.len());
-    };
-    let played_wreck = played_actions(&config)
+    let wreck = all_actions(&config)
         .into_iter()
         .filter_map(|action| match action {
             EventActionConfig::SetCameraAnchor(shot) if shot.offset == CINEMA_WRECK_OFFSET => {
@@ -952,11 +920,10 @@ fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
             _ => None,
         })
         .next_back()
-        .expect("the played strike never settles on the wreck");
+        .expect("the strike never settles on the wreck");
     assert_eq!(
-        format!("{skipped_shot:?}"),
-        format!("{played_wreck:?}"),
-        "a skipped strike leaves a different camera than a watched one"
+        wreck.anchor, ID_CUTTER,
+        "the chapter closes from the player's own hull, not the wreck's"
     );
 
     // Inside the salvo chain, each weapon and movement runs under its shot.
@@ -1073,33 +1040,36 @@ fn the_cinematic_runs_its_shots_in_order_without_returning_attack_control() {
             })),
         "the destruction scene must stay silent and keep cinematic authority"
     );
-    // The distress act opens where the strike ENDS, on both paths, and never
-    // inside a chain a skip could cancel.
+    // The distress act opens where the strike ENDS, on the handler that
+    // answers the salvo, never inside a chain a deadline could stop short.
     let write = format!("{:?}", set_variable(VAR_BEAT, number(BEAT_DISTRESS)));
     assert!(
         salvo.steps.iter().all(|step| step
             .actions
             .iter()
             .all(|action| format!("{action:?}") != write)),
-        "the salvo opens the distress act from inside itself - a skipped or \
+        "the salvo opens the distress act from inside itself - a \
          deadline-stopped scene would never reach it"
     );
-    for path in [played_actions(&config), skip_actions(&config)] {
-        assert!(
-            path.iter().any(|action| format!("{action:?}") == write),
-            "one of the strike's endings never opens the distress act"
-        );
-    }
+    assert!(
+        all_actions(&config)
+            .iter()
+            .any(|action| format!("{action:?}") == write),
+        "the strike's ending never opens the distress act"
+    );
 }
 
 /// A scene that takes the camera and the controls has to have a handler that
 /// gives them back, on EVERY path out of it.
 ///
-/// The chain itself cannot do it: a skip cancels the cursor, so anything the
-/// unplayed steps would have run never runs. So each scene the chapter plays
-/// is paired here with a finished handler, and each SKIPPABLE scene with a
-/// skipped handler too. Adding a scene without its endings fails here rather
-/// than stranding a player behind a camera they walked out of.
+/// The chain itself cannot do it: a deadline or a cancel stops the cursor, so
+/// anything the unplayed steps would have run never runs. So each scene the
+/// chapter plays is paired here with a finished handler.
+///
+/// No scene in this chapter is skippable, and that is asserted rather than
+/// merely true: the strike is the one thing the chapter asks the player to sit
+/// through, and a key that jumped past a kill would tell them the Meridian
+/// died instead of showing them.
 #[test]
 fn every_scene_the_strike_plays_is_answered_by_a_handler() {
     let config = config();
@@ -1113,11 +1083,10 @@ fn every_scene_the_strike_plays_is_answered_by_a_handler() {
     assert_eq!(
         scenes,
         vec![
-            (SCENE_APPROACH.to_string(), true),
+            (SCENE_APPROACH.to_string(), false),
             (SCENE_SALVO.to_string(), false),
         ],
-        "the strike is the approach, which a player may leave, and the salvo, \
-         which is the chapter and runs"
+        "the strike is the approach and the salvo, and the player watches both"
     );
 
     let answered = |event_name: EventConfig, key: &str| {
@@ -1128,17 +1097,15 @@ fn every_scene_the_strike_plays_is_answered_by_a_handler() {
                 })
         })
     };
-    for (key, skippable) in scenes {
+    for (key, _) in scenes {
         assert!(
             answered(EventConfig::OnCinematicFinished, &key),
             "scene '{key}' has no handler for its ending - a deadline or a \
              cancel would leave the player behind its camera"
         );
-        assert_eq!(
-            skippable,
-            answered(EventConfig::OnCinematicSkipped, &key),
-            "scene '{key}' is skippable={skippable} but its skip handling does \
-             not match"
+        assert!(
+            !answered(EventConfig::OnCinematicSkipped, &key),
+            "scene '{key}' answers a skip it can never be given"
         );
     }
 }
@@ -1152,7 +1119,7 @@ fn every_scene_the_strike_plays_is_answered_by_a_handler() {
 #[test]
 fn the_guard_channel_is_ignored_twice_before_it_matters() {
     let config = config();
-    let fragments: Vec<String> = played_actions(&config)
+    let fragments: Vec<String> = all_actions(&config)
         .into_iter()
         .filter_map(|action| match action {
             EventActionConfig::NarrativeCue(cue)
@@ -1173,7 +1140,7 @@ fn the_guard_channel_is_ignored_twice_before_it_matters() {
         "the guard channel must be ignored twice before it reads the clause"
     );
     assert!(
-        played_actions(&config).iter().all(|action| {
+        all_actions(&config).iter().all(|action| {
             !matches!(action, EventActionConfig::NarrativeCue(cue)
                 if cue.channel == NarrativeChannelConfig::Guard
                     && cue.speaker != GUARD_VOICE)
@@ -1428,9 +1395,8 @@ fn the_kill_is_filmed_at_a_point_that_outlives_the_carrier() {
         .collect();
     assert_eq!(
         death_shots.len(),
-        3,
-        "the chapter needs one Cutter shot for the kill and one for the wreck \
-         on each of the strike's two endings"
+        2,
+        "the chapter needs one Cutter shot for the kill and one for the wreck"
     );
     for shot in death_shots {
         assert!(

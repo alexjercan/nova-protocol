@@ -73,12 +73,11 @@ does NOT get an entry - and it is the only place they are written down.
   `final_tally` are gone. Retarget a mod that named one.
 - An Ordinary Shift opens New Game: an Earthworks crew flies three recoveries
   under a 150 m/s cap, sneaks a planetoid lap out of Meridian's sight, and
-  watches a warship kill the carrier with 412 aboard.
+  watches a warship kill the carrier.
 - The crew argue the rotation home while they work, and a stranger clips the
   guard channel twice before the sentence that matters arrives.
-- The strike plays as two scenes: an approach you may leave once you have seen
-  it, and a salvo you may not. Skipping lands on the same wreck and the same
-  camera the played scene does.
+- The strike plays as two scenes, an approach and a salvo, and neither can be
+  skipped. The chapter closes on the wreck rather than handing the camera back.
 - The sandbox's farthest picket mounts a railgun. It wakes like the others, but
   a shot that lines up on you crosses your whole ship.
 - Every main-menu backdrop flies the block fleet now: the waystation's
@@ -218,7 +217,7 @@ does NOT get an entry - and it is the only place they are written down.
   two scenes answers the right one. An unplayed key warns at lint.
 - **(breaking)** `StoryMessage` is `NarrativeCue`, and every line authors a
   `channel`: `Comms` for traffic sent to you, `Crew` for the cabin, `Guard` for
-  what you overheard. Rename it and add the field.
+  what you overheard. Rename and add the field.
 - `PlaySound` plays one authored cue in the cockpit, on the `Interface` or
   `Hull` route, with an optional gain. Positional sound stays on the object
   that makes it.
@@ -314,8 +313,8 @@ does NOT get an entry - and it is the only place they are written down.
 
 ### Internals & Tooling
 - One TABLE declares the action vocabulary. A row generates the enum arm, the
-  dispatch, the RON name, the menu label, the minted-id stem and the injection
-  class, so a new action is five edits instead of fifteen.
+  dispatch, the RON name, the menu label, the id stem and the injection class,
+  so a new action is five edits, not fifteen.
 - A `stress_hull_collapse` range fires one siege slug into a 1296-cell hull,
   asserts the corridor it destroyed and every piece it shed, and records what
   the collapse frame cost.

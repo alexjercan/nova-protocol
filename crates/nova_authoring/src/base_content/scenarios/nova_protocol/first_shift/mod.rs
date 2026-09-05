@@ -110,7 +110,7 @@ impl FirstShiftScenes {
             navigation: Self::take_exact(&mut events, 3, "navigation"),
             orbit: Self::take_exact(&mut events, 5, "orbit"),
             return_to_carrier: Self::take_exact(&mut events, 1, "return"),
-            strike_approach: Self::take_exact(&mut events, 2, "strike approach"),
+            strike_approach: Self::take_exact(&mut events, 1, "strike approach"),
             strike_salvo: Self::take_exact(&mut events, 2, "strike salvo"),
             aftermath: Self::take_exact(&mut events, 1, "aftermath"),
             global: Self::take_exact(&mut events, 2, "global handlers"),
@@ -335,9 +335,9 @@ const SEQ_RETURN_CALL: &str = "return_call";
 const SEQ_HOME_CALL: &str = "home_call";
 const SEQ_AFTER_VOICES: &str = "after_voices";
 /// The two halves of the strike, as cinematic keys. They are separate scenes
-/// because they answer the skip differently: the approach is a minute and a
-/// quarter of a ship getting closer and a player may leave it, the salvo is
-/// twenty-five seconds and is the chapter.
+/// so the guns hang off the approach's real ending rather than a guessed
+/// delay, and so the scene preview can enter either half on its own. Neither
+/// is skippable.
 const SCENE_APPROACH: &str = "strike_approach";
 const SCENE_SALVO: &str = "strike_salvo";
 const ORDER_EMERGE: &str = "warship_emerge";
@@ -1232,10 +1232,9 @@ pub(crate) fn first_shift(
             // Everything after this point is ONE scene. The approach is a
             // `Cinematic` rather than a `Sequence` because it takes the camera
             // and the controls away for a minute and a quarter of a ship
-            // getting closer, and a player who has watched it once has to be
-            // able to leave. What the scene owes them back is authored on the
-            // two handlers that answer it, never inside the chain, so a skip
-            // and a full run end in the same place.
+            // getting closer. What the scene owes the player back is authored
+            // on the handler that answers it, never inside the chain, so the
+            // camera and the controls come back on the one path out.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnGotoComplete,
@@ -1257,33 +1256,13 @@ pub(crate) fn first_shift(
                 ])
                 .collect(),
             },
-            // The player left. Give them the end of the scene and nothing else:
-            // the warship went, the Meridian is a wreck, and the beat is the
-            // one the salvo would have set. This runs BEFORE the finished
-            // handler below, whose beat gate then refuses - which is how one
-            // skip cancels the whole strike rather than only its first half.
-            ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnCinematicSkipped,
-                once: true,
-                filters: vec![scene(SCENE_APPROACH), number_equals(VAR_BEAT, BEAT_ATTACK)],
-                actions: [
-                    despawn_object(ID_WARSHIP),
-                    // The carrier is gone rather than destroyed. A skip is a
-                    // request not to watch it die, and there is no honest way
-                    // to show the debris of a kill that never played.
-                    despawn_object(ID_CARRIER),
-                ]
-                .into_iter()
-                .chain(strike_aftermath())
-                .collect(),
-            },
         ],
         strike_salvo: vec![
-            // The approach ran to its end, so the guns follow. The salvo is its
-            // own scene and is NOT skippable: it is twenty-five seconds long,
-            // it is what the chapter is, and the player has already been given
-            // one chance to leave.
+            // The approach ran to its end, so the guns follow. Neither half
+            // is skippable. The kill is what the chapter is: a player who
+            // could press a key through it would be told the Meridian died
+            // rather than shown it, and the whole scenario is built to make
+            // them watch something they cannot stop.
             ScenarioEventConfig {
                 label: None,
                 name: EventConfig::OnCinematicFinished,
@@ -1467,12 +1446,9 @@ pub fn first_shift_scene(
             start_actions.extend(HOME_MARK.raise());
             let mut handlers = scenes.take(scene);
             let entry = handlers.remove(0).actions;
-            // The preview ends where the scene does, on either path: the skip
-            // handler stays so a reviewer can walk out of the shot, and the
-            // handler that would start the salvo says so instead.
-            for handler in &mut handlers {
-                handler.actions.push(scene_end_message(scene));
-            }
+            // The approach has one ending. The preview stops where it stops:
+            // the handler that would start the salvo says so instead of
+            // starting it.
             let mut finished = scenes
                 .strike_salvo
                 .first()
@@ -1725,13 +1701,12 @@ fn orbit_conversation() -> ScenarioEventConfig {
 /// land mid-leg are the only authored timings, and they are budgeted against a
 /// measured run (see [`APPROACH_CHALLENGE_AT`]).
 ///
-/// The scene is skippable. What a skip owes the player is on the handler that
-/// answers [`EventConfig::OnCinematicSkipped`], not here: a chain that has
-/// been cancelled cannot clean up after itself.
+/// The scene is NOT skippable, and neither is the salvo that follows it. The
+/// strike is the one thing the chapter asks the player to sit through.
 fn approach_scene() -> EventActionConfig {
     cinematic(
         SCENE_APPROACH,
-        true,
+        false,
         vec![
             // The camera comes on in the SAME frame the warship starts moving,
             // because the entrance is the shot: the player's own hull in the
@@ -1816,10 +1791,10 @@ fn approach_scene() -> EventActionConfig {
 /// shot. Cutter owns the torpedo impacts, the destruction and the warship
 /// leaving. There is no dialogue in it.
 ///
-/// NOT skippable, and that is a decision rather than an omission: it is
-/// twenty-five seconds long, it is the reason the chapter exists, and the
-/// player was already offered the door through the whole minute and a quarter
-/// in front of it.
+/// NOT skippable, and that is a decision rather than an omission. The kill is
+/// the reason the chapter exists; a key that jumped past it would tell the
+/// player the Meridian died instead of showing them, and being unable to stop
+/// it is the point.
 fn salvo_scene() -> EventActionConfig {
     let bays = ships::BLOCK_WARSHIP_BAY_IDS;
     let mut steps = vec![step(
@@ -1875,13 +1850,12 @@ fn salvo_scene() -> EventActionConfig {
     cinematic(SCENE_SALVO, false, steps)
 }
 
-/// What the strike owes the player however it ended: the shot that holds on
-/// the empty hold, the objective that says to keep listening, and the beat the
-/// epilogue waits on.
+/// What the strike leaves: the shot that holds on the empty hold, the
+/// objective that says to keep listening, and the beat the epilogue waits on.
 ///
-/// Authored ONCE and run from both endings, because a skipped strike and a
-/// watched strike leave the same cutter in the same sky. Camera and control
-/// are deliberately NOT returned: the chapter closes on this composition.
+/// Authored on the handler that answers the salvo rather than inside its
+/// chain, because a chain cannot clean up after itself. Camera and control are
+/// deliberately NOT returned: the chapter closes on this composition.
 fn strike_aftermath() -> Vec<EventActionConfig> {
     vec![
         film_blend(
