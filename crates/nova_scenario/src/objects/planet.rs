@@ -125,6 +125,10 @@ pub fn planet_scenario_object(entity: &mut EntityCommands, config: PlanetConfig)
             // hull build at all, and the error it carries is smaller than the
             // relief the mesh already exaggerates for the silhouette.
             Collider::sphere(1.0 + config.relief_fraction()),
+            // A world stops radio exactly as a rock does, and for the same
+            // reason a rock wears this on its hull: the scanner's ray meets
+            // the COLLIDER, not the body root a lock names.
+            RadarOccluder,
             PlanetRenderBody(visual),
             ConnectedTo::default(),
             ColliderDensity(1.0),
@@ -277,6 +281,27 @@ mod tests {
             a.surface.summary(),
             b.surface.summary(),
             "the same config must draw the same planet"
+        );
+    }
+
+    /// A world is cover. The marker has to ride the collider node, because
+    /// the lock scanner's ray meets colliders and never the body root.
+    #[test]
+    fn a_planet_hull_stops_the_radar() {
+        let (app, entity) = planet(PlanetConfig::new(PlanetType::DustWorld, Meters(1_000.0), 7));
+
+        let hull = child_of(&app, entity);
+        assert!(
+            app.world().get::<Collider>(hull).is_some(),
+            "the child this reads must be the collider node"
+        );
+        assert!(
+            app.world().get::<RadarOccluder>(hull).is_some(),
+            "a planet has to take a lock's line of sight away, like a rock"
+        );
+        assert!(
+            app.world().get::<RadarOccluder>(entity).is_none(),
+            "the root a lock NAMES must not be what hides things behind it"
         );
     }
 

@@ -87,6 +87,12 @@ it (the ray to a rock's centre goes through the rock), and `solid: true`, so a
 scanner standing inside a rock is under cover rather than looking out of a
 hollow shell.
 
+Planetoids occlude too - follow-up on the same request, and the reason the
+marker is a marker. A world is the same class of body as a rock, so
+`planet_scenario_object` wears `RadarOccluder` on its sphere collider exactly
+as the asteroid spawner does. Both spawners are pinned by a test that the
+marker is on the COLLIDER node and not on the root a lock names.
+
 ## Proof
 
 Six unit tests in `occlusion.rs` (a rock on the line, off the line, beyond the
@@ -116,7 +122,3 @@ line-of-sight rule for the player's radar.
 nothing re-takes it; the player holds the radar again. That is the simple
 behaviour on purpose. If a rock edge turns out to strobe a lock in real play,
 the fix is a short grace on the occluded branch, not a wider ray.
-
-**Planetoids do not occlude.** Out of scope here and named so above; the
-marker is what a planetoid needs, on whatever collider it wants to stop radar
-with.

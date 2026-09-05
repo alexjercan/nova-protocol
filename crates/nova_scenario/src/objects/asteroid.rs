@@ -896,6 +896,28 @@ mod tests {
         );
     }
 
+    /// Rock is cover. The marker has to ride the collider node, because the
+    /// lock scanner's ray meets colliders and never the body root.
+    #[test]
+    fn a_rock_hull_stops_the_radar() {
+        let mut app = App::new();
+        let asteroid = spawn_rock(&mut app, rock(Meters(200.0), None), 7);
+
+        let node = app
+            .world()
+            .get::<Children>(asteroid)
+            .and_then(|children| children.iter().next())
+            .expect("the collider node is a child of the root");
+        assert!(
+            app.world().get::<RadarOccluder>(node).is_some(),
+            "a rock has to take a lock's line of sight away"
+        );
+        assert!(
+            app.world().get::<RadarOccluder>(asteroid).is_none(),
+            "the root a lock NAMES must not be what hides things behind it"
+        );
+    }
+
     /// A pristine rock collides as a HULL. avian sleeps only TOUCHING contact
     /// pairs, so a belt's never-touching neighbours stay in the active set and
     /// are re-manifolded on every step for as long as the scene is loaded -

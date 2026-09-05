@@ -25,6 +25,13 @@
 //!   [`CombatLockDropped`] message carrying the [`CombatLockDrop`] branch, so
 //!   "why did my lock let go?" is answerable from a run rather than guessed.
 //!
+//! - A lock is a radio LINK, so it needs LINE OF SIGHT. A body that stops
+//!   radar ([`RadarOccluder`] - an asteroid, a planetoid) standing between the
+//!   scanner and a candidate takes that candidate out of the picker's set, and
+//!   breaks a held lock on its own `Occluded` branch. One ray, asked once at
+//!   collection time, so the pick, the held lock and the threat set cannot
+//!   disagree about what the ship can see.
+//!
 //! The scanner-wave RANGE model (LockSignature) survives as the radar
 //! picker's gate, and [`ThreatContacts`] keeps the ranked hostile set alive
 //! for the edge-indicator arrows. All state lives on the PLAYER ship root as
