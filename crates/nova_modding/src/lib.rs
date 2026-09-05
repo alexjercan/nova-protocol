@@ -11,8 +11,11 @@
 //! - [`Content::Campaign`] - a [`CampaignConfig`], the ordered scenario-id
 //!   mapping the Scenarios picker groups and launches by,
 //! - [`Content::Style`] - a [`ShipStyleConfig`], the look a ship's derived skin
-//!   wears: materials per surface role plus the decoration it scatters, and
-//! - [`Content::Ship`] - a [`ShipConfig`], a whole hull a scenario spawns by id.
+//!   wears: materials per surface role plus the decoration it scatters,
+//! - [`Content::Ship`] - a [`ShipConfig`], a whole hull a scenario spawns by id,
+//!   and
+//! - [`Content::Grammar`] - a [`ShipGrammarConfig`], the table a procedurally
+//!   generated hull is drawn from.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -48,17 +51,17 @@ use nova_gameplay::prelude::ImpactSoundConfig;
 // code keeps importing them from nova_modding.
 pub use nova_mod_format::{BundleManifest, CatalogManifest, ModEntry, ModMeta, BASE_MOD_ID};
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 use serde::{Deserialize, Serialize};
 
 /// Glob-import surface: `use nova_modding::prelude::*` brings the content/bundle
 /// asset types, their RON loaders, and [`NovaModdingPlugin`] into scope.
 pub mod prelude {
     pub use super::{
-        parse_content, pretty_config, serialize_content, serialize_manifest, BundleAsset,
-        BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader, CatalogManifest, Content,
-        ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry, ModMeta, ModdingLoaderError,
-        NovaModdingPlugin, BASE_MOD_ID,
+        parse_content, parse_manifest, pretty_config, serialize_content, serialize_manifest,
+        BundleAsset, BundleAssetLoader, BundleManifest, CatalogEntry, CatalogLoader,
+        CatalogManifest, Content, ContentAsset, ContentAssetLoader, InstalledCatalog, ModEntry,
+        ModMeta, ModdingLoaderError, NovaModdingPlugin, BASE_MOD_ID,
     };
 }
 
@@ -91,6 +94,13 @@ pub enum Content {
     /// authored once and spawned by id, so a scenario names a corvette instead
     /// of carrying a copy of one.
     Ship(ShipConfig),
+    /// A [`ShipGrammarConfig`] - registers into `GameGrammars` keyed by its id.
+    /// The taste a procedural hull is drawn from: which prototypes are offered
+    /// and how often, which way a drive may point, and how big and how sparse
+    /// a hull is. The RULE is not here - that is read off the catalog's link
+    /// points - so a mod that ships a grammar changes what a generator builds
+    /// without any code changing.
+    Grammar(ShipGrammarConfig),
     /// One row of the impact table ([`ImpactSoundConfig`]) - registers into
     /// `GameImpacts` keyed by its id. One row per item rather than one nested
     /// table, so a mod can re-voice a single (damage type, material) pair
@@ -227,6 +237,12 @@ pub fn serialize_manifest(manifest: &BundleManifest) -> Result<String, ron::Erro
 /// Decode a `*.content.ron` file body - the same read [`ContentAssetLoader`]
 /// does, for callers that hold the bytes rather than an asset path.
 pub fn parse_content(bytes: &[u8]) -> Result<Vec<Content>, ron::error::SpannedError> {
+    ron::de::from_bytes(bytes)
+}
+
+/// Decode a `*.bundle.ron` file body, for callers that hold the bytes rather
+/// than an asset path.
+pub fn parse_manifest(bytes: &[u8]) -> Result<BundleManifest, ron::error::SpannedError> {
     ron::de::from_bytes(bytes)
 }
 

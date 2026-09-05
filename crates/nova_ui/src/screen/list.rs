@@ -87,8 +87,18 @@ pub fn scroll_column() -> Node {
 
 /// Wires a node spawned with [`scroll_column`] (or a scrolling [`list_pane`]) to
 /// the shared wheel driver and every-frame clamp.
+///
+/// The `Hovered` is what makes [`scroll_viewports`](crate::screen::scroll::scroll_viewports)'
+/// "the pane under the pointer takes the wheel" rule real. Without it no
+/// viewport ever reports hover, the driver falls through to its everything-
+/// moves-together branch on every notch, and a roll meant for one pane moves
+/// each of the others as far as its own content allows.
 pub fn scroll_viewport() -> impl Bundle {
-    (ScrollViewport, ScrollPosition::default())
+    (
+        ScrollViewport,
+        ScrollPosition::default(),
+        bevy::picking::hover::Hovered::default(),
+    )
 }
 
 /// The details pane beside a list: takes all the slack, wraps rather than

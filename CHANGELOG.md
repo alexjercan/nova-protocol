@@ -119,6 +119,25 @@ does NOT get an entry - and it is the only place they are written down.
 - With weapons hot, a railgun draws its line of fire: a pierce-blue thread down
   the bore ringing every section the shot would destroy, dimmed but still there
   through the twelve-second reload.
+- File > New Scenario asks which world to start from: the free-flight range,
+  a duelling arena of rock rings around an empty middle, or nothing at all.
+- The editor generates a HULL into the ship you are inside: name a seed, tick
+  which sections the collapse draws from, and it replaces what that ship holds.
+- The biggest drive you tick is seeded as the generated hull's main engine and
+  the biggest railgun as its bow gun, and the grid grows to hold both. A HULL
+  PLAN line names what the ticks chose.
+- A ticked row carries a zone chip: press it to cycle where the collapse may
+  stand that section - anywhere, bow, mid, stern, dorsal, ventral or flank.
+  A hull the game's lint refuses never lands.
+- A weapon takes its own key when it is placed or generated - Space thrusts,
+  LMB the PDCs, `F` the torpedoes, `R` the railgun - so a generated ship set to
+  Player flies without rebinding a thing.
+- File > Save As names the file. Type a name, and the window says which slot it
+  derives and whether a range you already saved is there. File > Open lists
+  what there is, and a row opens it.
+- A document remembers its file: the first Save asks for a name, every later
+  one writes back to it, and New Scenario forgets it so a fresh range cannot
+  land on the last one.
 - The editor places a rock by KIND. The inspector's Material row is a pick list
   of the shipped kinds, and the body on the stage is rebuilt in whichever one
   you pick.
@@ -150,8 +169,15 @@ does NOT get an entry - and it is the only place they are written down.
   section grid.
 - The hull ships in three same-stat builds - personnel, cargo and tank - so a
   flank can say what the ship carries.
-- Generated hulls carry bays: the WFC solver collapses a multi-cell part as a
-  chain of segment tiles instead of skipping everything larger than one cell.
+- Generated hulls carry multi-cell parts: the WFC solver collapses a torpedo
+  bay or a 5x5x3 capital drive as one block of tiles, mated and cleared whole,
+  instead of skipping anything wider than a cell.
+- A grammar can say WHERE a part stands, not just which way it points: `zone`
+  pins a prototype to the bow, amidships, stern, dorsal, ventral or flank third
+  of a hull, for every cell of it.
+- A grammar seats a spinal gun with `bow_gun`: it stands on the bow of the keel
+  and the mirror makes a pair, so the lance the arena used to bolt on after the
+  collapse is a role the editor can ask for.
 - Eleven block ships join the catalog - a cutter, a hauler, a gunship, a
   raider, an industrial carrier, a stolen warship and five cleanup craft - plus
   four wreck fragments of the carrier.
@@ -163,6 +189,8 @@ does NOT get an entry - and it is the only place they are written down.
   now carries their meshes itself.
 
 ### Modding & Mod Portal
+- The editor writes as many mods as you name ranges, each an `editor_`-prefixed
+  bundle of its own, instead of the one `editor_save` slot every save replaced.
 - The Ledger brings its own fleet - modelled craft, their section prototypes
   and their GLBs - while still borrowing base's guns, sounds and skyboxes
   through `dep://base/`.
@@ -243,6 +271,12 @@ does NOT get an entry - and it is the only place they are written down.
 - The Ledger (1.28.0) and Gauntlet Run (1.12.0) are republished in meters.
   Update both: a portal mod installed on 0.12.0 carries the old numbers, and
   this build reads them as meters.
+- A `Grammar` the collapse cannot run - a grid too narrow or too short, a
+  negative weight, nothing priced above zero - is refused with the reason on
+  the status line instead of taking the game down.
+- A `Grammar` content item authors the hull generator's draw table - grid,
+  vacuum weights, keel roles and each part's weight and aim - so a mod ships
+  its own procedural hull line.
 
 ### Web & Platform
 - The site gets a spoiler-marked Story archive. Campaigns open as full-screen
@@ -309,6 +343,9 @@ does NOT get an entry - and it is the only place they are written down.
   contacts on a single frame.
 
 ### Fixes
+- Only the pane under the pointer scrolls. Every scrolling pane on screen was
+  moving on one wheel notch, because no viewport reported hover in the first
+  place.
 - A ship's speed cap governs its TOTAL speed, so turning to a fresh heading and
   burning again no longer stacks a second cap's worth on top of the first.
 - A trigger volume reports a ship LEAVING again. A damaged ship despawns

@@ -2,15 +2,23 @@
 //! The theme and the shared button shapes live in `nova_ui`; this module only
 //! assembles editor-specific rows out of them.
 
-use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
+use bevy::{
+    picking::hover::Hovered,
+    prelude::*,
+    ui_widgets::{observe, Button},
+};
+use nova_ship::prelude::GrammarZone;
 use nova_ui::{
     prelude::{panel, ThemedButton, UiSkin, UiText},
     theme,
-    widget::{checkbox, list_row_colors, ListRow},
+    widget::{checkbox, checkbox_glyph, list_row_colors, ListRow},
 };
 
 use crate::{
-    config::{RailTab, RailTabButton, SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch},
+    config::{
+        PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow, SkinToggleCheckbox,
+        StyleChoice, StyleSwatch,
+    },
     ui::layer,
 };
 
@@ -123,6 +131,148 @@ pub(crate) fn style_row(
             )
         ],
     )
+}
+
+/// One row of the Generate block's part list: whether the collapse may draw
+/// this section, and what it is called.
+///
+/// A `ListRow` marked with `Selected`, like the style rows - so the shared
+/// reconciler paints the tick state and the hover, and the row itself is the
+/// answer the generator reads. The tick is a glyph rather than the 22px
+/// `checkbox` widget: this list is as long as the catalog, and a 22px box per
+/// row would push the button that uses it off the rail.
+pub(crate) fn part_row(
+    prototype: &str,
+    name: &str,
+    drawn: bool,
+    zone: Option<GrammarZone>,
+    skin: UiSkin,
+) -> impl Bundle {
+    let (background, border) = list_row_colors(drawn, false, skin);
+    (
+        ListRow,
+        PartChoice {
+            prototype: prototype.to_string(),
+            zone,
+        },
+        Button,
+        Hovered::default(),
+        Node {
+            width: percent(100),
+            min_height: px(18),
+            margin: UiRect::bottom(px(1)),
+            padding: UiRect::axes(px(5), px(1)),
+            border: UiRect::all(px(theme::BORDER_W)),
+            align_items: AlignItems::Center,
+            column_gap: px(4),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(border),
+        BackgroundColor(background),
+        children![
+            (
+                PartTick,
+                UiText,
+                Text::new(checkbox_glyph(drawn)),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+                Node {
+                    width: px(7),
+                    flex_shrink: 0.0,
+                    ..default()
+                },
+            ),
+            (
+                UiText,
+                Text::new(name.to_string()),
+                TextFont {
+                    font_size: FontSize::Px(11.0),
+                    ..default()
+                },
+                TextColor(theme::PHOSPHOR),
+                // The name takes the slack so the chip stays hard right,
+                // where it reads as a setting on the row rather than as part
+                // of the name.
+                Node {
+                    flex_grow: 1.0,
+                    ..default()
+                },
+            ),
+            zone_chip(zone, drawn),
+        ],
+    )
+}
+
+/// The zone chip: the second control on a part row, and the only place a
+/// builder says WHERE a part may stand.
+///
+/// A button inside a button, which is safe here because
+/// [`on_part_choice`](crate::ui::on_part_choice) rules on the entity the
+/// activation names rather than on the one it reaches: a press on the chip
+/// carries the chip, the row's own observer does not recognise it, and the tick
+/// does not flip under the press that cycled the zone.
+///
+/// Hidden while the row is unticked. A zone on a part the collapse may not draw
+/// says nothing, and a chip on every row of a catalog-long list is a column of
+/// noise.
+pub(crate) fn zone_chip(zone: Option<GrammarZone>, drawn: bool) -> impl Bundle {
+    (
+        PartZoneChip,
+        Button,
+        Hovered::default(),
+        observe(crate::ui::on_part_zone),
+        Node {
+            display: if drawn { Display::Flex } else { Display::None },
+            padding: UiRect::axes(px(4), px(0)),
+            flex_shrink: 0.0,
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(theme::RADIUS)),
+            ..default()
+        },
+        BorderColor::all(theme::PHOSPHOR_MUTED),
+        children![(
+            UiText,
+            Text::new(zone_label(zone).to_string()),
+            TextFont {
+                font_size: FontSize::Px(10.0),
+                ..default()
+            },
+            TextColor(theme::PHOSPHOR_DIM),
+        )],
+    )
+}
+
+/// What a zone is called on a chip. `any` rather than a blank, so an unzoned
+/// part reads as a decision rather than as a control nobody wired up. Short,
+/// because the chip shares a 190px row with a section name that is already
+/// close to filling it.
+pub(crate) fn zone_label(zone: Option<GrammarZone>) -> &'static str {
+    match zone {
+        None => "any",
+        Some(GrammarZone::Bow) => "bow",
+        Some(GrammarZone::Amidships) => "mid",
+        Some(GrammarZone::Stern) => "stern",
+        Some(GrammarZone::Dorsal) => "dorsal",
+        Some(GrammarZone::Ventral) => "ventral",
+        Some(GrammarZone::Flank) => "flank",
+    }
+}
+
+/// The zone a press moves this row on to, wrapping back to unzoned.
+pub(crate) fn next_zone(zone: Option<GrammarZone>) -> Option<GrammarZone> {
+    match zone {
+        None => Some(GrammarZone::Bow),
+        Some(GrammarZone::Bow) => Some(GrammarZone::Amidships),
+        Some(GrammarZone::Amidships) => Some(GrammarZone::Stern),
+        Some(GrammarZone::Stern) => Some(GrammarZone::Dorsal),
+        Some(GrammarZone::Dorsal) => Some(GrammarZone::Ventral),
+        Some(GrammarZone::Ventral) => Some(GrammarZone::Flank),
+        Some(GrammarZone::Flank) => None,
+    }
 }
 
 /// The style block's side, in px. A square that fits inside a 22px row with its

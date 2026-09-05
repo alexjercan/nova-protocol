@@ -23,7 +23,9 @@
 //! - `skin`      - the derived surface, re-derived live while a part is dragged
 //! - `stage`     - the ground plane the range is laid out on
 //! - `highlight` - the node under the pointer, lit on the rail and on the stage
+//! - `generate`  - the seed, and the hull the collapse builds from it
 //! - `scenario`  - the default world a document is seeded with, and the sandbox script
+//! - `template`  - the worlds File > New Scenario can start from
 //! - `event`     - the script as nodes: a handler, its filters and actions, its
 //!   beats, and a condition down to its operators
 //! - `bundle`    - the document as a saved mod bundle, and the read back out of one
@@ -42,7 +44,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::prelude::{
     in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, InputMode,
-    InputModeSystems,
+    InputModeSystems, TextFieldSystems,
 };
 
 mod asset_index;
@@ -53,6 +55,7 @@ mod cues;
 mod event;
 mod frame;
 mod gallery;
+mod generate;
 mod gizmo;
 mod glyph;
 mod highlight;
@@ -67,9 +70,10 @@ mod scenario;
 mod skin;
 mod snap;
 mod stage;
+mod template;
 mod ui;
 
-use bundle::{apply_file_request, save_key, FileRequest};
+use bundle::{apply_file_request, save_key, DocumentSlot, FileRequest, FileWindowRequest};
 use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, LastClick,
     PlacementPose, PlacementPreview, RailTab, SectionChoice, SelectedNode,
@@ -77,6 +81,7 @@ use config::{
 use frame::{
     apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, FrameRequest,
 };
+use generate::{read_seed_field, HullSeed};
 use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
 use keybind::{
@@ -102,6 +107,7 @@ use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use ui::{
     callout::sync_placement_callout,
+    files::{close_file_window, open_file_window, sync_save_name},
     inspector::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
         sync_inspector_tooltip, sync_reference_faults,
@@ -113,9 +119,10 @@ use ui::{
     },
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_editor_mode, sync_key_legend,
-    sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash, sync_scene_list,
-    sync_skin_toggle, sync_status_line, sync_style_list,
+    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_editor_mode, sync_hull_plan,
+    sync_key_legend, sync_part_ticks, sync_part_zones, sync_play_button, sync_rail_tabs,
+    sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
+    sync_style_list,
     window::{
         close_confirm_window, on_colour_slider, on_destructive_item, sync_choice_windows,
         sync_colour_windows, sync_ref_windows,
@@ -176,12 +183,19 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
     app.init_resource::<RailTab>();
+    // Random on init, so the first Generate of a session is a ship nobody
+    // else has rather than everyone's seed zero.
+    app.init_resource::<HullSeed>();
     // The one line the editor speaks through - the placement readout and every
     // verb that has something to say both write it. See `EditorStatus`.
     app.init_resource::<EditorStatus>();
     // Save and open: what the File menu and Ctrl+S ask for, and the one worker
     // that answers. Editor-only, because a document only exists in there.
     app.init_resource::<FileRequest>();
+    // Which slot the open document belongs to, and which window is being asked
+    // for. A fresh session has no slot, so its first save is a Save As.
+    app.init_resource::<DocumentSlot>();
+    app.init_resource::<FileWindowRequest>();
     app.add_systems(
         Update,
         (
@@ -194,6 +208,10 @@ fn editor_plugin(app: &mut App) {
             // being typed, and the chord is one a rebind may capture.
             save_key.run_if(in_input_mode_at_most(InputMode::Browse)),
             apply_file_request,
+            // After the request it answers, so a Ctrl+S on a document with no
+            // slot puts the name field up in the same frame it was pressed.
+            open_file_window,
+            sync_save_name,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
@@ -456,7 +474,18 @@ fn editor_plugin(app: &mut App) {
                 .chain(),
             sync_ship_readout,
             sync_skin_toggle,
-            sync_style_list,
+            // The rail's mark-per-row lists and what the part list adds up
+            // to, grouped so the tuple stays under Bevy's arity limit.
+            (
+                sync_style_list,
+                sync_part_ticks,
+                sync_part_zones,
+                sync_hull_plan,
+            ),
+            // After the field has taken the keystroke, so a seed is judged the
+            // frame it is typed rather than the frame after - the widget's own
+            // instruction to anything that reads what a field holds.
+            read_seed_field.after(TextFieldSystems),
             // The tree, the breadcrumb, the panels, the two greyable buttons
             // and the stage focus all report the edit context, so they sit
             // together with the rest of the rail's readouts. An inner group
@@ -629,6 +658,9 @@ fn editor_plugin(app: &mut App) {
     // it is answered. See `ui::window::DestructiveVerb`.
     app.add_observer(on_destructive_item);
     app.add_observer(close_confirm_window);
+    // Save As and Open put their own window up, and any of its answers takes
+    // it down. See `ui::files`.
+    app.add_observer(close_file_window);
 
     // The inspector: what a typed field does to the document, and the camera
     // rig it borrows while the field has the keyboard. Ungated on the gallery

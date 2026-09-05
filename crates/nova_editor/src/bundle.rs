@@ -54,33 +54,81 @@ use crate::{
     },
 };
 
-/// The mod id a save installs under: the cache directory, the enable key and
-/// the overlay namespace, all one word.
+/// The prefix on every mod id a save writes.
 ///
-/// ONE slot, deliberately. A file browser and a name field are their own task;
-/// what this buys is the property the save had to have first - the document
-/// survives the process. It also makes the read-only rule structural rather
-/// than a check: the editor can only ever write this id, so a hand-written mod
-/// is not something a save can reach.
-pub(crate) const SAVE_MOD_ID: &str = "editor_save";
-/// The bundle manifest inside that mod, relative to its own directory.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) const SAVE_BUNDLE_FILE: &str = "editor_save.bundle.ron";
-/// The one content file the manifest lists.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) const SAVE_CONTENT_FILE: &str = "editor_save.content.ron";
+/// It makes the read-only rule STRUCTURAL rather than a check: the editor can
+/// only ever name a bundle that starts with this, so a hand-written or
+/// downloaded mod is not something a save can reach - and the list the builder
+/// picks from is exactly the ids that carry it.
+pub(crate) const EDITOR_BUNDLE_PREFIX: &str = "editor_";
 
-/// The range a save writes: its own id, and hulls by reference.
+/// Where one document is saved: the mod id it is written under, and the name
+/// the builder typed to get that id.
+///
+/// The name is the RANGE's name as well as the mod's. A document has one name,
+/// and keeping a file name and a scenario name in step by hand is the editor's
+/// bookkeeping, not the builder's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SaveSlot {
+    pub(crate) id: String,
+    pub(crate) name: String,
+}
+
+/// The slot the open document belongs to, or `None` while nothing has named
+/// it. Save writes here; Save As replaces it; Open sets it to what was opened.
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
+pub(crate) struct DocumentSlot(pub(crate) Option<SaveSlot>);
+
+/// The mod id a typed name saves under, or `None` when the name holds nothing
+/// an id can be made of.
+///
+/// DERIVED rather than typed: an id is a directory name, an enable key and a
+/// merge namespace at once, and none of those is a thing to make a builder
+/// spell. Every run of characters that is not an ASCII letter or digit becomes
+/// one `_`, so two names that differ only in punctuation land in the same slot
+/// - which the Save As window says out loud before it writes.
+pub(crate) fn bundle_id(name: &str) -> Option<String> {
+    let mut id = String::from(EDITOR_BUNDLE_PREFIX);
+    let mut separated = false;
+    for character in name.chars() {
+        if !character.is_ascii_alphanumeric() {
+            separated = true;
+            continue;
+        }
+        if separated && id.len() > EDITOR_BUNDLE_PREFIX.len() {
+            id.push('_');
+        }
+        separated = false;
+        id.push(character.to_ascii_lowercase());
+    }
+    (id.len() > EDITOR_BUNDLE_PREFIX.len()).then_some(id)
+}
+
+/// The bundle manifest inside a slot, relative to the mod's own directory.
+#[cfg(not(target_arch = "wasm32"))]
+fn bundle_file(id: &str) -> String {
+    format!("{id}.bundle.ron")
+}
+
+/// The one content file that manifest lists.
+#[cfg(not(target_arch = "wasm32"))]
+fn content_file(id: &str) -> String {
+    format!("{id}.content.ron")
+}
+
+/// The range a save writes: the slot's own id, and hulls by reference.
 ///
 /// NOT hidden, unlike the sandbox Play hands off to: a saved range is content
 /// the builder made, so it belongs in the Scenarios picker once the mod is
 /// enabled.
-pub(crate) const SAVED_RANGE: Range<'static> = Range {
-    id: "editor_save",
-    hidden: false,
-    form: HullForm::Prototype,
-    flight: false,
-};
+pub(crate) fn saved_range(id: &str) -> Range<'_> {
+    Range {
+        id,
+        hidden: false,
+        form: HullForm::Prototype,
+        flight: false,
+    }
+}
 
 /// The document as content items: every design, then the range that places
 /// them.
@@ -90,6 +138,7 @@ pub(crate) const SAVED_RANGE: Range<'static> = Range {
 /// it - and in id order, because the output is a file.
 pub(crate) fn document_content(
     settings: &ScenarioNode,
+    id: &str,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     script: Vec<ScenarioEventConfig>,
@@ -106,7 +155,7 @@ pub(crate) fn document_content(
         .collect();
     items.push(Content::Scenario(crate::scenario::range_scenario(
         settings,
-        SAVED_RANGE,
+        saved_range(id),
         world,
         fleet,
         script,
@@ -116,12 +165,12 @@ pub(crate) fn document_content(
 
 /// The manifest that makes the saved content a loadable mod.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn save_manifest() -> BundleManifest {
+pub(crate) fn save_manifest(slot: &SaveSlot) -> BundleManifest {
     BundleManifest {
-        content: vec![SAVE_CONTENT_FILE.to_string()],
+        content: vec![content_file(&slot.id)],
         resources: vec![],
         meta: ModMeta {
-            name: "Saved Range".to_string(),
+            name: slot.name.clone(),
             description: "A range built in the editor.".to_string(),
             author: String::new(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -384,54 +433,91 @@ pub(crate) fn resume_ordinal<'a>(ids: impl IntoIterator<Item = &'a str>) -> u32 
         .unwrap_or_default()
 }
 
-/// Write the document out as the editor's saved mod: the manifest, the content,
-/// and the index record that makes it an installed mod the game can enable.
+/// Write the document into `slot`: the manifest, the content, and the index
+/// record that makes it an installed mod the game can enable.
 ///
 /// Files first, index last - the order a failed write has to leave a readable
 /// state in. `Err` carries a line fit to show the builder.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn write_save(items: &[Content]) -> Result<(), String> {
+pub(crate) fn write_save(slot: &SaveSlot, items: &[Content]) -> Result<(), String> {
     use nova_assets::mod_cache::prelude::install_local;
     use nova_modding::prelude::{serialize_content, serialize_manifest};
 
     let manifest =
-        serialize_manifest(&save_manifest()).map_err(|error| format!("manifest: {error}"))?;
+        serialize_manifest(&save_manifest(slot)).map_err(|error| format!("manifest: {error}"))?;
     let content = serialize_content(items).map_err(|error| format!("content: {error}"))?;
+    let (bundle, content_path) = (bundle_file(&slot.id), content_file(&slot.id));
     install_local(
-        SAVE_MOD_ID,
+        &slot.id,
         env!("CARGO_PKG_VERSION"),
-        SAVE_BUNDLE_FILE,
+        &bundle,
         &[
-            (SAVE_BUNDLE_FILE.to_string(), manifest.into_bytes()),
-            (SAVE_CONTENT_FILE.to_string(), content.into_bytes()),
+            (bundle.clone(), manifest.into_bytes()),
+            (content_path, content.into_bytes()),
         ],
     )
     .map_err(|error| error.to_string())
 }
 
-/// Read the editor's saved mod back, or say why there is nothing to read.
+/// Read one saved slot back, or say why there is nothing to read.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn read_save() -> Result<Vec<Content>, String> {
+pub(crate) fn read_save(id: &str) -> Result<Vec<Content>, String> {
     use nova_assets::mod_cache::prelude::read_mod_file;
     use nova_modding::prelude::parse_content;
 
-    let bytes = read_mod_file(SAVE_MOD_ID, SAVE_CONTENT_FILE)
-        .ok_or_else(|| "nothing saved yet".to_string())?;
+    let bytes =
+        read_mod_file(id, &content_file(id)).ok_or_else(|| format!("'{id}' holds no content"))?;
     parse_content(&bytes).map_err(|error| error.to_string())
+}
+
+/// Every slot the editor has written, by name.
+///
+/// Read off the installed-mods index and filtered to the editor's own prefix,
+/// so what a builder is offered is what they saved and never someone else's
+/// mod. A record whose manifest will not read is dropped rather than listed
+/// under its id: a row that cannot be opened is worse than a row that is not
+/// there.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn saved_bundles() -> Vec<SaveSlot> {
+    use nova_assets::mod_cache::prelude::{read_index, read_mod_file};
+    use nova_modding::prelude::parse_manifest;
+
+    let mut slots: Vec<SaveSlot> = read_index()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|record| record.id.starts_with(EDITOR_BUNDLE_PREFIX))
+        .filter_map(|record| {
+            let bytes = read_mod_file(&record.id, &record.bundle)?;
+            let manifest = parse_manifest(&bytes).ok()?;
+            Some(SaveSlot {
+                id: record.id,
+                name: manifest.meta.name,
+            })
+        })
+        .collect();
+    slots.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
+    slots
 }
 
 /// The web has no local mod cache to write into: its store is asynchronous and
 /// the editor's save is not. Refused with a line rather than silently doing
 /// nothing.
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn write_save(_items: &[Content]) -> Result<(), String> {
+pub(crate) fn write_save(_slot: &SaveSlot, _items: &[Content]) -> Result<(), String> {
     Err("saving is not available on the web yet".to_string())
 }
 
 /// The same, read side.
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn read_save() -> Result<Vec<Content>, String> {
+pub(crate) fn read_save(_id: &str) -> Result<Vec<Content>, String> {
     Err("loading is not available on the web yet".to_string())
+}
+
+/// Nothing to list, for the same reason there is nothing to write. The file
+/// window says so where the rows would be.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn saved_bundles() -> Vec<SaveSlot> {
+    Vec::new()
 }
 
 /// What the document has been asked to do with its file.
@@ -439,35 +525,82 @@ pub(crate) fn read_save() -> Result<Vec<Content>, String> {
 /// A REQUEST rather than the work itself, for the reason the frame request is
 /// one: two callers ask (the File menu and the keyboard) and one worker
 /// answers, so the answer is written once and cannot drift between them.
-#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) enum FileRequest {
     /// Nothing pending.
     #[default]
     None,
-    /// Write the document out.
+    /// Write the document to the slot it already belongs to.
     Save,
-    /// Throw the document away and rebuild it from the file.
+    /// Write it to the slot the builder just named, and belong there from now
+    /// on.
+    SaveAs(SaveSlot),
+    /// Throw the document away and rebuild it from a slot.
+    Open(String),
+}
+
+/// Which file window the builder asked for, if any.
+///
+/// A request rather than a spawn, for the reason [`FileRequest`] is one: three
+/// callers ask (two menu rows and the keyboard) and one builder answers.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct FileWindowRequest(pub(crate) Option<FileWindowKind>);
+
+/// What a file window is being opened to do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FileWindowKind {
+    /// Name a slot and write the document into it.
+    SaveAs,
+    /// Pick a slot and replace the document with it.
     Open,
 }
 
 /// The save shortcut. The one the File menu has always advertised.
 const SAVE_KEY: KeyCode = KeyCode::KeyS;
 
+/// Save straight into the document's own slot, or ask for a name when it has
+/// none yet.
+///
+/// The first save of a document is a Save As whatever asked for it, so the
+/// menu row and the shortcut cannot mean different things.
+fn save_or_ask(document: &DocumentSlot, request: &mut FileRequest, window: &mut FileWindowRequest) {
+    if document.0.is_some() {
+        *request = FileRequest::Save;
+    } else {
+        window.0 = Some(FileWindowKind::SaveAs);
+    }
+}
+
 /// File > Save.
-pub(crate) fn ask_to_save(_activate: On<Activate>, mut request: ResMut<FileRequest>) {
-    *request = FileRequest::Save;
+pub(crate) fn ask_to_save(
+    _activate: On<Activate>,
+    document: Res<DocumentSlot>,
+    mut request: ResMut<FileRequest>,
+    mut window: ResMut<FileWindowRequest>,
+) {
+    save_or_ask(&document, &mut request, &mut window);
+}
+
+/// File > Save As...
+pub(crate) fn ask_to_save_as(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
+    window.0 = Some(FileWindowKind::SaveAs);
 }
 
 /// File > Open.
-pub(crate) fn ask_to_open(_activate: On<Activate>, mut request: ResMut<FileRequest>) {
-    *request = FileRequest::Open;
+pub(crate) fn ask_to_open(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
+    window.0 = Some(FileWindowKind::Open);
 }
 
 /// Ctrl+S: the same request the menu row raises.
-pub(crate) fn save_key(keys: Res<ButtonInput<KeyCode>>, mut request: ResMut<FileRequest>) {
+pub(crate) fn save_key(
+    keys: Res<ButtonInput<KeyCode>>,
+    document: Res<DocumentSlot>,
+    mut request: ResMut<FileRequest>,
+    mut window: ResMut<FileWindowRequest>,
+) {
     let held = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     if held && keys.just_pressed(SAVE_KEY) {
-        *request = FileRequest::Save;
+        save_or_ask(&document, &mut request, &mut window);
     }
 }
 
@@ -486,6 +619,7 @@ pub(crate) fn save_key(keys: Res<ButtonInput<KeyCode>>, mut request: ResMut<File
 pub(crate) fn apply_file_request(
     mut commands: Commands,
     mut request: ResMut<FileRequest>,
+    mut document: ResMut<DocumentSlot>,
     time: Res<Time>,
     // Optional: a headless fixture drives this worker without the content
     // pipeline behind it, and a save that cannot be published is still a save.
@@ -502,16 +636,28 @@ pub(crate) fn apply_file_request(
 ) {
     let asked = std::mem::take(&mut *request);
     let now = time.elapsed_secs_f64();
+    // Save writes where the document already lives; Save As says where it is
+    // to live from now on. One write either way.
+    let target = match &asked {
+        FileRequest::Save => document.0.clone(),
+        FileRequest::SaveAs(slot) => Some(slot.clone()),
+        FileRequest::None | FileRequest::Open(_) => None,
+    };
     match asked {
         FileRequest::None => {}
-        FileRequest::Save => {
+        FileRequest::Save | FileRequest::SaveAs(_) => {
+            let Some(slot) = target else {
+                status.say("nothing has named this document yet", theme::RED, now);
+                return;
+            };
             let items = document_content(
                 &world_settings(&context, &q_settings),
+                &slot.id,
                 world_objects(&context, &q_objects),
                 &lower_fleet(&q_ships, &nodes),
                 world_script(&context, &script),
             );
-            match write_save(&items) {
+            match write_save(&slot, &items) {
                 Ok(()) => {
                     // ENABLED as well as installed. A save is the builder's own
                     // document, not a stranger's mod: asking them to go and
@@ -524,10 +670,11 @@ pub(crate) fn apply_file_request(
                     // menu, which is the first moment the picker is reachable
                     // anyway.
                     if let Some(enabled) = enabled.as_mut() {
-                        enabled.0.insert(SAVE_MOD_ID.to_string());
+                        enabled.0.insert(slot.id.clone());
                     }
-                    info!("editor: saved the document as mod '{SAVE_MOD_ID}'");
-                    status.say("saved", theme::PHOSPHOR, now);
+                    info!("editor: saved the document as mod '{}'", slot.id);
+                    status.say(format!("saved as {}", slot.name), theme::PHOSPHOR, now);
+                    document.0 = Some(slot);
                 }
                 Err(error) => {
                     error!("editor: the save failed - {error}");
@@ -535,11 +682,11 @@ pub(crate) fn apply_file_request(
                 }
             }
         }
-        FileRequest::Open => {
-            let document = match read_save().map(|items| lift_content(&items)) {
-                Ok(Some(document)) => document,
+        FileRequest::Open(id) => {
+            let lifted = match read_save(&id).map(|items| lift_content(&items)) {
+                Ok(Some(lifted)) => lifted,
                 Ok(None) => {
-                    status.say("the saved file holds no range", theme::RED, now);
+                    status.say("that file holds no range", theme::RED, now);
                     return;
                 }
                 Err(error) => {
@@ -547,13 +694,20 @@ pub(crate) fn apply_file_request(
                     return;
                 }
             };
-            let (ships, objects) = (document.ships.len(), document.objects.len());
+            let (ships, objects) = (lifted.ships.len(), lifted.objects.len());
+            // The opened document belongs to the slot it came out of, so the
+            // next plain Save goes back where it was read from. Its name is the
+            // range's own, which is the name the slot was written under.
+            document.0 = Some(SaveSlot {
+                id,
+                name: lifted.settings.name.clone(),
+            });
             for root in &roots {
                 commands.entity(root).despawn();
             }
             selected.0 = None;
             let scenario = found_empty_document(&mut commands, &mut context);
-            commands.queue(move |world: &mut World| fill_document(world, scenario, document));
+            commands.queue(move |world: &mut World| fill_document(world, scenario, lifted));
             info!("editor: opened the saved document - {ships} ship(s), {objects} object(s)");
             status.say(
                 format!("opened - {ships} ship(s), {objects} object(s)"),

@@ -17,7 +17,7 @@ use nova_scenario::prelude::{
     KnownSections, KnownShips, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
     ShipConfig, SpaceshipController,
 };
-use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig};
+use nova_ship::prelude::{flight_rig_reserved_sources, SectionConfig, ShipGrammarConfig};
 
 use crate::{
     balance::{BalanceAck, BALANCE_ACKS_FILE},
@@ -44,6 +44,7 @@ struct WalkedBundle {
     ships: Vec<ShipConfig>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
+    grammars: Vec<ShipGrammarConfig>,
     /// Every parsed content item paired with the bundle-relative file it was
     /// read from (a bundle lists several content files). Kept so the
     /// mod-relative `self://` resource-ref check can see every kind, and so
@@ -69,6 +70,7 @@ impl WalkedBundle {
                 Content::Style(cfg) => cfg.id.as_str(),
                 Content::Ship(cfg) => cfg.id.as_str(),
                 Content::Impact(cfg) => cfg.id.as_str(),
+                Content::Grammar(cfg) => cfg.id.as_str(),
             };
             (id == element_id).then_some(file.as_str())
         })
@@ -113,12 +115,14 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut ships = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
+    let mut grammars = Vec::new();
     for (_, item) in &content {
         match item {
             Content::Section(section) => sections.push(section.as_ref().clone()),
             Content::Ship(ship) => ships.push(ship.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
+            Content::Grammar(grammar) => grammars.push(grammar.clone()),
             // Styles and impact rows have no cross-content references of their
             // own - each names asset paths and nothing else - so they are
             // walked for their resource refs (below) and need no bucket here.
@@ -132,6 +136,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         ships,
         scenarios,
         campaigns,
+        grammars,
         content,
         acks: read_acks(dir),
     }
@@ -245,6 +250,18 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         }
     }
 
+    // Grammar well-formedness: every prototype a generator draws from has to
+    // resolve, in the same visible catalog a scenario's spawns resolve in.
+    for grammar in &bundle.grammars {
+        for issue in nova_scenario::prelude::lint_grammar_config(
+            grammar,
+            &known_sections,
+            bundle.id.as_str(),
+        ) {
+            issues.push((bundle.id.clone(), issue));
+        }
+    }
+
     // Campaign membership: every scenario a campaign lists must resolve to a
     // known scenario (base + all bundles + this bundle's own), or the picker
     // renders a header row launching nothing.
@@ -313,6 +330,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             Content::Style(cfg) => (cfg.id.clone(), "style"),
             Content::Ship(cfg) => (cfg.id.clone(), "ship"),
             Content::Impact(cfg) => (cfg.id.clone(), "impact"),
+            Content::Grammar(cfg) => (cfg.id.clone(), "grammar"),
         };
         for message in nova_assets::mod_refs::resource_ref_violations(item, &scope) {
             issues.push((

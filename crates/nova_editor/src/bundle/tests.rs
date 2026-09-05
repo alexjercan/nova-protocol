@@ -14,6 +14,9 @@ use nova_scenario::prelude::{
 use super::*;
 use crate::node::{ObjectNode, ScenarioNode};
 
+/// The slot these fixtures pretend a file was written under.
+const SAVED_ID: &str = "editor_saved_range";
+
 fn section(id: &str) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
         id: id.to_string(),
@@ -82,7 +85,7 @@ fn scenario(actions: Vec<EventActionConfig>) -> Content {
             actions,
         }],
         ..ScenarioConfig::new(
-            "editor_save".to_string(),
+            SAVED_ID.to_string(),
             "Saved Range".to_string(),
             "scenarios/space.cube.png".into(),
         )
@@ -194,7 +197,7 @@ fn only_a_pure_start_spawn_handler_is_layout() {
             },
         ],
         ..ScenarioConfig::new(
-            "editor_save".to_string(),
+            SAVED_ID.to_string(),
             "Saved Range".to_string(),
             "scenarios/space.cube.png".into(),
         )
@@ -218,15 +221,15 @@ fn only_a_pure_start_spawn_handler_is_layout() {
 /// out of was written under.
 ///
 /// The seeded death handler offers this range again, and the lowering points
-/// that retry at whichever range it is writing - `editor_save` in a file. Lift
-/// it back verbatim and Play would lower the document into `editor_sandbox`
-/// beside a retry naming `editor_save`, which the content lint rejects as a
-/// dangling reference: a saved range would refuse to start.
+/// that retry at whichever range it is writing - the save slot's own id in a
+/// file. Lift it back verbatim and Play would lower the document into
+/// `editor_sandbox` beside a retry naming the slot, which the content lint
+/// rejects as a dangling reference: a saved range would refuse to start.
 #[test]
 fn a_retry_naming_the_saved_range_comes_back_naming_the_sandbox() {
     let items = vec![scenario(vec![EventActionConfig::NextScenario(
         NextScenarioActionConfig {
-            scenario_id: SAVE_MOD_ID.to_string(),
+            scenario_id: SAVED_ID.to_string(),
             linger: true,
             delay: None,
         },
@@ -385,6 +388,7 @@ fn lower(world: &mut World) -> Vec<Content> {
              q_settings: Query<&ScenarioNode>| {
                 document_content(
                     &world_settings(&context, &q_settings),
+                    SAVED_ID,
                     world_objects(&context, &q_objects),
                     &lower_fleet(&q_ships, &nodes),
                     world_script(&context, &script),

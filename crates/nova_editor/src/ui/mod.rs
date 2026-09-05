@@ -10,6 +10,7 @@
 //! `gallery`.
 
 pub(crate) mod callout;
+pub(crate) mod files;
 pub(crate) mod inspector;
 pub(crate) mod layer;
 pub(crate) mod menu;
@@ -32,20 +33,22 @@ use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
-        key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
-        separator, themed_button, ButtonLabel, UiSkin, UiText,
+        button, key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row,
+        scroll_viewport, separator, text_field, themed_button, ButtonLabel, ButtonSpec,
+        TextFieldSpec, UiSkin, UiText,
     },
     theme,
     widget::{checkbox_colors, checkbox_glyph, list_row_colors, ListRow, Selected},
 };
 
 use crate::{
-    bundle::ask_to_save,
+    bundle::{ask_to_open, ask_to_save, ask_to_save_as},
     config::{
         ContextBreadcrumb, CrumbSelection, CrumbStep, EditorFoot, EditorKeyLegend, EditorOverlays,
-        EditorRail, EditorStatus, InspectorHeader, LastClick, PlacementStatus, PlayButton, RailTab,
-        RailTabButton, RebindButton, SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout,
-        ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        EditorRail, EditorStatus, HullPlanLine, InspectorHeader, LastClick, PartChoice, PartList,
+        PartTick, PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton, RebindButton,
+        SceneList, SceneRow, SectionChoice, SelectedNode, ShipReadout, ShipReadoutNote,
+        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
     event::{
         action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
@@ -56,6 +59,10 @@ use crate::{
         ViewPresetItem,
     },
     gallery::{EditorCamera, EditorChrome, GalleryAction, GalleryCategory},
+    generate::{
+        bow_gun, generate_ship, main_engine, reroll_seed, Drawn, GenerateButton, GenerateSettings,
+        HullSeed, HullSeedField, UNAUTHORED_WEIGHT,
+    },
     glyph::{
         category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
         COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, SCENARIO, SEQUENCE, SHIP_AI, SHUT, STEP,
@@ -81,8 +88,8 @@ use crate::{
         },
         plate::plate_layer,
         rail::{
-            rail_tab, rail_tab_strip, scene_row, scene_tooltip, skin_toggle_row, style_row,
-            SceneRowHint, SceneRowTrash,
+            next_zone, part_row, rail_tab, rail_tab_strip, scene_row, scene_tooltip,
+            skin_toggle_row, style_row, zone_label, SceneRowHint, SceneRowTrash,
         },
         window::{window_layer, DestructiveVerb},
     },
@@ -94,15 +101,16 @@ use crate::{
 /// The whole menu bar in one place, so what the editor can do reads as a list
 /// rather than as four `with_children` blocks buried in the bar's layout.
 ///
-/// GREYED, NOT ABSENT, for the items that are not built: Save As needs a name
-/// field nothing offers yet, and Undo and Redo are nobody's. A menu that only
-/// lists what already works cannot say what the editor is going to be.
+/// GREYED, NOT ABSENT, for the items that are not built: Undo and Redo are
+/// nobody's. A menu that only lists what already works cannot say what the
+/// editor is going to be.
 fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: UiSkin) {
     match menu {
         MenuId::File => {
-            // The three rows that can lose work do not DO anything: they put
-            // the question up (see `crate::ui::window::DestructiveVerb`), and
-            // the window's own button carries the verb.
+            // The rows that can lose work do not DO anything: they put the
+            // question up (see `crate::ui::window::DestructiveVerb`), and the
+            // window's own button carries the verb. Open asks the same way,
+            // through the file window that lists what there is to open.
             items.spawn((
                 Name::new("New Scenario Item"),
                 DestructiveVerb::NewScenario,
@@ -114,18 +122,14 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId, skin: U
                 observe(ask_to_save),
             ));
             items.spawn((
-                Name::new("Open Item"),
-                DestructiveVerb::Open,
-                menu_item_row("Open", MenuLead::None, MenuTail::None, skin),
-            ));
-            // Still greyed: Save As needs a name to save under and a place to
-            // type it, and there is one save slot until it has both. It says
-            // `soon` rather than nothing - a greyed row with a blank tail reads
-            // as "you cannot save", which is the opposite of what it means.
-            items.spawn((
                 Name::new("Save As... Item"),
-                menu_item_row("Save As...", MenuLead::None, MenuTail::Word("soon"), skin),
-                InteractionDisabled,
+                menu_item_row("Save As...", MenuLead::None, MenuTail::None, skin),
+                observe(ask_to_save_as),
+            ));
+            items.spawn((
+                Name::new("Open Item"),
+                menu_item_row("Open", MenuLead::None, MenuTail::None, skin),
+                observe(ask_to_open),
             ));
             items.spawn(separator());
             items.spawn((
@@ -380,6 +384,10 @@ const PLAY_BLOCKED: &str = "Play (leave the ship)";
 /// rows spend the rest on the type and the indent (see [`scene_row`]).
 pub(crate) const RAIL_W: f32 = 210.0;
 
+/// How many digits the seed field takes: `u64::MAX` is twenty of them, and a
+/// field that stops one short would refuse a seed the generator accepts.
+const SEED_DIGITS: usize = 20;
+
 /// How much of its own colour a style row keeps while the skin is off. Enough
 /// to read as the same list, not enough to be mistaken for the live one.
 const GREYED_STYLE_ALPHA: f32 = 0.3;
@@ -405,6 +413,9 @@ pub(crate) fn setup_editor_scene(
     skin: Res<UiSkin>,
     game_assets: Res<GameAssets>,
     styles: Res<GameStyles>,
+    sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
+    seed: Res<HullSeed>,
     context: Res<EditContext>,
     q_ships: Query<&ShipNode>,
 ) {
@@ -413,6 +424,7 @@ pub(crate) fn setup_editor_scene(
     // checkbox starts bare, which is what a fresh ship is.
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
     let listed = listed_styles(&styles);
+    let drawable = listed_parts(&sections, &grammars);
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // One light shining straight down puts every vertical face of every part in
     // flat shadow - fine for a ship seen from above, wrong for the gallery, where
@@ -779,6 +791,10 @@ pub(crate) fn setup_editor_scene(
                                             width: percent(100),
                                             flex_direction: FlexDirection::Column,
                                             align_items: AlignItems::Stretch,
+                                            // See `rail_list_node`: in a
+                                            // scrolling column, nothing
+                                            // shrinks.
+                                            flex_shrink: 0.0,
                                             ..default()
                                         },
                                     ))
@@ -886,6 +902,159 @@ pub(crate) fn setup_editor_scene(
                                                 });
                                         },
                                     );
+                                    // Generate: the hull THIS ship is, rolled
+                                    // out of the catalog. A ship is the unit a
+                                    // hull is, so the block sits inside one
+                                    // beside the settings for it, and
+                                    // `sync_context_panels` shows both only
+                                    // there.
+                                    rail.spawn((
+                                        Name::new("Generate Settings"),
+                                        GenerateSettings,
+                                        Node {
+                                            width: percent(100),
+                                            flex_direction: FlexDirection::Column,
+                                            align_items: AlignItems::Stretch,
+                                            // See `rail_list_node`: in a
+                                            // scrolling column, nothing
+                                            // shrinks.
+                                            flex_shrink: 0.0,
+                                            ..default()
+                                        },
+                                    ))
+                                    .with_children(|block| {
+                                        block.spawn(separator());
+                                        block.spawn(panel_header("Generate Hull"));
+                                        block.spawn((
+                                            Name::new("Generate Note"),
+                                            UiText,
+                                            Text::new(
+                                                "collapses this ship out of the ticked sections, replacing what it holds",
+                                            ),
+                                            TextFont {
+                                                font_size: FontSize::Px(11.0),
+                                                ..default()
+                                            },
+                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            Node {
+                                                margin: UiRect::bottom(px(4)),
+                                                ..default()
+                                            },
+                                        ));
+                                        // The seed is SHOWN because it is the
+                                        // whole handle on the generator: a hull
+                                        // a builder liked is a number they can
+                                        // write down and type back in.
+                                        block.spawn((
+                                            Name::new("Hull Seed Field"),
+                                            HullSeedField,
+                                            text_field(
+                                                TextFieldSpec::new(seed.0.to_string())
+                                                    .max_chars(SEED_DIGITS)
+                                                    .dense(),
+                                            ),
+                                        ));
+                                        block.spawn((
+                                            Name::new("Reroll Seed Button"),
+                                            button(ButtonSpec::new("Reroll Seed").ghost()),
+                                            observe(reroll_seed),
+                                        ));
+                                        block.spawn((
+                                            Name::new("Generate Button"),
+                                            GenerateButton,
+                                            themed_button("Generate"),
+                                            observe(generate_ship),
+                                        ));
+                                        // What the ticks add up to. The
+                                        // seeded roles are DERIVED - the
+                                        // biggest ticked drive is the engine,
+                                        // the biggest ticked spinal gun is the
+                                        // bow gun - so this line is the only
+                                        // place a builder is told it happened.
+                                        block.spawn((
+                                            Name::new("Hull Plan Label"),
+                                            UiText,
+                                            Text::new("HULL PLAN"),
+                                            TextFont {
+                                                font_size: FontSize::Px(10.0),
+                                                ..default()
+                                            },
+                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            Node {
+                                                margin: UiRect::top(px(6)),
+                                                ..default()
+                                            },
+                                        ));
+                                        block.spawn((
+                                            Name::new("Hull Plan Line"),
+                                            HullPlanLine,
+                                            UiText,
+                                            Text::new("stern -\nbow -"),
+                                            TextFont {
+                                                font_size: FontSize::Px(10.0),
+                                                ..default()
+                                            },
+                                            TextColor(theme::PHOSPHOR_DIM),
+                                        ));
+                                        // What the collapse may draw. The
+                                        // whole merged catalog, so a mod's
+                                        // section is on the list without the
+                                        // editor knowing an id - and the note
+                                        // says the terms an untuned one joins
+                                        // on, because the shipped grammar
+                                        // prices only the parts it ships with.
+                                        block.spawn((
+                                            Name::new("Draw Label"),
+                                            UiText,
+                                            Text::new("DRAW FROM"),
+                                            TextFont {
+                                                font_size: FontSize::Px(10.0),
+                                                ..default()
+                                            },
+                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            Node {
+                                                margin: UiRect::top(px(6)),
+                                                ..default()
+                                            },
+                                        ));
+                                        block.spawn((
+                                            Name::new("Draw Note"),
+                                            UiText,
+                                            Text::new(format!(
+                                                "ticked sections draw at the grammar's own weights; one it does not price joins at {UNAUTHORED_WEIGHT}. the chip on a ticked row says where on the hull it may stand",
+                                            )),
+                                            TextFont {
+                                                font_size: FontSize::Px(10.0),
+                                                ..default()
+                                            },
+                                            TextColor(theme::PHOSPHOR_MUTED),
+                                            Node {
+                                                margin: UiRect::bottom(px(3)),
+                                                ..default()
+                                            },
+                                        ));
+                                        block
+                                            .spawn((
+                                                Name::new("Part List"),
+                                                PartList,
+                                                rail_list_node(),
+                                            ))
+                                            .with_children(|list| {
+                                                for (id, name, drawn, zone) in &drawable {
+                                                    let mut row = list.spawn((
+                                                        Name::new(format!("Part: {id}")),
+                                                        part_row(id, name, *drawn, *zone, skin),
+                                                        observe(on_part_choice),
+                                                    ));
+                                                    // The MARK is the setting;
+                                                    // the row's paint is only a
+                                                    // picture of it.
+                                                    if *drawn {
+                                                        row.insert(Selected);
+                                                    }
+                                                }
+                                            });
+                                    });
                                 });
                                 row.spawn((Name::new("Rail Scrollbar"), scroll_bar(skin)));
                             });
@@ -1062,12 +1231,199 @@ fn listed_styles(styles: &GameStyles) -> Vec<(String, String, Color)> {
         .collect()
 }
 
+/// The rows the Generate block's draw list is built from: every section in the
+/// MERGED catalog, and whether the shipped grammar already draws it.
+///
+/// The whole catalog rather than the grammar's own parts, because a grammar
+/// that names a part it cannot lay does not BUILD - so a list read off one
+/// could never offer the parts a builder most wants to try. Ticking one of
+/// those is an experiment the collapse either runs or refuses in a line; both
+/// answers are better than a row that does not exist.
+///
+/// The grammar's own draw starts ticked, so pressing Generate without touching
+/// the list rolls the ship the base game rolls.
+fn listed_parts(
+    sections: &GameSections,
+    grammars: &GameGrammars,
+) -> Vec<(String, String, bool, Option<GrammarZone>)> {
+    let drawn = grammars
+        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+        .map(|grammar| grammar.parts.as_slice())
+        .unwrap_or_default();
+    sections
+        .iter()
+        .map(|section| {
+            let priced = drawn.iter().find(|part| part.prototype == section.base.id);
+            (
+                section.base.id.clone(),
+                section.base.name.clone(),
+                priced.is_some(),
+                priced.and_then(|part| part.zone),
+            )
+        })
+        .collect()
+}
+
+/// Tick or untick one part of the draw.
+///
+/// The row IS the setting - see [`PartChoice`] - so the press writes the mark
+/// and nothing else has to be told.
+pub(crate) fn on_part_choice(
+    activate: On<Activate>,
+    mut commands: Commands,
+    rows: Query<Has<Selected>, With<PartChoice>>,
+) {
+    let Ok(ticked) = rows.get(activate.entity) else {
+        return;
+    };
+    if ticked {
+        commands.entity(activate.entity).remove::<Selected>();
+    } else {
+        commands.entity(activate.entity).insert(Selected);
+    }
+}
+
+/// Cycle one part's ZONE: where on the hull the collapse may stand it.
+///
+/// The chip is inside the row, and both are buttons. This is safe because
+/// [`on_part_choice`] above rules on `activate.entity` - the button the press
+/// names - rather than on the entity the observer happens to hang off, so a
+/// press on the chip is not also a press on the tick.
+pub(crate) fn on_part_zone(
+    activate: On<Activate>,
+    chips: Query<&ChildOf, With<PartZoneChip>>,
+    mut rows: Query<&mut PartChoice>,
+) {
+    let Ok(parent) = chips.get(activate.entity) else {
+        return;
+    };
+    let Ok(mut choice) = rows.get_mut(parent.parent()) else {
+        return;
+    };
+    choice.zone = next_zone(choice.zone);
+}
+
+/// Write each part row's zone chip from its mark: the label, and whether the
+/// chip is there at all.
+///
+/// Shown only while the row is ticked, for the reason [`zone_chip`] gives. Like
+/// [`sync_part_ticks`] this compares before writing rather than gating on a
+/// change, because the rows are spawned on entering the editor, which need not
+/// be a frame anything was ticked on.
+pub(crate) fn sync_part_zones(
+    rows: Query<(&PartChoice, Has<Selected>, &Children)>,
+    mut chips: Query<(&mut Node, &Children), With<PartZoneChip>>,
+    mut labels: Query<&mut Text, Without<PartZoneChip>>,
+) {
+    for (choice, ticked, children) in &rows {
+        for child in children {
+            let Ok((mut node, chip)) = chips.get_mut(*child) else {
+                continue;
+            };
+            let display = if ticked { Display::Flex } else { Display::None };
+            if node.display != display {
+                node.display = display;
+            }
+            for label in chip {
+                if let Ok(mut text) = labels.get_mut(*label) {
+                    let wanted = zone_label(choice.zone);
+                    if text.0 != wanted {
+                        text.0 = wanted.to_string();
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Write the HULL PLAN line: which prototype fills each SEEDED role of the
+/// hull the ticks add up to.
+///
+/// The seeded roles are not in the draw list and cannot be: a role is one part,
+/// and the list is a set of many. They are DERIVED from the ticks - the biggest
+/// ticked drive is the main engine, the biggest ticked spinal gun is the bow
+/// gun - so a builder gets them without learning a second control, and this
+/// line is what tells them it happened.
+pub(crate) fn sync_hull_plan(
+    sections: Option<Res<GameSections>>,
+    grammars: Option<Res<GameGrammars>>,
+    rows: Query<(&PartChoice, Has<Selected>)>,
+    mut lines: Query<&mut Text, With<HullPlanLine>>,
+) {
+    let (Some(sections), Some(grammars)) = (sections.as_deref(), grammars.as_deref()) else {
+        return;
+    };
+    let drawn: Vec<Drawn> = rows
+        .iter()
+        .filter(|(_, ticked)| *ticked)
+        .map(|(choice, _)| Drawn {
+            prototype: choice.prototype.clone(),
+            zone: choice.zone,
+        })
+        .collect();
+    let named = |id: Option<&str>| {
+        id.and_then(|id| sections.get_section(id))
+            .map_or_else(|| "-".to_string(), |config| config.base.name.clone())
+    };
+    // The two roles the TICKS decide. The keel and the bridge are the
+    // grammar's and are the same on every hull, so naming them here would cost
+    // two lines of a narrow rail to say nothing.
+    let stern = grammars
+        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+        .map(|grammar| grammar.keel.stern_drive.clone());
+    let plan = format!(
+        "stern {}\nbow {}",
+        named(
+            main_engine(sections, &drawn)
+                .as_deref()
+                .or(stern.as_deref())
+        ),
+        named(bow_gun(sections, &drawn).as_deref()),
+    );
+    for mut text in &mut lines {
+        if text.0 != plan {
+            text.0 = plan.clone();
+        }
+    }
+}
+
+/// Write each part row's tick glyph from its mark.
+///
+/// The shared reconciler paints the row's fill and border off `Selected`; the
+/// glyph is this list's own, because a highlight alone reads as "the one
+/// selected" and this list is a set of many.
+///
+/// Compared before writing rather than gated on a change, for the same reason
+/// as [`sync_style_list`]: the rows are spawned on entering the editor, which
+/// need not be a frame anything was ticked on.
+pub(crate) fn sync_part_ticks(
+    rows: Query<(Has<Selected>, &Children), With<PartChoice>>,
+    mut ticks: Query<&mut Text, With<PartTick>>,
+) {
+    for (ticked, children) in &rows {
+        for child in children {
+            if let Ok(mut text) = ticks.get_mut(*child) {
+                let glyph = checkbox_glyph(ticked);
+                if text.0 != glyph {
+                    text.0 = glyph.to_string();
+                }
+            }
+        }
+    }
+}
+
 /// The style list's own column, so the rows read as one group under the toggle
 /// rather than as four more tools.
 fn rail_list_node() -> Node {
     Node {
         width: percent(100),
         flex_direction: FlexDirection::Column,
+        // The rail SCROLLS. A child that may shrink hands the column a second
+        // way to fit its content, and flexbox takes it: the draw list made the
+        // whole rail overflow, and every block above it - the tree included -
+        // was squeezed until its rows were unclickable rather than scrolled
+        // past.
+        flex_shrink: 0.0,
         ..default()
     }
 }
@@ -2024,25 +2380,29 @@ pub(crate) fn sync_play_button(
     }
 }
 
-/// Show the rail's ship settings block only inside a ship.
+/// Show the rail's ship blocks - the settings and the generator - only inside
+/// a ship.
 ///
 /// Hidden rather than disabled, unlike Play: a greyed skin toggle at the
 /// scenario node would say "this exists here and is refused", and it does not
 /// exist there - a skin is a thing a SHIP has. The ship's VERBS answer the same
 /// question in the Ship menu, where greyed rows say what entering a ship would
 /// unlock (see `crate::ui::menu::sync_ship_menu`).
+///
+/// Generate obeys the same rule for the same reason: what it rolls IS a hull,
+/// and a hull is what a ship is made of.
 pub(crate) fn sync_context_panels(
     context: Res<EditContext>,
-    mut panels: Query<&mut Node, With<ShipSettings>>,
+    mut panels: Query<&mut Node, Or<(With<ShipSettings>, With<GenerateSettings>)>>,
 ) {
-    let display = if context.ship().is_some() {
+    let shown = if context.ship().is_some() {
         Display::Flex
     } else {
         Display::None
     };
     for mut node in &mut panels {
-        if node.display != display {
-            node.display = display;
+        if node.display != shown {
+            node.display = shown;
         }
     }
 }
@@ -4703,5 +5063,164 @@ mod tests {
         let world = app.world_mut();
         let mut modes = world.query_filtered::<&Text, With<LegendMode>>();
         modes.single(world).expect("one mode cell").0.clone()
+    }
+
+    /// The list a builder is handed: the whole merged catalog, with the
+    /// shipped grammar's own draw already ticked - so pressing Generate
+    /// without touching it rolls the ship the base game rolls.
+    #[test]
+    fn the_draw_list_offers_the_catalog_and_ticks_the_grammars_own() {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let grammars = GameGrammars(nova_authoring::generation::build_grammars());
+        let listed = listed_parts(&sections, &grammars);
+
+        assert_eq!(
+            listed.len(),
+            sections.len(),
+            "every section in the merged catalog gets a row"
+        );
+        let ticked: Vec<&str> = listed
+            .iter()
+            .filter(|(_, _, drawn, _)| *drawn)
+            .map(|(id, _, _, _)| id.as_str())
+            .collect();
+        let authored: Vec<&str> = grammars
+            .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+            .expect("the base content ships one")
+            .parts
+            .iter()
+            .map(|part| part.prototype.as_str())
+            .collect();
+        for prototype in &authored {
+            assert!(
+                ticked.contains(prototype),
+                "'{prototype}' is in the shipped draw, so its row starts ticked"
+            );
+        }
+        assert!(
+            listed
+                .iter()
+                .any(|(id, _, drawn, _)| id == "railgun_lance_section" && !drawn),
+            "the lance is on the list and starts untouched, which is the row a \
+             builder came for"
+        );
+        assert!(
+            listed.iter().all(|(_, name, _, _)| !name.is_empty()),
+            "a row nobody can read is a row nobody ticks"
+        );
+    }
+
+    /// Pressing a row ticks it, pressing it again unticks it, and the glyph
+    /// follows. A set is not a selection: ticking one does not clear the rest.
+    #[test]
+    fn a_part_row_ticks_and_unticks_without_disturbing_the_others() {
+        let mut app = App::new();
+        app.add_systems(Update, sync_part_ticks);
+        app.add_observer(on_part_choice);
+        let rows: Vec<Entity> = ["one", "two"]
+            .iter()
+            .map(|id| {
+                let row = app
+                    .world_mut()
+                    .spawn((
+                        PartChoice {
+                            prototype: (*id).to_string(),
+                            zone: None,
+                        },
+                        Children::default(),
+                    ))
+                    .id();
+                app.world_mut()
+                    .spawn((PartTick, Text::new(""), ChildOf(row)));
+                row
+            })
+            .collect();
+        // The first starts ticked, as a shipped part's row does.
+        app.world_mut().entity_mut(rows[0]).insert(Selected);
+        app.update();
+
+        let glyph = |app: &mut App, row: Entity| -> String {
+            let child = app.world().get::<Children>(row).expect("a tick child")[0];
+            app.world().get::<Text>(child).expect("the glyph").0.clone()
+        };
+        assert_eq!(glyph(&mut app, rows[0]), checkbox_glyph(true));
+        assert_eq!(glyph(&mut app, rows[1]), checkbox_glyph(false));
+
+        app.world_mut().trigger(Activate { entity: rows[1] });
+        app.update();
+        assert_eq!(glyph(&mut app, rows[1]), checkbox_glyph(true));
+        assert_eq!(
+            glyph(&mut app, rows[0]),
+            checkbox_glyph(true),
+            "ticking one part did not untick the other: this is a set, not a choice"
+        );
+
+        app.world_mut().trigger(Activate { entity: rows[0] });
+        app.update();
+        assert_eq!(glyph(&mut app, rows[0]), checkbox_glyph(false));
+        assert_eq!(glyph(&mut app, rows[1]), checkbox_glyph(true));
+    }
+
+    /// The chip cycles the ZONE without flipping the tick under it, and it is
+    /// only there while the row is ticked.
+    ///
+    /// The chip is a button inside a button, which is the whole reason this
+    /// test exists: `on_part_choice` rules on the entity the activation NAMES,
+    /// so a press on the chip is not also a press on the row.
+    #[test]
+    fn a_zone_chip_cycles_its_row_without_ticking_it() {
+        let mut app = App::new();
+        app.add_systems(Update, sync_part_zones);
+        app.add_observer(on_part_choice);
+        app.add_observer(on_part_zone);
+        let row = app
+            .world_mut()
+            .spawn((
+                PartChoice {
+                    prototype: "one".to_string(),
+                    zone: None,
+                },
+                Selected,
+                Children::default(),
+            ))
+            .id();
+        let chip = app
+            .world_mut()
+            .spawn((PartZoneChip, Node::default(), ChildOf(row)))
+            .id();
+        let label = app.world_mut().spawn((Text::new(""), ChildOf(chip))).id();
+        app.update();
+
+        let read = |app: &App| app.world().get::<Text>(label).expect("the label").0.clone();
+        assert_eq!(read(&app), zone_label(None));
+        assert!(app.world().get::<Selected>(row).is_some());
+
+        app.world_mut().trigger(Activate { entity: chip });
+        app.update();
+        assert_eq!(read(&app), zone_label(Some(GrammarZone::Bow)));
+        assert!(
+            app.world().get::<Selected>(row).is_some(),
+            "the press that cycled the zone did not untick the row under it"
+        );
+
+        // All the way round and back to unzoned.
+        let mut zone = Some(GrammarZone::Bow);
+        for _ in 0..6 {
+            app.world_mut().trigger(Activate { entity: chip });
+            app.update();
+            zone = next_zone(zone);
+            assert_eq!(read(&app), zone_label(zone));
+        }
+        assert_eq!(zone, None, "the cycle comes back round to anywhere");
+
+        // Untick the row and the chip goes away: a zone on a part the collapse
+        // may not draw says nothing.
+        app.world_mut().trigger(Activate { entity: row });
+        app.update();
+        assert!(app.world().get::<Selected>(row).is_none());
+        assert_eq!(
+            app.world().get::<Node>(chip).expect("the chip").display,
+            Display::None
+        );
     }
 }

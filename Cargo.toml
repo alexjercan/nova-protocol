@@ -634,6 +634,9 @@ nova_input = { path = "crates/nova_input" }
 nova_menu = { path = "crates/nova_menu" }
 nova_probe_cli = { path = "crates/nova_probe_cli" }
 nova_scenario = { path = "crates/nova_scenario" }
+# The wfc examples collapse their hulls through the shared generator; the
+# arena's own large-drive and spinal-lance stamps stay in the example.
+nova_wfc = { path = "crates/nova_wfc" }
 # wfc_ships seeds its collapse from a pinned StdRng, the same generator the
 # scenario engine's scatter uses - same crate, same version, same rolls.
 rand = { version = "0.10.2" }
@@ -836,6 +839,10 @@ members = [
   "crates/nova_scenario",
   "crates/nova_ship",
   "crates/nova_ui",
+  # The wave-function-collapse ship generator. A LEAF over nova_ship +
+  # nova_scenario: it builds no App, so the editor, the examples and the
+  # content tools can all reach it without any of them reaching each other.
+  "crates/nova_wfc",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace
   # MEMBER (so Cargo's feature unification auto-pins its Bevy version AND
   # features - the `wav` feature via nova_modding -> nova_gameplay - to the

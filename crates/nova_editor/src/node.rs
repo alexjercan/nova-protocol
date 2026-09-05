@@ -27,15 +27,13 @@ use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
-    bundle::{insert_lifted_ship, lift_objects},
+    bundle::{insert_lifted_ship, lift_objects, DocumentSlot},
     config::{EditorSays, SelectedNode},
     event::lift,
     gallery::EditorCamera,
     preview::{insert_preview_object, insert_preview_section, PreviewArt, PreviewRole},
-    scenario::{
-        default_script, default_world_objects, DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME,
-        DEFAULT_SKY,
-    },
+    scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME, DEFAULT_SKY},
+    template::ScenarioTemplate,
     ExampleStates,
 };
 
@@ -820,27 +818,33 @@ pub(crate) fn ensure_document(
     if context.scenario().is_some() {
         return;
     }
-    found_document(&mut commands, sections.as_deref(), &mut context);
+    found_document(
+        &mut commands,
+        sections.as_deref(),
+        &mut context,
+        ScenarioTemplate::default(),
+    );
 }
 
-/// Found a document: one scenario node, seeded with the stock range, and the
-/// context standing on it.
+/// Found a document: one scenario node, seeded from `template`, and the context
+/// standing on it.
 ///
-/// A new document opens on the stock range rather than on the void: the
-/// sandbox's rocks, hulks, pickets, beacons and lights are the DEFAULT WORLD
-/// now, not constants baked into the hand-off. Seeded HERE, once, when the
+/// A new document opens on a WORLD rather than on the void, and which world is
+/// the builder's choice (see [`ScenarioTemplate`]). Seeded HERE, once, when the
 /// document is created - a "the world looks empty, refill it" pass would
 /// resurrect everything the builder deleted on the next editor entry.
 pub(crate) fn found_document(
     commands: &mut Commands,
     sections: Option<&GameSections>,
     context: &mut EditContext,
+    template: ScenarioTemplate,
 ) -> Entity {
     let scenario = found_empty_document(commands, context);
+    commands.entity(scenario).insert(template.settings());
     // Through the SAME lift a saved file goes through: the stock range's hulks
     // and pickets are hulls with sections, and a hull the document held as an
     // opaque object was one a double click could not go inside.
-    let seed = lift_objects(default_world_objects(), &BTreeMap::new());
+    let seed = lift_objects(template.objects(), &BTreeMap::new());
     for object in seed.objects {
         insert_object_node(commands, scenario, object);
     }
@@ -848,10 +852,10 @@ pub(crate) fn found_document(
         insert_lifted_ship(commands, sections, scenario, ship);
     }
     // The script is seeded the same way the world is, and for the same reason:
-    // a new document opens on a range that WORKS - one with a briefing, an
+    // a template that stands a range up is one that WORKS - a briefing, an
     // objective, pickets that wake and a death that offers a retry - rather
-    // than on a world nothing ever reacts to.
-    lift(commands, scenario, default_script());
+    // than a world nothing ever reacts to.
+    lift(commands, scenario, template.script());
     scenario
 }
 
@@ -883,19 +887,31 @@ pub(crate) fn found_empty_document(commands: &mut Commands, context: &mut EditCo
 /// and a "no document, make one" pass in `Update` would also undo the teardown
 /// that ends the session (the state change lands a frame later than the
 /// despawn).
+///
+/// The template comes off the ROW that was pressed, so the picker needs no
+/// state of its own and a row that names no template starts nothing.
+///
+/// It also forgets the FILE. A new document is not the old one, and a Ctrl+S
+/// after this must not write over the range the builder just left.
 pub(crate) fn reset_document(
-    _activate: On<Activate>,
+    activate: On<Activate>,
     mut commands: Commands,
+    templates: Query<&ScenarioTemplate>,
     sections: Option<Res<GameSections>>,
     mut context: ResMut<EditContext>,
     mut selected: ResMut<SelectedNode>,
+    mut document: ResMut<DocumentSlot>,
     roots: Query<Entity, With<ScenarioNode>>,
 ) {
+    let Ok(template) = templates.get(activate.entity) else {
+        return;
+    };
     for root in &roots {
         commands.entity(root).despawn();
     }
     selected.0 = None;
-    found_document(&mut commands, sections.as_deref(), &mut context);
+    document.0 = None;
+    found_document(&mut commands, sections.as_deref(), &mut context, *template);
 }
 
 /// Put one authored scenario object into the document under `scenario`, keeping
@@ -1060,17 +1076,21 @@ pub(crate) fn drop_edited_views(
 /// is what the wake handler flips.
 pub(crate) const MINTED_SHIP_STEM: &str = "ship";
 
-/// Add a BLANK ship to the document and go inside it.
+/// Add an EMPTY ship to the document, and say which node it is.
 ///
 /// Additive: a second "Add Ship" is one more subtree standing beside the first
 /// rather than a reset. Ships are spaced along +X so two of them are two things
-/// on the stage rather than one pile. Blank on purpose - which part a ship
-/// starts from is the builder's first decision, and the empty ship's founding
-/// click (see `crate::placement::found_empty_ship`) is where they make it.
+/// on the stage rather than one pile.
+///
+/// Entering the new ship is the CALLER's decision, because the two verbs that
+/// mint one disagree about it: a blank ship must be entered - which part it
+/// starts from is the builder's first decision, made by the founding click
+/// (see `crate::placement::found_empty_ship`) - and a generated one must not,
+/// since it arrives finished and the block that generated it is the scenario's.
 pub(crate) fn spawn_ship_node(
     commands: &mut Commands,
     ordinals: &mut Query<&mut NextChildOrdinal>,
-    context: &mut EditContext,
+    context: &EditContext,
     ships: usize,
     driver: ShipDriver,
 ) -> Option<Entity> {
@@ -1093,7 +1113,6 @@ pub(crate) fn spawn_ship_node(
             ChildOf(scenario),
         ))
         .id();
-    context.enter(ship);
     Some(ship)
 }
 
@@ -1319,6 +1338,7 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+    use crate::scenario::default_world_objects;
 
     /// The announcement is what drops a body, so the pair has to be tested
     /// together: nothing else marks a view stale any more.
@@ -1831,6 +1851,7 @@ mod tests {
         let mut world = World::new();
         world.init_resource::<EditContext>();
         world.init_resource::<SelectedNode>();
+        world.init_resource::<crate::bundle::DocumentSlot>();
         world.add_observer(reset_document);
 
         world
@@ -1845,10 +1866,15 @@ mod tests {
             .id();
         world.resource_mut::<EditContext>().enter(ship);
         world.resource_mut::<SelectedNode>().0 = Some(ship);
-
-        world.trigger(Activate {
-            entity: Entity::PLACEHOLDER,
+        world.resource_mut::<crate::bundle::DocumentSlot>().0 = Some(crate::bundle::SaveSlot {
+            id: "editor_my_range".to_string(),
+            name: "My Range".to_string(),
         });
+
+        // The template comes off the row that was pressed, so the trigger
+        // names a row rather than nothing.
+        let row = world.spawn(ScenarioTemplate::Range).id();
+        world.trigger(Activate { entity: row });
         world.flush();
 
         let second = world
@@ -1870,6 +1896,12 @@ mod tests {
             "the context stands on the new scenario node, not inside a dead ship"
         );
         assert_eq!(world.resource::<SelectedNode>().0, None);
+        assert_eq!(
+            world.resource::<crate::bundle::DocumentSlot>().0,
+            None,
+            "and it forgot the file: a Ctrl+S now must not write over the range \
+             the builder just left"
+        );
     }
 
     /// Two rows with the same text are two rows nothing can tell apart, so the

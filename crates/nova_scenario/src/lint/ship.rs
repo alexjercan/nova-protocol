@@ -5,10 +5,10 @@ use nova_events::units::prelude::*;
 use nova_ship::prelude::{
     derive_link_point_graph, ControllerSectionConfig, LinkPointGraphError, LinkPointRef,
     PlacedSectionLinkPoints, RailgunSectionConfig, SectionCollider, SectionConfig, SectionKind,
-    SectionReloadConfig, TurretJoint, TurretSectionConfig,
+    SectionReloadConfig, ShipGrammarConfig, TurretJoint, TurretSectionConfig,
 };
 
-use super::{KnownSections, KnownShips, LintIssue};
+use super::{KnownSections, KnownShips, LintIssue, LintSeverity};
 use crate::prelude::*;
 
 /// Every reference a spawned (or scatter-template) ship makes must resolve: the
@@ -114,6 +114,113 @@ pub fn lint_ship_config(
 ) -> Vec<LintIssue> {
     let mut issues = Vec::new();
     check_hull_sections(ship.id.as_str(), &ship.hull, source, sections, &mut issues);
+    issues
+}
+
+/// Static well-formedness of one authored ship GRAMMAR: every prototype it
+/// names has to resolve, and its grid has to be big enough to collapse in.
+///
+/// The id checks are the authoring rule in force - an unrecognized id is an
+/// error at lint, then again at load - and they matter more here than
+/// elsewhere, because a grammar is read by a GENERATOR: a keel role that
+/// resolves to nothing is a hull with no spine, and a drawable part that does
+/// not exist is a hole in the draw that only shows up as a thinner ship.
+///
+/// Whether a named prototype can actually be a TILE is not checked here. That
+/// is a geometric question about link points, the generator answers it by
+/// simply not offering the part, and it needs the collapse's own machinery to
+/// ask. A part on the list that cannot tile is a wasted line, not a broken
+/// ship.
+pub fn lint_grammar_config(
+    grammar: &ShipGrammarConfig,
+    sections: &KnownSections,
+    source: &str,
+) -> Vec<LintIssue> {
+    let mut issues = Vec::new();
+    let mut error = |message: String| {
+        issues.push(LintIssue {
+            severity: LintSeverity::Error,
+            scenario: grammar.id.clone(),
+            message,
+        });
+    };
+
+    for id in grammar.named_sections() {
+        if !sections.contains(id) {
+            error(format!(
+                "grammar '{}' in {source} names section prototype '{id}', which no visible \
+                 catalog holds",
+                grammar.id
+            ));
+        }
+    }
+
+    if grammar.parts.is_empty() {
+        error(format!(
+            "grammar '{}' in {source} draws from no parts, so a collapse under it can only \
+             ever produce its own seeded keel",
+            grammar.id
+        ));
+    }
+    for part in &grammar.parts {
+        if !(part.weight.is_finite() && part.weight > 0.0) {
+            error(format!(
+                "grammar '{}' in {source} gives part '{}' weight {}, which is never drawn - \
+                 leave the part out instead",
+                grammar.id, part.prototype, part.weight
+            ));
+        }
+    }
+
+    // Three cells is the floor the SKIN sets: a plate is a flat run only where
+    // it has neighbours on all four sides, so a surface narrower than this has
+    // no interior and the hull comes out all rim.
+    let grid = grammar.grid;
+    for (axis, cells) in [
+        ("half_width", grid.half_width),
+        ("height", grid.height),
+        ("length", grid.length),
+    ] {
+        if cells < 3 {
+            error(format!(
+                "grammar '{}' in {source} is {cells} cell(s) in {axis}; a hull needs at least \
+                 3 there or its skin is all rim and no interior",
+                grammar.id
+            ));
+        }
+    }
+    // The stern seed stands a drive one cell off the centreline, on a deck
+    // beside the last keel cell, and the keel stops one cell short of the
+    // transom to leave that seam cell free.
+    if grid.half_width >= 3 && grid.length < 3 {
+        error(format!(
+            "grammar '{}' in {source} is too short for its own stern seed",
+            grammar.id
+        ));
+    }
+
+    for (field, value) in [
+        ("base", grammar.vacuum.base),
+        ("taper", grammar.vacuum.taper),
+        ("stern", grammar.vacuum.stern),
+        ("bow_taper", grammar.vacuum.bow_taper),
+    ] {
+        if !value.is_finite() || value < 0.0 {
+            error(format!(
+                "grammar '{}' in {source} prices vacuum.{field} at {value}; a vacuum weight is \
+                 a non-negative number",
+                grammar.id
+            ));
+        }
+    }
+    if grammar.vacuum.base <= 0.0 {
+        error(format!(
+            "grammar '{}' in {source} prices vacuum.base at 0, so the collapse can never leave \
+             a cell empty and every hull is a solid block",
+            grammar.id
+        ));
+    }
+
     issues
 }
 

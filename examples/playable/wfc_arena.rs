@@ -143,9 +143,11 @@ mod lobby;
 mod pause;
 #[path = "wfc_arena/result.rs"]
 mod result;
-#[path = "shared/wfc.rs"]
-mod wfc;
-use wfc::{refuse_broken_ships, style_at, tile_set, wfc_hull, StyleId};
+// The generator is `nova_wfc`, base-game code the editor's Generate verb draws
+// from too. What stays HERE is the arena's own post-collapse stamps.
+#[path = "wfc_arena/stamps.rs"]
+mod stamps;
+use nova_wfc::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "wfc_arena")]
@@ -345,7 +347,7 @@ const SERPENT_BAY: &str = "torpedo_section";
 const LANCE_BAY: &str = "lance_torpedo_section";
 const KINETIC_MOUNT: &str = "pdc_kinetic_turret_section";
 const PIERCE_MOUNT: &str = "pdc_pierce_turret_section";
-/// The bow gun [`wfc::stamp_spinal_lance`] bolts on. Aliased rather than
+/// The bow gun every arena hull is seeded with. Aliased rather than
 /// spelled out: the stamp and the keybind have to name the same section.
 const SPINAL_LANCE: &str = RAILGUN_LANCE_SECTION_ID;
 
@@ -825,16 +827,29 @@ fn load_lances(hull: &mut ShipHull, seed: u64) {
     }
 }
 
+/// The arena's tile set: the shipped grammar read against the merged catalog.
+///
+/// Built where it is needed rather than held in a resource, because the lobby
+/// rebuilds one per reroll and the arena one per match - both are one-shot, and
+/// a stale set is worse than a rebuilt one.
+fn arena_tiles(sections: &GameSections, grammars: &GameGrammars) -> TileSet {
+    let mut grammar = grammars
+        .get_grammar(STANDARD_HULL_GRAMMAR_ID)
+        .unwrap_or_else(|| panic!("wfc_arena: no ship grammar '{STANDARD_HULL_GRAMMAR_ID}'"))
+        .clone();
+    // The whole point of the arena: a spinal weapon benched on hulls nobody
+    // designed around one. The base warship seats no lance, so this one names
+    // it as its bow gun and the collapse seeds the pair itself.
+    grammar.keel.bow_gun = Some(SPINAL_LANCE.to_string());
+    TileSet::build(sections, &grammar).unwrap_or_else(|error| panic!("wfc_arena: {error}"))
+}
+
 /// Collapse one hull for a roster slot and load its tubes.
-fn combat_hull(
-    tiles: &[wfc::Tile],
-    seed: u64,
-    style: StyleId,
-    sections: &GameSections,
-) -> ShipHull {
-    let mut hull = wfc_hull(tiles, seed, true, style);
-    wfc::stamp_large_drives(&mut hull, seed, sections);
-    wfc::stamp_spinal_lance(&mut hull, sections);
+fn combat_hull(tiles: &TileSet, seed: u64, style: StyleId, sections: &GameSections) -> ShipHull {
+    let mut hull = tiles
+        .hull(seed, true, style)
+        .unwrap_or_else(|error| panic!("wfc_arena: {error}"));
+    stamps::stamp_large_drives(&mut hull, seed, sections);
     load_lances(&mut hull, seed);
     hull
 }
@@ -846,7 +861,7 @@ fn combat_hull(
 /// the same ships - and skipped seeds are logged with the armament that
 /// disqualified them.
 fn draft_roster(
-    tiles: &[wfc::Tile],
+    tiles: &TileSet,
     ships: &[ShipSpec],
     looks: &[StyleId],
     from: u64,
@@ -1387,10 +1402,11 @@ fn ship_style<'a>(styles: &'a GameStyles, ship: &ShipSpec, run: StyleId<'a>) -> 
 fn arena(
     game_assets: &GameAssets,
     sections: &GameSections,
+    grammars: &GameGrammars,
     styles: &GameStyles,
     roster: &mut Roster,
 ) -> ScenarioConfig {
-    let tiles = tile_set(sections);
+    let tiles = arena_tiles(sections, grammars);
     let run_style = style_at(styles, roster.style);
     let looks: Vec<StyleId> = roster
         .ships
@@ -1466,6 +1482,20 @@ fn arena(
     };
     refuse_broken_ships(&scenario, sections);
     scenario
+}
+
+/// Run the arena through the game's OWN content gate before it is fought over.
+///
+/// Nothing here re-implements a check: `lint_errors` runs `lint_scenario`, the
+/// same function the `content lint` gate and the runtime loader run, so a
+/// clean arena is one the game would accept.
+fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
+    let errors = lint_errors(scenario, sections);
+    assert!(
+        errors.is_empty(),
+        "wfc_arena: the collapse produced content the game would refuse:\n  {}",
+        errors.join("\n  ")
+    );
 }
 
 /// What one team has actually put in the air, keyed by projectile-carried
@@ -2345,23 +2375,32 @@ fn arena_script(
 mod binding_tests {
     use super::*;
 
+    /// The shipped catalog and the ARENA's own grammar read against each
+    /// other, out of the builders rather than off disk. The arena's, not the
+    /// shipped one, because the lance these tests bind is a role the arena
+    /// seats and the base warship does not.
+    fn catalog_tiles() -> (GameSections, TileSet) {
+        let sections = GameSections(nova_authoring::generation::build_section_catalog());
+        let grammars = GameGrammars(nova_authoring::generation::build_grammars());
+        let tiles = arena_tiles(&sections, &grammars);
+        (sections, tiles)
+    }
+
     /// A bound weapon that the flight rig ALSO answers double-drives the ship:
     /// both rigs run with `consume_input: false`, so one press would fire the
     /// gun and fly the hull. This is the guard the doc on [`player_bindings`]
     /// promises, over every gun the arena hands a player.
     #[test]
     fn no_arena_weapon_binding_lands_on_a_key_the_flight_rig_spends() {
-        let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let tiles = wfc::tile_set(&sections);
+        let (sections, tiles) = catalog_tiles();
         let reserved: Vec<InputSource> = flight_rig_reserved_sources()
             .into_iter()
             .map(|(source, _)| source)
             .collect();
 
         for seed in 0..6u64 {
-            let mut hull = wfc_hull(&tiles, seed, true, None);
-            wfc::stamp_large_drives(&mut hull, seed, &sections);
-            wfc::stamp_spinal_lance(&mut hull, &sections);
+            let mut hull = tiles.hull(seed, true, None).expect("the seed collapses");
+            stamps::stamp_large_drives(&mut hull, seed, &sections);
             for (id, sources) in player_bindings(&hull, 0, &BTreeMap::new()) {
                 for source in sources {
                     assert!(
@@ -2379,13 +2418,15 @@ mod binding_tests {
     /// a trigger with guns a pilot holds down.
     #[test]
     fn the_bow_lance_gets_its_own_key_and_not_the_turrets_button() {
-        let sections = GameSections(nova_authoring::generation::build_section_catalog());
-        let mut hull = ShipHull::default();
-        wfc::stamp_spinal_lance(&mut hull, &sections);
+        let (_, tiles) = catalog_tiles();
+        let hull = tiles.hull(0, false, None).expect("the seed collapses");
         let lance = hull
             .sections
-            .last()
-            .expect("the stamp pushed one")
+            .iter()
+            .find(|section| {
+                matches!(&section.source, SectionSource::Prototype(id) if id == SPINAL_LANCE)
+            })
+            .expect("every arena hull is seeded with one")
             .id
             .clone();
 

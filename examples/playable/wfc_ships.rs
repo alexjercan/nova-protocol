@@ -89,12 +89,10 @@ use clap::Parser;
 // in EVERY build.
 use nova_debug::prelude::capturing;
 use nova_protocol::prelude::*;
-
 // The generator itself, shared with `wfc_arena` (which flies two of these
-// hulls against each other instead of posing a row).
-#[path = "shared/wfc.rs"]
-mod wfc;
-use wfc::{refuse_broken_ships, style_at, tile_set, wfc_hull, StyleId};
+// hulls against each other instead of posing a row) and with the editor's own
+// Generate verb.
+use nova_wfc::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "wfc_ships")]
@@ -308,6 +306,7 @@ fn load_row(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
@@ -324,6 +323,7 @@ fn load_row(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
+        &grammars,
         *roster,
         style,
     )));
@@ -340,6 +340,7 @@ fn reroll_on_key(
     keyboard: Res<ButtonInput<KeyCode>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     mut roster: ResMut<Roster>,
 ) {
@@ -359,6 +360,7 @@ fn reroll_on_key(
     commands.trigger(LoadScenario(wfc_row(
         &game_assets,
         &sections,
+        &grammars,
         *roster,
         style,
     )));
@@ -384,10 +386,12 @@ fn stand_position(index: usize, ships: usize) -> Vec3 {
 fn wfc_row(
     game_assets: &GameAssets,
     sections: &GameSections,
+    grammars: &GameGrammars,
     roster: Roster,
     style: StyleId,
 ) -> ScenarioConfig {
-    let tiles = tile_set(sections);
+    let tiles = TileSet::from_catalog(sections, grammars, STANDARD_HULL_GRAMMAR_ID)
+        .unwrap_or_else(|error| panic!("wfc_ships: {error}"));
     let ships = (0..roster.ships).map(|index| {
         let seed = roster.seed.wrapping_add(index as u64);
         EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
@@ -402,7 +406,11 @@ fn wfc_row(
                 // Scenery: these are subjects, not craft. Nothing flies them
                 // and nothing shoots them - `wfc_arena` is where they fight.
                 controller: SpaceshipController::None,
-                hull: ShipSource::Inline(wfc_hull(&tiles, seed, roster.clad, style)),
+                hull: ShipSource::Inline(
+                    tiles
+                        .hull(seed, roster.clad, style)
+                        .unwrap_or_else(|error| panic!("wfc_ships: {error}")),
+                ),
                 ..default()
             }),
         })
@@ -427,6 +435,33 @@ fn wfc_row(
     };
     refuse_broken_ships(&scenario, sections);
     scenario
+}
+
+/// Run the row through the game's OWN content gate before posing it.
+///
+/// This is the claim the generator actually makes: not "the tiles fit" but
+/// "what came out is a ship the game would accept". Nothing here re-implements
+/// those checks - `lint_errors` runs `lint_scenario`, the same function the
+/// `content lint` gate and the runtime loader run.
+fn refuse_broken_ships(scenario: &ScenarioConfig, sections: &GameSections) {
+    let errors = lint_errors(scenario, sections);
+    assert!(
+        errors.is_empty(),
+        "wfc_ships: the collapse produced content the game would refuse:\n  {}",
+        errors.join("\n  ")
+    );
+    info!(
+        "wfc_ships: {} ship(s) lint clean",
+        scenario.events[0]
+            .actions
+            .iter()
+            .filter(|action| matches!(
+                action,
+                EventActionConfig::SpawnScenarioObject(object)
+                    if matches!(object.kind, ScenarioObjectKind::Spaceship(_))
+            ))
+            .count()
+    );
 }
 
 /// What the camera aims at: the middle of the stand.
@@ -693,6 +728,7 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .on_enter(|world: &mut World| {
             let assets = world.resource::<GameAssets>().clone();
             let sections = world.resource::<GameSections>().clone();
+            let grammars = world.resource::<GameGrammars>().clone();
             let styles = world.resource::<GameStyles>().clone();
             let next = Roster {
                 clad: false,
@@ -700,7 +736,9 @@ fn wfc_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             };
             *world.resource_mut::<Roster>() = next;
             let style = style_at(&styles, next.style);
-            world.trigger(LoadScenario(wfc_row(&assets, &sections, next, style)));
+            world.trigger(LoadScenario(wfc_row(
+                &assets, &sections, &grammars, next, style,
+            )));
         })
         .until(and(scenario_camera_present(), frames(SETTLE_FRAMES)))
         .deadline(STEP_DEADLINE_SECS)

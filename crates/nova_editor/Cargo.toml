@@ -23,6 +23,9 @@ nova_gameplay = { path = "../nova_gameplay" }
 nova_modding = { path = "../nova_modding" }
 nova_ship = { path = "../nova_ship" }
 nova_scenario = { path = "../nova_scenario" }
+# The Generate verb: a seed and the merged catalog in, a hull out. The editor
+# owns the seed and the refusal; the collapse itself belongs to that crate.
+nova_wfc = { path = "../nova_wfc" }
 nova_ui = { path = "../nova_ui" }
 # The quantity types: what the inspector labels a row's unit from, and what the
 # range lowers its layout into. Also the engine half of the objective-set proof:
@@ -34,3 +37,9 @@ workspace = true
 
 [features]
 debug = ["bevy/track_location", "nova_gameplay/debug"]
+
+[dev-dependencies]
+# The Generate tests read the SHIPPED catalog, grammar and styles out of the
+# builders rather than off disk, so they fail on a content change rather than
+# on a missing asset server.
+nova_authoring = { path = "../nova_authoring" }

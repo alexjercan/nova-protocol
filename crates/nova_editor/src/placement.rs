@@ -155,37 +155,40 @@ impl HeldBind<'_, '_> {
     }
 }
 
-/// The bindings a section of this kind takes when placed. Hull and controller
-/// sections are not bindable and take none.
+/// The desk and pad button a section of this kind answers to before anybody
+/// rebinds it. Hull and controller sections are not bindable and take none.
+///
+/// One weapon, one button. The three guns used to share LMB between the PDC
+/// and the tubes, which meant a ship with both spent a torpedo on every burst
+/// fired at a fighter - and a lance commit cannot be aborted, so the same
+/// sharing on a railgun is worse. These are the keys the flight HUD names and
+/// the ones a generated ship comes out already wearing, so a hull nobody drew
+/// can be flown the moment it is made the player's.
+pub(crate) fn default_binds(kind: &SectionKind) -> Vec<InputSource> {
+    match kind {
+        SectionKind::Hull(_) | SectionKind::Controller(_) => vec![],
+        SectionKind::Thruster(_) => vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
+        SectionKind::Turret(_) => vec![
+            MouseButton::Left.into(),
+            GamepadButton::RightTrigger2.into(),
+        ],
+        SectionKind::Torpedo(_) => vec![KeyCode::KeyF.into(), GamepadButton::LeftTrigger2.into()],
+        SectionKind::Railgun(_) => vec![KeyCode::KeyR.into(), GamepadButton::RightThumb.into()],
+    }
+}
+
+/// The bindings a section of this kind takes when PLACED: [`default_binds`],
+/// with whatever the builder was holding as they clicked taking the desk half.
 fn default_binds_for(
     kind: &SectionKind,
     keyboard: Option<&ButtonInput<KeyCode>>,
     pad_held: Option<GamepadButton>,
 ) -> Vec<InputSource> {
-    match kind {
-        SectionKind::Hull(_) | SectionKind::Controller(_) => vec![],
-        SectionKind::Thruster(_) => placement_binds(
-            keyboard,
-            pad_held,
-            KeyCode::Space.into(),
-            GamepadButton::RightTrigger.into(),
-        ),
-        SectionKind::Turret(_) | SectionKind::Torpedo(_) => placement_binds(
-            keyboard,
-            pad_held,
-            MouseButton::Left.into(),
-            GamepadButton::RightTrigger2.into(),
-        ),
-        // Not the trigger the other guns take. A lance commit cannot be
-        // aborted, so sharing a button with the PDC would mean every burst
-        // fired against a fighter also spent the spinal shell.
-        SectionKind::Railgun(_) => placement_binds(
-            keyboard,
-            pad_held,
-            MouseButton::Middle.into(),
-            GamepadButton::RightThumb.into(),
-        ),
-    }
+    let mut binds = default_binds(kind).into_iter();
+    let (Some(default_key), Some(default_pad)) = (binds.next(), binds.next()) else {
+        return vec![];
+    };
+    placement_binds(keyboard, pad_held, default_key, default_pad)
 }
 
 /// Add a BLANK ship to the document and go inside it - the scenario context's
@@ -224,8 +227,11 @@ pub(crate) fn create_blank_ship(
     } else {
         ShipDriver::Player
     };
-    if spawn_ship_node(&mut commands, &mut ordinals, &mut context, ships, driver).is_none() {
-        says.refuse("there is no scenario to add a ship to");
+    // Entered, because a blank ship is not a ship yet: the founding click is
+    // the next thing the builder does and it happens INSIDE.
+    match spawn_ship_node(&mut commands, &mut ordinals, &context, ships, driver) {
+        Some(ship) => context.enter(ship),
+        None => says.refuse("there is no scenario to add a ship to"),
     }
 }
 
@@ -2081,6 +2087,57 @@ mod tests {
                 InputSource::from(GamepadButton::RightTrigger2)
             ],
             "W drives the camera, so the turret keeps its defaults on both devices"
+        );
+    }
+
+    /// One weapon, one button. The tubes used to answer to the PDC's LMB, so
+    /// a ship carrying both spent a torpedo on every burst fired at a fighter,
+    /// and the lance shared a stick with nothing a pilot could name.
+    #[test]
+    fn each_kind_of_weapon_answers_to_a_button_of_its_own() {
+        let bound = |kind: &SectionKind| {
+            default_binds(kind)
+                .iter()
+                .map(InputSource::label)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            bound(&SectionKind::Thruster(ThrusterSectionConfig::default()))[0],
+            "Space"
+        );
+        assert_eq!(
+            bound(&SectionKind::Turret(TurretSectionConfig::default()))[0],
+            "LMB"
+        );
+        assert_eq!(
+            bound(&SectionKind::Torpedo(TorpedoSectionConfig::default()))[0],
+            "F"
+        );
+        assert_eq!(
+            bound(&SectionKind::Railgun(RailgunSectionConfig::default()))[0],
+            "R"
+        );
+
+        let desk: Vec<String> = [
+            SectionKind::Thruster(ThrusterSectionConfig::default()),
+            SectionKind::Turret(TurretSectionConfig::default()),
+            SectionKind::Torpedo(TorpedoSectionConfig::default()),
+            SectionKind::Railgun(RailgunSectionConfig::default()),
+        ]
+        .iter()
+        .flat_map(|kind| default_binds(kind))
+        .map(|source| source.label())
+        .collect();
+        let unique: std::collections::HashSet<&String> = desk.iter().collect();
+        assert_eq!(
+            unique.len(),
+            desk.len(),
+            "no two kinds may share a button on either device: {desk:?}"
+        );
+
+        assert!(
+            default_binds(&SectionKind::Hull(HullSectionConfig::default())).is_empty(),
+            "hull is not a thing a pilot presses"
         );
     }
 }

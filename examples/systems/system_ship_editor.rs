@@ -1142,12 +1142,17 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // the gallery covers the whole screen, so a refusal could not have been
         // shown even if one had been written. This used to write no file and
         // say nothing.
+        //
+        // It is also the walk's FIRST save, so what it raises is the name
+        // window: a document nothing has named yet saves AS. The window stands
+        // on the rung above the gallery, which is what makes an unnamed save
+        // answerable from under one at all.
         .step("editor: save from under the gallery")
         .on_enter(|world: &mut World| {
             press_key(KeyCode::ControlLeft)(world);
             press_key(KeyCode::KeyS)(world);
         })
-        .until(the_status_reads("saved"))
+        .until(a_file_window_is_up())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: let the save chord go")
@@ -1156,27 +1161,28 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             release_key(KeyCode::ControlLeft)(world);
         })
         .add()
-        .step("editor: the gallery is still up over the save")
+        .click_a_widget("editor: accept the offered name", "File Save Button")
+        .step("editor: the named save reported itself")
+        .until(the_status_reads("saved"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // The gallery stood down for the name field. It is a MODE - the whole
+        // editor chrome, the window layer with it, is hidden while it is up -
+        // so a window raised under one would be a window nobody could answer.
+        // The gallery is one Tab away again; the save is not.
+        .step("editor: naming a file took the gallery down")
         .on_enter(|world: &mut World| {
             assert!(
-                editor_gallery_open()(world),
-                "the save must not have closed the surface it was pressed under"
+                editor_gallery_closed()(world),
+                "the name field needs the screen the gallery was covering"
             );
             nova_probe::probe_marker(
                 world,
                 "outcome: Ctrl+S answers under the parts gallery",
                 serde_json::json!({}),
             );
-            info!("editor: Ctrl+S under the gallery wrote the document");
+            info!("editor: Ctrl+S under the gallery named and wrote the document");
         })
-        .add()
-        .step("editor: close the gallery")
-        .on_enter(press_key(KeyCode::Escape))
-        .until(editor_gallery_closed())
-        .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        .step("editor: release Escape")
-        .on_enter(release_key(KeyCode::Escape))
         .add()
         // Two ships in one session, which is the whole reason the editor keeps
         // a document rather than a build state. The run leaves the ship it
@@ -2230,6 +2236,23 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_status_reads("saved"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // A document that already has a file does NOT ask again: the name
+        // window is for naming one, and a Save that stopped to ask every time
+        // would be a Save As with a shortcut.
+        .step("editor: a document with a file saves without asking")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "File Window").is_none(),
+                "a second save must go straight to the file the first one named"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: a named document saves without asking again",
+                serde_json::json!({}),
+            );
+            info!("editor: the second save went straight to its file");
+        })
+        .add()
         // The complaint this answers: a range saved here did not appear in the
         // Scenarios list until the game was quit and started again, because
         // content is merged once at boot. The save no longer reloads - a
@@ -2239,9 +2262,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // is the first moment the Scenarios picker is reachable at all.
         //
         // Only the enabled set is asserted here. Whether the registry holds the
-        // id yet depends on the machine: a mod cache that already names
-        // `editor_save` merges the PREVIOUS bytes the moment it is switched on,
-        // and a cache that has never seen it has nothing to merge.
+        // id yet depends on the machine: a mod cache that already names the
+        // slot merges the PREVIOUS bytes the moment it is switched on, and a
+        // cache that has never seen it has nothing to merge.
         .step("editor: the save switched its own mod on")
         .on_enter(|world: &mut World| {
             let enabled = world.resource::<EnabledMods>();
@@ -2287,13 +2310,16 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: New Scenario asked before throwing the document away");
         })
         .add()
-        .click_a_widget("editor: confirm the discard", "Confirm Discard Button")
+        .click_a_widget("editor: found the new one on the stock range", "Template Free-Flight Range")
         .step("editor: the built document is gone")
         .until(no_object_named("ship_2"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .click_a_menu_item("editor: open the saved document", MENU_FILE, "Open Item")
-        .click_a_widget("editor: confirm the open", "Confirm Discard Button")
+        .click_a_widget(
+            "editor: pick the range that was just saved",
+            SAVED_RANGE_ROW,
+        )
         .step("editor: the saved document came back")
         .until(the_status_reads("opened"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -2425,6 +2451,144 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 serde_json::json!({}),
             );
             info!("editor: the flown ship came up in {plates} plates");
+        })
+        .add()
+        // A SECOND document, founded on the OTHER template and saved under a
+        // name of its own. Everything above walks the stock range in the one
+        // file the first save named; this proves the two halves that only a
+        // second document can show - that a template other than the default
+        // founds a whole scenario, and that naming a second range writes a
+        // second bundle instead of replacing the first.
+        .step("editor: leave the flight for the editor")
+        .on_enter(press_key(KeyCode::F1))
+        .until(ui_node_present("File Menu Button"))
+        .deadline(PLAY_DEADLINE_SECS)
+        .add()
+        .step("editor: let the flight key go")
+        .on_enter(release_key(KeyCode::F1))
+        .add()
+        .click_a_menu_item("editor: new scenario again", MENU_FILE, "New Scenario Item")
+        .click_a_widget("editor: found it on the arena", "Template Duelling Arena")
+        .step("editor: the arena founded a whole scenario")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the arena brought its own objects")
+        .on_enter(|world: &mut World| {
+            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
+            for wanted in ["arena_key", "arena_rim", "arena_fill", "arena_planetoid"] {
+                assert!(
+                    nodes.iter().any(|node| node == wanted),
+                    "the arena template owes the document `{wanted}`, and gave {nodes:?}"
+                );
+            }
+            info!("editor: the arena template founded {} node(s)", nodes.len());
+        })
+        .add()
+        // Generate is a SHIP verb: what it rolls IS the hull, so the run adds
+        // a ship and goes inside before pressing it. The generator running on
+        // a document it did not found is the point of the beat - a template is
+        // a starting scenario, not a mode.
+        .click_a_menu_item(
+            "editor: add a ship to generate into",
+            ADD_MENU,
+            "Add Ship Button",
+        )
+        .step("editor: the ship to generate into is up and entered")
+        .until(inside_a_ship_of(0))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Ticking a spinal gun is how a builder says the ship has one: the
+        // block DERIVES the seeded roles from the ticks, so nothing else is
+        // pressed and the HULL PLAN line is what says it was heard. Activated
+        // through the row's own observer rather than aimed at, because the
+        // draw list is as long as the catalog and this row is below the fold.
+        .step("editor: tick the lance and read the hull plan")
+        .on_enter(|world: &mut World| {
+            let row = named_entity(world, "Part: railgun_lance_section")
+                .expect("the lance has a row: every catalog section does");
+            world.trigger(bevy::ui_widgets::Activate { entity: row });
+        })
+        .until(the_hull_plan_names("Railgun Lance"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_widget("editor: generate a hull into it", "Generate Button")
+        .step("editor: the generated hull landed in the ship")
+        .until(inside_a_ship_of_at_least(2))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: report what the collapse laid")
+        .on_enter(|world: &mut World| {
+            let probe = world.resource::<EditorProbe>();
+            info!(
+                "editor: generated {} section(s) into the ship: {:?}",
+                probe.ship.len(),
+                probe.status
+            );
+        })
+        .add()
+        // A generated ship is one you can FLY. Every part the collapse laid
+        // that answers to a button came out wearing the key its kind takes, so
+        // making the hull the player's is the only step left - which is what
+        // the chips over the parts are showing.
+        .step("editor: the generated battery came out bound")
+        .on_enter(|world: &mut World| {
+            let chips = keybind_chips(world);
+            // The DRIVE is the one part every hull has: the collapse seeds it
+            // onto the transom. What else the roll laid is the roll's business,
+            // so the rest of the claim is that whatever it laid took a key of
+            // its own kind and nothing invented one.
+            assert!(
+                chips.iter().any(|chip| chip == "Space"),
+                "every hull is seeded a drive, and no chip on this one thrusts: {chips:?}"
+            );
+            // The lance was ticked, so it was seeded on the bow - the one
+            // other part this hull is owed.
+            assert!(
+                chips.iter().any(|chip| chip == "R"),
+                "the lance was ticked, so the nose carries one and it answers R: {chips:?}"
+            );
+            for chip in chips.iter().filter(|chip| !chip.is_empty()) {
+                assert!(
+                    ["Space", "LMB", "F", "R"].contains(&chip.as_str()),
+                    "`{chip}` is not a key any section kind takes"
+                );
+            }
+            nova_probe::probe_marker(
+                world,
+                "outcome: a generated hull comes out bound",
+                serde_json::json!({}),
+            );
+            info!("editor: the generated hull raised {} keybind chip(s)", chips.len());
+        })
+        .add()
+        .click_a_menu_item("editor: save the arena as", MENU_FILE, "Save As... Item")
+        .step("editor: the name window is up for the arena")
+        .until(a_file_window_is_up())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .click_a_widget("editor: accept the arena's own name", "File Save Button")
+        .step("editor: the arena saved under its own name")
+        .until(the_status_reads("saved as Arena"))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Two files, not one slot written twice. New Scenario forgot the first
+        // one, so this save had to ask for a name and derive a new id from it.
+        .step("editor: the second save is a second bundle")
+        .on_enter(|world: &mut World| {
+            let enabled = world.resource::<EnabledMods>().0.clone();
+            for wanted in [SAVED_RANGE_ID, "editor_arena"] {
+                assert!(
+                    enabled.contains(wanted),
+                    "both saves owe the run a mod, and it holds {enabled:?}"
+                );
+            }
+            nova_probe::probe_marker(
+                world,
+                "outcome: a named save writes a bundle of its own",
+                serde_json::json!({}),
+            );
+            info!("editor: the run left two saved ranges: {enabled:?}");
         })
         .add()
 }
@@ -2852,6 +3016,12 @@ fn an_object_was_placed(stem: &'static str) -> Wait {
 ///
 /// A menu is what Escape's first rung is spent on, so a beat that opened one
 /// has to be able to see it closed before the next gesture is aimed anywhere.
+/// Advance once the Save As / Open window is standing.
+#[cfg(feature = "debug")]
+fn a_file_window_is_up() -> Wait {
+    std::sync::Arc::new(|world: &World| ui_node_rect(world, "File Window").is_some())
+}
+
 #[cfg(feature = "debug")]
 fn no_menu_is_open() -> Wait {
     std::sync::Arc::new(|world: &World| world.resource::<EditorProbe>().open_menu.is_empty())
@@ -2989,6 +3159,45 @@ fn a_section_awaits_its_key() -> Wait {
             .is_some_and(|mut chips| {
                 chips.iter(world).any(|(name, text)| {
                     name.as_str() == "Section Keybind Label" && text.0 == "press key"
+                })
+            })
+    })
+}
+
+/// Advance once the ship being edited holds at least `count` sections.
+#[cfg(feature = "debug")]
+fn inside_a_ship_of_at_least(count: usize) -> Wait {
+    std::sync::Arc::new(move |world: &World| world.resource::<EditorProbe>().ship.len() >= count)
+}
+
+/// Every keybind chip on screen, by the key it names.
+///
+/// The chips are the only outward sign of what a section is bound to - the
+/// document's own `binds` are crate-private - so this is what a driven run
+/// reads to prove a hull nobody drew came out flyable.
+#[cfg(feature = "debug")]
+fn keybind_chips(world: &World) -> Vec<String> {
+    world
+        .try_query::<(&Name, &Text)>()
+        .map(|mut chips| {
+            chips
+                .iter(world)
+                .filter(|(name, _)| name.as_str() == "Section Keybind Label")
+                .map(|(_, text)| text.0.clone())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Advance once the Generate block's HULL PLAN line names `wanted` in a role.
+#[cfg(feature = "debug")]
+fn the_hull_plan_names(wanted: &'static str) -> Wait {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .try_query::<(&Name, &Text)>()
+            .is_some_and(|mut lines| {
+                lines.iter(world).any(|(name, text)| {
+                    name.as_str() == "Hull Plan Line" && text.0.contains(wanted)
                 })
             })
     })
@@ -3235,9 +3444,14 @@ fn inspector_labels(world: &World) -> Vec<String> {
         .collect()
 }
 
-/// The scenario id the editor's save writes its range under.
+/// The scenario id the editor's save writes its range under: derived from the
+/// stock range's own name, which is what the offered name field holds.
 #[cfg(feature = "debug")]
-const SAVED_RANGE_ID: &str = "editor_save";
+const SAVED_RANGE_ID: &str = "editor_saved_range";
+
+/// The row that range is offered on in the Open window.
+#[cfg(feature = "debug")]
+const SAVED_RANGE_ROW: &str = "Bundle Row editor_saved_range";
 
 /// What the Scene rows READ as, in draw order - the label column only.
 #[cfg(feature = "debug")]

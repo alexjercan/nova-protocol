@@ -6,10 +6,11 @@
 
 use nova_gameplay::prelude::ImpactSoundConfig;
 use nova_scenario::prelude::{CampaignConfig, ScenarioConfig, ShipConfig};
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
 pub(crate) mod assets;
 pub(crate) mod campaigns;
+pub(crate) mod grammars;
 pub(crate) mod impacts;
 pub(crate) mod scenarios;
 pub(crate) mod sections;
@@ -26,6 +27,7 @@ pub(crate) struct BaseContent {
     pub(crate) campaigns: Vec<CampaignConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
     pub(crate) impacts: Vec<ImpactSoundConfig>,
+    pub(crate) grammars: Vec<ShipGrammarConfig>,
 }
 
 /// Build every built-in content family from one explicit asset inventory.
@@ -38,5 +40,6 @@ pub(crate) fn build() -> BaseContent {
         campaigns: campaigns::catalog(),
         styles: styles::style_catalog(&assets),
         impacts: impacts::impact_table(&assets),
+        grammars: grammars::grammar_catalog(),
     }
 }

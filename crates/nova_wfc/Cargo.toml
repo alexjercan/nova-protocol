@@ -1,0 +1,33 @@
+[package]
+name = "nova_wfc"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "Wave-function-collapse ship generation for Nova Protocol"
+
+[dependencies]
+# Math and logging only: this crate builds no App and owns no systems. It is a
+# function from a catalog and a grammar to a hull, called by the editor, by the
+# examples, and by anything else that wants a ship nobody drew.
+bevy = { version = "0.19.0" }
+rand = { version = "0.10.2" }
+# The vocabulary the collapse reads and writes: sections and their link points,
+# the clearance rule, the skin's structure view, and the authored grammar.
+nova_ship = { path = "../nova_ship" }
+# A hull is a `ShipHull` of `SpaceshipSectionConfig`s - the same thing an
+# authored ship carries, so what comes out is content and not a special case.
+nova_scenario = { path = "../nova_scenario" }
+# `AssetRef` and `Meters3`: the two fields the throwaway scenario `hull_errors`
+# wraps a hull in cannot be defaulted. Nothing else here reaches for either.
+nova_gameplay = { path = "../nova_gameplay" }
+nova_events = { path = "../nova_events" }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# The tests read the SHIPPED catalog and the SHIPPED grammar out of the
+# builders rather than off disk, so a change to either is caught here before it
+# is caught by a screenshot.
+nova_authoring = { path = "../nova_authoring" }

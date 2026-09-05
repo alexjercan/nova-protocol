@@ -648,6 +648,7 @@ fn on_result_action(
     mut physics_time: ResMut<Time<Physics>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     skin: Res<UiSkin>,
     model: Option<Res<lobby::LobbyModel>>,
@@ -665,6 +666,7 @@ fn on_result_action(
             commands.trigger(LoadScenario(arena(
                 &game_assets,
                 &sections,
+                &grammars,
                 &styles,
                 &mut roster,
             )));

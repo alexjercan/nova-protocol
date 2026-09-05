@@ -230,6 +230,7 @@ pub fn register_bundles(
                         Content::Style(cfg) => cfg.id.clone(),
                         Content::Ship(cfg) => cfg.id.clone(),
                         Content::Impact(cfg) => cfg.id.clone(),
+                        Content::Grammar(cfg) => cfg.id.clone(),
                     };
                     undeclared_ref_issues.push((id, message));
                 }
@@ -369,6 +370,7 @@ pub fn register_bundles(
     commands.insert_resource(GameStyles(outcome.styles));
     commands.insert_resource(GameImpacts(outcome.impacts));
     commands.insert_resource(GameShips(outcome.ships));
+    commands.insert_resource(GameGrammars(outcome.grammars));
 }
 
 /// The result of merging an ordered list of bundles: the id-keyed registries plus
@@ -391,6 +393,9 @@ pub struct MergeOutcome {
     /// mod re-voices one (damage type, material) pair by declaring that row's
     /// id and nothing else.
     pub impacts: Vec<ImpactSoundConfig>,
+    /// Ship grammars in registration order, overlaid last-wins by id - so a
+    /// mod retunes the generator by declaring the base grammar's id.
+    pub grammars: Vec<ShipGrammarConfig>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -421,6 +426,7 @@ where
     let mut styles: Vec<ShipStyleConfig> = Vec::new();
     let mut ships: Vec<ShipConfig> = Vec::new();
     let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
+    let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
     let mut conflicts: Vec<String> = Vec::new();
 
     for bundle in bundles {
@@ -432,6 +438,7 @@ where
         let mut seen_styles: HashSet<&str> = HashSet::new();
         let mut seen_ships: HashSet<&str> = HashSet::new();
         let mut seen_impacts: HashSet<&str> = HashSet::new();
+        let mut seen_grammars: HashSet<&str> = HashSet::new();
 
         for item in bundle {
             match item {
@@ -452,6 +459,7 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
                     );
                 }
                 Content::Scenario(cfg) => {
@@ -471,6 +479,7 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
                     );
                 }
                 Content::Campaign(cfg) => {
@@ -490,6 +499,7 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
                     );
                 }
                 Content::Style(cfg) => {
@@ -509,6 +519,7 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
                     );
                 }
                 Content::Ship(cfg) => {
@@ -528,6 +539,27 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
+                    );
+                }
+                Content::Grammar(cfg) => {
+                    if !seen_grammars.insert(cfg.id.as_str()) {
+                        conflicts.push(format!(
+                            "grammar id '{}' appears more than once in one bundle; \
+                             keeping the first, skipping the duplicate",
+                            cfg.id
+                        ));
+                        continue;
+                    }
+                    merge_content_item(
+                        item,
+                        &mut sections,
+                        &mut scenarios,
+                        &mut campaigns,
+                        &mut styles,
+                        &mut ships,
+                        &mut impacts,
+                        &mut grammars,
                     );
                 }
                 Content::Impact(cfg) => {
@@ -547,6 +579,7 @@ where
                         &mut styles,
                         &mut ships,
                         &mut impacts,
+                        &mut grammars,
                     );
                 }
             }
@@ -560,6 +593,7 @@ where
         styles,
         ships,
         impacts,
+        grammars,
         conflicts,
     }
 }
@@ -579,6 +613,7 @@ fn merge_content_item(
     styles: &mut Vec<ShipStyleConfig>,
     ships: &mut Vec<ShipConfig>,
     impacts: &mut Vec<ImpactSoundConfig>,
+    grammars: &mut Vec<ShipGrammarConfig>,
 ) {
     match item {
         Content::Section(cfg) => match sections.iter_mut().find(|s| s.base.id == cfg.base.id) {
@@ -611,6 +646,13 @@ fn merge_content_item(
         Content::Impact(cfg) => match impacts.iter_mut().find(|i| i.id == cfg.id) {
             Some(existing) => *existing = cfg.clone(),
             None => impacts.push(cfg.clone()),
+        },
+        // A Vec, ordered, for the styles' reason: a grammar catalog is what a
+        // generator picker lists, and overlaying in place keeps a mod's
+        // regrammar where the base one stood.
+        Content::Grammar(cfg) => match grammars.iter_mut().find(|g| g.id == cfg.id) {
+            Some(existing) => *existing = cfg.clone(),
+            None => grammars.push(cfg.clone()),
         },
     }
 }
@@ -646,6 +688,7 @@ mod tests {
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
         let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
         let mut ships: Vec<ShipConfig> = Vec::new();
+        let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
 
         // Base bundle: two sections in palette order.
         merge_content_item(
@@ -656,6 +699,7 @@ mod tests {
             &mut styles,
             &mut ships,
             &mut impacts,
+            &mut grammars,
         );
         merge_content_item(
             &Content::Section(Box::new(section("thruster", 50.0))),
@@ -665,6 +709,7 @@ mod tests {
             &mut styles,
             &mut ships,
             &mut impacts,
+            &mut grammars,
         );
 
         // Mod bundle: overlays "hull" with a new health, leaves "thruster".
@@ -676,6 +721,7 @@ mod tests {
             &mut styles,
             &mut ships,
             &mut impacts,
+            &mut grammars,
         );
 
         // No duplicate appended: still two sections, original order kept.
@@ -696,6 +742,7 @@ mod tests {
         let mut styles: Vec<ShipStyleConfig> = Vec::new();
         let mut impacts: Vec<ImpactSoundConfig> = Vec::new();
         let mut ships: Vec<ShipConfig> = Vec::new();
+        let mut grammars: Vec<ShipGrammarConfig> = Vec::new();
 
         let id = "shakedown_run".to_string();
         let base = ScenarioConfig::new(
@@ -714,6 +761,7 @@ mod tests {
             &mut styles,
             &mut ships,
             &mut impacts,
+            &mut grammars,
         );
         merge_content_item(
             &Content::Scenario(modded),
@@ -723,6 +771,7 @@ mod tests {
             &mut styles,
             &mut ships,
             &mut impacts,
+            &mut grammars,
         );
 
         assert_eq!(scenarios.len(), 1, "overlay must replace, not add");

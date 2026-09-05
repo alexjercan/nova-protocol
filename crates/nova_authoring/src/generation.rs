@@ -16,7 +16,7 @@ use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipConfig, ShipSource, SpaceshipConfig, SpaceshipSectionConfig,
 };
-use nova_ship::prelude::{SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{SectionConfig, ShipGrammarConfig, ShipStyleConfig};
 
 use crate::base_content;
 
@@ -25,10 +25,10 @@ use crate::base_content;
 /// parity test asserts.
 pub mod prelude {
     pub use super::{
-        build_campaign_contents, build_campaigns, build_impact_content, build_impacts,
-        build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
-        build_ship_content, build_ships, build_style_content, build_styles, content_files,
-        serialize_content, spawned_ship_sections,
+        build_campaign_contents, build_campaigns, build_grammar_content, build_grammars,
+        build_impact_content, build_impacts, build_scenario_contents, build_scenarios,
+        build_section_catalog, build_section_content, build_ship_content, build_ships,
+        build_style_content, build_styles, content_files, serialize_content, spawned_ship_sections,
     };
 }
 
@@ -62,6 +62,22 @@ pub fn build_campaigns() -> Vec<CampaignConfig> {
 /// cladding wears, named by id from its config.
 pub fn build_styles() -> Vec<ShipStyleConfig> {
     base_content::build().styles
+}
+
+/// The base game's ship grammars, in a stable order - the tables a procedural
+/// hull is drawn from.
+pub fn build_grammars() -> Vec<ShipGrammarConfig> {
+    base_content::build().grammars
+}
+
+/// The grammar catalog wrapped as one `Vec<Content>` of `Content::Grammar`
+/// items - the shape the committed `assets/base/grammars/base.content.ron`
+/// file carries.
+///
+/// ONE file for every grammar, like the styles: the set is short and one
+/// generator's taste is read against the others'.
+pub fn build_grammar_content() -> Vec<Content> {
+    build_grammars().into_iter().map(Content::Grammar).collect()
 }
 
 /// The base game's ships, in a stable order - the whole hulls the scenarios
@@ -183,6 +199,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/impacts/base.content.ron".to_string(),
             serialize_content(&build_impact_content()),
+        ),
+        (
+            "base/grammars/base.content.ron".to_string(),
+            serialize_content(&build_grammar_content()),
         ),
     ];
     files.extend(build_scenario_contents().into_iter().map(|(id, content)| {

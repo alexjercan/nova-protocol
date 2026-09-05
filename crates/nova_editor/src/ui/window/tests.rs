@@ -36,6 +36,8 @@ fn window_app() -> App {
     app.init_resource::<crate::config::EditorStatus>();
     // And the panel behind the window reads the View menu's toggles.
     app.init_resource::<crate::config::EditorOverlays>();
+    // File > New Scenario forgets which file the document was in.
+    app.init_resource::<crate::bundle::DocumentSlot>();
     app.init_resource::<Time>();
     app.add_message::<TextFieldSubmitted>();
     // The write-back announces a stale object body rather than leaning on
@@ -407,9 +409,11 @@ fn a_destructive_verb_asks_before_it_runs() {
 
     app.world_mut().trigger(Activate { entity: row });
     app.update();
-    let discard =
-        named(&mut app, "Confirm Discard Button").expect("the other answer is on the window");
-    app.world_mut().trigger(Activate { entity: discard });
+    // New Scenario has no single answer: the TEMPLATES are the answers, one
+    // button each, and pressing one both picks the world and goes through.
+    let template =
+        named(&mut app, "Template Duelling Arena").expect("the templates are on the window");
+    app.world_mut().trigger(Activate { entity: template });
     app.update();
     assert!(
         named(&mut app, "Confirm Window").is_none(),
@@ -419,6 +423,14 @@ fn a_destructive_verb_asks_before_it_runs() {
     assert!(
         now.is_some() && now != document,
         "the verb ran: the old root is gone and a fresh one stands in its place"
+    );
+    assert_eq!(
+        app.world()
+            .get::<crate::node::ScenarioNode>(now.expect("a document stands"))
+            .expect("the new root is a scenario node")
+            .name,
+        crate::template::ScenarioTemplate::Arena.settings().name,
+        "and it founded the world the row named"
     );
 }
 

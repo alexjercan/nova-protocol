@@ -85,6 +85,7 @@ fn load_or_open_lobby(
     mut commands: Commands,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     requested: Res<StyleRequest>,
     mut roster: ResMut<Roster>,
@@ -99,7 +100,7 @@ fn load_or_open_lobby(
     }
     roster.style = side_styles[0];
 
-    let tiles = tile_set(&sections);
+    let tiles = arena_tiles(&sections, &grammars);
     let looks: Vec<StyleId> = roster
         .ships
         .iter()
@@ -113,7 +114,14 @@ fn load_or_open_lobby(
     roster.drafted.clone_from(&drafted_seeds);
 
     if std::env::var_os("NOVA_AUTOPILOT").is_some() {
-        start_match(&mut commands, &game_assets, &sections, &styles, &mut roster);
+        start_match(
+            &mut commands,
+            &game_assets,
+            &sections,
+            &grammars,
+            &styles,
+            &mut roster,
+        );
         return;
     }
 
@@ -150,10 +158,17 @@ fn start_match(
     commands: &mut Commands,
     game_assets: &GameAssets,
     sections: &GameSections,
+    grammars: &GameGrammars,
     styles: &GameStyles,
     roster: &mut Roster,
 ) {
-    commands.trigger(LoadScenario(arena(game_assets, sections, styles, roster)));
+    commands.trigger(LoadScenario(arena(
+        game_assets,
+        sections,
+        grammars,
+        styles,
+        roster,
+    )));
     result::begin_match(commands, roster.ships.len());
 }
 
@@ -422,8 +437,14 @@ fn capture_seed_values(model: &mut LobbyModel, fields: &Query<(&LobbySeedField, 
     }
 }
 
-fn viable_seed(sections: &GameSections, styles: &GameStyles, style: usize, from: u64) -> u64 {
-    let tiles = tile_set(sections);
+fn viable_seed(
+    sections: &GameSections,
+    grammars: &GameGrammars,
+    styles: &GameStyles,
+    style: usize,
+    from: u64,
+) -> u64 {
+    let tiles = arena_tiles(sections, grammars);
     for offset in 0..DRAFT_SCAN_CAP {
         let seed = from.wrapping_add(offset);
         let hull = combat_hull(&tiles, seed, style_at(styles, style), sections);
@@ -460,6 +481,7 @@ fn on_lobby_action(
     cameras: Query<Entity, With<LobbyCamera>>,
     game_assets: Res<GameAssets>,
     sections: Res<GameSections>,
+    grammars: Res<GameGrammars>,
     styles: Res<GameStyles>,
     skin: Res<UiSkin>,
     model: Option<ResMut<LobbyModel>>,
@@ -478,7 +500,13 @@ fn on_lobby_action(
             if model.ships.iter().filter(|ship| ship.team == team).count() >= MAX_SHIPS_PER_SIDE {
                 return;
             }
-            let seed = viable_seed(&sections, &styles, model.side_styles[team], model.next_seed);
+            let seed = viable_seed(
+                &sections,
+                &grammars,
+                &styles,
+                model.side_styles[team],
+                model.next_seed,
+            );
             model.next_seed = seed.wrapping_add(1);
             model.ships.push(LobbyShip {
                 team,
@@ -529,6 +557,7 @@ fn on_lobby_action(
             };
             let seed = viable_seed(
                 &sections,
+                &grammars,
                 &styles,
                 model.side_styles[ship.team],
                 model.next_seed,
@@ -602,7 +631,14 @@ fn on_lobby_action(
             for camera in &cameras {
                 commands.entity(camera).despawn();
             }
-            start_match(&mut commands, &game_assets, &sections, &styles, &mut roster);
+            start_match(
+                &mut commands,
+                &game_assets,
+                &sections,
+                &grammars,
+                &styles,
+                &mut roster,
+            );
             rebuild = false;
         }
         LobbyAction::Quit => {

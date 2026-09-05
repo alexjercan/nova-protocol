@@ -4523,6 +4523,7 @@ dependencies = [
  "nova_probe_cli",
  "nova_scenario",
  "nova_ui",
+ "nova_wfc",
  "rand 0.10.2",
  "serde_json",
 ]
@@ -4668,6 +4669,7 @@ dependencies = [
  "bevy",
  "bevy_enhanced_input",
  "nova_assets",
+ "nova_authoring",
  "nova_events",
  "nova_gameplay",
  "nova_input",
@@ -4675,6 +4677,7 @@ dependencies = [
  "nova_scenario",
  "nova_ship",
  "nova_ui",
+ "nova_wfc",
  "rand 0.10.2",
 ]
 
@@ -4908,6 +4911,19 @@ dependencies = [
  "bevy",
  "nova_events",
  "serde",
+]
+
+[[package]]
+name = "nova_wfc"
+version = "0.12.0"
+dependencies = [
+ "bevy",
+ "nova_authoring",
+ "nova_events",
+ "nova_gameplay",
+ "nova_scenario",
+ "nova_ship",
+ "rand 0.10.2",
 ]
 
 [[package]]

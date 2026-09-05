@@ -1,0 +1,50 @@
+[
+    Grammar((
+        id: "standard_hull",
+        name: "Standard Hull",
+        grid: (
+            half_width: 4,
+            height: 5,
+            length: 11,
+        ),
+        vacuum: (
+            base: 0.22,
+            taper: 1.4,
+            stern: 9.0,
+            bow_taper: 24.0,
+        ),
+        keel: (
+            hull: "reinforced_hull_section",
+            bridge: "basic_controller_section",
+            stern_deck: "reinforced_hull_section",
+            stern_drive: "basic_thruster_section",
+        ),
+        parts: [
+            (
+                prototype: "reinforced_hull_section",
+                weight: 6.0,
+            ),
+            (
+                prototype: "basic_controller_section",
+                weight: 0.15,
+            ),
+            (
+                prototype: "basic_thruster_section",
+                weight: 6.4,
+                aim: Some(Aft),
+            ),
+            (
+                prototype: "torpedo_section",
+                weight: 1.4,
+            ),
+            (
+                prototype: "pdc_kinetic_turret_section",
+                weight: 1.0,
+            ),
+            (
+                prototype: "pdc_pierce_turret_section",
+                weight: 0.6,
+            ),
+        ],
+    )),
+]

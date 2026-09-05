@@ -11,6 +11,9 @@
         "ships/base.content.ron",
         // The impact table: what a round sounds like against what it hit.
         "impacts/base.content.ron",
+        // The generator's taste. After the sections it draws from, for the
+        // ships' reason: a grammar names section prototypes by id.
+        "grammars/base.content.ron",
         "campaigns/nova_protocol.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",

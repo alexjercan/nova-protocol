@@ -6,6 +6,7 @@
 //! [`crate::node`] as a tree of node entities, one config component per node.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
+use nova_ship::prelude::GrammarZone;
 use nova_ui::theme;
 
 /// The group every immediate-mode line in the editor draws in.
@@ -416,3 +417,40 @@ pub(crate) struct StyleSwatch(pub(crate) Color);
 /// tool rows use, so the shared `Selected` highlight marks the active style.
 #[derive(Component)]
 pub(crate) struct StyleChoice(pub(crate) String);
+
+/// The Generate block's list of drawable sections.
+#[derive(Component)]
+pub(crate) struct PartList;
+
+/// One row of that list, carrying the catalog section id it draws.
+///
+/// `Selected` on the row means the collapse may draw the part. The rows ARE
+/// the setting - there is no resource behind them - because the list only
+/// exists while the block that reads it is on screen, and a second copy of the
+/// answer is a second thing to keep in step.
+///
+/// The zone rides on the row for the same reason: it is a second half of the
+/// same setting, and a builder who unticks a part and ticks it again should
+/// find the zone they chose still on it.
+#[derive(Component)]
+pub(crate) struct PartChoice {
+    /// The catalog section id this row offers.
+    pub(crate) prototype: String,
+    /// Where on the hull the collapse may stand it, or `None` for anywhere the
+    /// mating rule allows.
+    pub(crate) zone: Option<GrammarZone>,
+}
+
+/// The tick glyph on a part row.
+#[derive(Component)]
+pub(crate) struct PartTick;
+
+/// The zone chip on a part row: the second control on the same row, shown only
+/// while the row is ticked.
+#[derive(Component)]
+pub(crate) struct PartZoneChip;
+
+/// The line above the draw list that says what the ticks add up to: which
+/// prototype fills each seeded role of the hull plan.
+#[derive(Component)]
+pub(crate) struct HullPlanLine;

@@ -28,10 +28,10 @@ use nova_ui::{
 
 use crate::{
     asset_index::prelude::AssetIndex,
-    bundle::ask_to_open,
     config::EditorSays,
     inspect::{clipped, colour_text, write_field, DocumentIds},
     node::reset_document,
+    template::ScenarioTemplate,
     ui::{
         inspector::{
             apply_choice, EditTargets, InspectorField, InspectorPick, InspectorRef,
@@ -45,7 +45,7 @@ use crate::{
 /// Window width. The inspector's own width, so a picker reads as the row it
 /// came from rather than as a second panel with its own ideas - and follows it
 /// when the panel is widened.
-const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
+pub(crate) const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
 
 /// How much of an option's hint the list has room for: about three lines in a
 /// 300px window.
@@ -59,7 +59,7 @@ const RIGHT_MARGIN: f32 = crate::ui::inspector::PANEL_W + INSPECTOR_GUTTER;
 /// The gutter a fresh window keeps between itself and the rail.
 const RAIL_GUTTER: f32 = 12.0;
 /// Where a fresh window's top edge sits, under the top bar.
-const TOP_MARGIN: f32 = 96.0;
+pub(crate) const TOP_MARGIN: f32 = 96.0;
 /// How much of a window must stay on screen when it is dragged: enough to
 /// grab the bar again.
 const KEEP_ON_SCREEN: f32 = 48.0;
@@ -76,7 +76,7 @@ pub(crate) struct EditorWindow;
 /// The bar a window is dragged by, and the window it drags.
 #[derive(Component)]
 pub(crate) struct WindowTitleBar {
-    window: Entity,
+    pub(crate) window: Entity,
 }
 
 /// A window's close button, and what it closes.
@@ -231,8 +231,6 @@ pub(crate) fn window_layer() -> impl Bundle {
 pub(crate) enum DestructiveVerb {
     /// File > New Scenario.
     NewScenario,
-    /// File > Open, which replaces what is on the stage with what is on disk.
-    Open,
     /// File > Back to Main Menu, which ends the session and the document.
     MainMenu,
 }
@@ -242,7 +240,6 @@ impl DestructiveVerb {
     fn title(self) -> &'static str {
         match self {
             Self::NewScenario => "NEW SCENARIO",
-            Self::Open => "OPEN",
             Self::MainMenu => "BACK TO MAIN MENU",
         }
     }
@@ -251,8 +248,7 @@ impl DestructiveVerb {
     /// autosave, so the sentence has to carry the whole warning.
     fn question(self) -> &'static str {
         match self {
-            Self::NewScenario => "This throws away everything on the stage and starts an empty scenario. There is no undo.",
-            Self::Open => "This replaces everything on the stage with the saved scenario. There is no undo.",
+            Self::NewScenario => "This throws away everything on the stage and starts a new scenario from the template you pick. There is no undo.",
             Self::MainMenu => "Leaving ends the session. Anything not saved goes with it.",
         }
     }
@@ -260,11 +256,13 @@ impl DestructiveVerb {
     /// The label on the button that goes through with it. It names the VERB
     /// rather than saying "OK", so a builder reading only the buttons still
     /// knows which one is the destructive one.
-    fn confirm(self) -> &'static str {
+    ///
+    /// `None` for New Scenario: there is no ONE thing it goes through with -
+    /// the templates are the answers, and each is its own button.
+    fn confirm(self) -> Option<&'static str> {
         match self {
-            Self::NewScenario => "Discard and start over",
-            Self::Open => "Discard and open",
-            Self::MainMenu => "Discard and leave",
+            Self::NewScenario => None,
+            Self::MainMenu => Some("Discard and leave"),
         }
     }
 }
@@ -283,9 +281,9 @@ const CONFIRM_W: f32 = 360.0;
 
 /// Put the question up instead of doing it.
 ///
-/// One observer for all three verbs, keyed on the row's own
-/// [`DestructiveVerb`]. The button inside the window carries the real verb's
-/// observer, so there is no second copy of what any of them do.
+/// One observer for every verb, keyed on the row's own [`DestructiveVerb`].
+/// The button inside the window carries the real verb's observer, so there is
+/// no second copy of what any of them do.
 pub(crate) fn on_destructive_item(
     activate: On<Activate>,
     rows: Query<&DestructiveVerb>,
@@ -386,6 +384,45 @@ fn spawn_confirm_window(
                     },
                     TextColor(theme::PHOSPHOR),
                 ));
+                // The templates, where the verb has no single answer: each
+                // row IS an answer, and pressing one both picks the world and
+                // goes through with the discard.
+                if verb == DestructiveVerb::NewScenario {
+                    body.spawn((
+                        Name::new("Template List"),
+                        Node {
+                            flex_direction: FlexDirection::Column,
+                            align_items: AlignItems::Stretch,
+                            row_gap: px(2),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|list| {
+                        for template in ScenarioTemplate::ALL {
+                            list.spawn((
+                                Name::new(format!("Template {}", template.label())),
+                                template,
+                                ConfirmAnswer,
+                                button(ButtonSpec::new(template.label()).block()),
+                                observe(reset_document),
+                            ));
+                            list.spawn((
+                                Name::new(format!("Template Hint {}", template.label())),
+                                UiText,
+                                Text::new(template.hint()),
+                                TextFont {
+                                    font_size: FontSize::Px(11.0),
+                                    ..default()
+                                },
+                                TextColor(theme::PHOSPHOR_MUTED),
+                                Node {
+                                    margin: UiRect::bottom(px(6)),
+                                    ..default()
+                                },
+                            ));
+                        }
+                    });
+                }
                 body.spawn((
                     Name::new("Confirm Window Answers"),
                     Node {
@@ -416,6 +453,9 @@ fn spawn_confirm_window(
                                 themed_button("Keep editing"),
                             ));
                         });
+                    let Some(label) = verb.confirm() else {
+                        return;
+                    };
                     answers
                         .spawn(Node {
                             flex_grow: 1.0,
@@ -425,12 +465,12 @@ fn spawn_confirm_window(
                             let mut go = slot.spawn((
                                 Name::new("Confirm Discard Button"),
                                 ConfirmAnswer,
-                                themed_button(verb.confirm()),
+                                themed_button(label),
                             ));
                             match verb {
-                                DestructiveVerb::NewScenario => go.observe(reset_document),
-                                DestructiveVerb::Open => go.observe(ask_to_open),
                                 DestructiveVerb::MainMenu => go.observe(back_to_main_menu),
+                                // Answered by the template rows above.
+                                DestructiveVerb::NewScenario => unreachable!(),
                             };
                         });
                 });
@@ -800,7 +840,7 @@ pub(crate) fn sync_ref_windows(
 
 /// The frame every floating window shares: the panel, the bar it is dragged
 /// by, the title, the close, and a body the caller fills.
-fn window_frame(
+pub(crate) fn window_frame(
     layer: &mut RelatedSpawnerCommands<ChildOf>,
     name: &str,
     title: &str,
