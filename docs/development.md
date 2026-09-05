@@ -1025,24 +1025,43 @@ Adding a post touches three places (mirror an existing post such as
 
 Each public comic owns `web/src/comics/<path>/comic.json`. The directory path
 is both its catalog key and `/story/<path>/` URL; there is no global registry or
-`slug` field. The manifest owns the archive metadata, chapters, page order, and
-the relative TypeScript module for every page. Webpack discovers these manifests
-and fails on invalid or duplicate ids, missing page modules, and missing cover
-art.
+`slug` field. A comic at `web/src/comics/example/` is served at
+`/story/example/` and reads its art from `web/src/assets/story/example/`. The
+manifest owns the archive metadata (`title`, `summary`, `status`, `cover`,
+`coverAlt`), the chapters in reading order, and the relative TypeScript module
+for every page. Every chapter names a `state`: `playable` when the game ships
+it as missions, `planned` when only the comic tells it, and `frame` for pages
+outside the story, such as the cover and the closing page. The archive card and
+the reader legend count playable against planned chapters, and a planned page
+carries a badge. Webpack discovers the manifests and fails on a missing field,
+an unknown state, invalid or duplicate ids, a missing page module, a missing
+cover, and any `.svg`, `.png` or `.webp` name a module mentions that is not
+under `web/src/assets/story/<path>/`. The engine modules beside the comic
+directories are not comics; with no comic directory at all the archive builds
+an empty notice at `/story/` and no reader routes.
 
 A page module exports one `ComicPage` built from the typed helpers in
-`web/src/comics/comic-page.ts`. Use `comicPage`, `chapterHeader`, `grid`,
-`panel`, `speech`, `caption`, `svgAsset`, and the safe inline-SVG primitives.
-Do not name reader CSS classes in a page. `comic-renderer.ts` owns DOM and class
-selection; `ComicPlayer` in `story-reader.ts` owns fitted-page playback,
-contents, controls, deep links, and input. Adding a comic therefore needs only
-its directory, manifest, TypeScript page modules, and
-`web/src/assets/story/<path>/` art.
+`web/src/comics/comic-page.ts`: `comicPage`, `bleedPage`, `coverPage`,
+`endPage`, `chapterHeader`, `grid`, `panel`, `widePanel`, `speech`,
+`narration`, `locationCard`, `caption`, `readout`, `transcript`, `portrait`,
+`divider`, `hud`, `feed`, `terminal`, `inset`, and the inline SVG primitives.
+`web/src/comics/comic-art.ts` adds semantic art on top of them: `ship`,
+`motionLines`, `burst`, `debris`, `orbitPath`, `searchLane`,
+`signalRings`, `hazardBand`, `starfield`, `crtGrid`, `planetoid`, `torpedo`
+and `tracerFan`. A page is data. It names no CSS class, emits no markup, and
+every attribute the renderer writes is a number, an enumerated token, a
+validated asset name or validated path data; text reaches the DOM through
+`textContent`. `comic-renderer.ts` owns DOM and class selection; `ComicPlayer`
+in `story-reader.ts` owns fitted-page playback, contents, controls, deep links,
+and input. Adding a comic therefore needs only its directory, manifest,
+TypeScript page modules, and `web/src/assets/story/<path>/` art. Keep shared
+speaker names and portraits in one `cast.ts` beside the pages.
 
 Run `cd web && npm run ci`, then inspect the generated archive and reader at a
 desktop and narrow viewport. A reader displays exactly one complete page; wheel,
 touch, arrow/Page keys, controls, and contents links replace that page rather
-than partially scrolling it.
+than partially scrolling it. A page that overflows its viewport is a page with
+too much on it: cut lines or split it.
 
 ## Contributing a change
 

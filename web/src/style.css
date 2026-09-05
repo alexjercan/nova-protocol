@@ -31,6 +31,12 @@
    has been fully retired - it described a UI the game no longer has.
    --------------------------------------------------------------------------- */
 :root {
+    --shape: var(--phosphor);
+    --shape-fill: rgba(54, 255, 121, 0.18);
+    --comic-columns: 2;
+    --comic-rows: minmax(0, 2fr) minmax(0, 1fr);
+    --comic-column: auto;
+    --comic-row: auto;
     /* -- palette (verbatim from the PoC) -- */
     --space: #03060b;
     --case-0: #0a0d10;
@@ -2890,6 +2896,14 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .story-index__grid {
     margin-top: 40px;
 }
+.story-index__empty {
+    margin-top: 40px;
+    color: var(--phosphor);
+    font-family: var(--font-mono);
+    font-size: 0.86rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
 .story-record {
     max-width: 720px;
 }
@@ -2897,6 +2911,7 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     position: absolute;
     top: 14px;
     left: 14px;
+    max-width: calc(100% - 28px);
     padding: 5px 8px;
     color: var(--ink);
     background: var(--phosphor);
@@ -3206,36 +3221,93 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 }
 .comic-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 2fr) minmax(0, 1fr) auto;
+    grid-template-columns: repeat(var(--comic-columns), minmax(0, 1fr));
+    grid-template-rows: var(--comic-rows);
+    grid-auto-rows: auto;
     min-height: 0;
     gap: clamp(6px, 1.4vh, 14px);
 }
 .comic-panel {
     position: relative;
+    grid-column: var(--comic-column);
+    grid-row: var(--comic-row);
     min-height: 0;
+    margin: 0;
     overflow: hidden;
     background: #020805;
     border: 3px solid #b9ffc9;
 }
+.comic-panel--frame-amber {
+    border-color: var(--amber);
+}
+.comic-panel--frame-danger {
+    border-color: var(--red);
+}
+.comic-panel--frame-muted {
+    border-color: var(--phosphor-muted);
+}
+.comic-panel--frame-blue {
+    border-color: var(--blue);
+}
+.comic-panel--dark,
+.comic-panel--silent {
+    background: #000;
+}
 .comic-panel > img {
+    display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-.comic-panel--wide {
-    grid-column: 1 / -1;
+.comic-panel img[data-focus="left"] {
+    object-position: 25% center;
 }
-.comic-panel--wide img {
-    object-position: 30% center;
+.comic-panel img[data-focus="right"] {
+    object-position: 75% center;
 }
-.speech {
+.speech,
+.comic-narration,
+.comic-location,
+.comic-hud,
+.comic-inset {
     position: absolute;
     z-index: 4;
-    max-width: min(320px, 72%);
+}
+.speech--bottom-right,
+.comic-narration--bottom-right,
+.comic-location--bottom-right,
+.comic-hud--bottom-right,
+.comic-inset--bottom-right {
     right: 18px;
     bottom: 18px;
-    padding: 12px 14px;
+}
+.speech--bottom-left,
+.comic-narration--bottom-left,
+.comic-location--bottom-left,
+.comic-hud--bottom-left,
+.comic-inset--bottom-left {
+    left: 18px;
+    bottom: 18px;
+}
+.speech--top-left,
+.comic-narration--top-left,
+.comic-location--top-left,
+.comic-hud--top-left,
+.comic-inset--top-left {
+    left: 18px;
+    top: 18px;
+}
+.speech--top-right,
+.comic-narration--top-right,
+.comic-location--top-right,
+.comic-hud--top-right,
+.comic-inset--top-right {
+    right: 18px;
+    top: 18px;
+}
+.speech {
+    max-width: min(340px, 72%);
+    padding: 10px 14px 12px;
     color: #061008;
     background: #d8ffe1;
     border: 2px solid #061008;
@@ -3246,10 +3318,35 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     font-weight: 700;
     line-height: 1.35;
 }
-.speech--control {
-    left: 18px;
-    right: auto;
+.speech--bottom-left {
     border-radius: 12px 12px 12px 2px;
+}
+.speech--top-left {
+    border-radius: 2px 12px 12px 12px;
+}
+.speech--top-right {
+    border-radius: 12px 2px 12px 12px;
+}
+.speech__speaker {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    opacity: 0.72;
+}
+.speech__channel {
+    float: right;
+    margin-left: 8px;
+    padding: 0 5px;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-style: normal;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.72;
 }
 .speech--amber {
     color: #1a0d00;
@@ -3258,6 +3355,104 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .speech--danger {
     color: #160100;
     background: #ff7b71;
+}
+.speech--muted {
+    color: #04110a;
+    background: #8fc4a0;
+}
+.speech--blue {
+    color: #03101c;
+    background: #a9d6ff;
+}
+.comic-narration {
+    max-width: min(360px, 52%);
+    padding: 10px 12px;
+    color: var(--text);
+    background: rgba(1, 10, 5, 0.9);
+    border: 1px solid var(--phosphor-dim);
+    border-left: 4px solid var(--phosphor);
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    line-height: 1.4;
+}
+.comic-narration--amber {
+    color: var(--amber);
+    border-left-color: var(--amber);
+}
+.comic-narration--danger {
+    color: #ffb3ad;
+    border-left-color: var(--red);
+}
+.comic-narration--muted {
+    color: var(--phosphor-dim);
+    border-left-color: var(--phosphor-muted);
+}
+.comic-narration--blue {
+    color: #bfe0ff;
+    border-left-color: var(--blue);
+}
+.comic-location {
+    padding: 6px 10px;
+    color: var(--amber);
+    background: rgba(1, 10, 5, 0.92);
+    border: 1px solid var(--amber);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.comic-location b {
+    display: block;
+    font-weight: 700;
+}
+.comic-location span {
+    color: var(--phosphor-dim);
+}
+.comic-hud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: 70%;
+}
+.comic-hud__item {
+    padding: 4px 8px;
+    background: rgba(1, 10, 5, 0.88);
+    border: 1px solid var(--phosphor-muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.comic-hud__item i {
+    margin-right: 6px;
+    color: var(--phosphor-muted);
+    font-style: normal;
+}
+.comic-hud__item b {
+    color: var(--phosphor);
+}
+.comic-hud__item--amber b {
+    color: var(--amber);
+}
+.comic-hud__item--danger {
+    border-color: var(--red);
+}
+.comic-hud__item--danger b {
+    color: var(--red);
+}
+.comic-hud__item--blue b {
+    color: var(--blue);
+}
+.comic-inset {
+    width: min(38%, 240px);
+    aspect-ratio: 5 / 3;
+    overflow: hidden;
+    background: #020805;
+    border: 2px solid var(--phosphor-dim);
+}
+.comic-inset > .comic-readout {
+    padding: 8px;
+    font-size: 0.56rem;
 }
 .comic-inline-svg {
     display: block;
@@ -3270,27 +3465,40 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     );
 }
 .comic-svg__shape {
-    stroke: var(--phosphor);
-    fill: rgba(54, 255, 121, 0.15);
+    stroke: var(--shape);
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    fill: none;
 }
 .comic-svg__shape--amber {
-    stroke: var(--amber);
-    fill: rgba(255, 184, 74, 0.16);
+    --shape: var(--amber);
+    --shape-fill: rgba(255, 184, 74, 0.2);
 }
 .comic-svg__shape--danger {
-    stroke: var(--red);
-    fill: rgba(255, 78, 66, 0.14);
+    --shape: var(--red);
+    --shape-fill: rgba(255, 78, 66, 0.18);
 }
 .comic-svg__shape--muted {
-    stroke: var(--phosphor-muted);
-    fill: rgba(13, 110, 53, 0.18);
+    --shape: var(--phosphor-muted);
+    --shape-fill: rgba(13, 110, 53, 0.35);
+}
+.comic-svg__shape--blue {
+    --shape: var(--blue);
+    --shape-fill: rgba(54, 163, 255, 0.18);
+}
+.comic-svg__shape--filled {
+    fill: var(--shape-fill);
+}
+.comic-svg__shape--solid {
+    fill: var(--shape);
+}
+.comic-svg__shape--unstroked {
+    stroke: none;
 }
 .comic-svg__text {
     fill: var(--phosphor);
     font-family: var(--font-mono);
-    font-size: 14px;
     font-weight: 700;
-    text-anchor: middle;
 }
 .comic-svg__text--amber {
     fill: var(--amber);
@@ -3300,6 +3508,9 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 }
 .comic-svg__text--muted {
     fill: var(--phosphor-muted);
+}
+.comic-svg__text--blue {
+    fill: var(--blue);
 }
 .comic-caption {
     grid-column: 1 / -1;
@@ -3313,6 +3524,38 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 }
 .comic-caption--danger {
     border-left-color: var(--red);
+}
+.comic-caption--amber {
+    border-left-color: var(--amber);
+}
+.comic-caption--muted {
+    color: var(--phosphor-dim);
+    border-left-color: var(--phosphor-muted);
+}
+.comic-caption--blue {
+    border-left-color: var(--blue);
+}
+.comic-divider {
+    grid-column: 1 / -1;
+    padding: 5px 12px;
+    color: var(--phosphor);
+    border-top: 1px dashed var(--phosphor-muted);
+    border-bottom: 1px dashed var(--phosphor-muted);
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.22em;
+    text-align: center;
+    text-transform: uppercase;
+}
+.comic-divider--amber {
+    color: var(--amber);
+}
+.comic-divider--danger {
+    color: var(--red);
+    border-color: var(--red);
+}
+.comic-divider--muted {
+    color: var(--phosphor-muted);
 }
 .comic-readout {
     display: flex;
@@ -3337,6 +3580,9 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .comic-readout--muted {
     color: var(--phosphor-muted);
 }
+.comic-readout--blue {
+    color: var(--blue);
+}
 .comic-panel--recorders .comic-readout span {
     padding: 6px;
     border: 1px solid currentColor;
@@ -3344,14 +3590,248 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
 .comic-panel--impact .comic-inline-svg {
     filter: drop-shadow(0 0 10px #36a3ff);
 }
-.comic-panel img[data-focus="carrier"] {
-    object-position: 30% center;
+.comic-transcript {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    gap: 7px;
+    padding: clamp(10px, 2.4vw, 24px);
+    overflow: hidden;
+    font-family: var(--font-mono);
 }
-.comic-panel img[data-focus="warship"] {
-    object-position: 80% center;
+.comic-transcript__title {
+    margin: 0 0 4px;
+    padding-bottom: 5px;
+    color: var(--phosphor-muted);
+    border-bottom: 1px solid var(--phosphor-muted);
+    font-size: 0.6rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
 }
-.comic-panel img[data-focus="wreck"] {
-    object-position: 50% center;
+.comic-transcript__line {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    column-gap: 10px;
+    font-size: clamp(0.6rem, 1.1vw, 0.76rem);
+    line-height: 1.35;
+}
+.comic-transcript__line b {
+    color: var(--amber);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 2px;
+}
+.comic-transcript__line span {
+    color: var(--text);
+}
+.comic-transcript__line--danger span {
+    color: #ff9a92;
+}
+.comic-transcript__line--amber span {
+    color: var(--amber);
+}
+.comic-transcript__line--muted span {
+    color: var(--phosphor-dim);
+}
+.comic-transcript__line--blue span {
+    color: #bfe0ff;
+}
+.comic-portrait {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    gap: 2px;
+    padding: 8px 8px 10px;
+    text-align: center;
+    font-family: var(--font-mono);
+}
+.comic-portrait img {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    object-fit: contain;
+}
+.comic-portrait b {
+    color: var(--text);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+.comic-portrait span {
+    color: var(--phosphor-muted);
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.comic-portrait--amber b {
+    color: var(--amber);
+}
+.comic-portrait--danger b {
+    color: var(--red);
+}
+.comic-portrait--blue b {
+    color: var(--blue);
+}
+.comic-portrait--muted b {
+    color: var(--phosphor-dim);
+}
+.comic-feed {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(10px, 2.4vw, 24px);
+    overflow: hidden;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(54, 163, 255, 0.04) 0 3px,
+        transparent 3px 6px
+    );
+    font-family: var(--font-mono);
+}
+.comic-feed__source {
+    margin: 0 0 10px;
+    color: var(--blue);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+.comic-feed span {
+    display: block;
+    margin-bottom: 7px;
+    padding-left: 10px;
+    color: var(--text);
+    border-left: 3px solid var(--blue);
+    font-size: clamp(0.6rem, 1.1vw, 0.76rem);
+    line-height: 1.45;
+    text-transform: uppercase;
+}
+.comic-terminal {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(10px, 1.6vw, 16px);
+    overflow: hidden;
+    font-family: var(--font-mono);
+}
+.comic-terminal__prompt {
+    margin: 0 0 8px;
+    color: var(--phosphor);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.comic-terminal ol {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.comic-terminal__option {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    column-gap: 8px;
+    padding: 6px 9px;
+    border: 1px solid var(--phosphor-muted);
+    font-size: clamp(0.6rem, 1.1vw, 0.74rem);
+}
+.comic-terminal__option b {
+    color: var(--amber);
+}
+.comic-terminal__option span {
+    color: var(--text);
+    text-transform: uppercase;
+}
+.comic-terminal__option em {
+    grid-column: 2;
+    color: var(--phosphor-dim);
+    font-size: 0.62rem;
+    font-style: normal;
+    line-height: 1.35;
+}
+.comic-terminal__option--amber {
+    border-color: var(--amber);
+}
+.comic-terminal__option--danger {
+    border-color: var(--red);
+}
+.comic-terminal__option--blue {
+    border-color: var(--blue);
+}
+.comic-bleed {
+    padding: 0;
+}
+.comic-bleed > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.comic-bleed > img[data-focus="left"] {
+    object-position: 22% center;
+}
+.comic-bleed > img[data-focus="right"] {
+    object-position: 78% center;
+}
+.comic-bleed__shade {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(0deg, rgba(1, 6, 4, 0.78), transparent 42%),
+        linear-gradient(180deg, rgba(1, 6, 4, 0.6), transparent 34%);
+}
+.comic-bleed__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+}
+.comic-bleed__overlay > .comic-page__header {
+    position: absolute;
+    left: 24px;
+    right: 40%;
+    top: 18px;
+    margin: 0;
+}
+.comic-bleed__overlay > .speech--top-right,
+.comic-bleed__overlay > .comic-narration--top-right,
+.comic-bleed__overlay > .comic-hud--top-right,
+.comic-bleed__overlay > .comic-location--top-right {
+    max-width: 34%;
+}
+.comic-bleed__overlay > .comic-caption {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 22px;
+}
+.comic-page__planned {
+    margin-left: 10px;
+    padding: 1px 6px;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    font-size: 0.6rem;
+    font-style: normal;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+.comic-reader__planned {
+    margin-left: 6px;
+    padding: 0 5px;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    font-size: 0.56rem;
+    font-style: normal;
 }
 .comic-end {
     display: flex;
@@ -3466,22 +3946,131 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     .comic-page__header h2 {
         font-size: clamp(1.45rem, 9vw, 2.4rem);
     }
-    .comic-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .speech {
+    .speech--bottom-right,
+    .comic-narration--bottom-right,
+    .comic-location--bottom-right,
+    .comic-hud--bottom-right,
+    .comic-inset--bottom-right {
         right: 7px;
         bottom: 7px;
-        padding: 6px 7px;
+    }
+    .speech--bottom-left,
+    .comic-narration--bottom-left,
+    .comic-location--bottom-left,
+    .comic-hud--bottom-left,
+    .comic-inset--bottom-left {
+        left: 7px;
+        bottom: 7px;
+    }
+    .speech--top-left,
+    .comic-narration--top-left,
+    .comic-location--top-left,
+    .comic-hud--top-left,
+    .comic-inset--top-left {
+        left: 7px;
+        top: 7px;
+    }
+    .speech--top-right,
+    .comic-narration--top-right,
+    .comic-location--top-right,
+    .comic-hud--top-right,
+    .comic-inset--top-right {
+        right: 7px;
+        top: 7px;
+    }
+    .speech {
+        max-width: 78%;
+        padding: 5px 7px 6px;
         font-size: clamp(0.5rem, 2.2vw, 0.68rem);
     }
-    .speech--control {
-        left: 7px;
-        right: auto;
+    .speech__speaker {
+        font-size: 0.48rem;
+    }
+    .speech__channel {
+        font-size: 0.44rem;
+    }
+    .comic-narration {
+        max-width: 66%;
+        padding: 6px 8px;
+        font-size: clamp(0.5rem, 2.2vw, 0.64rem);
+    }
+    .comic-location {
+        padding: 4px 6px;
+        font-size: 0.5rem;
+    }
+    .comic-hud__item {
+        padding: 2px 5px;
+        font-size: 0.48rem;
+    }
+    .comic-inset {
+        width: 44%;
     }
     .comic-caption {
         padding: 7px 8px;
         font-size: clamp(0.5rem, 2.2vw, 0.66rem);
+    }
+    .comic-divider {
+        padding: 3px 8px;
+        font-size: 0.52rem;
+    }
+    .comic-transcript {
+        gap: 4px;
+        padding: 8px;
+    }
+    .comic-transcript__line {
+        grid-template-columns: 62px minmax(0, 1fr);
+        column-gap: 6px;
+        font-size: 0.56rem;
+    }
+    .comic-transcript__line b,
+    .comic-transcript__title {
+        font-size: 0.48rem;
+    }
+    .comic-portrait b {
+        font-size: 0.56rem;
+    }
+    .comic-portrait span {
+        font-size: 0.46rem;
+    }
+    .comic-feed,
+    .comic-terminal {
+        padding: 8px;
+    }
+    .comic-feed span,
+    .comic-terminal__option {
+        font-size: 0.56rem;
+    }
+    .comic-feed__source,
+    .comic-terminal__prompt {
+        font-size: 0.5rem;
+    }
+    .comic-terminal__option em {
+        font-size: 0.5rem;
+    }
+    .comic-bleed__overlay {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px;
+    }
+    .comic-bleed__overlay > .comic-page__header {
+        position: static;
+        margin: 0 0 auto;
+    }
+    .comic-bleed__overlay > .speech,
+    .comic-bleed__overlay > .comic-narration,
+    .comic-bleed__overlay > .comic-location,
+    .comic-bleed__overlay > .comic-hud,
+    .comic-bleed__overlay > .comic-inset,
+    .comic-bleed__overlay > .comic-caption {
+        position: static;
+        width: auto;
+        max-width: 100%;
+        margin: 0;
+    }
+    .comic-page__planned {
+        margin-left: 6px;
+        font-size: 0.5rem;
     }
     .comic-reader__progress {
         display: none;

@@ -1,10 +1,12 @@
-import { ComicPage } from "./comic-page";
+import { ChapterState, ComicPage } from "./comic-page";
 
 export interface ComicManifestPage {
     id: string;
     title: string;
     source: string;
     chapter: string;
+    chapterId: string;
+    state: ChapterState;
 }
 
 export interface ComicManifest {
@@ -13,6 +15,7 @@ export interface ComicManifest {
     summary: string;
     status: string;
     cover: string;
+    coverAlt: string;
     basePath: string;
     pages: ComicManifestPage[];
 }

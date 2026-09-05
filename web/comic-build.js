@@ -2,6 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 
+const CHAPTER_STATES = ["playable", "planned", "frame"];
+const DEFAULT_ROOTS = {
+    comics: path.resolve(__dirname, "src/comics"),
+    assets: path.resolve(__dirname, "src/assets/story"),
+};
+
 function escapeHtml(value) {
     return String(value)
         .replace(/&/g, "&amp;")
@@ -10,26 +16,31 @@ function escapeHtml(value) {
         .replace(/"/g, "&quot;");
 }
 
-function discoverComics() {
-    const root = path.resolve(__dirname, "src/comics");
-    if (!fs.existsSync(root)) return [];
+/**
+ * Read every `<dir>/comic.json` under the comics root and validate it. Loose
+ * files beside the comic directories are the engine, not comics; a root with
+ * no directories is an empty archive.
+ */
+function discoverComics(roots = DEFAULT_ROOTS) {
+    if (!fs.existsSync(roots.comics)) return [];
     return fs
-        .readdirSync(root, { withFileTypes: true })
+        .readdirSync(roots.comics, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-            const comicPath = entry.name;
-            const manifestPath = path.join(root, comicPath, "comic.json");
-            if (!fs.existsSync(manifestPath)) {
-                throw new Error(`comic '${comicPath}' has no comic.json`);
-            }
-            const comic = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-            validateComic(comicPath, comic, root);
-            return { ...comic, path: comicPath };
-        })
+        .map((entry) => loadComic(entry.name, roots))
         .sort((a, b) => a.title.localeCompare(b.title));
 }
 
-function validateComic(comicPath, comic, root) {
+function loadComic(comicPath, roots = DEFAULT_ROOTS) {
+    const manifestPath = path.join(roots.comics, comicPath, "comic.json");
+    if (!fs.existsSync(manifestPath)) {
+        throw new Error(`comic '${comicPath}' has no comic.json`);
+    }
+    const comic = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    validateComic(comicPath, comic, roots);
+    return { ...comic, path: comicPath };
+}
+
+function validateComic(comicPath, comic, roots = DEFAULT_ROOTS) {
     // Must stay in step with `comic-catalog.ts`'s require.context, which
     // matches `<comic>/pages/<name>.ts` and nothing deeper: a source the
     // build accepts but the loader cannot resolve ships an empty reader.
@@ -56,6 +67,11 @@ function validateComic(comicPath, comic, root) {
             );
         }
         chapterIds.add(chapter.id);
+        if (!CHAPTER_STATES.includes(chapter.state)) {
+            throw new Error(
+                `comic '${comicPath}' chapter '${chapter.id}' needs a state: ${CHAPTER_STATES.join(", ")}`
+            );
+        }
         if (
             !chapter.title ||
             !Array.isArray(chapter.pages) ||
@@ -77,7 +93,11 @@ function validateComic(comicPath, comic, root) {
                     `comic '${comicPath}' page '${page.id}' is incomplete or has an invalid source`
                 );
             }
-            const source = path.join(root, comicPath, `${page.source}.ts`);
+            const source = path.join(
+                roots.comics,
+                comicPath,
+                `${page.source}.ts`
+            );
             if (!fs.existsSync(source)) {
                 throw new Error(
                     `comic '${comicPath}' page source is missing: ${source}`
@@ -85,23 +105,70 @@ function validateComic(comicPath, comic, root) {
             }
         }
     }
-    const assetRoot = path.resolve(__dirname, "src/assets/story", comicPath);
-    const cover = path.resolve(assetRoot, comic.cover);
-    if (!cover.startsWith(`${assetRoot}${path.sep}`) || !fs.existsSync(cover)) {
-        throw new Error(`comic '${comicPath}' cover is missing: ${cover}`);
+    assertAsset(comicPath, comic.cover, roots, "cover");
+    for (const module of comicModules(path.join(roots.comics, comicPath))) {
+        for (const asset of referencedAssets(module)) {
+            assertAsset(comicPath, asset, roots, path.basename(module));
+        }
+    }
+}
+
+/** Every TypeScript module under a comic directory. */
+function comicModules(directory) {
+    return fs
+        .readdirSync(directory, { withFileTypes: true })
+        .flatMap((entry) => {
+            const full = path.join(directory, entry.name);
+            if (entry.isDirectory()) return comicModules(full);
+            return entry.name.endsWith(".ts") ? [full] : [];
+        });
+}
+
+/** Asset file names a page module mentions as string literals. */
+function referencedAssets(modulePath) {
+    const text = fs.readFileSync(modulePath, "utf8");
+    const found = new Set();
+    for (const match of text.matchAll(
+        /"([a-z0-9][a-z0-9/-]*\.(?:svg|png|webp))"/g
+    )) {
+        found.add(match[1]);
+    }
+    return [...found];
+}
+
+function assertAsset(comicPath, source, roots, owner) {
+    const assetRoot = path.resolve(roots.assets, comicPath);
+    const file = path.resolve(assetRoot, source);
+    if (!file.startsWith(`${assetRoot}${path.sep}`) || !fs.existsSync(file)) {
+        throw new Error(
+            `comic '${comicPath}' ${owner} asset is missing: ${source}`
+        );
     }
 }
 
 function pagesOf(comic) {
     return comic.chapters.flatMap((chapter) =>
-        chapter.pages.map((page) => ({ ...page, chapter: chapter.title }))
+        chapter.pages.map((page) => ({
+            ...page,
+            chapter: chapter.title,
+            chapterId: chapter.id,
+            state: chapter.state,
+        }))
     );
+}
+
+/** How many chapters are playable in the game and how many are only planned. */
+function chapterCounts(comic) {
+    const counts = { playable: 0, planned: 0, frame: 0 };
+    for (const chapter of comic.chapters) counts[chapter.state] += 1;
+    return counts;
 }
 
 function comicIndexPage(comics, publicPath) {
     const cards = comics
         .map((comic) => {
             const pages = pagesOf(comic);
+            const counts = chapterCounts(comic);
             return `<li class="post-card story-record">
                 <a class="post-card__link" href="${publicPath}story/${escapeHtml(comic.path)}/">
                     <div class="post-card__media">
@@ -109,7 +176,7 @@ function comicIndexPage(comics, publicPath) {
                         <span class="story-record__status">${escapeHtml(comic.status)}</span>
                     </div>
                     <div class="post-card__body">
-                        <span class="post-card__meta">${comic.chapters.length} ${comic.chapters.length === 1 ? "chapter" : "chapters"} // ${pages.length} pages</span>
+                        <span class="post-card__meta">${counts.playable} playable // ${counts.planned} planned // ${pages.length} pages</span>
                         <h2 class="post-card__title">${escapeHtml(comic.title)}</h2>
                         <p class="post-card__excerpt">${escapeHtml(comic.summary)}</p>
                         <span class="story-record__open">Open comic [ENTER]</span>
@@ -118,6 +185,9 @@ function comicIndexPage(comics, publicPath) {
             </li>`;
         })
         .join("\n");
+    const records = comics.length
+        ? `<ul class="post-grid story-index__grid">${cards}</ul>`
+        : `<p class="story-index__empty">No campaign records yet.</p>`;
     return new HtmlWebpackPlugin({
         filename: "story/index.html",
         chunks: ["story"],
@@ -138,8 +208,8 @@ function comicIndexPage(comics, publicPath) {
             <div class="container">
                 <p class="section__eyebrow">Story archive</p>
                 <h1 class="section__title">Campaign records //<br /><span class="glow-phosphor">select a story</span></h1>
-                <p class="section__lead">Each campaign has its own digital comic. Open a record to read it page by page or jump from its contents display. These records contain full campaign spoilers.</p>
-                <ul class="post-grid story-index__grid">${cards}</ul>
+                <p class="section__lead">Each campaign has its own digital comic. Open a record to read it page by page or jump from its contents display. Planned chapters are marked: they are the story's draft, not yet a mission you can fly. These records contain full campaign spoilers.</p>
+                ${records}
             </div>
         </section>
     </main>
@@ -151,10 +221,15 @@ function comicIndexPage(comics, publicPath) {
 
 function comicReaderPage(comic, publicPath) {
     const pages = pagesOf(comic);
+    const counts = chapterCounts(comic);
     let number = 0;
     const contents = comic.chapters
         .map(
-            (chapter) => `<p>${escapeHtml(chapter.title)}</p>
+            (chapter) => `<p>${escapeHtml(chapter.title)}${
+                chapter.state === "planned"
+                    ? ' <em class="comic-reader__planned">planned</em>'
+                    : ""
+            }</p>
                 ${chapter.pages
                     .map((page) => {
                         number += 1;
@@ -198,7 +273,7 @@ function comicReaderPage(comic, publicPath) {
             <aside class="comic-reader__contents" id="comic-contents" aria-label="Comic contents">
                 <p class="comic-reader__contents-title">Contents</p>
                 <nav>${contents}</nav>
-                <div class="comic-reader__legend"><span>Campaign status</span><strong>${escapeHtml(comic.status)}</strong><span>Chapters</span><strong>${comic.chapters.length}</strong></div>
+                <div class="comic-reader__legend"><span>Campaign status</span><strong>${escapeHtml(comic.status)}</strong><span>Playable now</span><strong>${counts.playable} chapters</strong><span>Planned</span><strong>${counts.planned} chapters</strong></div>
             </aside>
             <div class="comic-reader__viewport" data-page-viewport tabindex="0" aria-label="${escapeHtml(comic.title)} comic pages"></div>
         </div>
@@ -215,9 +290,13 @@ function comicReaderPage(comic, publicPath) {
 }
 
 module.exports = {
-    discoverComics,
+    CHAPTER_STATES,
+    chapterCounts,
     comicIndexPage,
     comicReaderPage,
+    discoverComics,
+    loadComic,
     pagesOf,
+    referencedAssets,
     validateComic,
 };

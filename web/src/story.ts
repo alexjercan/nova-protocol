@@ -10,14 +10,16 @@ const root = document.querySelector<HTMLElement>("[data-comic-reader]");
 const manifest = readComicManifest();
 if (root && manifest) {
     const definitions = loadComicPages(manifest);
-    const pages = definitions.map((page, index) =>
-        renderComicPage(page, {
-            id: manifest.pages[index].id,
+    const pages = definitions.map((page, index) => {
+        const entry = manifest.pages[index];
+        return renderComicPage(page, {
+            id: entry.id,
             number: index + 1,
             comicPath: manifest.path,
             basePath: manifest.basePath,
-        })
-    );
+            chapter: { title: entry.chapter, state: entry.state },
+        });
+    });
     new ComicPlayer({
         root,
         pages,

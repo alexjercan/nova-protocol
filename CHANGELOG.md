@@ -335,6 +335,9 @@ does NOT get an entry - and it is the only place they are written down.
 - A `--features debug` build shows the commit it was built from on the status
   bar, and restamps it on the next commit. The feature never reached the crate
   that asks git, so the hash was missing.
+- Comic pages are typed TypeScript modules: panels, speech, transcripts, HUD
+  chips and inline SVG art, rendered by an allowlisting renderer with no markup
+  path. The archive builds with zero comics.
 
 ## [0.12.0] - 2026-08-31
 
