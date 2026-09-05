@@ -67,5 +67,14 @@ and location sections add texture that the outline did not carry (Halloran
 flew Kestrel's Harrier, Brandt taught Okoro after Pell, Solberg came out of
 the Shelter on Pell's tender). The owner may strike any of it.
 
+### 2026-09-05: Panel style candidates
+
+The owner accepted the design page but not the style of its storyboard
+thumbnails. The comic panels should follow the campaign portraits: pixel
+blocks on a CRT frame, as in `art/portrait-candidates/`. `art/` in this task
+holds five candidates for The Strike (beat 2) and the generator that draws
+them, for the owner to pick from or give feedback on. The design page keeps
+its line-art boards for now.
+
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
