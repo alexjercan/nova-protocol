@@ -82,11 +82,18 @@ const FIRST_PLATE_Z: f32 = -30.0;
 /// only absorbs f32 accumulation.
 const HEALTH_EPSILON: f32 = 0.05;
 
-/// How long the range holds the trigger DOWN after the shot, in frames, before
-/// reading invariant 5. Past the charge time at any plausible frame rate and
-/// nowhere near the twelve-second reload, so a second charge would have both
-/// started and finished inside the window.
-const RELOAD_PROBE_FRAMES: u32 = 240;
+/// How long the range holds the trigger DOWN after the shot, in GAMEPLAY
+/// seconds, before reading invariant 5. Comfortably past the lance's 1.5 s
+/// charge - so a second charge would have both started and finished inside the
+/// window - and nowhere near its twelve-second reload, so the magazine is
+/// still empty when the reading is taken.
+///
+/// Seconds rather than frames, because both bounds are the gun's own clock and
+/// not the renderer's. As a frame count this window was 4 s at 60 fps and 26 s
+/// on CI's software rasterizer, which is past the reload: the lance refilled,
+/// fired again with the trigger still held, and the range never reached a
+/// verdict.
+const RELOAD_PROBE_SECS: f32 = 4.0;
 
 /// How many `Playing` frames the whole walk gets before the range calls itself
 /// stalled and PANICS with what it was still waiting on.
@@ -126,8 +133,9 @@ struct LanceProbe {
     cue_after_shot: Option<f32>,
     /// How many slugs this lance has fired.
     shots: u32,
-    /// The frame the first shot left on.
-    shot_frame: Option<u32>,
+    /// Gameplay seconds elapsed when the first shot left, so the reload window
+    /// is measured on the same clock the reload itself runs on.
+    shot_at: Option<f32>,
     /// The ship's velocity along its own bore after the shot.
     /// Negative means it was pushed BACK.
     bore_velocity_after_shot: Option<MetersPerSecond>,
@@ -457,8 +465,8 @@ fn drive_range(world: &mut World) {
     // The recoil reading, taken on the first frame after the shot: one impulse
     // at the muzzle on an unpowered ship, so its velocity along the bore is
     // the whole of it.
-    if world.resource::<LanceProbe>().shot_frame.is_none() {
-        let frame = world.resource::<LanceProbe>().frames;
+    if world.resource::<LanceProbe>().shot_at.is_none() {
+        let elapsed_secs = world.resource::<Time<Virtual>>().elapsed_secs();
         let bore = world
             .get::<GlobalTransform>(lance)
             .map(|pose| pose.rotation() * Vec3::NEG_Z)
@@ -469,7 +477,7 @@ fn drive_range(world: &mut World) {
             .unwrap_or_default();
         {
             let mut probe = world.resource_mut::<LanceProbe>();
-            probe.shot_frame = Some(frame);
+            probe.shot_at = Some(elapsed_secs);
             probe.bore_velocity_after_shot = Some(MetersPerSecond::from_engine(velocity.dot(bore)));
         }
         // Hold the trigger DOWN from here: invariant 5 wants a lance that
@@ -517,8 +525,8 @@ fn drive_range(world: &mut World) {
 
     // And the reload window has to have run long enough that a second charge
     // would have completed inside it.
-    let shot_frame = world.resource::<LanceProbe>().shot_frame.unwrap();
-    if world.resource::<LanceProbe>().frames < shot_frame + RELOAD_PROBE_FRAMES {
+    let shot_at = world.resource::<LanceProbe>().shot_at.unwrap();
+    if world.resource::<Time<Virtual>>().elapsed_secs() < shot_at + RELOAD_PROBE_SECS {
         return;
     }
 

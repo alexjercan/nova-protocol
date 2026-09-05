@@ -1328,6 +1328,12 @@ pub fn first_shift_scene(
                     story::OBJ_TEXT_TRIM_RETURN_VERTICAL,
                 ),
                 TRIM_RETURN_VERTICAL.spawn(),
+                // The entry actions below are the RCS scene's closing handler,
+                // which takes the mark down WITH its arrival gate. The gate is
+                // raised here so it exists to be taken down: a despawn naming
+                // an id this scenario never creates is a lint error and a
+                // refusal to load.
+                TRIM_RETURN_VERTICAL.raise_gate(),
                 TRIM_RETURN_VERTICAL.highlight(),
             ]);
             (

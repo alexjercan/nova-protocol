@@ -91,24 +91,29 @@ const TODAY_SEED: u32 = 20_260_904;
 
 /// Where the lineup is framed from. Far enough back to hold both rows, close
 /// enough that a 200 m planet is a third of the frame height.
+#[cfg(feature = "debug")]
 const LINEUP_CAMERA: Meters3 = Meters3::new(0.0, 0.0, 3_100.0);
 
 /// The menu backdrop's own camera offset from the body it frames
 /// (`main_menu/shared.rs` documents `(0, 570, 1920)` as the reference pose).
 /// Both halves of the before/after pair are shot from here.
+#[cfg(feature = "debug")]
 const BACKDROP_OFFSET: Meters3 = Meters3::new(0.0, 570.0, 1_920.0);
 
 /// Camera offset for a focus shot: the whole planet in frame with air around
 /// it. At the scenario camera's 45-degree vertical field the body fills about
 /// three quarters of the frame height from here.
+#[cfg(feature = "debug")]
 const FOCUS_OFFSET: Meters3 = Meters3::new(0.0, 350.0, 2_600.0);
 
 /// Camera offset for the close pass: about 300 m over the surface of an 800 m
 /// body.
+#[cfg(feature = "debug")]
 const CLOSE_OFFSET: Meters3 = Meters3::new(0.0, 0.0, 1_150.0);
 
 /// Where the close pass looks: just inside the horizon, so the limb cuts
 /// across the frame and the relief is read side-on rather than from overhead.
+#[cfg(feature = "debug")]
 const CLOSE_LOOK: Meters3 = Meters3::new(0.0, 430.0, 640.0);
 
 fn main() -> bevy::app::AppExit {

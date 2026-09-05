@@ -34,6 +34,20 @@ const LOOP_WINDOW: &str = "railgun_loop_window";
 const SCENE_DONE: &str = "attack_salvo_scene_done";
 #[cfg(feature = "debug")]
 const LOOP_NAME: &str = "first-shift-railgun-hits";
+
+/// A wall-clock backstop for a beat that waits on the SCENARIO clock, from the
+/// scripted seconds it is waiting through.
+///
+/// Step deadlines run on real time; the set piece this walk watches runs on the
+/// game clock, and `Time<Virtual>` clamps that to a quarter second a frame.
+/// Under CI's software rasterizer a frame costs more than that, so gameplay
+/// advances at roughly a third of wall speed and a backstop written in scripted
+/// seconds has to buy three of them. These stay BACKSTOPS - the healthy run
+/// spends the scripted time and moves on.
+#[cfg(feature = "debug")]
+fn backstop(scripted_secs: f32) -> f32 {
+    scripted_secs * 3.0
+}
 const STILL_BEATS: [(f64, &str); 5] = [
     (5.0, "run"),
     (6.75, "impact"),
@@ -109,19 +123,19 @@ fn main() -> bevy::app::AppExit {
             app.add_plugins(
                 load.step("wait for the complete destruction scene")
                     .until(scenario_variable_is(SCENE_DONE, 1.0))
-                    .deadline(40.0)
+                    .deadline(backstop(30.0))
                     .add(),
             );
         } else {
             app.add_plugins(
                 load.step("wait for the railgun window")
                     .until(scenario_variable_is(LOOP_WINDOW, 1.0))
-                    .deadline(30.0)
+                    .deadline(backstop(20.0))
                     .add()
                     .step("open the railgun loop")
                     .on_enter(|world| loop_start(world, LOOP_NAME))
                     .until(scenario_variable_is(LOOP_WINDOW, 0.0))
-                    .deadline(10.0)
+                    .deadline(backstop(10.0))
                     .add()
                     .step("close the railgun loop")
                     .on_enter(|world| loop_end(world, LOOP_NAME))
@@ -130,7 +144,7 @@ fn main() -> bevy::app::AppExit {
                     .add()
                     .step("wait for the complete destruction scene")
                     .until(scenario_variable_is(SCENE_DONE, 1.0))
-                    .deadline(40.0)
+                    .deadline(backstop(30.0))
                     .add(),
             );
         }

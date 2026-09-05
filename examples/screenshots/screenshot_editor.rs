@@ -350,10 +350,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // Last, so the capture is of the condition being authored.
         .click("open the Add menu for a second filter", "Add Menu Button")
         .click("add the filter that compares", "Add Filter")
-        .click(
-            "make it an expression",
-            "Inspector Choice Filter Expression",
-        )
+        // Seven filter kinds is one past the inspector's inline-bar limit, so
+        // the Filter row is a BUTTON that opens the choice window; the kinds
+        // live in that window, not on the row.
+        .click("open the filter kinds", "Inspector Choice Filter")
+        .click("make it an expression", "Choice Option Expression")
         .click("compare the other way", "Inspector Choice Compare >");
 
     if capturing() {

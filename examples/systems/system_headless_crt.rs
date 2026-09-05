@@ -120,28 +120,16 @@ fn main() -> bevy::app::AppExit {
             }))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
-            // Pick the target: the first (by code) non-SELF contact the map has
-            // minted a blip button for. Whether the CRT currently SHOWS it is a
-            // later beat's problem - the map opens framed tight on the player,
-            // and the belt starts outside the picture.
-            .step("headless crt: pick the target contact")
-            .each(|world: &mut World, _, _| pick_the_target(world))
-            .until(the_target_is_picked())
-            .diagnose(plotted_codes)
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
             // The map opens framed tight on the player, and the whole belt sits
             // outside even the max wheel zoom - a run against the real scenario
             // found that, not the trace. So the walk does what the map DESIGN
-            // says: cycle the selection ring onto the target with the
-            // registry's own `novaos_next` (the packet lane, key resolved from
-            // the table, works on a hidden blip), re-frame the camera on it
-            // with `novaos_reframe`, then move the ring OFF again - so the
-            // click through the glass still has something to prove.
-            .step("headless crt: novaos_next cycles the ring onto the target")
+            // says: cycle the selection ring onto a contact with the registry's
+            // own `novaos_next` (the packet lane, key resolved from the table,
+            // works on a hidden blip), then re-frame the camera on it.
+            .step("headless crt: novaos_next cycles the ring onto a contact")
             .each(|world: &mut World, _, frame| pulse_action(world, "novaos_next", frame))
-            .until(the_target_is_selected())
-            .diagnose(ringed_codes)
+            .until(a_blip_is_ringed())
+            .diagnose(plotted_codes)
             .deadline(STEP_DEADLINE_SECS)
             .add()
             // The press that landed the ring may still be down (the gate can
@@ -156,20 +144,22 @@ fn main() -> bevy::app::AppExit {
             .step("headless crt: release novaos_reframe")
             .on_enter(release_action_key("novaos_reframe"))
             .add()
-            .step("headless crt: the reframe put the target on the picture")
-            .until(the_target_is_on_the_picture())
-            .diagnose(aim_diagnosis)
-            .deadline(STEP_DEADLINE_SECS)
-            .add()
-            .step("headless crt: press novaos_next off the target")
-            .on_enter(press_action_key("novaos_next"))
-            .add()
-            .step("headless crt: release novaos_next off the target")
-            .on_enter(release_action_key("novaos_next"))
-            .add()
-            .step("headless crt: the ring moved off the target")
-            .until(nova_autopilot::predicate::not(the_target_is_selected()))
-            .diagnose(ringed_codes)
+            // The click target is a contact the CRT is SHOWING that the ring is
+            // not already on - the click needs a ring to move, or the selection
+            // beat proves nothing.
+            //
+            // Off the picture rather than off the contact list, because
+            // selecting a contact snaps the map's focus onto it
+            // (`map_focus_follow`): cycling the ring away from a framed contact
+            // carries the camera off with it, and the belt is wider than the
+            // wheel's whole zoom range, so the contact just left behind is
+            // gone for good. What the glass shows NOW is what a pointer can
+            // reach. A frame showing no second blip takes a wheel notch out as
+            // a net.
+            .step("headless crt: the reframe put a second blip on the picture")
+            .each(pick_the_target)
+            .until(the_target_is_picked())
+            .diagnose(shown_codes)
             .deadline(STEP_DEADLINE_SECS)
             .add()
             // Aim. Re-resolves and re-tracks EVERY frame (the scene reconciles,
@@ -361,22 +351,31 @@ fn pulse_action(world: &mut World, action: &'static str, frame: u32) {
     }
 }
 
-/// Record the first plotted contact that has a blip as this run's target.
+/// Record the first contact the CRT is SHOWING that the ring is not on as this
+/// run's target, and take a wheel notch out on a frame that shows no such blip.
 ///
 /// The beat holds until the pick lands, so this runs every frame of it: the
 /// choice is made ONCE and the later frames cost nothing, which also keeps the
 /// target from moving under a run whose map plots a new contact mid-beat.
 #[cfg(feature = "debug")]
-fn pick_the_target(world: &mut World) {
+fn pick_the_target(world: &mut World, _elapsed: f32, frame: u32) {
     if world.get_resource::<GlassTarget>().is_some() {
         return;
     }
-    let picked = plotted_contacts(world)
-        .into_iter()
-        .find(|(_, code)| blip_labelled(world, code).is_some());
-    if let Some((contact, code)) = picked {
-        info!("headless crt: the target is {code}");
-        world.insert_resource(GlassTarget { contact, code });
+    let ringed = ringed_code(world);
+    let picked = plotted_contacts(world).into_iter().find(|(_, code)| {
+        ringed.as_deref() != Some(code.as_str())
+            && blip_labelled(world, code)
+                .and_then(|blip| window_px_of(world, blip))
+                .is_some()
+    });
+    match picked {
+        Some((contact, code)) => {
+            info!("headless crt: the target is {code}, with the ring on {ringed:?}");
+            world.insert_resource(GlassTarget { contact, code });
+        }
+        None if frame % 8 == 1 => scroll_lines(-2.0)(world),
+        None => {}
     }
 }
 
@@ -414,11 +413,11 @@ fn the_target_is_selected() -> Gate {
     })
 }
 
-/// Advance once the CRT actually shows the target - the reframe's real ack,
-/// where a frame count only said the camera had been asked to move.
+/// Advance once SOME blip is wearing the ring - `novaos_next`'s ack, which the
+/// walk needs before it can pick a target the ring is NOT on.
 #[cfg(feature = "debug")]
-fn the_target_is_on_the_picture() -> Gate {
-    Arc::new(|world: &World| target_window_px(world).is_some())
+fn a_blip_is_ringed() -> Gate {
+    Arc::new(|world: &World| ringed_code(world).is_some())
 }
 
 /// Advance once the pointer the CRT forwards through the warp is hovering the
@@ -466,11 +465,11 @@ fn plotted_codes(world: &World) -> String {
     format!("the map has plotted {codes:?}")
 }
 
-/// Which codes are wearing the selection ring, so a ring beat that stalls says
-/// where the ring actually is.
+/// Every plotted code whose blip wears the selection ring. One of them, unless
+/// the map has lost track of its own selection.
 #[cfg(feature = "debug")]
-fn ringed_codes(world: &World) -> String {
-    let ringed: Vec<String> = plotted_contacts(world)
+fn ringed_code_list(world: &World) -> Vec<String> {
+    plotted_contacts(world)
         .into_iter()
         .filter(|(_, code)| {
             blip_labelled(world, code)
@@ -478,8 +477,36 @@ fn ringed_codes(world: &World) -> String {
                 .is_some_and(|border| border.top.alpha() > 0.0)
         })
         .map(|(_, code)| code)
+        .collect()
+}
+
+/// The code the selection ring is on, if the map has a selection it can plot.
+#[cfg(feature = "debug")]
+fn ringed_code(world: &World) -> Option<String> {
+    ringed_code_list(world).into_iter().next()
+}
+
+/// Which codes are wearing the selection ring, so a ring beat that stalls says
+/// where the ring actually is.
+#[cfg(feature = "debug")]
+fn ringed_codes(world: &World) -> String {
+    format!("the ring is on {:?}", ringed_code_list(world))
+}
+
+/// Which plotted codes the CRT is actually showing, so a beat with nothing to
+/// click says whether the picture is empty or the ring is simply on all of it.
+#[cfg(feature = "debug")]
+fn shown_codes(world: &World) -> String {
+    let shown: Vec<String> = plotted_contacts(world)
+        .into_iter()
+        .filter(|(_, code)| {
+            blip_labelled(world, code)
+                .and_then(|blip| window_px_of(world, blip))
+                .is_some()
+        })
+        .map(|(_, code)| code)
         .collect();
-    format!("the ring is on {ringed:?}")
+    format!("the CRT is showing {shown:?} and {}", ringed_codes(world))
 }
 
 /// Why the aim cannot place the target: whether the blip exists at all, whether
@@ -544,6 +571,12 @@ fn census_the_glass(world: &mut World) {
     info!(
         "headless crt: glass census {}",
         serde_json::Value::Array(census)
+    );
+
+    assert!(
+        !the_target_is_selected()(world),
+        "the click has to have a ring to MOVE onto the target, or the selection \
+         beat after it proves nothing"
     );
 
     let target = resolve_blip(world).expect("the aim beat held on this blip");

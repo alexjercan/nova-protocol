@@ -45,12 +45,13 @@ struct Cli;
 ///
 /// The picker's own subject in that figure is the CAMPAIGN grouping - the `[-]`
 /// header with its chapters indented under it - so the selection has to be a
-/// chapter rather than one of the uncampaigned scenarios in the tail, and a
-/// chapter partway down rather than the first, so the header above it is
-/// visibly its parent. `assets/base/campaigns/nova_protocol.content.ron` lists
-/// it; campaigns render expanded unless collapsed, so nothing has to open it.
+/// chapter rather than one of the uncampaigned scenarios in the tail, and not
+/// the first chapter, so the header above it is visibly its parent rather than
+/// the row it happens to sit on. `assets/base/campaigns/nova_protocol.content.ron`
+/// lists the chapters; campaigns render expanded unless collapsed, so nothing
+/// has to open it.
 #[cfg(feature = "debug")]
-const CAMPAIGN_CHAPTER_ROW: &str = "Scenario Row: broadside";
+const CAMPAIGN_CHAPTER_ROW: &str = "Scenario Row: second_shift";
 #[cfg(feature = "debug")]
 const EXAMPLE_SCENARIO_ROW: &str = "Scenario Row: example_arena";
 

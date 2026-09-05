@@ -177,6 +177,14 @@ const FLOWN_RANGE: &str = "editor_sandbox";
 #[cfg(feature = "debug")]
 const DRAG_SPAN: f32 = 25.0;
 
+/// How far inside the window edge an aim at a world point has to land, in
+/// logical px, for the beat to count that point as on screen.
+///
+/// Wide enough that a [`DRAG_SPAN`] leg from the aim is still over the
+/// viewport, so a beat may aim and then drag from what it aimed at.
+#[cfg(feature = "debug")]
+const AIM_MARGIN: f32 = 32.0;
+
 /// In-step seconds the two asset-gated beats get: reaching the main menu, and
 /// reaching gameplay through it. Sized to outlast a cold load on a
 /// software-rendered CI GPU, and kept under the harness completion deadline so
@@ -1685,13 +1693,31 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // A world click out here SELECTS: the viewport and the tree answer a
         // click the same way, and the tree is the door.
+        // The camera is where the world-object beats left it: framing a rock
+        // that was placed ten kilometres out and has since been deleted, with
+        // every ship on the stage off the top of the picture. F is the editor's
+        // own answer to "I have flown away, put me back" - with nothing in hand
+        // and nothing selected it frames the node the builder is standing in,
+        // which out here is the whole scenario. It selects nothing, which the
+        // hover beats below need.
+        .step("editor: press F to frame the scenario")
+        .on_enter(press_key(KeyCode::KeyF))
+        .add()
+        .step("editor: release F")
+        .on_enter(release_key(KeyCode::KeyF))
+        .add()
+        // Re-aimed EVERY frame, not once on entry: the aim is at where the
+        // ship WAS the frame the beat began, and the frame request is served a
+        // frame later. A frame that frames no section at all leaves the pointer
+        // where it is and tries again.
         .step("editor: aim at the first ship")
-        .on_enter(|world: &mut World| {
-            let at = aim_at_the_first_ship(world)
-                .expect("the first ship is on screen at the scenario node");
-            move_cursor(at)(world);
+        .each(|world: &mut World, _elapsed: f32, _frames: u32| {
+            if let Some(at) = aim_at_the_first_ship(world) {
+                move_cursor(at)(world);
+            }
         })
         .until(the_pointer_is_on_the_ship())
+        .diagnose(section_aim_census)
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         // The pointer carries the node across to the rail: resting on a hull
@@ -3365,26 +3391,115 @@ fn the_camera_looks_down_on_the_first_ship() -> Wait {
     })
 }
 
+/// Where the sections nearest the first ship project to, and what every camera
+/// on the stage is looking at - what a beat that cannot find an on-screen
+/// section needs in order to say whether the stage is empty or the view is
+/// pointed somewhere else.
+#[cfg(feature = "debug")]
+fn section_aim_census(world: &World) -> String {
+    let Some(camera_entity) = world
+        .try_query_filtered::<Entity, With<Camera3d>>()
+        .and_then(|mut cameras| cameras.iter(world).next())
+    else {
+        return "no 3D camera".to_string();
+    };
+    let (Some(camera), Some(camera_transform)) = (
+        world.get::<Camera>(camera_entity),
+        world.get::<GlobalTransform>(camera_entity),
+    ) else {
+        return "the 3D camera has no Camera".to_string();
+    };
+    let Some(mut sections) = world.try_query_filtered::<&GlobalTransform, With<SectionMarker>>()
+    else {
+        return "no section carries a pose".to_string();
+    };
+    let mut poses: Vec<Vec3> = sections
+        .iter(world)
+        .map(GlobalTransform::translation)
+        .collect();
+    let total = poses.len();
+    // The x rule's own order, cut to the head of it: the walk is looking for
+    // the FIRST ship, so a hundred lines about the far pickets say nothing a
+    // stall here needs.
+    poses.sort_by(|a, b| {
+        a.x.abs()
+            .partial_cmp(&b.x.abs())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| by_pose(*a, *b))
+    });
+    let aims: Vec<String> = poses
+        .iter()
+        .take(8)
+        .map(|at| {
+            let aim = camera.world_to_viewport(camera_transform, *at).ok();
+            format!("{at:?} -> {aim:?}")
+        })
+        .collect();
+    let rigs: Vec<String> = world
+        .try_query_filtered::<(Entity, Option<&Name>, &Camera, &GlobalTransform), With<Camera3d>>()
+        .map(|mut cameras| {
+            cameras
+                .iter(world)
+                .map(|(entity, name, camera, pose)| {
+                    format!(
+                        "{entity} {:?} order {} viewport {:?} at {:?} facing {:?}",
+                        name.map(Name::as_str),
+                        camera.order,
+                        camera.logical_viewport_size(),
+                        pose.translation(),
+                        pose.forward(),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    format!(
+        "the aim is taken through {:?} of {rigs:?}; the {} sections nearest x=0 of {total}: {aims:?}",
+        camera.logical_viewport_size(),
+        aims.len(),
+    )
+}
+
 /// A viewport aim at the FIRST ship on the stage.
 ///
 /// Reads the scene rather than the probe, because outside a ship the probe
 /// reports no ship at all - that is the point of the scoping. Ships are spaced
-/// along +X from the origin, so the section view nearest x=0 is on the first
-/// one; every ship's sections are on screen out here, and any other rule would
-/// pick whichever the archetype walk yielded.
+/// along +X from the origin, so the section nearest x=0 is on the first one;
+/// any other rule would pick whichever the archetype walk yielded.
+///
+/// The candidates are filtered to sections the camera actually FRAMES, and the
+/// x rule then chooses among those. A section can sit outside the viewport
+/// while its ship is in view - the scenario-node camera crops the tall ones -
+/// and projecting one yields a pointer above the window that no picking ray
+/// ever leaves, which reads downstream as a beat that simply never advances.
 #[cfg(feature = "debug")]
 fn aim_at_the_first_ship(world: &mut World) -> Option<Vec2> {
-    let nearest = world
+    let camera_entity = world
+        .query_filtered::<Entity, With<Camera3d>>()
+        .iter(world)
+        .next()?;
+    let camera = world.get::<Camera>(camera_entity)?.clone();
+    let camera_transform = *world.get::<GlobalTransform>(camera_entity)?;
+    let viewport = camera.logical_viewport_size()?;
+
+    let mut framed: Vec<(Vec3, Vec2)> = world
         .query_filtered::<&GlobalTransform, With<SectionMarker>>()
         .iter(world)
         .map(GlobalTransform::translation)
-        .min_by(|a, b| {
-            a.x.abs()
-                .partial_cmp(&b.x.abs())
-                .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| by_pose(*a, *b))
-        })?;
-    aim_at_world(world, nearest)
+        .filter_map(|at| {
+            let aim = camera.world_to_viewport(&camera_transform, at).ok()?;
+            let inside = aim.cmpge(Vec2::splat(AIM_MARGIN)).all()
+                && aim.cmple(viewport - Vec2::splat(AIM_MARGIN)).all();
+            inside.then_some((at, aim))
+        })
+        .collect();
+    framed.sort_by(|(a, _), (b, _)| {
+        a.x.abs()
+            .partial_cmp(&b.x.abs())
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| by_pose(*a, *b))
+    });
+    framed.first().map(|(_, aim)| *aim)
 }
 
 /// Advance once the flown PLAYER ship carries every section of the design the

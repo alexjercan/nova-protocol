@@ -407,6 +407,7 @@ mod tests {
                             kind: Asteroid((
                                 radius: 2.0,
                                 texture: "self://textures/rock.png",
+                                material: "rock",
                                 health: 50.0,
                                 mass: None,
                                 invulnerable: false,

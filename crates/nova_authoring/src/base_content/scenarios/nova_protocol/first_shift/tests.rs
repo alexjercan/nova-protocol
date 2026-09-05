@@ -1325,3 +1325,60 @@ fn the_orbit_return_gate_intercepts_every_ring_the_verb_can_plan() {
         ceiling.0,
     );
 }
+
+/// Every standalone preview scene must survive the same content lint the
+/// shipped bundle does.
+///
+/// A scene is assembled by REPLAYING the previous scene's closing handler over
+/// a hand-built opening, so an id that handler takes down is spawned by the
+/// scene BEFORE it in the campaign and by nothing at all on its own. That
+/// reads green in `first_shift` and refuses to load as a preview, which is a
+/// class the bundle walk cannot see: these scenarios exist only in code.
+#[test]
+fn every_preview_scene_passes_the_content_lint() {
+    let content = crate::base_content::build();
+    let known_sections = KnownSections::from_configs(content.sections.iter().collect::<Vec<_>>());
+    let known_ships = KnownShips::from_configs(content.ships.iter().collect::<Vec<_>>());
+    let scenes = [
+        FirstShiftScene::Departure,
+        FirstShiftScene::Rcs,
+        FirstShiftScene::Salvage,
+        FirstShiftScene::Navigation,
+        FirstShiftScene::Orbit,
+        FirstShiftScene::Return,
+        FirstShiftScene::AttackApproach,
+        FirstShiftScene::AttackSalvo,
+        FirstShiftScene::Aftermath,
+    ];
+    let previews: Vec<ScenarioConfig> = scenes
+        .into_iter()
+        .map(|scene| {
+            first_shift_scene(
+                scene,
+                AssetRef::default(),
+                AssetRef::default(),
+                &portraits(),
+            )
+        })
+        .collect();
+    let known_scenarios: std::collections::HashSet<String> = content
+        .scenarios
+        .iter()
+        .chain(previews.iter())
+        .map(|scenario| scenario.id.clone())
+        .collect();
+
+    let mut errors = Vec::new();
+    for preview in &previews {
+        for issue in lint_scenario(preview, &known_sections, &known_ships, &known_scenarios) {
+            if issue.severity == LintSeverity::Error {
+                errors.push(format!("[{}] {}", preview.id, issue.message));
+            }
+        }
+    }
+    assert!(
+        errors.is_empty(),
+        "preview scenes carry content lint errors:\n{}",
+        errors.join("\n")
+    );
+}

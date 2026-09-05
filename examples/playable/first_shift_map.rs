@@ -56,8 +56,9 @@ struct Cli {
     pilot: Pilot,
 }
 
-/// Frames the loaded map is held before its shot. Sized to outlast the
-/// frame-time window below: the capture has to open and close inside one step.
+/// Frames the loaded map is held before its shot on an ARMED run. Sized to
+/// outlast the frame-time window below: the capture has to open and close
+/// inside one step.
 #[cfg(feature = "debug")]
 const HOLD_FRAMES: u32 = 460;
 /// Warmup and measured frames of the frame-time window. This is the most
@@ -98,6 +99,21 @@ fn camera_pilot(pilot: Res<Pilot>) -> bool {
     *pilot == Pilot::Camera
 }
 
+/// How long the hold beat actually runs. The window is only there to be
+/// outlasted while the capture is armed; an unarmed run holds the fleet's
+/// settle and no more. This is the most populated authored scene in the game,
+/// and on the software renderer its 460th frame lands well past the harness
+/// deadline - a correctness walk must not fail for the length of a
+/// measurement it is not taking.
+#[cfg(feature = "debug")]
+fn hold_frames() -> u32 {
+    if nova_probe::probe_armed() {
+        HOLD_FRAMES
+    } else {
+        SETTLE_FRAMES
+    }
+}
+
 /// The probe script every harnessed run walks: reach the loaded map, hold it
 /// long enough for an ARMED frame-time window to close inside one step, then
 /// shoot it and exit. An unarmed run walks the identical steps and measures
@@ -114,7 +130,7 @@ fn map_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("hold the loaded map")
-        .until(frames(HOLD_FRAMES))
+        .until(frames(hold_frames()))
         .add()
         .step("shoot the map")
         .on_enter(|world: &mut World| shoot(world, SHOT_NAME))

@@ -105,6 +105,7 @@ fn main() -> bevy::app::AppExit {
             Startup,
             (force_capture_resolution, hide_dev_overlays, hide_hud),
         );
+        app.init_resource::<DeployStill>();
         app.add_plugins(trials_script());
     }
 
@@ -315,22 +316,27 @@ fn trials_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("section-trials-stowed.png"))
         .deadline(30.0)
         .add()
-        .step("weapons hot, trigger held - rising with not one round fired")
+        // The shot asserts its own subject, ON the frame that shows it: the
+        // rise is watched every frame and the still taken the moment one is
+        // seen, so what lands is a mid-rise pose and never the deployed one.
+        .step("weapons hot, trigger held - shot mid-rise with not one round fired")
         .on_enter(|world| {
             set_weapons_hot(world, true);
             set_triggers(world, true);
         })
-        .until(and(mount_rising(), no_bullets()))
-        .deadline(15.0)
-        .add()
-        // The shot asserts its own subject: a frame that lands after the
-        // rise finished stalls this beat instead of writing a mislabelled
-        // still of the deployed pose.
-        .step("shoot the deploy mid-rise")
-        .on_enter(|world| shoot(world, "section-trials-deploying.png"))
+        .each(|world: &mut World, _elapsed: f32, _frames: u32| {
+            if world.resource::<DeployStill>().0 || !a_mount_is_rising(world) {
+                return;
+            }
+            shoot(world, "section-trials-deploying.png");
+            world.resource_mut::<DeployStill>().0 = true;
+        })
         .until(and(
-            mount_rising(),
-            shot_written("section-trials-deploying.png"),
+            and(
+                deploy_still_taken(),
+                shot_written("section-trials-deploying.png"),
+            ),
+            no_bullets(),
         ))
         .deadline(30.0)
         .add()
@@ -482,19 +488,34 @@ fn mounts_parked() -> Arc<nova_debug::harness::Predicate> {
 /// Some mount is mid-rise: lids fully parted, assembly strictly between
 /// sunk and up - the deploying money-shot window.
 #[cfg(feature = "debug")]
-fn mount_rising() -> Arc<nova_debug::harness::Predicate> {
-    Arc::new(|world: &World| {
-        world
-            .try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()
-            .is_some_and(|mut query| {
-                query.iter(world).any(|animations| {
-                    animations.cue_progress(SectionAnimationCue::StowDoors) == Some(0.0)
-                        && animations
-                            .cue_progress(SectionAnimationCue::StowLift)
-                            .is_some_and(|progress| progress > 0.0 && progress < 1.0)
-                })
+fn a_mount_is_rising(world: &World) -> bool {
+    world
+        .try_query_filtered::<&SectionAnimations, With<TurretSectionMarker>>()
+        .is_some_and(|mut query| {
+            query.iter(world).any(|animations| {
+                animations.cue_progress(SectionAnimationCue::StowDoors) == Some(0.0)
+                    && animations
+                        .cue_progress(SectionAnimationCue::StowLift)
+                        .is_some_and(|progress| progress > 0.0 && progress < 1.0)
             })
-    })
+        })
+}
+
+/// Set on the frame the walk caught a mount mid-rise and shot it.
+///
+/// The still's subject is a pose that lasts under a second of gameplay, so the
+/// walk cannot wait for it in one beat and shoot it in the next: on the
+/// software rasterizer a whole lift passes between two frames, and the second
+/// beat then waits forever for a rise that is already over. The capture and
+/// the claim happen on the SAME frame instead, and this records that they did.
+#[cfg(feature = "debug")]
+#[derive(Resource, Default)]
+struct DeployStill(bool);
+
+/// Advance once the mid-rise still has been taken.
+#[cfg(feature = "debug")]
+fn deploy_still_taken() -> Arc<nova_debug::harness::Predicate> {
+    resource_where::<DeployStill>(|still| still.0)
 }
 
 /// Every mount is fully up: both stow cues back at rest.
