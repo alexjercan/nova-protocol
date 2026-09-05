@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Panel art for the Nova Protocol comic, prologue "The Shelter".
+"""Panel art for the Nova Protocol comic: the prologue "The Shelter" and act one "The job".
 
 Run from the repository root:
 
@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import pathlib
 
-from crt import (EWI, GOLD, GRID, INK, KESTREL, LIME, PALE, PHOS, PHOS_BRIGHT, PHOS_DIM, PHOS_TEXT, SIL, SUIT_EDGE, Panel,
-                 banner, bay, bolt, burst, charge, claim_line, console, deck_hand, ember, eva_crew, face, flash_disc, g,
-                 harrier, helmet, ice, ice_slab, junk, lamp_pool, mark, meridian, mono, plaque, plot_text, rings, rock,
-                 station, station_wreck, tender)
+from crt import (EMBER, EWI, FLEET, GOLD, GRID, INK, KESTREL, KESTREL_DEAD, LIME, PALE, PHOS, PHOS_BRIGHT, PHOS_DIM,
+                 PHOS_TEXT, SIL, SPACE, SUIT_EDGE, Panel, banner, bay, beacon_rings, bolt, burst, cabin, charge,
+                 claim_line, console, crate, cutter, deck_hand, derelict, ember, eva_crew, face, flash_disc, g,
+                 harrier, helmet, ice, ice_slab, junk, lamp_pool, mark, meridian, mono, orbit_ring, plaque, plot_text,
+                 rings, rock, shadow_wedge, skiff, station, station_wreck, tag, tender, warship, waveform)
 
 OUT = pathlib.Path(__file__).resolve().parents[2] / "web" / "src" / "assets" / "story" / "nova-protocol"
 
@@ -31,6 +32,12 @@ CALLOWAY = dict(skin="#a08a62", shadow="#5a4c34", light="#c7b489", hair="#4a4a3c
 PELL = dict(skin="#8b7350", shadow="#4a3c28", light="#b09a72", hair="#2e2c22", style="cropped", headset="deck",
             uniform="#6d6845", uniform_dark="#3e4130", collar="deck", jaw="wide", age=.8, stubble=True, heavy_brow=True,
             mouth="set", helmet_ring=True, glow_below=False)
+HALLORAN = dict(skin="#8f7048", shadow="#4d3a24", light="#b8966c", hair="#1c1a16", style="swept", headset="slim",
+                uniform="#2f5a4a", uniform_dark="#1a3a2e", collar="deck", jaw="narrow", age=.45, mouth="flat")
+OKORO = dict(skin="#5c4530", shadow="#2e2117", light="#86684a", hair="#141210", style="cropped", headset="goggles",
+             uniform="#a8842e", uniform_dark="#6b5320", collar="deck", jaw="wide", age=.5, stubble=True, mouth="flat")
+DEMIR = dict(skin="#9a7a56", shadow="#55402a", light="#c2a47e", hair="#2a2620", style="cropped", headset="slim",
+             uniform="#3e4a3c", uniform_dark="#22301f", collar="deck", jaw="narrow", age=.4, mouth="flat")
 
 
 def shelter_on_rock(x: float, y: float, s: float, wreck: bool = False) -> str:
@@ -224,6 +231,194 @@ def the_plaque() -> Panel:
     return p
 
 
+# ------------------------------------------------------------------ act one
+
+def junk_field(seed: int, x0: float, y0: float, x1: float, y1: float) -> str:
+    """The junk site's scrap in three palettes: company khaki, Kestrel bone and the unnamed dark."""
+    return junk(seed, x0, y0, x1, y1, 26, "dark") + junk(seed + 1, x0, y0, x1, y1, 12, "bone") + junk(seed + 2, x0, y0, x1, y1, 10, "ewi")
+
+
+def junk_site() -> Panel:
+    p = Panel(*HALF, grid=True)
+    p.add(rings(1440, 240, -7, seed=21), ice(21, 40, 40, 1400, 960, 120))
+    p.add(rock(1200, 520, 300, 290, seed=22), shadow_wedge(1200, 520, 290))
+    p.add(junk_field(23, 560, 120, 1100, 900))
+    p.add(g(880, 780, .9, 14, inner=derelict(SIL, seed=3)))
+    p.add(g(980, 240, .8, -20, True, harrier(lit=False, flip=True)))
+    p.add(g(500, 440, .75, inner=meridian(EWI, bay_open=True)))
+    p.add(g(800, 580, .9, -10, inner=cutter()))
+    p.add(f'<line x1="640" y1="500" x2="760" y2="565" stroke="{PHOS}" stroke-width="2" stroke-dasharray="4 12" opacity=".45"/>')
+    return p
+
+
+def boat_bay_shift() -> Panel:
+    p = Panel(*WIDE, space=True)
+    p.add(bay(1920, 900, seed=24))
+    p.add(banner(120, 140, 580, 122))
+    p.add(plaque(760, 130, 380, 205, [("DORIAN PELL", 27, 700), ("BOAT DECK, EWI MERIDIAN", 14, 400), ("LOST IN RESCUE", 15, 700),
+                                       ("\"ALL HANDS, TENDERS AWAY\"", 14, 400), ("WE REMEMBER OUR OWN", 11, 400)]))
+    p.add(f'<rect x="1440" y="150" width="380" height="150" fill="#04120b" stroke="{PHOS_DIM}" stroke-width="4"/>')
+    p.add(plot_text(1464, 196, [("BOAT DECK // SHIFT 3", PHOS_BRIGHT), ("CUTTER ONE // CARD 7-R", PHOS), ("UNDER WAY IN 00:56", GOLD)], 22, 40))
+    p.add(g(1420, 590, 2.6, flip=True, inner=cutter(flip=True)))
+    p.add(f'<path d="M1300,660 L1300,740 L1260,740 M1560,660 L1560,740 L1600,740" stroke="{SUIT_EDGE}" stroke-width="14" fill="none"/>')
+    p.add(lamp_pool(1420, 560, 460))
+    p.add(g(560, 800, 1.25, inner=deck_hand(helmet_on=True)), g(720, 780, 1.15, inner=deck_hand()), g(880, 810, 1.2, inner=deck_hand(tool=True)))
+    return p
+
+
+def cutter_released() -> Panel:
+    p = Panel(*HALF, grid=True)
+    p.add(rings(1440, 180, -6, seed=25), ice(25, 40, 40, 1400, 960, 110))
+    p.add(junk_field(26, 900, 500, 1440, 1000))
+    p.add(g(520, 400, 1.6, inner=meridian(EWI, bay_open=True)))
+    p.add(g(960, 700, 1.7, 10, inner=cutter()))
+    p.add(f'<path d="M660,500 Q760,560 860,660" fill="none" stroke="{PHOS}" stroke-width="2" stroke-dasharray="4 12" opacity=".5"/>')
+    return p
+
+
+def handling_card() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(console(130, 110, 1180, 780, "MAINTENANCE RELEASE // CUTTER ONE // CARD 7-R"))
+    p.add(f'<path d="M180,560 L420,470 L560,300 L700,290 L760,520 L560,640 L300,690 Z" fill="none" stroke="{LIME}" stroke-width="2" stroke-dasharray="14 12" opacity=".7"/>')
+    p.add(mono(200, 540, "PLATE SEVEN", 20, LIME, spacing=4))
+    p.add(mark(330, 610, "charge", "CRATE 1", GOLD), mark(560, 380, "charge", "CRATE 2", GOLD), mark(660, 590, "charge", "CRATE 3", GOLD, "NO MANIFEST // MASS UNKNOWN"))
+    p.add(f'<rect x="840" y="220" width="220" height="180" fill="none" stroke="{PHOS}" stroke-width="2" stroke-dasharray="8 8" opacity=".7"/>')
+    for x, y, t in ((840, 400, "TRIM A"), (840, 220, "TRIM B"), (1060, 220, "TRIM C"), (1060, 400, "TRIM D")):
+        p.add(mark(x, y, "station", t, PHOS))
+    p.add(f'<circle cx="1000" cy="640" r="90" fill="#0a1711" stroke="{PALE}" stroke-width="3"/>' + mono(1000, 646, "SURVEY BODY", 15, PALE, spacing=2, anchor="middle"))
+    p.add(f'<path d="M760,520 Q880,540 900,600 Q1000,780 1160,700" fill="none" stroke="{GOLD}" stroke-width="3" stroke-dasharray="16 10" opacity=".8"/>')
+    p.add(mark(900, 600, "ship", "TRANSIT 1", GOLD), mark(1160, 700, "ship", "TRANSIT 2", GOLD))
+    p.add(mark(240, 760, "ship", "MERIDIAN", PHOS, "UNDER WAY IN 00:56"))
+    p.add(plot_text(170, 840, [("PORT RCS MANIFOLD: REPLACED // YARD", PHOS_TEXT)], 17))
+    p.add(plot_text(760, 840, [("GUIDANCE + AUTO BRAKE: RELEASE PENDING", PHOS_TEXT)], 17))
+    return p
+
+
+def crates_on_plate_seven() -> Panel:
+    p = Panel(*HALF, grid=True)
+    p.add(ice(27, 40, 40, 1400, 960, 90))
+    p.add(junk_field(28, 60, 80, 1380, 940))
+    p.add(g(1100, 300, 1.1, -12, inner=derelict(SIL, seed=7)))
+    p.add(g(280, 760, .9, 24, True, harrier(lit=False, flip=True)))
+    p.add(tag(1010, 210, "07 // 02 // SECURE"), tag(360, 560, "07 // 01 // SECURE"), tag(1120, 720, "07 // 03 // NO MANIFEST", GOLD))
+    p.add(g(1080, 780, 1.6, 30, inner=crate()))
+    p.add(g(640, 520, 2.8, -4, inner=cutter(crates=2)))
+    p.add(g(770, 690, 1.6, inner=crate()))
+    return p
+
+
+def the_donut() -> Panel:
+    p = Panel(*WIDE, grid=True)
+    p.add(rings(1920, 230, -7, seed=29), ice(29, 40, 40, 1880, 860, 150))
+    p.add(g(260, 300, .3, inner=meridian(EWI)))
+    p.add(junk_field(30, 300, 150, 900, 800))
+    p.add(rock(1180, 520, 330, 310, seed=31))
+    p.add(shadow_wedge(1180, 520, 310))
+    p.add(g(1640, 690, .42, -8, inner=warship(dict(FLEET, hull="#0b1812", dark="#08120d", light="#122219", edge="#1a3024"), name="", old_name=False)))
+    p.add(orbit_ring(1180, 520, 540, 210, -14))
+    p.add(g(760, 340, 1.0, -22, inner=cutter()))
+    return p
+
+
+def demir_at_control() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(f'<rect width="1440" height="1000" fill="#0a1710"/>')
+    p.add(''.join(f'<line x1="{x}" y1="0" x2="{x}" y2="1000" stroke="{GRID}" stroke-width="3" stroke-opacity=".8"/>' for x in range(0, 1441, 190)))
+    p.add(lamp_pool(700, 40, 600))
+    for x, rows in ((60, [("CUTTER ONE", PHOS_BRIGHT), ("ORBIT HOLD // SURVEY BODY", GOLD), ("SIGHTLINE: RESTORED", PHOS)]),
+                    (1040, [("MERIDIAN", PHOS_BRIGHT), ("UNDER WAY IN 00:31", PHOS), ("RELEASE 7-R: FILED", GOLD)])):
+        p.add(f'<rect x="{x}" y="120" width="340" height="150" fill="#04120b" stroke="{PHOS_DIM}" stroke-width="4"/>')
+        p.add(plot_text(x + 24, 166, rows, 20, 40))
+    p.add(g(620, 430, 1.0, inner=face(**DEMIR)))
+    return p
+
+
+def third_crate_home() -> Panel:
+    p = Panel(*HALF, grid=True)
+    p.add(rings(1440, 200, -6, seed=32), ice(32, 40, 40, 1400, 960, 110))
+    p.add(junk_field(33, 40, 80, 800, 940))
+    p.add(rock(1320, 260, 260, 240, seed=34))
+    p.add(g(1040, 560, .75, inner=meridian(EWI, bay_open=True)))
+    p.add(g(480, 620, 1.7, 6, inner=cutter(crates=3)))
+    p.add(f'<path d="M640,600 Q780,560 900,570" fill="none" stroke="{PHOS}" stroke-width="2" stroke-dasharray="4 12" opacity=".5"/>')
+    p.add(mark(900, 570, "station", "OUTER HOLD", PHOS))
+    return p
+
+
+def the_reading() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(console(130, 110, 1180, 780, "CUTTER ONE // COMMS // GUARD CHANNEL // SIGNAL 12%"))
+    p.add(f'<rect x="150" y="170" width="1140" height="270" fill="{INK}" opacity=".8"/>')
+    p.add(waveform(160, 300, 1120, 70, seed=35))
+    p.add(mono(720, 400, "...ROSTER...", 64, PHOS_BRIGHT, weight=700, spacing=10, anchor="middle", extra=' filter="url(#glow)"'))
+    p.add(mono(300, 230, "...MERIDIAN CONTR...", 22, PHOS_DIM, spacing=4), mono(860, 230, "...SECTION N...", 22, PHOS_DIM, spacing=4))
+    p.add(mono(260, 430, "...NO REC...", 22, PHOS_DIM, spacing=4, extra=' opacity=".7"'))
+    p.add(mark(440, 620, "ship", "CUTTER ONE", PHOS, "INBOUND // OUTER HOLD"))
+    p.add(mark(860, 560, "ship", "MERIDIAN", PHOS, "HOLDING // BAY OPEN"))
+    p.add(f'<circle cx="1120" cy="720" r="80" fill="#0a1711" stroke="{PALE}" stroke-width="3"/>')
+    p.add(mark(1040, 640, "lost", "CONTACT // NO CODE", GOLD, "DRIVE PLUME // CLEARING THE BODY"))
+    p.add(f'<path d="M1040,650 L900,580" stroke="{GOLD}" stroke-width="3" stroke-dasharray="8 8" opacity=".8"/>')
+    p.add(plot_text(170, 840, [("GUARD CHANNEL: FRAGMENTS. VOICE: NOT CONTROL.", GOLD)], 17))
+    return p
+
+
+def out_of_the_shadow() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(ice(36, 40, 40, 1400, 960, 90))
+    p.add(rock(160, 500, 480, 520, seed=37))
+    p.add(f'<path d="M560,140 Q700,500 560,860" fill="none" stroke="{PALE}" stroke-width="6" opacity=".35" filter="url(#soft)"/>')
+    p.add(shadow_wedge(160, 500, 520))
+    p.add(f'<ellipse cx="420" cy="560" rx="260" ry="60" fill="{PHOS}" opacity=".18" filter="url(#soft)"/>')
+    p.add(g(900, 520, 1.1, -6, inner=warship(FLEET, lit=False)))
+    p.add(f'<path d="M420,480 L1320,410" stroke="{PALE}" stroke-width="2" opacity=".25"/>')
+    return p
+
+
+def the_strike() -> Panel:
+    p = Panel(*FULL, space=True)
+    p.add(ice(38, 40, 40, 1880, 1040, 80))
+    p.add(flash_disc(760, 500, 720))
+    p.add(rock(1700, 380, 360, 340, seed=39), shadow_wedge(1700, 380, 340, toward=-1))
+    p.add(g(1380, 560, .72, -4, inner=warship(FLEET, fire=True)))
+    p.add(bolt(1690, 540, 900, 500), bolt(1690, 580, 940, 560))
+    p.add(g(560, 480, .9, -10, inner=meridian(EWI, part="stern", text=False, tag="ms")))
+    p.add(g(1000, 420, .9, 24, inner=meridian(EWI, part="bow", text=False, tag="mb")))
+    p.add(burst(790, 480, 170, seed=40))
+    p.add(junk(41, 300, 200, 1300, 900, 22, "ewi"))
+    p.add(junk_field(42, 60, 600, 700, 1040))
+    p.add(g(330, 860, 1.1, 8, inner=derelict(SIL, seed=9)))
+    p.add(g(300, 940, .9, 8, inner=cutter(SIL, label="", lit=False)))
+    return p
+
+
+def hiding_in_the_junk() -> Panel:
+    p = Panel(*WIDE, space=True)
+    p.add(ice(43, 40, 40, 1880, 860, 80))
+    p.add(g(1500, 300, .55, -20, inner=meridian(SIL, part="stern", lit=False, text=False, tag="hs")))
+    p.add(ember(1560, 260, 90), ember(1420, 330, 60), ember(1680, 380, 40))
+    p.add(beacon_rings(1520, 300, 4, 70))
+    p.add(junk(44, 900, 100, 1900, 700, 24, "ewi"))
+    p.add(junk_field(45, 60, 60, 1200, 860))
+    p.add(g(1200, 180, 1.0, 20, inner=skiff(1)), g(1500, 620, 1.0, 160, inner=skiff(2)), g(980, 760, 1.0, -30, inner=skiff(3)))
+    p.add(g(420, 560, 1.9, -8, inner=derelict(SIL, seed=11)))
+    p.add(g(430, 700, 1.3, 6, inner=cutter(dict(SIL, hull="#0f1d15", light="#1a2c20", edge="#2a4a36"), label="", lit=False)))
+    return p
+
+
+def halloran_face() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(cabin(1440, 1000, seed=46))
+    p.add(g(720, 430, 1.0, inner=face(**HALLORAN)))
+    return p
+
+
+def okoro_face() -> Panel:
+    p = Panel(*HALF, space=True)
+    p.add(cabin(1440, 1000, seed=47))
+    p.add(g(720, 430, 1.0, inner=face(**OKORO)))
+    return p
+
+
 PANELS = {
     "cover.svg": cover,
     "shelter-wide.svg": shelter_wide,
@@ -240,6 +435,20 @@ PANELS = {
     "tender-toward-the-shelter.svg": tender_toward_the_shelter,
     "signal-lost.svg": signal_lost,
     "the-plaque.svg": the_plaque,
+    "junk-site.svg": junk_site,
+    "boat-bay-shift.svg": boat_bay_shift,
+    "cutter-released.svg": cutter_released,
+    "handling-card.svg": handling_card,
+    "crates-on-plate-seven.svg": crates_on_plate_seven,
+    "the-donut.svg": the_donut,
+    "demir-at-control.svg": demir_at_control,
+    "third-crate-home.svg": third_crate_home,
+    "the-reading.svg": the_reading,
+    "out-of-the-shadow.svg": out_of_the_shadow,
+    "the-strike.svg": the_strike,
+    "hiding-in-the-junk.svg": hiding_in_the_junk,
+    "halloran.svg": halloran_face,
+    "okoro.svg": okoro_face,
 }
 
 

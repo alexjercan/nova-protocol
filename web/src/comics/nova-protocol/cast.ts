@@ -11,6 +11,12 @@ export const PELL = "Pell";
 export const BRANDT = "Brandt";
 export const RUIZ = "Ruiz";
 export const TAMM = "Tamm";
+export const CAPTAIN = "Captain";
+export const HALLORAN = "Halloran";
+export const OKORO = "Okoro";
+export const GUARD = "Guard channel";
+export const VOICE = "Unknown voice";
+export const BEACON = "Meridian beacon";
 
 /** Panel art under `web/src/assets/story/nova-protocol/`, drawn by `art/comics/nova_protocol.py`. */
 export const ART = {
@@ -29,4 +35,18 @@ export const ART = {
     tenderTowardTheShelter: "tender-toward-the-shelter.svg",
     signalLost: "signal-lost.svg",
     thePlaque: "the-plaque.svg",
+    junkSite: "junk-site.svg",
+    boatBayShift: "boat-bay-shift.svg",
+    cutterReleased: "cutter-released.svg",
+    handlingCard: "handling-card.svg",
+    cratesOnPlateSeven: "crates-on-plate-seven.svg",
+    theDonut: "the-donut.svg",
+    demirAtControl: "demir-at-control.svg",
+    thirdCrateHome: "third-crate-home.svg",
+    theReading: "the-reading.svg",
+    outOfTheShadow: "out-of-the-shadow.svg",
+    theStrike: "the-strike.svg",
+    hidingInTheJunk: "hiding-in-the-junk.svg",
+    halloran: "halloran.svg",
+    okoro: "okoro.svg",
 } as const;

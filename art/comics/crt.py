@@ -42,6 +42,8 @@ EWI = dict(hull="#8f8656", dark="#5d603e", light="#b0aa75", edge="#3e4130", win=
 SIL = dict(hull="#0a1711", dark="#08130d", light="#0d1d14", edge="#1f3a2b", win="#0a1711", glow="none", band="#0f1a12")
 KESTREL = dict(hull="#c4c2ae", dark="#8c8b78", light="#e6e4d2", edge="#55564a", win="#e0b64a", glow=GOLD, band=GOLD_DARK)
 KESTREL_DEAD = dict(KESTREL, win="#3a3a2c", glow="none")
+FLEET = dict(hull="#4f5f5c", dark="#2f3b39", light="#7b8f8a", edge="#1b2523", win="#2a3d38", glow=PHOS, band="#7b8f8a")
+SCRAP = dict(hull="#6d6845", dark="#3b4a3a", light="#8f8656", edge="#1d2b1f", win=EMBER, glow=EMBER, band=GOLD_DARK)
 
 DEFS = f"""
   <defs>
@@ -78,7 +80,9 @@ DEFS = f"""
     <filter id="soft" x="-50%" y="-50%" width="200%" height="200%">
       <feGaussianBlur stdDeviation="14"/>
     </filter>
-  </defs>"""
+  <linearGradient id="shade-r" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#020a06" stop-opacity=".9"/><stop offset=".55" stop-color="#020a06" stop-opacity=".55"/><stop offset="1" stop-color="#020a06" stop-opacity="0"/></linearGradient>
+  <linearGradient id="shade-l" x1="1" x2="0" y1="0" y2="0"><stop offset="0" stop-color="#020a06" stop-opacity=".9"/><stop offset=".55" stop-color="#020a06" stop-opacity=".55"/><stop offset="1" stop-color="#020a06" stop-opacity="0"/></linearGradient>
+</defs>"""
 
 
 class Panel:
@@ -471,7 +475,9 @@ def deck_hand(helmet_on: bool = False, tool: bool = False) -> str:
 def face(*, skin: str, shadow: str, light: str, hair: str, style: str, headset: str, uniform: str, uniform_dark: str,
          collar: str, jaw: str = "narrow", age: float = .4, stubble: bool = False, heavy_brow: bool = False,
          mouth: str = "flat", helmet_ring: bool = False, glow_below: bool = True) -> str:
-    """A face lit by a screen, 720 tall from hair to shoulders. Origin at the centre of the head."""
+    """A face lit by a screen, 720 tall from hair to shoulders. Origin at the centre of the head.
+
+    style: "neat", "cropped" or "swept". headset: "slim", "deck" or "goggles"."""
     chin = 110 if jaw == "wide" else 80
     head = (f"M-160,-40 C-160,-230 160,-230 160,-40 C160,60 {135 if jaw == 'wide' else 130},150 {chin},205 "
             f"C{chin * .5:.0f},240 {-chin * .5:.0f},240 {-chin},205 C{-135 if jaw == 'wide' else -130},150 -160,60 -160,-40 Z")
@@ -496,6 +502,11 @@ def face(*, skin: str, shadow: str, light: str, hair: str, style: str, headset: 
                     f'<path d="M165,-60 C150,-110 120,-140 80,-150 C120,-120 150,-90 165,-60 Z" fill="#9a9c86" opacity=".8"/>')
     elif style == "cropped":
         hairpath = f'<path d="M-160,-90 C-165,-235 165,-235 160,-90 C120,-150 60,-176 0,-178 C-60,-176 -120,-150 -160,-90 Z" fill="{hair}"/>'
+    elif style == "swept":
+        hairpath = (f'<path d="M-165,-60 C-170,-250 170,-250 165,-60 C150,-120 110,-142 60,-150 C0,-158 -40,-130 -80,-84 '
+                    f'C-110,-52 -150,-40 -165,-60 Z" fill="{hair}"/>'
+                    f'<path d="M-150,-72 C-120,-110 -80,-140 -30,-152" fill="none" stroke="{light}" stroke-width="3" opacity=".35"/>'
+                    f'<path d="M165,-60 C160,-20 165,40 150,90 C170,40 172,-20 165,-60 Z" fill="{hair}"/>')
     beard = f'<path d="M-140,40 C-130,150 -70,225 0,232 C70,225 130,150 140,40 C120,120 60,170 0,175 C-60,170 -120,120 -140,40 Z" fill="{hair}" opacity=".3"/>' if stubble else ""
     brow_w = 14 if heavy_brow else 9
     brow_y = -62 if heavy_brow else -74
@@ -506,7 +517,16 @@ def face(*, skin: str, shadow: str, light: str, hair: str, style: str, headset: 
         lines += (f'<path d="M-90,-150 L90,-150 M-70,-128 L70,-128" stroke="{shadow}" stroke-width="3" opacity=".45" fill="none"/>'
                   f'<path d="M-140,-20 Q-125,-5 -115,20 M140,-20 Q125,-5 115,20" stroke="{shadow}" stroke-width="3" opacity=".5" fill="none"/>')
     mouthpath = ('<path d="M-52,138 L52,138" ' if mouth == "set" else '<path d="M-52,134 Q0,142 52,136" ') + f'stroke="{shadow}" stroke-width="6" fill="none" stroke-linecap="round"/>'
-    if headset == "slim":
+    if headset == "goggles":
+        gear = (f'<path d="M-166,-110 C-120,-186 120,-186 166,-110" fill="none" stroke="{GEAR}" stroke-width="20"/>'
+                f'<rect x="-92" y="-196" width="82" height="50" rx="14" fill="{GEAR}" stroke="{GEAR_EDGE}" stroke-width="4"/>'
+                f'<rect x="10" y="-196" width="82" height="50" rx="14" fill="{GEAR}" stroke="{GEAR_EDGE}" stroke-width="4"/>'
+                f'<rect x="-80" y="-186" width="58" height="30" rx="8" fill="{PHOS}" opacity=".55"{glow()}/>'
+                f'<rect x="22" y="-186" width="58" height="30" rx="8" fill="{PHOS}" opacity=".55"{glow()}/>'
+                f'<circle cx="170" cy="-30" r="34" fill="{GEAR}" stroke="{GEAR_EDGE}" stroke-width="5"/>'
+                f'<path d="M170,4 Q140,120 60,146" fill="none" stroke="{GEAR}" stroke-width="7"/>'
+                f'<circle cx="58" cy="148" r="10" fill="{DEEP}" stroke="{PHOS}" stroke-width="3"/>')
+    elif headset == "slim":
         gear = (f'<rect x="150" y="-46" width="24" height="76" rx="8" fill="{GEAR}" stroke="{GEAR_EDGE}" stroke-width="3"/>'
                 f'<rect x="156" y="-36" width="12" height="8" fill="{PHOS}"{glow()}/>'
                 f'<path d="M162,26 Q140,120 60,146" fill="none" stroke="{GEAR}" stroke-width="7"/>'
@@ -617,3 +637,158 @@ def mark(x: float, y: float, kind: str, label: str, color: str = PHOS, sub: str 
 def plot_text(x: float, y: float, rows: list[tuple[str, str]], size: float = 19, gap: float = 34) -> str:
     """Console log rows, top down: (text, colour)."""
     return "".join(mono(x, y + i * gap, text, size, color, spacing=2) for i, (text, color) in enumerate(rows))
+
+
+# ------------------------------------------------------------ the junk site
+
+def cutter(pal: dict = EWI, label: str = "CUTTER ONE", lit: bool = True, flip: bool = False, crates: int = 0) -> str:
+    """Cutter One, 200 long, facing +x: a glass nose, an open truss aft with a crate rack, a work arm, no guns.
+
+    Pass flip=True when the caller mirrors the boat, so the name still reads left to right."""
+    gl = glow(lit and pal["glow"] != "none")
+    glass = f'<path d="M24,-24 L52,-10 L52,10 L24,24 Z" fill="{pal["win"]}" opacity=".8"{gl}/>' if lit else ""
+    engine = f'<ellipse cx="-118" cy="0" rx="14" ry="7" fill="{pal["glow"]}" opacity=".6"{gl}/>' if lit else ""
+    rack = "".join(f'<g transform="translate({-70 - i * 22} -30)">{crate(.55)}</g>' for i in range(crates))
+    name = ""
+    if label and pal is not SIL:
+        text = mono(-48, 5, label, 9, pal["edge"], weight=700, spacing=1.5)
+        name = f'<g transform="scale(-1 1)">{mono(-16, 5, label, 9, pal["edge"], weight=700, spacing=1.5)}</g>' if flip else text
+    return f"""
+      <path d="M-62,-14 L-100,-14 M-62,14 L-100,14 M-100,-22 V22 M-82,-14 V14" stroke="{pal["dark"]}" stroke-width="5" fill="none"/>
+      <ellipse cx="-104" cy="0" rx="8" ry="11" fill="#04120b" stroke="{pal["edge"]}" stroke-width="2"/>
+      {engine}
+      {rack}
+      <path d="M-62,-20 L-34,-30 L26,-30 L62,-14 L62,14 L26,30 L-34,30 L-62,20 Z" fill="{pal["hull"]}" stroke="{pal["edge"]}" stroke-width="2"/>
+      <path d="M-34,-30 L26,-30 L26,-22 L-34,-22 Z" fill="{pal["light"]}"/>
+      <path d="M-34,22 L26,22 L26,30 L-34,30 Z" fill="{pal["dark"]}"/>
+      <rect x="-26" y="-40" width="24" height="10" rx="3" fill="{pal["dark"]}" stroke="{pal["edge"]}" stroke-width="2"/>
+      <rect x="-26" y="30" width="24" height="10" rx="3" fill="{pal["dark"]}" stroke="{pal["edge"]}" stroke-width="2"/>
+      <path d="M20,-28 L50,-12 L50,12 L20,28 Z" fill="#04120b" stroke="{pal["light"]}" stroke-width="2"/>
+      {glass}
+      <path d="M-4,30 L14,54 L36,60 M36,60 L44,52 M36,60 L42,68" stroke="{pal["dark"]}" stroke-width="5" fill="none" stroke-linecap="round"/>
+      {name}"""
+
+
+def crate(s: float = 1) -> str:
+    """A recovery crate, 44 wide, with an EWI band and a phosphor tag. Origin at the centre."""
+    return (f'<g transform="scale({s})"><rect x="-22" y="-16" width="44" height="32" rx="3" fill="{SUIT_DARK}" stroke="{SUIT_EDGE}" stroke-width="2"/>'
+            f'<rect x="-22" y="-4" width="44" height="8" fill="{GOLD_DARK}"/>'
+            f'<rect x="12" y="-13" width="7" height="7" fill="{PHOS}"{glow()}/></g>')
+
+
+def tag(x: float, y: float, text: str, color: str = PHOS) -> str:
+    """A recovery tag on a hull: a phosphor diamond with a short label."""
+    return g(x, y, inner=f'<path d="M0,-18 L18,0 L0,18 L-18,0 Z" fill="none" stroke="{color}" stroke-width="3"{glow()}/>'
+                        f'<circle r="4" fill="{color}"/>' + mono(28, 6, text, 15, color, spacing=2))
+
+
+def derelict(pal: dict = SIL, seed: int = 1, broken: bool = True) -> str:
+    """A dead mining barge, 320 long, facing +x: a hopper hull cut open at the stern with its ribs showing."""
+    rng = random.Random(seed)
+    ribs = "".join(f'<path d="M{x},-70 Q{x - 10},0 {x},70" fill="none" stroke="{pal["edge"]}" stroke-width="4"/>'
+                   for x in range(-150, -40, 26)) if broken else ""
+    holes = "".join(f'<circle cx="{rng.randint(-20, 120)}" cy="{rng.randint(-40, 40)}" r="{rng.randint(6, 16)}" fill="{SPACE}"/>'
+                    for _ in range(4))
+    body = "M-40,-70 L140,-70 L160,-30 L160,30 L140,70 L-40,70 L-60,20 L-60,-20 Z" if broken else "M-160,-60 L140,-70 L160,-30 L160,30 L140,70 L-160,60 Z"
+    return f"""
+      {ribs}
+      <path d="{body}" fill="{pal["hull"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M-40,-70 L140,-70 L140,-56 L-40,-56 Z" fill="{pal["light"]}"/>
+      <path d="M-20,-110 L0,-70 L100,-70 L120,-110 Z" fill="{pal["dark"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M20,-70 V70 M80,-70 V70" stroke="{pal["edge"]}" stroke-width="2" opacity=".7"/>
+      {holes}"""
+
+
+def warship(pal: dict = FLEET, lit: bool = False, fire: bool = False, name: str = "SEVERANCE", old_name: bool = True) -> str:
+    """A Fleet warship, 900 long, facing +x, origin at centre: a long wedge with two rail apertures at the bow.
+
+    The Kites' name is stencilled in company letters over the painted-out Fleet name."""
+    gl = glow(True)
+    win = pal["win"] if lit else "#101c19"
+    windows = "".join(f'<rect x="{x}" y="-10" width="12" height="6" fill="{win}"/>' for x in range(-360, 180, 40))
+    rails = "".join(f'<rect x="330" y="{y}" width="96" height="16" rx="3" fill="{PHOS_BRIGHT if fire else "#04120b"}" stroke="{pal["light"]}" stroke-width="2"{gl if fire else ""}/>'
+                    for y in (-34, 18))
+    flare = "".join(f'<ellipse cx="440" cy="{cy}" rx="60" ry="22" fill="{PHOS_BRIGHT}" opacity=".75"{gl}/>' for cy in (-26, 26)) if fire else ""
+    engines = "".join(
+        f'<ellipse cx="-446" cy="{cy}" rx="10" ry="14" fill="#04120b" stroke="{pal["dark"]}" stroke-width="3"/>'
+        + (f'<ellipse cx="-470" cy="{cy}" rx="26" ry="9" fill="{PHOS}" opacity=".5"{gl}/>' if lit else "")
+        for cy in (-54, -18, 18, 54))
+    paint = f'<rect x="-300" y="26" width="220" height="30" fill="{pal["dark"]}"/>' if old_name else ""
+    stencil = mono(-290, 50, name, 24, GOLD, weight=700, spacing=6) if name else ""
+    return f"""
+      <path d="M-300,-150 L-260,-90 L60,-90 L20,-150 Z" fill="{pal["dark"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M-140,-186 L-120,-150 L-10,-150 L0,-186 Z" fill="{pal["light"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M-300,150 L-260,90 L60,90 L20,150 Z" fill="{pal["dark"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M-440,-50 L-380,-90 L200,-90 L440,-20 L440,20 L200,90 L-380,90 L-440,50 Z" fill="{pal["hull"]}" stroke="{pal["edge"]}" stroke-width="3"/>
+      <path d="M-380,-90 L200,-90 L200,-72 L-380,-72 Z" fill="{pal["light"]}"/>
+      <path d="M-380,72 L200,72 L200,90 L-380,90 Z" fill="{pal["dark"]}"/>
+      <path d="M-300,-90 V90 M-180,-90 V90 M-60,-90 V90 M60,-90 V90 M180,-90 V90" stroke="{pal["edge"]}" stroke-width="2" opacity=".6"/>
+      <path d="M240,-40 L400,-16 L400,16 L240,40 Z" fill="{pal["dark"]}" opacity=".6"/>
+      {windows}
+      {rails}
+      {flare}
+      {engines}
+      {paint}
+      {stencil}
+      <path d="M250,-70 L290,-50 L250,-30" fill="none" stroke="{pal["light"]}" stroke-width="5"/>"""
+
+
+def skiff(seed: int = 1, label: str = "", lit: bool = True, flip: bool = False) -> str:
+    """A Kite skiff, 100 long, facing +x: mismatched plates, one lamp, a grabber."""
+    rng = random.Random(seed)
+    plates = (f'<path d="M-20,-24 L14,-24 L18,-4 L-16,-4 Z" fill="{KESTREL["hull"]}" opacity=".9"/>'
+              f'<rect x="-34" y="6" width="26" height="16" fill="{GEAR}"/>'
+              f'<rect x="{rng.randint(-10, 20)}" y="8" width="18" height="12" fill="{SUIT_DARK}"/>')
+    lamp = (f'<circle cx="52" cy="-4" r="6" fill="{EMBER}"{glow()}/>'
+            f'<path d="M52,-4 L420,-150 L420,140 Z" fill="{EMBER}" opacity=".07"/>') if lit else ""
+    engine = f'<ellipse cx="-58" cy="0" rx="10" ry="5" fill="{EMBER}" opacity=".6"{glow()}/>' if lit else ""
+    name = ""
+    if label:
+        text = mono(-30, 4, label, 8, INK, weight=700, spacing=1)
+        name = f'<g transform="scale(-1 1)">{mono(-6, 4, label, 8, INK, weight=700, spacing=1)}</g>' if flip else text
+    return f"""
+      {lamp}
+      <path d="M-44,-16 L-24,-26 L30,-26 L50,-8 L50,10 L24,26 L-32,26 L-48,12 Z" fill="{SCRAP["hull"]}" stroke="{SCRAP["edge"]}" stroke-width="2"/>
+      {plates}
+      <rect x="18" y="-18" width="22" height="12" fill="#04120b" stroke="{SCRAP["light"]}" stroke-width="2"/>
+      <path d="M-10,-26 L-16,-48 M-16,-48 L-8,-52" stroke="{SCRAP["light"]}" stroke-width="2" fill="none"/>
+      <path d="M20,26 L34,44 L46,40 M34,44 L36,54" stroke="{SCRAP["dark"]}" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <ellipse cx="-50" cy="0" rx="6" ry="8" fill="#04120b" stroke="{SCRAP["edge"]}" stroke-width="2"/>
+      {engine}
+      {name}"""
+
+
+def orbit_ring(cx: float, cy: float, rx: float, ry: float, tilt: float = -12, color: str = PHOS) -> str:
+    """A dashed orbit track around a body."""
+    return f'<ellipse cx="{cx}" cy="{cy}" rx="{rx}" ry="{ry}" transform="rotate({tilt} {cx} {cy})" fill="none" stroke="{color}" stroke-width="2" stroke-dasharray="10 14" opacity=".55"/>'
+
+
+def shadow_wedge(cx: float, cy: float, r: float, toward: float = 1) -> str:
+    """The unlit side of a body, thrown away from the light: a soft dark wedge."""
+    return (f'<path d="M{cx},{cy - r} L{cx + toward * r * 3.2:.0f},{cy - r * 1.3:.0f} L{cx + toward * r * 3.2:.0f},{cy + r * 1.3:.0f} L{cx},{cy + r} Z" '
+            f'fill="url(#shade-{"r" if toward > 0 else "l"})"/>')
+
+
+def beacon_rings(cx: float, cy: float, n: int = 3, step: float = 60, color: str = PHOS) -> str:
+    """Pulse rings around a transmitter."""
+    return "".join(f'<circle cx="{cx}" cy="{cy}" r="{step * (i + 1)}" fill="none" stroke="{color}" stroke-width="2" stroke-dasharray="6 10" opacity="{.7 - i * .18:.2f}"/>'
+                   for i in range(n))
+
+
+def waveform(x: float, y: float, w: float, amp: float, seed: int = 1, color: str = PHOS, n: int = 90) -> str:
+    """A jagged signal trace."""
+    rng = random.Random(seed)
+    pts = " ".join(f"{x + i * w / n:.0f},{y + rng.uniform(-amp, amp):.0f}" for i in range(n + 1))
+    return f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="3" opacity=".9"{glow()}/>'
+
+
+def cabin(w: int, h: int, seed: int = 21) -> str:
+    """Cutter One's cabin behind a seat: canopy struts over the rings, a console glow below."""
+    return (f'<rect width="{w}" height="{h}" fill="#061109"/>'
+            + ice(seed, 40, 40, w - 40, int(h * .5), 60)
+            + f'<path d="M0,{h * .46:.0f} L{w},{h * .40:.0f} L{w},{h * .48:.0f} L0,{h * .54:.0f} Z" fill="#3a3f2c" stroke="#8f8656" stroke-width="4"/>'
+            + f'<path d="M{w * .5 - 30:.0f},0 L{w * .5 + 30:.0f},0 L{w * .5 + 16:.0f},{h * .46:.0f} L{w * .5 - 16:.0f},{h * .46:.0f} Z" fill="#3a3f2c" stroke="#8f8656" stroke-width="3" opacity=".9"/>'
+            + f'<rect y="{h * .52:.0f}" width="{w}" height="{h * .48:.0f}" fill="#0a1710"/>'
+            + f'<rect x="{w * .1:.0f}" y="{h - 110}" width="{w * .8:.0f}" height="90" rx="10" fill="#3a3f2c" stroke="#8f8656" stroke-width="4"/>'
+            + f'<rect x="{w * .14:.0f}" y="{h - 92}" width="{w * .72:.0f}" height="20" fill="#04120b"/>'
+            + f'<rect x="{w * .15:.0f}" y="{h - 87}" width="{w * .4:.0f}" height="10" fill="{PHOS}"{glow()}/>')

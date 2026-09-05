@@ -40,37 +40,27 @@
   <rect width="1920" height="900" fill="#030d08"/>
   <rect width="1920" height="900" fill="#020a06"/>
   <rect width="1920" height="522" fill="#0a1710"/><line x1="0" y1="0" x2="0" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="190" y1="0" x2="190" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="380" y1="0" x2="380" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="570" y1="0" x2="570" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="760" y1="0" x2="760" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="950" y1="0" x2="950" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1140" y1="0" x2="1140" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1330" y1="0" x2="1330" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1520" y1="0" x2="1520" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1710" y1="0" x2="1710" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><line x1="1900" y1="0" x2="1900" y2="522" stroke="#164c31" stroke-width="3" stroke-opacity=".8"/><rect y="522" width="1920" height="378" fill="#0d1a12"/><line x1="960" y1="522" x2="-600" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="-360" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="-120" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="120" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="360" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="600" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="840" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="1080" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="1320" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="1560" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="1800" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="2040" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="2280" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="960" y1="522" x2="2520" y2="900" stroke="#164c31" stroke-opacity=".5" stroke-width="2"/><line x1="0" y1="552" x2="1920" y2="552" stroke="#164c31" stroke-opacity=".35" stroke-width="2"/><line x1="0" y1="598" x2="1920" y2="598" stroke="#164c31" stroke-opacity=".35" stroke-width="2"/><line x1="0" y1="666" x2="1920" y2="666" stroke="#164c31" stroke-opacity=".35" stroke-width="2"/><line x1="0" y1="756" x2="1920" y2="756" stroke="#164c31" stroke-opacity=".35" stroke-width="2"/><line x1="0" y1="862" x2="1920" y2="862" stroke="#164c31" stroke-opacity=".35" stroke-width="2"/><rect y="512" width="1920" height="14" fill="#3e4130"/><rect y="27" width="1920" height="26" fill="#3b4a3a" stroke="#1d2b1f" stroke-width="2"/><rect x="120" y="36" width="70" height="8" fill="#c2a23b" filter="url(#glow)"/><circle cx="155" cy="54.0" r="220" fill="url(#lamp)"/><rect x="500" y="36" width="70" height="8" fill="#c2a23b" filter="url(#glow)"/><circle cx="535" cy="54.0" r="220" fill="url(#lamp)"/><rect x="880" y="36" width="70" height="8" fill="#c2a23b" filter="url(#glow)"/><circle cx="915" cy="54.0" r="220" fill="url(#lamp)"/><rect x="1260" y="36" width="70" height="8" fill="#c2a23b" filter="url(#glow)"/><circle cx="1295" cy="54.0" r="220" fill="url(#lamp)"/><rect x="1640" y="36" width="70" height="8" fill="#c2a23b" filter="url(#glow)"/><circle cx="1675" cy="54.0" r="220" fill="url(#lamp)"/>
-  <rect x="240" y="150" width="720" height="150" fill="#c2a23b" stroke="#796424" stroke-width="6"/><rect x="254" y="164" width="692" height="122" fill="none" stroke="#06170f" stroke-width="3" opacity=".6"/><rect x="273.0" y="195.0" width="60.0" height="60.0" fill="#06170f"/><text x="303.0" y="237.75" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="30.0" font-weight="700" letter-spacing="0" text-anchor="middle" fill="#c2a23b">EWI</text><text x="360.0" y="243.80357142857144" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="52.23214285714286" font-weight="700" letter-spacing="5.2232142857142865" text-anchor="start" fill="#06170f">WE ARE EXPANDING</text>
-  <rect x="1040" y="150" width="440" height="150" fill="#04120b" stroke="#267b4d" stroke-width="4"/>
-  <text x="1064" y="196" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#c0ffd4">MERIDIAN CONTROL</text><text x="1064" y="236" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#4ed184">SECTION NINE</text><text x="1064" y="276" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#c2a23b">ROSTER CLOSED // NO RECOVERY</text>
-  <g transform="translate(1360 560) rotate(0) scale(-2.0 2.0)">
-      <path d="M-75,-18 L-55,-32 L40,-32 L78,-8 L78,8 L40,32 L-55,32 L-75,18 Z" fill="#8f8656" stroke="#3e4130" stroke-width="2"/>
-      <path d="M-55,-32 L40,-32 L40,-24 L-55,-24 Z" fill="#b0aa75"/>
-      <rect x="-50" y="-44" width="70" height="14" fill="#5d603e" stroke="#3e4130" stroke-width="2"/>
-      <path d="M18,-32 L28,-40 L58,-40 L70,-20 L68,-8 L18,-8 Z" fill="#04120b" stroke="#b0aa75" stroke-width="2"/>
-      <rect x="28" y="-20" width="26" height="12" fill="#4ed184" opacity=".9" filter="url(#glow)"/>
-      <path d="M50,22 L92,40 M92,40 L104,32 M92,40 L100,50" stroke="#5d603e" stroke-width="5" fill="none" stroke-linecap="round"/>
-      <ellipse cx="-78" cy="0" rx="6" ry="9" fill="#04120b" stroke="#3e4130" stroke-width="2"/>
-      <ellipse cx="-84" cy="0" rx="12" ry="6" fill="#4ed184" opacity=".6" filter="url(#glow)"/>
-      <g transform="scale(-1 1)"><text x="-20" y="16" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="12" font-weight="400" letter-spacing="2" text-anchor="start" fill="#3e4130">TENDER 4</text></g></g>
-  <path d="M1200,640 L1200,720 L1160,720 M1520,640 L1520,720 L1560,720" stroke="#3e4130" stroke-width="14" fill="none"/>
-  <g transform="translate(700 700) rotate(0) scale(0.95 0.95)">
-      <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
-      <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
-      <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
-      <path d="M-56,-196 L-84,-120 M56,-196 L84,-120" stroke="#6d6845" stroke-width="22" stroke-linecap="round"/>
-      <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
+  <rect x="120" y="140" width="580" height="122" fill="#c2a23b" stroke="#796424" stroke-width="6"/><rect x="134" y="154" width="552" height="94" fill="none" stroke="#06170f" stroke-width="3" opacity=".6"/><rect x="146.84" y="176.6" width="48.800000000000004" height="48.800000000000004" fill="#06170f"/><text x="171.24" y="211.37" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="24.400000000000002" font-weight="700" letter-spacing="0" text-anchor="middle" fill="#c2a23b">EWI</text><text x="217.60000000000002" y="216.11357142857142" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="41.98214285714286" font-weight="700" letter-spacing="4.198214285714286" text-anchor="start" fill="#06170f">WE ARE EXPANDING</text>
+  <rect x="760" y="130" width="380" height="205" rx="6" fill="#8f8656" stroke="#3e4130" stroke-width="5"/><rect x="770" y="140" width="360" height="185" rx="3" fill="none" stroke="#3e4130" stroke-width="2" opacity=".7"/><circle cx="782" cy="152" r="7" fill="#3e4130"/><circle cx="782" cy="313" r="7" fill="#3e4130"/><circle cx="1118" cy="152" r="7" fill="#3e4130"/><circle cx="1118" cy="313" r="7" fill="#3e4130"/><text x="950.0" y="191.05" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="27" font-weight="700" letter-spacing="4.859999999999999" text-anchor="middle" fill="#06170f">DORIAN PELL</text><text x="950.0" y="219.3" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="14" font-weight="400" letter-spacing="2.52" text-anchor="middle" fill="#06170f">BOAT DECK, EWI MERIDIAN</text><text x="950.0" y="242.85000000000002" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="15" font-weight="700" letter-spacing="2.6999999999999997" text-anchor="middle" fill="#06170f">LOST IN RESCUE</text><text x="950.0" y="265.70000000000005" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="14" font-weight="400" letter-spacing="2.52" text-anchor="middle" fill="#06170f">"ALL HANDS, TENDERS AWAY"</text><text x="950.0" y="284.65000000000003" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="11" font-weight="400" letter-spacing="1.98" text-anchor="middle" fill="#06170f">WE REMEMBER OUR OWN</text>
+  <rect x="1440" y="150" width="380" height="150" fill="#04120b" stroke="#267b4d" stroke-width="4"/>
+  <text x="1464" y="196" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#c0ffd4">BOAT DECK // SHIFT 3</text><text x="1464" y="236" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#4ed184">CUTTER ONE // CARD 7-R</text><text x="1464" y="276" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="22" font-weight="400" letter-spacing="2" text-anchor="start" fill="#c2a23b">UNDER WAY IN 00:56</text>
+  <g transform="translate(1420 590) rotate(0) scale(-2.6 2.6)">
+      <path d="M-62,-14 L-100,-14 M-62,14 L-100,14 M-100,-22 V22 M-82,-14 V14" stroke="#5d603e" stroke-width="5" fill="none"/>
+      <ellipse cx="-104" cy="0" rx="8" ry="11" fill="#04120b" stroke="#3e4130" stroke-width="2"/>
+      <ellipse cx="-118" cy="0" rx="14" ry="7" fill="#4ed184" opacity=".6" filter="url(#glow)"/>
       
-      <circle cx="0" cy="-230" r="24" fill="#5a4c34"/><path d="M-24,-236 A24,24 0 0 1 24,-236 L24,-226 L-24,-226 Z" fill="#2e2c22"/></g>
-  <g transform="translate(980 730) rotate(0) scale(-1.0 1.0)">
-      <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
-      <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
-      <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
-      <path d="M-56,-196 L-84,-120 M56,-196 L84,-120" stroke="#6d6845" stroke-width="22" stroke-linecap="round"/>
-      <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
-      <path d="M40,-150 L96,-120" stroke="#3b4a3a" stroke-width="10" stroke-linecap="round"/><rect x="90" y="-134" width="34" height="22" rx="4" fill="#3b4a3a" stroke="#1d2b1f" stroke-width="2"/>
-      <circle cx="0" cy="-230" r="24" fill="#5a4c34"/><path d="M-24,-236 A24,24 0 0 1 24,-236 L24,-226 L-24,-226 Z" fill="#2e2c22"/></g>
-  <g transform="translate(1120 690) rotate(0) scale(0.8 0.8)">
+      <path d="M-62,-20 L-34,-30 L26,-30 L62,-14 L62,14 L26,30 L-34,30 L-62,20 Z" fill="#8f8656" stroke="#3e4130" stroke-width="2"/>
+      <path d="M-34,-30 L26,-30 L26,-22 L-34,-22 Z" fill="#b0aa75"/>
+      <path d="M-34,22 L26,22 L26,30 L-34,30 Z" fill="#5d603e"/>
+      <rect x="-26" y="-40" width="24" height="10" rx="3" fill="#5d603e" stroke="#3e4130" stroke-width="2"/>
+      <rect x="-26" y="30" width="24" height="10" rx="3" fill="#5d603e" stroke="#3e4130" stroke-width="2"/>
+      <path d="M20,-28 L50,-12 L50,12 L20,28 Z" fill="#04120b" stroke="#b0aa75" stroke-width="2"/>
+      <path d="M24,-24 L52,-10 L52,10 L24,24 Z" fill="#4ed184" opacity=".8" filter="url(#glow)"/>
+      <path d="M-4,30 L14,54 L36,60 M36,60 L44,52 M36,60 L42,68" stroke="#5d603e" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <g transform="scale(-1 1)"><text x="-16" y="5" font-family="IBM Plex Mono, DejaVu Sans Mono, Menlo, monospace" font-size="9" font-weight="700" letter-spacing="1.5" text-anchor="start" fill="#3e4130">CUTTER ONE</text></g></g>
+  <path d="M1300,660 L1300,740 L1260,740 M1560,660 L1560,740 L1600,740" stroke="#3e4130" stroke-width="14" fill="none"/>
+  <circle cx="1420" cy="560" r="460" fill="url(#lamp)"/>
+  <g transform="translate(560 800) rotate(0) scale(1.25 1.25)">
       <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
       <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
       <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
@@ -78,16 +68,22 @@
       <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
       
       <circle cx="0" cy="-232" r="30" fill="#8f8656" stroke="#5d603e" stroke-width="3"/></g>
-  <circle cx="1360" cy="560" r="420" fill="url(#lamp)"/>
-  <g transform="translate(330 700) rotate(0) scale(1.15 1.15)">
-      <path d="M-170,170 L-130,60 L130,60 L170,170 Z" fill="#3b4a3a" stroke="#1d2b1f" stroke-width="3"/>
-      <rect x="-50" y="40" width="100" height="40" fill="#5d603e"/>
-      <circle cx="0" cy="-30" r="112" fill="#8f8656" stroke="#5d603e" stroke-width="4"/>
-      <path d="M-112,-30 A112,112 0 0 1 0,-142" fill="none" stroke="#b0aa75" stroke-width="10" opacity=".8"/>
-      <path d="M-116,-40 A118,118 0 0 1 -40,-140" fill="none" stroke="#4ed184" stroke-width="14" opacity=".9" filter="url(#glow)"/>
-      <rect x="-118" y="-60" width="20" height="60" rx="6" fill="#4ed184" opacity=".9"/>
-      <rect x="98" y="-60" width="20" height="60" rx="6" fill="#4ed184" opacity=".9"/>
-      <path d="M-70,20 L70,20 L60,70 L-60,70 Z" fill="#6d6845" stroke="#3e4130" stroke-width="2"/></g>
+  <g transform="translate(720 780) rotate(0) scale(1.15 1.15)">
+      <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
+      <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
+      <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
+      <path d="M-56,-196 L-84,-120 M56,-196 L84,-120" stroke="#6d6845" stroke-width="22" stroke-linecap="round"/>
+      <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
+      
+      <circle cx="0" cy="-230" r="24" fill="#5a4c34"/><path d="M-24,-236 A24,24 0 0 1 24,-236 L24,-226 L-24,-226 Z" fill="#2e2c22"/></g>
+  <g transform="translate(880 810) rotate(0) scale(1.2 1.2)">
+      <path d="M-22,-110 L-26,-8 M22,-110 L28,-8" stroke="#5d603e" stroke-width="26" stroke-linecap="round"/>
+      <rect x="-40" y="-14" width="30" height="14" rx="4" fill="#3e4130"/><rect x="12" y="-14" width="32" height="14" rx="4" fill="#3e4130"/>
+      <path d="M-56,-200 L-56,-100 L56,-100 L56,-200 Z" fill="#6d6845" stroke="#3e4130" stroke-width="3"/>
+      <path d="M-56,-196 L-84,-120 M56,-196 L84,-120" stroke="#6d6845" stroke-width="22" stroke-linecap="round"/>
+      <rect x="-40" y="-190" width="80" height="12" fill="#5d603e"/>
+      <path d="M40,-150 L96,-120" stroke="#3b4a3a" stroke-width="10" stroke-linecap="round"/><rect x="90" y="-134" width="34" height="22" rx="4" fill="#3b4a3a" stroke="#1d2b1f" stroke-width="2"/>
+      <circle cx="0" cy="-230" r="24" fill="#5a4c34"/><path d="M-24,-236 A24,24 0 0 1 24,-236 L24,-226 L-24,-226 Z" fill="#2e2c22"/></g>
   <rect width="1920" height="900" fill="url(#scan)"/>
   <rect width="1920" height="900" fill="url(#vignette)"/>
 </svg>

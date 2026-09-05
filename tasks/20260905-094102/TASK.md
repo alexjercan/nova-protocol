@@ -17,6 +17,9 @@
   `STORY.md` on 2026-09-05.
 - `GAMEPLAY_PLAN.md`: what the game needs to play the story, scenario by
   scenario, with the consolidated vocabulary inventory and the release cadence.
+- `ACT01.md`: the script of act one. Full dialogue and descriptions, one
+  scene per page, with the reader checklist, the cast and the continuity facts.
+  The comic pages and the first game scenarios are written from it.
 - `art/`: HD panel candidates for The Strike and their generator. The
   production art moved to `art/comics/`.
 - The comic: `web/src/comics/nova-protocol/` (manifest, cast, nine pages),
@@ -207,3 +210,25 @@ and they are now in `STORY.md` and `GAMEPLAY_PLAN.md`:
 
 The comic stays as shipped: the owner accepted it as a proof of concept, with
 small text alignment issues noted for later.
+
+### 2026-09-05: Act one drafted from the game, then scripted
+
+Six pages were drafted from First Shift's lines (the release, the handling
+card, the donut, Demir's challenge, the beacon) with fourteen new panels. The
+owner rejected the draft: too split for a reader who does not know the story,
+and too close to a scenario that is itself a proof of concept and will be
+rewritten. Decision: the story and the game stay apart. The game takes events
+and names from the story, not lines, and the story carries no tutorial.
+
+Act one is now written first as a script, `ACT01.md`: eight pages with the
+full dialogue, the reader checklist, the cast and the continuity facts. The
+draft's presentation decisions survive into it: the captain is a helmet seen
+from behind, Halloran, Okoro and Demir have faces matched to the game's
+portraits, the reader gets the full reading as a recorder transcript marked
+recovered later, and the reader sees the hull in the moonlet's shadow one page
+before the crew does.
+
+The drafted pages, the manifest and the generator vocabulary (Cutter One, the
+warship, skiffs, barges, the cabin, three faces) are committed as a proof of
+concept, labelled so in the manifest, the closing frame and the changelog. The
+pages are replaced when act one is redrawn.

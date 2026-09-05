@@ -616,9 +616,10 @@ The captain still laughs at it. Halloran and Okoro do not. Demir on the radio,
 Brandt on the deck. A Fleet challenge crackles on the guard channel in
 fragments and nobody cares. Fleet is always looking for something.
 
-The work: a re-qualification card after yard work, which is the GOTO tutorial.
-Tag the hulls. Pull a cache. Nothing is wrong, and the reader who has seen the
-prologue knows what ship this is.
+The work: tag the hulls nobody can name for the tugs, and pull a sealed module
+out of one of them. Nothing is wrong, and the reader who has seen the prologue
+knows what ship this is. The game plays this shift as its tutorial with its
+own lessons; the story carries none of them.
 
 #### 2. The strike
 
@@ -631,6 +632,13 @@ leaves at once, because every second on the air is a second for Fleet to fix
 it. Nobody at Saturn was told a warship was missing. Skiffs come in to sweep
 the field. The cutter hides in the junk. 412 dead, Brandt among them. The
 captain knew them four years. The reader does not yet know the voice.
+
+Act one is written out first as a script, `ACT01.md`: eight pages with the
+full dialogue, between the frame pages Four years later and Forty hours. The
+comic is drawn from the script, and the game takes the events and the names
+from it, not the lines. The captain is a helmet seen from behind, as in the
+game's portrait. The reader gets the full reading as a recorder transcript
+marked recovered later; the crew hears one word.
 
 ### Act two, first half: forty hours
 
