@@ -1,25 +1,20 @@
-# Comic panel candidates
+# Panel style candidates
 
-Pixel-block studies for the comic pages, in the campaign portrait style of
-`art/portrait-candidates/industrial-commander-crt-green.svg`: 16 px blocks
-inside the CRT frame, shelf lines, scanlines, the muted khaki and phosphor
-palette. `pixel_panels.py` generates every SVG. The PNGs are `magick` renders
-for quick review.
+HD vector panels in the style of the campaign portraits: the same CRT bezel,
+phosphor palette and scanlines as `art/portrait-candidates/`, drawn as flat
+shapes at 1920x1080 instead of pixel blocks. Each candidate shows The Strike,
+beat 2 of the main comic. `hd_panels.py` draws all of them; run it and
+rasterise with `magick <file>.svg <file>.png`.
 
-The Strike (main comic, beat 2), five ways:
+| File | Framing |
+| --- | --- |
+| `the-strike-a-wide` | Wide shot. Meridian broadside, the bolt from Severance emerging from the moonlet, Cutter One small in the junk. |
+| `the-strike-b-cockpit` | From inside Cutter One. Two helmets, the console, the readout with the carrier link lost. |
+| `the-strike-c-flash` | The instant of the hit. Ships as silhouettes against the flash, junk in the light. |
+| `the-strike-d-aftermath` | The two halves drifting apart, embers, the five skiffs arriving. |
+| `the-strike-e-page` | A three-panel page: the moonlet with one amber light, the hit, Cutter One hiding among the junk. |
 
-- `the-strike-a-wide`: the shot. Severance's nose out of the moonlet's shadow,
-  the bolt, Meridian hit at the bow, Cutter One in the junk at bottom left.
-- `the-strike-b-cockpit`: from inside Cutter One. Two helmets, the canopy,
-  Meridian's flash in the right pane, the guard channel as broken bars on the
-  console.
-- `the-strike-c-flash`: silhouettes against the flash. Meridian's two halves
-  dark against the light, Severance leaving top right, the cutter lit on one
-  side.
-- `the-strike-d-aftermath`: after. Two halves drifting, one window still lit,
-  skiffs sweeping in, the cutter dark in the junk.
-- `the-strike-e-page`: three panels on one page. The shadow, the shot, the
-  junk.
-
-Landscape panels are 768 x 448 (42 x 22 blocks). The page is three 768 x 320
-panels.
+The generator draws every hull and prop from a small set of functions
+(`meridian`, `severance`, `cutter`, `skiff`, `moonlet`, `junk`, `bolt`,
+`burst`, `helmet`) so a chosen framing can be reused for other beats. The
+design page keeps its line-art boards until a style is chosen.
