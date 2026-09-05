@@ -1,8 +1,8 @@
 # Reboot Nova Protocol with block ships and move the Kenney fleet into The Ledger
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 68
-- TAGS: v0.13.0,content,scenario
+- TAGS: v0.13.0, content, scenario
 
 Detailed implementation plan: [PLAN_01.md](PLAN_01.md).
 
