@@ -54,6 +54,18 @@ skiffs hide, and where anything that comes from nowhere comes from.
 Every working site has a moonlet, because the moonlets are where the scrap
 collects and the ice is thickest. Meridian works the junk site under one.
 
+## Gravity
+
+Down is where the drive pushes. A ship under way has weight along its thrust
+line, with its decks stacked toward the engines, and a ship that is coasting,
+holding station or docked has none. A work boat burns for minutes and drifts
+for hours, so its crew works in free fall and straps in for the burns. A
+carrier working a site holds station and is weightless until it moves. Its
+people live in free fall for the weeks of a job and get their weight back on
+the lane. Stations spin: the Shelter's ring turned, the Roost's ring turns, and
+Datum turns its habitat ring on the rock. Nothing at Saturn has weight for
+free, and everyone aboard knows what the ship is doing by which way is down.
+
 ## Distances and time
 
 Nothing on the plate is close. A work boat crosses a sector in hours and the
@@ -139,11 +151,9 @@ on the [Kestrel](kestrel.html) page.
   number.
 - Two dimensions: everything is visible for a long way, so hiding is done in
   junk and behind rocks, never in open space.
+- Weight is a signal. A cup that falls means a burn. A cabin where nothing
+  falls is a ship pretending to be dead.
 
 ## Open questions
 
-- The calendar. Dates count from Season 1 for now. Decide whether the book
-  ever names a real year or an invented era.
-- Gravity. The book assumes carriers and Datum have spin sections and that
-  boats and skiffs have none. Decide before drawing interiors.
-- Which other sectors exist and what is in them. Only K and M are named.
+- None at present. The calendar, gravity and the sector list are decided.

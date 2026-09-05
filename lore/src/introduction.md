@@ -40,8 +40,9 @@ sections. Two sections close every page.
 ## Conventions
 
 - Dates count from Season 1. Y0 is the campaign year. Y-4 is four years before
-  it, the year the Shelter died. The calendar itself is an open question on
-  the Saturn page.
+  it, the year the Shelter died. The book names no other calendar.
+- Down is where the drive pushes. Ships have weight under thrust and none
+  otherwise. Stations spin. The Saturn page has the rules.
 - Each group has a colour on the page and in the sketches. EWI is phosphor
   green. Kestrel is bone white. Earth Fleet is blue. The Kites are amber.
   Earth is grey.

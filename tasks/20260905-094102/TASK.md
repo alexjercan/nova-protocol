@@ -327,5 +327,10 @@ founder Tobias Vell, the Belt Emergency, Resolute's theft from the Callisto
 yard, Kestrel's falconry words and unregistered stations, the roll of dead
 companies, the Kites' receipt names and their rule of never taking crews.
 
+Owner decisions on the Saturn page's open questions: dates stay relative to
+Y0 and the book names no other calendar; gravity follows The Expanse, weight
+comes from the drive and stations spin; sectors stay K and M until a page
+needs another.
+
 Next: the owner reviews the world pages. Batch two writes the five deep people
 two at a time, each with a voice test.
