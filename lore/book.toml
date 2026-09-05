@@ -1,0 +1,14 @@
+[book]
+title = "Nova Protocol Lore"
+authors = ["Alex Jercan"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+additional-css = ["theme/crt.css"]
+no-section-label = true

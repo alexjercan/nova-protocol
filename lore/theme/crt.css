@@ -1,0 +1,373 @@
+/* The lore book as a phosphor screen. Overrides mdbook's theme variables
+   for every theme class, so the toggle cannot leave the look. */
+
+html,
+html.light,
+html.rust,
+html.coal,
+html.navy,
+html.ayu {
+    --ground: #030d08;
+    --ink: #06170f;
+    --deep: #183426;
+    --phos: #4ed184;
+    --phos-bright: #c0ffd4;
+    --phos-dim: #267b4d;
+    --phos-text: #6ea985;
+    --lime: #b8da5d;
+    --amber: #ffb84a;
+    --gold: #c2a23b;
+    --bone: #c4c2ae;
+    --fleet: #36a3ff;
+    --grey: #7b8f8a;
+    --rule: rgba(78, 209, 132, 0.45);
+    --rule-faint: rgba(78, 209, 132, 0.18);
+    --glow: 0 0 6px rgba(78, 209, 132, 0.35);
+
+    --bg: var(--ground);
+    --fg: #b9ffc9;
+    --sidebar-bg: var(--ink);
+    --sidebar-fg: var(--phos-text);
+    --sidebar-non-existant: #2c5a3f;
+    --sidebar-active: var(--phos-bright);
+    --sidebar-spacer: var(--rule-faint);
+    --scrollbar: var(--phos-dim);
+    --icons: var(--phos-text);
+    --icons-hover: var(--phos-bright);
+    --links: var(--lime);
+    --inline-code-color: var(--amber);
+    --theme-popup-bg: var(--ink);
+    --theme-popup-border: var(--phos-dim);
+    --theme-hover: var(--deep);
+    --quote-bg: var(--ink);
+    --quote-border: var(--amber);
+    --table-border-color: var(--rule-faint);
+    --table-header-bg: var(--ink);
+    --table-alternate-bg: rgba(78, 209, 132, 0.04);
+    --searchbar-border-color: var(--phos-dim);
+    --searchbar-bg: var(--ink);
+    --searchbar-fg: var(--fg);
+    --searchbar-shadow-color: transparent;
+    --searchresults-header-fg: var(--phos-text);
+    --searchresults-border-color: var(--rule-faint);
+    --searchresults-li-bg: var(--ink);
+    --search-mark-bg: var(--gold);
+    --color-scheme: dark;
+    --content-max-width: 920px;
+}
+
+html,
+body {
+    font-family: "IBM Plex Mono", "DejaVu Sans Mono", Menlo, monospace;
+    font-size: 15px;
+    line-height: 1.55;
+    background: var(--ground);
+    color: var(--fg);
+}
+
+/* scanlines and the tube's vignette, over everything, touching nothing */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 16, 8, 0.38) 0 1px,
+        transparent 1px 3px
+    );
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1001;
+    background: radial-gradient(
+        ellipse at 50% 45%,
+        transparent 58%,
+        rgba(3, 13, 8, 0.7) 100%
+    );
+}
+
+#theme-toggle,
+#theme-list {
+    display: none;
+}
+
+.menu-title {
+    color: var(--phos-bright);
+    text-shadow: var(--glow);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.95em;
+}
+
+#menu-bar {
+    border-bottom: 1px solid var(--rule-faint);
+    background: var(--ground);
+}
+
+.sidebar {
+    border-right: 1px solid var(--rule-faint);
+    font-size: 0.9em;
+}
+
+.chapter li.part-title {
+    color: var(--phos);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    margin-top: 1.4em;
+}
+
+.chapter li a.active {
+    text-shadow: var(--glow);
+}
+
+.chapter li > .chapter-link-wrapper > span {
+    color: var(--sidebar-non-existant);
+}
+
+.chapter li > .chapter-link-wrapper > span::after {
+    content: " (draft)";
+    font-size: 0.85em;
+}
+
+.content main {
+    max-width: var(--content-max-width);
+}
+
+h1,
+h2,
+h3,
+h4 {
+    font-family: inherit;
+    font-weight: 400;
+    color: var(--phos-bright);
+    text-shadow: var(--glow);
+    letter-spacing: 0.04em;
+    text-wrap: balance;
+}
+
+h1 {
+    font-size: 2em;
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 0.2em;
+    margin-bottom: 0.7em;
+}
+
+h2 {
+    font-size: 1.35em;
+    border-bottom: 1px solid var(--rule-faint);
+    padding-bottom: 0.15em;
+    margin-top: 1.8em;
+    clear: none;
+}
+
+h3 {
+    font-size: 1.1em;
+    color: var(--phos);
+}
+
+a,
+a:visited {
+    color: var(--links);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--links);
+}
+
+a:hover {
+    color: var(--phos-bright);
+    border-bottom-style: solid;
+}
+
+.hatnote {
+    font-style: italic;
+    color: var(--phos-text);
+    padding-left: 1.6em;
+    margin: 0 0 0.9em;
+    font-size: 0.92em;
+}
+
+/* the encyclopedia infobox */
+table.infobox {
+    float: right;
+    clear: right;
+    width: 26em;
+    margin: 0 0 1.2em 1.6em;
+    border: 1px solid var(--phos-dim);
+    border-collapse: collapse;
+    background: #041008;
+    font-size: 0.86em;
+    line-height: 1.4;
+}
+
+table.infobox caption {
+    padding: 0.55em 0.5em;
+    color: var(--phos-bright);
+    text-shadow: var(--glow);
+    font-weight: 700;
+    font-size: 1.1em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid var(--phos-dim);
+    border-bottom: 0;
+    background: var(--ink);
+}
+
+table.infobox th,
+table.infobox td {
+    border: 0;
+    border-top: 1px dotted var(--rule-faint);
+    padding: 0.35em 0.55em;
+    vertical-align: top;
+    text-align: left;
+    background: none;
+}
+
+table.infobox th {
+    color: var(--phos-text);
+    font-weight: 400;
+    width: 38%;
+}
+
+table.infobox td.image {
+    padding: 0;
+    border-top: 0;
+}
+
+table.infobox td.image img {
+    display: block;
+    width: 100%;
+    border-bottom: 1px solid var(--phos-dim);
+}
+
+table.infobox .cap {
+    padding: 0.35em 0.55em 0.45em;
+    color: var(--phos-text);
+    font-style: italic;
+    font-size: 0.92em;
+}
+
+table.infobox.ewi,
+table.infobox.ewi caption {
+    border-color: var(--phos);
+}
+
+table.infobox.kestrel,
+table.infobox.kestrel caption {
+    border-color: var(--bone);
+}
+
+table.infobox.kestrel caption {
+    color: var(--bone);
+    text-shadow: 0 0 6px rgba(196, 194, 174, 0.35);
+}
+
+table.infobox.fleet,
+table.infobox.fleet caption {
+    border-color: var(--fleet);
+}
+
+table.infobox.fleet caption {
+    color: var(--fleet);
+    text-shadow: 0 0 6px rgba(54, 163, 255, 0.35);
+}
+
+table.infobox.kites,
+table.infobox.kites caption {
+    border-color: var(--amber);
+}
+
+table.infobox.kites caption {
+    color: var(--amber);
+    text-shadow: 0 0 6px rgba(255, 184, 74, 0.35);
+}
+
+table.infobox.earth,
+table.infobox.earth caption {
+    border-color: var(--grey);
+}
+
+table.infobox.earth caption {
+    color: var(--grey);
+    text-shadow: none;
+}
+
+@media (max-width: 760px) {
+    table.infobox {
+        float: none;
+        width: auto;
+        margin: 0 0 1.2em;
+    }
+}
+
+/* article tables */
+.content table:not(.infobox) {
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 0.92em;
+}
+
+.content table:not(.infobox) th,
+.content table:not(.infobox) td {
+    border: 1px solid var(--rule-faint);
+    padding: 0.35em 0.6em;
+    text-align: left;
+    vertical-align: top;
+}
+
+.content table:not(.infobox) thead th {
+    background: var(--ink);
+    color: var(--phos-bright);
+    letter-spacing: 0.04em;
+}
+
+/* radio and paper quotations */
+blockquote {
+    margin: 1em 0;
+    padding: 0.6em 1em;
+    border-left: 3px solid var(--amber);
+    background: var(--ink);
+    color: var(--phos-bright);
+}
+
+blockquote p {
+    margin: 0.3em 0;
+}
+
+blockquote .who {
+    color: var(--amber);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-size: 0.85em;
+}
+
+code {
+    font-family: inherit;
+    background: var(--ink);
+    color: var(--amber);
+    padding: 0.05em 0.3em;
+}
+
+hr {
+    border: 0;
+    border-top: 1px solid var(--rule-faint);
+}
+
+strong {
+    color: var(--phos-bright);
+}
+
+.nav-chapters,
+.mobile-nav-chapters {
+    color: var(--phos-text);
+}
+
+::selection {
+    background: var(--deep);
+    color: var(--phos-bright);
+}

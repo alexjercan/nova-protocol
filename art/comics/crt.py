@@ -347,8 +347,8 @@ def harrier(lit: bool = True, flip: bool = False) -> str:
 
 # ----------------------------------------------------------------- station
 
-def station(pal: dict = KESTREL) -> str:
-    """The Shelter: Kestrel's largest station, standing on its rock. Origin at the rock's top centre, 1100 wide, 720 tall."""
+def station(pal: dict = KESTREL, name: str = "SHELTER") -> str:
+    """A Kestrel ring station standing on its rock, named on its module. Origin at the rock's top centre, 1100 wide, 720 tall."""
     gl = glow(pal["glow"] != "none")
     win = pal["win"]
     tower_win = "".join(f'<rect x="{x}" y="{y}" width="14" height="8" fill="{win}"/>' for y in range(-470, -130, 42) for x in (-64, -34, -4, 26, 50))
@@ -380,7 +380,7 @@ def station(pal: dict = KESTREL) -> str:
       <path d="M0,-700 L-60,-640 M0,-700 L60,-640" stroke="{pal["dark"]}" stroke-width="5"/>
       <circle cx="0" cy="-708" r="9" fill="{win}"{gl}/>
       <g{gl}>{tower_win}{ring_win}{module_win}</g>
-      {mono(-380, -170, "SHELTER", 26, pal["edge"], weight=700, spacing=6)}
+      {mono(-380, -170, name, 26, pal["edge"], weight=700, spacing=6)}
       {mono(300, -170, "KESTREL", 18, pal["edge"], spacing=5)}"""
 
 

@@ -6,25 +6,20 @@
 
 ## Workspace
 
-- `STORY.md`: the full story document. Source of truth. World, characters,
-  locations, ships, names, timeline, both comics written out, the game
-  mapping, and the rules of the world.
-- `design.html`: the design document with the who-is-who tables, the system
-  map, the timeline, and the storyboard draft of both comics. Published as
-  the artifact "Off the Roster":
-  https://claude.ai/code/artifact/4af44c85-e778-494d-80f7-5933e640add3
-- `REVIEW01.md`: the owner's review of the first story version. Folded into
-  `STORY.md` on 2026-09-05.
-- `GAMEPLAY_PLAN.md`: what the game needs to play the story, scenario by
-  scenario, with the consolidated vocabulary inventory and the release cadence.
-- `ACT01.md`: the script of act one. Full dialogue and descriptions, one
-  scene per page, with the reader checklist, the cast and the continuity facts.
-  The comic pages and the first game scenarios are written from it.
-- `art/`: HD panel candidates for The Strike and their generator. The
-  production art moved to `art/comics/`.
-- The comic: `web/src/comics/nova-protocol/` (manifest, cast, nine pages),
-  read at `/story/nova-protocol/`. Its panel art is drawn by
-  `art/comics/nova_protocol.py` on the shared vocabulary in `art/comics/crt.py`.
+- `lore/` (repository root): the lore book. An mdbook with a CRT stylesheet,
+  one page per group, person, place, ship and document, and the Season 1
+  timeline. `lore/README.md` says how to build it. The story's source of truth
+  from 2026-09-05.
+- `REVIEW01.md`, `REVIEW02.md`: the owner's reviews of the first story
+  document. Their answers fold into the book's pages as the book grows.
+- `VOCABULARY.md`: the scenario engine's action and capability inventory,
+  taken at `3af5d051` for the scenario-one rebuild.
+- The tech demo: the comic at `web/src/comics/nova-protocol/` (the prologue
+  and a proof-of-concept act one) and the `first_shift` campaign chapter. Both
+  stay as shipped and are not touched until the book is done.
+- Retired on 2026-09-05: `STORY.md`, `ACT01.md`, `GAMEPLAY_PLAN.md`,
+  `design.html` and `art/`. They last lived in commit `d3bd9de1`. The artifact
+  "Off the Roster" is superseded.
 
 ## Log
 
@@ -296,3 +291,41 @@ to the docs resolves.
 The Ledger needed nothing but the rename, which it already carries; it lints
 and maps clean. A copy installed under `~/.local/share/nova-protocol/mods/`
 predates the rename and refuses to load, which is the migration working.
+
+### 2026-09-05: Start over as a lore book
+
+The owner judged the story work over-reached: the act-one pages and then the
+script were written from a plot document and came out generic, and they
+borrowed from a scenario that is itself a proof of concept. Decision: go
+slower. Build a wiki-style lore book first, with every group and person given
+a history, a motivation and a voice, and find the gaps, before any dialogue or
+drawn page. The fixed spine stays: Meridian comes to the job; Pell strikes
+with a stolen warship; the crew escapes by luck, is hunted, and learns what it
+carries; it allies with the Kites, turns Pell from the ships to the record,
+and loses him to a sacrifice as Calloway dies of his own greed; Fleet takes
+the credit, EWI makes Calloway the scapegoat, and the crew flies on with the
+Kites.
+
+The book is `lore/` at the repository root: mdbook, a CRT stylesheet on the
+comic's phosphor palette, and sketches drawn by `lore/sketches.py` on the
+comic's `crt.py` vocabulary, which gained a station name for it. Every page
+ends with Hooks and Open questions. Dates count from Season 1 (Y0); the
+Shelter is Y-4.
+
+The old story documents are removed from the task rather than mixed with the
+new work. `STORY.md`, `ACT01.md`, `GAMEPLAY_PLAN.md`, `design.html` and the
+`art/` candidates last lived in commit `d3bd9de1`. The reviews stay. The comic
+and the Rust scenarios stay as the tech demo and are not touched.
+
+Batch one: the introduction and nine world pages (Saturn, Ice, Earth and the
+Board, EarthWorks Industrial, Earth Fleet, Kestrel, The dead companies, The
+Kites, How power works at Saturn), written freestyle and consistent only with
+the fixed names and the spine. New facts the pages introduce, for the owner to
+strike or keep: the Outer Resources Act and its three duties, the nine-section
+contract, the procedure names (Nova, Transit, Eclipse, Perihelion), the
+founder Tobias Vell, the Belt Emergency, Resolute's theft from the Callisto
+yard, Kestrel's falconry words and unregistered stations, the roll of dead
+companies, the Kites' receipt names and their rule of never taking crews.
+
+Next: the owner reviews the world pages. Batch two writes the five deep people
+two at a time, each with a voice test.
