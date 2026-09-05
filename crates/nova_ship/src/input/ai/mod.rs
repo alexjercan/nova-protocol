@@ -57,6 +57,20 @@ pub use self::{
     torpedo::{AITorpedoBay, AI_TORPEDO_MAX_RANGE},
 };
 
+/// A world for an AI unit test: bare, plus the empty collider tree the
+/// acquisition scan reads.
+///
+/// Acquisition asks for line of sight, and that question goes through avian's
+/// `SpatialQuery`, which refuses to run without `ColliderTrees`. A rig that
+/// spawns no colliders wants exactly this: an empty tree, in which nothing
+/// stands between anybody.
+#[cfg(test)]
+pub(super) fn ai_test_world() -> World {
+    let mut world = World::new();
+    world.init_resource::<avian3d::collider_tree::ColliderTrees>();
+    world
+}
+
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{

@@ -475,7 +475,7 @@ mod avoidance_tests {
     }
 
     fn blocked_patrol_world() -> (World, Entity, Vec3) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let rock_center = Vec3::new(10.0, 0.0, -200.0);
@@ -521,7 +521,7 @@ mod avoidance_tests {
     #[test]
     fn an_authored_waypoint_slack_moves_the_advance_gate() {
         for (slack, expect_first_leg_held) in [(None, false), (Some(5.0), true)] {
-            let mut world = World::new();
+            let mut world = crate::input::ai::ai_test_world();
             world.init_resource::<FlightSettings>();
             world.init_resource::<Time>();
             let first = Vec3::new(0.0, 0.0, -60.0);
@@ -561,7 +561,7 @@ mod avoidance_tests {
     #[test]
     fn the_patrol_gate_counts_the_hull_it_is_flying() {
         for (hull, expect_first_leg_held) in [(None, true), (Some(10.0), false)] {
-            let mut world = World::new();
+            let mut world = crate::input::ai::ai_test_world();
             world.init_resource::<FlightSettings>();
             world.init_resource::<Time>();
             // 80 u out: past the default 50 + 25 gate, inside 50 + 10 + 25.
@@ -601,7 +601,7 @@ mod avoidance_tests {
     #[test]
     fn the_patrol_gate_reads_the_ships_own_margin() {
         for (margin, expect_first_leg_held) in [(None, true), (Some(60.0), false)] {
-            let mut world = World::new();
+            let mut world = crate::input::ai::ai_test_world();
             world.init_resource::<FlightSettings>();
             world.init_resource::<Time>();
             let first = Vec3::new(0.0, 0.0, -80.0);
@@ -640,7 +640,7 @@ mod avoidance_tests {
     /// mark it exists to reach.
     #[test]
     fn a_nav_beacon_is_a_mark_to_fly_to_not_a_rock_to_fly_around() {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         // Squarely on the leg, and big enough that a rock this size would
@@ -729,7 +729,7 @@ mod avoidance_tests {
         // point (a straight leg into the rock); it flies the waypoint pushed
         // out of the bubble, and the arrival check still runs on the raw
         // waypoint so the route turns on time.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let rock_center = W1 + Vec3::new(0.0, 30.0, 0.0);
@@ -763,7 +763,7 @@ mod avoidance_tests {
         // Rock A blocks the route leg; the corner rounding A happens to have
         // rock B sitting on ITS leg. The held corner must not be flown
         // blind - the next pass replaces it with a corner rounding B.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         world.spawn((
@@ -854,7 +854,7 @@ mod patrol_idle_tests {
     }
 
     fn patrol_world() -> (World, Entity) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let ship = world
@@ -980,7 +980,7 @@ mod patrol_idle_tests {
         // Parked on a one-waypoint route with the drift killed: nothing to
         // fly, so nothing is engaged (re-engaging would churn
         // engage/complete every frame).
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let ship = world
@@ -1003,7 +1003,7 @@ mod patrol_idle_tests {
     #[test]
     fn an_idle_drifter_burns_to_rest_and_then_rests() {
         // No route, no hostile: Idle. Drifting engages a STOP burn...
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let ship = world
@@ -1149,7 +1149,7 @@ mod orbit_directive_tests {
     /// A calm world with one orbit-directed AI ship; the well is spawned
     /// separately so tests can omit or delay it.
     fn orbit_world() -> (World, Entity) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<FlightSettings>();
         world.init_resource::<Time>();
         let ship = world

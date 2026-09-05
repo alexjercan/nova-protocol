@@ -58,7 +58,7 @@ does NOT get an entry - and it is the only place they are written down.
   lights the hulls it passes; Low draws neither.
 - A lock is a radio link and rock stops radio: a contact behind an asteroid or
   a planetoid cannot be locked, and cover drifting across a held lock breaks
-  it. AI targeting is unchanged.
+  it. Hostiles lose you the same way.
 
 ### Scenarios & Objectives
 - Nav beacons are radar-acquirable within 12 km by default, up from 6 km.

@@ -284,7 +284,7 @@ mod torpedo_tests {
     /// `update_torpedo_section_input` once (the lazy insert) before
     /// asserting on trigger state.
     fn torpedo_world(target_position: Vec3) -> (World, Entity, Entity, Entity) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         // Empty collider trees for the launch gate's SpatialQuery: no
         // colliders means a clear line of fire, which is this rig's intent.

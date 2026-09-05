@@ -4,6 +4,10 @@
 //! that is opaque to radar ([`RadarOccluder`]) standing on that line breaks it.
 //! The rule is one ray, asked at collection time, so the radar pick, lock
 //! validity and the threat set cannot disagree about what the ship can see.
+//!
+//! It lives here rather than in the player's targeting because the AI's own
+//! acquisition asks the same question of the same world: a hostile cannot
+//! pick a ship it has no line to either.
 
 use avian3d::prelude::*;
 use bevy::{ecs::system::SystemParam, prelude::*};
@@ -17,12 +21,15 @@ use crate::prelude::*;
 /// every caller needs the same three world reads and none of them needs to
 /// know that a ray cast is how the question is answered.
 #[derive(SystemParam)]
-pub(super) struct RadarScan<'w, 's> {
+pub(crate) struct RadarScan<'w, 's> {
     spatial: SpatialQuery<'w, 's>,
-    /// Every collider that stops radar, and the body it belongs to. The
-    /// occluder rides the collider (see [`RadarOccluder`]), and a body's
-    /// collider is usually a child node of the body the lock names.
-    occluders: Query<'w, 's, Option<&'static ChildOf>, With<RadarOccluder>>,
+    /// Every collider that stops radar. The marker rides the COLLIDER (see
+    /// [`RadarOccluder`]), which is what the ray meets.
+    occluders: Query<'w, 's, (), With<RadarOccluder>>,
+    /// Which body a collider belongs to - avian's own mapping, the same one
+    /// the AI's line-of-FIRE gate reads, so a nested collider resolves to
+    /// the body a lock actually names.
+    collider_of: Query<'w, 's, &'static ColliderOf>,
 }
 
 impl RadarScan<'_, '_> {
@@ -31,7 +38,7 @@ impl RadarScan<'_, '_> {
     ///
     /// The target's OWN occluding collider never blocks it: a rock is lockable,
     /// and the ray to its centre goes through its own hull to get there.
-    pub(super) fn is_occluded(&self, origin: Vec3, at: Vec3, body: Entity) -> bool {
+    pub(crate) fn is_occluded(&self, origin: Vec3, at: Vec3, body: Entity) -> bool {
         let reach = at - origin;
         let Ok(direction) = Dir3::new(reach) else {
             // The scanner is standing on the body. Nothing can be between them.
@@ -53,13 +60,13 @@ impl RadarScan<'_, '_> {
 
     /// Whether `collider` is opaque to radar looking for `body` - which its
     /// own colliders are not.
+    ///
+    /// An occluding collider avian cannot attribute to a body counts as
+    /// cover: failing closed loses a lock, failing open locks through a
+    /// world.
     fn stops_radar_for(&self, collider: Entity, body: Entity) -> bool {
-        if collider == body {
-            return false;
-        }
-        self.occluders
-            .get(collider)
-            .is_ok_and(|of| of.map(ChildOf::parent) != Some(body))
+        self.occluders.contains(collider)
+            && self.collider_of.get(collider).map(|of| of.body) != Ok(body)
     }
 }
 

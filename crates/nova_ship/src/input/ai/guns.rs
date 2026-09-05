@@ -367,7 +367,7 @@ mod fire_discipline_tests {
     /// An AI ship engaged on a hand-set target, with one turret whose
     /// muzzle sits at the origin facing -Z. Returns (world, turret, muzzle).
     fn firing_world(target_position: Vec3, target_velocity: Vec3) -> (World, Entity, Entity) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         // Empty collider trees for the fire gate's SpatialQuery: no
         // colliders means no occluders. Occlusion itself is covered by the
         // physics-app tests in `line_of_fire_tests`.
@@ -806,7 +806,7 @@ mod per_turret_defense_tests {
         // End to end: assignment -> aim. Before the per-turret pass BOTH
         // barrels were fed the ship-wide pick, so the second torpedo flew in
         // with nothing pointed at it.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         let (ship, turrets) = engaged_ship(&mut world, 2);
         let near = Vec3::new(0.0, 10.0, -60.0);
         let far = Vec3::new(0.0, 10.0, -120.0);
@@ -828,7 +828,7 @@ mod per_turret_defense_tests {
         // The anti-idleness rule, at the gun. A mount that cannot depress onto
         // the inbound must not be parked on it - it goes back to the ship the
         // hull is fighting, which is the only useful thing left to shoot.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         let (ship, turrets) = engaged_ship(&mut world, 1);
         torpedo(&mut world, ship, Vec3::new(0.0, -60.0, -30.0));
 
@@ -848,7 +848,7 @@ mod per_turret_defense_tests {
         // The fallback path: a mount that the assignment pass has never seen
         // (its first frame, a rig without the pass) behaves exactly as it did
         // before per-turret assignment existed.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         let (ship, _) = engaged_ship(&mut world, 0);
         let inbound = torpedo(&mut world, ship, Vec3::new(0.0, 10.0, -60.0));
         world.get_mut::<AIPointDefenseTarget>(ship).unwrap().0 = Some(inbound);

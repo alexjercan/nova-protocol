@@ -213,7 +213,7 @@ mod threat_tests {
     use super::*;
 
     fn threat_world() -> (World, Entity) {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.add_observer(on_damage_track_threat);
         let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
         (world, ship)
@@ -370,6 +370,9 @@ mod evade_tests {
             1.0 / 60.0,
         )));
         app.add_observer(on_damage_track_threat);
+        // Acquisition reads the collider tree for line of sight; this rig
+        // spawns no colliders, so an empty one is the right answer.
+        app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         app.add_systems(Update, (update_ai_target, update_behavior_state).chain());
 
         // Inside engage range, NOT aiming at the ship (default forward -Z,
@@ -444,7 +447,7 @@ mod evade_tests {
         // The second cheap signal: inside aim range with the hostile's hull
         // forward on my anchor. Driven through the real systems with a
         // zero-delta Time - entry does not need elapsed time.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
         world.spawn((
@@ -470,7 +473,7 @@ mod evade_tests {
     fn beyond_aim_range_a_pointed_nose_is_not_a_threat() {
         // Same geometry outside AI_THREAT_AIM_RANGE (still inside engage
         // range): the nose cannot hurt me yet, so the ship keeps engaging.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
         world.spawn((
@@ -494,7 +497,7 @@ mod evade_tests {
         // Target dead ahead at -Z, far outside the standoff band: Engage
         // would burn straight at it. Evade must not - the jink leg points
         // well off the line of sight.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         let target = world
             .spawn((
                 SpaceshipRootMarker,

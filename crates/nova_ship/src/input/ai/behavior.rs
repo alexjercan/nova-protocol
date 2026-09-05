@@ -1053,7 +1053,7 @@ mod behavior_state_tests {
     fn an_ai_ship_spawns_engaged_by_requirement() {
         // The default state preserves pre-state-machine behavior: an AI
         // ship dropped into a fight chases and shoots immediately.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         let ship = world.spawn(AISpaceshipMarker).id();
         assert_eq!(
             *world.entity(ship).get::<AIBehaviorState>().unwrap(),
@@ -1065,7 +1065,7 @@ mod behavior_state_tests {
     fn the_state_idles_without_a_target_and_reengages_with_one() {
         // Drive the real acquisition -> transition pipeline: no hostile in
         // range means no target means Idle; a hostile appearing re-engages.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
         let ship = world.spawn((AISpaceshipMarker, Transform::default())).id();
 
@@ -1096,7 +1096,7 @@ mod behavior_state_tests {
     /// chasing. An armed ship in the same spot engages - the control.
     #[test]
     fn a_non_combatant_never_targets_or_engages() {
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<Time>();
 
         // A hostile (player-marked) ship well inside acquisition range.
@@ -1138,7 +1138,7 @@ mod behavior_state_tests {
     fn idle_cuts_thrust_fire_and_aim() {
         // Flip a fully lit ship to Idle with its target still present: every
         // actuator must be explicitly zeroed, not left at its last value.
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         // Empty collider trees for the fire gate's SpatialQuery: no
         // colliders means no occluders, which is this rig's intent.
         world.init_resource::<ColliderTrees>();
@@ -1326,7 +1326,7 @@ mod engage_grace_tests {
         use avian3d::collider_tree::ColliderTrees;
         use bevy::ecs::system::RunSystemOnce;
 
-        let mut world = World::new();
+        let mut world = crate::input::ai::ai_test_world();
         world.init_resource::<ColliderTrees>();
         let torpedo = world
             .spawn((Transform::from_translation(Vec3::new(0.0, 0.0, -100.0)),))

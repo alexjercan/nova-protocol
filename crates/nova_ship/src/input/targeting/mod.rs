@@ -48,7 +48,7 @@ use nova_gameplay::prelude::*;
 mod component_lock;
 mod contacts;
 mod gesture;
-mod occlusion;
+pub(crate) mod occlusion;
 pub mod radar;
 pub mod safety;
 mod state;

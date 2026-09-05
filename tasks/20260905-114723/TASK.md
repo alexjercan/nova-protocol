@@ -93,6 +93,31 @@ marker is a marker. A world is the same class of body as a rock, so
 as the asteroid spawner does. Both spawners are pinned by a test that the
 marker is on the COLLIDER node and not on the root a lock names.
 
+The AI sees the same way, by the owner's call: the FLAT rule, no authored
+switch. `update_ai_target` takes the same `RadarScan`, and `pick_ai_target`
+gained an `in_sight` predicate asked LAST, after the range gate - the ray is
+the expensive question. `RadarScan` moved from `pub(super)` to `pub(crate)`
+with it: it is the ship's scanner, not the player's.
+
+The consequence is deliberate and has teeth. An AI ship that loses its pick
+behind a rock has `AITarget` `None`, which `update_behavior_state` turns into
+its passive routine - a patrolling raider goes back to patrolling until the
+rock clears, and re-acquires the moment it can see again. There is no
+occlusion grace on either side.
+
+Point defense is NOT gated. `update_point_defense_target` picks the inbound
+torpedo to swat, and a torpedo is a thing to survive rather than a thing to
+see; a ship that stopped defending itself because a rock crossed the line
+would simply eat the torpedo.
+
+The guns already knew about cover: `ai_line_of_fire_blocked` (`ai/guns.rs`)
+has held the trigger behind ANY tangible collider since before this task.
+What was missing was the sensor half - the AI held fire but kept the pick,
+chased, and waited. Now it loses the target as well as the shot. That gate
+maps a collider to its body through avian's `ColliderOf`, so `RadarScan` was
+moved onto the same mapping instead of walking `ChildOf`: it is the
+authoritative one, it survives nesting, and the two gates now answer alike.
+
 ## Proof
 
 Six unit tests in `occlusion.rs` (a rock on the line, off the line, beyond the
@@ -105,20 +130,28 @@ tree, not a snapshot). `flight_log.rs` covers the new drop line.
 drop reason, holds the radar again from behind the same rock and finds the
 target is not even offered, then pulls the rock away and takes the lock back.
 Four invariants, on the roster. Probe: OK, four markers in the timeline.
-`system_hud_indicators`, `bug_neutralized_quiet`, `system_outcomes` and
-`system_player_path` were re-run against the change: all OK.
+
+The AI half is pinned by two tests in `ai/acquisition.rs`: the pure scorer
+skips a candidate the `in_sight` predicate refuses and falls to the next one
+in the tier, and a live physics world proves a rock between an AI ship and the
+player empties `AITarget` and that despawning the rock fills it again. No
+range beat: staging it needs a hostile AI ship in the range's scenario, and
+one would chase and shoot the player through every other beat.
+
+Re-run against the change, all OK: `system_hud_indicators`,
+`bug_neutralized_quiet`, `system_outcomes`, `system_player_path`,
+`planet_types`, `compare_planets`, and the `first_shift` orbit and attack
+scenes. `nova_ship --lib` is 860 green.
 
 ## Not done
-
-**The AI still sees through rock.** `crates/nova_ship/src/input/ai/
-acquisition.rs` has its own acquisition pass and never calls
-`collect_lockable`, so a hostile keeps its pick on the player from behind
-cover. The task's Notes asked whether the AI reads the same pass; it does not.
-Fixing it is a change to how the AI fights - hostiles losing and re-finding
-the player around rocks - and belongs to whoever wants that, not to a
-line-of-sight rule for the player's radar.
 
 **No hysteresis.** A rock grazing the line drops a held lock immediately and
 nothing re-takes it; the player holds the radar again. That is the simple
 behaviour on purpose. If a rock edge turns out to strobe a lock in real play,
 the fix is a short grace on the occluded branch, not a wider ray.
+
+It cuts both ways now. An AI ship skimming a rock edge can drop its pick,
+fall to its passive routine for a frame and take it back, and the FSM has no
+damping of its own for that. Watch a fight staged inside a belt before
+deciding whether a grace is needed; if it is, it belongs on the occluded
+branch for both sides rather than in the behaviour machine.

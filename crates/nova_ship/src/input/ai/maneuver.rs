@@ -340,6 +340,9 @@ mod rotation_tests {
             1.0 / 60.0,
         )));
         app.init_resource::<FlightSettings>();
+        // Acquisition reads the collider tree for line of sight; this rig
+        // spawns no colliders, so an empty one is the right answer.
+        app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         // The real acquisition system feeds the rotation system, so the
         // harness drives the same pipeline the plugin chains.
         app.add_systems(
