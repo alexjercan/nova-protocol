@@ -125,22 +125,23 @@ reader believes the hero is dead, the same as the crew.
 ### Act two, first half: forty hours
 
 3. **Shelter in the junk.** The Kettle, a dead tender hull in the junk, owner
-   unknown. Okoro pressurises it and grafts Cutter One's cockpit and drive
-   onto its frame. Over the next shifts the crew feeds it piece by piece from
-   the field: a cell bank, then two debris PDCs off a wrecked tug. Salvage runs into the wreck for air, cells, and the
-   recorder module, which also holds Meridian's log archive. Distress to the
-   desk. Calloway, warm: recovery in nine days, hold position, costs against
-   remaining term. Air is forty hours. Nobody on the crew is surprised.
+   unknown. Okoro pressurises it and grafts Cutter One's cockpit and drive onto
+   its frame. Over the next shifts the crew feeds it piece by piece from the
+   field: a cell bank, then two debris PDCs off a wrecked tug. Salvage runs
+   into the wreck for air, cells, and the recorder module, which also holds
+   Meridian's log archive. Distress to the desk. Calloway, warm: recovery in
+   nine days, hold position, costs against remaining term. Air is forty hours.
+   Nobody on the crew is surprised.
 4. **The module.** Okoro plugs it in for the beacon log and gets the archive.
    Four years ago: the Board's order, Calloway's acknowledgement in a voice
    the crew hears every week, the no-rescue, Pell refusing. This morning: the
    transmission before the shot, same man. Okoro: "That is... it can't be."
    Halloran said once, four years ago, to nobody, that it was planned.
-5. **The run.** Scavengers scavenge. The skiffs return to strip the carcass
-   and find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the
-   company's name for the rock where Halloran used to live. Calloway's
-   channel says Datum. Halloran says the Shelter. The Kettle's PDCs
-   against skiffs through the ring junk. First fight.
+5. **The run.** Scavengers scavenge. The skiffs return to strip the carcass and
+   find a live tender. The crew runs for EWI's nearest safe harbour, Datum, the
+   company's name for the rock where Halloran used to live. Calloway's channel
+   says Datum. Halloran says the Shelter. The Kettle's PDCs against skiffs
+   through the ring junk. First fight.
 
 ### Midpoint
 
@@ -160,8 +161,9 @@ reader believes the hero is dead, the same as the crew.
 7. **The Roost.** One of a dozen dead Kestrel stations. A village: Kestrel
    survivors, renewed workers, the volunteers who died. Pell alive. Okoro's
    reunion. Pell says what he did and why and is not sorry, and 412 includes
-   Brandt. His clock: Fleet will take the ship back within weeks, so he hits
-   Azimuth within days. Sixty of the village crew Severance.
+   Brandt. Okoro says nothing. A thought bubble only the reader gets: so he was
+   willing to kill me too. His clock: Fleet will take the ship back within
+   weeks, so he hits Azimuth within days. Sixty of the village crew Severance.
 8. **The argument.** The module is worth more than the ship: proof, with
    Calloway's voice on it. EWI's deal is a trap with a warm voice. Fleet
    would seize the module and lose it. Pell is right about the company and
