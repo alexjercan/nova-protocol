@@ -71,7 +71,7 @@ Naming scheme, so a name tells its group at once:
 | Azimuth | EWI's second carrier, arriving in days with 400 workers and the replacement stations. Pell's intended second target. | EWI |
 | Parallax | EWI's own security ship, bought when Fleet was cut. Calloway's ship. Destroyed at Datum with Severance. | EWI |
 | Cutter One | The crew's unarmed cutter. The tutorial ship. | EWI |
-| Nova Protocol | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 3 on. The name is section nine of the EWI contract, the clause that closes a lost site's roster. | Scrap, then the crew |
+| Nova Protocol | A dead tender hull in the junk, owner unknown. The crew grafts Cutter One onto it: the cutter's cockpit and drive on the tender's frame. Then piece by piece from the field: a cell bank, two debris PDCs, a better drive. The crew's ship from beat 3 on. The name is section nine of the EWI contract, the clause that closes a lost site's roster. Ends at the Roost, off the roster. | Scrap, then the crew |
 | Resolute, renamed Severance | The Fleet warship the Kites stole weeks ago. Nobody at Saturn was told a warship was loose. Strikes once and moves, because Fleet is hunting it. Destroyed at Datum with Parallax. | Kites |
 | Skiffs | Small scrap-built pirate ships. Sweep, pick, herd. Each carries a company-word name of its own, given as the comic needs it. | Kites |
 
@@ -201,8 +201,11 @@ reader believes the hero is dead, the same as the crew.
     with the rotation home to prove it. The press prints all of it. Every
     worker who heard the module knows better. The Kites have lost their ship
     and their leader and gained proof and a cause. The Board is named and
-    untouched. The crew's answer to the praise is the owner's call, with a
-    recommended line under Open decisions.
+    untouched. The crew does not stay for any of it. Nova Protocol undocks
+    while Vigilant is still decelerating and is gone into the ring junk before
+    the account is written. The praise and the rotation home go out to a
+    channel nobody answers. Last page: the Roost, three people, one ship, the
+    module. Off the roster.
 
 ## Branches
 
@@ -213,6 +216,8 @@ reader believes the hero is dead, the same as the crew.
   Parallax. EWI's deal and Fleet's protection are arguments in the scene, not
   branches.
 - **Calloway and Pell** die with their ships at Datum. Neither fate is open.
+- **The ending (no fork).** No fork in the game either. The final scenario ends
+  with the run to the Roost. The comic ends on the same page.
 
 ## How the company reads on the page
 
@@ -255,12 +260,7 @@ Never a speech. Only habits and paperwork:
 
 ## Open decisions
 
-- The crew's answer to EWI's praise. Recommended: the comic has them refuse the
-  rotation home and fly Nova Protocol to the Roost, off the roster. The praise
-  is what EWI gave the Kestrel survivors, a medal in place of the money and the
-  same silence expected. Alternatives: they take the rotation home and the last
-  page is Earth with the module's words unsaid, or one of the three signs and
-  two fly.
+None. Every call above is taken.
 
 ## Next steps
 

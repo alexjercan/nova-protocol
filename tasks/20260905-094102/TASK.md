@@ -51,10 +51,10 @@ Owner decisions taken into `STORY.md`:
   clause that closes a lost site's roster, named at beat 3.
 - Finale: Parallax and Severance destroy each other, the crew plays the module,
   Vigilant arrives late and takes the credit, EWI blames Calloway alone and
-  praises the crew.
+  praises the crew. The crew flees before the account is written and flies Nova
+  Protocol to the Roost. No choice in the comic or the game.
 
-Open: the crew's answer to EWI's praise (recommended: refuse the rotation home
-and fly Nova Protocol to the Roost). No chapter split yet.
+Open: none. No chapter split yet.
 
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
