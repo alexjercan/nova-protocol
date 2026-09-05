@@ -48,8 +48,10 @@ Owner decisions taken into `STORY.md`:
 - Names: EWI survey words, Kestrel birds, Fleet virtues, Scavengers rename
   with company words. Azimuth is the second carrier.
 
-Open: Calloway's fate, Pell's fate, the Scavengers' own name, the (tbd)
-names, the main comic title. No chapter split yet.
+Open: the crew's ending (recommended: refuse EWI's settlement and fly the
+Kettle to the Roost), the Scavengers' own name, the Kettle's final name, the
+main comic title. Calloway and Pell die with their ships at Datum. No chapter
+split yet.
 
 Next: owner review of `design.html` and `STORY.md`, then split into cutscene
 scenarios and gameplay scenarios, then write the prologue and main comics.
