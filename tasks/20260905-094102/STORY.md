@@ -170,8 +170,8 @@ reader believes the hero is dead, the same as the crew.
    wrong about the carrier. Halloran, who has said what everyone thinks for
    four years, says it to Pell: Azimuth is four hundred of us and Calloway is
    one. Okoro: the man who took a tender for strangers, where is he. The
-   captain decides. The comic goes with Pell, on the crew's terms: Calloway
-   and the truth, not the carrier.
+   captain decides. Comic and game go with Pell, on the crew's terms:
+   Calloway and the truth, not the carrier. No fork here.
 
 ### Act three: Datum
 
@@ -196,9 +196,9 @@ reader believes the hero is dead, the same as the crew.
 - **Midpoint bad ending (game only).** Trust Calloway, hand over the
   module, fly the GOTO, get blasted on the approach. Short, early, and it
   teaches the player what the company is. The comic does not show it.
-- **Argument fork (game only).** The game may offer EWI's deal or Fleet's
-  protection as branches from beat 8. The comic follows one line: Pell's side
-  on the crew's terms.
+- **The argument (no fork).** Comic and game both go with Pell against
+  Parallax. EWI's deal and Fleet's protection are arguments in the scene, not
+  branches.
 - **Calloway and Pell** at the end are the owner's calls, not yet made.
 
 ## How the company reads on the page

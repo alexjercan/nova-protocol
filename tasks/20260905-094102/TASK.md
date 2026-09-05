@@ -43,7 +43,7 @@ Owner decisions taken into `STORY.md`:
 - The prologue is a separate comic. It shows the staged order. Only Pell's
   survival stays a surprise.
 - A bad ending at the midpoint: trust Calloway, hand over the module, fly the
-  GOTO, get blasted. The comic follows Pell's side. The game may fork at the
+  GOTO, get blasted. Comic and game follow Pell's side. No fork at the
   argument.
 - Names: EWI survey words, Kestrel birds, Fleet virtues, Scavengers rename
   with company words. Azimuth is the second carrier.
